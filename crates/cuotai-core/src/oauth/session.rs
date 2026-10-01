@@ -1,0 +1,278 @@
+use super::{
+    flows, reference, requires_client_registration, LoginPrompt, OAuthConfig, OAuthError,
+    OAuthToken, SystemTokenStore, TokenStore,
+};
+use crate::{Credentials, EnvironmentCredentials, Provider};
+use chrono::Utc;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+/// Owns persistent credentials; no browser/terminal effects. Share one instance
+/// across monitors to serialize rotating refresh tokens within the application.
+pub struct OAuthSession {
+    http: reqwest::Client,
+    store: Arc<dyn TokenStore>,
+    secrets: Arc<dyn Credentials>,
+    refresh_lock: Arc<Mutex<()>>,
+}
+
+impl OAuthSession {
+    pub fn system() -> Result<Self, OAuthError> {
+        Self::new(Arc::new(SystemTokenStore), Arc::new(EnvironmentCredentials))
+    }
+
+    /// Opt-in plaintext credentials for local development, never a fallback.
+    /// Release builds reject this operation before touching the filesystem.
+    pub fn development_sqlite(path: &std::path::Path) -> Result<Self, OAuthError> {
+        Self::new(
+            super::store::development_store(path)?,
+            Arc::new(EnvironmentCredentials),
+        )
+    }
+
+    pub fn new(
+        store: Arc<dyn TokenStore>,
+        secrets: Arc<dyn Credentials>,
+    ) -> Result<Self, OAuthError> {
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(std::time::Duration::from_secs(30))
+            .user_agent(concat!("cuotai/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|_| OAuthError::Network)?;
+        Ok(Self {
+            http,
+            store,
+            secrets,
+            refresh_lock: Arc::new(Mutex::new(())),
+        })
+    }
+
+    /// The returned operation is cancelled by dropping it or its finish future.
+    /// Tokens remain in memory until explicitly committed by `save_login`.
+    pub async fn begin(
+        &self,
+        provider: Provider,
+        config: &OAuthConfig,
+    ) -> Result<OAuthLogin, OAuthError> {
+        config.validate(provider)?;
+        let pending = if requires_client_registration(provider) {
+            Pending::Cloud(
+                flows::begin(&self.http, provider, config, self.client_secret(config)?).await?,
+            )
+        } else {
+            Pending::Native(reference::begin(&self.http, provider, config).await?)
+        };
+        Ok(OAuthLogin {
+            pending,
+            key: storage_key(provider, config)?,
+        })
+    }
+
+    /// Explicit user-authorized import; never called during normal refresh/startup.
+    pub async fn import_cursor(&self, config: &OAuthConfig) -> Result<AuthorizedLogin, OAuthError> {
+        config.validate(Provider::Cursor)?;
+        let path = config
+            .options
+            .get("database_path")
+            .filter(|s| !s.trim().is_empty())
+            .map(std::path::PathBuf::from);
+        let token = super::cursor_import::import(path).await?;
+        Ok(AuthorizedLogin {
+            key: storage_key(Provider::Cursor, config)?,
+            token,
+        })
+    }
+
+    fn client_secret(&self, config: &OAuthConfig) -> Result<Option<String>, OAuthError> {
+        config.client_secret_env.as_ref().map(|name| self.secrets.get(name)
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| OAuthError::Configuration("Variável do client secret ausente; exporte-a antes de iniciar o aplicativo.".into())))
+            .transpose()
+    }
+
+    pub async fn save_login(&self, login: &AuthorizedLogin) -> Result<(), OAuthError> {
+        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let store = Arc::clone(&self.store);
+        let key = login.key.clone();
+        let token = login.token.clone();
+        tokio::task::spawn_blocking(move || {
+            let _guard = guard;
+            store.save(&key, &token)
+        })
+        .await
+        .map_err(|_| storage_error())?
+    }
+
+    pub async fn access_token(
+        &self,
+        provider: Provider,
+        config: &OAuthConfig,
+    ) -> Result<String, OAuthError> {
+        Ok(self.credentials(provider, config).await?.access_token)
+    }
+
+    pub async fn credentials(
+        &self,
+        provider: Provider,
+        config: &OAuthConfig,
+    ) -> Result<OAuthToken, OAuthError> {
+        config.validate(provider)?;
+        let key = storage_key(provider, config)?;
+        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let store = Arc::clone(&self.store);
+        let load_key = key.clone();
+        let token = tokio::task::spawn_blocking(move || store.load(&load_key)).await
+            .map_err(|_| storage_error())??
+            .ok_or_else(|| OAuthError::Configuration("Login não encontrado no armazenamento seguro. Abra o wizard e autentique novamente.".into()))?;
+        if token
+            .expires_at
+            .is_none_or(|expiry| expiry > Utc::now() + chrono::Duration::seconds(60))
+        {
+            if token.access_token.trim().is_empty() {
+                return Err(OAuthError::InvalidResponse);
+            }
+            return Ok(token);
+        }
+        if token
+            .refresh_token
+            .as_ref()
+            .is_none_or(|t| t.trim().is_empty())
+        {
+            return Err(OAuthError::Expired);
+        }
+        let secret = self.client_secret(config)?;
+        let http = self.http.clone();
+        let config = config.clone();
+        let store = Arc::clone(&self.store);
+        // Once token rotation starts, complete persistence even if the caller
+        // cancels its quota query; otherwise a rotated refresh token is lost.
+        tokio::spawn(async move {
+            let mut renewed = if requires_client_registration(provider) {
+                flows::refresh(&http, provider, &config, secret.as_deref(), &token).await?
+            } else {
+                reference::refresh(&http, provider, &config, &token).await?
+            };
+            for (key, value) in &token.metadata {
+                renewed
+                    .metadata
+                    .entry(key.clone())
+                    .or_insert_with(|| value.clone());
+            }
+            let returned = renewed.clone();
+            tokio::task::spawn_blocking(move || {
+                let _guard = guard;
+                store.save(&key, &renewed)
+            })
+            .await
+            .map_err(|_| storage_error())??;
+            Ok(returned)
+        })
+        .await
+        .map_err(|_| storage_error())?
+    }
+
+    pub async fn logout(&self, provider: Provider, config: &OAuthConfig) -> Result<(), OAuthError> {
+        let key = storage_key(provider, config)?;
+        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || {
+            let _guard = guard;
+            store.delete(&key)
+        })
+        .await
+        .map_err(|_| storage_error())?
+    }
+}
+
+fn storage_error() -> OAuthError {
+    OAuthError::Storage("Falha na operação com o cofre do sistema.".into())
+}
+
+// Bind saved tokens to provider, registered app and tenant. Editing the TOML
+// must not redirect a token to a different provider/application.
+fn storage_key(provider: Provider, config: &OAuthConfig) -> Result<String, OAuthError> {
+    config.validate(provider)?;
+    let namespace =
+        uuid::Uuid::parse_str(&config.credential_id).map_err(|_| OAuthError::InvalidResponse)?;
+    let identity = if config.options.is_empty() {
+        serde_json::to_vec(&(provider, &config.client_id, &config.tenant))
+    } else {
+        serde_json::to_vec(&(provider, &config.client_id, &config.tenant, &config.options))
+    }
+    .map_err(|_| OAuthError::InvalidResponse)?;
+    Ok(uuid::Uuid::new_v5(&namespace, &identity).to_string())
+}
+
+enum Pending {
+    Cloud(flows::PendingLogin),
+    Native(reference::PendingLogin),
+}
+impl Pending {
+    fn prompt(&self) -> &LoginPrompt {
+        match self {
+            Self::Cloud(p) => p.prompt(),
+            Self::Native(p) => p.prompt(),
+        }
+    }
+    async fn finish(self) -> Result<OAuthToken, OAuthError> {
+        match self {
+            Self::Cloud(p) => p.finish().await,
+            Self::Native(p) => p.finish().await,
+        }
+    }
+}
+
+pub struct OAuthLogin {
+    pending: Pending,
+    key: String,
+}
+impl OAuthLogin {
+    pub fn prompt(&self) -> &LoginPrompt {
+        self.pending.prompt()
+    }
+    pub async fn finish(self) -> Result<AuthorizedLogin, OAuthError> {
+        Ok(AuthorizedLogin {
+            key: self.key,
+            token: self.pending.finish().await?,
+        })
+    }
+
+    /// Complete a pending browser flow with bounded manual code submissions.
+    /// Invalid MiMo codes do not restart the flow or echo submitted data.
+    pub async fn finish_with_codes(
+        self,
+        codes: tokio::sync::mpsc::Receiver<String>,
+        errors: tokio::sync::mpsc::Sender<String>,
+    ) -> Result<AuthorizedLogin, OAuthError> {
+        let token = match self.pending {
+            Pending::Cloud(pending) => pending.finish().await?,
+            Pending::Native(pending) => pending.finish_with_codes(codes, errors).await?,
+        };
+        Ok(AuthorizedLogin {
+            key: self.key,
+            token,
+        })
+    }
+}
+
+/// Tokens intentionally opaque and non-Debug. Safe to hold until wizard commit.
+pub struct AuthorizedLogin {
+    key: String,
+    token: OAuthToken,
+}
+
+impl AuthorizedLogin {
+    /// Only whitelisted nonsecret quota metadata is exposed to the wizard.
+    pub fn account_params(
+        &self,
+        provider: Provider,
+        config: &OAuthConfig,
+    ) -> std::collections::BTreeMap<String, String> {
+        super::account_params(provider, config, &self.token.metadata)
+    }
+}
+
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod tests;

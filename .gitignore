@@ -1,0 +1,11 @@
+/target/
+*.rs.broken
+/cuotai.toml
+.env
+.env.*
+!.env.example
+.DS_Store
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm

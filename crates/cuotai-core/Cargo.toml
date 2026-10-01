@@ -1,0 +1,33 @@
+[package]
+name = "cuotai-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+thiserror.workspace = true
+futures-util = "0.3"
+toml = "0.8"
+uuid = { version = "1", features = ["v4", "v5"] }
+keyring = { version = "4.2", features = ["v1", "dbus-secret-service-keyring-store"] }
+sha2 = "0.10"
+base64 = "0.22"
+hmac.workspace = true
+sha1.workspace = true
+rand = "0.8"
+url = "2"
+rsa = "0.9"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+aes-gcm = "0.10"
+rusqlite = { version = "0.38", features = ["bundled"] }
+dirs = "6"
+
+[dev-dependencies]
+wiremock = "0.6"
+parking_lot = "0.12"
+tempfile = "3"

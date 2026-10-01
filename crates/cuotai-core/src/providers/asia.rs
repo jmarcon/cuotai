@@ -1,0 +1,525 @@
+//! Consultas de saldo de conta via APIs oficiais asiáticas (somente leitura).
+//!
+//! Fontes primárias consultadas em 2026-09-28:
+//!
+//! - **MiniMax saldo de conta** (`MINIMAX_IO_API_KEY`)
+//!   - `GET https://www.minimax.io/account/query_balance` (Bearer)
+//!     - Selecionado automaticamente quando a chave começa com
+//!       `sk-api-` (`src/client/endpoints.ts::selectUsageEndpoint`); chaves
+//!       de Token/Coding Plan (sem esse prefixo) são tratadas pelo
+//!       adaptador `router_minimax`.
+//!     - Campos: `available_amount`, `cash_balance`, `voucher_balance`,
+//!       `credit_balance`, `owed_amount`, `balance_alert_switch`,
+//!       `balance_alert_threshold`, `base_resp`. A moeda **não é
+//!       documentada** pela MiniMax para este endpoint; o rótulo de
+//!       unidade é neutro para não inferir.
+//!   - Toda resposta traz `base_resp.status_code`; status não-zero é
+//!     considerado erro mesmo em HTTP 200
+//!     (`src/client/http.ts::requestJson`).
+//!
+//! - **Kimi / Moonshot Open Platform** (KIMI_API_KEY, saldo da conta)
+//!   - `GET https://api.moonshot.ai/v1/users/me/balance` (Bearer)
+//!     - Documentado em <https://platform.kimi.ai/docs/api/balance.md>.
+//!     - `available_balance`, `voucher_balance`, `cash_balance` em
+//!       **USD**. `cash_balance` pode ser negativo (dívida);
+//!       `voucher_balance` nunca.
+//!     - Exige `code == 0` e `status == true`.
+//!   - Kimi Code (assinatura/programação) **não** expõe endpoint
+//!     público de cota — apenas console e CLI proprietario `/usage`
+//!     (<https://www.kimi.com/code/docs/en/kimi-code/membership.html>).
+//!     ⇒ Não implementar modo Kimi Coding.
+//!
+//! - **Qwen / DashScope / Model Studio** (QWEN_API_KEY)
+//!   - DashScope expõe apenas inferência
+//!     (`POST /api/v1/services/aigc/...`, `/v1/chat/completions`,
+//!     `/anthropic/v1/messages`) e Batch API
+//!     (<https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope>).
+//!   - O saldo de cobrança da conta Alibaba Cloud requer
+//!     `QueryAccountBalance` (Financial Management API), autenticada
+//!     com `AccessKey ID` + `AccessKey Secret` da conta mestre
+//!     (<https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview>).
+//!   - ⇒ `Unsupported`.
+
+use super::{json, secret, Context, Data, QueryError};
+use crate::{Account, Metric, Provider};
+use serde::Deserialize;
+
+/// URLs internacionais oficiais (não configuráveis pelo usuário final;
+/// apenas os testes recebem uma base privada via `*_at(account, ctx, base)`).
+const MINIMAX_ACCOUNT_BALANCE_URL: &str = "https://www.minimax.io/account/query_balance";
+const KIMI_BALANCE_URL: &str = "https://api.moonshot.ai/v1/users/me/balance";
+const QWEN_DASHSCOPE_DOCS_URL: &str =
+    "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope";
+const QWEN_BILLING_DOCS_URL: &str =
+    "https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview";
+
+pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
+    match account.provider {
+        Provider::MiniMax => minimax(account, ctx).await,
+        Provider::Kimi => kimi(account, ctx).await,
+        Provider::Qwen => Err(QueryError::unsupported(format!(
+            "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) não concede acesso ao \
+             saldo de cobrança da conta. A chave autoriza apenas inferência via \
+             /api/v1/services/aigc/...; o saldo Alibaba Cloud requer \
+             QueryAccountBalance (Financial Management API), autenticada com \
+             AccessKey ID/Secret da conta mestre. Fontes primárias: {} e {}",
+            QWEN_DASHSCOPE_DOCS_URL, QWEN_BILLING_DOCS_URL
+        ))),
+        other => Err(QueryError::unsupported(format!(
+            "{} é consultado por outro adaptador.",
+            other.label()
+        ))),
+    }
+}
+
+// ------------------------------------------------------------------ MiniMax
+
+/// Apenas o saldo da conta (`MINIMAX_IO_API_KEY` pay-as-you-go) continua
+/// aqui: chaves `sk-api-…` chamam `/account/query_balance`; chaves de
+/// Token/Coding Plan (qualquer outro valor) seguem para
+/// `super::router_minimax::fetch`, que implementa a leitura de quota na
+/// ordem do registro (`/token_plan/remains` → `/coding_plan/remains`).
+#[derive(Deserialize)]
+struct MinimaxBaseResp {
+    status_code: i64,
+}
+
+#[derive(Deserialize)]
+struct MinimaxAccountBalanceResponse {
+    available_amount: String,
+    cash_balance: String,
+    voucher_balance: String,
+    credit_balance: String,
+    owed_amount: String,
+    #[serde(default)]
+    balance_alert_switch: bool,
+    base_resp: MinimaxBaseResp,
+}
+
+fn minimax_check_base(resp: &MinimaxBaseResp) -> Result<(), QueryError> {
+    if resp.status_code == 0 {
+        Ok(())
+    } else {
+        Err(QueryError {
+            status: crate::Status::Error,
+            message: format!(
+                "MiniMax respondeu base_resp.status_code={} na verificação de saldo.",
+                resp.status_code
+            ),
+        })
+    }
+}
+
+fn parse_balance_amount(raw: &str) -> Result<f64, QueryError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(QueryError::schema());
+    }
+    let value: f64 = trimmed.parse().map_err(|_| QueryError::schema())?;
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(QueryError::schema())
+    }
+}
+
+/// Envelope interno que aceita `base` privada (para wiremock). A
+/// produção passa `MINIMAX_ACCOUNT_BALANCE_URL`; os testes injetam a URL
+/// local do mock diretamente.
+async fn minimax_balance_at(
+    account: &Account,
+    ctx: &Context<'_>,
+    base: &str,
+) -> Result<Data, QueryError> {
+    let key = secret(account, ctx, "MINIMAX_IO_API_KEY")?;
+    let request = ctx
+        .http
+        .get(base)
+        .bearer_auth(&key)
+        .header("Content-Type", "application/json")
+        .timeout(ctx.timeout);
+    let resp: MinimaxAccountBalanceResponse = json(request).await?;
+    minimax_check_base(&resp.base_resp)?;
+    let available = parse_balance_amount(&resp.available_amount)?;
+    let cash = parse_balance_amount(&resp.cash_balance)?;
+    let voucher = parse_balance_amount(&resp.voucher_balance)?;
+    let credit = parse_balance_amount(&resp.credit_balance)?;
+    let owed = parse_balance_amount(&resp.owed_amount)?;
+    Ok(Data {
+        metrics: vec![
+            Metric {
+                label: "Saldo disponível".into(),
+                used: None,
+                limit: None,
+                remaining: Some(available),
+                unit: "—".into(),
+                period: Some("saldo atual".into()),
+                resets_at: None,
+            },
+            Metric {
+                label: "Saldo em caixa".into(),
+                used: None,
+                limit: None,
+                remaining: Some(cash),
+                unit: "—".into(),
+                period: Some("saldo atual".into()),
+                resets_at: None,
+            },
+            Metric {
+                label: "Voucher".into(),
+                used: None,
+                limit: None,
+                remaining: Some(voucher),
+                unit: "—".into(),
+                period: Some("saldo atual".into()),
+                resets_at: None,
+            },
+            Metric {
+                label: "Crédito".into(),
+                used: None,
+                limit: None,
+                remaining: Some(credit),
+                unit: "—".into(),
+                period: Some("saldo atual".into()),
+                resets_at: None,
+            },
+            Metric {
+                label: "Valor devido (dívida)".into(),
+                used: None,
+                limit: None,
+                remaining: Some(owed),
+                unit: "—".into(),
+                period: Some("saldo atual".into()),
+                resets_at: None,
+            },
+        ],
+        notes: vec![
+            format!(
+                "Chave pay-as-you-go (sk-api-…): consulta do saldo da conta em {}.",
+                MINIMAX_ACCOUNT_BALANCE_URL
+            ),
+            "A moeda retornada por /account/query_balance não é documentada explicitamente; o rótulo é neutro (—) para não inferir a unidade.".into(),
+            format!(
+                "Alerta de saldo: {}.",
+                if resp.balance_alert_switch { "ativado" } else { "desativado" }
+            ),
+        ],
+        source: MINIMAX_ACCOUNT_BALANCE_URL.to_string(),
+    })
+}
+
+pub(crate) async fn minimax(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
+    let key = secret(account, ctx, "MINIMAX_IO_API_KEY")?;
+    if key.starts_with("sk-api-") {
+        minimax_balance_at(account, ctx, MINIMAX_ACCOUNT_BALANCE_URL).await
+    } else {
+        super::router_minimax::fetch(account, ctx).await
+    }
+}
+
+// -------------------------------------------------------------------- Kimi
+
+#[derive(Deserialize)]
+struct KimiBalanceEnvelope {
+    code: i64,
+    #[serde(default)]
+    status: Option<bool>,
+    #[serde(default)]
+    data: Option<KimiBalanceData>,
+}
+
+#[derive(Deserialize)]
+struct KimiBalanceData {
+    available_balance: f64,
+    voucher_balance: f64,
+    cash_balance: f64,
+}
+
+/// Envelope interno que aceita `base` privada para wiremock.
+async fn kimi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, QueryError> {
+    let key = secret(account, ctx, "KIMI_API_KEY")?;
+    let url = if base == KIMI_BALANCE_URL {
+        KIMI_BALANCE_URL
+    } else {
+        // Injeção de teste: combina base + path.
+        &format!("{}/v1/users/me/balance", base.trim_end_matches('/'))
+    };
+    let request = ctx.http.get(url).bearer_auth(&key).timeout(ctx.timeout);
+    let resp: KimiBalanceEnvelope = json(request).await?;
+    if resp.code != 0 || resp.status != Some(true) {
+        return Err(QueryError::schema());
+    }
+    let data = resp.data.ok_or_else(QueryError::schema)?;
+    if !data.available_balance.is_finite()
+        || !data.voucher_balance.is_finite()
+        || !data.cash_balance.is_finite()
+    {
+        return Err(QueryError::schema());
+    }
+    let mut metrics = Vec::with_capacity(3);
+    let mut add = |label: &str, value: f64| {
+        metrics.push(Metric {
+            label: label.into(),
+            used: None,
+            limit: None,
+            remaining: Some(value),
+            unit: "USD".into(),
+            period: Some("saldo atual".into()),
+            resets_at: None,
+        });
+    };
+    add("Saldo disponível (KIMI_API_KEY)", data.available_balance);
+    add("Voucher", data.voucher_balance);
+    add("Saldo em caixa (pode ser negativo)", data.cash_balance);
+    Ok(Data {
+        metrics,
+        notes: vec![
+            "A chave da plataforma.kimi.ai é independente da plataforma.kimi.com (assinatura Kimi Code/Membership); usar a chave em outro endpoint retorna 401.".into(),
+            "Valores em USD por documentação oficial; cash_balance pode ser negativo (dívida) — voucher não.".into(),
+            "Sem endpoint público de cota Kimi Code/Membership com esta chave; a consulta de uso da assinatura fica restrita ao console e ao CLI proprietario.".into(),
+        ],
+        source: KIMI_BALANCE_URL.to_string(),
+    })
+}
+
+pub(crate) async fn kimi(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
+    kimi_at(account, ctx, KIMI_BALANCE_URL).await
+}
+
+// -------------------------------------------------------------------- testes
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Credentials, Status};
+    use std::collections::BTreeMap;
+    use std::time::Duration;
+    use wiremock::matchers::{header, method};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    struct TestCredentials(&'static str, &'static str);
+    impl Credentials for TestCredentials {
+        fn get(&self, name: &str) -> Option<String> {
+            if name == self.0 {
+                Some(self.1.to_string())
+            } else {
+                None
+            }
+        }
+    }
+
+    fn account(provider: Provider, env: &'static str) -> Account {
+        Account {
+            name: "conta".into(),
+            provider,
+            credential_env: Some(env.into()),
+            oauth: None,
+            params: BTreeMap::new(),
+            refresh_seconds: None,
+        }
+    }
+
+    fn ctx_with<'a>(http: &'a reqwest::Client, creds: &'a dyn Credentials) -> Context<'a> {
+        Context {
+            http,
+            credentials: creds,
+            timeout: Duration::from_secs(5),
+        }
+    }
+
+    #[test]
+    fn minimax_check_base_trata_ausente_e_zero() {
+        assert!(minimax_check_base(&MinimaxBaseResp { status_code: 0 }).is_ok());
+        let err = minimax_check_base(&MinimaxBaseResp { status_code: 7 }).unwrap_err();
+        assert!(matches!(err.status, Status::Error));
+        assert!(err.message.contains("status_code=7"));
+    }
+
+    #[test]
+    fn parse_balance_amount_rejeita_strings_invalidas() {
+        assert!(parse_balance_amount("0").is_ok());
+        assert!(parse_balance_amount("3.5").is_ok());
+        assert!(parse_balance_amount("").is_err());
+        assert!(parse_balance_amount("   ").is_err());
+        assert!(parse_balance_amount("nan").is_err());
+        assert!(parse_balance_amount("inf").is_err());
+    }
+
+    #[tokio::test]
+    async fn minimax_account_balance_http_sucesso() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "available_amount": "10.5",
+                "cash_balance": "8.0",
+                "voucher_balance": "2.5",
+                "credit_balance": "0",
+                "owed_amount": "0",
+                "balance_alert_switch": true,
+                "balance_alert_threshold": "5",
+                "base_resp": { "status_code": 0 }
+            })))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::new();
+        let acc = account(Provider::MiniMax, "MINIMAX_IO_API_KEY");
+        let creds = TestCredentials("MINIMAX_IO_API_KEY", "sk-api-test");
+        let ctx = ctx_with(&http, &creds);
+        let data = minimax_balance_at(&acc, &ctx, &server.uri()).await.unwrap();
+        let find = |label: &str| -> f64 {
+            data.metrics
+                .iter()
+                .find(|m| m.label == label)
+                .unwrap_or_else(|| panic!("faltando {label}"))
+                .remaining
+                .unwrap()
+        };
+        assert_eq!(find("Saldo disponível"), 10.5);
+        assert_eq!(find("Saldo em caixa"), 8.0);
+        assert_eq!(find("Voucher"), 2.5);
+        assert_eq!(find("Crédito"), 0.0);
+        assert_eq!(find("Valor devido (dívida)"), 0.0);
+        assert!(data.notes.iter().any(|n| n.contains("ativado")));
+        assert_eq!(data.source, MINIMAX_ACCOUNT_BALANCE_URL);
+    }
+
+    #[tokio::test]
+    async fn minimax_account_balance_owed_negativo_e_dividido_de_saldo() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "available_amount": "-3.0",
+                "cash_balance": "-3.0",
+                "voucher_balance": "0",
+                "credit_balance": "0",
+                "owed_amount": "3.0",
+                "balance_alert_switch": false,
+                "balance_alert_threshold": "",
+                "base_resp": { "status_code": 0 }
+            })))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let acc = account(Provider::MiniMax, "MINIMAX_IO_API_KEY");
+        let creds = TestCredentials("MINIMAX_IO_API_KEY", "sk-api-test");
+        let ctx = ctx_with(&http, &creds);
+        let data = minimax_balance_at(&acc, &ctx, &server.uri()).await.unwrap();
+        let avail = data
+            .metrics
+            .iter()
+            .find(|m| m.label == "Saldo disponível")
+            .unwrap()
+            .remaining
+            .unwrap();
+        let owed = data
+            .metrics
+            .iter()
+            .find(|m| m.label == "Valor devido (dívida)")
+            .unwrap()
+            .remaining
+            .unwrap();
+        assert_eq!(avail, -3.0);
+        assert_eq!(owed, 3.0);
+    }
+
+    // ------------------------------------------------------------ Kimi
+
+    #[tokio::test]
+    async fn kimi_balance_http_sucesso() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(header("Authorization", "Bearer mk-test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0,
+                "data": {
+                    "available_balance": 49.58894,
+                    "voucher_balance": 46.58893,
+                    "cash_balance": -3.0
+                },
+                "scode": "0x0",
+                "status": true
+            })))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::new();
+        let acc = account(Provider::Kimi, "KIMI_API_KEY");
+        let creds = TestCredentials("KIMI_API_KEY", "mk-test");
+        let ctx = ctx_with(&http, &creds);
+        let data = kimi_at(&acc, &ctx, &server.uri()).await.unwrap();
+
+        let find = |label: &str| -> f64 {
+            data.metrics
+                .iter()
+                .find(|m| m.label == label)
+                .unwrap_or_else(|| panic!("faltando {label}"))
+                .remaining
+                .unwrap()
+        };
+        assert!((find("Saldo disponível (KIMI_API_KEY)") - 49.58894).abs() < 1e-9);
+        assert!((find("Voucher") - 46.58893).abs() < 1e-9);
+        assert!((find("Saldo em caixa (pode ser negativo)") + 3.0).abs() < 1e-9);
+        assert_eq!(data.source, KIMI_BALANCE_URL);
+    }
+
+    #[tokio::test]
+    async fn kimi_balance_code_nao_zero_vira_schema() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 401,
+                "status": false
+            })))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let acc = account(Provider::Kimi, "KIMI_API_KEY");
+        let creds = TestCredentials("KIMI_API_KEY", "mk-test");
+        let ctx = ctx_with(&http, &creds);
+        let err = kimi_at(&acc, &ctx, &server.uri()).await.unwrap_err();
+        assert!(matches!(err.status, Status::Error));
+    }
+
+    // ------------------------------------------ dispatch + credenciais
+
+    #[test]
+    fn fetch_dispatch_qwen_continua_unsupported() {
+        // dispatch não chama a rede: providers unsupported têm mensagem.
+        let http = reqwest::Client::new();
+        let acc_qwen = account(Provider::Qwen, "QWEN_API_KEY");
+        let creds_qwen = TestCredentials("QWEN_API_KEY", "sk-test");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let err = fetch(&acc_qwen, &ctx_with(&http, &creds_qwen))
+                .await
+                .unwrap_err();
+            assert!(matches!(err.status, Status::Unsupported));
+            assert!(err.message.contains(QWEN_DASHSCOPE_DOCS_URL));
+        });
+    }
+
+    #[tokio::test]
+    async fn credenciais_ausentes_viram_needs_configuration() {
+        let http = reqwest::Client::new();
+        let acc_k = account(Provider::Kimi, "OTHER_ENV");
+        let acc_m = account(Provider::MiniMax, "OTHER_ENV");
+        let creds = TestCredentials("KIMI_API_KEY", "mk-test");
+        let creds_m = TestCredentials("MINIMAX_IO_API_KEY", "sk-api-test");
+        let err_k = kimi_at(&acc_k, &ctx_with(&http, &creds), "http://unused")
+            .await
+            .unwrap_err();
+        let err_m = minimax_balance_at(
+            &acc_m,
+            &ctx_with(&http, &creds_m),
+            MINIMAX_ACCOUNT_BALANCE_URL,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err_k.status, Status::NeedsConfiguration));
+        assert!(matches!(err_m.status, Status::NeedsConfiguration));
+    }
+}

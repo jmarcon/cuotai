@@ -1,0 +1,313 @@
+//! Read-only internal quota interfaces observed in 9router f01fb909e37189008080632ddaf404f096345cde.
+//! See THIRD_PARTY_NOTICES for MIT attribution. No token generation/reset calls.
+use super::{json, secret, Context, Data, QueryError};
+use crate::{Account, Metric, Provider};
+use chrono::{DateTime, Utc};
+use serde::Deserialize;
+use serde_json::Value;
+use std::collections::BTreeMap;
+
+const REF: &str = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
+
+pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
+    match account.provider {
+        Provider::Copilot => copilot(account, ctx, "https://api.github.com").await,
+        Provider::GeminiAi => gemini_cli(account, ctx, "https://cloudcode-pa.googleapis.com").await,
+        _ => Err(QueryError::unsupported(
+            "Provedor sem consulta neste adapter.",
+        )),
+    }
+}
+
+fn finite(value: f64) -> Result<f64, QueryError> {
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(QueryError::schema())
+    }
+}
+fn reset(value: Option<&str>) -> Result<Option<DateTime<Utc>>, QueryError> {
+    value
+        .map(|value| {
+            DateTime::parse_from_rfc3339(value)
+                .map(|t| t.with_timezone(&Utc))
+                .or_else(|_| {
+                    chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                        .map(|d| d.and_hms_opt(0, 0, 0).expect("midnight").and_utc())
+                })
+                .map_err(|_| QueryError::schema())
+        })
+        .transpose()
+}
+
+#[derive(Deserialize)]
+struct CopilotResponse {
+    copilot_plan: Option<String>,
+    quota_reset_date: Option<String>,
+    limited_user_reset_date: Option<String>,
+    quota_snapshots: Option<BTreeMap<String, CopilotQuota>>,
+    monthly_quotas: Option<BTreeMap<String, f64>>,
+    limited_user_quotas: Option<BTreeMap<String, f64>>,
+}
+#[derive(Deserialize)]
+struct CopilotQuota {
+    entitlement: Option<f64>,
+    remaining: Option<f64>,
+    unlimited: Option<bool>,
+}
+
+async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, QueryError> {
+    let key = secret(account, ctx, "GITHUB_TOKEN")?;
+    let response: CopilotResponse = json(
+        ctx.http
+            .get(format!("{base}/copilot_internal/user"))
+            .header("Authorization", format!("token {key}"))
+            .header("Accept", "application/json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .header("User-Agent", "GitHubCopilotChat/0.26.7")
+            .header("Editor-Version", "vscode/1.100.0")
+            .header("Editor-Plugin-Version", "copilot-chat/0.26.7"),
+    )
+    .await?;
+    let mut notes = vec!["Endpoint interno copilot_internal/user, como no 9router; requer token GitHub da conta (não o token de inferência copilotToken). Sujeito a mudanças e restrições do provedor.".into()];
+    if let Some(plan) = response.copilot_plan {
+        notes.push(format!("Plano: {plan}"));
+    }
+    let mut metrics = Vec::new();
+    if let Some(snapshots) = response.quota_snapshots {
+        let resets_at = reset(response.quota_reset_date.as_deref())?;
+        for (name, quota) in snapshots {
+            if quota.unlimited == Some(true) {
+                notes.push(format!("{name}: ilimitado conforme resposta do provedor."));
+                continue;
+            }
+            let limit = quota.entitlement.map(finite).transpose()?;
+            let remaining = quota.remaining.map(finite).transpose()?;
+            let used = limit
+                .zip(remaining)
+                .map(|(l, r)| finite(l - r))
+                .transpose()?;
+            if limit.is_none() && remaining.is_none() {
+                continue;
+            }
+            metrics.push(Metric {
+                label: format!("Copilot: {name}"),
+                used,
+                limit,
+                remaining,
+                unit: "solicitações".into(),
+                period: Some("janela do plano".into()),
+                resets_at,
+            });
+        }
+    } else if response.monthly_quotas.is_some() || response.limited_user_quotas.is_some() {
+        let resets_at = reset(response.limited_user_reset_date.as_deref())?;
+        let totals = response.monthly_quotas.unwrap_or_default();
+        let used_quotas = response.limited_user_quotas.unwrap_or_default();
+        for name in ["chat", "completions"] {
+            let limit = totals.get(name).copied().map(finite).transpose()?;
+            // 9router treats limited_user_quotas as used; keep that interpretation
+            // explicitly scoped to this internal response, not billing netQuantity.
+            let used = used_quotas.get(name).copied().map(finite).transpose()?;
+            if limit.is_none() && used.is_none() {
+                continue;
+            }
+            let remaining = limit.zip(used).map(|(l, u)| finite(l - u)).transpose()?;
+            metrics.push(Metric {
+                label: format!("Copilot: {name}"),
+                used,
+                limit,
+                remaining,
+                unit: "solicitações".into(),
+                period: Some("janela mensal do plano".into()),
+                resets_at,
+            });
+        }
+    } else {
+        return Err(QueryError::schema());
+    }
+    if metrics.is_empty() {
+        notes.push("Nenhuma quota numérica retornada; ausente não significa ilimitado.".into());
+    }
+    Ok(Data {
+        metrics,
+        notes,
+        source: format!("{REF}github.js"),
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeminiQuota {
+    buckets: Vec<GeminiBucket>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeminiBucket {
+    model_id: String,
+    remaining_fraction: Option<Value>,
+    reset_time: Option<String>,
+}
+
+async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, QueryError> {
+    let env = account
+        .params
+        .get("session_env")
+        .map(String::as_str)
+        .unwrap_or("GEMINI_CLI_ACCESS_TOKEN");
+    let token = ctx.credentials.get(env).filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| QueryError::config(format!("Token OAuth Gemini CLI ausente em {env}. GEMINI_API_KEY não autentica Code Assist; configure params.session_env.")))?;
+    let project = match account
+        .params
+        .get("project_id")
+        .filter(|s| !s.trim().is_empty())
+    {
+        Some(project) => project.clone(),
+        None => {
+            let platform = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+                2
+            } else if cfg!(target_os = "macos") {
+                1
+            } else if cfg!(target_os = "windows") {
+                5
+            } else if cfg!(target_arch = "aarch64") {
+                4
+            } else {
+                3
+            };
+            let info: Value = json(ctx.http.post(format!("{base}/v1internal:loadCodeAssist"))
+                .bearer_auth(&token).json(&serde_json::json!({"metadata":{"ideType":9,"platform":platform,"pluginType":2}}))).await?;
+            let project = &info["cloudaicompanionProject"];
+            project
+                .as_str()
+                .or_else(|| project.get("id").and_then(Value::as_str))
+                .filter(|s| !s.trim().is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    QueryError::config(
+                        "Gemini CLI não retornou projeto Code Assist; configure params.project_id.",
+                    )
+                })?
+        }
+    };
+    let data: GeminiQuota = json(
+        ctx.http
+            .post(format!("{base}/v1internal:retrieveUserQuota"))
+            .bearer_auth(token)
+            .json(&serde_json::json!({"project":project})),
+    )
+    .await?;
+    let mut metrics = Vec::new();
+    for bucket in data.buckets {
+        let Some(fraction) = bucket.remaining_fraction else {
+            continue;
+        };
+        let fraction = match fraction {
+            Value::Number(n) => n.as_f64(),
+            Value::String(s) => s.parse().ok(),
+            _ => None,
+        }
+        .ok_or_else(QueryError::schema)?;
+        if !fraction.is_finite() || !(0.0..=1.0).contains(&fraction) {
+            return Err(QueryError::schema());
+        }
+        metrics.push(Metric {
+            label: bucket.model_id,
+            used: Some((1.0 - fraction) * 100.0),
+            limit: Some(100.0),
+            remaining: Some(fraction * 100.0),
+            unit: "%".into(),
+            period: None,
+            resets_at: reset(bucket.reset_time.as_deref())?,
+        });
+    }
+    Ok(Data { metrics, notes: vec![
+        "Quota Gemini CLI/Code Assist, NÃO quota da API key AI Studio. Endpoint interno usado pelo 9router.".into(),
+        "remainingFraction é apresentado em percentual; o total normalizado 1000 do 9router não é um limite real de requisições.".into(),
+    ], source: format!("{REF}google.js") })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Credentials;
+    use std::time::Duration;
+    use wiremock::{
+        matchers::{body_json, method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
+    struct Creds;
+    impl Credentials for Creds {
+        fn get(&self, _: &str) -> Option<String> {
+            Some("dummy".into())
+        }
+    }
+    fn account(provider: Provider) -> Account {
+        Account {
+            name: "test".into(),
+            provider,
+            credential_env: None,
+            oauth: None,
+            params: BTreeMap::new(),
+            refresh_seconds: None,
+        }
+    }
+    #[tokio::test]
+    async fn paid_copilot_preserves_remaining_and_does_not_invent_missing_quota() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/copilot_internal/user"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "copilot_plan":"pro","quota_reset_date":"2026-10-01","quota_snapshots":{
+                    "premium_interactions":{"entitlement":300,"remaining":75,"unlimited":false},
+                    "chat":{"unlimited":true},"completions":{}}
+            })))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let ctx = Context {
+            http: &http,
+            credentials: &Creds,
+            timeout: Duration::from_secs(2),
+        };
+        let data = copilot(&account(Provider::Copilot), &ctx, &server.uri())
+            .await
+            .unwrap();
+        assert_eq!(data.metrics.len(), 1);
+        let metric = &data.metrics[0];
+        assert_eq!(metric.used, Some(225.0));
+        assert_eq!(metric.remaining, Some(75.0));
+        assert_eq!(metric.limit, Some(300.0));
+        assert_eq!(
+            metric.resets_at.unwrap().to_rfc3339(),
+            "2026-10-01T00:00:00+00:00"
+        );
+    }
+    #[tokio::test]
+    async fn gemini_resolves_object_project_and_reports_fraction_as_percentage() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1internal:loadCodeAssist"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    serde_json::json!({"cloudaicompanionProject":{"id":"project-one"}}),
+                ),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST")).and(path("/v1internal:retrieveUserQuota")).and(body_json(serde_json::json!({"project":"project-one"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"buckets":[{"modelId":"gemini","remainingFraction":0.75,"resetTime":"2026-10-01T00:00:00Z"}]}))).mount(&server).await;
+        let http = reqwest::Client::new();
+        let ctx = Context {
+            http: &http,
+            credentials: &Creds,
+            timeout: Duration::from_secs(2),
+        };
+        let data = gemini_cli(&account(Provider::GeminiAi), &ctx, &server.uri())
+            .await
+            .unwrap();
+        assert_eq!(data.metrics[0].used, Some(25.0));
+        assert_eq!(data.metrics[0].remaining, Some(75.0));
+        assert_eq!(data.metrics[0].unit, "%");
+    }
+}
