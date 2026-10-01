@@ -1,0 +1,197 @@
+/* Tokens semânticos. Novos temas escuros: adicione [data-theme="dark"][data-dark="<id>"]. */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f4f7;
+  --surface: #ffffff;
+  --surface-2: #f0f0f5;
+  --border: #e2e2ea;
+  --fg: #1c1c24;
+  --fg-muted: #6b6b7b;
+  --accent: #e8702a;
+  --accent-fg: #ffffff;
+  --good: #1f9d4c;
+  --warn: #c98a00;
+  --bad: #d63c3c;
+  --track: #e6e6ee;
+  --shadow: 0 1px 2px rgba(20, 20, 40, 0.06), 0 8px 24px rgba(20, 20, 40, 0.06);
+}
+
+/* Dracula (padrão escuro) — https://draculatheme.com/contribute */
+:root[data-theme="dark"],
+:root[data-theme="dark"][data-dark="dracula"] {
+  color-scheme: dark;
+  --bg: #1e1f29;
+  --surface: #282a36;
+  --surface-2: #343746;
+  --border: #44475a;
+  --fg: #f8f8f2;
+  --fg-muted: #9aa0c0;
+  --accent: #ffb86c;
+  --accent-fg: #282a36;
+  --good: #50fa7b;
+  --warn: #f1fa8c;
+  --bad: #ff5555;
+  --track: #44475a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 22%;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.icon:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.icon.danger {
+  color: var(--bad);
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* progresso */
+.bar {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--track);
+  overflow: hidden;
+}
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  transition: width 0.4s ease;
+}
+.bar.thin {
+  height: 3px;
+}
+.good {
+  color: var(--good);
+}
+.warn {
+  color: var(--warn);
+}
+.bad {
+  color: var(--bad);
+}
+.unknown {
+  color: var(--fg-muted);
+}
+
+/* seletor de tema */
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.segmented button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.segmented button.on {
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+}
+.theme-switch select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+svg.i {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.125em;
+}
+.icon svg.i {
+  width: 18px;
+  height: 18px;
+}
+.segmented svg.i,
+.link svg.i {
+  width: 14px;
+  height: 14px;
+}
+.pct svg.i {
+  width: 16px;
+  height: 16px;
+}
