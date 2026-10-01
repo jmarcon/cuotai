@@ -1,14 +1,12 @@
 //! Shell Tauri do Cuotai: janela principal, popover na bandeja e ponte de dados.
 //! Somente consome `cuotai-core`; não contém lógica de provider.
-use cuotai_core::{
-    oauth::OAuthSession, Config, EnvironmentCredentials, Monitor, Report, Snapshot,
-};
+use cuotai_core::{oauth::OAuthSession, Config, EnvironmentCredentials, Monitor, Report, Snapshot};
 use std::{path::PathBuf, sync::Arc};
+use tauri::async_runtime::Mutex;
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, PhysicalPosition, WebviewWindow, WindowEvent,
 };
-use tauri::async_runtime::Mutex;
 
 #[derive(Default)]
 struct State {
@@ -33,10 +31,12 @@ async fn monitor(state: &State) -> Result<(Arc<Monitor>, usize), String> {
         return Ok((Arc::clone(m), *n));
     }
     let path = config_path().ok_or("Nenhum cuotai.toml encontrado (use CUOTAI_CONFIG).")?;
-    let text = std::fs::read_to_string(&path).map_err(|_| "Não foi possível ler a configuração.")?;
+    let text =
+        std::fs::read_to_string(&path).map_err(|_| "Não foi possível ler a configuração.")?;
     let config = Config::from_toml(&text).map_err(|e| e.to_string())?;
     let count = config.accounts.len();
-    let session = Arc::new(OAuthSession::system().map_err(|_| "Cofre de credenciais indisponível.")?);
+    let session =
+        Arc::new(OAuthSession::system().map_err(|_| "Cofre de credenciais indisponível.")?);
     let m = Arc::new(
         Monitor::with_oauth(config, Arc::new(EnvironmentCredentials), session)
             .map_err(|e| e.to_string())?,
@@ -91,8 +91,15 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
         .map(|m| anchor.y < m.size().height as f64 / 2.0)
         .unwrap_or(true);
     let height = w.outer_size().map(|s| s.height as f64).unwrap_or(600.0);
-    let y = if below { anchor.y + 6.0 * scale } else { anchor.y - height - 6.0 * scale };
-    let _ = w.set_position(PhysicalPosition::new((anchor.x - width / 2.0).max(8.0), y.max(8.0)));
+    let y = if below {
+        anchor.y + 6.0 * scale
+    } else {
+        anchor.y - height - 6.0 * scale
+    };
+    let _ = w.set_position(PhysicalPosition::new(
+        (anchor.x - width / 2.0).max(8.0),
+        y.max(8.0),
+    ));
     let _ = w.show();
     let _ = w.set_focus();
 }
