@@ -1,0 +1,22 @@
+[package]
+name = "cuotai-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cuotai"
+path = "src/main.rs"
+
+[dependencies]
+cuotai-core = { path = "../cuotai-core" }
+chrono.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+clap = { version = "4", features = ["derive"] }
+ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
+crossterm = "0.28"
+dirs = "6"
+toml = "0.8"
+toml_edit = { version = "0.22", features = ["serde"] }
+tempfile = "3"
