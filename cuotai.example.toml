@@ -1,0 +1,254 @@
+# Copie para cuotai.toml. Use nomes únicos; repita providers para múltiplas contas.
+# Credenciais ficam no ambiente ou cofre OAuth, nunca neste arquivo. Remova contas que não usa.
+# Para login: wizard, etapa Credencial, Tab → Entrar. Ele gera [accounts.oauth].
+# Logins nativos do 9router não exigem client_id próprio; Cloud Monitoring/Azure exigem.
+# oauth e credential_env são mutuamente exclusivos. Metadados seguros vêm do login.
+# Para AWS Bedrock SSO via CLI: perfil pré-configurado, F2. Kiro tem login nativo próprio.
+refresh_seconds = 300 # padrão global para contas sem intervalo próprio
+concurrency = 4
+timeout_seconds = 30
+
+[[accounts]]
+name = "OpenAI API"
+provider = "open_ai_api"
+credential_env = "OPENAI_ADMIN_KEY"
+# refresh_seconds = 60 # opcional, somente para esta conta (mínimo 30 s)
+# params = { project_ids = "proj_1,proj_2", models = "gpt-4.1" }
+
+[[accounts]]
+name = "Anthropic API"
+provider = "anthropic_api"
+credential_env = "ANTHROPIC_ADMIN_KEY"
+# params = { workspace_ids = "wrk_1", models = "claude-sonnet-4-6" }
+
+[[accounts]]
+name = "ChatGPT / Codex"
+provider = "chat_gpt"
+credential_env = "CHATGPT_ACCESS_TOKEN"
+# Interface interna: janelas do Codex, NÃO quota do chat web.
+# params = { account_id = "id-da-conta" }
+
+[[accounts]]
+name = "Claude"
+provider = "claude"
+credential_env = "CLAUDE_OAUTH_TOKEN"
+# Interface não documentada oficialmente, sujeita a mudanças.
+
+[[accounts]]
+name = "Gemini API"
+provider = "gemini_api"
+credential_env = "GOOGLE_CLOUD_ACCESS_TOKEN"
+# params = { project_id = "seu-projeto" }
+
+[[accounts]]
+name = "Vertex AI"
+provider = "vertex_ai"
+credential_env = "GOOGLE_CLOUD_ACCESS_TOKEN"
+# params = { project_id = "seu-projeto" }
+
+[[accounts]]
+name = "AWS Bedrock"
+provider = "aws_bedrock"
+# Requer AWS CLI v2. ATENÇÃO: Cost Explorer cobra por consulta.
+# params = { profile = "seu-perfil" }
+
+[[accounts]]
+name = "Azure OpenAI"
+provider = "azure_open_ai"
+credential_env = "AZURE_ACCESS_TOKEN"
+# params = { subscription_id = "sua-assinatura", resource_id = "/subscriptions/sua-assinatura/resourceGroups/seu-grupo/providers/Microsoft.CognitiveServices/accounts/seu-openai" }
+# O custo pertence ao recurso completo; recursos Foundry compartilhados incluem outros modelos.
+
+[[accounts]]
+name = "Cursor"
+provider = "cursor"
+credential_env = "CURSOR_ADMIN_API_KEY"
+# Admin API Teams/Enterprise. Sessão pessoal: wizard Cursor → Tab → confirmar importação.
+# A importação gera accounts.oauth com tokens somente no Keychain.
+
+[[accounts]]
+name = "GitHub Copilot"
+provider = "copilot"
+credential_env = "GITHUB_TOKEN"
+# params = { mode = "org", org = "sua-organizacao", billing = "ai_credits" }
+# Quota pessoal interna (como 9router): token GitHub da conta, não copilotToken.
+# params = { query_mode = "quota" }
+
+[[accounts]]
+name = "Windsurf"
+provider = "windsurf"
+credential_env = "WINDSURF_SERVICE_KEY"
+# Requer Enterprise, permissões Billing Read e Teams Read-Only.
+
+# API keys/PAT: a disponibilidade de quota depende da interface de cada provedor.
+
+[[accounts]]
+name = "Minimax.io"
+provider = "mini_max"
+credential_env = "MINIMAX_IO_API_KEY"
+
+[[accounts]]
+name = "Kimi"
+provider = "kimi"
+credential_env = "KIMI_API_KEY"
+# Kimi Coding (em vez de saldo internacional Moonshot):
+# params = { product = "coding" }
+
+[[accounts]]
+name = "Qwen"
+provider = "qwen"
+credential_env = "QWEN_API_KEY"
+# OAuth Qwen Code: wizard → Tab → Entrar; fluxo legado descontinuado (aviso na TUI).
+# O endpoint pode emitir desafio, mas não há consulta de quota OAuth confirmada.
+
+[[accounts]]
+name = "Groq"
+provider = "groq"
+credential_env = "GROQ_API_KEY"
+# Lê x-ratelimit-* de GET /models, sem geração; pode retornar sem cabeçalhos de quota.
+
+[[accounts]]
+name = "Perplexity"
+provider = "perplexity"
+credential_env = "PERPLEXITY_API_KEY"
+# Sonar não expõe saldo por chave. Computer Enterprise é opt-in separado:
+# params = { product = "computer", analytics_key_env = "PERPLEXITY_COMPUTER_ANALYTICS_KEY" }
+
+[[accounts]]
+name = "Mistral"
+provider = "mistral"
+credential_env = "MISTRAL_API_KEY"
+# A variável deve conter Admin API Key. Opcionalmente use outra variável:
+# params = { admin_key_env = "MISTRAL_ADMIN_KEY" }
+
+[[accounts]]
+name = "Cloudflare AI"
+provider = "cloudflare_ai"
+credential_env = "CLOUDFLARE_AI_API_KEY"
+
+[[accounts]]
+name = "Ollama Cloud"
+provider = "ollama_cloud"
+credential_env = "OLLAMA_CLOUD_API_KEY"
+# GET /api/usage com a mesma chave; não é necessário cookie de navegador.
+
+[[accounts]]
+name = "Xiaomi MIMO"
+provider = "xiaomi_mimo"
+credential_env = "XIAOMI_MIMO_API_KEY"
+# Saldo/plano mensal da plataforma: Cookie com api-platform_serviceToken e userId.
+# params = { platform_session_env = "XIAOMI_PLATFORM_COOKIE" }
+# Sessão semanal do Desktop é outro serviço:
+# params = { session_env = "XIAOMI_MIMO_COOKIE", region = "sgp" }
+# O código nativo autoriza chave sk- de inferência, não esses cookies.
+
+[[accounts]]
+name = "Opencode Go"
+provider = "open_code_go"
+credential_env = "OPENCODE_GO_API_KEY"
+
+[[accounts]]
+name = "Qoder"
+provider = "qoder"
+credential_env = "QODER_API_KEY"
+# PAT pt- é trocado por job token antes da consulta; região intl ou cn.
+# params = { credential_type = "auto", region = "intl" }
+
+[[accounts]]
+name = "Gemini AI (API key)"
+provider = "gemini_ai"
+credential_env = "GEMINI_API_KEY"
+# Gemini CLI é outro produto: sessão OAuth Code Assist, não GEMINI_API_KEY.
+# params = { product = "cli", session_env = "GEMINI_CLI_ACCESS_TOKEN" }
+
+[[accounts]]
+name = "Grok (xAI)"
+provider = "grok"
+credential_env = "X_GROK_API_KEY"
+# Exige Management Key xAI, não a chave de inferência nem token da API social X.
+# params = { team_id = "seu-team-id", management_key_env = "XAI_MANAGEMENT_KEY" }
+# Grok CLI/SuperGrok (outro produto):
+# params = { product = "cli", session_env = "GROK_CLI_ACCESS_TOKEN" }
+
+[[accounts]]
+name = "NVidia NIM"
+provider = "nvidia_nim"
+credential_env = "NVIDIA_NIM_API_KEY"
+
+[[accounts]]
+name = "Poolside"
+provider = "poolside"
+credential_env = "POOLSIDE_API_KEY"
+
+[[accounts]]
+name = "Kiro (AWS)"
+provider = "kiro"
+credential_env = "KIRO_ACCESS_TOKEN"
+# Token Kiro, não credenciais IAM/Bedrock. Consulta interna getUsageLimits.
+# params = { auth_method = "builder-id", profile_arn = "arn:aws:codewhisperer:us-east-1:...:profile/..." }
+
+[[accounts]]
+name = "Cline"
+provider = "cline"
+credential_env = "CLINE_API_KEY"
+# params = { organization_id = "sua-organizacao" }
+
+[[accounts]]
+name = "CodeBuddy"
+provider = "code_buddy"
+credential_env = "CODEBUDDY_ACCESS_TOKEN"
+# Sessão CN ou internacional, quota interna de pacotes.
+# params = { region = "cn" }
+
+[[accounts]]
+name = "Zed"
+provider = "zed"
+credential_env = "ZED_ACCESS_TOKEN"
+# Sessão Zed, não token de inferência LLM; user_id é obrigatório.
+# params = { user_id = "12345" }
+
+# Alibaba: Model Studio, Coding Plan, Token Plan e faturamento são produtos distintos.
+[[accounts]]
+name = "Alibaba Model Studio / DashScope"
+provider = "alibaba_model_studio"
+credential_env = "DASHSCOPE_API_KEY"
+# Pode trocar credential_env para QWEN_API_KEY se já usa esse nome.
+params = { region = "intl" }
+
+[[accounts]]
+name = "Alibaba Coding Plan"
+provider = "alibaba_coding_plan"
+credential_env = "BAILIAN_CODING_PLAN_API_KEY"
+params = { region = "intl" }
+# credential_env também pode ser QWEN_API_KEY (chave da assinatura Coding Plan).
+# Se o console exigir sessão, acrescente session_env = "ALIBABA_SESSION_COOKIE"
+# em params; o cookie fica apenas nessa variável, nunca no TOML.
+
+[[accounts]]
+name = "Alibaba Token Plan (Qwen Cloud)"
+provider = "alibaba_token_plan"
+credential_env = "QWEN_API_KEY"
+params = { cli_profile = "cuotai-qwen" }
+# Wizard: F2 inicia login internacional do bl nesse perfil; o CLI guarda a sessão.
+# Alternativa sem CLI: params = { session_env = "QWEN_CLOUD_COOKIE" }
+# Nesse caso exporte o Cookie do console na variável indicada, nunca no TOML.
+# QWEN_API_KEY autentica somente inferência, não é enviada à consulta de quota.
+
+[[accounts]]
+name = "Alibaba Cloud — faturamento"
+provider = "alibaba_cloud"
+credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
+params = { region = "intl", secret_env = "ALIBABA_CLOUD_ACCESS_KEY_SECRET" }
+# Para credenciais STS acrescente security_token_env = "ALIBABA_CLOUD_SECURITY_TOKEN" em params.
+
+[[accounts]]
+name = "Antigravity"
+provider = "antigravity"
+credential_env = "ANTIGRAVITY_ACCESS_TOKEN"
+# Ou login nativo: wizard Antigravity → Credencial → Tab.
+# params = { project_id = "projeto-code-assist-opcional" }
+
+[[accounts]]
+name = "Kimchi"
+provider = "kimchi"
+credential_env = "KIMCHI_API_KEY"
