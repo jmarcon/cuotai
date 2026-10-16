@@ -54,6 +54,7 @@
 //!     enviadas sem `project` e uma nota é registrada).
 
 use super::{json, secret, Context, Data, QueryError};
+use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, Provider};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
@@ -163,10 +164,14 @@ fn is_free_tier_from(paid_tier_id: Option<&str>) -> bool {
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
         Provider::Antigravity => fetch_antigravity(account, ctx).await,
-        other => Err(QueryError::unsupported(format!(
-            "{} é consultado por outro adaptador.",
-            other.label()
-        ))),
+        other => Err(QueryError::unsupported_params(
+            "query.antigravity.unsupported_provider",
+            params([(
+                "provider",
+                ParamValue::L10n(Box::new(crate::text::provider_l10n(other))),
+            )]),
+            format!("{} é consultado por outro adaptador.", other.label()),
+        )),
     }
 }
 
@@ -194,18 +199,23 @@ async fn fetch_antigravity_at(
 ) -> Result<Data, QueryError> {
     let token = secret(account, ctx, DEFAULT_CREDENTIAL_ENV)?;
 
-    let mut notes = Vec::new();
+    let mut notes = Notes::new();
     let (project_id, paid_tier_id) = match load_code_assist(ctx, &token, load_code_assist_url).await
     {
         Ok((discovered_project, discovered_paid_tier)) => {
             (discovered_project, discovered_paid_tier)
         }
         Err(error) => {
-            notes.push(format!(
-                "PARCIAL: loadCodeAssist (descoberta de project_id/tier) indisponível ({}); \
+            let fallback = error.note.fallback.clone().into_owned();
+            notes.push_params(
+                "note.antigravity.load_code_assist_unavailable",
+                params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
+                format!(
+                    "PARCIAL: loadCodeAssist (descoberta de project_id/tier) indisponível ({}); \
                      project_id não foi descoberto.",
-                error.message
-            ));
+                    fallback
+                ),
+            );
             (None, None)
         }
     };
@@ -219,7 +229,8 @@ async fn fetch_antigravity_at(
     if let (Some(manual), Some(discovered)) = (params_project_id, project_id.as_deref()) {
         if manual != discovered {
             notes.push(
-                "params.project_id sobrescreveu o project_id descoberto em loadCodeAssist.".into(),
+                "note.antigravity.project_override",
+                "params.project_id sobrescreveu o project_id descoberto em loadCodeAssist.",
             );
         }
     }
@@ -241,12 +252,17 @@ async fn fetch_antigravity_at(
                 fetched_models = Some(data);
             }
             Err(error) => {
-                model_failure = Some(error.message.clone());
-                notes.push(format!(
-                    "PARCIAL: fetchAvailableModels (modelos) indisponível ({}); \
-                     apenas o resumo exibido.",
-                    error.message
-                ));
+                let fallback = error.note.fallback.clone().into_owned();
+                model_failure = Some(fallback.clone());
+                notes.push_params(
+                    "note.antigravity.models_unavailable",
+                    params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
+                    format!(
+                        "PARCIAL: fetchAvailableModels (modelos) indisponível ({}); \
+                         apenas o resumo exibido.",
+                        fallback
+                    ),
+                );
             }
         }
     }
@@ -266,12 +282,17 @@ async fn fetch_antigravity_at(
             parsed_weekly = parse_weekly_summary(&summary);
         }
         Err(error) => {
-            weekly_failure = Some(error.message.clone());
-            notes.push(format!(
-                "PARCIAL: retrieveUserQuotaSummary (resumo semanal/5h) indisponível ({}); \
-                 apenas modelos exibidos.",
-                error.message
-            ));
+            let fallback = error.note.fallback.clone().into_owned();
+            weekly_failure = Some(fallback.clone());
+            notes.push_params(
+                "note.antigravity.summary_unavailable",
+                params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
+                format!(
+                    "PARCIAL: retrieveUserQuotaSummary (resumo semanal/5h) indisponível ({}); \
+                     apenas modelos exibidos.",
+                    fallback
+                ),
+            );
         }
     }
 
@@ -297,7 +318,7 @@ async fn fetch_antigravity_at(
         };
         return Err(QueryError {
             status: crate::Status::Error,
-            message: summary,
+            note: Localized::fixed("note.antigravity.fatal_summary", summary),
         });
     }
 
@@ -337,11 +358,7 @@ async fn fetch_antigravity_at(
 
     let source = format!("{FETCH_AVAILABLE_MODELS_URL} + {RETRIEVE_USER_QUOTA_SUMMARY_URL}");
 
-    Ok(Data {
-        metrics,
-        notes,
-        source,
-    })
+    Ok(Data::new(metrics, notes, source))
 }
 
 // ─── Helpers compartilhados ──────────────────────────────────────────
@@ -1771,7 +1788,7 @@ mod tests {
         .await
         .unwrap_err();
 
-        let msg = err.message;
+        let msg = err.note.fallback;
         assert!(
             msg.contains("modelos") && msg.contains("resumo"),
             "erro deve distinguir modelos vs resumo: {msg}"
@@ -1805,7 +1822,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        let msg = err.message;
+        let msg = err.note.fallback;
         assert!(msg.contains("resumo"), "free sem weekly: {msg}");
     }
 

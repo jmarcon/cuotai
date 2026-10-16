@@ -1,6 +1,7 @@
 //! Read-only internal quota interfaces observed in 9router f01fb909e37189008080632ddaf404f096345cde.
 //! See THIRD_PARTY_NOTICES for MIT attribution. No token generation/reset calls.
 use super::{json, secret, Context, Data, QueryError};
+use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric, Provider};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -14,6 +15,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::Copilot => copilot(account, ctx, "https://api.github.com").await,
         Provider::GeminiAi => gemini_cli(account, ctx, "https://cloudcode-pa.googleapis.com").await,
         _ => Err(QueryError::unsupported(
+            "query.router_existing.unsupported_provider",
             "Provedor sem consulta neste adapter.",
         )),
     }
@@ -69,16 +71,30 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             .header("Editor-Plugin-Version", "copilot-chat/0.26.7"),
     )
     .await?;
-    let mut notes = vec!["Endpoint interno copilot_internal/user, como no 9router; requer token GitHub da conta (não o token de inferência copilotToken). Sujeito a mudanças e restrições do provedor.".into()];
+    let mut notes = Notes::new();
+    notes.push(
+        "note.router_existing.copilot_internal_endpoint",
+        "Endpoint interno copilot_internal/user, como no 9router; requer token GitHub da conta (não o token de inferência copilotToken). Sujeito a mudanças e restrições do provedor.",
+    );
     if let Some(plan) = response.copilot_plan {
-        notes.push(format!("Plano: {plan}"));
+        let fallback = format!("Plano: {plan}");
+        notes.push_params(
+            "note.router_existing.copilot_plan",
+            params([("plan", ParamValue::from(plan))]),
+            fallback,
+        );
     }
     let mut metrics = Vec::new();
     if let Some(snapshots) = response.quota_snapshots {
         let resets_at = reset(response.quota_reset_date.as_deref())?;
         for (name, quota) in snapshots {
             if quota.unlimited == Some(true) {
-                notes.push(format!("{name}: ilimitado conforme resposta do provedor."));
+                let fallback = format!("{name}: ilimitado conforme resposta do provedor.");
+                notes.push_params(
+                    "note.router_existing.copilot_unlimited_quota",
+                    params([("name", ParamValue::from(name))]),
+                    fallback,
+                );
                 continue;
             }
             let limit = quota.entitlement.map(finite).transpose()?;
@@ -127,13 +143,12 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         return Err(QueryError::schema());
     }
     if metrics.is_empty() {
-        notes.push("Nenhuma quota numérica retornada; ausente não significa ilimitado.".into());
+        notes.push(
+            "note.router_existing.copilot_no_numeric_quota",
+            "Nenhuma quota numérica retornada; ausente não significa ilimitado.",
+        );
     }
-    Ok(Data {
-        metrics,
-        notes,
-        source: format!("{REF}github.js"),
-    })
+    Ok(Data::new(metrics, notes, format!("{REF}github.js")))
 }
 
 #[derive(Deserialize)]
@@ -155,8 +170,17 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
         .get("session_env")
         .map(String::as_str)
         .unwrap_or("GEMINI_CLI_ACCESS_TOKEN");
-    let token = ctx.credentials.get(env).filter(|v| !v.trim().is_empty())
-        .ok_or_else(|| QueryError::config(format!("Token OAuth Gemini CLI ausente em {env}. GEMINI_API_KEY não autentica Code Assist; configure params.session_env.")))?;
+    let token = ctx
+        .credentials
+        .get(env)
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| {
+            QueryError::config_params(
+                "query.router_existing.missing_gemini_session",
+                params([("env", ParamValue::from(env.to_string()))]),
+                format!("Token OAuth Gemini CLI ausente em {env}. GEMINI_API_KEY não autentica Code Assist; configure params.session_env."),
+            )
+        })?;
     let project = match account
         .params
         .get("project_id")
@@ -185,6 +209,7 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
                 .map(str::to_owned)
                 .ok_or_else(|| {
                     QueryError::config(
+                        "query.router_existing.missing_gemini_project",
                         "Gemini CLI não retornou projeto Code Assist; configure params.project_id.",
                     )
                 })?
@@ -221,10 +246,16 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
             resets_at: reset(bucket.reset_time.as_deref())?,
         });
     }
-    Ok(Data { metrics, notes: vec![
-        "Quota Gemini CLI/Code Assist, NÃO quota da API key AI Studio. Endpoint interno usado pelo 9router.".into(),
-        "remainingFraction é apresentado em percentual; o total normalizado 1000 do 9router não é um limite real de requisições.".into(),
-    ], source: format!("{REF}google.js") })
+    let mut notes = Notes::new();
+    notes.push(
+        "note.router_existing.gemini_code_assist_quota",
+        "Quota Gemini CLI/Code Assist, NÃO quota da API key AI Studio. Endpoint interno usado pelo 9router.",
+    );
+    notes.push(
+        "note.router_existing.gemini_normalized_percentage",
+        "remainingFraction é apresentado em percentual; o total normalizado 1000 do 9router não é um limite real de requisições.",
+    );
+    Ok(Data::new(metrics, notes, format!("{REF}google.js")))
 }
 
 #[cfg(test)]

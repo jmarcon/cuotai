@@ -19,6 +19,7 @@
 //! <https://docs.kimchi.dev/docs/inference-quickstart.md>.
 
 use super::{json, secret, Context, Data, QueryError};
+use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, Status};
 use chrono::{DateTime, Utc};
 use serde_json::{Map, Value};
@@ -49,6 +50,7 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
 
     if credits.serverless == Some(false) {
         return Err(QueryError::unsupported(
+            "note.kimchi.byo_self_hosted",
             "A chave Kimchi pertence a uma instalação BYO/self-hosted sem saldo de inferência gerenciado; /v1/credits respondeu serverless=false.",
         ));
     }
@@ -69,23 +71,29 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         Ok(Some(payload)) => match parse_budget(&payload) {
             Ok(budget_metrics) => metrics.extend(budget_metrics),
             Err(_) => notes.push(
-                "Kimchi retornou o saldo, mas a resposta de /v1/budget não correspondeu ao contrato oficial; os orçamentos foram omitidos.".into(),
+                "note.kimchi.budget_contract_mismatch",
+                "Kimchi retornou o saldo, mas a resposta de /v1/budget não correspondeu ao contrato oficial; os orçamentos foram omitidos.",
             ),
         },
         Ok(None) => notes.push(
-            "O proxy Kimchi respondeu 404 em /v1/budget (compatível com proxies antigos); somente o saldo de créditos foi exibido.".into(),
+            "note.kimchi.budget_404",
+            "O proxy Kimchi respondeu 404 em /v1/budget (compatível com proxies antigos); somente o saldo de créditos foi exibido.",
         ),
-        Err(error) => notes.push(format!(
-            "Saldo de créditos atualizado; orçamento indisponível nesta atualização ({}).",
-            error.status.label()
-        )),
+        Err(error) => notes.push_params(
+            "note.kimchi.budget_unavailable",
+            params([("status", ParamValue::L10n(Box::new(crate::text::status_l10n(error.status))))]),
+            format!(
+                "Saldo de créditos atualizado; orçamento indisponível nesta atualização ({}).",
+                error.status.label()
+            ),
+        ),
     }
 
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source: format!("{credits_url}; {budget_url}"),
-    })
+        format!("{credits_url}; {budget_url}"),
+    ))
 }
 
 #[derive(Debug)]
@@ -117,20 +125,31 @@ fn parse_credits(value: &Value) -> Result<Credits, QueryError> {
     })
 }
 
-fn credits_notes(credits: &Credits) -> Vec<String> {
-    let mut notes = vec![
-        "Saldo real lido por GET /v1/credits com Bearer KIMCHI_API_KEY; a consulta não gera tokens.".into(),
-    ];
+fn credits_notes(credits: &Credits) -> Notes {
+    let mut notes = Notes::new();
+    notes.push(
+        "note.kimchi.credits_source",
+        "Saldo real lido por GET /v1/credits com Bearer KIMCHI_API_KEY; a consulta não gera tokens.",
+    );
     if let Some(tier) = credits.tier.as_deref() {
-        notes.push(format!("Plano reportado pelo Kimchi: {tier}."));
+        notes.push_params(
+            "note.kimchi.tier",
+            params([("tier", ParamValue::from(tier.to_string()))]),
+            format!("Plano reportado pelo Kimchi: {tier}."),
+        );
     }
     if let Some(status) = credits.billing_status.as_deref() {
-        notes.push(format!(
-            "Estado de faturamento reportado pelo Kimchi: {status}."
-        ));
+        notes.push_params(
+            "note.kimchi.billing_status",
+            params([("status", ParamValue::from(status.to_string()))]),
+            format!("Estado de faturamento reportado pelo Kimchi: {status}."),
+        );
     }
     if credits.has_credits == Some(false) {
-        notes.push("Kimchi reportou has_credits=false; novas inferências podem estar bloqueadas ou restritas.".into());
+        notes.push(
+            "note.kimchi.no_credits",
+            "Kimchi reportou has_credits=false; novas inferências podem estar bloqueadas ou restritas.",
+        );
     }
     notes
 }
@@ -160,9 +179,13 @@ async fn fetch_budget(
                 429 => Status::RateLimited,
                 _ => Status::Error,
             },
-            message: format!(
-                "Consulta de orçamento retornou HTTP {}. Verifique acesso e permissões.",
-                code.as_u16()
+            note: Localized::with_params(
+                "query.kimchi.budget_http",
+                params([("code", ParamValue::from(code.as_u16()))]),
+                format!(
+                    "Consulta de orçamento retornou HTTP {}. Verifique acesso e permissões.",
+                    code.as_u16()
+                ),
             ),
         });
     }
@@ -510,7 +533,7 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(error.status, Status::Unsupported);
-        assert!(error.message.contains("serverless=false"));
+        assert_eq!(error.note.id, "note.kimchi.byo_self_hosted");
     }
 
     #[tokio::test]
@@ -528,7 +551,7 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(error.status, Status::Error);
-        assert!(error.message.contains("incompatível"));
+        assert_eq!(error.note.id, "query.schema");
     }
 
     #[tokio::test]

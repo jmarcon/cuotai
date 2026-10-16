@@ -31,29 +31,42 @@
 //!   via OAuth, atendido pelo adaptador `Gemini (Cloud Monitoring)`.
 
 use super::{Context, Data, QueryError};
+use crate::text::{params, ParamValue};
 use crate::{Account, Provider};
 
 pub(crate) async fn fetch(account: &Account, _ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
         Provider::CloudflareAi => Err(cloudflare_unsupported()),
         Provider::GeminiAi => Err(gemini_unsupported()),
-        other => Err(QueryError::unsupported(format!(
-            "{} é consultado por outro adaptador.",
-            other.label()
-        ))),
+        other => Err(QueryError::unsupported_params(
+            "query.cloud_keys.other_provider",
+            params([(
+                "provider",
+                ParamValue::from(crate::text::provider_l10n(other)),
+            )]),
+            format!("{} é consultado por outro adaptador.", other.label()),
+        )),
     }
 }
 
 fn cloudflare_unsupported() -> QueryError {
     let source = "https://developers.cloudflare.com/workers-ai/platform/pricing + https://developers.cloudflare.com/workers-ai/llms.txt + https://developers.cloudflare.com/ai-gateway/observability/analytics/";
-    QueryError::unsupported(format!(
-        "Cloudflare Workers AI não expõe rota pública de leitura de uso/cota por chave de API. A contabilidade de Neurons é exibida apenas no painel (https://dash.cloudflare.com/?to=/:account/ai/workers-ai). O dataset GraphQL público `workersInvocationsAdaptive` agrega invocações genéricas do Worker (requests, errors, cpuTime) e não expõe Neurons nem custo por modelo, portanto não pode ser apresentado como consumo de Workers AI. Para métricas de IA roteada via AI Gateway, utilize um adaptador dedicado; este provedor refere-se apenas a Workers AI direto. Fonte: {source}."
-    ))
+    QueryError::unsupported_params(
+        "query.cloudflare.unsupported",
+        params([("source", ParamValue::from(source))]),
+        format!(
+            "Cloudflare Workers AI não expõe rota pública de leitura de uso/cota por chave de API. A contabilidade de Neurons é exibida apenas no painel (https://dash.cloudflare.com/?to=/:account/ai/workers-ai). O dataset GraphQL público `workersInvocationsAdaptive` agrega invocações genéricas do Worker (requests, errors, cpuTime) e não expõe Neurons nem custo por modelo, portanto não pode ser apresentado como consumo de Workers AI. Para métricas de IA roteada via AI Gateway, utilize um adaptador dedicado; este provedor refere-se apenas a Workers AI direto. Fonte: {source}."
+        ),
+    )
 }
 
 fn gemini_unsupported() -> QueryError {
     let source = "https://ai.google.dev/gemini-api/docs/rate-limits + https://aistudio.google.com/rate-limit + https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries.list";
-    QueryError::unsupported(format!(
-        "Gemini AI (chave de API do AI Studio, `generativelanguage.googleapis.com`) não expõe endpoint público de uso ou cota residual. Os valores são exibidos apenas no painel AI Studio (https://aistudio.google.com/rate-limit). Para consulta programática, registre a mesma conta via OAuth em 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list sobre `serviceruntime.googleapis.com/quota/limit` e `quota/rate/net_usage`). Fonte: {source}."
-    ))
+    QueryError::unsupported_params(
+        "query.gemini_ai.unsupported",
+        params([("source", ParamValue::from(source))]),
+        format!(
+            "Gemini AI (chave de API do AI Studio, `generativelanguage.googleapis.com`) não expõe endpoint público de uso ou cota residual. Os valores são exibidos apenas no painel AI Studio (https://aistudio.google.com/rate-limit). Para consulta programática, registre a mesma conta via OAuth em 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list sobre `serviceruntime.googleapis.com/quota/limit` e `quota/rate/net_usage`). Fonte: {source}."
+        ),
+    )
 }
