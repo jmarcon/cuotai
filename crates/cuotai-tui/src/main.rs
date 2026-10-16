@@ -1,12 +1,12 @@
 mod auth_ui;
-mod config_file;
 mod dashboard;
 mod ui;
 mod wizard;
 
 use clap::Parser;
 use cuotai_core::{
-    oauth::OAuthSession, EnvironmentCredentials, Monitor, Provider, Snapshot, Status,
+    config_file::ConfigFile, oauth::OAuthSession, EnvironmentCredentials, Monitor, Provider,
+    Snapshot, Status,
 };
 use std::{
     io::{self, IsTerminal, Write},
@@ -64,7 +64,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err("A TUI requer terminal interativo. Use --once ou --json.".into());
     }
-    let file = config_file::ConfigFile::load(args.config, interactive)?;
+    let file = ConfigFile::load(args.config, interactive)?;
     let session = Arc::new(match args.dev_credentials_sqlite {
         Some(path) => {
             let session = OAuthSession::development_sqlite(&path)?;

@@ -9,13 +9,15 @@
 use crossterm::event::{
     KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use cuotai_core::account_edit as edit;
+use cuotai_core::login::{self, LoginMode};
 use cuotai_core::oauth::{requires_client_registration, supports_login, OAuthConfig};
 use cuotai_core::{Account, Config, Provider};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 use std::collections::BTreeMap;
@@ -38,7 +40,14 @@ fn wizard_chunks(area: Rect) -> Rc<[Rect]> {
 pub(crate) enum Action {
     Continue,
     Cancel,
-    Save(Config),
+    /// The wizard finished and produced a new configuration that differs
+    /// from `editing`-based base by exactly one upsert. `edit` carries the
+    /// index of the affected account (`Some(i)` when editing, `None` when
+    /// appending a new account).
+    Save {
+        config: Config,
+        edit: Option<usize>,
+    },
     /// Inicia o fluxo OAuth (navegador/device) com o app do próprio usuário.
     Login {
         provider: Provider,
@@ -56,10 +65,32 @@ pub(crate) enum Action {
         console_site: String,
         profile: String,
     },
+    /// RF4: the file on disk changed and the user accepted the
+    /// conflict-recovery modal's "reload" action. The TUI must read
+    /// the file, refresh the dashboard's view of accounts, and keep
+    /// the wizard's draft intact so the user can re-validate against
+    /// the freshly-loaded schema.
+    ConflictReload,
+    /// RF4: the user dismissed the conflict modal without reloading.
+    /// The wizard stays open; the user can edit the draft and retry
+    /// the save.
+    ConflictDismiss,
 }
 
-const MIN_INTERVAL: u64 = 30;
-const MAX_INTERVAL: u64 = 86_400;
+const MAX_INTERVAL: u64 = edit::MAX_REFRESH_SECONDS;
+
+/// Effective minimum interval for the currently selected provider. The
+/// global floor (30s) covers every provider; metered providers raise
+/// the floor to the cost-guard (300s) so the wizard agrees with
+/// `Config::validate`. Returning the larger of the two keeps the
+/// wizard silent for free providers and assertive for paid ones.
+fn min_interval_for(provider: Provider) -> u64 {
+    if provider.is_metered() {
+        Provider::METERED_MIN_REFRESH_SECONDS
+    } else {
+        edit::MIN_REFRESH_SECONDS
+    }
+}
 
 // Paleta Dracula para o assistente; o dashboard expõe a mesma paleta em
 // outro ponto de desenho. Mantemos estes `const` aqui para que mudanças
@@ -95,7 +126,6 @@ enum FieldKind {
     Choice {
         options: &'static [(&'static str, &'static str)],
         selected: usize,
-        omit_default: bool,
     },
 }
 
@@ -123,7 +153,6 @@ impl Field {
             kind: FieldKind::Choice {
                 options,
                 selected: 0,
-                omit_default: true,
             },
         }
     }
@@ -143,6 +172,11 @@ pub(crate) struct Wizard {
     interval: String,
     summary_scroll: u16,
     error: Option<String>,
+    /// Mensagem do conflito externo detectado ao tentar salvar
+    /// (RF4). Enquanto estiver presente, o assistente exibe um
+    /// diálogo modal oferecendo `r` para recarregar o arquivo do
+    /// disco (mantendo o rascunho) ou `Esc` para cancelar.
+    conflict: Option<String>,
     /// Aviso transitório de sucesso (login OAuth/SSO), exibido até a próxima tecla.
     notice: Option<String>,
     /// Modo OAuth no passo Credencial (só vale quando `supports_login(provider)`).
@@ -179,16 +213,13 @@ impl Wizard {
             .position(|p| *p == provider)
             .unwrap_or(0);
         let name = existing.map(|a| a.name.clone()).unwrap_or_default();
+        // Stored credential value comes from core: AWS uses params["profile"],
+        // AlibabaTokenPlan uses params["cli_profile"], everything else uses
+        // credential_env. Brand-new accounts prefilled with the conventional
+        // env-var name (or empty for non-env kinds).
         let credential = match existing {
-            Some(a) if a.provider == Provider::AwsBedrock => {
-                a.params.get("profile").cloned().unwrap_or_default()
-            }
-            Some(a) => a
-                .credential_env
-                .clone()
-                .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(|| default_env(provider).to_string()),
-            None => default_env(provider).to_string(),
+            Some(a) => edit::stored_credential(a),
+            None => edit::suggested_credential(provider).to_string(),
         };
         // Pré-carrega o OAuth da conta em edição: nome/params podem ser alterados
         // sem refazer o login; mexer na identidade (client/tenant/secret) invalida.
@@ -229,6 +260,7 @@ impl Wizard {
                 .unwrap_or_default(),
             summary_scroll: 0,
             error: None,
+            conflict: None,
             notice: None,
             oauth_mode,
             oauth_client_id,
@@ -248,65 +280,93 @@ impl Wizard {
         self.error = Some(message);
     }
 
+    /// Display a transient success notice (OAuth/SSO, file reload).
+    /// Cleared by the next key press, same lifetime as other notices.
+    pub(crate) fn set_notice(&mut self, message: String) {
+        self.error = None;
+        self.conflict = None;
+        self.notice = Some(message);
+    }
+
+    /// Enter the conflict-recovery modal: the file on disk changed
+    /// since we last loaded or saved it. The wizard keeps its draft
+    /// (name/credential/fields/interval) intact; the caller can offer
+    /// the user a chance to reload via [`Wizard::take_conflict`] and
+    /// rebuild the runtime against the freshly-loaded file.
+    pub(crate) fn set_conflict(&mut self, message: String) {
+        self.conflict = Some(message);
+        self.error = None;
+    }
+
+    /// Are we currently in the conflict modal?
+    #[allow(dead_code)]
+    pub(crate) fn has_conflict(&self) -> bool {
+        self.conflict.is_some()
+    }
+
+    /// Take ownership of the conflict message (for rendering). The
+    /// modal stays open until [`Wizard::clear_conflict`] is called
+    /// (typically after the user accepted reload or cancelled).
+    #[allow(dead_code)]
+    pub(crate) fn conflict(&self) -> Option<&str> {
+        self.conflict.as_deref()
+    }
+
+    /// Dismiss the conflict modal without reloading. The wizard
+    /// stays open and the user can edit the draft further before
+    /// retrying the save.
+    pub(crate) fn clear_conflict(&mut self) {
+        self.conflict = None;
+    }
+
+    /// Replace the wizard's `base` snapshot with the freshly-loaded
+    /// configuration. Called by the TUI after a successful reload:
+    /// the draft (provider/name/credential/fields/interval) is kept
+    /// untouched, but the schema the draft validates against is now
+    /// the disk version.
+    pub(crate) fn replace_base(&mut self, config: &Config) {
+        self.base = config.clone();
+    }
+
+    /// Borrowed view of the wizard's editing identity for callers
+    /// that need a `(Provider, &str)` shape without taking ownership
+    /// of the wizard's name. Returns `None` when the wizard is
+    /// creating a brand-new account.
+    pub(crate) fn editing_identity_borrowed(&self) -> Option<(Provider, &str)> {
+        self.editing?;
+        Some((self.provider, self.name.trim()))
+    }
+
     fn provider_at_sel(&self) -> Provider {
         Provider::ALL[self.provider_sel]
     }
 
-    /// Índice selecionado de um campo Choice, se existir.
-    fn choice_selected(&self, key: &str) -> Option<usize> {
-        self.fields
-            .iter()
-            .find(|f| f.key == key)
-            .and_then(|f| match &f.kind {
-                FieldKind::Choice { selected, .. } => Some(*selected),
-                FieldKind::Text(_) => None,
-            })
+    /// Campos visíveis: decisão única no core via `edit::visible_field_indices`,
+    /// que conhece o schema do provedor, o modo nativo, os params de login e as
+    /// seleções de Choice atuais. O TUI apenas repete o resultado para indexar
+    /// os widgets de Field.
+    fn visible_fields(&self) -> Vec<usize> {
+        let selections = self.choice_selections();
+        let visibility = edit::FieldVisibility {
+            native_login: self.native_login(),
+            login_params: &self.oauth_login_params,
+            choice_selections: &selections,
+        };
+        edit::visible_field_indices(self.provider, &visibility)
     }
 
-    /// Campos visíveis: `org` do Copilot só aparece no modo org com consulta de
-    /// cobrança (na quota pessoal não é usada); campos do produto `cli` do
-    /// GeminiAi/Grok (session_env, project_id) só aparecem no opt-in, e os campos
-    /// da Management API do Grok (team_id, management_key_env) só fora dele.
-    fn visible_fields(&self) -> Vec<usize> {
-        let mode_org = self.choice_selected("mode") == Some(1);
-        let quota_mode = self.choice_selected("query_mode") == Some(1);
-        let cli_product = self.choice_selected("product") == Some(1)
-            && matches!(self.provider, Provider::GeminiAi | Provider::Grok);
-        self.fields
-            .iter()
-            .enumerate()
-            .filter(|(_, f)| {
-                // Login nativo: params preenchidos pelos metadados públicos do login
-                // (e opções de autenticação) ficam ocultos para nunca divergir da identidade.
-                let editable_kiro_profile = self.provider == Provider::Kiro
-                    && f.key == "profile_arn"
-                    && !self.oauth_login_params.contains_key("profile_arn");
-                if self.native_login()
-                    && native_param_keys(self.provider).contains(&f.key)
-                    && !editable_kiro_profile
-                {
-                    return false;
-                }
-                match f.key {
-                    "org" => mode_org && !quota_mode,
-                    "mode" | "billing" if self.provider == Provider::Copilot => !quota_mode,
-                    "session_env" | "email" | "user_id"
-                        if matches!(self.provider, Provider::GeminiAi | Provider::Grok) =>
-                    {
-                        cli_product
-                    }
-                    "project_id" if self.provider == Provider::GeminiAi => cli_product,
-                    "token_env" if self.provider == Provider::Kimi => {
-                        self.choice_selected("product") == Some(1)
-                    }
-                    "team_id" | "management_key_env" if self.provider == Provider::Grok => {
-                        !cli_product
-                    }
-                    _ => true,
-                }
-            })
-            .map(|(i, _)| i)
-            .collect()
+    /// Snapshot das seleções de Choice atuais. Core precisa desse mapa para
+    /// avaliar regras condicionais (`org` aparece quando `mode == 1`, etc.);
+    /// construímos a partir dos widgets do wizard para que UI e backend
+    /// concordem sempre.
+    fn choice_selections(&self) -> BTreeMap<String, usize> {
+        let mut map = BTreeMap::new();
+        for field in &self.fields {
+            if let FieldKind::Choice { selected, .. } = &field.kind {
+                map.insert(field.key.to_string(), *selected);
+            }
+        }
+        map
     }
 
     fn current_text_mut(&mut self) -> Option<&mut String> {
@@ -343,7 +403,7 @@ impl Wizard {
                     self.provider = selected;
                     self.fields = default_fields(selected, None);
                     self.field_idx = 0;
-                    self.credential = default_env(selected).to_string();
+                    self.credential = edit::default_env(selected).to_string();
                     // Troca de provedor invalida qualquer login/metadata OAuth anterior.
                     self.oauth_mode = false;
                     self.oauth_client_id.clear();
@@ -413,6 +473,14 @@ impl Wizard {
     /// Modo OAuth só existe para provedores com login integrado.
     fn oauth_active(&self) -> bool {
         self.oauth_mode && supports_login(self.provider)
+    }
+
+    /// Whether the credential step offers a Tab → OAuth toggle. The core
+    /// `credential_modes` table is the single source of truth: AWS and
+    /// Token Plan never expose OAuth, every other provider with
+    /// `supports_login` does.
+    fn credential_supports_oauth(&self) -> bool {
+        edit::credential_modes(self.provider).oauth
     }
 
     /// Login nativo: fluxo do cliente do próprio provedor (9router), sem app registrado.
@@ -584,7 +652,7 @@ impl Wizard {
             }
             (_, 1) => {
                 let secret = self.oauth_secret_env.trim();
-                if !secret.is_empty() && !valid_env_name(secret) {
+                if !secret.is_empty() && !edit::valid_env_name(secret) {
                     return Err(
                         "Informe apenas o NOME da variável do client secret, nunca o valor.".into(),
                     );
@@ -675,6 +743,18 @@ impl Wizard {
         if key.kind != KeyEventKind::Press {
             return Action::Continue;
         }
+        // RF4: the conflict-recovery modal takes over key handling
+        // when active. `r` reloads from disk (keeping the draft),
+        // `Esc` dismisses the modal and lets the user keep editing
+        // the wizard. All other keys are ignored so the user does
+        // not accidentally edit the draft behind the modal.
+        if self.conflict.is_some() {
+            return match key.code {
+                KeyCode::Char('r') | KeyCode::Char('R') => Action::ConflictReload,
+                KeyCode::Esc => Action::ConflictDismiss,
+                _ => Action::Continue,
+            };
+        }
         if key.code == KeyCode::Esc {
             return Action::Cancel;
         }
@@ -732,7 +812,10 @@ impl Wizard {
             (KeyCode::Enter, _) => {
                 if self.step == Step::Summary {
                     return match self.build_config() {
-                        Ok(config) => Action::Save(config),
+                        Ok(config) => Action::Save {
+                            config,
+                            edit: self.editing,
+                        },
                         Err(message) => {
                             self.error = Some(message);
                             Action::Continue
@@ -752,9 +835,7 @@ impl Wizard {
                 self.back();
             }
             (KeyCode::Tab, _)
-                if self.step == Step::Credential
-                    && self.provider != Provider::AwsBedrock
-                    && supports_login(self.provider) =>
+                if self.step == Step::Credential && self.credential_supports_oauth() =>
             {
                 self.oauth_mode = true;
                 self.oauth_idx = 0;
@@ -762,7 +843,8 @@ impl Wizard {
                 self.error = None;
             }
             (KeyCode::F(2), _)
-                if self.step == Step::Credential && self.provider == Provider::AwsBedrock =>
+                if self.step == Step::Credential
+                    && wizard_offers_mode(self.provider, login::MODE_AWS_SSO) =>
             {
                 let profile = self.credential.trim().to_string();
                 if profile.is_empty() {
@@ -774,7 +856,8 @@ impl Wizard {
                 }
             }
             (KeyCode::F(2), _)
-                if self.step == Step::Credential && self.provider == Provider::AlibabaTokenPlan =>
+                if self.step == Step::Credential
+                    && wizard_offers_mode(self.provider, login::MODE_BAILIAN_CONSOLE) =>
             {
                 // Login `bl` grava no próprio cofre; quota usa este perfil
                 // quando não houver Cookie explícito em `params.session_env`.
@@ -787,7 +870,7 @@ impl Wizard {
                     Some(a) => a.params.clone(),
                     None => BTreeMap::new(),
                 };
-                let profile = ensure_cli_profile(&mut params);
+                let profile = edit::ensure_cli_profile(&mut params);
                 self.credential_params = Some(params);
                 self.error = None;
                 return Action::BailianConsoleLogin {
@@ -1103,36 +1186,42 @@ impl Wizard {
     }
 
     /// Validação por passo no Enter: o erro aparece onde a correção é feita.
+    /// Toda a política de credencial / nome / visibilidade vive em core;
+    /// o wizard apenas invoca os helpers e devolve a mensagem.
     fn validate_step(&self) -> Result<(), String> {
-        match self.step {
-            Step::Name => {
-                if self.name.trim().is_empty() {
-                    return Err("Informe um nome para a conta.".into());
-                }
-                if self.name_taken() {
-                    return Err("Já existe uma conta com esse nome.".into());
-                }
-                Ok(())
-            }
+        let result = match self.step {
+            Step::Name => edit::validate_name(&self.name, &self.base, self.editing).map(|_| ()),
             Step::Credential => {
-                let credential = self.credential.trim();
-                if self.provider == Provider::AwsBedrock {
-                    if credential.is_empty() {
-                        return Err("Informe o perfil AWS (AWS CLI v2).".into());
+                // Credential-form policy lives entirely in core; the wizard
+                // only forwards the current text and the active OAuth state.
+                match edit::credential_kind(self.provider) {
+                    edit::CredentialKind::AwsProfile => {
+                        edit::apply_aws_profile(self.provider, &self.credential)
                     }
-                    return Ok(());
+                    edit::CredentialKind::None => {
+                        // Token-plan quota uses the dedicated `bl` profile;
+                        // the credential text slot is intentionally empty
+                        // and must not be sent to `resolve_credential_env`.
+                        let oauth = self
+                            .oauth_authorized
+                            .as_ref()
+                            .or(self.oauth_existing.as_ref());
+                        if oauth.is_some() {
+                            edit::resolve_credential_env(self.provider, &self.credential, oauth)
+                                .map(|_| ())
+                        } else {
+                            Ok(())
+                        }
+                    }
+                    edit::CredentialKind::EnvVar => {
+                        let oauth = self
+                            .oauth_authorized
+                            .as_ref()
+                            .or(self.oauth_existing.as_ref());
+                        edit::resolve_credential_env(self.provider, &self.credential, oauth)
+                            .map(|_| ())
+                    }
                 }
-                if self.provider == Provider::AlibabaTokenPlan {
-                    return Ok(());
-                }
-                if credential.is_empty() {
-                    return Err("Informe o NOME da variável de ambiente com a credencial.".into());
-                }
-                // Nunca ecoa o conteúdo digitado: pode ser um token colado por engano.
-                if !valid_env_name(credential) {
-                    return Err("Nome de variável inválido ([A-Za-z_][A-Za-z0-9_]*). Não cole o token: informe apenas o nome da variável exportada.".into());
-                }
-                Ok(())
             }
             Step::Params => {
                 let visible = self.visible_fields();
@@ -1140,11 +1229,18 @@ impl Wizard {
                     return Ok(());
                 };
                 let field = &self.fields[i];
+                // Core owns the required flag; we look up the descriptor
+                // rather than trusting `field.required`, so a tampered
+                // wizard state cannot bypass the policy.
+                let descriptor = edit::descriptor(self.provider, field.key);
                 if let FieldKind::Text(value) = &field.kind {
                     let value = value.trim();
                     if value.is_empty() {
-                        if field.required {
-                            return Err(format!("{} é obrigatório.", field.label));
+                        if descriptor.map(|d| d.required).unwrap_or(false) {
+                            return Err(format!(
+                                "{} é obrigatório.",
+                                descriptor.map(|d| d.label).unwrap_or(field.label)
+                            ));
                         }
                         return Ok(()); // opcional em branco é removido só ao salvar
                     }
@@ -1154,44 +1250,28 @@ impl Wizard {
                             known.insert(self.fields[j].key.to_string(), v.trim().to_string());
                         }
                     }
-                    return validate_param(field.key, value, &known);
+                    return edit::validate_param(field.key, value, &known)
+                        .map_err(|note| note.to_string());
                 }
                 Ok(())
             }
             Step::Interval => self.parse_interval().map(|_| ()),
             _ => Ok(()),
-        }
+        };
+        result.map_err(|note| note.to_string())
     }
 
-    fn name_taken(&self) -> bool {
-        let name = self.name.trim();
-        self.base
-            .accounts
-            .iter()
-            .enumerate()
-            .any(|(i, a)| Some(i) != self.editing && a.name.eq_ignore_ascii_case(name))
-    }
-
-    fn parse_interval(&self) -> Result<Option<u64>, String> {
-        // Campo vazio: herda o intervalo global (sem override individual).
-        if self.interval.trim().is_empty() {
-            return Ok(None);
-        }
-        let interval: u64 = self
-            .interval
-            .trim()
-            .parse()
-            .map_err(|_| "Intervalo inválido.".to_string())?;
-        if !(MIN_INTERVAL..=MAX_INTERVAL).contains(&interval) {
-            return Err(format!(
-                "Intervalo deve ficar entre {MIN_INTERVAL} e {MAX_INTERVAL} segundos."
-            ));
-        }
-        Ok(Some(interval))
+    fn parse_interval(&self) -> Result<Option<u64>, cuotai_core::text::Localized> {
+        // Delegates the parsing rules to the core account-edit module so the
+        // bounds stay in sync with `Config::validate`. The wizard contributes
+        // only the user-typed text. The TUI renders the Portuguese fallback
+        // directly; the RF8 structured note (stable id + params) is unused
+        // here but exposed by the core for the desktop catalog resolution.
+        edit::parse_refresh_seconds(&self.interval)
     }
 
     fn env_status(&self) -> (&'static str, Color) {
-        if !valid_env_name(self.credential.trim()) {
+        if !edit::valid_env_name(self.credential.trim()) {
             return ("NOME INVÁLIDO", DRACULA_RED);
         }
         // Mesma regra do backend: valor presente e não vazio após trim.
@@ -1202,139 +1282,49 @@ impl Wizard {
     }
 
     fn build_config(&self) -> Result<Config, String> {
-        let name = self.name.trim().to_string();
-        if name.is_empty() {
-            return Err("Informe um nome para a conta.".into());
-        }
-        if self.name_taken() {
-            return Err(format!(
-                "Já existe uma conta chamada \"{}\".",
-                crate::ui::safe(&name)
-            ));
-        }
-
-        let credential = self.credential.trim().to_string();
-        // Mesmo provedor: conserva chaves de params não gerenciadas pelo assistente;
-        // provedor trocado: começa vazio (incompatíveis já foram descartados na troca).
-        // Quando o F2 do Bailian preencheu `credential_params` com `cli_profile`,
-        // essa versão enriquecida prevalece para preservar o profile dedicado.
-        let mut params: BTreeMap<String, String> =
-            self.credential_params.clone().unwrap_or_else(|| {
-                match self.editing.and_then(|i| self.base.accounts.get(i)) {
-                    Some(a) if a.provider == self.provider => a.params.clone(),
-                    _ => BTreeMap::new(),
-                }
-            });
-        for key in managed_keys(self.provider) {
-            params.remove(*key);
-        }
-        // Modo OAuth: credencial vive no armazenamento seguro (nunca no TOML) e o
-        // Save só é permitido com login autorizado nesta sessão OU a config OAuth
-        // existente preservada (sem mudança de identidade/modo).
-        let oauth = if self.oauth_active() {
-            match self
-                .oauth_authorized
-                .clone()
-                .or_else(|| self.oauth_existing.clone())
-            {
-                Some(config) => Some(config),
-                None => {
-                    return Err(
-                        "Faça o login OAuth (Enter em \"Iniciar login\") antes de gravar, ou volte à variável de ambiente com Tab."
-                            .into(),
-                    )
-                }
-            }
-        } else {
-            None
-        };
-        let credential_env = if self.provider == Provider::AwsBedrock {
-            if credential.is_empty() {
-                return Err("Informe o perfil AWS (AWS CLI v2).".into());
-            }
-            params.insert("profile".into(), credential);
-            None
-        } else if oauth.is_some() || self.provider == Provider::AlibabaTokenPlan {
-            None
-        } else {
-            if credential.is_empty() {
-                return Err("Informe o NOME da variável de ambiente com a credencial.".into());
-            }
-            // Nunca ecoa o conteúdo digitado: pode ser um token colado por engano.
-            if !valid_env_name(&credential) {
-                return Err("Nome de variável inválido ([A-Za-z_][A-Za-z0-9_]*). Não cole o token: informe apenas o nome da variável exportada.".into());
-            }
-            Some(credential)
-        };
-
+        // Translate the wizard's UI fields into the UI-neutral AccountDraft
+        // and let the core account-edit module own the policy (name check,
+        // OAuth preservation, managed-keys cleanup, native login params,
+        // env-name/ARM validation, refresh bounds, insert into Config).
+        // Only thing the wizard adds is what is purely UI: which fields are
+        // currently visible (Choice/text resolution comes from the live
+        // widgets).
         let visible = self.visible_fields();
+        let mut draft_fields: Vec<edit::DraftField> = Vec::with_capacity(visible.len());
         for &i in &visible {
             let field = &self.fields[i];
-            match &field.kind {
-                FieldKind::Text(value) => {
-                    let value = value.trim().to_string();
-                    if value.is_empty() {
-                        if field.required {
-                            return Err(format!("{} é obrigatório.", field.label));
-                        }
-                        continue;
-                    }
-                    validate_param(field.key, &value, &params)?;
-                    params.insert(field.key.into(), value);
-                }
-                FieldKind::Choice {
-                    options,
-                    selected,
-                    omit_default,
-                } => {
-                    if !(*omit_default && *selected == 0) {
-                        params.insert(field.key.into(), options[*selected].0.into());
-                    }
-                }
-            }
+            let value = match &field.kind {
+                FieldKind::Text(value) => edit::DraftValue::Text(value.clone()),
+                FieldKind::Choice { selected, .. } => edit::DraftValue::Choice(*selected),
+            };
+            draft_fields.push(edit::DraftField {
+                key: field.key,
+                value,
+            });
         }
-
-        // Login nativo: params controlados pela identidade (ocultos no passo
-        // Parâmetros) vêm dos metadados públicos do login desta sessão; ao editar
-        // conta já autenticada sem novo login, preserva os valores existentes.
-        if oauth.is_some() && !requires_client_registration(self.provider) {
-            if self.oauth_authorized.is_some() {
-                params.extend(self.oauth_login_params.clone());
-            } else if let Some(account) = self
-                .editing
-                .and_then(|i| self.base.accounts.get(i))
-                .filter(|a| a.provider == self.provider)
-            {
-                for key in native_param_keys(self.provider) {
-                    if let Some(value) = account
-                        .params
-                        .get(*key)
-                        .filter(|_| *key != "profile_arn" || self.provider != Provider::Kiro)
-                    {
-                        params.insert((*key).into(), value.clone());
-                    }
-                }
-            }
-        }
-
-        let interval_override = self.parse_interval()?;
-
-        let account = Account {
-            name,
+        let existing_account = self
+            .editing
+            .and_then(|i| self.base.accounts.get(i))
+            .filter(|a| a.provider == self.provider);
+        let existing_params = existing_account.map(|a| &a.params);
+        let draft = edit::AccountDraft {
             provider: self.provider,
-            credential_env,
-            oauth,
-            params,
-            refresh_seconds: interval_override,
+            name: &self.name,
+            credential: &self.credential,
+            oauth_mode: self.oauth_active(),
+            oauth_existing: self.oauth_existing.as_ref(),
+            oauth_authorized: self.oauth_authorized.clone(),
+            oauth_login_params: self.oauth_login_params.clone(),
+            existing_params,
+            credential_params: self.credential_params.clone(),
+            fields: &draft_fields,
+            interval_text: &self.interval,
         };
-        // O intervalo global nunca é tocado aqui: o override é individual e o
-        // global permanece como fallback para contas sem override.
-        let mut config = self.base.clone();
-        match self.editing {
-            Some(i) if i < config.accounts.len() => config.accounts[i] = account,
-            _ => config.accounts.push(account),
-        }
-        Ok(config)
+        let account =
+            edit::build_account(&draft, &self.base, self.editing).map_err(|e| e.to_string())?;
+        self.base
+            .upsert_account(account, self.editing)
+            .map_err(|e| e.to_string())
     }
 
     fn summary_lines(&self, path: &Path) -> Vec<Line<'static>> {
@@ -1490,9 +1480,9 @@ impl Wizard {
             Span::styled("Arquivo de destino: ", dim),
             Span::raw(path.display().to_string()),
         ]));
-        if self.provider == Provider::AwsBedrock {
+        if let Some(advisory) = edit::cost_advisory(self.provider) {
             lines.push(Line::from(Span::styled(
-                "ATENÇÃO: AWS Cost Explorer cobra por consulta; prefira intervalos altos (ex.: 3600s).",
+                advisory.fallback,
                 Style::default().fg(DRACULA_YELLOW),
             )));
         }
@@ -1646,6 +1636,68 @@ impl Wizard {
                 .style(Style::default().fg(DRACULA_CYAN)),
             hint_area,
         );
+
+        // RF4 conflict-recovery modal: layered on top of the wizard
+        // body so the user keeps the visual context of the draft
+        // they are about to (re)save. The wizard's key handler routes
+        // `r` to `Action::ConflictReload` and `Esc` to
+        // `Action::ConflictDismiss` while this overlay is showing.
+        if let Some(message) = self.conflict.as_ref() {
+            self.draw_conflict_modal(frame, area, message);
+        }
+    }
+
+    /// Centered overlay shown when the save path returns
+    /// `EditError::Conflict`. Renders above the wizard body so the
+    /// user can read the typed message and pick reload/cancel.
+    fn draw_conflict_modal(&self, frame: &mut Frame, area: Rect, message: &str) {
+        let modal_w = area.width.saturating_sub(8).clamp(40, 78);
+        let modal_h = 9u16;
+        let modal = Rect {
+            x: area.x + (area.width.saturating_sub(modal_w)) / 2,
+            y: area.y + (area.height.saturating_sub(modal_h)) / 2,
+            width: modal_w,
+            height: modal_h,
+        };
+        frame.render_widget(Clear, modal);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(DRACULA_YELLOW))
+            .title(Span::styled(
+                " Arquivo mudou no disco ",
+                Style::default()
+                    .fg(DRACULA_YELLOW)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        let inner = block.inner(modal);
+        frame.render_widget(block, modal);
+        let lines = vec![
+            Line::from(Span::styled(
+                message.to_string(),
+                Style::default().fg(DRACULA_FG),
+            )),
+            Line::default(),
+            Line::from(Span::styled(
+                "Recarregar substitui a versão em memória pelo conteúdo atual do",
+                Style::default().fg(DRACULA_COMMENT),
+            )),
+            Line::from(Span::styled(
+                "arquivo (sem alterar o rascunho do assistente). Cancelar mantém",
+                Style::default().fg(DRACULA_COMMENT),
+            )),
+            Line::from(Span::styled(
+                "a versão em memória para nova edição.",
+                Style::default().fg(DRACULA_COMMENT),
+            )),
+            Line::default(),
+            Line::from(Span::styled(
+                "[r] recarregar do disco   [Esc] cancelar",
+                Style::default()
+                    .fg(DRACULA_CYAN)
+                    .add_modifier(Modifier::BOLD),
+            )),
+        ];
+        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
     }
 
     fn draw_provider(&mut self, frame: &mut Frame, area: ratatui::layout::Rect) {
@@ -1910,7 +1962,7 @@ impl Wizard {
             )));
             lines.push(Line::default());
             lines.push(Line::from(Span::styled(
-                oauth_registration_help(self.provider),
+                edit::oauth_registration_help(self.provider).fallback,
                 Style::default().fg(DRACULA_COMMENT),
             )));
         } else {
@@ -1936,7 +1988,7 @@ impl Wizard {
             ]));
             lines.push(Line::default());
             lines.push(Line::from(Span::styled(
-                credential_help(self.provider),
+                edit::credential_help(self.provider).fallback,
                 Style::default().fg(DRACULA_COMMENT),
             )));
             lines.push(Line::default());
@@ -1950,7 +2002,7 @@ impl Wizard {
                     hint,
                     Style::default().fg(DRACULA_COMMENT),
                 )));
-            } else if let Some(reason) = oauth_unsupported_reason(self.provider) {
+            } else if let Some(reason) = edit::oauth_unsupported_reason(self.provider) {
                 lines.push(Line::from(Span::styled(
                     format!("Login OAuth integrado indisponível: {reason}"),
                     Style::default().fg(DRACULA_COMMENT),
@@ -2021,17 +2073,18 @@ impl Wizard {
         let mut lines = vec![
             Line::from(Span::styled(
                 format!(
-                    "Intervalo individual desta conta em segundos ({MIN_INTERVAL}–{MAX_INTERVAL}); vazio herda o global:"
+                    "Intervalo individual desta conta em segundos ({}–{MAX_INTERVAL}); vazio herda o global:",
+                    min_interval_for(self.provider),
                 ),
                 prompt,
             )),
             Line::default(),
             Line::from(Span::styled(format!("> {}", self.interval), accent)),
         ];
-        if self.provider == Provider::AwsBedrock {
+        if let Some(advisory) = edit::cost_advisory(self.provider) {
             lines.push(Line::default());
             lines.push(Line::from(Span::styled(
-                "ATENÇÃO: AWS Cost Explorer cobra por consulta (≈US$0,01). 300s pode gerar custo relevante; recomendado 3600s. O valor NÃO é alterado automaticamente.",
+                advisory.fallback,
                 Style::default().fg(DRACULA_YELLOW),
             )));
         }
@@ -2044,740 +2097,113 @@ impl Wizard {
     }
 }
 
-fn valid_env_name(value: &str) -> bool {
-    let mut chars = value.chars();
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
-        _ => return false,
-    }
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
-
-/// Garante `params.cli_profile` com um nome estável e exclusivo para a conta.
-/// O `bl` aceita `--config <name>` para isolar credenciais entre contas;
-/// sem este perfil, duas contas distintas poderiam usar o `default` e
-/// acabar vendo os dados uma da outra.
-fn ensure_cli_profile(params: &mut BTreeMap<String, String>) -> String {
-    const KEY: &str = "cli_profile";
-    if let Some(existing) = params.get(KEY) {
-        if !existing.is_empty() && is_valid_cli_profile(existing) {
-            return existing.clone();
-        }
-    }
-    // Sufixo aleatório curto para evitar colisão entre contas.
-    let suffix: u32 = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| (d.as_nanos() as u32) % 1_000_000)
-        .unwrap_or(0);
-    let profile = format!("cuotai-{suffix:06}");
-    params.insert(KEY.into(), profile.clone());
-    profile
-}
-
-/// Nomes de perfil do `bl` aceitam letras, dígitos, hífen e underscore; até 32 chars.
-fn is_valid_cli_profile(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 32
-        && !name.starts_with('-')
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
-/// Nome convencional de variável por provedor (pré-preenchido ao adicionar).
-fn default_env(provider: Provider) -> &'static str {
-    match provider {
-        Provider::OpenAiApi => "OPENAI_ADMIN_KEY",
-        Provider::AnthropicApi => "ANTHROPIC_ADMIN_KEY",
-        Provider::ChatGpt => "CHATGPT_ACCESS_TOKEN",
-        Provider::Claude => "CLAUDE_OAUTH_TOKEN",
-        Provider::GeminiApi | Provider::VertexAi => "GOOGLE_CLOUD_ACCESS_TOKEN",
-        Provider::AwsBedrock => "",
-        Provider::AzureOpenAi => "AZURE_ACCESS_TOKEN",
-        Provider::Cursor => "CURSOR_ADMIN_API_KEY",
-        Provider::Copilot => "GITHUB_TOKEN",
-        Provider::Windsurf => "WINDSURF_SERVICE_KEY",
-        Provider::MiniMax => "MINIMAX_IO_API_KEY",
-        Provider::Kimi => "KIMI_API_KEY",
-        Provider::Qwen => "QWEN_API_KEY",
-        Provider::Groq => "GROQ_API_KEY",
-        Provider::Perplexity => "PERPLEXITY_API_KEY",
-        Provider::Mistral => "MISTRAL_API_KEY",
-        Provider::CloudflareAi => "CLOUDFLARE_AI_API_KEY",
-        Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY",
-        Provider::XiaomiMimo => "XIAOMI_MIMO_API_KEY",
-        Provider::OpenCodeGo => "OPENCODE_GO_API_KEY",
-        Provider::Qoder => "QODER_API_KEY",
-        Provider::GeminiAi => "GEMINI_API_KEY",
-        Provider::Grok => "X_GROK_API_KEY",
-        Provider::NvidiaNim => "NVIDIA_NIM_API_KEY",
-        Provider::Poolside => "POOLSIDE_API_KEY",
-        Provider::Cline => "CLINE_API_KEY",
-        Provider::Kiro => "KIRO_ACCESS_TOKEN",
-        Provider::CodeBuddy => "CODEBUDDY_ACCESS_TOKEN",
-        Provider::Zed => "ZED_ACCESS_TOKEN",
-        Provider::AlibabaModelStudio => "DASHSCOPE_API_KEY",
-        Provider::AlibabaCodingPlan => "BAILIAN_CODING_PLAN_API_KEY",
-        Provider::AlibabaTokenPlan => "QWEN_API_KEY",
-        Provider::AlibabaCloud => "ALIBABA_CLOUD_ACCESS_KEY_ID",
-        Provider::Antigravity => "ANTIGRAVITY_ACCESS_TOKEN",
-        Provider::Kimchi => "KIMCHI_API_KEY",
-    }
-}
-
-fn credential_help(provider: Provider) -> &'static str {
-    match provider {
-        Provider::OpenAiApi => {
-            "Chave de ADMINISTRAÇÃO da organização (Admin API), não uma chave de projeto comum."
-        }
-        Provider::AnthropicApi => {
-            "Chave de administração (sk-ant-admin01-...) da Usage & Cost Admin API."
-        }
-        Provider::ChatGpt => {
-            "Use o ACCESS token OAuth (não o refresh token nem o ID token). Interface interna do Codex: cobre as janelas do agente, NÃO a quota do chat web; pode mudar sem aviso."
-        }
-        Provider::Claude => {
-            "Token OAuth de acesso. Interface não documentada oficialmente, sujeita a mudanças."
-        }
-        Provider::GeminiApi | Provider::VertexAi => {
-            "Access token OAuth do Google Cloud (ex.: gcloud auth application-default print-access-token)."
-        }
-        Provider::AzureOpenAi => "Access token Azure com permissão de leitura de custos.",
-        Provider::Cursor => {
-            "Admin API Teams/Enterprise: variável CURSOR_ADMIN_API_KEY. Para a conta pessoal, pressione Tab e confirme importar a sessão do Cursor local. Não abre OAuth nem lê tokens sem confirmação."
-        }
-        Provider::Copilot => {
-            "Token GitHub da CONTA, nunca o copilotToken de inferência. Cobrança (padrão): PAT clássico. Quota pessoal (opt-in): token GitHub com acesso ao endpoint interno; OAuth/PAT aceito depende do provedor."
-        }
-        Provider::Windsurf => {
-            "Requer Enterprise com permissões Billing Read e Teams Read-Only."
-        }
-        Provider::AwsBedrock => "",
-        Provider::Mistral => "A consulta de consumo exige Admin API Key, não chave de geração. Use MISTRAL_API_KEY com a chave administrativa ou configure admin_key_env nos parâmetros.",
-        Provider::Grok => "Token de acesso xAI da equipe (Management API ou CLI). Padrão Management API: Management Key + Team ID. Opt-in cli: token de sessão do Grok CLI. Não confundir com chave da API social X.",
-        Provider::Perplexity => "PERPLEXITY_API_KEY é mantida. Sonar não expõe saldo por essa chave; Computer Enterprise Analytics é uma consulta distinta, opcional nos parâmetros.",
-        Provider::GeminiAi => "Padrão: chave Gemini/AI Studio — esta chave NÃO consulta quota (use Gemini CLI/CodeAssist nos parâmetros). Opt-in cli: token de sessão do Gemini CLI.",
-        Provider::Cline => "Chave da Cline API ou token de conta (CLINE_API_KEY). Consulta saldo Cline; BYOK deve ser acompanhado no provedor da chave. Organização opcional nos parâmetros.",
-        Provider::Kimi => "KIMI_API_KEY (Moonshot/Kimi). Padrão: saldo da conta internacional. Opt-in coding: aceita a chave de plataforma OU um access token OAuth (informe o nome em token_env); a chave tem precedência.",
-        Provider::Qoder => "QODER_API_KEY aceita PAT (pt-..., trocado por job token) ou um token Bearer/job já existente (jt-.../device). Escolha o tipo de credencial nos parâmetros.",
-        Provider::OpenCodeGo => "OPENCODE_GO_API_KEY da conta; a própria chave do usuário autentica a consulta interna.",
-        Provider::Groq => "GROQ_API_KEY da conta; a própria chave do usuário autentica a consulta interna.",
-        Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY da conta (Bearer); uso em GET ollama.com/api/usage e plano em POST /api/me. Não é necessário importar cookies.",
-        Provider::XiaomiMimo => "Saldo/Token Plan: configure platform_session_env com a sessão web platform.xiaomimimo.com. O código nativo entrega chave de inferência, não cookie. session_env é separado: quota semanal do MiMo Desktop.",
-        Provider::Kiro => "Access token Kiro/CodeWhisperer (não refresh token). Origem via auth_method: builder-id (padrão), idc, google, github, import, api_key ou external_idp.",
-        Provider::CodeBuddy => "Access token de sessão do CodeBuddy (cn: copilot.tencent.com; intl: www.codebuddy.ai).",
-        Provider::Zed => "ZED_ACCESS_TOKEN (cloud access token do fluxo de login nativo zed.dev). Informe também o user_id numérico — é enviado como `Authorization: <user_id> <token>`.",
-        Provider::AlibabaModelStudio => "API key Alibaba Model Studio/DashScope. Pode apontar para QWEN_API_KEY. Selecione a região correspondente à conta; não é login OAuth Qwen Code.",
-        Provider::AlibabaCodingPlan => "Chave da assinatura Alibaba Coding Plan (normalmente sk-sp-). Selecione China ou internacional; é diferente de uma API key padrão DashScope.",
-        Provider::AlibabaTokenPlan => "A quota Token Plan consulta, por padrão, o perfil dedicado do `bl` (`params.cli_profile`, configurado pelo F2). `params.session_env` (Cookie de home.qwencloud.com) é override opcional. QWEN_API_KEY autentica apenas inferência e não é enviada à consulta.",
-        Provider::AlibabaCloud => "Informe o NOME da variável com AccessKey ID da conta RAM de faturamento. Em Parâmetros informe a variável AccessKey Secret; os valores nunca entram no TOML.",
-        Provider::Antigravity => "Sessão Google do Antigravity, distinta da API key Gemini. Pressione Tab para login nativo; o projeto Code Assist e as janelas de quota serão consultados automaticamente.",
-        Provider::Kimchi => "KIMCHI_API_KEY da conta Kimchi; consulta créditos e orçamentos em llm.kimchi.dev, sem geração.",
-        _ => "API key/PAT: informe apenas o nome da variável exportada. A chave de geração pode não permitir consultar consumo; confira a limitação do relatório.",
-    }
-}
-
-/// Instruções de registro do aplicativo OAuth do próprio usuário (URLs oficiais).
-/// Chamada apenas para provedores com `supports_login` verdadeiro.
-fn oauth_registration_help(provider: Provider) -> &'static str {
-    match provider {
-        Provider::GeminiApi | Provider::VertexAi => {
-            "Registre um client ID de app Desktop em https://console.cloud.google.com/apis/credentials (tela de consentimento OAuth + cliente Desktop; o login usa PKCE com loopback local)."
-        }
-        Provider::AzureOpenAi => {
-            "Registre um app público em https://portal.azure.com > Microsoft Entra > Registros de aplicativo, habilite o fluxo de código de dispositivo e conceda permissão delegada de gerenciamento/leitura do Azure."
-        }
-        _ => "Registre um aplicativo OAuth próprio no provedor e informe o client ID.",
-    }
-}
-
-/// Motivo da ausência de login integrado (modo variável de ambiente segue
-/// disponível normalmente). AWS usa o fluxo próprio do CLI (perfil + F2);
-fn oauth_unsupported_reason(provider: Provider) -> Option<&'static str> {
-    match provider {
-        Provider::OpenAiApi => Some("a Admin API da OpenAI aceita apenas chaves de administração."),
-        Provider::AnthropicApi => {
-            Some("a Usage & Cost Admin API aceita apenas chaves de administração.")
-        }
-        Provider::Windsurf => Some("o Windsurf exige service key Enterprise; não há fluxo OAuth."),
-        _ => None,
-    }
-}
-
 /// Opções não secretas do fluxo de login nativo, editadas no passo Credencial
 /// ANTES de iniciar o login e gravadas em `OAuthConfig.options` (apenas
 /// region/auth_method/start_url — nunca tokens). Pré-carregadas da config
 /// existente ao editar uma conta já autenticada.
+///
+/// Schema é fornecido por [`edit::native_option_descriptors`]: o TUI só
+/// mapeia cada descritor para o widget de Field, mantendo a fonte da verdade
+/// no core.
 fn native_option_fields(provider: Provider, existing: Option<&OAuthConfig>) -> Vec<Field> {
-    let get = |key: &str| existing.and_then(|o| o.options.get(key)).cloned();
-    let text = |key: &'static str, label: &'static str, help: &'static str| {
-        let mut f = Field::text(key, label, help, false);
-        if let Some(v) = get(key) {
-            f.kind = FieldKind::Text(v);
-        }
-        f
-    };
-    let choice = |key: &'static str,
-                  label: &'static str,
-                  help: &'static str,
-                  options: &'static [(&'static str, &'static str)]| {
-        let mut f = Field::choice(key, label, help, options);
-        if let Some(v) = get(key) {
-            if let Some(pos) = options.iter().position(|(value, _)| *value == v) {
-                if let FieldKind::Choice { selected, .. } = &mut f.kind {
-                    *selected = pos;
-                }
+    edit::native_option_descriptors(provider)
+        .iter()
+        .map(|descriptor| descriptor_to_native_field(descriptor, existing))
+        .collect()
+}
+
+fn descriptor_to_native_field(
+    descriptor: &edit::NativeOptionDescriptor,
+    existing: Option<&OAuthConfig>,
+) -> Field {
+    let mut field = Field::text(descriptor.key, descriptor.label, descriptor.help, false);
+    let existing_value = existing.and_then(|o| o.options.get(descriptor.key));
+    match descriptor.kind {
+        edit::FieldDescriptorKind::Text => {
+            if let Some(value) = existing_value {
+                field.kind = FieldKind::Text(value.clone());
             }
         }
-        f
-    };
-    match provider {
-        Provider::Cursor => vec![text("database_path", "Banco local Cursor (opcional)", "Caminho completo de state.vscdb; vazio usa Cursor instalado. Nunca informe o token neste campo.")],
-        Provider::Kiro => vec![
-            choice(
-                "auth_method",
-                "Método de autenticação",
-                "builder-id (padrão): AWS Builder ID. idc: IAM Identity Center (usa região/URL abaixo).",
-                &[("builder-id", "AWS Builder ID"), ("idc", "IAM Identity Center")],
-            ),
-            text(
-                "region",
-                "Região (opcional)",
-                "Região AWS do Identity Center (ex.: us-east-1); vazio usa o padrão do fluxo.",
-            ),
-            text(
-                "start_url",
-                "URL de início IDC (opcional)",
-                "URL do portal IAM Identity Center; usada apenas no método idc.",
-            ),
-        ],
-        Provider::CodeBuddy => vec![choice(
-            "region",
-            "Região",
-            "cn (padrão): copilot.tencent.com. intl: www.codebuddy.ai.",
-            &[("cn", "China"), ("intl", "Internacional")],
-        )],
-        Provider::Qoder => vec![choice(
-            "region",
-            "Região",
-            "intl (padrão): openapi.qoder.sh. cn: openapi.qoder.com.cn.",
-            &[("intl", "Internacional"), ("cn", "China")],
-        )],
-        Provider::XiaomiMimo => vec![choice(
-            "region",
-            "Região",
-            "Região do serviço MiMo: sgp (padrão), cn, ams, ru ou in.",
-            &[
-                ("sgp", "Singapura"),
-                ("cn", "China"),
-                ("ams", "Amsterdã"),
-                ("ru", "Rússia"),
-                ("in", "Índia"),
-            ],
-        )],
-        _ => Vec::new(),
+        edit::FieldDescriptorKind::Choice(choice_desc) => {
+            let mut field = Field::choice(
+                descriptor.key,
+                descriptor.label,
+                descriptor.help,
+                choice_desc.options,
+            );
+            if let Some(value) = existing_value {
+                if let Some(pos) = choice_desc
+                    .options
+                    .iter()
+                    .position(|(option, _)| *option == value)
+                {
+                    if let FieldKind::Choice { selected, .. } = &mut field.kind {
+                        *selected = pos;
+                    }
+                }
+            }
+            return field;
+        }
     }
+    field
 }
 
-/// Chaves de params controladas pelo login nativo: ocultas no passo Parâmetros
-/// em modo nativo (nunca divergem da identidade autenticada) e preenchidas
-/// pelos metadados públicos devolvidos pelo login (ou preservadas da conta em
-/// edição sem novo login). Seguem a projeção pública de `oauth::account_params`.
-fn native_param_keys(provider: Provider) -> &'static [&'static str] {
-    match provider {
-        Provider::Qwen => &["product"],
-        Provider::Cursor => &["query_mode", "device_id", "user_id"],
-        Provider::ChatGpt => &["account_id"],
-        Provider::Copilot => &["query_mode", "mode", "org", "billing"],
-        Provider::Kimi => &["product", "token_env", "device_id"],
-        Provider::Grok => &[
-            "product",
-            "session_env",
-            "email",
-            "user_id",
-            "team_id",
-            "management_key_env",
-        ],
-        Provider::GeminiAi => &["product", "session_env", "project_id"],
-        Provider::Qoder => &["region", "credential_type"],
-        Provider::CodeBuddy => &["region"],
-        Provider::Kiro => &["auth_method", "profile_arn", "region"],
-        Provider::Zed => &["user_id", "system_id"],
-        Provider::XiaomiMimo => &["region", "auth_method"],
-        _ => &[],
-    }
-}
-
-/// Chaves de params gerenciadas pelo assistente por provedor (inclui `org` oculta
-/// e `profile` do AWS): removidas do clone de edição e regravadas a partir dos
-/// campos. Chaves exclusivas do login nativo (region/auth_method etc.) também
-/// são removidas no clone — em modo nativo são preenchidas pelos metadados do
-/// login; em modo env ficam vazias até nova autenticação (mudança de identidade).
-fn managed_keys(provider: Provider) -> &'static [&'static str] {
-    match provider {
-        Provider::Qwen => &["product"],
-        Provider::OpenAiApi => &["project_ids", "models"],
-        Provider::AnthropicApi => &["workspace_ids", "models"],
-        Provider::ChatGpt => &["account_id"],
-        Provider::GeminiApi | Provider::VertexAi => &["project_id"],
-        Provider::AwsBedrock => &["profile"],
-        Provider::AzureOpenAi => &["subscription_id", "resource_id"],
-        Provider::Copilot => &["mode", "org", "billing", "query_mode"],
-        Provider::Cursor => &["query_mode", "device_id", "user_id"],
-        Provider::Mistral => &["admin_key_env"],
-        Provider::Kimi => &["product", "token_env", "device_id"],
-        Provider::XiaomiMimo => &[
-            "session_env",
-            "platform_session_env",
-            "region",
-            "auth_method",
-        ],
-        Provider::Grok => &[
-            "product",
-            "session_env",
-            "email",
-            "user_id",
-            "team_id",
-            "management_key_env",
-        ],
-        Provider::Perplexity => &["product", "analytics_key_env"],
-        Provider::Cline => &["organization_id"],
-        Provider::GeminiAi => &["product", "session_env", "project_id"],
-        Provider::Qoder => &["region", "credential_type"],
-        Provider::Kiro => &["auth_method", "profile_arn", "region"],
-        Provider::CodeBuddy => &["region"],
-        Provider::Zed => &["user_id", "system_id"],
-        Provider::Antigravity => &["project_id"],
-        Provider::AlibabaModelStudio => &["region"],
-        Provider::AlibabaCodingPlan => &["region", "session_env"],
-        Provider::AlibabaTokenPlan => &["session_env"],
-        Provider::AlibabaCloud => &[
-            "region",
-            "secret_env",
-            "security_token_env",
-            "billing_cycle",
-        ],
-        _ => &[],
-    }
-}
-
+/// Schema (key/label/help/required/options) é fornecido por
+/// [`edit::field_descriptors`]; o TUI só materializa cada descritor num
+/// widget de Field, pré-preenchendo valores da conta em edição.
 fn default_fields(provider: Provider, existing: Option<&Account>) -> Vec<Field> {
-    let get = |key: &str| existing.and_then(|a| a.params.get(key)).cloned();
-    let text = |key: &'static str, label: &'static str, help: &'static str, required: bool| {
-        let mut f = Field::text(key, label, help, required);
-        if let Some(v) = get(key) {
-            f.kind = FieldKind::Text(v);
+    edit::field_descriptors(provider)
+        .iter()
+        .map(|descriptor| descriptor_to_field(descriptor, existing))
+        .collect()
+}
+
+fn descriptor_to_field(descriptor: &edit::FieldDescriptor, existing: Option<&Account>) -> Field {
+    let existing_value = existing.and_then(|a| a.params.get(descriptor.key));
+    match descriptor.kind {
+        edit::FieldDescriptorKind::Text => {
+            let mut field = Field::text(
+                descriptor.key,
+                descriptor.label,
+                descriptor.help,
+                descriptor.required,
+            );
+            if let Some(value) = existing_value {
+                field.kind = FieldKind::Text(value.clone());
+            }
+            field
         }
-        f
-    };
-    let choice = |key: &'static str,
-                  label: &'static str,
-                  help: &'static str,
-                  options: &'static [(&'static str, &'static str)]| {
-        let mut f = Field::choice(key, label, help, options);
-        if let Some(v) = get(key) {
-            if let Some(pos) = options.iter().position(|(value, _)| *value == v) {
-                if let FieldKind::Choice { selected, .. } = &mut f.kind {
-                    *selected = pos;
+        edit::FieldDescriptorKind::Choice(choice_desc) => {
+            let mut field = Field::choice(
+                descriptor.key,
+                descriptor.label,
+                descriptor.help,
+                choice_desc.options,
+            );
+            if let Some(value) = existing_value {
+                if let Some(pos) = choice_desc
+                    .options
+                    .iter()
+                    .position(|(option, _)| *option == value)
+                {
+                    if let FieldKind::Choice { selected, .. } = &mut field.kind {
+                        *selected = pos;
+                    }
                 }
             }
+            field
         }
-        f
-    };
-    match provider {
-        Provider::OpenAiApi => vec![
-            text(
-                "project_ids",
-                "IDs de projetos",
-                "Opcional; lista separada por vírgula para filtrar custos e uso.",
-                false,
-            ),
-            text(
-                "models",
-                "Modelos",
-                "Opcional; lista separada por vírgula para filtrar o uso.",
-                false,
-            ),
-        ],
-        Provider::AnthropicApi => vec![
-            text(
-                "workspace_ids",
-                "IDs de workspaces",
-                "Opcional; lista separada por vírgula para filtrar custos e uso.",
-                false,
-            ),
-            text(
-                "models",
-                "Modelos",
-                "Opcional; lista separada por vírgula para filtrar o uso.",
-                false,
-            ),
-        ],
-        Provider::ChatGpt => vec![text(
-            "account_id",
-            "ID da conta",
-            "Opcional; cabeçalho chatgpt-account-id para conta de equipe.",
-            false,
-        )],
-        Provider::Claude | Provider::Cursor | Provider::Windsurf | Provider::AwsBedrock => {
-            Vec::new()
-        }
-        Provider::GeminiApi | Provider::VertexAi => vec![text(
-            "project_id",
-            "ID do projeto GCP",
-            "Obrigatório; letras, números e - _ . :",
-            true,
-        )],
-        Provider::AzureOpenAi => vec![
-            text(
-                "subscription_id",
-                "ID da assinatura",
-                "Obrigatório; assinatura Azure dona do recurso.",
-                true,
-            ),
-            text(
-                "resource_id",
-                "ID ARM do recurso",
-                "Obrigatório; caminho completo /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}.",
-                true,
-            ),
-        ],
-        Provider::Copilot => vec![
-            choice(
-                "query_mode",
-                "Modo de consulta",
-                "billing (padrão): APIs de cobrança documentadas. quota: quota pessoal (interface interna; exige token OAuth/PAT do GitHub, NÃO o copilotToken interno).",
-                &[
-                    ("billing", "Cobrança documentada (padrão)"),
-                    ("quota", "Quota pessoal (opt-in, interface interna)"),
-                ],
-            ),
-            choice(
-                "mode",
-                "Escopo",
-                "user: cobrança pessoal; org: cobrança da organização (requer admin). Sem efeito no modo quota.",
-                &[
-                    ("user", "Cobrança pessoal do usuário autenticado"),
-                    ("org", "Cobrança da organização (requer admin)"),
-                ],
-            ),
-            text(
-                "org",
-                "Organização",
-                "Obrigatório no modo org; slug da organização (letras, números e hífens).",
-                true,
-            ),
-            choice(
-                "billing",
-                "Produto",
-                "premium_requests (padrão) ou ai_credits.",
-                &[
-                    ("premium_requests", "Solicitações premium"),
-                    ("ai_credits", "Créditos de IA"),
-                ],
-            ),
-        ],
-        Provider::Mistral => vec![text("admin_key_env", "Variável administrativa alternativa", "Opcional: nome da variável com Admin API Key. Vazio usa a variável da etapa Credencial, que deve conter chave administrativa.", false)],
-        Provider::Kimi => vec![
-            choice(
-                "product",
-                "Produto",
-                "Padrão: saldo da conta internacional Kimi/Moonshot. coding: opt-in para a quota do plano Kimi for Coding (interface interna, sujeita a mudanças).",
-                &[
-                    ("default", "Saldo da conta internacional (padrão)"),
-                    ("coding", "Kimi for Coding — quota do plano (opt-in, interno)"),
-                ],
-            ),
-            text(
-                "token_env",
-                "Variável do token OAuth (opcional)",
-                "Opcional; nome da variável com access token OAuth Kimi. Usado somente se a chave da etapa Credencial estiver ausente; a API key tem precedência, como no 9router.",
-                false,
-            ),
-        ],
-        Provider::Grok => vec![
-            choice(
-                "product",
-                "Produto",
-                "Padrão: Management API xAI (saldo/cobrança, exige Team ID). cli: opt-in para a quota do Grok CLI (interface interna) com token de sessão.",
-                &[
-                    ("management", "Management API (padrão)"),
-                    ("cli", "Grok CLI (opt-in, interface interna)"),
-                ],
-            ),
-            text(
-                "session_env",
-                "Variável do token de sessão",
-                "Nome (não valor) da variável com o access token do Grok CLI; o padrão é GROK_CLI_ACCESS_TOKEN — informe outro nome apenas se necessário. Usado somente no produto cli.",
-                false,
-            ),
-            text(
-                "email",
-                "E-mail (opcional)",
-                "Opcional no produto cli; enviado como cabeçalho x-email.",
-                false,
-            ),
-            text(
-                "user_id",
-                "User ID (opcional)",
-                "Opcional no produto cli; enviado como cabeçalho x-userid.",
-                false,
-            ),
-            text("team_id", "Team ID xAI", "Obrigatório na Management API, disponível nas configurações da equipe xAI.", true),
-            text("management_key_env", "Variável de Management Key alternativa", "Opcional: nome da variável com Management Key, não o valor. Vazio usa a variável da etapa Credencial.", false),
-        ],
-        Provider::Perplexity => vec![
-            text("product", "Produto (opcional)", "Digite computer somente para Computer Enterprise Analytics. Vazio mantém Perplexity/Sonar com limitação explícita.", false),
-            text("analytics_key_env", "Variável Analytics alternativa", "Opcional: variável com chave Computer Analytics. Não consulta consumo Sonar.", false),
-        ],
-        Provider::Cline => vec![text("organization_id", "Organização Cline (opcional)", "Vazio consulta a conta pessoal. Informe o ID da organização para consultar seu saldo, com a permissão correspondente.", false)],
-        Provider::GeminiAi => vec![
-            choice(
-                "product",
-                "Produto",
-                "A chave de API Gemini/AI Studio NÃO tem consulta de quota. cli: opt-in para a quota do Gemini CLI (CodeAssist, interface interna) com token de sessão.",
-                &[
-                    ("default", "Chave de API (sem consulta de quota)"),
-                    ("cli", "Gemini CLI / CodeAssist (opt-in, interno)"),
-                ],
-            ),
-            text(
-                "session_env",
-                "Variável do token de sessão",
-                "Nome (não valor) da variável com o access token do Gemini CLI; o padrão é GEMINI_CLI_ACCESS_TOKEN — informe outro nome apenas se necessário. Usado somente no produto cli.",
-                false,
-            ),
-            text(
-                "project_id",
-                "ID do projeto GCP (opcional)",
-                "Opcional no produto cli; projeto CodeAssist. Vazio tenta resolução automática.",
-                false,
-            ),
-        ],
-        Provider::Qoder => vec![
-            choice(
-                "region",
-                "Região",
-                "intl (padrão): openapi.qoder.sh. cn: openapi.qoder.com.cn.",
-                &[
-                    ("intl", "Internacional (openapi.qoder.sh)"),
-                    ("cn", "China (openapi.qoder.com.cn)"),
-                ],
-            ),
-            choice(
-                "credential_type",
-                "Tipo de credencial",
-                "auto (padrão): detecta o prefixo pt-. pat: Personal Access Token (trocado por job token). bearer: token Bearer/job já existente.",
-                &[
-                    ("auto", "Automático (detecta pt-)"),
-                    ("pat", "Personal Access Token"),
-                    ("bearer", "Bearer/job token existente"),
-                ],
-            ),
-        ],
-        Provider::Kiro => vec![
-            choice(
-                "auth_method",
-                "Método de autenticação",
-                "Origem do access token: builder-id (padrão), idc, google, github, import, api_key ou external_idp.",
-                &[
-                    ("builder-id", "AWS Builder ID (padrão)"),
-                    ("idc", "IAM Identity Center"),
-                    ("google", "Google"),
-                    ("github", "GitHub"),
-                    ("import", "Importado"),
-                    ("api_key", "API key"),
-                    ("external_idp", "IdP externo"),
-                ],
-            ),
-            text(
-                "profile_arn",
-                "ARN do perfil CodeWhisperer (opcional)",
-                "Perfil da sua conta; opcional no fluxo legado. Permite consultar créditos atuais no endpoint regional. Nunca use ARN de outra conta.",
-                false,
-            ),
-        ],
-        Provider::CodeBuddy => vec![choice(
-            "region",
-            "Região",
-            "cn (padrão): copilot.tencent.com (cabeçalhos CLI). intl: www.codebuddy.ai (cabeçalhos IDE).",
-            &[
-                ("cn", "China (copilot.tencent.com)"),
-                ("intl", "Internacional (www.codebuddy.ai)"),
-            ],
-        )],
-        Provider::Zed => vec![
-            text(
-                "user_id",
-                "ID numérico do usuário Zed",
-                "Obrigatório; enviado como \"Authorization: <user_id> <access_token>\".",
-                true,
-            ),
-            text(
-                "system_id",
-                "System ID (opcional)",
-                "Opcional; enviado como cabeçalho x-zed-system-id quando definido.",
-                false,
-            ),
-        ],
-        Provider::XiaomiMimo => vec![
-            text("platform_session_env", "Variável da sessão da plataforma (opcional)", "Nome da variável com Cookie de platform.xiaomimimo.com (api-platform_serviceToken e userId). Lê saldo/plano mensal; não cole cookies neste campo.", false),
-            text(
-                "session_env",
-                "Variável do cookie de sessão (opcional)",
-                "Nome da variável com o cookie de sessão da conta Xiaomi (ex.: serviceToken=...), nunca o valor. Tem prioridade sobre a credencial principal.",
-                false,
-            ),
-            choice(
-                "region",
-                "Região",
-                "Região do serviço MiMo: sgp (padrão), cn, ams, ru ou in.",
-                &[
-                    ("sgp", "Singapura (padrão)"),
-                    ("cn", "China"),
-                    ("ams", "Amsterdã"),
-                    ("ru", "Rússia"),
-                    ("in", "Índia"),
-                ],
-            ),
-        ],
-        Provider::Antigravity => vec![text("project_id", "Projeto Code Assist (opcional)", "Vazio tenta obter o projeto pela sessão Antigravity. Não é obrigatório informar o projeto usado por uma API key Gemini.", false)],
-        Provider::AlibabaModelStudio => vec![choice(
-            "region", "Região Alibaba", "Use a região onde sua conta/chave foi criada; China e internacional possuem endpoints distintos.",
-            &[("intl", "Internacional"), ("cn", "China continental")],
-        )],
-        Provider::AlibabaCodingPlan => vec![
-            choice("region", "Região Alibaba", "Use a região da assinatura; a credencial não será enviada automaticamente para outra região.", &[("intl", "Internacional"), ("cn", "China continental")]),
-            text("session_env", "Variável da sessão Alibaba (opcional)", "Se a API exigir login no console, informe o NOME da variável contendo o Cookie da sua sessão. Substitui a API key na consulta; nunca cole o cookie aqui.", false),
-        ],
-        Provider::AlibabaTokenPlan => vec![text("session_env", "Variável do Cookie Qwen Cloud (opcional)", "Vazio = quota via perfil dedicado do `bl` (`params.cli_profile`). Se preferir a rota manual, informe o NOME da variável contendo o Cookie de home.qwencloud.com; nunca cole o Cookie aqui.", false)],
-        Provider::AlibabaCloud => vec![
-            choice("region", "Conta de faturamento", "Internacional ou China continental; corresponde à conta de cobrança Alibaba.", &[("intl", "Internacional"), ("cn", "China continental")]),
-            text("secret_env", "Variável AccessKey Secret", "Opcional: padrão ALIBABA_CLOUD_ACCESS_KEY_SECRET. Informe apenas o nome da variável, nunca o segredo.", false),
-            text("security_token_env", "Variável STS Security Token (opcional)", "Somente para credenciais temporárias STS; deixe vazio para AccessKey permanente.", false),
-            text("billing_cycle", "Fatura mensal (opcional)", "YYYY-MM, por exemplo 2026-09. Vazio consulta apenas saldo. Fatura agrega todos os produtos da conta cloud, não somente AI.", false),
-        ],
-        _ => Vec::new(),
     }
 }
 
-/// Validações alinhadas aos adaptadores (path_id / slug / azure_resource_id).
-fn validate_param(key: &str, value: &str, params: &BTreeMap<String, String>) -> Result<(), String> {
-    match key {
-        "billing_cycle" => {
-            if value.len() == 7
-                && chrono::NaiveDate::parse_from_str(&format!("{value}-01"), "%Y-%m-%d").is_ok()
-            {
-                Ok(())
-            } else {
-                Err("Informe o ciclo no formato YYYY-MM.".into())
-            }
-        }
-        k if k.ends_with("_env") => {
-            if valid_env_name(value) {
-                Ok(())
-            } else {
-                Err("Informe apenas o nome da variável de ambiente, nunca o valor.".into())
-            }
-        }
-        "team_id" | "organization_id" | "user_id" => {
-            if !value.is_empty()
-                && value
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
-            {
-                Ok(())
-            } else {
-                Err("Identificador inválido: use letras, números, hífen ou sublinhado.".into())
-            }
-        }
-        "system_id" => {
-            if value.is_empty()
-                || value
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
-            {
-                Ok(())
-            } else {
-                Err("System ID inválido: use letras, números, hífen ou sublinhado.".into())
-            }
-        }
-        "email" => {
-            // Checagem leve: precisa ter '@' sem espaços/controle; o servidor valida o resto.
-            if value.is_empty()
-                || (value.contains('@')
-                    && value.chars().all(|c| !c.is_control() && !c.is_whitespace()))
-            {
-                Ok(())
-            } else {
-                Err("E-mail inválido.".into())
-            }
-        }
-        "profile_arn" => {
-            if value.is_empty()
-                || (value.starts_with("arn:")
-                    && value.chars().all(|c| {
-                        c.is_ascii_alphanumeric() || matches!(c, ':' | '/' | '-' | '_' | '.')
-                    }))
-            {
-                Ok(())
-            } else {
-                Err("ARN inválido: deve começar com \"arn:\" e usar apenas caracteres AWS.".into())
-            }
-        }
-        "product" => {
-            if value == "computer" {
-                Ok(())
-            } else {
-                Err(
-                    "Use computer para Computer Analytics, ou deixe vazio para Perplexity/Sonar."
-                        .into(),
-                )
-            }
-        }
-        "project_id" | "subscription_id" => {
-            if value
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':'))
-            {
-                Ok(())
-            } else {
-                Err(format!(
-                    "params.{key} contém caracteres inválidos para identificador de recurso."
-                ))
-            }
-        }
-        "resource_id" => {
-            let subscription = params
-                .get("subscription_id")
-                .map(String::as_str)
-                .unwrap_or_default();
-            let segments: Vec<&str> = value.split('/').collect();
-            let valid = !subscription.is_empty()
-                && value.starts_with(&format!("/subscriptions/{subscription}/resourceGroups/"))
-                && value.contains("/providers/Microsoft.CognitiveServices/accounts/")
-                && !value.ends_with('/')
-                && value
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
-                && segments.iter().skip(1).all(|s| !s.is_empty());
-            if valid {
-                Ok(())
-            } else {
-                Err("resource_id deve ser o ID ARM completo dentro da assinatura informada: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}.".into())
-            }
-        }
-        "org" => {
-            if !value.is_empty() && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-                Ok(())
-            } else {
-                Err("Organização inválida: use apenas letras, números e hífens.".into())
-            }
-        }
-        _ => Ok(()),
-    }
+/// RF2.6: oferecer um atalho F2 só quando o core expõe o modo correspondente;
+/// a TUI não decide o fluxo por `Provider`.
+fn wizard_offers_mode(provider: Provider, mode_id: &str) -> bool {
+    login::login_modes(provider)
+        .modes
+        .iter()
+        .any(|mode: &LoginMode| mode.id == mode_id)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2899,5 +2325,206 @@ mod tests {
             Some("qwen-personal")
         );
         assert!(built.accounts[0].credential_env.is_none());
+    }
+
+    #[test]
+    fn wizard_visible_fields_match_core_visibility_decision() {
+        // The wizard MUST NOT carry its own provider-specific visibility
+        // rules. After the user flips the Grok product to "cli", the
+        // session_env field becomes visible and team_id disappears — both
+        // must agree with `edit::visible_field_indices`.
+        let mut wiz = Wizard::new(&Config::default(), None);
+        wiz.provider = Provider::Grok;
+        wiz.fields = default_fields(Provider::Grok, None);
+        let baseline = wiz.visible_fields();
+        let product_index = wiz
+            .fields
+            .iter()
+            .position(|f| f.key == "product")
+            .expect("Grok descriptor exposes product");
+        let session_index = wiz
+            .fields
+            .iter()
+            .position(|f| f.key == "session_env")
+            .expect("Grok descriptor exposes session_env");
+        let team_index = wiz
+            .fields
+            .iter()
+            .position(|f| f.key == "team_id")
+            .expect("Grok descriptor exposes team_id");
+        // Baseline (product=0, management mode): session_env hidden,
+        // team_id visible — visibility decision lives in core.
+        assert!(!baseline.contains(&session_index));
+        assert!(baseline.contains(&team_index));
+        // Cycle the product choice to "cli" (index 1) — visibility must
+        // mirror core's decision (session_env becomes visible, team_id
+        // disappears).
+        if let FieldKind::Choice { selected, .. } = &mut wiz.fields[product_index].kind {
+            *selected = 1;
+        }
+        let visible_after = wiz.visible_fields();
+        assert!(visible_after.contains(&session_index));
+        assert!(!visible_after.contains(&team_index));
+    }
+
+    #[test]
+    fn conflict_modal_intercepts_keys_and_keeps_draft() {
+        // RF4 contract: when `ConfigFile::save` returns
+        // `EditError::Conflict`, the wizard must surface the conflict
+        // modal without dropping the user's draft. The modal accepts
+        // `r` to reload and `Esc` to dismiss; any other key is
+        // ignored so the draft is not accidentally edited.
+        let mut wiz = wizard_with("OpenAI", "OPENAI_ADMIN_KEY", "60");
+        let draft_name = wiz.name.clone();
+        let draft_interval = wiz.interval.clone();
+        let draft_provider = wiz.provider;
+
+        wiz.set_conflict("arquivo mudou".into());
+        assert!(wiz.has_conflict());
+        assert!(wiz.conflict().is_some());
+
+        // Ignore a normal character while the modal is up.
+        let ignored = wiz.handle(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+        assert!(matches!(ignored, Action::Continue));
+        // Draft fields are intact.
+        assert_eq!(wiz.name, draft_name);
+        assert_eq!(wiz.interval, draft_interval);
+        assert_eq!(wiz.provider, draft_provider);
+
+        // Esc dismisses the modal without changing the draft.
+        let dismissed = wiz.handle(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(matches!(dismissed, Action::ConflictDismiss));
+        wiz.clear_conflict();
+        assert!(!wiz.has_conflict());
+
+        // r triggers the reload action.
+        wiz.set_conflict("arquivo mudou".into());
+        let reload = wiz.handle(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        assert!(matches!(reload, Action::ConflictReload));
+    }
+
+    #[test]
+    fn replace_base_swaps_schema_without_touching_draft() {
+        // After a successful reload the wizard validates the same draft
+        // against the freshly-loaded schema. `replace_base` MUST NOT
+        // touch name/credential/fields/interval so the user can re-save
+        // without re-typing.
+        let mut wiz = wizard_with("OpenAI", "OPENAI_ADMIN_KEY", "60");
+        let draft_name = wiz.name.clone();
+        let draft_interval = wiz.interval.clone();
+
+        let new_config = Config {
+            accounts: vec![
+                Account {
+                    name: "Other".into(),
+                    provider: Provider::AnthropicApi,
+                    credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
+                    oauth: None,
+                    params: BTreeMap::new(),
+                    refresh_seconds: Some(45),
+                },
+                Account {
+                    name: "OpenAI".into(),
+                    provider: Provider::OpenAiApi,
+                    credential_env: Some("OPENAI_ADMIN_KEY".into()),
+                    oauth: None,
+                    params: BTreeMap::new(),
+                    refresh_seconds: Some(60),
+                },
+            ],
+            ..Config::default()
+        };
+        wiz.replace_base(&new_config);
+        assert_eq!(wiz.name, draft_name);
+        assert_eq!(wiz.interval, draft_interval);
+        // The base now reflects the freshly-loaded config.
+        assert_eq!(wiz.base.accounts.len(), 2);
+    }
+
+    #[test]
+    fn wizard_prefills_aws_profile_from_stored_params() {
+        // RF5: the wizard delegates the existing stored profile read to
+        // core (`edit::stored_credential`) so a stored AWS CLI v2 profile
+        // surfaces in the credential step instead of an empty slot.
+        let config = Config {
+            accounts: vec![Account {
+                name: "Prod".into(),
+                provider: Provider::AwsBedrock,
+                credential_env: None,
+                oauth: None,
+                params: BTreeMap::from([("profile".into(), "default".into())]),
+                refresh_seconds: None,
+            }],
+            ..Config::default()
+        };
+        let wiz = Wizard::new(&config, Some(0));
+        assert_eq!(wiz.credential, "default");
+        // AWS never exposes OAuth (per `credential_modes`).
+        assert!(!wiz.oauth_active());
+        assert!(!wiz.credential_supports_oauth());
+        assert_eq!(
+            wiz.validate_step(),
+            Ok(()),
+            "stored AWS profile must prefill and validate"
+        );
+    }
+
+    #[test]
+    fn wizard_prefills_token_plan_cli_profile_from_stored_params() {
+        // RF5: AlibabaTokenPlan reads from params["cli_profile"] via core.
+        // The credential slot is intentionally empty (the form does not
+        // ask for an env-var name), and validation must accept it.
+        let config = Config {
+            accounts: vec![Account {
+                name: "Qwen".into(),
+                provider: Provider::AlibabaTokenPlan,
+                credential_env: None,
+                oauth: None,
+                params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
+                refresh_seconds: None,
+            }],
+            ..Config::default()
+        };
+        let wiz = Wizard::new(&config, Some(0));
+        assert_eq!(wiz.credential, "qwen-personal");
+        assert_eq!(wiz.validate_step(), Ok(()));
+    }
+
+    #[test]
+    fn wizard_tab_oauth_toggle_follows_credential_modes() {
+        // RF5: Tab → OAuth only works for providers whose credential
+        // modes expose oauth. AWS Bedrock and AlibabaTokenPlan must
+        // refuse the toggle. Every other provider with native login
+        // support must allow it.
+        for provider in Provider::ALL {
+            let config = Config {
+                accounts: vec![Account {
+                    name: "Test".into(),
+                    provider,
+                    credential_env: None,
+                    oauth: None,
+                    params: BTreeMap::new(),
+                    refresh_seconds: None,
+                }],
+                ..Config::default()
+            };
+            let mut wiz = Wizard::new(&config, Some(0));
+            wiz.provider = provider;
+            wiz.step = Step::Credential;
+            wiz.oauth_mode = false;
+            let action = wiz.handle(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+            // Tab toggles oauth_mode when the form supports it; otherwise
+            // it is consumed by `handle` and the wizard stays in env mode.
+            let expected = edit::credential_modes(provider).oauth;
+            if expected {
+                // Tab moves the wizard into OAuth mode (returns Continue).
+                assert!(matches!(action, Action::Continue));
+                assert!(wiz.oauth_mode, "{provider:?} should toggle to oauth");
+            } else {
+                // Tab is ignored for non-OAuth providers (returns Continue
+                // without flipping the toggle).
+                assert!(!wiz.oauth_mode, "{provider:?} must stay in env mode");
+            }
+        }
     }
 }

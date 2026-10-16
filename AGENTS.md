@@ -6,16 +6,17 @@ Cuotai is a read-only Rust monitor for AI-provider usage, quotas, and costs. It 
 
 ## Architecture & Data Flow
 
-- `crates/cuotai-tui/src/main.rs` parses CLI flags, loads TOML through `config_file.rs`, creates an `OAuthSession`, then runs either `Monitor::refresh()` once or the interactive loop in `ui.rs`.
-- `cuotai-core` is UI-independent. `lib.rs` validates `Config`, owns the shared HTTP client, bounds concurrent per-account queries, and returns a `Snapshot` in account order. One account failure becomes a report rather than aborting the whole refresh.
+- `crates/cuotai-tui/src/main.rs` parses CLI flags, loads TOML through core `config_file::ConfigFile`, creates an `OAuthSession`, then runs either `Monitor::refresh()` once or the interactive loop in `ui.rs`.
+- `cuotai-core` is UI-independent. `lib.rs` validates `Config`, owns the shared HTTP client and query semaphore, and returns a `Snapshot` in account order. One account failure becomes a report rather than aborting the whole refresh.
 - `model.rs` defines `Provider`, `Account`, `Metric`, `Report`, `Status`, and `Snapshot`. Provider dispatch in `lib.rs` calls private `providers/*` fetchers through shared `Context` (`http`, `credentials`, `timeout`); fetchers normalize responses into metrics/notes or `QueryError`. Add a provider at the enum, dispatch, adapter, and example config; the dashboard renders reports generically.
-- `oauth/` owns login, refresh, and token storage; `Credentials` permits caller-supplied secret lookup. Keep credentials out of snapshots and TOML. TUI `ui.rs` manages navigation/refresh tasks, `wizard.rs` account editing, `auth_ui.rs` login progress, and `config_file.rs` atomic config persistence.
+- Backend (`cuotai-core`): `oauth/` owns login/refresh/token storage; `account_edit.rs` publishes provider field/native-login descriptors, conditional visibility and draft validation, plus account create/update/remove operations; `config_file.rs` owns config discovery and atomic TOML persistence; `refresh.rs` owns effective per-account deadlines and incremental snapshot assembly; `metrics.rs` derives quota classification. `Credentials` injects secret lookup. Keep credentials out of snapshots and TOML.
+- Frontend (`cuotai-tui`): `wizard.rs` maps core descriptors into widgets, collects field values and keeps transient draft/navigation state; `ui.rs` decides when to request refreshes and presents core `RefreshCycle`/`Monitor` results, invokes core account operations and `ConfigFile`; `auth_ui.rs` renders login progress. Do not define provider form rules, refresh policy, snapshot merge rules, queries, account policy, or TOML persistence in TUI.
 
 ## Key Directories
 
 - `crates/cuotai-core/src/providers/`: provider-specific HTTP/CLI integrations; `router_*.rs` contain 9router-derived contracts.
 - `crates/cuotai-core/src/oauth/`: OAuth/device/browser flows and system/dev token stores.
-- `crates/cuotai-tui/src/`: CLI, dashboard rendering, wizard, terminal event loop, config I/O.
+- `crates/cuotai-tui/src/`: CLI, dashboard rendering, wizard input, terminal event loop; `apps/desktop/` is a separate core consumer for Tauri presentation.
 
 ## Codebase Memory
 

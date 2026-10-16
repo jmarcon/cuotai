@@ -1,12 +1,17 @@
 //! Cards-style quota dashboard.
 //!
-//! Pure classification helpers live next to the renderer so the parent in
-//! `ui.rs` can drive selection, filtering, and the unmeasured toggle without
-//! reaching across module boundaries. No credentials are read or stored here.
+//! Behavioral classification of a report (`Available`/`Exhausted`/`Unmeasured`)
+//! and per-metric rendering state live in `cuotai_core::metrics` so other
+//! consumers (CLI, web) can reuse the same semantics. This module only owns
+//! colors, labels, layout, and the unmeasured toggle. No credentials are read
+//! or stored here.
 
 use crate::ui::{metric_text, safe};
 use chrono::{DateTime, Utc};
-use cuotai_core::{Account, Metric, Report, Snapshot, Status};
+use cuotai_core::metrics::{classify_metric, classify_report, AccountClass, MetricState};
+#[cfg(test)]
+use cuotai_core::Snapshot;
+use cuotai_core::{Account, Metric, Report, Status};
 use ratatui::{
     layout::{Constraint, Layout, Position, Rect},
     style::{Color, Modifier, Style},
@@ -35,28 +40,14 @@ const YELLOW: Color = Color::Rgb(241, 250, 140);
 const RED: Color = Color::Rgb(255, 85, 85);
 const PINK: Color = Color::Rgb(255, 121, 198);
 
-/// Classification of an account card based on the latest snapshot.
-///
-/// `Available` — at least one metric reports finite usage and no measurable
-/// metric is fully consumed.
-/// `Exhausted` — at least one measurable metric is fully consumed (used ≥ limit
-/// with a positive limit, or remaining ≤ 0 including negative debt).
-/// `Unmeasured` — no report, non-`Ready` status, or no metric with `used` or
-/// `remaining` values (limit-only metrics do not count as measured).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Class {
-    Available,
-    Exhausted,
-    Unmeasured,
-}
-
-impl Class {
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Class::Available => "Disponível",
-            Class::Exhausted => "Esgotado",
-            Class::Unmeasured => "Sem dados",
-        }
+/// Localized label for an account class. Behavioral classification lives in
+/// `cuotai_core::metrics`; this function only owns the Portuguese labels the
+/// dashboard prints.
+pub(crate) fn class_label(class: AccountClass) -> &'static str {
+    match class {
+        AccountClass::Available => "Disponível",
+        AccountClass::Exhausted => "Esgotado",
+        AccountClass::Unmeasured => "Sem dados",
     }
 }
 
@@ -69,77 +60,12 @@ fn status_color(status: Status) -> Color {
     }
 }
 
-/// Classify an account using the latest report, if any. A `None` report or a
-/// non-`Ready` status is never classified as available.
-pub(crate) fn classification(report: Option<&Report>) -> Class {
-    let Some(report) = report else {
-        return Class::Unmeasured;
-    };
-    if report.status != Status::Ready {
-        return Class::Unmeasured;
-    }
-    if report.metrics.is_empty() {
-        return Class::Unmeasured;
-    }
-    let has_quota = report.metrics.iter().any(|metric| {
-        metric
-            .limit
-            .is_some_and(|limit| limit.is_finite() && limit > 0.0)
-            && has_finite_signal(metric)
-    });
-    let mut measurable = false;
-    for metric in &report.metrics {
-        // Limit-only metrics carry no consumption signal; they're not measurable.
-        if !has_finite_signal(metric) {
-            continue;
-        }
-        // `used = 0, limit = 0` with no remaining value is a sentinel for
-        // unknown — never classify as exhausted or available from it alone.
-        let has_unknown_zero_cap =
-            matches!((metric.used, metric.limit), (Some(u), Some(l)) if u == 0.0 && l == 0.0);
-        if has_unknown_zero_cap && metric.remaining.is_none() {
-            continue;
-        }
-        // Skip non-finite values when present alongside a finite signal —
-        // they don't override other metrics' evidence.
-        if let Some(remaining) = metric.remaining {
-            if !remaining.is_finite() {
-                continue;
-            }
-            if remaining <= 0.0
-                && (!has_quota
-                    || metric
-                        .limit
-                        .is_some_and(|limit| limit.is_finite() && limit > 0.0))
-            {
-                return Class::Exhausted;
-            }
-        }
-        if let (Some(used), Some(limit)) = (metric.used, metric.limit) {
-            if !used.is_finite() || !limit.is_finite() {
-                continue;
-            }
-            if limit > 0.0 && used >= limit {
-                return Class::Exhausted;
-            }
-        }
-        measurable = true;
-    }
-    if !measurable {
-        return Class::Unmeasured;
-    }
-    Class::Available
-}
-
-/// True when at least one of `used` or `remaining` is a finite number that
-/// can drive classification or rendering. Non-finite values (NaN, ±inf) are
-/// treated as missing signals.
-fn has_finite_signal(metric: &Metric) -> bool {
-    match (metric.used, metric.remaining) {
-        (Some(u), _) if u.is_finite() => true,
-        (_, Some(r)) if r.is_finite() => true,
-        _ => false,
-    }
+/// Classify an account using the latest report, if any. Behavioral logic
+/// (per-metric finite checks, unknown-sentinel handling, negative-debt
+/// exhaustion) lives in `cuotai_core::metrics::classify_report`. A `None`
+/// report or a non-`Ready` status is never classified as available there.
+pub(crate) fn classification(report: Option<&Report>) -> AccountClass {
+    classify_report(report)
 }
 
 /// Filter by case-insensitive substring on name or provider label, hide
@@ -148,7 +74,7 @@ fn has_finite_signal(metric: &Metric) -> bool {
 /// toggle drops the row; visible order is never rearranged.
 pub(crate) fn visible_indices(
     accounts: &[Account],
-    snapshot: Option<&Snapshot>,
+    reports: &[Option<Report>],
     filter: &str,
     show_unmeasured: bool,
 ) -> Vec<usize> {
@@ -163,100 +89,26 @@ pub(crate) fn visible_indices(
         })
         .filter(|(index, _)| {
             show_unmeasured
-                || classification(snapshot.and_then(|snapshot| snapshot.reports.get(*index)))
-                    != Class::Unmeasured
+                || !classification(reports.get(*index).and_then(Option::as_ref)).is_unmeasured()
         })
         .map(|(index, _)| index)
         .collect()
 }
 
-/// Per-metric rendering state used to drive the gauge bar.
-#[derive(Debug, Clone, Copy)]
-enum MetricState {
-    Unmeasured,
-    Exhausted {
-        /// When true, the exhaustion was inferred from a zero `remaining`
-        /// value without a usable cap; show the textual label and skip the bar.
-        no_cap: bool,
-    },
-    Available {
-        ratio: f64,
-        /// True when no usable cap was provided; the bar is suppressed and the
-        /// label reads "limite não informado" rather than a free percentage.
-        uncapped: bool,
-    },
-}
-
-impl MetricState {
-    fn from_metric(metric: &Metric) -> Self {
-        let used = metric.used;
-        let remaining = metric.remaining;
-        let limit = metric.limit;
-        if !has_finite_signal(metric) {
-            return MetricState::Unmeasured;
-        }
-        let has_unknown_zero_cap =
-            matches!((used, limit), (Some(u), Some(l)) if u == 0.0 && l == 0.0);
-        if has_unknown_zero_cap && remaining.is_none() {
-            return MetricState::Unmeasured;
-        }
-        let usable_limit = match limit {
-            Some(cap) if cap.is_finite() && cap > 0.0 => Some(cap),
-            _ => None,
-        };
-        if let Some(value) = remaining {
-            if value.is_finite() && value <= 0.0 {
-                return MetricState::Exhausted {
-                    no_cap: usable_limit.is_none(),
-                };
-            }
-        }
-        if let (Some(consumed), Some(cap)) = (used, usable_limit) {
-            if consumed.is_finite() && consumed >= cap {
-                return MetricState::Exhausted { no_cap: false };
-            }
-        }
-        if let Some(cap) = usable_limit {
-            if let Some(consumed) = used {
-                if consumed.is_finite() {
-                    let remaining = (cap - consumed).max(0.0);
-                    return MetricState::Available {
-                        ratio: (remaining / cap).clamp(0.0, 1.0),
-                        uncapped: false,
-                    };
-                }
-            }
-            if let Some(value) = remaining {
-                if value.is_finite() {
-                    return MetricState::Available {
-                        ratio: (value / cap).clamp(0.0, 1.0),
-                        uncapped: false,
-                    };
-                }
-            }
-        }
-        // Balance/cost or usage without a usable cap — never invent a
-        // "100% free" reading.
-        MetricState::Available {
-            ratio: 0.0,
-            uncapped: true,
-        }
-    }
-
-    fn ratio_color(self) -> Option<Color> {
-        match self {
-            MetricState::Unmeasured => None,
-            MetricState::Exhausted { .. } => Some(RED),
-            MetricState::Available { ratio, uncapped } => {
-                if uncapped {
-                    Some(MUTED)
-                } else if ratio >= 0.5 {
-                    Some(GREEN)
-                } else if ratio >= 0.2 {
-                    Some(YELLOW)
-                } else {
-                    Some(RED)
-                }
+/// Map a metric state to the color its gauge/text should use. UI mapping only.
+fn metric_state_color(state: MetricState) -> Option<Color> {
+    match state {
+        MetricState::Unmeasured => None,
+        MetricState::Exhausted { .. } => Some(RED),
+        MetricState::Available { ratio, uncapped } => {
+            if uncapped {
+                Some(MUTED)
+            } else if ratio >= 0.5 {
+                Some(GREEN)
+            } else if ratio >= 0.2 {
+                Some(YELLOW)
+            } else {
+                Some(RED)
             }
         }
     }
@@ -321,7 +173,7 @@ fn metric_row(metric: &Metric) -> MetricRow {
     MetricRow {
         label: metric.label.clone(),
         text: metric_text(metric),
-        state: MetricState::from_metric(metric),
+        state: classify_metric(metric),
         period: metric.period.clone(),
         resets_at: metric.resets_at,
     }
@@ -334,7 +186,12 @@ fn metric_row(metric: &Metric) -> MetricRow {
 /// or while a manual refresh is in flight).
 pub(crate) struct View<'a> {
     pub(crate) accounts: &'a [Account],
-    pub(crate) snapshot: Option<&'a Snapshot>,
+    /// Per-account report lookup. Always has the same length as `accounts`
+    /// — an `None` entry means "no fresh report yet" (cycle is fresh or
+    /// this slot was just edited). The dashboard renders an
+    /// "Aguardando" placeholder for these slots instead of leaking a
+    /// stale row from the previous configuration.
+    pub(crate) reports: &'a [Option<Report>],
     pub(crate) visible: &'a [usize],
     pub(crate) selected: Option<usize>,
     pub(crate) details: bool,
@@ -358,6 +215,8 @@ pub(crate) enum FooterAction {
     CloseDetails,
     Add,
     Edit,
+    MoveUp,
+    MoveDown,
     Delete,
     ToggleUnmeasured,
     Filter,
@@ -451,11 +310,23 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
 }
 
 fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
-    let checked = view
-        .snapshot
-        .as_ref()
-        .map(|snapshot| snapshot.finished_at.format("%H:%M:%S UTC").to_string())
-        .unwrap_or_else(|| "ainda não consultado".into());
+    // The dashboard's header tracks the most recent fully-assembled
+    // snapshot. When one or more slots are still pending (no fresh data
+    // for that account yet) we surface that explicitly so the user is
+    // never misled into thinking every account was just consulted.
+    let any_report = view.reports.iter().any(Option::is_some);
+    let all_reports = view.reports.iter().all(Option::is_some);
+    let checked = match (any_report, all_reports) {
+        (false, _) => "ainda não consultado".to_string(),
+        (true, false) => "atualização parcial (algumas contas pendentes)".to_string(),
+        (true, true) => view
+            .reports
+            .iter()
+            .filter_map(Option::as_ref)
+            .map(|r| r.checked_at.format("%H:%M:%S UTC").to_string())
+            .next_back()
+            .unwrap_or_else(|| "—".into()),
+    };
     let refresh_state = if view.refreshing {
         "Consultando (dados anteriores abaixo)".to_string()
     } else {
@@ -559,6 +430,10 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
     actions.push(plain("a adicionar", Some(FooterAction::Add)));
     actions.push(separator());
     actions.push(plain("e editar", Some(FooterAction::Edit)));
+    actions.push(separator());
+    actions.push(plain("K mover ↑", Some(FooterAction::MoveUp)));
+    actions.push(separator());
+    actions.push(plain("J mover ↓", Some(FooterAction::MoveDown)));
     actions.push(separator());
     actions.push(plain("d/Del excluir", Some(FooterAction::Delete)));
     actions.push(separator());
@@ -680,9 +555,7 @@ fn render_card(
     now: DateTime<Utc>,
 ) {
     let account = &view.accounts[account_index];
-    let report = view
-        .snapshot
-        .and_then(|snapshot| snapshot.reports.get(account_index));
+    let report = view.reports.get(account_index).and_then(Option::as_ref);
     let rows: Vec<MetricRow> = report
         .map(|report| report.metrics.iter().map(metric_row).collect())
         .unwrap_or_default();
@@ -746,7 +619,7 @@ fn render_card(
             ),
             Span::styled("  · ", Style::default().fg(MUTED)),
             Span::styled(
-                class.label(),
+                class_label(class),
                 Style::default()
                     .fg(class_color(class))
                     .add_modifier(Modifier::BOLD),
@@ -758,7 +631,7 @@ fn render_card(
             Span::styled("Aguardando", Style::default().fg(MUTED)),
             Span::styled("  · ", Style::default().fg(MUTED)),
             Span::styled(
-                class.label(),
+                class_label(class),
                 Style::default()
                     .fg(class_color(class))
                     .add_modifier(Modifier::BOLD),
@@ -788,11 +661,11 @@ fn render_card(
     }
 }
 
-fn class_color(class: Class) -> Color {
+fn class_color(class: AccountClass) -> Color {
     match class {
-        Class::Available => GREEN,
-        Class::Exhausted => RED,
-        Class::Unmeasured => MUTED,
+        AccountClass::Available => GREEN,
+        AccountClass::Exhausted => RED,
+        AccountClass::Unmeasured => MUTED,
     }
 }
 
@@ -927,7 +800,7 @@ fn render_metric_block(
                 ));
                 frame.render_widget(Paragraph::new(line), gauge_area);
             } else {
-                let color = metric.state.ratio_color().unwrap_or(YELLOW);
+                let color = metric_state_color(metric.state).unwrap_or(YELLOW);
                 render_gauge(frame, gauge_area, ratio, Some(color), metric, now);
             }
         }
@@ -1049,10 +922,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     let body = sections[1];
     let now = Utc::now();
     let mut lines: Vec<Line> = Vec::new();
-    let Some(report) = view
-        .snapshot
-        .and_then(|snapshot| snapshot.reports.get(account_index))
-    else {
+    let Some(report) = view.reports.get(account_index).and_then(Option::as_ref) else {
         lines.push(Line::from(Span::styled(
             "Nenhum dado atualizado. r consulta; e configura esta conta.",
             Style::default().fg(MUTED),
@@ -1187,7 +1057,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
 }
 
 fn line_bar(metric: &MetricRow, width: u16, now: DateTime<Utc>) -> Line<'static> {
-    let ratio_color = metric.state.ratio_color();
+    let ratio_color = metric_state_color(metric.state);
     let reset_label = metric
         .resets_at
         .map(|reset| format!("  {}", format_reset_line(reset, now)))
@@ -1275,7 +1145,7 @@ mod tests {
 
     #[test]
     fn missing_report_is_unmeasured() {
-        assert_eq!(classification(None), Class::Unmeasured);
+        assert_eq!(classification(None), AccountClass::Unmeasured);
     }
 
     #[test]
@@ -1284,19 +1154,19 @@ mod tests {
             Status::AuthenticationError,
             vec![metric("m", Some(1.0), Some(10.0), Some(9.0))],
         );
-        assert_eq!(classification(Some(&report)), Class::Unmeasured);
+        assert_eq!(classification(Some(&report)), AccountClass::Unmeasured);
     }
 
     #[test]
     fn limit_only_metric_is_unmeasured() {
         let report = report(Status::Ready, vec![metric("m", None, Some(10.0), None)]);
-        assert_eq!(classification(Some(&report)), Class::Unmeasured);
+        assert_eq!(classification(Some(&report)), AccountClass::Unmeasured);
     }
 
     #[test]
     fn used_zero_limit_zero_is_unmeasured() {
         let report = report(Status::Ready, vec![metric("m", Some(0.0), Some(0.0), None)]);
-        assert_eq!(classification(Some(&report)), Class::Unmeasured);
+        assert_eq!(classification(Some(&report)), AccountClass::Unmeasured);
     }
 
     #[test]
@@ -1305,7 +1175,7 @@ mod tests {
             Status::Ready,
             vec![metric("balance", Some(0.0), Some(0.0), Some(5.0))],
         );
-        assert_eq!(classification(Some(&report)), Class::Available);
+        assert_eq!(classification(Some(&report)), AccountClass::Available);
     }
 
     #[test]
@@ -1314,7 +1184,7 @@ mod tests {
             Status::Ready,
             vec![metric("balance", Some(0.0), Some(0.0), Some(-1.0))],
         );
-        assert_eq!(classification(Some(&report)), Class::Exhausted);
+        assert_eq!(classification(Some(&report)), AccountClass::Exhausted);
     }
 
     #[test]
@@ -1323,7 +1193,7 @@ mod tests {
             Status::Ready,
             vec![metric("m", Some(10.0), Some(10.0), Some(0.0))],
         );
-        assert_eq!(classification(Some(&report)), Class::Exhausted);
+        assert_eq!(classification(Some(&report)), AccountClass::Exhausted);
     }
 
     #[test]
@@ -1332,7 +1202,7 @@ mod tests {
             Status::Ready,
             vec![metric("balance", None, None, Some(-1.5))],
         );
-        assert_eq!(classification(Some(&report)), Class::Exhausted);
+        assert_eq!(classification(Some(&report)), AccountClass::Exhausted);
     }
 
     #[test]
@@ -1341,7 +1211,7 @@ mod tests {
             Status::Ready,
             vec![metric("m", Some(f64::NAN), Some(10.0), None)],
         );
-        assert_eq!(classification(Some(&report)), Class::Unmeasured);
+        assert_eq!(classification(Some(&report)), AccountClass::Unmeasured);
     }
 
     #[test]
@@ -1350,7 +1220,7 @@ mod tests {
             Status::Ready,
             vec![metric("balance", None, None, Some(f64::NAN))],
         );
-        assert_eq!(classification(Some(&report)), Class::Unmeasured);
+        assert_eq!(classification(Some(&report)), AccountClass::Unmeasured);
     }
 
     #[test]
@@ -1359,7 +1229,7 @@ mod tests {
             Status::Ready,
             vec![metric("balance", Some(3.5), None, None)],
         );
-        assert_eq!(classification(Some(&report)), Class::Available);
+        assert_eq!(classification(Some(&report)), AccountClass::Available);
     }
 
     #[test]
@@ -1371,7 +1241,7 @@ mod tests {
                 metric("drained", Some(5.0), Some(5.0), Some(0.0)),
             ],
         );
-        assert_eq!(classification(Some(&report)), Class::Exhausted);
+        assert_eq!(classification(Some(&report)), AccountClass::Exhausted);
     }
 
     #[test]
@@ -1412,7 +1282,7 @@ mod tests {
             finished_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 1).unwrap(),
             reports: vec![ready.clone(), errored, ready],
         };
-        let indices = visible_indices(&accounts, Some(&snapshot), "", false);
+        let indices = visible_indices(&accounts, &reports_of(&snapshot), "", false);
         assert_eq!(indices, vec![0, 2]);
     }
 
@@ -1450,7 +1320,7 @@ mod tests {
                 ),
             ],
         };
-        let indices = visible_indices(&accounts, Some(&snapshot), "open", true);
+        let indices = visible_indices(&accounts, &reports_of(&snapshot), "open", true);
         assert_eq!(indices, vec![0]);
     }
 
@@ -1500,7 +1370,7 @@ mod tests {
                 ),
             ],
         };
-        let indices = visible_indices(&accounts, Some(&snapshot), "", true);
+        let indices = visible_indices(&accounts, &reports_of(&snapshot), "", true);
         assert_eq!(indices, vec![0, 1, 2]);
     }
     #[test]
@@ -1512,7 +1382,7 @@ mod tests {
                 metric("Créditos extras", None, None, Some(0.0)),
             ],
         );
-        assert_eq!(classification(Some(&report)), Class::Available);
+        assert_eq!(classification(Some(&report)), AccountClass::Available);
     }
 
     #[test]
@@ -1571,7 +1441,7 @@ mod tests {
                 report(Status::AuthenticationError, vec![]),
             ],
         };
-        let indices = visible_indices(&accounts, Some(&base), "", true);
+        let indices = visible_indices(&accounts, &reports_of(&base), "", true);
         assert_eq!(indices, vec![0, 1, 2, 3]);
 
         // Reclassify beta (drain it) — order must NOT change.
@@ -1583,7 +1453,7 @@ mod tests {
             finished_at: base.finished_at,
             reports,
         };
-        let indices_after = visible_indices(&accounts, Some(&reshot), "", true);
+        let indices_after = visible_indices(&accounts, &reports_of(&reshot), "", true);
         assert_eq!(indices_after, vec![0, 1, 2, 3]);
     }
 
@@ -1642,11 +1512,19 @@ mod tests {
         }
     }
 
+    /// Convert a snapshot fixture into the per-slot `Vec<Option<Report>>`
+    /// expected by `View::reports` and `visible_indices`. Tests that
+    /// previously wrote `reports: &reports_of(&snapshot)` use this helper to
+    /// keep the legacy fixture builders.
+    fn reports_of(snapshot: &Snapshot) -> Vec<Option<Report>> {
+        snapshot.reports.iter().cloned().map(Some).collect()
+    }
+
     #[test]
     fn wide_layout_records_two_columns_and_card_positions() {
         let accounts = three_accounts();
         let snapshot = ready_snapshot();
-        let visible = visible_indices(&accounts, Some(&snapshot), "", true);
+        let visible = visible_indices(&accounts, &reports_of(&snapshot), "", true);
         let backend = TestBackend::new(120, 40);
         let mut terminal = Terminal::new(backend).unwrap();
         let mut targets = Targets::default();
@@ -1656,7 +1534,7 @@ mod tests {
                     frame,
                     View {
                         accounts: &accounts,
-                        snapshot: Some(&snapshot),
+                        reports: &reports_of(&snapshot),
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -1699,7 +1577,7 @@ mod tests {
     fn detail_view_records_detail_area_and_close_action() {
         let accounts = three_accounts();
         let snapshot = ready_snapshot();
-        let visible = visible_indices(&accounts, Some(&snapshot), "", true);
+        let visible = visible_indices(&accounts, &reports_of(&snapshot), "", true);
         let backend = TestBackend::new(120, 40);
         let mut terminal = Terminal::new(backend).unwrap();
         let mut targets = Targets::default();
@@ -1709,7 +1587,7 @@ mod tests {
                     frame,
                     View {
                         accounts: &accounts,
-                        snapshot: Some(&snapshot),
+                        reports: &reports_of(&snapshot),
                         visible: &visible,
                         selected: Some(0),
                         details: true,
@@ -1743,7 +1621,7 @@ mod tests {
             "https://home.qwencloud.com/billing/subscription/token-plan-individual".into();
         snapshot.reports[0].metrics.clear();
         snapshot.reports[0].notes.clear();
-        let visible = visible_indices(&accounts, Some(&snapshot), "", true);
+        let visible = visible_indices(&accounts, &reports_of(&snapshot), "", true);
         for width in [120, 45] {
             let backend = TestBackend::new(width, 40);
             let mut terminal = Terminal::new(backend).unwrap();
@@ -1754,7 +1632,7 @@ mod tests {
                         frame,
                         View {
                             accounts: &accounts,
-                            snapshot: Some(&snapshot),
+                            reports: &reports_of(&snapshot),
                             visible: &visible,
                             selected: Some(0),
                             details: true,
@@ -1783,7 +1661,7 @@ mod tests {
         let accounts = three_accounts();
         let mut snapshot = ready_snapshot();
         snapshot.reports[0].source = "https://one.example + https://two.example".into();
-        let visible = visible_indices(&accounts, Some(&snapshot), "", true);
+        let visible = visible_indices(&accounts, &reports_of(&snapshot), "", true);
         let mut terminal = Terminal::new(TestBackend::new(45, 25)).unwrap();
         let mut targets = Targets::default();
         terminal
@@ -1792,7 +1670,7 @@ mod tests {
                     frame,
                     View {
                         accounts: &accounts,
-                        snapshot: Some(&snapshot),
+                        reports: &reports_of(&snapshot),
                         visible: &visible,
                         selected: Some(0),
                         details: true,
@@ -1829,7 +1707,7 @@ mod tests {
                     frame,
                     View {
                         accounts: &accounts,
-                        snapshot: Some(&snapshot),
+                        reports: &reports_of(&snapshot),
                         visible: &visible,
                         selected: Some(1),
                         details: true,
@@ -1862,7 +1740,7 @@ mod tests {
     fn header_shows_countdown_when_idle_and_querying_state_when_active() {
         let accounts = three_accounts();
         let snapshot = ready_snapshot();
-        let visible = visible_indices(&accounts, Some(&snapshot), "", true);
+        let visible = visible_indices(&accounts, &reports_of(&snapshot), "", true);
 
         // Idle, plenty of time left: header shows the countdown in seconds.
         let backend = TestBackend::new(120, 40);
@@ -1873,7 +1751,7 @@ mod tests {
                     frame,
                     View {
                         accounts: &accounts,
-                        snapshot: Some(&snapshot),
+                        reports: &reports_of(&snapshot),
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -1908,7 +1786,7 @@ mod tests {
                     frame,
                     View {
                         accounts: &accounts,
-                        snapshot: Some(&snapshot),
+                        reports: &reports_of(&snapshot),
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -1942,7 +1820,7 @@ mod tests {
                     frame,
                     View {
                         accounts: &accounts,
-                        snapshot: Some(&snapshot),
+                        reports: &reports_of(&snapshot),
                         visible: &visible,
                         selected: Some(0),
                         details: false,

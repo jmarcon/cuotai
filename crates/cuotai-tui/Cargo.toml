@@ -16,7 +16,3 @@ tokio.workspace = true
 clap = { version = "4", features = ["derive"] }
 ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
 crossterm = "0.28"
-dirs = "6"
-toml = "0.8"
-toml_edit = { version = "0.22", features = ["serde"] }
-tempfile = "3"
