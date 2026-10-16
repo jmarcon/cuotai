@@ -1,8 +1,13 @@
+import { boot } from "./boot.js";
+import { te, t, currentLocale } from "./i18n.js";
+import { detailHtml } from "./detail.js";
 import {
   bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtReset, icon, initTheme, isDesktop, level,
-  logo, openMainWindow, persistentSet, quitApp, remainingPct, reportKey, statusLabel, themeSwitchHtml,
-  usedPct, worstRemaining,
+  logo, noteText, openMainWindow, persistentSet, quitApp, remainingPct, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
+  textualMetric, worstRemaining, ALERTS, isMetricHidden, onHiddenChange,
 } from "./lib.js";
+
+await boot();
 
 const root = document.getElementById("root");
 const disabled = persistentSet("cuotai.disabledAccounts", () => render());
@@ -12,7 +17,7 @@ let selected = null;
 function row(r) {
   const worst = worstRemaining(r);
   const lv = r.status !== "ready" ? "bad" : level(worst);
-  const pct = r.status !== "ready" ? statusLabel[r.status] : worst != null ? `${Math.round(worst)}%` : "—";
+  const pct = r.status !== "ready" ? statusLabel(r.status) : worst != null ? `${Math.round(worst)}%` : "—";
   return `<button class="row" data-open="${esc(reportKey(r))}">
     ${logo(r.provider, 32)}
     <div class="row-main">
@@ -22,45 +27,51 @@ function row(r) {
     </div>${icon("chev", "chev")}</button>`;
 }
 
-function metricCard(m) {
-  const used = usedPct(m);
-  const lv = level(remainingPct(m));
-  const reset = fmtReset(m.resets_at);
-  return `<div class="metric">
-    <div class="metric-top">
-      <div><h3>${esc(m.label)}</h3><span class="sub">${esc(fmtAmount(m))}</span></div>
-      ${used != null ? `<span class="pct ${lv}">${icon(lv === "good" ? "check" : "warn")}${Math.round(used)}%</span>` : ""}
-    </div>
-    <div class="bar ${lv}"><span style="width:${used ?? 0}%"></span></div>
-    ${reset ? `<div class="resets">Reinicia ${esc(reset)}</div>` : ""}
-  </div>`;
-}
+const short = (s, n = 90) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-function detail(r) {
-  if (!r.metrics.length)
-    return `<div class="detail"><div class="metric"><p class="sub">${esc(r.notes[0] ?? statusLabel[r.status])}</p></div></div>`;
-  return `<div class="detail">${r.metrics.map(metricCard).join("")}${r.notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+/** Contador de avisos no rodapé: um chip por categoria (ícone + número de contas), com a lista no tooltip. */
+function alertsHtml(view, reports, error) {
+  const last = view?.finished_at
+    ? t("tray.lastCheck", { time: new Date(view.finished_at).toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" }) })
+    : "";
+  const chip = (tone, glyph, count, lines, label) =>
+    `<span class="alert-chip ${tone}" role="img" tabindex="0" title="${esc(lines.join("\n"))}" aria-label="${esc([label, ...lines].join(". "))}">${icon(glyph)}${count != null ? `<b>${count}</b>` : ""}</span>`;
+  if (error) return `<div class="alerts">${chip("bad", "alert", null, [t("tray.error"), error], t("tray.error"))}</div>`;
+  if (!view || !reports.length) return ""; // carregando ou sem contas: nada a avisar
+  const groups = ALERTS.map((c) => ({ c, items: reports.filter(c.match) })).filter((g) => g.items.length);
+  if (!groups.length)
+    return `<div class="alerts">${chip("good", "check", null, [t("tray.allOkTitle", { count: reports.length }), last].filter(Boolean), t("tray.ok"))}</div>`;
+  return `<div class="alerts" role="group" aria-label="${te("tray.attention")}">${groups.map(({ c, items }) => {
+    const lines = [t("tray.catTitle", { label: c.label(), count: items.length }),
+      ...items.slice(0, 8).map((r) => `• ${brand(r.provider).label} (${r.account})${r.notes[0] && c.id !== "exhausted" ? ` — ${short(noteText(r, 0))}` : ""}`)];
+    if (items.length > 8) lines.push(t("tray.more", { count: items.length - 8 }));
+    if (last) lines.push(last);
+    return chip(c.tone, c.icon, items.length, lines, c.label());
+  }).join("")}</div>`;
 }
 
 function render() {
-  const { snapshot, error, loading } = store;
-  const reports = (snapshot?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
+  const { view, error } = store;
+  const loading = !!view && view.busy.length > 0;
+  const reports = sortReports(view?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
   const cur = reports.find((r) => reportKey(r) === selected) ?? null;
-  const ok = reports.length > 0 && reports.every((r) => r.status === "ready");
-  const body = cur ? detail(cur) : reports.map(row).join("");
+  const body = cur ? detailHtml(cur) : reports.map(row).join("");
   root.innerHTML = `<div class="pop">
     <header class="pop-head">
-      ${cur ? `<button class="icon back" data-back title="Voltar">${icon("back")}</button>` : ""}
-      <div class="pop-title"><h1>${esc(cur ? brand(cur.provider).label : "Cuotai")}</h1>
-        ${cur ? `<span class="sub">${esc(cur.account)}</span>`
-              : `<span class="status ${error ? "bad" : ok ? "good" : "warn"}"><i></i> ${error ? "Falha ao atualizar" : ok ? "Tudo operacional" : "Atenção"}</span>`}
+      ${cur ? `<button class="icon back" data-back title="${te("common.back")}">${icon("back")}</button>` : ""}
+      <div class="pop-title"><h1>${cur ? "" : `<img class="brand" src="img/logo.svg" alt="" width="18" height="18" />`}${esc(cur ? brand(cur.provider).label : "Cuotai")}</h1>
+        ${cur ? `<span class="sub">${esc(cur.account)}</span>` : ""}
       </div>
-      <button class="icon" data-refresh-all title="Atualizar" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
+      ${sortMenuHtml()}${langMenuHtml()}
+      <button class="icon" data-refresh-all title="${te("common.refresh")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
-    <div class="pop-body">${!snapshot && !error ? `<div class="empty">Carregando…</div>` : ""}${error && !snapshot ? `<div class="empty">${esc(error)}</div>` : ""}${body}</div>
-    <footer class="pop-foot">${themeSwitchHtml()}
-      <button class="link" data-open-main>${icon("settings")} Abrir</button>
-      ${isDesktop ? `<button class="link quit" data-quit>${icon("power")} Sair</button>` : ""}
+    <div class="pop-body">${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${error && !view?.reports.length ? `<div class="empty">${esc(error)}</div>` : ""}${body}</div>
+    <footer class="pop-foot">${alertsHtml(view, reports, error) || '<div class="alerts"></div>'}
+      <div class="foot-actions">
+        <button class="icon" data-open-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>
+        <button class="icon" data-open-main title="${te("common.open")}" aria-label="${te("common.open")}">${icon("window")}</button>
+        ${isDesktop ? `<button class="icon danger" data-quit title="${te("common.quit")}" aria-label="${te("common.quit")}">${icon("power")}</button>` : ""}
+      </div>
     </footer></div>`;
 }
 
@@ -71,8 +82,13 @@ root.addEventListener("click", (e) => {
   if (t.closest("[data-back]")) { selected = null; return render(); }
   if (t.closest("[data-refresh-all]")) return store.refresh();
   if (t.closest("[data-open-main]")) return openMainWindow();
+  if (t.closest("[data-open-settings]")) return openSettingsWindow();
   if (t.closest("[data-quit]")) return quitApp();
 });
+onHiddenChange(render);
+initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();
+
+if (window.__TAURI__) window.__TAURI__.event.listen("user-content-changed", () => location.reload());

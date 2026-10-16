@@ -1,62 +1,133 @@
-//! Shell Tauri do Cuotai: janela principal, popover na bandeja e ponte de dados.
-//! Somente consome `cuotai-core`; não contém lógica de provider.
-use cuotai_core::{oauth::OAuthSession, Config, EnvironmentCredentials, Monitor, Report, Snapshot};
-use std::{path::PathBuf, sync::Arc};
-use tauri::async_runtime::Mutex;
+//! Shell Tauri do Cuotai: janela principal, popover na bandeja e comandos.
+//! Somente consome `cuotai-core` (via `backend.rs`); não contém lógica de provider.
+mod backend;
+mod settings;
+mod user_content;
+
+use backend::{
+    AccountForm, AccountInput, Backend, FormSchema, LoginStartInput, ProviderInfo, View,
+};
+use cuotai_core::Provider;
+use std::{collections::BTreeMap, sync::Arc};
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, PhysicalPosition, WebviewWindow, WindowEvent,
+    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewWindow, WindowEvent,
 };
 
-#[derive(Default)]
-struct State {
-    monitor: Mutex<Option<(Arc<Monitor>, usize)>>,
-}
+type Shared<'a> = State<'a, Arc<Backend>>;
 
-fn config_path() -> Option<PathBuf> {
-    if let Ok(p) = std::env::var("CUOTAI_CONFIG") {
-        return Some(p.into());
-    }
-    let local = PathBuf::from("cuotai.toml");
-    if local.exists() {
-        return Some(local);
-    }
-    let os = dirs::config_dir()?.join("cuotai").join("config.toml");
-    os.exists().then_some(os)
-}
-
-async fn monitor(state: &State) -> Result<(Arc<Monitor>, usize), String> {
-    let mut guard = state.monitor.lock().await;
-    if let Some((m, n)) = guard.as_ref() {
-        return Ok((Arc::clone(m), *n));
-    }
-    let path = config_path().ok_or("Nenhum cuotai.toml encontrado (use CUOTAI_CONFIG).")?;
-    let text =
-        std::fs::read_to_string(&path).map_err(|_| "Não foi possível ler a configuração.")?;
-    let config = Config::from_toml(&text).map_err(|e| e.to_string())?;
-    let count = config.accounts.len();
-    let session =
-        Arc::new(OAuthSession::system().map_err(|_| "Cofre de credenciais indisponível.")?);
-    let m = Arc::new(
-        Monitor::with_oauth(config, Arc::new(EnvironmentCredentials), session)
-            .map_err(|e| e.to_string())?,
-    );
-    *guard = Some((Arc::clone(&m), count));
-    Ok((m, count))
+#[tauri::command]
+async fn get_view(b: Shared<'_>) -> Result<View, String> {
+    Ok(b.view().await)
 }
 
 #[tauri::command]
-async fn get_snapshot(state: tauri::State<'_, State>) -> Result<Snapshot, String> {
-    Ok(monitor(&state).await?.0.refresh().await)
+async fn refresh_all(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
+    b.refresh_all(&app).await;
+    Ok(())
 }
 
 #[tauri::command]
-async fn refresh_account(state: tauri::State<'_, State>, index: usize) -> Result<Report, String> {
-    let (m, count) = monitor(&state).await?;
-    if index >= count {
-        return Err("Conta inexistente.".into());
+async fn refresh_account(app: AppHandle, b: Shared<'_>, index: usize) -> Result<(), String> {
+    b.refresh_account(&app, index).await
+}
+
+#[tauri::command]
+fn list_providers() -> Vec<ProviderInfo> {
+    backend::providers()
+}
+
+#[tauri::command]
+fn form_schema(provider: Provider) -> FormSchema {
+    backend::form_schema(provider)
+}
+
+#[tauri::command]
+fn visible_fields(
+    provider: Provider,
+    choices: BTreeMap<String, usize>,
+    auth_mode: String,
+    login_params: BTreeMap<String, String>,
+) -> Vec<&'static str> {
+    backend::visible_keys(provider, choices, &auth_mode, &login_params)
+}
+
+#[tauri::command]
+async fn login_start(
+    app: AppHandle,
+    b: Shared<'_>,
+    request: LoginStartInput,
+) -> Result<u64, String> {
+    b.login_start(&app, request).await
+}
+
+#[tauri::command]
+async fn login_submit_code(b: Shared<'_>, code: String) -> Result<(), String> {
+    b.login_submit_code(code).await
+}
+
+#[tauri::command]
+async fn login_cancel(b: Shared<'_>, attempt: Option<u64>) -> Result<(), String> {
+    b.login_cancel(attempt).await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_account(b: Shared<'_>, index: usize) -> Result<AccountForm, String> {
+    b.get_account(index).await
+}
+
+#[tauri::command]
+async fn save_account(app: AppHandle, b: Shared<'_>, input: AccountInput) -> Result<(), String> {
+    b.save_account(&app, input).await
+}
+
+#[tauri::command]
+async fn delete_account(app: AppHandle, b: Shared<'_>, index: usize) -> Result<(), String> {
+    b.delete_account(&app, index).await
+}
+
+#[tauri::command]
+async fn move_account(
+    app: AppHandle,
+    b: Shared<'_>,
+    from: usize,
+    to: usize,
+) -> Result<(), String> {
+    b.move_account(&app, from, to).await
+}
+
+#[tauri::command]
+fn load_user_content() -> Result<user_content::UserContent, String> {
+    user_content::load().ok_or_else(|| "Pasta de configuração indisponível.".to_string())
+}
+
+#[tauri::command]
+fn get_settings() -> settings::SettingsView {
+    settings::view()
+}
+
+/// `path = None` volta à pasta padrão. Os erros são códigos estáveis que a UI traduz.
+#[tauri::command]
+fn set_user_dir(app: AppHandle, path: Option<String>) -> Result<(), String> {
+    if settings::env_user_dir().is_some() {
+        return Err("env_locked".into());
     }
-    Ok(m.refresh_account(index).await)
+    let dir = path.map(std::path::PathBuf::from);
+    settings::save_user_dir(dir.as_deref()).map_err(str::to_owned)?;
+    let _ = app.emit("user-content-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn open_user_dir() -> Result<(), String> {
+    settings::open_user_dir().map_err(str::to_owned)
+}
+
+#[tauri::command]
+fn open_settings(app: AppHandle) {
+    show_main_window(app.clone());
+    let _ = app.emit("open-settings", ());
 }
 
 #[tauri::command]
@@ -82,15 +153,15 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
         return;
     }
     let width = w.outer_size().map(|s| s.width as f64).unwrap_or(380.0);
+    let height = w.outer_size().map(|s| s.height as f64).unwrap_or(600.0);
     let scale = w.scale_factor().unwrap_or(1.0);
-    // Centraliza sob o ícone; se o ícone está na base da tela (Windows/Linux), sobe o popover.
+    // Ícone no topo da tela (macOS): abre abaixo; na base (Windows/Linux): abre acima.
     let below = w
         .current_monitor()
         .ok()
         .flatten()
         .map(|m| anchor.y < m.size().height as f64 / 2.0)
         .unwrap_or(true);
-    let height = w.outer_size().map(|s| s.height as f64).unwrap_or(600.0);
     let y = if below {
         anchor.y + 6.0 * scale
     } else {
@@ -105,19 +176,37 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
 }
 
 pub fn run() {
+    let backend = Arc::new(Backend::default());
     tauri::Builder::default()
-        .manage(State::default())
+        .plugin(tauri_plugin_dialog::init())
+        .manage(Arc::clone(&backend))
         .invoke_handler(tauri::generate_handler![
-            get_snapshot,
+            get_view,
+            refresh_all,
             refresh_account,
+            list_providers,
+            form_schema,
+            visible_fields,
+            get_account,
+            save_account,
+            delete_account,
+            move_account,
+            login_start,
+            login_submit_code,
+            login_cancel,
+            load_user_content,
+            get_settings,
+            set_user_dir,
+            open_user_dir,
+            open_settings,
             show_main_window,
             quit_app
         ])
-        .setup(|app| {
+        .setup(move |app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
-            let icon = app.default_window_icon().cloned().ok_or("ícone ausente")?;
+            let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
             TrayIconBuilder::with_id("cuotai")
                 .icon(icon)
                 .icon_as_template(false)
@@ -155,6 +244,7 @@ pub fn run() {
                     }
                 });
             }
+            tauri::async_runtime::spawn(Arc::clone(&backend).run_scheduler(app.handle().clone()));
             Ok(())
         })
         .run(tauri::generate_context!())

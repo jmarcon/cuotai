@@ -1,11 +1,24 @@
 <!doctype html>
-<html lang="pt-BR" data-theme="dark" data-dark="dracula">
+<html lang="pt-BR" data-theme="dracula" data-mode="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      /* Evita o "flash" de tema antes do módulo carregar; a lógica oficial está em js/lib.js. */
+      try {
+        var m = localStorage.getItem("cuotai.themeMode") || "system";
+        var d = m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = localStorage.getItem("cuotai.theme") || "dracula";
+        document.documentElement.dataset.mode = d ? "dark" : "light";
+      } catch (e) {}
+    </script>
+    <link rel="icon" type="image/svg+xml" href="img/logo.svg" />
     <title>Cuotai</title>
     <link rel="stylesheet" href="css/themes.css" />
+    <link rel="stylesheet" href="css/themes/index.css" />
+    <link rel="stylesheet" href="css/detail.css" />
     <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/dialog.css" />
   </head>
   <body>
     <div id="root"></div>

@@ -18,7 +18,8 @@
         "minWidth": 520,
         "minHeight": 480,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "dragDropEnabled": false
       },
       {
         "label": "tray",
@@ -31,7 +32,8 @@
         "resizable": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "shadow": true
+        "shadow": true,
+        "title": "Cuotai"
       }
     ],
     "security": {
