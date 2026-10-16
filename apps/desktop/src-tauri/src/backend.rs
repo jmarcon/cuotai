@@ -211,6 +211,8 @@ pub struct ReportView {
     source: String,
     class: &'static str,
     refresh_seconds: u64,
+    /// Instante (Unix, ms) da próxima consulta agendada desta conta; `None` enquanto ela está sendo consultada.
+    next_refresh_at_ms: Option<u64>,
     uses_oauth: bool,
     identity: IdentityView,
 }
@@ -227,6 +229,8 @@ pub struct View {
     reports: Vec<ReportView>,
     busy: Vec<usize>,
     error: Option<String>,
+    /// Intervalo global de atualização (`refresh_seconds` do arquivo); 0 antes de carregar a configuração.
+    refresh_seconds: u64,
 }
 
 /// Distingue a janela curta de rate limit da cota do plano. O core ainda não tem um tipo para isso
@@ -369,7 +373,7 @@ fn identity_view(account: &Account, status: Status) -> IdentityView {
     out
 }
 
-fn report_view(index: usize, report: &Report, config: &Config) -> ReportView {
+fn report_view(index: usize, report: &Report, config: &Config, next_refresh_at_ms: Option<u64>) -> ReportView {
     let account = &config.accounts[index];
     ReportView {
         index,
@@ -387,6 +391,7 @@ fn report_view(index: usize, report: &Report, config: &Config) -> ReportView {
             AccountClass::Unmeasured => "unmeasured",
         },
         refresh_seconds: account.effective_refresh_seconds(config.refresh_seconds),
+        next_refresh_at_ms,
         uses_oauth: account.oauth.is_some(),
         identity: identity_view(account, report.status),
     }
@@ -405,6 +410,7 @@ impl Inner {
                 reports: vec![],
                 busy: vec![],
                 error: self.load_error.clone(),
+                refresh_seconds: 0,
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -421,6 +427,11 @@ impl Inner {
         // The "fully loaded" indicator only flips once every slot has a
         // report, matching the cycle's own gating of `snapshot()`.
         let loaded = slot_reports.iter().all(Option::is_some) || l.file.config.accounts.is_empty();
+        let now = Instant::now();
+        let unix_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
         let started_at = l.cycle.snapshot().map(|snapshot| snapshot.started_at);
         let finished_at = l.cycle.snapshot().map(|snapshot| snapshot.finished_at);
         let reports: Vec<ReportView> = slot_reports
@@ -428,7 +439,13 @@ impl Inner {
             .enumerate()
             .filter_map(|(i, slot)| {
                 slot.as_ref()
-                    .map(|report| report_view(i, report, &l.file.config))
+                    .map(|report| {
+                        // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
+                        let next = (!l.cycle.is_busy(i)).then(|| {
+                            unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64
+                        });
+                        report_view(i, report, &l.file.config, next)
+                    })
             })
             .collect();
         View {
@@ -446,6 +463,7 @@ impl Inner {
                 .filter_map(|(i, t)| t.is_some().then_some(i))
                 .collect(),
             error: None,
+            refresh_seconds: l.file.config.refresh_seconds,
         }
     }
 
@@ -888,7 +906,14 @@ impl Backend {
         Ok(())
     }
 
-    pub async fn delete_account(&self, app: &AppHandle, index: usize) -> Result<(), String> {
+    /// `purge_credentials`: apagar também a credencial OAuth do cofre do sistema. O core decide se pode (credencial
+    /// compartilhada com outra conta nunca é apagada) e o resultado diz o que realmente aconteceu.
+    pub async fn delete_account(
+        &self,
+        app: &AppHandle,
+        index: usize,
+        purge_credentials: bool,
+    ) -> Result<DeleteResult, String> {
         self.ensure_loaded().await;
         // The core RF3 `remove_account` owns the save-then-purge
         // ordering and the shared-key guard. On the no-purge path
@@ -937,7 +962,7 @@ impl Backend {
             // purge path will block the mutex until the vault
             // round-trip completes.
             let remove_outcome =
-                account_edit::remove_account(&mut l.file, session.as_ref(), index, false).await;
+                account_edit::remove_account(&mut l.file, session.as_ref(), index, purge_credentials).await;
             let remove_outcome = match remove_outcome {
                 Ok(outcome) => outcome,
                 Err(error) => {
@@ -964,32 +989,54 @@ impl Backend {
             g.generation = l.generation;
             remove_outcome
         };
-        // Surface the typed partial outcome through the Tauri command's
-        // `Result<(), String>` so the web UI never sees a silent
-        // success when the vault did not follow the TOML. A future
-        // typed command result can carry the full `RemoveOutcome`
-        // without changing the on-disk format.
-        match outcome {
-            account_edit::RemoveOutcome::RemovedNoCredential(_)
-            | account_edit::RemoveOutcome::RemovedFromVault(_)
-            | account_edit::RemoveOutcome::CredentialKept { .. } => {}
-            account_edit::RemoveOutcome::PartialFailure { vault_error, .. } => {
-                let message = format!(
-                    "Conta removida do TOML; credencial NÃO apagada do cofre. Motivo: {}",
-                    vault_error
-                );
-                let note = cuotai_core::text::Localized::fixed(
-                    "remove.partial_failure",
-                    message,
-                );
-                // Deletion triggers zero queries per the RF1 contract;
-                // emit first so the UI updates with the partial state,
-                // then return the truthful error to the caller.
-                self.emit(app).await;
-                return Err(l10n_to_json(&note));
-            }
+        // Remover não dispara consultas (RF1); o resultado diz o que aconteceu com o cofre, sem silêncio.
+        let result = match outcome {
+            account_edit::RemoveOutcome::RemovedNoCredential(_) => DeleteResult::new("removed"),
+            account_edit::RemoveOutcome::RemovedFromVault(_) => DeleteResult::new("purged"),
+            account_edit::RemoveOutcome::CredentialKept { reason, .. } => match reason {
+                account_edit::KeptReason::Declined => DeleteResult::new("kept"),
+                account_edit::KeptReason::SharedWith { other_account } => DeleteResult {
+                    outcome: "kept_shared",
+                    other_account: Some(other_account),
+                    message: None,
+                },
+            },
+            account_edit::RemoveOutcome::PartialFailure { vault_error, .. } => DeleteResult {
+                outcome: "partial_failure",
+                other_account: None,
+                message: Some(vault_error.to_string()),
+            },
+        };
+        self.emit(app).await;
+        Ok(result)
+    }
+
+    /// Troca o intervalo global de atualização (`refresh_seconds`). Valida e grava pelo core; o ciclo é recriado com
+    /// os mesmos relatórios (nenhuma consulta nova) e os prazos de todas as contas sem intervalo próprio passam a
+    /// seguir o novo valor.
+    pub async fn set_refresh_seconds(&self, app: &AppHandle, seconds: u64) -> Result<(), String> {
+        self.ensure_loaded().await;
+        {
+            let mut g = self.inner.lock().await;
+            let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let mut updated = l.file.config.clone();
+            updated.refresh_seconds = seconds;
+            updated.validate().map_err(|e| {
+                l10n_to_json(&cuotai_core::edit_error::config_error_note(&e))
+            })?;
+            let new_monitor = l
+                .monitor
+                .with_config(updated.clone())
+                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
+            l.file
+                .save(updated.clone())
+                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)))?;
+            l.cycle = rebuild_cycle_keeping_reports(&l.cycle, &updated);
+            l.monitor = Arc::new(new_monitor);
+            l.tokens = vec![None; updated.accounts.len()];
+            l.generation += 1;
+            g.generation = l.generation;
         }
-        // Deletion triggers zero queries per the RF1 contract.
         self.emit(app).await;
         Ok(())
     }
@@ -1570,6 +1617,40 @@ pub fn form_schema(provider: Provider) -> FormSchema {
     }
 }
 
+/// Resultado de remover uma conta, para a UI dizer a verdade sobre o cofre.
+#[derive(Serialize)]
+pub struct DeleteResult {
+    /// "removed" (sem credencial no cofre), "purged" (apagada do cofre), "kept" (mantida a pedido),
+    /// "kept_shared" (mantida porque outra conta a usa) ou "partial_failure" (TOML salvo, cofre não apagado).
+    outcome: &'static str,
+    other_account: Option<String>,
+    message: Option<String>,
+}
+
+impl DeleteResult {
+    fn new(outcome: &'static str) -> Self {
+        Self {
+            outcome,
+            other_account: None,
+            message: None,
+        }
+    }
+}
+
+/// Novo ciclo para a configuração `config` mantendo os relatórios do ciclo anterior (sem consultar nada).
+/// Os prazos recomeçam a contar a partir de agora com os intervalos efetivos novos.
+fn rebuild_cycle_keeping_reports(old: &RefreshCycle, config: &Config) -> RefreshCycle {
+    let mut cycle = RefreshCycle::new(config, Instant::now());
+    if let Some(snapshot) = old.snapshot().cloned() {
+        if snapshot.reports.len() == config.accounts.len() {
+            if let Some(token) = cycle.begin_full() {
+                cycle.finish_full(Some(snapshot), token, Instant::now());
+            }
+        }
+    }
+    cycle
+}
+
 /// O modo de login nativo (OAuth) exige uma autorização concluída ou uma credencial já existente para salvar.
 /// `aws_sso` e `bailian_console` gravam fora do cofre do Cuotai e não passam por aqui.
 fn login_needed_before_save(auth_mode: &str, oauth_mode: bool) -> bool {
@@ -1604,6 +1685,43 @@ mod tests {
         let mut m = Metric::usage(label, 1.0, "solicitações");
         m.period = period.map(str::to_owned);
         m
+    }
+
+    #[test]
+    fn global_interval_change_keeps_reports_and_reschedules_deadlines() {
+        let mut config = Config::default();
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let token = cycle.begin_full().expect("rodada completa");
+        let reports = config
+            .accounts
+            .iter()
+            .map(|a| Report {
+                account: a.name.clone(),
+                provider: a.provider,
+                checked_at: chrono::Utc::now(),
+                status: Status::Ready,
+                metrics: vec![],
+                notes: vec![],
+                notes_l10n: vec![],
+                source: "teste".into(),
+            })
+            .collect();
+        let snapshot = cuotai_core::Snapshot {
+            started_at: chrono::Utc::now(),
+            finished_at: chrono::Utc::now(),
+            reports,
+        };
+        cycle.finish_full(Some(snapshot), token, Instant::now());
+        assert_eq!(cycle.snapshot().map(|s| s.reports.len()), Some(config.accounts.len()));
+
+        config.refresh_seconds = 3600;
+        let rebuilt = rebuild_cycle_keeping_reports(&cycle, &config);
+        // relatórios preservados, nenhuma conta precisa de nova consulta
+        assert_eq!(rebuilt.snapshot().map(|s| s.reports.len()), Some(config.accounts.len()));
+        assert!(rebuilt.pending_indices().is_empty());
+        // contas sem intervalo próprio passam a seguir o novo valor global (≈ 1 h)
+        let next = rebuilt.next_refresh_in(0, Instant::now());
+        assert!(next > Duration::from_secs(3000), "prazo não foi reagendado: {next:?}");
     }
 
     #[test]

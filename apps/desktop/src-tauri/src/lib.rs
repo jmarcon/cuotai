@@ -84,8 +84,18 @@ async fn save_account(app: AppHandle, b: Shared<'_>, input: AccountInput) -> Res
 }
 
 #[tauri::command]
-async fn delete_account(app: AppHandle, b: Shared<'_>, index: usize) -> Result<(), String> {
-    b.delete_account(&app, index).await
+async fn delete_account(
+    app: AppHandle,
+    b: Shared<'_>,
+    index: usize,
+    purge: bool,
+) -> Result<backend::DeleteResult, String> {
+    b.delete_account(&app, index, purge).await
+}
+
+#[tauri::command]
+async fn set_refresh_seconds(app: AppHandle, b: Shared<'_>, seconds: u64) -> Result<(), String> {
+    b.set_refresh_seconds(&app, seconds).await
 }
 
 #[tauri::command]
@@ -248,6 +258,7 @@ pub fn run() {
             get_account,
             save_account,
             delete_account,
+            set_refresh_seconds,
             move_account,
             login_start,
             login_submit_code,

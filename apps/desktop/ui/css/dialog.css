@@ -256,3 +256,7 @@ dialog.details {
   margin: -6px 0 0;
   color: var(--warn);
 }
+
+.err.ok {
+  color: var(--good);
+}

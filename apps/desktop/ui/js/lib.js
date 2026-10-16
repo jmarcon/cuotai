@@ -26,6 +26,8 @@ const paths = {
   sort: '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   grip: '<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
   gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
@@ -66,7 +68,8 @@ export const onLogin = (cb) => {
 const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
 export const saveAccount = (input) => call("save_account", { input });
-export const deleteAccount = (index) => call("delete_account", { index });
+export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
+export const setRefreshSeconds = (seconds) => call("set_refresh_seconds", { seconds });
 export const moveAccount = (from, to) => call("move_account", { from, to });
 export const getSettings = () => call("get_settings");
 export const setUserDir = (path) => call("set_user_dir", { path });
@@ -120,6 +123,18 @@ export function fmtCountdown(iso) {
   const h = Math.floor(s / 3600); s -= h * 3600;
   const m = Math.floor(s / 60);
   return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+/** Contagem até a próxima consulta: "4m 20s", "1h 05m", "2d 3h". `ms` é um instante absoluto (Unix, ms). */
+export function fmtNext(ms, now = Date.now()) {
+  let s = Math.ceil((ms - now) / 1000);
+  if (!Number.isFinite(s)) return "";
+  if (s <= 0) return t("time.now");
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
 }
 export function fmtReset(iso) {
   if (!iso) return null;
@@ -345,8 +360,8 @@ const demoReports = [
 ];
 const demoView = () => {
   const now = new Date().toISOString();
-  return { config_path: "~/cuotai.toml (demo)", config_exists: true, account_count: demoReports.length, loaded: true,
-    started_at: now, finished_at: now, reports: demoReports.map((r, index) => ({ ...r, index })), busy: [], error: null };
+  return { config_path: "~/cuotai.toml (demo)", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
+    started_at: now, finished_at: now, reports: demoReports.map((r, index) => ({ ...r, index, next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth })), busy: [], error: null };
 };
 const demoSettings = { custom: null };
 const demo = {
@@ -381,7 +396,15 @@ const demo = {
   },
   login_submit_code: async () => { throw "Login indisponível na demonstração do navegador."; },
   login_cancel: async () => {},
-  delete_account: async ({ index }) => { demoReports.splice(index, 1); },
+  delete_account: async ({ index, purge }) => {
+    const oauth = demoReports[index]?.provider === "kiro" || demoReports[index]?.uses_oauth;
+    demoReports.splice(index, 1);
+    return { outcome: !oauth ? "removed" : purge ? "purged" : "kept", other_account: null, message: null };
+  },
+  set_refresh_seconds: async ({ seconds }) => {
+    if (seconds < 30) throw JSON.stringify({ id: "edit_error.config_bounds", params: {}, fallback: "refresh_seconds deve ser >= 30." });
+    demoSettings.refresh = seconds;
+  },
   move_account: async ({ from, to }) => {
     if (from < 0 || to < 0 || from >= demoReports.length || to >= demoReports.length) throw "Conta inexistente.";
     const [account] = demoReports.splice(from, 1);

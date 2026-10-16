@@ -587,19 +587,31 @@ export async function openAccountDialog(index = null) {
   dlg.querySelector("[name=name]").focus();
 }
 
-export function confirmDelete(index, label) {
+/** Confirma a remoção. Conta com credencial no cofre pergunta se a credencial também deve ser apagada.
+ *  `onDone(resultado)` recebe o que o core fez (removida, apagada do cofre, mantida, compartilhada…). */
+export function confirmDelete(index, label, { usesOauth = false, onDone = () => {} } = {}) {
+  const buttons = usesOauth
+    ? `<button type="button" class="btn" data-purge="0">${te("dialog.deleteVaultKeep")}</button>
+       <button type="button" class="btn danger-btn" data-purge="1">${te("dialog.deleteVaultPurge")}</button>`
+    : `<button type="button" class="btn danger-btn" data-purge="0">${te("common.remove")}</button>`;
   const dlg = open(`<form method="dialog" class="dlg-body">
     <h2>${te("dialog.deleteTitle")}</h2>
-    <p>${te("dialog.deleteBody", { label })}</p>
+    <p>${te(usesOauth ? "dialog.deleteBodyVault" : "dialog.deleteBody", { label })}</p>
     <p class="err" id="err" role="alert"></p>
-    <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn danger-btn" id="ok">${te("common.remove")}</button></div>
+    <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button>${buttons}</div>
   </form>`);
   dlg.querySelector("[data-cancel]").addEventListener("click", () => dlg.close());
-  dlg.querySelector("form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const ok = dlg.querySelector("#ok");
-    ok.disabled = true;
-    try { await deleteAccount(index); dlg.close(); }
-    catch (x) { dlg.querySelector("#err").textContent = errText(x); ok.disabled = false; }
-  });
+  for (const btn of dlg.querySelectorAll("[data-purge]")) {
+    btn.addEventListener("click", async () => {
+      dlg.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      try {
+        const result = await deleteAccount(index, btn.dataset.purge === "1");
+        dlg.close();
+        onDone(result);
+      } catch (x) {
+        dlg.querySelector("#err").textContent = errText(x);
+        dlg.querySelectorAll("button").forEach((b) => (b.disabled = false));
+      }
+    });
+  }
 }
