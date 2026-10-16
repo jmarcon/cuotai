@@ -152,5 +152,8 @@
   "dialog.save.needLogin": "Conclua o login antes de salvar (ou volte para a credencial manual).",
   "dialog.save.profileChanged": "O perfil mudou após o login; refaça o login antes de salvar.",
   "dialog.login.nameFirst": "Informe o nome da conta antes de entrar.",
-  "dialog.login.saving": "Salvando a conta…"
+  "dialog.login.saving": "Salvando a conta…",
+  "metric.level.good": "{pct}% disponível: com folga (70% ou mais).",
+  "metric.level.warn": "Atenção: {pct}% disponível (entre 30% e 70%).",
+  "metric.level.bad": "Crítico: só {pct}% disponível (menos de 30%)."
 }

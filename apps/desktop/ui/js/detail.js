@@ -17,7 +17,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
     <div class="metric-top">
       <div><h3>${esc(m.label)}</h3><span class="sub">${esc(fmtAmount(m))}</span></div>
       <div class="metric-right">
-        ${text == null && pct != null ? `<span class="pct ${lv}">${icon(lv === "good" ? "check" : "warn")}${Math.round(pct)}%</span>` : ""}
+        ${text == null && pct != null ? `<span class="pct ${lv}" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${icon(lv === "good" ? "check" : "warn")}${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
         ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "common.show" : "common.hide")}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
       </div>
     </div>
