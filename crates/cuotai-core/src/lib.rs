@@ -5,6 +5,7 @@ pub mod metrics;
 mod model;
 pub mod oauth;
 mod providers;
+pub mod text;
 
 use chrono::Utc;
 use futures_util::{stream, StreamExt};
@@ -172,7 +173,7 @@ impl Monitor {
                                 }
                                 _ => Status::Error,
                             },
-                            message: error.to_string(),
+                            note: crate::text::Localized::fixed("query.oauth", error.to_string()),
                         })?,
                 ),
                 None => None,
@@ -249,7 +250,10 @@ impl Monitor {
                 | Provider::Cursor
                 | Provider::Copilot
                 | Provider::Windsurf => providers::subscriptions::fetch(account, &ctx).await,
-                Provider::Qwen if account.oauth.is_some() => Err(providers::QueryError::unsupported("Qwen Code OAuth: sessão autenticada, mas não há endpoint de quota confirmado. O plano OAuth gratuito foi descontinuado pelo provedor em 15/04/2026; não consultamos DashScope com este token.")),
+                Provider::Qwen if account.oauth.is_some() => Err(providers::QueryError::unsupported(
+                    "query.qwen_oauth_unsupported",
+                    "Qwen Code OAuth: sessão autenticada, mas não há endpoint de quota confirmado. O plano OAuth gratuito foi descontinuado pelo provedor em 15/04/2026; não consultamos DashScope com este token.",
+                )),
                 Provider::MiniMax | Provider::Kimi | Provider::Qwen => {
                     providers::asia::fetch(account, &ctx).await
                 }
@@ -280,9 +284,18 @@ impl Monitor {
         let result = tokio::time::timeout(timeout, fetch)
             .await
             .unwrap_or_else(|_| Err(providers::QueryError::transport()));
-        let (status, metrics, notes, source) = match result {
-            Ok(data) => (Status::Ready, data.metrics, data.notes, data.source),
-            Err(error) => (error.status, Vec::new(), vec![error.message], String::new()),
+        let (status, metrics, notes, notes_l10n, source) = match result {
+            Ok(data) => (
+                Status::Ready,
+                data.metrics,
+                data.notes,
+                data.notes_l10n,
+                data.source,
+            ),
+            Err(error) => {
+                let (plain, l10n) = crate::text::Notes::one(error.note).finish();
+                (error.status, Vec::new(), plain, l10n, String::new())
+            }
         };
         Report {
             account: account.name.clone(),
@@ -291,6 +304,7 @@ impl Monitor {
             status,
             metrics,
             notes,
+            notes_l10n,
             source,
         }
     }

@@ -15,6 +15,7 @@
 //! de créditos é chamado — apenas leituras GET idempotentes.
 
 use super::{secret, Context, Data, QueryError};
+use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
 use crate::{Account, Metric, Provider, Status};
 use chrono::{DateTime, Utc};
 
@@ -45,10 +46,11 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::Groq => groq_at(account, ctx, GROQ_MODELS_URL).await,
         Provider::Kimi => kimi_coding_at(account, ctx, KIMI_CODING_USAGES_URL).await,
         Provider::XiaomiMimo => xiaomi_mimo(account, ctx).await,
-        other => Err(QueryError::unsupported(format!(
-            "{} é consultado por outro adaptador.",
-            other.label()
-        ))),
+        other => Err(QueryError::unsupported_params(
+            "query.router_keys.provider_handled_elsewhere",
+            params([("provider", ParamValue::from(provider_l10n(other)))]),
+            format!("{} é consultado por outro adaptador.", other.label()),
+        )),
     }
 }
 
@@ -123,9 +125,13 @@ async fn send(req: reqwest::RequestBuilder) -> Result<reqwest::Response, QueryEr
                 429 => Status::RateLimited,
                 _ => Status::Error,
             },
-            message: format!(
-                "Consulta retornou HTTP {}. Verifique acesso e permissões.",
-                code.as_u16()
+            note: Localized::with_params(
+                "query.router_keys.http",
+                params([("code", ParamValue::from(code.as_u16()))]),
+                format!(
+                    "Consulta retornou HTTP {}. Verifique acesso e permissões.",
+                    code.as_u16()
+                ),
             ),
         });
     }
@@ -160,8 +166,12 @@ async fn opencode_go_at(
             429 => Status::RateLimited,
             _ => Status::Error,
         };
-        let message = match code.as_u16() {
-            401 => "OpenCode Go: autenticação falhou. Verifique a API key.".to_string(),
+        let note = match code.as_u16() {
+            401 => Localized::with_params(
+                "query.router_keys.opencode_authentication_failed",
+                params([("code", ParamValue::from(401u16))]),
+                "OpenCode Go: autenticação falhou. Verifique a API key.",
+            ),
             403 => {
                 let body = response.json::<serde_json::Value>().await.ok();
                 let entitlement = body
@@ -171,14 +181,26 @@ async fn opencode_go_at(
                     .and_then(|t| t.as_str())
                     == Some("EntitlementError");
                 if entitlement {
-                    "OpenCode Go: assinatura necessária para esta API key.".to_string()
+                    Localized::with_params(
+                        "query.router_keys.opencode_subscription_required",
+                        params([("code", ParamValue::from(403u16))]),
+                        "OpenCode Go: assinatura necessária para esta API key.",
+                    )
                 } else {
-                    "OpenCode Go: acesso negado para esta API key.".to_string()
+                    Localized::with_params(
+                        "query.router_keys.opencode_access_denied",
+                        params([("code", ParamValue::from(403u16))]),
+                        "OpenCode Go: acesso negado para esta API key.",
+                    )
                 }
             }
-            other => format!("Consulta retornou HTTP {other}. Verifique acesso e permissões."),
+            other => Localized::with_params(
+                "query.router_keys.opencode_http",
+                params([("code", ParamValue::from(other))]),
+                format!("Consulta retornou HTTP {other}. Verifique acesso e permissões."),
+            ),
         };
-        return Err(QueryError { status, message });
+        return Err(QueryError { status, note });
     }
 
     let body: serde_json::Value = response.json().await.map_err(|_| QueryError::schema())?;
@@ -216,14 +238,13 @@ async fn opencode_go_at(
         return Err(QueryError::schema());
     }
 
-    Ok(Data {
-        metrics,
-        notes: vec![
-            "Percentuais de uso da assinatura OpenCode Go (0–100%).".into(),
-            REF_NOTE.into(),
-        ],
-        source: OPENCODE_GO_USAGE_URL.to_string(),
-    })
+    let mut notes = Notes::new();
+    notes.push(
+        "note.router_keys.opencode_usage_percentages",
+        "Percentuais de uso da assinatura OpenCode Go (0–100%).",
+    );
+    notes.push("note.router_keys.opencode_internal_route", REF_NOTE);
+    Ok(Data::new(metrics, notes, OPENCODE_GO_USAGE_URL))
 }
 
 // -------------------------------------------------------------------- Groq
@@ -285,24 +306,22 @@ async fn groq_at(account: &Account, ctx: &Context<'_>, url: &str) -> Result<Data
         });
     }
 
-    let mut notes = vec![
-        "Quota lida dos cabeçalhos x-ratelimit-* de GET /openai/v1/models; a listagem de modelos não consome tokens.".into(),
-        REF_NOTE.into(),
-    ];
+    let mut notes = Notes::new();
+    notes.push(
+        "note.router_keys.groq_rate_limit_headers",
+        "Quota lida dos cabeçalhos x-ratelimit-* de GET /openai/v1/models; a listagem de modelos não consome tokens.",
+    );
+    notes.push("note.router_keys.groq_internal_route", REF_NOTE);
     if metrics.is_empty() {
         // Chave válida, mas nenhum bucket de rate limit reportado: distinto
         // de erro de autenticação.
         notes.push(
-            "Chave válida, porém nenhum cabeçalho de rate limit foi reportado nesta resposta."
-                .into(),
+            "note.router_keys.groq_rate_limit_headers_missing",
+            "Chave válida, porém nenhum cabeçalho de rate limit foi reportado nesta resposta.",
         );
     }
 
-    Ok(Data {
-        metrics,
-        notes,
-        source: GROQ_MODELS_URL.to_string(),
-    })
+    Ok(Data::new(metrics, notes, GROQ_MODELS_URL))
 }
 
 fn header_number(headers: &reqwest::header::HeaderMap, name: &str) -> Option<f64> {
@@ -383,6 +402,7 @@ async fn kimi_coding_at(
 ) -> Result<Data, QueryError> {
     if opt_param(account, "product") != Some("coding") {
         return Err(QueryError::config(
+            "query.router_keys.kimi_coding_opt_in_required",
             "Kimi: configure params.product=coding para consultar a quota da assinatura Kimi Coding; sem esse parâmetro vale o saldo da plataforma internacional.",
         ));
     }
@@ -415,10 +435,14 @@ async fn kimi_coding_at(
             )
             .header("X-Msh-Device-Id", device_id);
     } else {
-        return Err(QueryError::config(format!(
-            "Credencial ausente: {} (ou params.token_env com um access token OAuth Kimi).",
-            account.credential_env.as_deref().unwrap_or("KIMI_API_KEY")
-        )));
+        let env = account.credential_env.as_deref().unwrap_or("KIMI_API_KEY");
+        return Err(QueryError::config_params(
+            "query.router_keys.kimi_missing_credential",
+            params([("env", ParamValue::from(env.to_string()))]),
+            format!(
+                "Credencial ausente: {env} (ou params.token_env com um access token OAuth Kimi)."
+            ),
+        ));
     }
     request = request
         .header("Content-Type", "application/json")
@@ -490,21 +514,21 @@ async fn kimi_coding_at(
         .map(kimi_plan_name)
         .unwrap_or("Kimi Coding");
 
-    let mut notes = vec![
+    let mut notes = Notes::new();
+    notes.push_params(
+        "note.router_keys.kimi_plan",
+        params([("plan", ParamValue::from(plan))]),
         format!("Plano reportado pela API: {plan}."),
-        REF_NOTE.into(),
-    ];
+    );
+    notes.push("note.router_keys.kimi_internal_route", REF_NOTE);
     if metrics.is_empty() {
         notes.push(
-            "Conta conectada; a API não retornou janelas de quota numérica nesta resposta.".into(),
+            "note.router_keys.kimi_no_numeric_quota",
+            "Conta conectada; a API não retornou janelas de quota numérica nesta resposta.",
         );
     }
 
-    Ok(Data {
-        metrics,
-        notes,
-        source: KIMI_CODING_USAGES_URL.to_string(),
-    })
+    Ok(Data::new(metrics, notes, KIMI_CODING_USAGES_URL))
 }
 
 /// Porta de `getKimiPlanName` (kimi.js).
@@ -525,7 +549,11 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
     if status == 401 {
         return QueryError {
             status: Status::AuthenticationError,
-            message: "Kimi Coding: autenticação expirada. Renove o token ou a API key.".into(),
+            note: Localized::with_params(
+                "query.router_keys.kimi_authentication_expired",
+                params([("code", ParamValue::from(status))]),
+                "Kimi Coding: autenticação expirada. Renove o token ou a API key.",
+            ),
         };
     }
     if status == 403 {
@@ -548,12 +576,20 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
         {
             return QueryError {
                 status: Status::AuthenticationError,
-                message: "Kimi Coding: conta conectada, mas sem permissão de uso — é necessária assinatura Kimi Code.".into(),
+                note: Localized::with_params(
+                    "query.router_keys.kimi_subscription_required",
+                    params([("code", ParamValue::from(status))]),
+                    "Kimi Coding: conta conectada, mas sem permissão de uso — é necessária assinatura Kimi Code.",
+                ),
             };
         }
         return QueryError {
             status: Status::AuthenticationError,
-            message: "Consulta retornou HTTP 403. Verifique acesso e permissões.".into(),
+            note: Localized::with_params(
+                "query.router_keys.kimi_access_denied",
+                params([("code", ParamValue::from(status))]),
+                "Consulta retornou HTTP 403. Verifique acesso e permissões.",
+            ),
         };
     }
     QueryError {
@@ -562,7 +598,11 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
         } else {
             Status::Error
         },
-        message: format!("Consulta retornou HTTP {status}. Verifique acesso e permissões."),
+        note: Localized::with_params(
+            "query.router_keys.kimi_http",
+            params([("code", ParamValue::from(status))]),
+            format!("Consulta retornou HTTP {status}. Verifique acesso e permissões."),
+        ),
     }
 }
 
@@ -598,7 +638,13 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
             .credentials
             .get(name)
             .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| QueryError::config(format!("Credencial ausente: {name}")))?;
+            .ok_or_else(|| {
+                QueryError::config_params(
+                    "query.router_keys.xiaomi_missing_session_cookie",
+                    params([("name", ParamValue::from(name.to_string()))]),
+                    format!("Credencial ausente: {name}"),
+                )
+            })?;
         let region = opt_param(account, "region")
             .unwrap_or(MIMO_DEFAULT_REGION)
             .to_ascii_lowercase();
@@ -607,9 +653,11 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
             .find(|(code, _)| *code == region)
             .map(|(_, base)| *base)
             .ok_or_else(|| {
-                QueryError::config(format!(
-                    "params.region inválido: {region}. Valores: cn, sgp, ams, ru, in."
-                ))
+                QueryError::config_params(
+                    "query.router_keys.xiaomi_invalid_region",
+                    params([("region", ParamValue::from(region.clone()))]),
+                    format!("params.region inválido: {region}. Valores: cn, sgp, ams, ru, in."),
+                )
             })?;
         return mimo_session_at(ctx, base, &cookie, &region).await;
     }
@@ -619,7 +667,13 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
             .credentials
             .get(name)
             .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| QueryError::config(format!("Credencial ausente: {name}")))?;
+            .ok_or_else(|| {
+                QueryError::config_params(
+                    "query.router_keys.xiaomi_missing_platform_cookie",
+                    params([("name", ParamValue::from(name.to_string()))]),
+                    format!("Credencial ausente: {name}"),
+                )
+            })?;
         return super::mimo_platform::fetch(ctx, super::mimo_platform::PLATFORM_API_BASE, &cookie)
             .await;
     }
@@ -630,6 +684,7 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
         account.oauth.is_some() || opt_param(account, "auth_method") == Some("native_key");
     if native_key {
         return Err(QueryError::config(
+            "query.router_keys.xiaomi_native_key_has_no_quota",
             "Xiaomi MiMo: a chave permanente do login nativo (sk-) é só de inferência e não lê quota — não repita o login nem o código, o resultado seria a mesma chave. Para quota, configure params.session_env (cookie serviceToken da conta; quota semanal) ou params.platform_session_env (cookie de platform.xiaomimimo.com com api-platform_serviceToken e userId; saldo e plano de tokens).",
         ));
     }
@@ -663,15 +718,21 @@ async fn mimo_session_at(
     if response.status().as_u16() == 401 {
         return Err(QueryError {
             status: Status::AuthenticationError,
-            message: "Xiaomi MiMo: sessão da conta expirada. Renove o cookie de sessão (params.session_env).".into(),
+            note: Localized::with_params(
+                "query.router_keys.xiaomi_session_expired",
+                params([("code", ParamValue::from(401u16))]),
+                "Xiaomi MiMo: sessão da conta expirada. Renove o cookie de sessão (params.session_env).",
+            ),
         });
     }
     if !response.status().is_success() {
+        let code = response.status().as_u16();
         return Err(QueryError {
             status: Status::Error,
-            message: format!(
-                "Consulta retornou HTTP {}. Verifique acesso e permissões.",
-                response.status().as_u16()
+            note: Localized::with_params(
+                "query.router_keys.xiaomi_session_http",
+                params([("code", ParamValue::from(code))]),
+                format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
             ),
         });
     }
@@ -700,15 +761,21 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
     if response.status().as_u16() == 401 {
         return Err(QueryError {
             status: Status::AuthenticationError,
-            message: "Xiaomi MiMo: a quota semanal exige sessão da conta Xiaomi (params.session_env); uma chave sk- de inferência sozinha não é aceita.".into(),
+            note: Localized::with_params(
+                "query.router_keys.xiaomi_aistudio_session_required",
+                params([("code", ParamValue::from(401u16))]),
+                "Xiaomi MiMo: a quota semanal exige sessão da conta Xiaomi (params.session_env); uma chave sk- de inferência sozinha não é aceita.",
+            ),
         });
     }
     if !response.status().is_success() {
+        let code = response.status().as_u16();
         return Err(QueryError {
             status: Status::Error,
-            message: format!(
-                "Consulta retornou HTTP {}. Verifique acesso e permissões.",
-                response.status().as_u16()
+            note: Localized::with_params(
+                "query.router_keys.xiaomi_aistudio_http",
+                params([("code", ParamValue::from(code))]),
+                format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
             ),
         });
     }
@@ -753,23 +820,27 @@ fn mimo_data_from_body(
                 })
         });
 
-    Ok(Data {
-        metrics: vec![Metric {
-            label: "Semanal".into(),
-            used: Some(used),
-            limit: Some(100.0),
-            remaining: Some(remaining),
-            unit: "%".into(),
-            period: Some("semanal".into()),
-            resets_at,
-        }],
-        notes: vec![
-            format!("Credencial utilizada: {credential_label}."),
-            "O campo `percent` da API é o percentual RESTANTE da quota semanal; `used` é derivado como 100 − percent.".into(),
-            REF_NOTE.into(),
-        ],
-        source: source.to_string(),
-    })
+    let metrics = vec![Metric {
+        label: "Semanal".into(),
+        used: Some(used),
+        limit: Some(100.0),
+        remaining: Some(remaining),
+        unit: "%".into(),
+        period: Some("semanal".into()),
+        resets_at,
+    }];
+    let mut notes = Notes::new();
+    notes.push_params(
+        "note.router_keys.xiaomi_credential",
+        params([("credential", ParamValue::from(credential_label.to_string()))]),
+        format!("Credencial utilizada: {credential_label}."),
+    );
+    notes.push(
+        "note.router_keys.xiaomi_remaining_percentage",
+        "O campo `percent` da API é o percentual RESTANTE da quota semanal; `used` é derivado como 100 − percent.",
+    );
+    notes.push("note.router_keys.xiaomi_internal_route", REF_NOTE);
+    Ok(Data::new(metrics, notes, source))
 }
 
 // -------------------------------------------------------------------- testes
@@ -919,7 +990,7 @@ mod tests {
             .await
             .expect_err("403 deve falhar");
         assert_eq!(err.status, Status::AuthenticationError);
-        assert!(err.message.contains("assinatura"));
+        assert!(err.note.fallback.contains("assinatura"));
     }
 
     #[tokio::test]
@@ -1126,7 +1197,7 @@ mod tests {
             .await
             .expect_err("401");
         assert_eq!(err.status, Status::AuthenticationError);
-        assert!(err.message.contains("expirada"));
+        assert!(err.note.fallback.contains("expirada"));
     }
 
     #[tokio::test]
@@ -1151,8 +1222,8 @@ mod tests {
         let err = kimi_coding_at(&acc, &ctx_with(&http, &creds), &server.uri())
             .await
             .expect_err("403");
-        assert!(err.message.contains("assinatura Kimi Code"));
-        assert!(!err.message.contains("expirada"));
+        assert!(err.note.fallback.contains("assinatura Kimi Code"));
+        assert!(!err.note.fallback.contains("expirada"));
     }
 
     // ---------------------------------------------------------- Xiaomi MiMo
@@ -1235,7 +1306,7 @@ mod tests {
             .await
             .expect_err("401");
         assert_eq!(err.status, Status::AuthenticationError);
-        assert!(err.message.contains("session_env"));
+        assert!(err.note.fallback.contains("session_env"));
     }
 
     #[tokio::test]
@@ -1285,9 +1356,9 @@ mod tests {
             .await
             .expect_err("chave nativa não lê quota");
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("platform_session_env"));
-        assert!(err.message.contains("session_env"));
-        assert!(err.message.contains("não repita o login"));
+        assert!(err.note.fallback.contains("platform_session_env"));
+        assert!(err.note.fallback.contains("session_env"));
+        assert!(err.note.fallback.contains("não repita o login"));
     }
 
     #[tokio::test]
@@ -1317,7 +1388,7 @@ mod tests {
             .await
             .expect_err("cookie incompleto");
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("api-platform_serviceToken"));
+        assert!(err.note.fallback.contains("api-platform_serviceToken"));
     }
 
     #[tokio::test]
@@ -1335,6 +1406,6 @@ mod tests {
         let err = xiaomi_mimo(&acc, &ctx_with(&http, &creds))
             .await
             .expect_err("região inválida");
-        assert!(err.message.contains("params.region"));
+        assert!(err.note.fallback.contains("params.region"));
     }
 }

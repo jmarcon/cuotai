@@ -13,6 +13,7 @@
 //!   conservadora é por recurso configurado explicitamente pelo usuário.
 
 use super::{json, param, secret, Context, Data, QueryError};
+use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, Provider, Status};
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
@@ -48,6 +49,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::AwsBedrock => fetch_bedrock(account, ctx).await,
         Provider::AzureOpenAi => fetch_azure(AZURE_MANAGEMENT, account, ctx).await,
         _ => Err(QueryError::unsupported(
+            "query.cloud.unsupported_provider",
             "Provedor não atendido pelo adaptador de nuvem.",
         )),
     }
@@ -62,9 +64,11 @@ fn path_id<'a>(value: &'a str, key: &str) -> Result<&'a str, QueryError> {
     {
         Ok(value)
     } else {
-        Err(QueryError::config(format!(
-            "params.{key} contém caracteres inválidos para identificador de recurso."
-        )))
+        Err(QueryError::config_params(
+            "query.cloud.invalid_resource_identifier",
+            params([("key", ParamValue::from(key.to_string()))]),
+            format!("params.{key} contém caracteres inválidos para identificador de recurso."),
+        ))
     }
 }
 
@@ -257,18 +261,31 @@ async fn fetch_google(
         now - ChronoDuration::minutes(10), now,
     ).await?;
     let metrics = google_metrics(label, &limits, &usage)?;
-    let mut notes = vec![
+    let mut notes = Notes::new();
+    notes.push_params(
+        "note.cloud.google_scope",
+        params([
+            ("project", ParamValue::from(project.to_string())),
+            ("service", ParamValue::from(service.to_string())),
+        ]),
         format!("Escopo: projeto {project}, serviço {service}. Limites são cotas vigentes (amostradas 1x/dia); uso é a soma de net_usage dos últimos 10 min (atraso de até ~4 min)."),
-        "Cada atualização do painel executa 2 chamadas de leitura à API Cloud Monitoring (timeSeries.list), que podem ser tarifadas conforme o preço da API Monitoring, ao contrário das chamadas de geração.".to_string(),
-    ];
+    );
+    notes.push(
+        "note.cloud.google_monitoring_cost",
+        "Cada atualização do painel executa 2 chamadas de leitura à API Cloud Monitoring (timeSeries.list), que podem ser tarifadas conforme o preço da API Monitoring, ao contrário das chamadas de geração.",
+    );
     if metrics.is_empty() {
-        notes.push(format!("Nenhuma série de cota retornada. Verifique se a API {service} está habilitada no projeto e se o token possui monitoring.timeSeries.list."));
+        notes.push_params(
+            "note.cloud.google_no_quota_series",
+            params([("service", ParamValue::from(service.to_string()))]),
+            format!("Nenhuma série de cota retornada. Verifique se a API {service} está habilitada no projeto e se o token possui monitoring.timeSeries.list."),
+        );
     }
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source: "https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list + https://cloud.google.com/monitoring/api/metrics_gcp_p_z#serviceruntime".into(),
-    })
+        "https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list + https://cloud.google.com/monitoring/api/metrics_gcp_p_z#serviceruntime",
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -379,11 +396,23 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
             None => break,
         }
     }
-    let mut notes = vec![
+    let mut notes = Notes::new();
+    notes.push_params(
+        "note.cloud.azure_scope",
+        params([
+            ("resource_id", ParamValue::from(resource_id.to_string())),
+            ("scope", ParamValue::from(scope.clone())),
+        ]),
         format!("Custo real (ActualCost/PreTaxCost) filtrado por ResourceId = {resource_id} no escopo /{scope}. Dados de custo do Azure são atualizados diariamente e podem atrasar várias horas; valores não servem para fechamento financeiro."),
-        "Atribuição por recurso: configure params.resource_id com o ID completo do recurso Azure OpenAI (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Um recurso Foundry compartilhado inclui produtos que não são OpenAI; não é custo isolado por modelo nem cota de gasto.".to_string(),
-        "A API Cost Management Query não tem cobrança por requisição, mas exige token com permissão de leitura de custos no escopo (ex.: Cost Management Reader).".to_string(),
-    ];
+    );
+    notes.push(
+        "note.cloud.azure_resource_attribution",
+        "Atribuição por recurso: configure params.resource_id com o ID completo do recurso Azure OpenAI (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Um recurso Foundry compartilhado inclui produtos que não são OpenAI; não é custo isolado por modelo nem cota de gasto.",
+    );
+    notes.push(
+        "note.cloud.azure_query_cost",
+        "A API Cost Management Query não tem cobrança por requisição, mas exige token com permissão de leitura de custos no escopo (ex.: Cost Management Reader).",
+    );
     let metric = match totals {
         Some(t) => {
             if !t.cost.is_finite() {
@@ -396,18 +425,21 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
         }
         None => {
             // o valor é desconhecido, não zero presumido.
-            notes.push("A consulta não retornou linhas: não foi possível confirmar custo do recurso neste escopo no mês corrente.".into());
+            notes.push(
+                "note.cloud.azure_no_cost_rows",
+                "A consulta não retornou linhas: não foi possível confirmar custo do recurso neste escopo no mês corrente.",
+            );
             let mut m = Metric::usage("Custo do recurso Azure (mês corrente)", 0.0, "desconhecida");
             m.used = None;
             m.period = Some("mês corrente".into());
             m
         }
     };
-    Ok(Data {
-        metrics: vec![metric],
+    Ok(Data::new(
+        vec![metric],
         notes,
-        source: format!("https://learn.microsoft.com/rest/api/cost-management/query/usage (api-version {AZURE_API_VERSION})"),
-    })
+        format!("https://learn.microsoft.com/rest/api/cost-management/query/usage (api-version {AZURE_API_VERSION})"),
+    ))
 }
 
 /// Exige ID ARM completo de conta Cognitive Services dentro da assinatura configurada:
@@ -424,7 +456,10 @@ fn azure_resource_id<'a>(id: &'a str, subscription: &str) -> Result<&'a str, Que
     if valid {
         Ok(id)
     } else {
-        Err(QueryError::config("Configure params.resource_id com o ID ARM completo do recurso Azure OpenAI (/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome})."))
+        Err(QueryError::config(
+            "query.cloud.invalid_azure_resource_id",
+            "Configure params.resource_id com o ID ARM completo do recurso Azure OpenAI (/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}).",
+        ))
     }
 }
 
@@ -535,7 +570,10 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
     .kill_on_drop(true);
     let child = cmd.spawn().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
-            QueryError::config("AWS CLI não encontrada no PATH. Instale a AWS CLI v2 para consultar o AWS Bedrock.")
+            QueryError::config(
+                "query.cloud.aws_cli_not_found",
+                "AWS CLI não encontrada no PATH. Instale a AWS CLI v2 para consultar o AWS Bedrock.",
+            )
         } else {
             QueryError::transport()
         }
@@ -549,22 +587,30 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
         if stderr.contains("credential") || stderr.contains("sso") || stderr.contains("token") {
             return Err(QueryError {
                 status: Status::AuthenticationError,
-                message: "Autenticação AWS falhou para o perfil configurado em params.profile. Verifique as credenciais do perfil (aws configure sso / aws configure).".into(),
+                note: Localized::fixed(
+                    "query.cloud.aws_auth",
+                    "Autenticação AWS falhou para o perfil configurado em params.profile. Verifique as credenciais do perfil (aws configure sso / aws configure).",
+                ),
             });
         }
         if stderr.contains("accessdenied") || stderr.contains("not authorized") {
             return Err(QueryError {
                 status: Status::AuthenticationError,
-                message:
-                    "Acesso negado no perfil AWS configurado. Conceda ce:GetCostAndUsage ao perfil."
-                        .into(),
+                note: Localized::fixed(
+                    "query.cloud.aws_access_denied",
+                    "Acesso negado no perfil AWS configurado. Conceda ce:GetCostAndUsage ao perfil.",
+                ),
             });
         }
+        let code = output.status.code().unwrap_or(-1);
         return Err(QueryError {
             status: Status::Error,
-            message: format!(
-                "AWS CLI falhou (código {}). Verifique permissão ce:GetCostAndUsage no perfil.",
-                output.status.code().unwrap_or(-1)
+            note: Localized::with_params(
+                "query.cloud.aws_cli",
+                params([("code", ParamValue::from(code.to_string()))]),
+                format!(
+                    "AWS CLI falhou (código {code}). Verifique permissão ce:GetCostAndUsage no perfil."
+                ),
             ),
         });
     }
@@ -576,20 +622,26 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
     );
     cost.period = Some("mês corrente".into());
     cost.resets_at = next_month_start(Utc::now());
-    let mut notes = vec![
-        "Cost Explorer filtrado por serviço \"Amazon Bedrock\", granularidade mensal, mês corrente. Dados de custo AWS atualizam ~1x ao dia e podem atrasar até 24 h.".to_string(),
-        "Cada consulta get-cost-and-usage ao Cost Explorer é tarifada pela AWS (US$ 0,01 por requisição), ao contrário das chamadas de geração: cada atualização do painel gera cobrança de consulta.".to_string(),
-    ];
+    let mut notes = Notes::new();
+    notes.push(
+        "note.cloud.aws_cost_scope",
+        "Cost Explorer filtrado por serviço \"Amazon Bedrock\", granularidade mensal, mês corrente. Dados de custo AWS atualizam ~1x ao dia e podem atrasar até 24 h.",
+    );
+    notes.push(
+        "note.cloud.aws_query_cost",
+        "Cada consulta get-cost-and-usage ao Cost Explorer é tarifada pela AWS (US$ 0,01 por requisição), ao contrário das chamadas de geração: cada atualização do painel gera cobrança de consulta.",
+    );
     if parsed.estimated {
-        notes
-            .push("Valores do período corrente marcados como estimados pelo Cost Explorer.".into());
+        notes.push(
+            "note.cloud.aws_estimated",
+            "Valores do período corrente marcados como estimados pelo Cost Explorer.",
+        );
     }
-    Ok(Data {
-        metrics: vec![cost],
+    Ok(Data::new(
+        vec![cost],
         notes,
-        source: "https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html"
-            .into(),
-    })
+        "https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html",
+    ))
 }
 
 // ---------------------------------------------------------------------------

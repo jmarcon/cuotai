@@ -20,6 +20,7 @@
 //! - Anthropic: `workspace_ids` (custos e uso), `models` (uso)
 
 use super::{json, secret, Context, Data, QueryError};
+use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric, Provider};
 use chrono::{DateTime, Datelike, Months, Utc};
 use reqwest::RequestBuilder;
@@ -37,10 +38,14 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     match account.provider {
         Provider::OpenAiApi => openai(account, ctx, OPENAI_BASE).await,
         Provider::AnthropicApi => anthropic(account, ctx, ANTHROPIC_BASE).await,
-        other => Err(QueryError::unsupported(format!(
-            "{} é consultado por outro adaptador.",
-            other.label()
-        ))),
+        other => Err(QueryError::unsupported_params(
+            "query.api.other_provider",
+            params([(
+                "provider",
+                ParamValue::from(crate::text::provider_l10n(other)),
+            )]),
+            format!("{} é consultado por outro adaptador.", other.label()),
+        )),
     }
 }
 
@@ -107,11 +112,6 @@ fn finite(value: f64) -> Result<f64, QueryError> {
     } else {
         Err(QueryError::schema())
     }
-}
-
-fn no_quota_note() -> String {
-    "Sem endpoint oficial de saldo/crédito restante: limite e restante permanecem desconhecidos."
-        .to_string()
 }
 
 // ---------------------------------------------------------------- OpenAI
@@ -225,16 +225,30 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
     }
 
     let mut metrics = Vec::new();
-    let mut notes = vec![
-        "Requer chave de administração da organização (Admin API key); chaves comuns de projeto não têm acesso.".to_string(),
-        "Custos são valores acumulados no mês (UTC); tokens cobrem apenas completions (embeddings, imagens e áudio não incluídos).".to_string(),
-        no_quota_note(),
-    ];
+    let mut notes = Notes::new();
+    notes.push(
+        "note.openai_api.admin_key_required",
+        "Requer chave de administração da organização (Admin API key); chaves comuns de projeto não têm acesso.",
+    );
+    notes.push(
+        "note.openai_api.monthly_costs_and_completion_tokens",
+        "Custos são valores acumulados no mês (UTC); tokens cobrem apenas completions (embeddings, imagens e áudio não incluídos).",
+    );
+    notes.push(
+        "note.openai_api.no_quota_endpoint",
+        "Sem endpoint oficial de saldo/crédito restante: limite e restante permanecem desconhecidos.",
+    );
     if costs.is_empty() {
-        notes.push("Nenhum custo registrado no mês corrente.".to_string());
+        notes.push(
+            "note.openai_api.no_current_month_costs",
+            "Nenhum custo registrado no mês corrente.",
+        );
     }
     if !models.is_empty() {
-        notes.push("O filtro de modelos aplica-se apenas aos tokens; custos continuam cobrindo todos os modelos.".to_string());
+        notes.push(
+            "note.openai_api.model_filter_tokens_only",
+            "O filtro de modelos aplica-se apenas aos tokens; custos continuam cobrindo todos os modelos.",
+        );
     }
     for (currency, total) in costs {
         let mut m = Metric::usage(
@@ -261,13 +275,11 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         metrics.push(m);
     }
 
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source:
-            "https://developers.openai.com/api/reference/resources/admin/subresources/organization"
-                .to_string(),
-    })
+        "https://developers.openai.com/api/reference/resources/admin/subresources/organization",
+    ))
 }
 
 // ------------------------------------------------------------- Anthropic
@@ -386,17 +398,34 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
     }
 
     let mut metrics = Vec::new();
-    let mut notes = vec![
-        "Requer Admin API key (sk-ant-admin01-...) ou chave sem escopo de workspace; chaves de workspace não funcionam.".to_string(),
-        "Custos vêm em centavos USD (menor unidade) e são convertidos para dólares; Priority Tier não consta no cost_report.".to_string(),
-        "Tokens cobrem mensagens (entrada inclui cache de leitura e escrita).".to_string(),
-        no_quota_note(),
-    ];
+    let mut notes = Notes::new();
+    notes.push(
+        "note.anthropic_api.admin_key_required",
+        "Requer Admin API key (sk-ant-admin01-...) ou chave sem escopo de workspace; chaves de workspace não funcionam.",
+    );
+    notes.push(
+        "note.anthropic_api.cost_conversion",
+        "Custos vêm em centavos USD (menor unidade) e são convertidos para dólares; Priority Tier não consta no cost_report.",
+    );
+    notes.push(
+        "note.anthropic_api.message_tokens",
+        "Tokens cobrem mensagens (entrada inclui cache de leitura e escrita).",
+    );
+    notes.push(
+        "note.anthropic_api.no_quota_endpoint",
+        "Sem endpoint oficial de saldo/crédito restante: limite e restante permanecem desconhecidos.",
+    );
     if !saw_cost {
-        notes.push("Nenhum custo registrado no mês corrente.".to_string());
+        notes.push(
+            "note.anthropic_api.no_current_month_costs",
+            "Nenhum custo registrado no mês corrente.",
+        );
     }
     if !models.is_empty() {
-        notes.push("O filtro de modelos aplica-se apenas aos tokens; custos continuam cobrindo todos os modelos.".to_string());
+        notes.push(
+            "note.anthropic_api.model_filter_tokens_only",
+            "O filtro de modelos aplica-se apenas aos tokens; custos continuam cobrindo todos os modelos.",
+        );
     }
     if saw_cost {
         let mut m = Metric::usage("Custo no mês corrente (USD)", costs, "USD");
@@ -414,11 +443,11 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         metrics.push(m);
     }
 
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source: "https://platform.claude.com/docs/en/manage-claude/usage-cost-api".to_string(),
-    })
+        "https://platform.claude.com/docs/en/manage-claude/usage-cost-api",
+    ))
 }
 
 // ------------------------------------------------------------------ testes
@@ -664,7 +693,7 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("INEXISTENTE"));
+        assert!(err.note.fallback.contains("INEXISTENTE"));
     }
 
     // --------------------------------------------------------- Anthropic

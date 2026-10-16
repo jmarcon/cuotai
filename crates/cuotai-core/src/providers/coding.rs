@@ -29,6 +29,7 @@
 //!     apenas `/api/v1/organizations/{id}/balance` (saldo).
 
 use super::{json, secret, Context, Data, QueryError};
+use crate::text::{params, Notes};
 use crate::{Account, Metric};
 use serde::Deserialize;
 
@@ -87,6 +88,7 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
     if let Some(org) = org_id.as_deref() {
         if !is_safe_org_id(org) {
             return Err(QueryError::config(
+                "query.coding.invalid_organization_id",
                 "params.organization_id deve conter apenas letras, dígitos, _ e -.",
             ));
         }
@@ -100,15 +102,19 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
         .await?;
         let mut metrics = Vec::new();
         push_balance(&mut metrics, "Saldo — organização", body.balance)?;
-        Ok(Data {
+        let mut notes = Notes::new();
+        notes.push(
+            "note.coding.organization_balance_only",
+            "Cline org não tem endpoint público de uso \
+             agregado por organização sem memberId. Apenas \
+             saldo exposto; para histórico, use o painel \
+             autenticado em app.cline.bot.",
+        );
+        Ok(Data::new(
             metrics,
-            notes: vec!["Cline org não tem endpoint público de uso \
-                         agregado por organização sem memberId. Apenas \
-                         saldo exposto; para histórico, use o painel \
-                         autenticado em app.cline.bot."
-                .into()],
-            source: format!("{base}{org_balance_path}"),
-        })
+            notes,
+            format!("{base}{org_balance_path}"),
+        ))
     } else {
         let me: ClineMe = json(
             ctx.http
@@ -134,9 +140,11 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
         let mut metrics = Vec::new();
         push_balance(&mut metrics, "Saldo — conta pessoal", balance.balance)?;
 
-        Ok(Data {
-            metrics,
-            notes: vec![format!(
+        let mut notes = Notes::new();
+        notes.push_params(
+            "note.coding.personal_balance_only",
+            params([]),
+            format!(
                 "Bearer CLINE_API_KEY (criada em app.cline.bot → Settings → \
                  API Keys) serve para /api/v1/users/me e para {balance_path}. \
                  O endpoint /api/v1/users/{{uid}}/usages não é consultado: \
@@ -145,9 +153,9 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
                  nomearia somas parciais como histórico completo. Saldo é \
                  a única métrica de quota. Para histórico, use o painel \
                  autenticado em app.cline.bot."
-            )],
-            source: format!("{base}{balance_path}"),
-        })
+            ),
+        );
+        Ok(Data::new(metrics, notes, format!("{base}{balance_path}")))
     }
 }
 

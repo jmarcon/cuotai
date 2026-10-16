@@ -31,6 +31,7 @@
 //! complementares — falha neles degrada para nota, nunca para zero inventado.
 
 use super::{Context, Data, QueryError};
+use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Metric, Status};
 use chrono::{DateTime, Utc};
 
@@ -86,6 +87,7 @@ fn validate_cookie(cookie: &str) -> Result<(), QueryError> {
         return Ok(());
     }
     Err(QueryError::config(
+        "query.mimo_platform.missing_cookie_fields",
         "Xiaomi MiMo (plataforma): o cookie em params.platform_session_env precisa incluir api-platform_serviceToken e userId. Exporte o cookie da sessão após entrar em platform.xiaomimimo.com no navegador.",
     ))
 }
@@ -115,22 +117,34 @@ async fn get(
     let status = response.status().as_u16();
     match status {
         // Sessão expirada redireciona para o fluxo de login (3xx) ou 401.
-        300..=399 | 401 => {
+        s @ (300..=399 | 401) => {
             return Err(QueryError {
                 status: Status::AuthenticationError,
-                message: "Xiaomi MiMo (plataforma): sessão web expirada. Entre em platform.xiaomimimo.com no navegador e exporte o cookie novamente.".into(),
+                note: Localized::with_params(
+                    "query.mimo_platform.session_expired_http",
+                    params([("code", ParamValue::from(s))]),
+                    "Xiaomi MiMo (plataforma): sessão web expirada. Entre em platform.xiaomimimo.com no navegador e exporte o cookie novamente.",
+                ),
             });
         }
-        403 => {
+        s @ 403 => {
             return Err(QueryError {
                 status: Status::AuthenticationError,
-                message: "Xiaomi MiMo (plataforma): cookie de sessão recusado (HTTP 403).".into(),
+                note: Localized::with_params(
+                    "query.mimo_platform.session_rejected_http",
+                    params([("code", ParamValue::from(s))]),
+                    "Xiaomi MiMo (plataforma): cookie de sessão recusado (HTTP 403).",
+                ),
             });
         }
         s if !(200..300).contains(&s) => {
             return Err(QueryError {
                 status: Status::Error,
-                message: format!("Consulta retornou HTTP {s}. Verifique acesso e permissões."),
+                note: Localized::with_params(
+                    "query.mimo_platform.http",
+                    params([("code", ParamValue::from(s))]),
+                    format!("Consulta retornou HTTP {s}. Verifique acesso e permissões."),
+                ),
             });
         }
         _ => {}
@@ -139,9 +153,13 @@ async fn get(
     match body.get("code").and_then(|c| c.as_i64()) {
         Some(0) => Ok(Some(body)),
         // O envelope também sinaliza sessão no corpo (CodexBar trata igual).
-        Some(401) | Some(403) => Err(QueryError {
+        Some(code @ (401 | 403)) => Err(QueryError {
             status: Status::AuthenticationError,
-            message: "Xiaomi MiMo (plataforma): sessão web expirada ou inválida. Exporte o cookie novamente.".into(),
+            note: Localized::with_params(
+                "query.mimo_platform.session_invalid_envelope",
+                params([("code", ParamValue::from(code.to_string()))]),
+                "Xiaomi MiMo (plataforma): sessão web expirada ou inválida. Exporte o cookie novamente.",
+            ),
         }),
         // Endpoint complementar sem assinatura/permissão: degrada para nota.
         _ => Ok(None),
@@ -155,7 +173,7 @@ fn build_data(
     base: &str,
 ) -> Result<Data, QueryError> {
     let mut metrics = Vec::new();
-    let mut notes = Vec::new();
+    let mut notes = Notes::new();
 
     // ---- Plano de tokens (mensal): percent é a fração USADA (0–1).
     let detail = detail_body.and_then(|b| b.get("data"));
@@ -169,7 +187,11 @@ fn build_data(
     {
         let plan = plan.trim();
         if !plan.is_empty() {
-            notes.push(format!("Plano de tokens: {plan}."));
+            notes.push_params(
+                "note.mimo_platform.token_plan",
+                params([("plan", ParamValue::from(plan.to_string()))]),
+                format!("Plano de tokens: {plan}."),
+            );
         }
     }
     if detail
@@ -177,7 +199,10 @@ fn build_data(
         .and_then(|v| v.as_bool())
         == Some(true)
     {
-        notes.push("O plano de tokens está expirado.".into());
+        notes.push(
+            "note.mimo_platform.token_plan_expired",
+            "O plano de tokens está expirado.",
+        );
     }
 
     match usage_body
@@ -229,19 +254,22 @@ fn build_data(
                     resets_at,
                 });
                 notes.push(
-                    "A API retornou apenas o percentual do plano; `percent` é a fração USADA (0–1).".into(),
+                    "note.mimo_platform.percentage_only",
+                    "A API retornou apenas o percentual do plano; `percent` é a fração USADA (0–1).",
                 );
             } else {
                 // monthUsage malformado: endpoint complementar — degrada para
                 // nota e preserva o saldo, nunca zera a consulta inteira.
                 notes.push(
-                    "Plano de tokens retornou monthUsage sem valores utilizáveis; nenhuma quota foi estimada.".into(),
+                    "note.mimo_platform.month_usage_unusable",
+                    "Plano de tokens retornou monthUsage sem valores utilizáveis; nenhuma quota foi estimada.",
                 );
             }
         }
         None => {
             notes.push(
-                "Plano de tokens não retornado (sem assinatura Token Plan ou endpoint indisponível); nenhuma quota foi estimada.".into(),
+                "note.mimo_platform.token_plan_unavailable",
+                "Plano de tokens não retornado (sem assinatura Token Plan ou endpoint indisponível); nenhuma quota foi estimada.",
             );
         }
     }
@@ -279,17 +307,25 @@ fn build_data(
                 .or_else(|| v.as_f64())
         }) {
             if v.is_finite() {
-                notes.push(format!("Saldo {label}: {v} {currency}."));
+                let id = match key {
+                    "cashBalance" => "note.mimo_platform.cash_balance",
+                    "giftBalance" => "note.mimo_platform.gift_balance",
+                    _ => unreachable!("chave de saldo controlada pelo adaptador"),
+                };
+                notes.push_params(
+                    id,
+                    params([
+                        ("amount", ParamValue::from(v.to_string())),
+                        ("currency", ParamValue::from(currency.to_string())),
+                    ]),
+                    format!("Saldo {label}: {v} {currency}."),
+                );
             }
         }
     }
 
-    notes.push(REF_NOTE.into());
-    Ok(Data {
-        metrics,
-        notes,
-        source: base.to_string(),
-    })
+    notes.push("note.mimo_platform.console_api_reference", REF_NOTE);
+    Ok(Data::new(metrics, notes, base))
 }
 
 /// "yyyy-MM-dd HH:mm:ss" em UTC (formato de currentPeriodEnd no CodexBar).
@@ -410,7 +446,7 @@ mod tests {
         .await
         .expect_err("cookie incompleto");
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("api-platform_serviceToken"));
+        assert!(err.note.fallback.contains("api-platform_serviceToken"));
         server.verify().await;
     }
 
@@ -426,7 +462,7 @@ mod tests {
             .await
             .expect_err("401");
         assert_eq!(err.status, Status::AuthenticationError);
-        assert!(err.message.contains("expirada"));
+        assert!(err.note.fallback.contains("expirada"));
     }
 
     #[tokio::test]

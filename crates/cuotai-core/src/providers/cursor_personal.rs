@@ -33,6 +33,7 @@
 //! `THIRD_PARTY_NOTICES` at the workspace root for the project-wide list.
 use super::{json, param, secret, Context, Data, QueryError};
 use crate::oauth::cursor_import::session_user_id_from_jwt;
+use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -75,18 +76,25 @@ async fn fetch_at_base(
 ) -> Result<Data, QueryError> {
     let secret_value = secret(account, ctx, "CURSOR_ACCESS_TOKEN")?;
     let cookie = build_session_cookie(&secret_value, param(account, PARAM_USER_ID).ok())?;
-    let mut notes = Vec::new();
+    let mut notes = Notes::new();
     if let Ok(device) = param(account, PARAM_DEVICE_ID) {
-        notes.push(format!(
-            "Sessão importada do Cursor IDE (device_id {device}); nenhuma senha é armazenada."
-        ));
+        notes.push_params(
+            "note.cursor_personal.imported_device",
+            params([("device_id", ParamValue::from(device.to_string()))]),
+            format!(
+                "Sessão importada do Cursor IDE (device_id {device}); nenhuma senha é armazenada."
+            ),
+        );
     } else {
         notes.push(
-            "Sessão importada do Cursor IDE (token manual); nenhuma senha é armazenada.".into(),
+            "note.cursor_personal.imported_manual_token",
+            "Sessão importada do Cursor IDE (token manual); nenhuma senha é armazenada.",
         );
     }
-    notes
-        .push("Endpoint pessoal cursor.com/api/usage-summary; não é a Admin API de equipe.".into());
+    notes.push(
+        "note.cursor_personal.personal_endpoint",
+        "Endpoint pessoal cursor.com/api/usage-summary; não é a Admin API de equipe.",
+    );
 
     let summary: UsageSummary = json(
         ctx.http
@@ -105,24 +113,40 @@ async fn fetch_at_base(
 
     if let Some(info) = user_info.as_ref() {
         if let Some(email) = info.email.as_deref().filter(|s| !s.trim().is_empty()) {
-            notes.push(format!("Conta: {email}"));
+            notes.push_params(
+                "note.cursor_personal.account_email",
+                params([]),
+                format!("Conta: {email}"),
+            );
         }
         if let Some(name) = info.name.as_deref().filter(|s| !s.trim().is_empty()) {
-            notes.push(format!("Usuário: {name}"));
+            notes.push_params(
+                "note.cursor_personal.user_name",
+                params([]),
+                format!("Usuário: {name}"),
+            );
         }
         if let Some(membership) = summary
             .membership_type
             .as_deref()
             .filter(|s| !s.trim().is_empty())
         {
-            notes.push(format!("Plano Cursor: {membership}"));
+            notes.push_params(
+                "note.cursor_personal.membership",
+                params([("membership", ParamValue::from(membership.to_string()))]),
+                format!("Plano Cursor: {membership}"),
+            );
         }
     } else if let Some(membership) = summary
         .membership_type
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
-        notes.push(format!("Plano Cursor: {membership}"));
+        notes.push_params(
+            "note.cursor_personal.membership",
+            params([("membership", ParamValue::from(membership.to_string()))]),
+            format!("Plano Cursor: {membership}"),
+        );
     }
 
     let resets_at = summary.billing_cycle_end.as_deref().and_then(parse_iso8601);
@@ -150,16 +174,16 @@ async fn fetch_at_base(
 
     if metrics.is_empty() {
         notes.push(
-            "Nenhum bloco numérico retornado pela API pessoal; ausente não significa ilimitado."
-                .into(),
+            "note.cursor_personal.no_numeric_usage",
+            "Nenhum bloco numérico retornado pela API pessoal; ausente não significa ilimitado.",
         );
     }
 
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source: format!("{REF_PROBE} ; {REF_APP_AUTH} ; {REF_DOCS}"),
-    })
+        format!("{REF_PROBE} ; {REF_APP_AUTH} ; {REF_DOCS}"),
+    ))
 }
 
 /// Normalize the incoming secret value into a `WorkosCursorSessionToken=...`
@@ -180,6 +204,7 @@ fn build_session_cookie(
     let trimmed = secret_value.trim();
     if trimmed.is_empty() {
         return Err(QueryError::config(
+            "query.cursor_personal.missing_token",
             "Token do Cursor ausente; importe via assistente ou defina CURSOR_ACCESS_TOKEN.",
         ));
     }
@@ -190,6 +215,7 @@ fn build_session_cookie(
         let value = rest.trim();
         if value.is_empty() {
             return Err(QueryError::config(
+                "query.cursor_personal.empty_cookie",
                 "Cookie WorkosCursorSessionToken vazio; importe a sessão do Cursor novamente.",
             ));
         }
@@ -198,6 +224,7 @@ fn build_session_cookie(
     if let Some((user_id, jwt)) = split_user_id_and_jwt(trimmed) {
         if user_id.is_empty() || jwt.is_empty() {
             return Err(QueryError::config(
+                "query.cursor_personal.empty_user_token_prefix",
                 "Prefixo userID::token do Cursor vazio; verifique o valor importado.",
             ));
         }
@@ -214,6 +241,7 @@ fn build_session_cookie(
             })
             .ok_or_else(|| {
                 QueryError::config(
+                    "query.cursor_personal.jwt_missing_subject",
                     "Token JWT do Cursor sem claim `sub`; importe a sessão a partir do IDE para preencher o user id.",
                 )
             })?;
@@ -221,6 +249,7 @@ fn build_session_cookie(
         return Ok(format!("{SESSION_COOKIE}={user_id}%3A%3A{trimmed}"));
     }
     Err(QueryError::config(
+        "query.cursor_personal.invalid_token_format",
         "Formato do token do Cursor inválido; informe um JWT, `userID::JWT` ou `WorkosCursorSessionToken=...`.",
     ))
 }

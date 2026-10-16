@@ -58,6 +58,7 @@
 //!   Ref.: <https://docs.poolside.ai/api/overview.md>
 
 use super::{json, Context, Data, QueryError};
+use crate::text::{params, provider_l10n, Notes, ParamValue};
 use crate::{Account, Metric, Provider};
 use chrono::{DateTime, Datelike, Months, Utc};
 use reqwest::RequestBuilder;
@@ -76,6 +77,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::Mistral => mistral(account, ctx, MISTRAL_BASE).await,
         Provider::Grok => grok(account, ctx, XAI_MANAGEMENT_BASE).await,
         Provider::NvidiaNim => Err(QueryError::unsupported(
+            "query.inference.nvidia_nim_no_public_balance",
             "NVIDIA NIM não expõe endpoint público de saldo por chave de \
              inferência: a cobrança é controlada pela conta NVIDIA Cloud, \
              fora do escopo desta chave. Fonte: \
@@ -83,15 +85,17 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 .to_string(),
         )),
         Provider::Poolside => Err(QueryError::unsupported(
+            "query.inference.poolside_no_public_usage",
             "Poolside não publica endpoint de uso/saldo por chave: a API \
              hospedada expõe apenas /v1/models e /v1/chat/completions. \
              Fonte: https://docs.poolside.ai/api/overview.md"
                 .to_string(),
         )),
-        other => Err(QueryError::unsupported(format!(
-            "{} é consultado por outro adaptador.",
-            other.label()
-        ))),
+        other => Err(QueryError::unsupported_params(
+            "query.inference.provider_handled_elsewhere",
+            params([("provider", ParamValue::from(provider_l10n(other)))]),
+            format!("{} é consultado por outro adaptador.", other.label()),
+        )),
     }
 }
 
@@ -125,9 +129,11 @@ fn path_id<'a>(value: &'a str, key: &str) -> Result<&'a str, QueryError> {
     {
         Ok(value)
     } else {
-        Err(QueryError::config(format!(
-            "params.{key} contém caracteres inválidos para identificador."
-        )))
+        Err(QueryError::config_params(
+            "query.inference.invalid_path_identifier",
+            params([("key", ParamValue::from(key.to_string()))]),
+            format!("params.{key} contém caracteres inválidos para identificador."),
+        ))
     }
 }
 
@@ -175,9 +181,15 @@ fn resolve_credential(
                      contenha uma chave de classe {required_class}."
                 )
             };
-            QueryError::config(format!(
-                "Chave de {required_class} ausente para este endpoint. {hint}"
-            ))
+            QueryError::config_params(
+                "query.inference.missing_endpoint_credential",
+                params([
+                    ("class", ParamValue::from(required_class.to_string())),
+                    ("env", ParamValue::from(env_name.clone())),
+                    ("param", ParamValue::from(param_name.to_string())),
+                ]),
+                format!("Chave de {required_class} ausente para este endpoint. {hint}"),
+            )
         })
 }
 
@@ -231,6 +243,7 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
         .is_some_and(|p| p.eq_ignore_ascii_case("computer"))
     {
         return Err(QueryError::unsupported(
+            "query.inference.perplexity_computer_opt_in_required",
             "Opt-in necessário: defina `params.product = computer` para \
              consultar a Analytics API do Perplexity Computer. A API \
              Sonar/Ask (restante do Perplexity) não tem endpoint público \
@@ -304,34 +317,46 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
     m.resets_at = Some(reset);
     metrics.push(m);
 
-    let mut notes = vec![
+    let mut notes = Notes::new();
+    notes.push(
+        "note.inference.perplexity_computer_opt_in",
         "Modo opt-in: aplicado apenas porque params.product=computer. A API \
          Sonar/Ask (restante do Perplexity) não tem endpoint público de \
-         saldo/uso por chave."
-            .to_string(),
+         saldo/uso por chave.",
+    );
+    notes.push(
+        "note.inference.perplexity_enterprise_analytics",
         "Analytics API exclusiva para organizações Enterprise; a chave é \
-         gerada em Settings → Organization → Computer no app web."
-            .to_string(),
+         gerada em Settings → Organization → Computer no app web.",
+    );
+    notes.push(
+        "note.inference.perplexity_credit_usage_dataset",
         "Dataset fixado em `credit_usage` (consulta de uso da API Sonar/Ask \
-         fora de escopo deste adaptador)."
-            .to_string(),
+         fora de escopo deste adaptador).",
+    );
+    notes.push(
+        "note.inference.perplexity_complete_utc_days",
         "Buckets retornam dias UTC completos — o dia em andamento nunca é \
          incluído, então o total pode subir até o fechamento do próximo \
-         ciclo."
-            .to_string(),
+         ciclo.",
+    );
+    notes.push(
+        "note.inference.perplexity_limit_unavailable",
         "Limite e restante do plano não são expostos: somente `used` está \
-         disponível."
-            .to_string(),
-    ];
+         disponível.",
+    );
     if let Some(email) = user_email {
-        notes.push(format!("Filtrado por membro da organização: {email}."));
+        notes.push(
+            "note.inference.perplexity_member_filter",
+            format!("Filtrado por membro da organização: {email}."),
+        );
     }
 
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source: "https://docs.perplexity.ai/docs/admin/computer-analytics-api.md".to_string(),
-    })
+        "https://docs.perplexity.ai/docs/admin/computer-analytics-api.md",
+    ))
 }
 
 // ===================================================================== Mistral
@@ -423,44 +448,52 @@ async fn mistral(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     }
     metrics.push(m);
 
-    let mut notes = vec![
+    let mut notes = Notes::new();
+    notes.push(
+        "note.inference.mistral_admin_key_required",
         "Endpoint /v1/admin/spend-limit requer Admin API Key (gerada em \
-         Console → Workspace → API keys → Admin keys)."
-            .to_string(),
+         Console → Workspace → API keys → Admin keys).",
+    );
+    notes.push(
+        "note.inference.mistral_completion_only",
         "Somente completion é contabilizado: OCR, áudio, fine-tuning e \
-         Vibe não entram no total."
-            .to_string(),
+         Vibe não entram no total.",
+    );
+    notes.push(
+        "note.inference.mistral_currency_scale_undocumented",
         "Unidade monetária: o OpenAPI declara `usage`/`usage_limit` como \
          `number` sem `format`, e a fonte oficial distingue apenas a \
          escala do limite mensal. A unidade exata dos campos de uso não \
          está documentada, então rotulamos com o código `currency` da \
-         resposta (ex.: USD, EUR) sem assumir escala subjacente."
-            .to_string(),
-    ];
+         resposta (ex.: USD, EUR) sem assumir escala subjacente.",
+    );
     if completion.monthly_limit_reached {
-        notes.push("Limite mensal atingido: a organização está bloqueada.".to_string());
+        notes.push(
+            "note.inference.mistral_monthly_limit_reached",
+            "Limite mensal atingido: a organização está bloqueada.",
+        );
     }
     if used_opt.is_none() {
         notes.push(
+            "note.inference.mistral_usage_unknown",
             "Resposta sem campos numéricos de uso: `used` permanece \
              desconhecido. O booleano `monthly_limit_reached` continua \
-             sendo a única indicação obrigatória."
-                .to_string(),
+             sendo a única indicação obrigatória.",
         );
     }
     if limit.is_none() {
         notes.push(
+            "note.inference.mistral_no_monthly_limit",
             "Plano sem limite mensal configurado (`no_monthly_limit=true`); \
-             somente `used` está disponível."
-                .to_string(),
+             somente `used` está disponível.",
         );
     }
 
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source: "https://docs.mistral.ai/api/endpoint/beta/admin/billing".to_string(),
-    })
+        "https://docs.mistral.ai/api/endpoint/beta/admin/billing",
+    ))
 }
 
 // ======================================================================== Grok
@@ -547,6 +580,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| {
             QueryError::config(
+                "query.inference.grok_team_id_required",
                 "Configure params.team_id com o Team ID visível em \
                  console.x.ai/team/default/settings/team."
                     .to_string(),
@@ -577,20 +611,25 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
     .await?;
 
     let mut metrics = Vec::new();
-    let mut notes = vec![
+    let mut notes = Notes::new();
+    notes.push(
+        "note.inference.grok_management_api",
         "Management API (`management-api.x.ai`) é distinta da API de \
          inferência (`api.x.ai`) e da API social X (`api.x.com`); a \
          chave usada é a Management Key gerada em console.x.ai → \
-         Settings → Management Keys."
-            .to_string(),
+         Settings → Management Keys.",
+    );
+    notes.push(
+        "note.inference.grok_soft_spending_limit",
         "`effectiveSpendingLimit` é o teto mensal pós-pago configurado \
          pelo usuário (soft spending limit) — é um orçamento de gasto, \
-         não uma cota da plataforma."
-            .to_string(),
+         não uma cota da plataforma.",
+    );
+    notes.push(
+        "note.inference.grok_prepaid_no_monthly_expiration",
         "Créditos pré-pagos não têm expiração mensal documentada; não \
-         inferimos reset e mantemos `resets_at = None` para esse saldo."
-            .to_string(),
-    ];
+         inferimos reset e mantemos `resets_at = None` para esse saldo.",
+    );
 
     // Pré-pago: o endpoint devolve `total` em USD cents (negativo quando
     // há compra, positivo quando há gasto). Tratamos o valor como saldo
@@ -606,9 +645,9 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         }
         None => {
             notes.push(
+                "note.inference.grok_prepaid_total_missing",
                 "Sem campo `total` em /prepaid/balance: a equipe pode não \
-                 ter créditos pré-pagos configurados."
-                    .to_string(),
+                 ter créditos pré-pagos configurados.",
             );
         }
     }
@@ -643,15 +682,18 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
             metrics.push(m);
         }
         (None, _) => {
-            notes.push("Preview do ciclo corrente sem total numérico utilizável.".to_string());
+            notes.push(
+                "note.inference.grok_cycle_total_unusable",
+                "Preview do ciclo corrente sem total numérico utilizável.",
+            );
         }
     }
 
     if spending_limit.is_none() {
         notes.push(
+            "note.inference.grok_spending_limit_missing",
             "Sem orçamento pós-pago configurado (soft spending limit \
-             ausente): o teto de gasto permanece desconhecido."
-                .to_string(),
+             ausente): o teto de gasto permanece desconhecido.",
         );
     }
 
@@ -661,11 +703,11 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         return Err(QueryError::schema());
     }
 
-    Ok(Data {
+    Ok(Data::new(
         metrics,
         notes,
-        source: "https://docs.x.ai/developers/rest-api-reference/management/billing.md".to_string(),
-    })
+        "https://docs.x.ai/developers/rest-api-reference/management/billing.md",
+    ))
 }
 
 // ===================================================================== testes
@@ -844,7 +886,7 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("admin (Mistral)"));
+        assert!(err.note.fallback.contains("admin (Mistral)"));
     }
 
     // ----------------------------------------------------- helpers numéricos
@@ -902,7 +944,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::Unsupported);
-        assert!(err.message.contains("params.product = computer"));
+        assert!(err.note.fallback.contains("params.product = computer"));
         assert_eq!(
             server.received_requests().await.unwrap_or_default().len(),
             0
@@ -926,7 +968,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("analytics_key_env"));
+        assert!(err.note.fallback.contains("analytics_key_env"));
         assert_eq!(
             server.received_requests().await.unwrap_or_default().len(),
             0
@@ -1178,7 +1220,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("admin (Mistral)"));
+        assert!(err.note.fallback.contains("admin (Mistral)"));
         assert_eq!(
             server.received_requests().await.unwrap_or_default().len(),
             0
@@ -1202,7 +1244,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("M_ADMIN"));
+        assert!(err.note.fallback.contains("M_ADMIN"));
         assert_eq!(
             server.received_requests().await.unwrap_or_default().len(),
             0
@@ -1368,7 +1410,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.status, Status::Error);
         // O erro é QueryError::schema — mensagem fixa do helper.
-        assert!(err.message.contains("Resposta"));
+        assert!(err.note.fallback.contains("Resposta"));
     }
 
     #[tokio::test]
@@ -1414,7 +1456,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("management (xAI)"));
+        assert!(err.note.fallback.contains("management (xAI)"));
         assert_eq!(
             server.received_requests().await.unwrap_or_default().len(),
             0
@@ -1441,7 +1483,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("team_id"));
+        assert!(err.note.fallback.contains("team_id"));
     }
 
     #[tokio::test]
@@ -1615,7 +1657,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.message.contains("XAI_MGMT"));
+        assert!(err.note.fallback.contains("XAI_MGMT"));
         assert_eq!(
             server.received_requests().await.unwrap_or_default().len(),
             0

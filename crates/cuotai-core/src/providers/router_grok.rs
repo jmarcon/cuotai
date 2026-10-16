@@ -6,6 +6,7 @@
 //! subject to change by the provider. No inference is generated and no
 //! quota-reset or credit-consume operation is performed.
 use super::{json, Context, Data, QueryError};
+use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric, Provider};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -25,6 +26,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     match account.provider {
         Provider::Grok => grok_cli(account, ctx, BASE, GRPC_BASE).await,
         _ => Err(QueryError::unsupported(
+            "query.router_grok.provider_not_supported",
             "Provedor sem consulta neste adapter.",
         )),
     }
@@ -72,9 +74,13 @@ async fn grok_cli(
         .get(env)
         .filter(|v| !v.trim().is_empty())
         .ok_or_else(|| {
-            QueryError::config(format!(
-                "Token de acesso OAuth do Grok CLI ausente em {env}. A chave X_GROK_API_KEY da Management API não autentica estes endpoints internos; aponte params.session_env apenas para uma variável com o token do login device code."
-            ))
+            QueryError::config_params(
+                "query.router_grok.missing_oauth_token",
+                params([("env", ParamValue::from(env.to_string()))]),
+                format!(
+                    "Token de acesso OAuth do Grok CLI ausente em {env}. A chave X_GROK_API_KEY da Management API não autentica estes endpoints internos; aponte params.session_env apenas para uma variável com o token do login device code."
+                ),
+            )
         })?;
 
     let billing: Value = json(grok_headers(
@@ -97,17 +103,32 @@ async fn grok_cli(
         .unwrap_or(&parsed.plan)
         .to_owned();
 
-    let mut notes = vec![
-        "Endpoints internos do Grok CLI oficial (cli-chat-proxy.grok.com /v1/billing?format=credits e /v1/user?include=subscription), observados no 9router; sujeitos a mudanças e restrições do provedor.".into(),
-        "Valores em créditos Grok Build (format=credits), não em USD.".into(),
+    let mut notes = Notes::new();
+    notes.push(
+        "note.router_grok.internal_endpoints",
+        "Endpoints internos do Grok CLI oficial (cli-chat-proxy.grok.com /v1/billing?format=credits e /v1/user?include=subscription), observados no 9router; sujeitos a mudanças e restrições do provedor.",
+    );
+    notes.push(
+        "note.router_grok.credit_unit",
+        "Valores em créditos Grok Build (format=credits), não em USD.",
+    );
+    notes.push_params(
+        "note.router_grok.plan",
+        params([("plan", ParamValue::from(plan.clone()))]),
         format!("Plano: {plan}"),
-    ];
+    );
     let mut metrics = parsed.metrics;
     if parsed.on_demand_exhausted {
-        notes.push("Cota sob demanda esgotada (cap 0): neste estado o provedor bloqueia o chat com 402 spending-limit.".into());
+        notes.push(
+            "note.router_grok.on_demand_exhausted",
+            "Cota sob demanda esgotada (cap 0): neste estado o provedor bloqueia o chat com 402 spending-limit.",
+        );
     }
     if parsed.has_prepaid {
-        notes.push("Pré-pago: o provedor expõe apenas o saldo restante; o total recarregado é desconhecido.".into());
+        notes.push(
+            "note.router_grok.prepaid_total_unknown",
+            "Pré-pago: o provedor expõe apenas o saldo restante; o total recarregado é desconhecido.",
+        );
     }
 
     if metrics.is_empty() {
@@ -124,21 +145,29 @@ async fn grok_cli(
                 period: Some("semanal".into()),
                 resets_at: grpc.reset_at,
             });
-            notes.push("Pool semanal SuperGrok via GetGrokCreditsConfig (gRPC-web interno em grok.com); o REST não expôs quota numérica.".into());
+            notes.push(
+                "note.router_grok.supergrok_weekly_pool",
+                "Pool semanal SuperGrok via GetGrokCreditsConfig (gRPC-web interno em grok.com); o REST não expôs quota numérica.",
+            );
         } else {
-            notes.push(if parsed.subscription_access {
-                "Assinatura ativa; a Grok não expõe quota numérica incluída e o pool semanal gRPC não respondeu.".into()
+            if parsed.subscription_access {
+                notes.push(
+                    "note.router_grok.subscription_quota_unavailable",
+                    "Assinatura ativa; a Grok não expõe quota numérica incluída e o pool semanal gRPC não respondeu.",
+                );
             } else {
-                "Conectado, mas nenhuma alocação de créditos foi retornada; a promoção gratuita pode estar esgotada.".into()
-            });
-            notes.push("Nenhuma quota numérica retornada; ausente não significa ilimitado.".into());
+                notes.push(
+                    "note.router_grok.no_credit_allocation",
+                    "Conectado, mas nenhuma alocação de créditos foi retornada; a promoção gratuita pode estar esgotada.",
+                );
+            }
+            notes.push(
+                "note.router_grok.no_numeric_quota",
+                "Nenhuma quota numérica retornada; ausente não significa ilimitado.",
+            );
         }
     }
-    Ok(Data {
-        metrics,
-        notes,
-        source: format!("{REF}grok-cli.js"),
-    })
+    Ok(Data::new(metrics, notes, format!("{REF}grok-cli.js")))
 }
 
 struct ParsedBilling {
@@ -1005,8 +1034,8 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(error.status, crate::Status::NeedsConfiguration);
-        assert!(error.message.contains("GROK_CLI_ACCESS_TOKEN"));
-        assert!(error.message.contains("X_GROK_API_KEY"));
+        assert!(error.note.fallback.contains("GROK_CLI_ACCESS_TOKEN"));
+        assert!(error.note.fallback.contains("X_GROK_API_KEY"));
         // An explicit session_env override is honored in the message.
         let error = grok_cli(
             &account(&[("session_env", "MY_GROK_TOKEN")]),
@@ -1016,7 +1045,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(error.message.contains("MY_GROK_TOKEN"));
+        assert!(error.note.fallback.contains("MY_GROK_TOKEN"));
     }
 
     #[test]

@@ -123,6 +123,51 @@ impl Provider {
             Self::Kimchi => "Kimchi",
         }
     }
+
+    /// Stable snake_case slug (the serde representation of the variant).
+    /// Used to build RF8 text ids such as `field.kiro.auth_method.label`
+    /// and `credential_help.aws_bedrock`. Kept in lockstep with the
+    /// `rename_all = "snake_case"` derive by a test in this module.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::OpenAiApi => "open_ai_api",
+            Self::AnthropicApi => "anthropic_api",
+            Self::ChatGpt => "chat_gpt",
+            Self::Claude => "claude",
+            Self::GeminiApi => "gemini_api",
+            Self::VertexAi => "vertex_ai",
+            Self::AwsBedrock => "aws_bedrock",
+            Self::AzureOpenAi => "azure_open_ai",
+            Self::Cursor => "cursor",
+            Self::Copilot => "copilot",
+            Self::Windsurf => "windsurf",
+            Self::MiniMax => "mini_max",
+            Self::Kimi => "kimi",
+            Self::Qwen => "qwen",
+            Self::Groq => "groq",
+            Self::Perplexity => "perplexity",
+            Self::Mistral => "mistral",
+            Self::CloudflareAi => "cloudflare_ai",
+            Self::OllamaCloud => "ollama_cloud",
+            Self::XiaomiMimo => "xiaomi_mimo",
+            Self::OpenCodeGo => "open_code_go",
+            Self::Qoder => "qoder",
+            Self::GeminiAi => "gemini_ai",
+            Self::Grok => "grok",
+            Self::NvidiaNim => "nvidia_nim",
+            Self::Poolside => "poolside",
+            Self::Kiro => "kiro",
+            Self::Cline => "cline",
+            Self::CodeBuddy => "code_buddy",
+            Self::Zed => "zed",
+            Self::AlibabaModelStudio => "alibaba_model_studio",
+            Self::AlibabaCodingPlan => "alibaba_coding_plan",
+            Self::AlibabaTokenPlan => "alibaba_token_plan",
+            Self::AlibabaCloud => "alibaba_cloud",
+            Self::Antigravity => "antigravity",
+            Self::Kimchi => "kimchi",
+        }
+    }
 }
 
 /// Configuration holds credential references, never credential values.
@@ -274,6 +319,14 @@ pub struct Report {
     pub status: Status,
     pub metrics: Vec<Metric>,
     pub notes: Vec<String>,
+    /// RF8 structured sidecar for [`Report::notes`]: same length and order,
+    /// each entry carrying the stable id and parameters of the note at the
+    /// same index. Additive and skipped when empty so the legacy
+    /// Snapshot/CLI JSON stays byte-compatible; frontends resolve the id in
+    /// their catalog and render the Portuguese `fallback` when it is
+    /// missing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes_l10n: Vec<crate::text::Localized>,
     pub source: String,
 }
 
@@ -282,4 +335,42 @@ pub struct Snapshot {
     pub started_at: DateTime<Utc>,
     pub finished_at: DateTime<Utc>,
     pub reports: Vec<Report>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slug_matches_serde_snake_case() {
+        // RF8 ids are built from `slug`; if the serde rename ever
+        // diverges the frontend catalogs would silently miss.
+        for provider in Provider::ALL {
+            let serialized = serde_json::to_value(provider).unwrap();
+            assert_eq!(
+                serialized.as_str().unwrap(),
+                provider.slug(),
+                "{provider:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn report_notes_l10n_is_additive_and_skipped_when_empty() {
+        let report = Report {
+            account: "a".into(),
+            provider: Provider::Kimi,
+            checked_at: Utc::now(),
+            status: Status::Ready,
+            metrics: Vec::new(),
+            notes: vec!["Nota.".into()],
+            notes_l10n: Vec::new(),
+            source: String::new(),
+        };
+        let json = serde_json::to_value(&report).unwrap();
+        assert!(json.get("notes_l10n").is_none(), "empty sidecar must skip");
+        assert_eq!(json["notes"], serde_json::json!(["Nota."]));
+        let back: Report = serde_json::from_value(json).unwrap();
+        assert!(back.notes_l10n.is_empty());
+    }
 }

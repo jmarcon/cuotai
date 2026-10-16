@@ -20,6 +20,7 @@
 //! credencial — aqui só existem as URLs internacionais do registro.
 
 use super::{secret, Context, Data, QueryError};
+use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
 use crate::{Account, Metric, Provider, Status};
 use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
@@ -47,10 +48,11 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
             let urls = [TOKEN_PLAN_URL.to_string(), CODING_PLAN_URL.to_string()];
             fetch_at(account, ctx, &urls).await
         }
-        other => Err(QueryError::unsupported(format!(
-            "{} é consultado por outro adaptador.",
-            other.label()
-        ))),
+        other => Err(QueryError::unsupported_params(
+            "query.router_minimax.provider_handled_elsewhere",
+            params([("provider", ParamValue::from(provider_l10n(other)))]),
+            format!("{} é consultado por outro adaptador.", other.label()),
+        )),
     }
 }
 
@@ -348,8 +350,10 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     {
         return Err(Failure::fatal(QueryError {
             status: Status::AuthenticationError,
-            message: "Chave MiniMax inválida ou inativa. Use uma chave ativa de Token/Coding Plan."
-                .into(),
+            note: Localized::fixed(
+                "query.router_minimax.invalid_key",
+                "Chave MiniMax inválida ou inativa. Use uma chave ativa de Token/Coding Plan.",
+            ),
         }));
     }
 
@@ -358,12 +362,20 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
         let error = if code == 429 {
             QueryError {
                 status: Status::RateLimited,
-                message: "MiniMax limitou a consulta de uso (HTTP 429).".into(),
+                note: Localized::with_params(
+                    "query.router_minimax.rate_limited",
+                    params([("code", ParamValue::from(code))]),
+                    "MiniMax limitou a consulta de uso (HTTP 429).",
+                ),
             }
         } else {
             QueryError {
                 status: Status::Error,
-                message: format!("MiniMax conectado. Endpoint de uso respondeu HTTP {code}."),
+                note: Localized::with_params(
+                    "query.router_minimax.http",
+                    params([("code", ParamValue::from(code))]),
+                    format!("MiniMax conectado. Endpoint de uso respondeu HTTP {code}."),
+                ),
             }
         };
         let transient = matches!(code, 404 | 405) || status.is_server_error();
@@ -373,7 +385,11 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     if let Some(code) = status_code.filter(|c| *c != 0) {
         return Err(Failure::fatal(QueryError {
             status: Status::Error,
-            message: format!("MiniMax respondeu erro de quota (código {code})."),
+            note: Localized::with_params(
+                "query.router_minimax.quota_error",
+                params([("code", ParamValue::from(code.to_string()))]),
+                format!("MiniMax respondeu erro de quota (código {code})."),
+            ),
         }));
     }
 
@@ -384,6 +400,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
         .collect();
     if quota_models.is_empty() {
         return Err(Failure::fatal(QueryError::unsupported(
+            "query.router_minimax.no_quota_data",
             "MiniMax conectado. Nenhum dado de cota foi retornado.",
         )));
     }
@@ -420,6 +437,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     }
     if metrics.is_empty() {
         return Err(Failure::fatal(QueryError::unsupported(
+            "query.router_minimax.quota_unextractable",
             "MiniMax conectado. Não foi possível extrair o uso de cota da resposta.",
         )));
     }
@@ -429,20 +447,26 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     } else {
         TOKEN_PLAN_URL
     };
-    Ok(Data {
-        metrics,
-        notes: vec![
-            format!(
-                "Consulta GET somente leitura em {endpoint}. Em /token_plan/remains os contadores \
-                 *_usage_count são consumidos; em /coding_plan/remains são restantes."
-            ),
-            "Baldes M-series (\"MiniMax-M*\" em respostas antigas, \"general\" nas novas) publicam \
-             apenas o percentual restante; exibidos como %, sem total de requisições.".into(),
-            "resets_at usa a duração remains_time (ms) quando presente; caso contrário end_time \
-             (epoch s/ms ou ISO 8601).".into(),
-        ],
-        source: REF.to_string(),
-    })
+    let mut notes = Notes::new();
+    notes.push_params(
+        "note.router_minimax.read_only_endpoint",
+        params([("endpoint", ParamValue::from(endpoint))]),
+        format!(
+            "Consulta GET somente leitura em {endpoint}. Em /token_plan/remains os contadores \
+             *_usage_count são consumidos; em /coding_plan/remains são restantes."
+        ),
+    );
+    notes.push(
+        "note.router_minimax.percent_only_buckets",
+        "Baldes M-series (\"MiniMax-M*\" em respostas antigas, \"general\" nas novas) publicam \
+         apenas o percentual restante; exibidos como %, sem total de requisições.",
+    );
+    notes.push(
+        "note.router_minimax.reset_source",
+        "resets_at usa a duração remains_time (ms) quando presente; caso contrário end_time \
+         (epoch s/ms ou ISO 8601).",
+    );
+    Ok(Data::new(metrics, notes, REF))
 }
 
 /// Envelope interno que aceita a lista de endpoints (para wiremock). A
@@ -779,7 +803,7 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err.status, Status::AuthenticationError));
-        assert!(err.message.contains("inválida ou inativa"));
+        assert!(err.note.fallback.contains("inválida ou inativa"));
     }
 
     // base_resp.status_code 1004 ⇒ AuthenticationError, sem corpo cru.
@@ -801,8 +825,8 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err.status, Status::AuthenticationError));
-        assert!(!err.message.contains("RAW_BODY_MARKER"));
-        assert!(!err.message.contains("invalid api key"));
+        assert!(!err.note.fallback.contains("RAW_BODY_MARKER"));
+        assert!(!err.note.fallback.contains("invalid api key"));
     }
 
     // base_resp ausente por completo (upstream opcional) com dados válidos.
@@ -848,7 +872,7 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err.status, Status::Unsupported));
-        assert!(err.message.contains("Nenhum dado de cota"));
+        assert!(err.note.fallback.contains("Nenhum dado de cota"));
     }
 
     // 500 transitório em ambos os endpoints esgota o fallback e devolve o
@@ -867,8 +891,8 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err.status, Status::Error));
-        assert!(err.message.contains("HTTP 500"));
-        assert!(!err.message.contains("RAW_BODY_MARKER"));
+        assert!(err.note.fallback.contains("HTTP 500"));
+        assert!(!err.note.fallback.contains("RAW_BODY_MARKER"));
     }
 
     // Rota padrão pública: Provider::MiniMax, sem params obrigatórios, e a
@@ -878,6 +902,6 @@ mod tests {
         let http = reqwest::Client::new();
         let err = fetch(&account(), &ctx(&http, &NoCreds)).await.unwrap_err();
         assert!(matches!(err.status, Status::NeedsConfiguration));
-        assert!(err.message.contains("MINIMAX_IO_API_KEY"));
+        assert!(err.note.fallback.contains("MINIMAX_IO_API_KEY"));
     }
 }

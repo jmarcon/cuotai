@@ -1268,6 +1268,7 @@ mod tests {
             status,
             metrics,
             notes: Vec::new(),
+            notes_l10n: Vec::new(),
             source: String::new(),
         }
     }
