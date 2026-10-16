@@ -499,8 +499,8 @@ fn update_accounts(
         // from cloned `Table` nodes: `Table::clone` retains decor, including
         // table-prefix and value comments, without a text round-trip.
         let mut reordered = toml_edit::ArrayOfTables::new();
-        for account in accounts {
-            let table = array
+        for (index, account) in accounts.iter().enumerate() {
+            let mut table = array
                 .iter()
                 .find(|table| {
                     table
@@ -510,6 +510,13 @@ fn update_accounts(
                 })
                 .expect("permutation contains every requested account")
                 .clone();
+            // Encoder sorts by document position, not array order.
+            table.set_position(
+                array
+                    .get(index)
+                    .and_then(|slot| slot.position())
+                    .unwrap_or(index),
+            );
             reordered.push(table);
         }
         *array = reordered;
@@ -695,6 +702,56 @@ mod tests {
         assert_eq!(
             toml::to_string(&reloaded.config).unwrap(),
             toml::to_string(&cfg).unwrap()
+        );
+    }
+
+    #[test]
+    fn move_account_persists_order_and_per_account_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("move.toml");
+        fs::write(
+            &path,
+            "# arquivo\nrefresh_seconds = 300 # global\nconcurrency = 4\ntimeout_seconds = 30\n\n[[accounts]]\n# comentario alpha\nname = \"A\"\nprovider = \"open_ai_api\"\ncredential_env = \"A_KEY\" # credencial alpha\nparams = { project_ids = \"alpha\" }\n\n[[accounts]]\n# comentario beta\nname = \"B\"\nprovider = \"anthropic_api\"\ncredential_env = \"B_KEY\" # credencial beta\n\n[[accounts]]\n# comentario gamma\nname = \"C\"\nprovider = \"groq\"\ncredential_env = \"C_KEY\" # credencial gamma\n",
+        )
+        .unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        let updated = file.config.move_account(0, 2).unwrap();
+        file.save(updated.clone()).unwrap();
+
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with("# arquivo\nrefresh_seconds = 300 # global\n"));
+        let sections = text.split("[[accounts]]").skip(1).collect::<Vec<_>>();
+        assert_eq!(sections.len(), 3);
+        for (section, name, comment, credential) in [
+            (
+                sections[0],
+                "name = \"B\"",
+                "# comentario beta",
+                "# credencial beta",
+            ),
+            (
+                sections[1],
+                "name = \"C\"",
+                "# comentario gamma",
+                "# credencial gamma",
+            ),
+            (
+                sections[2],
+                "name = \"A\"",
+                "# comentario alpha",
+                "# credencial alpha",
+            ),
+        ] {
+            assert!(section.contains(name), "{text}");
+            assert!(section.contains(comment), "{text}");
+            assert!(section.contains(credential), "{text}");
+        }
+        assert!(sections[2].contains("project_ids = \"alpha\""), "{text}");
+
+        let reloaded = load_at(&path, false).unwrap();
+        assert_eq!(
+            toml::to_string(&reloaded.config).unwrap(),
+            toml::to_string(&updated).unwrap()
         );
     }
 

@@ -124,6 +124,43 @@ impl Provider {
         }
     }
 
+    /// True when the provider charges per outgoing query and a tight
+    /// polling interval would burn money. Frontends use this to surface a
+    /// cost advisory and `Config::validate` uses it to clamp the
+    /// effective interval (per-account override and global fallback) to
+    /// at least [`Self::METERED_MIN_REFRESH_SECONDS`]. The list starts
+    /// with `AwsBedrock` (Cost Explorer charges per query); every other
+    /// provider is free to add itself here when evidence of billing
+    /// surfaces, but no provider is metered without that proof.
+    pub fn is_metered(self) -> bool {
+        matches!(self, Self::AwsBedrock)
+    }
+
+    /// Minimum effective polling interval for metered providers. Same
+    /// value applied to per-account overrides and the global fallback so
+    /// a metered account is never polled more often than this regardless
+    /// of how the user wires the configuration.
+    pub const METERED_MIN_REFRESH_SECONDS: u64 = 300;
+
+    /// Cost advisory surfaced by frontends next to the interval input and
+    /// the summary. `None` for free providers so the UI hides the warning
+    /// automatically. Centralised here so the TUI wizard and the desktop
+    /// dialog render the same message; changes to the advisory reach
+    /// both frontends through a single point.
+    pub fn cost_advisory(self) -> Option<crate::text::Localized> {
+        if self.is_metered() {
+            Some(crate::text::Localized::fixed(
+                format!("cost_advisory.{}", self.slug()),
+                "Provedor cobrado por consulta: cada ciclo consulta e gera cobrança. \
+                 O intervalo efetivo mínimo é 300s; valores menores são rejeitados \
+                 pela validação do core. Mantenha um intervalo alto (ex.: 3600s) \
+                 para reduzir custo. Atualizações manuais continuam explícitas.",
+            ))
+        } else {
+            None
+        }
+    }
+
     /// Stable snake_case slug (the serde representation of the variant).
     /// Used to build RF8 text ids such as `field.kiro.auth_method.label`
     /// and `credential_help.aws_bedrock`. Kept in lockstep with the
@@ -171,7 +208,7 @@ impl Provider {
 }
 
 /// Configuration holds credential references, never credential values.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Account {
     pub name: String,
@@ -214,6 +251,32 @@ pub struct Config {
     #[serde(default = "default_timeout")]
     pub timeout_seconds: u64,
     pub accounts: Vec<Account>,
+}
+
+impl Config {
+    /// Return a copy with the account at `from` moved to its final position
+    /// `to`. Every account keeps its complete identity and settings; global
+    /// settings are untouched. Indices are checked against the original
+    /// configuration, so `to` is in `0..accounts.len()` rather than an
+    /// insertion position after removal.
+    pub fn move_account(
+        &self,
+        from: usize,
+        to: usize,
+    ) -> Result<Config, crate::edit_error::EditError> {
+        for index in [from, to] {
+            if index >= self.accounts.len() {
+                return Err(crate::edit_error::index_out_of_range(
+                    index,
+                    self.accounts.len(),
+                ));
+            }
+        }
+        let mut updated = self.clone();
+        let account = updated.accounts.remove(from);
+        updated.accounts.insert(to, account);
+        Ok(updated)
+    }
 }
 
 fn default_refresh() -> u64 {
