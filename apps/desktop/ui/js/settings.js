@@ -1,0 +1,70 @@
+// Tela de configurações: aparência, idioma e pasta de temas/idiomas do usuário.
+import { te, t, LOCALES } from "./i18n.js";
+import { THEMES } from "./themes.js";
+import { userContent, skippedMessage } from "./usercontent.js";
+import { bindThemeSwitch, getSettings, icon, langMenuHtml, openUserDir, pickFolder, setUserDir, themeSwitchHtml } from "./lib.js";
+import { esc } from "./util.js";
+
+let dlg = null;
+
+export async function openSettings(extra = {}) {
+  if (dlg?.open) return;
+  dlg = document.createElement("dialog");
+  dlg.className = "dlg settings";
+  document.body.append(dlg);
+  dlg.addEventListener("close", () => { dlg.remove(); dlg = null; });
+  const render = async (message = "") => {
+    const s = await getSettings();
+    const nThemes = THEMES.filter((x) => x.user).length;
+    const nLocales = LOCALES.filter((x) => x.user).length;
+    dlg.innerHTML = `<div class="dlg-body">
+      <h2>${te("settings.title")}</h2>
+      <section class="set-sec"><h3>${te("settings.appearance")}</h3>${themeSwitchHtml({ themeSelect: true })}</section>
+      <section class="set-sec"><h3>${te("lang.label")}</h3>${langMenuHtml({ inline: true })}</section>
+      <section class="set-sec"><h3>${te("settings.folder.title")}</h3>
+        <p class="hint">${te("settings.folder.help")}</p>
+        <div class="path-row"><code title="${esc(s.user_dir ?? "")}">${esc(s.user_dir ?? "—")}</code></div>
+        ${s.env_locked ? `<p class="hint warn-txt">${te("settings.folder.env")}</p>` : ""}
+        <p class="hint">${s.custom_dir ? te("settings.folder.custom") : te("settings.folder.default")} · ${te("settings.folder.loaded", { themes: nThemes, locales: nLocales })}</p>
+        <div class="dlg-actions left">
+          <button class="btn" data-pick ${s.env_locked ? "disabled" : ""}>${icon("folder")} ${te("settings.folder.choose")}</button>
+          <button class="btn" data-reset ${s.env_locked || !s.custom_dir ? "disabled" : ""}>${te("settings.folder.reset")}</button>
+          <button class="btn" data-open-dir>${te("settings.folder.open")}</button>
+        </div>
+        ${userContent.errors.map((e) => `<p class="hint warn-txt">${esc(skippedMessage(e))}</p>`).join("")}
+        <p class="err" role="alert">${esc(message)}</p>
+      </section>
+      <section class="set-sec"><h3>${te("settings.about")}</h3>
+        <p class="hint">Cuotai ${esc(s.version)}${extra.configPath ? ` · ${te("settings.configFile", { path: extra.configPath })}` : ""}</p></section>
+      <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
+    </div>`;
+    dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
+    const apply = async (path) => {
+      try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
+      catch (e) { render(errorText(e)); }
+    };
+    dlg.querySelector("[data-pick]").onclick = async () => {
+      const picked = await pickFolder(s.user_dir);
+      if (typeof picked === "string" && picked) apply(picked);
+    };
+    dlg.querySelector("[data-reset]").onclick = () => apply(null);
+  };
+  bindThemeSwitch(dlg, () => { extra.onChange?.(); render(); });
+  dlg.addEventListener("click", async (e) => {
+    const item = e.target.closest("[data-locale]");
+    if (!item) return;
+    const { setLocale } = await import("./i18n.js");
+    await setLocale(item.dataset.locale);
+    extra.onChange?.(); render();
+  });
+  dlg.showModal();
+  await render();
+}
+
+const errorText = (e) => {
+  const code = typeof e === "string" ? e : "";
+  const key = `settings.error.${code}`;
+  const tr = t(key);
+  return tr === key ? t("common.unexpected") : tr;
+};
