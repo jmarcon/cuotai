@@ -767,5 +767,7 @@
   "dialog.login.saving": "Saving the account…",
   "metric.level.good": "{pct}% available: plenty left (70% or more).",
   "metric.level.warn": "Attention: {pct}% available (between 30% and 70%).",
-  "metric.level.bad": "Critical: only {pct}% available (under 30%)."
+  "metric.level.bad": "Critical: only {pct}% available (under 30%).",
+  "tray.view.donut": "Show as donuts",
+  "tray.view.list": "Show as list"
 }

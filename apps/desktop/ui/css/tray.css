@@ -167,3 +167,90 @@ body {
 .link.quit {
   color: var(--bad);
 }
+
+/* donuts */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 6px 8px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  text-align: center;
+}
+.tile:hover {
+  background: var(--surface-2);
+}
+.donut {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+.donut svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.donut circle {
+  fill: none;
+  stroke-width: 7;
+}
+.donut .trk {
+  stroke: var(--track);
+}
+.donut .arc {
+  stroke: currentColor;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.4s ease;
+}
+.donut .center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.donut .center svg.i {
+  width: 22px;
+  height: 22px;
+}
+.donut.info { color: var(--info); }
+.donut.accent { color: var(--accent); }
+.donut.muted,
+.donut.unknown { color: var(--fg-muted); }
+.tile-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  max-width: 100%;
+  font-size: 12px;
+}
+.tile-name b {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile-name .logo {
+  flex: none;
+}
+.tile-acct {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

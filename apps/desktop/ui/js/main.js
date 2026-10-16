@@ -4,16 +4,18 @@ import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
 import { confirmDelete, openAccountDialog } from "./account-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
+import { syncTrayMenu } from "./tray-menu.js";
 import {
   ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
-  moveAccount, noteText, onHiddenChange, persistentSet, rateLimitOf, reportKey, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
+  moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, statusLabel,
 } from "./lib.js";
 
 await boot();
 
 const root = document.getElementById("root");
-const disabled = persistentSet("cuotai.disabledAccounts", () => render());
+const disabled = disabledAccounts;
+onDisabledChange(() => render());
 const store = createStore(() => render());
 const busy = (i) => store.view?.busy.includes(i);
 
@@ -109,6 +111,7 @@ let renderPending = false;
 let reorderPending = false;
 function render() {
   refreshDetails();
+  syncTrayMenu(store.view);
   if (dragKey) { renderPending = true; return; } // não reconstrói a tela no meio de um arraste
   const { view, error } = store;
   const reports = view?.reports ?? [];
