@@ -1,0 +1,258 @@
+dialog.dlg {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-dialog);
+}
+dialog.dlg::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+.dlg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  user-select: text;
+}
+.dlg-body h2 {
+  font-size: 17px;
+}
+.f {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.f > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.f small,
+.hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.f input,
+.f select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+}
+.f input:focus,
+.f select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+#dyn,
+#dyn-auth,
+#dyn-fields {
+  display: contents;
+}
+.err {
+  min-height: 1.2em;
+  color: var(--bad);
+  font-size: 13px;
+}
+.dlg-body .warn {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.dlg-body .warn[hidden] {
+  display: none;
+}
+.dlg-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.btn.danger-btn {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+  font-weight: 600;
+}
+.btn:disabled {
+  opacity: 0.5;
+}
+fieldset.auth {
+  margin: 0;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+fieldset.auth legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+label.mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+label.mode small {
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+label.mode-off {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.login-panel[hidden] {
+  display: none;
+}
+.login-log {
+  max-height: 6.5em;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.login-log p {
+  margin: 0 0 4px;
+}
+.login-url-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.login-url-row input {
+  flex: 1;
+  min-width: 0;
+}
+.login-url-row button {
+  flex: 0 0 auto;
+}
+.login-usercode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+.login-usercode code {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  user-select: all;
+}
+
+dialog.settings {
+  width: min(560px, calc(100vw - 32px));
+}
+dialog.settings .set-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: var(--border-w) solid var(--border);
+}
+dialog.settings .set-sec h3 {
+  font-size: 13px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+dialog.settings .path-row code {
+  display: block;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  font: 12px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+.dlg-actions.left {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+.warn-txt {
+  color: var(--warn);
+}
+
+dialog.details {
+  width: min(560px, calc(100vw - 32px));
+}
+.det-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.det-head .who {
+  flex: 1;
+  min-width: 0;
+}
+.det-head .who h2 {
+  font-size: 18px;
+}
+.det-head .who p {
+  color: var(--fg-muted);
+}
+.det-body {
+  max-height: min(56vh, 460px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.btn.is-disabled {
+  opacity: 0.55;
+  cursor: help;
+}
+.f input.invalid {
+  border-color: var(--bad);
+  outline: 2px solid color-mix(in srgb, var(--bad) 35%, transparent);
+}
+.field-err {
+  color: var(--bad);
+  font-size: 12px;
+}
+.login-hint {
+  margin: -6px 0 0;
+  color: var(--warn);
+}

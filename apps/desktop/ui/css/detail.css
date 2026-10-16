@@ -1,0 +1,67 @@
+/* Detalhe de conta: usado no popover e no diálogo de detalhes da janela principal. */
+.sub {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.metric {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.metric-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.metric h3 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.resets {
+  margin-top: 8px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.note {
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.metric .pct {
+  font-size: 18px;
+}
+.metric .bar {
+  height: 6px;
+}
+.metric.muted {
+  opacity: 0.45;
+}
+.metric-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.metric-right .icon {
+  width: 28px;
+  height: 28px;
+}
+.sub2 {
+  color: var(--fg-muted);
+  font-size: 13px;
+}
