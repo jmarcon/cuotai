@@ -1,6 +1,7 @@
 //! Read-only AI usage monitoring, independent of terminal and windowing frameworks.
 //! Call `Monitor::refresh` from an async runtime. A failed account does not fail
 //! other accounts; reports retain configuration order and never contain secrets.
+pub mod metrics;
 mod model;
 pub mod oauth;
 mod providers;
