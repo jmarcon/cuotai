@@ -712,13 +712,9 @@ dependencies = [
  "clap",
  "crossterm",
  "cuotai-core",
- "dirs",
  "ratatui",
  "serde_json",
- "tempfile",
  "tokio",
- "toml",
- "toml_edit 0.22.27",
 ]
 
 [[package]]
