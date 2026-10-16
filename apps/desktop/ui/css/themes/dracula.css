@@ -1,0 +1,37 @@
+/* Dracula — https://draculatheme.com/contribute. Tema de referência do contrato. */
+:root[data-theme="dracula"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #1e1f29;
+  --surface: #282a36;
+  --surface-2: #343746;
+  --border: #44475a;
+  --fg: #f8f8f2;
+  --fg-muted: #9aa0c0;
+  --accent: #ffb86c;
+  --accent-fg: #282a36;
+  --good: #50fa7b;
+  --warn: #f1fa8c;
+  --bad: #ff5555;
+  --info: #8be9fd;
+  --track: #44475a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* Variante clara neutra (Dracula não define uma oficial). */
+:root[data-theme="dracula"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #f4f4f7;
+  --surface: #ffffff;
+  --surface-2: #f0f0f5;
+  --border: #e2e2ea;
+  --fg: #1c1c24;
+  --fg-muted: #6b6b7b;
+  --accent: #b34a08;
+  --accent-fg: #ffffff;
+  --good: #1f7a3a;
+  --warn: #8a6100;
+  --bad: #c92a2a;
+  --info: #0b6f94;
+  --track: #e6e6ee;
+  --shadow: 0 1px 2px rgba(20, 20, 40, 0.06), 0 8px 24px rgba(20, 20, 40, 0.06);
+}

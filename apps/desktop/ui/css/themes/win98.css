@@ -1,0 +1,178 @@
+/* Windows 98 — cinza clássico, biséis 3D, barra de título azul-marinho. CSS puro, sem recursos externos. */
+:root[data-theme="win98"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #c0c0c0;
+  --surface: #c0c0c0;
+  --surface-2: #dfdfdf;
+  --border: #808080;
+  --fg: #000000;
+  --fg-muted: #404040;
+  --accent: #000080;
+  --accent-fg: #ffffff;
+  --good: #006400;
+  --warn: #7a4d00;
+  --bad: #a00000;
+  --info: #00508c;
+  --track: #dfdfdf;
+  --font-ui: "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-mono: "Fixedsys", "Lucida Console", "Courier New", monospace;
+  --radius-lg: 0px;
+  --radius-md: 0px;
+  --radius-sm: 0px;
+  --radius-pill: 0px;
+  --logo-radius: 0%;
+  --border-w: 1px;
+  --shadow: none;
+  --shadow-dialog: 1px 1px 0 #000000, 2px 2px 0 rgba(0, 0, 0, 0.4);
+  --card-bg: #c0c0c0;
+  --head-bg: linear-gradient(90deg, #000080, #1084d0);
+  --topbar-bg: linear-gradient(90deg, #000080, #1084d0);
+  --btn-bg: #c0c0c0;
+  --btn-fg: #000000;
+  --input-bg: #ffffff;
+  --switch-knob: #c0c0c0;
+  --body-bg: #008080;
+}
+
+:root[data-theme="win98"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #1a1a1a;
+  --surface: #2b2b2b;
+  --surface-2: #3c3c3c;
+  --border: #808080;
+  --fg: #ffffff;
+  --fg-muted: #c0c0c0;
+  --accent: #1084d0;
+  --accent-fg: #000000;
+  --good: #55ff55;
+  --warn: #ffff00;
+  --bad: #ff5555;
+  --info: #00ffff;
+  --track: #000000;
+  --font-ui: "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-mono: "Fixedsys", "Lucida Console", "Courier New", monospace;
+  --radius-lg: 0px;
+  --radius-md: 0px;
+  --radius-sm: 0px;
+  --radius-pill: 0px;
+  --logo-radius: 0%;
+  --border-w: 1px;
+  --shadow: none;
+  --shadow-dialog: 1px 1px 0 #000000, 2px 2px 0 rgba(0, 0, 0, 0.6);
+  --card-bg: #2b2b2b;
+  --head-bg: linear-gradient(90deg, #000080, #1084d0);
+  --topbar-bg: linear-gradient(90deg, #000080, #1084d0);
+  --btn-bg: #2b2b2b;
+  --btn-fg: #ffffff;
+  --input-bg: #000000;
+  --switch-knob: #c0c0c0;
+  --body-bg: #000000;
+}
+
+/* Bisel elevado (claro) */
+:root[data-theme="win98"][data-mode="light"] .card,
+:root[data-theme="win98"][data-mode="light"] .btn,
+:root[data-theme="win98"][data-mode="light"] .segmented,
+:root[data-theme="win98"][data-mode="light"] .chip,
+:root[data-theme="win98"][data-mode="light"] .row,
+:root[data-theme="win98"][data-mode="light"] .metric,
+:root[data-theme="win98"][data-mode="light"] .pop,
+:root[data-theme="win98"][data-mode="light"] dialog.dlg {
+  border-color: #c0c0c0;
+  box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+}
+/* Bisel elevado (escuro) */
+:root[data-theme="win98"][data-mode="dark"] .card,
+:root[data-theme="win98"][data-mode="dark"] .btn,
+:root[data-theme="win98"][data-mode="dark"] .segmented,
+:root[data-theme="win98"][data-mode="dark"] .chip,
+:root[data-theme="win98"][data-mode="dark"] .row,
+:root[data-theme="win98"][data-mode="dark"] .metric,
+:root[data-theme="win98"][data-mode="dark"] .pop,
+:root[data-theme="win98"][data-mode="dark"] dialog.dlg {
+  border-color: #2b2b2b;
+  box-shadow: inset -1px -1px #000000, inset 1px 1px #5a5a5a, inset -2px -2px #101010, inset 2px 2px #3c3c3c;
+}
+
+/* Campos afundados */
+:root[data-theme="win98"][data-mode="light"] select,
+:root[data-theme="win98"][data-mode="light"] input {
+  border-color: #c0c0c0;
+  box-shadow: inset 1px 1px #808080, inset -1px -1px #ffffff, inset 2px 2px #0a0a0a, inset -2px -2px #dfdfdf;
+}
+:root[data-theme="win98"][data-mode="dark"] select,
+:root[data-theme="win98"][data-mode="dark"] input {
+  border-color: #2b2b2b;
+  box-shadow: inset 1px 1px #000000, inset -1px -1px #5a5a5a, inset 2px 2px #101010, inset -2px -2px #3c3c3c;
+}
+:root[data-theme="win98"] select {
+  background: var(--input-bg);
+  color: var(--fg);
+}
+
+/* Trilhos afundados */
+:root[data-theme="win98"][data-mode="light"] .bar {
+  border: 1px solid #808080;
+  box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #ffffff;
+}
+:root[data-theme="win98"][data-mode="dark"] .bar {
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px #000000, inset -1px -1px #5a5a5a;
+}
+
+/* Botão pressionado */
+:root[data-theme="win98"][data-mode="light"] .btn:active:not(:disabled) {
+  box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #ffffff, inset 2px 2px #808080, inset -2px -2px #dfdfdf;
+}
+:root[data-theme="win98"][data-mode="dark"] .btn:active:not(:disabled) {
+  box-shadow: inset 1px 1px #000000, inset -1px -1px #5a5a5a, inset 2px 2px #101010, inset -2px -2px #3c3c3c;
+}
+
+/* Barra de título azul-marinho */
+:root[data-theme="win98"] .card-head {
+  border-bottom-color: #000080;
+}
+:root[data-theme="win98"] .card-head h2,
+:root[data-theme="win98"] .card-head p,
+:root[data-theme="win98"] .card-head .icon,
+:root[data-theme="win98"] .card-head .icon svg,
+:root[data-theme="win98"] .topbar h1,
+:root[data-theme="win98"] .topbar .check,
+:root[data-theme="win98"] .topbar .icon {
+  color: #ffffff;
+}
+:root[data-theme="win98"] .card-head .icon:hover:not(:disabled),
+:root[data-theme="win98"] .topbar .icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+:root[data-theme="win98"] .card-head .icon.danger {
+  color: #ffffff;
+}
+:root[data-theme="win98"] .topbar {
+  border-bottom: 1px solid #000040;
+}
+
+/* Controles cinza sobre a barra */
+:root[data-theme="win98"][data-mode="light"] .btn,
+:root[data-theme="win98"][data-mode="light"] .segmented button {
+  color: #000000;
+}
+:root[data-theme="win98"][data-mode="light"] .segmented {
+  background: #c0c0c0;
+}
+:root[data-theme="win98"][data-mode="light"] .segmented button.on {
+  background: #dfdfdf;
+  color: #000000;
+}
+:root[data-theme="win98"][data-mode="dark"] .btn,
+:root[data-theme="win98"][data-mode="dark"] .segmented button {
+  color: #ffffff;
+}
+:root[data-theme="win98"][data-mode="dark"] .segmented {
+  background: #2b2b2b;
+}
+:root[data-theme="win98"][data-mode="dark"] .segmented button.on {
+  background: #3c3c3c;
+  color: #ffffff;
+}

@@ -1,0 +1,80 @@
+/* Old Terminal (synthwave) — terminal retrô com brilho neon leve (escuro e claro). */
+:root[data-theme="synthwave"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #120a24;
+  --surface: #1c1038;
+  --surface-2: #2d1b69;
+  --border: #5b2a9e;
+  --fg: #f2e9ff;
+  --fg-muted: #b9a3e6;
+  --accent: #ff2a6d;
+  --accent-fg: #120a24;
+  --good: #39ff88;
+  --warn: #ffe66d;
+  --bad: #ff4d8d;
+  --info: #05d9e8;
+  --track: #2d1b69;
+  --font-ui: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --radius-lg: 4px;
+  --radius-md: 3px;
+  --radius-sm: 2px;
+  --radius-pill: 2px;
+  --logo-radius: 10%;
+  --border-w: 1px;
+  --shadow: 0 0 0 1px rgba(91, 42, 158, 0.35), 0 8px 24px rgba(5, 217, 232, 0.06);
+  --shadow-dialog: 0 0 0 1px #5b2a9e, 0 0 32px rgba(255, 42, 109, 0.18), 0 24px 64px rgba(0, 0, 0, 0.55);
+  --body-bg: linear-gradient(180deg, #120a24 0%, #1f0f3d 100%);
+  --switch-knob: #f2e9ff;
+}
+
+/* Synthwave Day — retrowave claro, lavanda e rosa suave. */
+:root[data-theme="synthwave"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #f3ecff;
+  --surface: #ffffff;
+  --surface-2: #ebe0ff;
+  --border: #8a5cf0;
+  --fg: #1c0f3a;
+  --fg-muted: #5a3f9a;
+  --accent: #c2185b;
+  --accent-fg: #ffffff;
+  --good: #00796b;
+  --warn: #8a5a00;
+  --bad: #c4003f;
+  --info: #0a6fa8;
+  --track: #ddd0f7;
+  --font-ui: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --radius-lg: 4px;
+  --radius-md: 3px;
+  --radius-sm: 2px;
+  --radius-pill: 2px;
+  --logo-radius: 10%;
+  --border-w: 1px;
+  --shadow: 0 0 0 1px rgba(138, 92, 240, 0.25), 0 8px 24px rgba(138, 92, 240, 0.1);
+  --shadow-dialog: 0 0 0 1px #8a5cf0, 0 0 24px rgba(194, 24, 91, 0.12), 0 24px 64px rgba(28, 15, 58, 0.25);
+  --body-bg: linear-gradient(180deg, #f3ecff 0%, #ffe6f1 100%);
+  --switch-knob: #ffffff;
+}
+:root[data-theme="synthwave"][data-mode="light"] .switch.on {
+  box-shadow: 0 0 6px rgba(194, 24, 91, 0.18);
+}
+
+:root[data-theme="synthwave"][data-mode="dark"] .card-head h2 {
+  text-shadow: 0 0 8px rgba(5, 217, 232, 0.35);
+}
+:root[data-theme="synthwave"][data-mode="dark"] .bar > span {
+  box-shadow: 0 0 6px 0 rgba(57, 255, 136, 0.35);
+}
+:root[data-theme="synthwave"][data-mode="dark"] .switch.on {
+  box-shadow: 0 0 8px rgba(255, 42, 109, 0.45);
+}
+:root[data-theme="synthwave"][data-mode="dark"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0, rgba(0, 0, 0, 0.05) 1px, transparent 1px, transparent 3px);
+}

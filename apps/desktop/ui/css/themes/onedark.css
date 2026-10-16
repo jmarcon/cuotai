@@ -1,0 +1,39 @@
+/* One Dark / One Light — paleta do tema One do Atom. */
+:root[data-theme="onedark"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #21252b;
+  --surface: #282c34;
+  --surface-2: #2f343e;
+  --border: #3e4451;
+  --fg: #abb2bf;
+  --fg-muted: #8b93a2;
+  --accent: #61afef;
+  --accent-fg: #1b1f27;
+  --good: #98c379;
+  --warn: #e5c07b;
+  --bad: #e06c75;
+  --info: #56b6c2;
+  --track: #3a404c;
+  --radius-lg: 12px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+/* One Light: accent/estados escurecidos para atingir contraste sobre branco. */
+:root[data-theme="onedark"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f0f0f1;
+  --border: #dcdcde;
+  --fg: #383a42;
+  --fg-muted: #696c77;
+  --accent: #3b6fe0;
+  --accent-fg: #ffffff;
+  --good: #3f8a3e;
+  --warn: #986801;
+  --bad: #ca1243;
+  --info: #0e7fae;
+  --track: #e5e5e6;
+  --radius-lg: 12px;
+  --shadow: 0 1px 2px rgba(56, 58, 66, 0.06), 0 8px 24px rgba(56, 58, 66, 0.08);
+}
