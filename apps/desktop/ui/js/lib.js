@@ -20,6 +20,8 @@ const paths = {
   ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
   battery: '<rect width="16" height="10" x="2" y="7" rx="2" ry="2"/><line x1="22" x2="22" y1="11" y2="13"/><line x1="6" x2="6" y1="11" y2="13"/>',
   alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
   window: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M2 9h20"/><path d="M6 6.5h.01"/><path d="M9 6.5h.01"/>',
   sort: '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
@@ -75,6 +77,7 @@ export async function pickFolder(defaultPath) {
   if (isDesktop && T.dialog) return T.dialog.open({ directory: true, multiple: false, defaultPath: defaultPath || undefined });
   return "/Users/demo/CuotaiUser"; // navegador (demo)
 }
+export const setTrayMenu = (payload) => isDesktop && T.core.invoke("set_tray_menu", { payload });
 export const openMainWindow = () => isDesktop && T.core.invoke("show_main_window");
 export const quitApp = () => isDesktop && T.core.invoke("quit_app");
 
@@ -287,6 +290,11 @@ const hiddenListeners = new Set();
 export const hiddenMetrics = persistentSet("cuotai.hiddenMetrics", () => hiddenListeners.forEach((f) => f()));
 export const onHiddenChange = (f) => hiddenListeners.add(f);
 export const isMetricHidden = (r, m) => hiddenMetrics.has(metricKey(r, m));
+
+// Contas desativadas no painel (interruptor do card): compartilhadas entre janelas e com o menu da bandeja.
+const disabledListeners = new Set();
+export const disabledAccounts = persistentSet("cuotai.disabledAccounts", () => disabledListeners.forEach((f) => f()));
+export const onDisabledChange = (f) => disabledListeners.add(f);
 
 // ---------- estado de dados ----------
 // O backend é a única fonte: agenda por conta (RefreshCycle) e emite "snapshot".

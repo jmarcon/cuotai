@@ -155,5 +155,7 @@
   "dialog.login.saving": "Salvando a conta…",
   "metric.level.good": "{pct}% disponível: com folga (70% ou mais).",
   "metric.level.warn": "Atenção: {pct}% disponível (entre 30% e 70%).",
-  "metric.level.bad": "Crítico: só {pct}% disponível (menos de 30%)."
+  "metric.level.bad": "Crítico: só {pct}% disponível (menos de 30%).",
+  "tray.view.donut": "Ver em donuts",
+  "tray.view.list": "Ver em lista"
 }

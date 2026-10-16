@@ -10,6 +10,7 @@ use backend::{
 use cuotai_core::Provider;
 use std::{collections::BTreeMap, sync::Arc};
 use tauri::{
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewWindow, WindowEvent,
 };
@@ -100,6 +101,63 @@ async fn move_account(
 #[tauri::command]
 fn load_user_content() -> Result<user_content::UserContent, String> {
     user_content::load().ok_or_else(|| "Pasta de configuração indisponível.".to_string())
+}
+
+/// Linhas do menu do ícone da bandeja (clique direito), já traduzidas pela interface: o shell não conhece idioma.
+#[derive(serde::Deserialize)]
+struct TrayMenuPayload {
+    /// Uma linha por conta: "nome: % disponível".
+    lines: Vec<String>,
+    /// Texto quando não há contas.
+    empty: String,
+    open: String,
+    settings: String,
+    quit: String,
+}
+
+/// Remove controles, apara e limita o tamanho de uma linha de menu.
+fn clean_menu_line(text: &str) -> String {
+    let cleaned: String = text.chars().filter(|c| !c.is_control()).collect();
+    let trimmed = cleaned.trim();
+    if trimmed.chars().count() <= 80 {
+        trimmed.to_owned()
+    } else {
+        format!("{}…", trimmed.chars().take(79).collect::<String>())
+    }
+}
+
+fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    let lines: Vec<String> = p
+        .lines
+        .iter()
+        .map(|l| clean_menu_line(l))
+        .filter(|l| !l.is_empty())
+        .take(40)
+        .collect();
+    if lines.is_empty() {
+        menu.append(&MenuItem::with_id(app, "none", clean_menu_line(&p.empty), false, None::<&str>)?)?;
+    }
+    // Habilitadas (texto com contraste normal); clicar numa conta abre a janela principal.
+    for line in &lines {
+        menu.append(&MenuItem::with_id(app, "account", line, true, None::<&str>)?)?;
+    }
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "open", clean_menu_line(&p.open), true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "settings", clean_menu_line(&p.settings), true, None::<&str>)?)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", clean_menu_line(&p.quit), true, None::<&str>)?)?;
+    Ok(menu)
+}
+
+/// Atualiza o menu do clique direito. Comando síncrono: roda na thread principal, onde o menu nativo vive.
+#[tauri::command]
+fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String> {
+    let menu = build_tray_menu(&app, &payload).map_err(|e| e.to_string())?;
+    if let Some(tray) = app.tray_by_id("cuotai") {
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -196,6 +254,7 @@ pub fn run() {
             login_cancel,
             load_user_content,
             get_settings,
+            set_tray_menu,
             set_user_dir,
             open_user_dir,
             open_settings,
@@ -211,6 +270,14 @@ pub fn run() {
                 .icon(icon)
                 .icon_as_template(false)
                 .tooltip("Cuotai")
+                // Clique esquerdo abre o popover; o direito mostra o menu de texto (contas e ações).
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "account" | "open" => show_main_window(app.clone()),
+                    "settings" => open_settings(app.clone()),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
@@ -225,6 +292,17 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+            // Menu inicial (a interface o substitui, já traduzido e com as contas, assim que carrega).
+            let initial = TrayMenuPayload {
+                lines: vec![],
+                empty: "Cuotai".into(),
+                open: "Abrir".into(),
+                settings: "Configurações".into(),
+                quit: "Sair".into(),
+            };
+            if let (Some(tray), Ok(menu)) = (app.tray_by_id("cuotai"), build_tray_menu(app.handle(), &initial)) {
+                let _ = tray.set_menu(Some(menu));
+            }
 
             // Popover fecha ao perder o foco; fechar a janela principal só a esconde.
             if let Some(w) = app.get_webview_window("tray") {
@@ -249,4 +327,19 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Cuotai");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_menu_line;
+
+    #[test]
+    fn menu_lines_are_trimmed_stripped_of_controls_and_capped() {
+        assert_eq!(clean_menu_line("  Claude Code: 56%  "), "Claude Code: 56%");
+        assert_eq!(clean_menu_line("Kiro\n\tAI: 94%"), "KiroAI: 94%");
+        let long = "x".repeat(200);
+        let cut = clean_menu_line(&long);
+        assert_eq!(cut.chars().count(), 80);
+        assert!(cut.ends_with('…'));
+    }
 }

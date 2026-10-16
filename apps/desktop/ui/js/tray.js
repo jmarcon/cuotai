@@ -1,16 +1,18 @@
 import { boot } from "./boot.js";
 import { te, t, currentLocale } from "./i18n.js";
 import { detailHtml } from "./detail.js";
+import { syncTrayMenu } from "./tray-menu.js";
 import {
   bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtReset, icon, initTheme, isDesktop, level,
-  logo, noteText, openMainWindow, persistentSet, quitApp, remainingPct, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
-  textualMetric, worstRemaining, ALERTS, isMetricHidden, onHiddenChange,
+  logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, remainingPct, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
+  textualMetric, worstRemaining, ALERTS, alertOf, windowsOf, isMetricHidden, onHiddenChange,
 } from "./lib.js";
 
 await boot();
 
 const root = document.getElementById("root");
-const disabled = persistentSet("cuotai.disabledAccounts", () => render());
+const disabled = disabledAccounts;
+onDisabledChange(() => render());
 const store = createStore(() => render());
 let selected = null;
 
@@ -26,6 +28,39 @@ function row(r) {
       <div class="bar thin ${lv}"><span style="width:${worst ?? 0}%"></span></div>
     </div>${icon("chev", "chev")}</button>`;
 }
+
+// Vista do popover: donuts (mais contas na mesma tela) ou lista. Preferência salva.
+const VIEW_KEY = "cuotai.trayView";
+let trayView = (() => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "donut"; } catch { return "donut"; } })();
+addEventListener("storage", (e) => { if (e.key === VIEW_KEY) { trayView = e.newValue === "list" ? "list" : "donut"; render(); } });
+
+const R = 26, CIRC = 2 * Math.PI * R;
+/** Anel de porcentagem disponível; sem medida, o anel fica vazio. `center` é o conteúdo (número ou ícone). */
+function donutHtml(pct, tone, center) {
+  const dash = pct == null ? 0 : (Math.max(0, Math.min(100, pct)) / 100) * CIRC;
+  return `<div class="donut ${tone}"><svg viewBox="0 0 64 64" aria-hidden="true">
+    <circle class="trk" cx="32" cy="32" r="${R}"/>
+    ${dash >= 1 ? `<circle class="arc" cx="32" cy="32" r="${R}" stroke-dasharray="${dash.toFixed(1)} ${CIRC.toFixed(1)}"/>` : ""}</svg>
+    <span class="center">${center}</span></div>`;
+}
+
+function tile(r) {
+  const alert = alertOf(r);
+  const worst = r.status === "ready" ? worstRemaining(r) : null;
+  const lv = level(worst);
+  const w = windowsOf(r);
+  const tip = [`${brand(r.provider).label} (${r.account})`,
+    alert ? alert.label() : worst != null ? te2("metric.level." + lv, { pct: Math.round(worst) }) : "",
+    ...(w.h5 ? [`${t("card.window.h5")}: ${Math.round(w.h5.pct)}%`] : []),
+    ...(w.week ? [`${t("card.window.week")}: ${Math.round(w.week.pct)}%`] : [])].filter(Boolean);
+  const center = alert ? icon(alert.icon) : worst != null ? `${Math.round(worst)}%` : "—";
+  const tone = alert ? alert.tone : lv;
+  return `<button class="tile" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}">
+    ${donutHtml(alert ? 100 : worst, tone, center)}
+    <span class="tile-name">${logo(r.provider, 14)}<b>${esc(brand(r.provider).label)}</b></span>
+    <span class="tile-acct">${esc(r.account)}</span></button>`;
+}
+const te2 = (key, vars) => t(key, vars);
 
 const short = (s, n = 90) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -55,13 +90,16 @@ function render() {
   const loading = !!view && view.busy.length > 0;
   const reports = sortReports(view?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
   const cur = reports.find((r) => reportKey(r) === selected) ?? null;
-  const body = cur ? detailHtml(cur) : reports.map(row).join("");
+  const body = cur ? detailHtml(cur)
+    : trayView === "donut" ? `<div class="tiles">${reports.map(tile).join("")}</div>` : reports.map(row).join("");
+  syncTrayMenu(view);
   root.innerHTML = `<div class="pop">
     <header class="pop-head">
       ${cur ? `<button class="icon back" data-back title="${te("common.back")}">${icon("back")}</button>` : ""}
       <div class="pop-title"><h1>${cur ? "" : `<img class="brand" src="img/logo.svg" alt="" width="18" height="18" />`}${esc(cur ? brand(cur.provider).label : "Cuotai")}</h1>
         ${cur ? `<span class="sub">${esc(cur.account)}</span>` : ""}
       </div>
+      ${cur ? "" : `<button class="icon" data-view title="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}" aria-label="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}">${icon(trayView === "donut" ? "list" : "grid")}</button>`}
       ${sortMenuHtml()}${langMenuHtml()}
       <button class="icon" data-refresh-all title="${te("common.refresh")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
@@ -80,6 +118,7 @@ root.addEventListener("click", (e) => {
   const open = t.closest("[data-open]");
   if (open) { selected = open.dataset.open; return render(); }
   if (t.closest("[data-back]")) { selected = null; return render(); }
+  if (t.closest("[data-view]")) { trayView = trayView === "donut" ? "list" : "donut"; try { localStorage.setItem(VIEW_KEY, trayView); } catch {} return render(); }
   if (t.closest("[data-refresh-all]")) return store.refresh();
   if (t.closest("[data-open-main]")) return openMainWindow();
   if (t.closest("[data-open-settings]")) return openSettingsWindow();
