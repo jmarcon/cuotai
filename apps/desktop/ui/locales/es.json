@@ -764,5 +764,8 @@
   "edit_error.login_partial_failure": "{detail} La autorización sigue en memoria: haga clic en Guardar de nuevo para terminar sin rehacer el login.",
   "remove.partial_failure": "Cuenta eliminada del TOML; credencial NO borrada del cofre. Motivo: {detail}.",
   "dialog.login.nameFirst": "Indica el nombre de la cuenta antes de iniciar sesión.",
-  "dialog.login.saving": "Guardando la cuenta…"
+  "dialog.login.saving": "Guardando la cuenta…",
+  "metric.level.good": "{pct}% disponible: con margen (70% o más).",
+  "metric.level.warn": "Atención: {pct}% disponible (entre 30% y 70%).",
+  "metric.level.bad": "Crítico: solo {pct}% disponible (menos de 30%)."
 }

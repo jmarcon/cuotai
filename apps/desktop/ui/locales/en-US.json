@@ -764,5 +764,8 @@
   "edit_error.login_partial_failure": "{detail} The authorisation is still in memory: click Save again to finish without redoing the login.",
   "remove.partial_failure": "Account removed from TOML; credential NOT deleted from the vault. Reason: {detail}.",
   "dialog.login.nameFirst": "Enter the account name before signing in.",
-  "dialog.login.saving": "Saving the account…"
+  "dialog.login.saving": "Saving the account…",
+  "metric.level.good": "{pct}% available: plenty left (70% or more).",
+  "metric.level.warn": "Attention: {pct}% available (between 30% and 70%).",
+  "metric.level.bad": "Critical: only {pct}% available (under 30%)."
 }

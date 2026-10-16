@@ -65,3 +65,9 @@
   color: var(--fg-muted);
   font-size: 13px;
 }
+.metric .pct small {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.8;
+}

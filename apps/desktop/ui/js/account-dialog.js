@@ -86,7 +86,7 @@ export async function openAccountDialog(index = null) {
     </div>
     <div id="dyn-fields"></div></div>
     <label class="f"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /></label>
-    <p class="warn" id="cost-warn" hidden></p>
+    <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="err" id="err" role="alert"></p>
     <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn primary" id="ok">${te("common.save")}</button></div>
   </form>`);
