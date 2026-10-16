@@ -479,3 +479,64 @@
   margin-top: 5px;
   min-height: 1.2em;
 }
+
+/* filtro, contagem regressiva e aviso */
+.filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.filter-ico {
+  position: absolute;
+  left: 9px;
+  display: grid;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+.filter-ico svg.i {
+  width: 14px;
+  height: 14px;
+}
+.filter input {
+  width: 170px;
+  height: 30px;
+  padding: 0 28px 0 28px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+  user-select: text;
+}
+.filter input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.filter .icon {
+  position: absolute;
+  right: 1px;
+  width: 26px;
+  height: 26px;
+}
+.next {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.next svg.i {
+  width: 13px;
+  height: 13px;
+}
+.banner.ok {
+  color: var(--good);
+}
+.banner .link {
+  margin-left: 8px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+}

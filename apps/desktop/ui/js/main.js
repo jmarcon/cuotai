@@ -6,7 +6,7 @@ import { confirmDelete, openAccountDialog } from "./account-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
-  ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
+  fmtNext, ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, statusLabel,
 } from "./lib.js";
@@ -68,12 +68,18 @@ function card(r, position, ordered) {
   const on = !disabled.has(key);
   const isBusy = busy(index);
   const n = r.metrics.length;
-  const custom = currentSort() === "custom";
+  const custom = currentSort() === "custom" && !filterText.trim(); // com filtro, os vizinhos visíveis não são os da ordem real
   const reorderButtons = custom ? [[-1, "↑"], [1, "↓"]].map(([delta, symbol]) => {
     const target = ordered[position + delta];
     const label = `${te("account.reorder")} ${symbol}`;
     return `<button class="icon move" title="${esc(label)}" aria-label="${esc(label)}" data-move-from="${index}" data-move-to="${target?.index ?? index}" ${!target || reorderPending ? "disabled" : ""}>${symbol}</button>`;
   }).join("") : "";
+  // Próxima consulta desta conta (contagem regressiva atualizada a cada segundo, sem redesenhar a tela).
+  const nextChip = isBusy
+    ? `<span class="next" title="${te("card.refreshing")}">${icon("refresh", "spin")}</span>`
+    : r.next_refresh_at_ms
+      ? `<span class="next" data-next-at="${r.next_refresh_at_ms}" title="${te("card.nextRefresh", { time: fmtNext(r.next_refresh_at_ms) })}">${icon("clock")}<span class="nt">${esc(fmtNext(r.next_refresh_at_ms))}</span></span>`
+      : "";
   const alert = alertOf(r);
   const rate = rateLimitOf(r);
   const rateChip = rate != null && level(rate) !== "good"
@@ -92,16 +98,40 @@ function card(r, position, ordered) {
     </div>
     <div class="summary">${summaryHtml(r)}</div>
     <div class="card-foot">
-      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${rateChip}${alertChip}
+      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${rateChip}${alertChip}${nextChip}
       <span class="grow"></span>${reorderButtons}
     </div>
   </section>`;
 }
 
+// Filtro por texto (nome do provedor, da conta, e-mail): sem acentos e sem diferenciar maiúsculas.
+let filterText = "";
+const norm = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const matchesFilter = (r) =>
+  !filterText.trim() || norm([brand(r.provider).label, r.account, r.identity?.email, r.provider].join(" ")).includes(norm(filterText.trim()));
+
+// Aviso curto após remover uma conta (o que aconteceu com a credencial no cofre).
+let notice = null;
+let noticeTimer = null;
+function setNotice(tone, text) {
+  notice = { tone, text };
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { notice = null; render(); }, 12000);
+  render();
+}
+function onDeleted(result) {
+  if (!result) return;
+  if (result.outcome === "purged") setNotice("ok", t("delete.purged"));
+  else if (result.outcome === "kept") setNotice("ok", t("delete.kept"));
+  else if (result.outcome === "kept_shared") setNotice("ok", t("delete.keptShared", { other: result.other_account ?? "" }));
+  else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }));
+}
+
 const detailsContext = {
   reports: () => store.view?.reports ?? [],
   onEdit: (index) => openAccountDialog(index),
-  onRemove: (index, label) => confirmDelete(index, label),
+  onRemove: (index, label) =>
+    confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),
   onChange: () => render(),
 };
 onHiddenChange(() => { render(); refreshDetails(); });
@@ -115,21 +145,34 @@ function render() {
   if (dragKey) { renderPending = true; return; } // não reconstrói a tela no meio de um arraste
   const { view, error } = store;
   const reports = view?.reports ?? [];
-  const ordered = sortReports(reports);
+  const ordered = sortReports(reports).filter(matchesFilter);
+  const filterBox = document.getElementById("filter");
+  const keepFocus = !!filterBox && document.activeElement === filterBox;
+  const caret = filterBox?.selectionStart ?? null;
   const loading = !!view && view.busy.length > 0;
   root.innerHTML = `<div class="shell">
     <header class="topbar" data-tauri-drag-region>
       <img class="brand" src="img/logo.svg" alt="" width="22" height="22" data-tauri-drag-region /><h1 data-tauri-drag-region>Cuotai</h1><div class="spacer" data-tauri-drag-region></div>
+      <div class="filter"><span class="filter-ico">${icon("search")}</span>
+        <input id="filter" type="text" autocomplete="off" spellcheck="false" value="${esc(filterText)}" placeholder="${te("filter.placeholder")}" aria-label="${te("filter.placeholder")}" />
+        ${filterText ? `<button class="icon" data-clear-filter title="${te("filter.clear")}" aria-label="${te("filter.clear")}">${icon("x")}</button>` : ""}</div>
       ${themeSwitchHtml()}${sortMenuHtml()}${langMenuHtml()}
       <button class="icon" data-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>
       <button class="icon" data-add title="${te("common.add")}" aria-label="${te("common.add")}">${icon("plus")}</button>
       <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
+    ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(view.config_path ?? "")}</small></div>` : ""}
+    ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
     <main class="grid">${ordered.map((report, position) => card(report, position, ordered)).join("")}</main></div>`;
+  if (keepFocus) {
+    const input = document.getElementById("filter");
+    input?.focus();
+    if (input && caret != null) input.setSelectionRange(caret, caret);
+  }
 }
 
 root.addEventListener("click", (e) => {
@@ -142,13 +185,15 @@ root.addEventListener("click", (e) => {
     }).catch(() => {});
     return;
   }
+  if (t.closest("[data-clear-filter]")) { filterText = ""; return render(); }
+  if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
   const move = t.closest("[data-move-from]");
   if (move) return reorderAccounts(Number(move.dataset.moveFrom), Number(move.dataset.moveTo));
   const one = t.closest("[data-refresh]");
   if (one) return store.refreshOne(Number(one.dataset.refresh));
   if (t.closest("[data-refresh-all]")) return store.refresh();
   if (t.closest("[data-add]")) return openAccountDialog();
-  if (t.closest("[data-settings]")) return openSettings({ configPath: store.view?.config_path, onChange: render });
+  if (t.closest("[data-settings]")) return openSettings({ configPath: store.view?.config_path, onChange: render, view: () => store.view });
   const det = t.closest("[data-details]");
   if (det) return openDetails(det.dataset.details, detailsContext);
   const tog = t.closest("[data-toggle]");
@@ -223,6 +268,29 @@ root.addEventListener("keydown", (e) => {
   const target = ordered[position + delta];
   if (position >= 0 && target) reorderAccounts(ordered[position].index, target.index, key);
 });
+root.addEventListener("input", (e) => {
+  if (e.target.id === "filter") { filterText = e.target.value; render(); }
+});
+root.addEventListener("keydown", (e) => {
+  if (e.target.id === "filter" && e.key === "Escape" && filterText) { e.preventDefault(); filterText = ""; render(); }
+});
+// "/" foca o filtro (como na TUI), exceto ao digitar em outro campo ou com um diálogo aberto.
+addEventListener("keydown", (e) => {
+  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = e.target?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || document.querySelector("dialog[open]")) return;
+  e.preventDefault();
+  document.getElementById("filter")?.focus();
+});
+// Contagem regressiva da próxima consulta: atualiza só o texto, uma vez por segundo.
+setInterval(() => {
+  for (const el of document.querySelectorAll("[data-next-at]")) {
+    const text = fmtNext(Number(el.dataset.nextAt));
+    const nt = el.querySelector(".nt");
+    if (nt && nt.textContent !== text) nt.textContent = text;
+    el.title = te("card.nextRefresh", { time: text });
+  }
+}, 1000);
 initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
@@ -230,6 +298,6 @@ render();
 
 // Eventos do shell: abrir a tela de configurações (vindo do popover) e recarregar quando a pasta do usuário mudar.
 if (window.__TAURI__) {
-  window.__TAURI__.event.listen("open-settings", () => openSettings({ configPath: store.view?.config_path, onChange: render }));
+  window.__TAURI__.event.listen("open-settings", () => openSettings({ configPath: store.view?.config_path, onChange: render, view: () => store.view }));
   window.__TAURI__.event.listen("user-content-changed", () => location.reload());
 }

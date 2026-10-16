@@ -1,8 +1,8 @@
 // Tela de configurações: aparência, idioma e pasta de temas/idiomas do usuário.
-import { te, t, LOCALES } from "./i18n.js";
+import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, getSettings, icon, langMenuHtml, openUserDir, pickFolder, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, getSettings, icon, langMenuHtml, openUserDir, pickFolder, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 
 let dlg = null;
@@ -21,6 +21,16 @@ export async function openSettings(extra = {}) {
       <h2>${te("settings.title")}</h2>
       <section class="set-sec"><h3>${te("settings.appearance")}</h3>${themeSwitchHtml({ themeSelect: true })}</section>
       <section class="set-sec"><h3>${te("lang.label")}</h3>${langMenuHtml({ inline: true })}</section>
+      <section class="set-sec"><h3>${te("settings.refresh.title")}</h3>
+        <p class="hint">${te("settings.refresh.help")}</p>
+        <label class="f"><span>${te("settings.refresh.label")}</span>
+          <input id="refresh-seconds" type="number" inputmode="numeric" min="30" step="1" value="${esc(extra.view?.()?.refresh_seconds || 300)}" /><small>${te("settings.refresh.min")}</small></label>
+        <div class="dlg-actions left">
+          ${[[60, "1 min"], [300, "5 min"], [900, "15 min"], [3600, "1 h"]].map(([sec, label]) => `<button class="btn" data-preset="${sec}">${label}</button>`).join("")}
+          <button class="btn primary" data-apply-refresh>${te("settings.refresh.save")}</button>
+        </div>
+        <p class="err" id="refresh-msg" role="alert"></p>
+      </section>
       <section class="set-sec"><h3>${te("settings.folder.title")}</h3>
         <p class="hint">${te("settings.folder.help")}</p>
         <div class="path-row"><code title="${esc(s.user_dir ?? "")}">${esc(s.user_dir ?? "—")}</code></div>
@@ -39,6 +49,17 @@ export async function openSettings(extra = {}) {
       <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
     </div>`;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    const input = dlg.querySelector("#refresh-seconds");
+    const msg = dlg.querySelector("#refresh-msg");
+    for (const b of dlg.querySelectorAll("[data-preset]")) b.onclick = () => { input.value = b.dataset.preset; msg.textContent = ""; };
+    dlg.querySelector("[data-apply-refresh]").onclick = async () => {
+      msg.classList.remove("ok");
+      try {
+        await setRefreshSeconds(Number(input.value));
+        msg.classList.add("ok");
+        msg.textContent = t("settings.refresh.saved");
+      } catch (e) { msg.textContent = l10nError(e); }
+    };
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -67,4 +88,13 @@ const errorText = (e) => {
   const key = `settings.error.${code}`;
   const tr = t(key);
   return tr === key ? t("common.unexpected") : tr;
+};
+
+/** Erro do shell: JSON `{ id, params, fallback }` (RF8) ou texto simples. */
+const l10nError = (e) => {
+  if (typeof e === "string") {
+    try { const p = JSON.parse(e); if (p && typeof p === "object" && "id" in p) return tl(p); } catch {}
+    return e;
+  }
+  return e?.message ?? t("common.unexpected");
 };
