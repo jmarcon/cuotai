@@ -99,12 +99,7 @@ async fn set_refresh_seconds(app: AppHandle, b: Shared<'_>, seconds: u64) -> Res
 }
 
 #[tauri::command]
-async fn move_account(
-    app: AppHandle,
-    b: Shared<'_>,
-    from: usize,
-    to: usize,
-) -> Result<(), String> {
+async fn move_account(app: AppHandle, b: Shared<'_>, from: usize, to: usize) -> Result<(), String> {
     b.move_account(&app, from, to).await
 }
 
@@ -146,17 +141,47 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
         .take(40)
         .collect();
     if lines.is_empty() {
-        menu.append(&MenuItem::with_id(app, "none", clean_menu_line(&p.empty), false, None::<&str>)?)?;
+        menu.append(&MenuItem::with_id(
+            app,
+            "none",
+            clean_menu_line(&p.empty),
+            false,
+            None::<&str>,
+        )?)?;
     }
     // Habilitadas (texto com contraste normal); clicar numa conta abre a janela principal.
     for line in &lines {
-        menu.append(&MenuItem::with_id(app, "account", line, true, None::<&str>)?)?;
+        menu.append(&MenuItem::with_id(
+            app,
+            "account",
+            line,
+            true,
+            None::<&str>,
+        )?)?;
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    menu.append(&MenuItem::with_id(app, "open", clean_menu_line(&p.open), true, None::<&str>)?)?;
-    menu.append(&MenuItem::with_id(app, "settings", clean_menu_line(&p.settings), true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "open",
+        clean_menu_line(&p.open),
+        true,
+        None::<&str>,
+    )?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "settings",
+        clean_menu_line(&p.settings),
+        true,
+        None::<&str>,
+    )?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    menu.append(&MenuItem::with_id(app, "quit", clean_menu_line(&p.quit), true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "quit",
+        clean_menu_line(&p.quit),
+        true,
+        None::<&str>,
+    )?)?;
     Ok(menu)
 }
 
@@ -311,7 +336,10 @@ pub fn run() {
                 settings: "Configurações".into(),
                 quit: "Sair".into(),
             };
-            if let (Some(tray), Ok(menu)) = (app.tray_by_id("cuotai"), build_tray_menu(app.handle(), &initial)) {
+            if let (Some(tray), Ok(menu)) = (
+                app.tray_by_id("cuotai"),
+                build_tray_menu(app.handle(), &initial),
+            ) {
                 let _ = tray.set_menu(Some(menu));
             }
 

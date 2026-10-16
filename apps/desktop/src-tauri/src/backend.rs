@@ -28,7 +28,6 @@ fn l10n_to_json(note: &cuotai_core::text::Localized) -> String {
     serde_json::to_string(note).unwrap_or_else(|_| note.fallback.to_string())
 }
 
-
 fn refresh_edit_error(error: &cuotai_core::refresh::EditError) -> cuotai_core::text::Localized {
     match error {
         cuotai_core::refresh::EditError::Index(index) => cuotai_core::text::Localized::with_param(
@@ -37,10 +36,9 @@ fn refresh_edit_error(error: &cuotai_core::refresh::EditError) -> cuotai_core::t
             *index,
             error.to_string(),
         ),
-        cuotai_core::refresh::EditError::UnexpectedDiff => cuotai_core::text::Localized::fixed(
-            "edit_error.refresh_cycle_diff",
-            error.to_string(),
-        ),
+        cuotai_core::refresh::EditError::UnexpectedDiff => {
+            cuotai_core::text::Localized::fixed("edit_error.refresh_cycle_diff", error.to_string())
+        }
     }
 }
 
@@ -285,9 +283,21 @@ fn metric_window(metric: &Metric) -> Option<&'static str> {
         metric.label,
         metric.period.as_deref().unwrap_or("")
     ));
-    let five = ["5h", "5 h", "5hour", "5-hour", "5 hour", "5 hora", "five hour", "five_hour"];
+    let five = [
+        "5h",
+        "5 h",
+        "5hour",
+        "5-hour",
+        "5 hour",
+        "5 hora",
+        "five hour",
+        "five_hour",
+    ];
     let week = ["7d", "7 d", "7-day", "7 day", "7 dia"];
-    if text.contains("session") || text.contains("sessao") || five.iter().any(|n| has_unprefixed(&text, n)) {
+    if text.contains("session")
+        || text.contains("sessao")
+        || five.iter().any(|n| has_unprefixed(&text, n))
+    {
         Some("5h")
     } else if text.contains("semana")
         || text.contains("semanal")
@@ -373,7 +383,12 @@ fn identity_view(account: &Account, status: Status) -> IdentityView {
     out
 }
 
-fn report_view(index: usize, report: &Report, config: &Config, next_refresh_at_ms: Option<u64>) -> ReportView {
+fn report_view(
+    index: usize,
+    report: &Report,
+    config: &Config,
+    next_refresh_at_ms: Option<u64>,
+) -> ReportView {
     let account = &config.accounts[index];
     ReportView {
         index,
@@ -438,14 +453,12 @@ impl Inner {
             .iter()
             .enumerate()
             .filter_map(|(i, slot)| {
-                slot.as_ref()
-                    .map(|report| {
-                        // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
-                        let next = (!l.cycle.is_busy(i)).then(|| {
-                            unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64
-                        });
-                        report_view(i, report, &l.file.config, next)
-                    })
+                slot.as_ref().map(|report| {
+                    // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
+                    let next = (!l.cycle.is_busy(i))
+                        .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
+                    report_view(i, report, &l.file.config, next)
+                })
             })
             .collect();
         View {
@@ -501,7 +514,14 @@ impl Inner {
                 Arc::new(EnvironmentCredentials),
                 session,
             )
-            .map_err(|e| serde_json::to_string(&cuotai_core::edit_error::config_error_note(&e)).unwrap_or_else(|_| cuotai_core::edit_error::config_error_note(&e).fallback.into_owned()))?,
+            .map_err(|e| {
+                serde_json::to_string(&cuotai_core::edit_error::config_error_note(&e))
+                    .unwrap_or_else(|_| {
+                        cuotai_core::edit_error::config_error_note(&e)
+                            .fallback
+                            .into_owned()
+                    })
+            })?,
         );
         self.generation += 1;
         let accounts_len = file.config.accounts.len();
@@ -774,7 +794,9 @@ impl Backend {
             // Modo de login do Cuotai escolhido, mas sem login concluído nem credencial existente: o core cobraria a
             // "variável de ambiente", que não existe nesse modo. Dizemos o motivo real.
             if login_needed_before_save(&input.auth_mode, oauth_mode) {
-                return Err("Conclua o login antes de salvar (ou volte para a credencial manual).".into());
+                return Err(
+                    "Conclua o login antes de salvar (ou volte para a credencial manual).".into(),
+                );
             }
             let descriptors = field_descriptors(input.provider);
             let fields: Vec<DraftField> = descriptors
@@ -822,8 +844,8 @@ impl Backend {
                 fields: &fields,
                 interval_text: &input.interval,
             };
-            let account = build_account(&draft, config, input.index)
-                .map_err(|e| l10n_to_json(&e.l10n()))?;
+            let account =
+                build_account(&draft, config, input.index).map_err(|e| l10n_to_json(&e.l10n()))?;
             let updated = config
                 .upsert_account(account, input.index)
                 .map_err(|e| l10n_to_json(&e.l10n()))?;
@@ -841,7 +863,9 @@ impl Backend {
             let new_monitor = match l.monitor.with_config(updated.clone()) {
                 Ok(m) => Arc::new(m),
                 Err(e) => {
-                    return Err(l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)));
+                    return Err(l10n_to_json(&cuotai_core::edit_error::config_error_note(
+                        &e,
+                    )));
                 }
             };
             // Persist. O caminho de commit delega a escrita encenada
@@ -961,8 +985,13 @@ impl Backend {
             // no-purge path does not await IPC; the (future)
             // purge path will block the mutex until the vault
             // round-trip completes.
-            let remove_outcome =
-                account_edit::remove_account(&mut l.file, session.as_ref(), index, purge_credentials).await;
+            let remove_outcome = account_edit::remove_account(
+                &mut l.file,
+                session.as_ref(),
+                index,
+                purge_credentials,
+            )
+            .await;
             let remove_outcome = match remove_outcome {
                 Ok(outcome) => outcome,
                 Err(error) => {
@@ -1021,9 +1050,9 @@ impl Backend {
             let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
             let mut updated = l.file.config.clone();
             updated.refresh_seconds = seconds;
-            updated.validate().map_err(|e| {
-                l10n_to_json(&cuotai_core::edit_error::config_error_note(&e))
-            })?;
+            updated
+                .validate()
+                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
             let new_monitor = l
                 .monitor
                 .with_config(updated.clone())
@@ -1063,12 +1092,7 @@ impl Backend {
             }
             let mut staged_cycle = l.cycle.clone_state_for_edit();
             let due = staged_cycle
-                .apply_edit(
-                    &prev,
-                    &updated,
-                    Edit::Move { from, to },
-                    Instant::now(),
-                )
+                .apply_edit(&prev, &updated, Edit::Move { from, to }, Instant::now())
                 .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))?;
             debug_assert!(due.is_empty(), "a move must not schedule queries");
             let new_monitor = l
@@ -1572,48 +1596,101 @@ pub fn form_schema(provider: Provider) -> FormSchema {
         credential_help: credential_help(provider),
         cost_advisory: account_edit::cost_advisory(provider),
         login: ProviderLoginSchema {
-            modes: login.modes.into_iter().map(|mode| {
-                let mode_id = mode.id.clone();
-                LoginModeSchema {
-                    id: mode.id,
-                    label: cuotai_core::text::Localized::fixed(format!("login.{slug}.{mode_id}.label"), mode.label),
-                    help: cuotai_core::text::Localized::fixed(format!("login.{slug}.{mode_id}.help"), mode.help),
-                    requires_client_registration: mode.requires_client_registration,
-                    unavailable_reason: mode.unavailable_reason.map(|fallback| cuotai_core::text::Localized::fixed(
-                        format!("login.{slug}.{mode_id}.unavailable_reason"), fallback)),
-                    options: mode.options.into_iter().map(|option| {
-                        let key = option.key.clone();
-                        LoginOptionSchema {
-                            id: format!("native.{slug}.{key}"),
-                            key: option.key,
-                            label: cuotai_core::text::Localized::fixed(
-                                account_edit::native_option_label_id(provider, &key), option.label),
-                            help: cuotai_core::text::Localized::fixed(
-                                account_edit::native_option_help_id(provider, &key), option.help),
-                            choices: option.choices.map(|choices| choices.into_iter().map(|(value, fallback)| {
-                                let id = account_edit::native_option_option_id(provider, &key, &value);
-                                ChoiceSchema { id: id.clone(), value, label: cuotai_core::text::Localized::fixed(id, fallback) }
-                            }).collect()),
-                        }
-                    }).collect(),
-                }
-            }).collect(),
+            modes: login
+                .modes
+                .into_iter()
+                .map(|mode| {
+                    let mode_id = mode.id.clone();
+                    LoginModeSchema {
+                        id: mode.id,
+                        label: cuotai_core::text::Localized::fixed(
+                            format!("login.{slug}.{mode_id}.label"),
+                            mode.label,
+                        ),
+                        help: cuotai_core::text::Localized::fixed(
+                            format!("login.{slug}.{mode_id}.help"),
+                            mode.help,
+                        ),
+                        requires_client_registration: mode.requires_client_registration,
+                        unavailable_reason: mode.unavailable_reason.map(|fallback| {
+                            cuotai_core::text::Localized::fixed(
+                                format!("login.{slug}.{mode_id}.unavailable_reason"),
+                                fallback,
+                            )
+                        }),
+                        options: mode
+                            .options
+                            .into_iter()
+                            .map(|option| {
+                                let key = option.key.clone();
+                                LoginOptionSchema {
+                                    id: format!("native.{slug}.{key}"),
+                                    key: option.key,
+                                    label: cuotai_core::text::Localized::fixed(
+                                        account_edit::native_option_label_id(provider, &key),
+                                        option.label,
+                                    ),
+                                    help: cuotai_core::text::Localized::fixed(
+                                        account_edit::native_option_help_id(provider, &key),
+                                        option.help,
+                                    ),
+                                    choices: option.choices.map(|choices| {
+                                        choices
+                                            .into_iter()
+                                            .map(|(value, fallback)| {
+                                                let id = account_edit::native_option_option_id(
+                                                    provider, &key, &value,
+                                                );
+                                                ChoiceSchema {
+                                                    id: id.clone(),
+                                                    value,
+                                                    label: cuotai_core::text::Localized::fixed(
+                                                        id, fallback,
+                                                    ),
+                                                }
+                                            })
+                                            .collect()
+                                    }),
+                                }
+                            })
+                            .collect(),
+                    }
+                })
+                .collect(),
             unsupported_reason: account_edit::oauth_unsupported_reason(provider),
         },
-        fields: field_descriptors(provider).iter().map(|d| FieldSchema {
-            id: format!("field.{slug}.{}", d.key),
-            key: d.key,
-            label: cuotai_core::text::Localized::fixed(account_edit::field_label_id(provider, d.key), d.label),
-            help: cuotai_core::text::Localized::fixed(account_edit::field_help_id(provider, d.key), d.help),
-            required: d.required,
-            options: match d.kind {
-                FieldDescriptorKind::Text => None,
-                FieldDescriptorKind::Choice(c) => Some(c.options.iter().map(|&(value, fallback)| {
-                    let id = account_edit::field_option_id(provider, d.key, value);
-                    ChoiceSchema { id: id.clone(), value: value.to_owned(), label: cuotai_core::text::Localized::fixed(id, fallback) }
-                }).collect()),
-            },
-        }).collect(),
+        fields: field_descriptors(provider)
+            .iter()
+            .map(|d| FieldSchema {
+                id: format!("field.{slug}.{}", d.key),
+                key: d.key,
+                label: cuotai_core::text::Localized::fixed(
+                    account_edit::field_label_id(provider, d.key),
+                    d.label,
+                ),
+                help: cuotai_core::text::Localized::fixed(
+                    account_edit::field_help_id(provider, d.key),
+                    d.help,
+                ),
+                required: d.required,
+                options: match d.kind {
+                    FieldDescriptorKind::Text => None,
+                    FieldDescriptorKind::Choice(c) => Some(
+                        c.options
+                            .iter()
+                            .map(|&(value, fallback)| {
+                                let id = account_edit::field_option_id(provider, d.key, value);
+                                ChoiceSchema {
+                                    id: id.clone(),
+                                    value: value.to_owned(),
+                                    label: cuotai_core::text::Localized::fixed(id, fallback),
+                                }
+                            })
+                            .collect(),
+                    ),
+                },
+            })
+            .collect(),
     }
 }
 
@@ -1712,16 +1789,25 @@ mod tests {
             reports,
         };
         cycle.finish_full(Some(snapshot), token, Instant::now());
-        assert_eq!(cycle.snapshot().map(|s| s.reports.len()), Some(config.accounts.len()));
+        assert_eq!(
+            cycle.snapshot().map(|s| s.reports.len()),
+            Some(config.accounts.len())
+        );
 
         config.refresh_seconds = 3600;
         let rebuilt = rebuild_cycle_keeping_reports(&cycle, &config);
         // relatórios preservados, nenhuma conta precisa de nova consulta
-        assert_eq!(rebuilt.snapshot().map(|s| s.reports.len()), Some(config.accounts.len()));
+        assert_eq!(
+            rebuilt.snapshot().map(|s| s.reports.len()),
+            Some(config.accounts.len())
+        );
         assert!(rebuilt.pending_indices().is_empty());
         // contas sem intervalo próprio passam a seguir o novo valor global (≈ 1 h)
         let next = rebuilt.next_refresh_in(0, Instant::now());
-        assert!(next > Duration::from_secs(3000), "prazo não foi reagendado: {next:?}");
+        assert!(
+            next > Duration::from_secs(3000),
+            "prazo não foi reagendado: {next:?}"
+        );
     }
 
     #[test]
@@ -1731,7 +1817,11 @@ mod tests {
             "clientId": "meu-client", "clientSecretEnv": "MEU_SEGREDO", "tenant": null
         }))
         .expect("pedido de login");
-        assert_eq!(input.client_id.as_deref(), Some("meu-client"), "clientId foi ignorado");
+        assert_eq!(
+            input.client_id.as_deref(),
+            Some("meu-client"),
+            "clientId foi ignorado"
+        );
         assert_eq!(input.client_secret_env.as_deref(), Some("MEU_SEGREDO"));
     }
 
@@ -1756,7 +1846,10 @@ mod tests {
         assert!(!login_needed_before_save(login::MODE_OAUTH, true)); // login concluído ou credencial existente
         assert!(!login_needed_before_save("credential", false)); // credencial manual: o core cobra a variável
         assert!(!login_needed_before_save(login::MODE_AWS_SSO, false));
-        assert!(!login_needed_before_save(login::MODE_BAILIAN_CONSOLE, false));
+        assert!(!login_needed_before_save(
+            login::MODE_BAILIAN_CONSOLE,
+            false
+        ));
     }
 
     #[test]
@@ -1796,7 +1889,14 @@ mod tests {
         ] {
             assert_eq!(w(week, None), Some("week"), "{week}");
         }
-        for other in ["Monthly", "credit", "Plan (USD)", "Cursor plano (inclusão)", "Balance", "25h extra"] {
+        for other in [
+            "Monthly",
+            "credit",
+            "Plan (USD)",
+            "Cursor plano (inclusão)",
+            "Balance",
+            "25h extra",
+        ] {
             assert_eq!(w(other, None), None, "{other}");
         }
         // rate limit nunca é janela de cota, mesmo dizendo "5h" no período
