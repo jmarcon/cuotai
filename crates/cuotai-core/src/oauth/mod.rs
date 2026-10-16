@@ -1,5 +1,7 @@
 //! Native OAuth authorization and secure, refreshable credentials. No UI dependencies.
+mod bailian;
 mod flows;
+pub mod login;
 pub(crate) mod session;
 mod store;
 pub use session::{AuthorizedLogin, OAuthLogin, OAuthSession};

@@ -104,6 +104,48 @@ impl OAuthSession {
         .map_err(|_| storage_error())?
     }
 
+    /// Load the raw token stored under `key` (RF2.4 staged commit: captures
+    /// the prior token before a reauth overwrites it, so a failed config save
+    /// can restore it).
+    pub(crate) async fn load_by_key(&self, key: &str) -> Result<Option<OAuthToken>, OAuthError> {
+        let store = Arc::clone(&self.store);
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || store.load(&key))
+            .await
+            .map_err(|_| storage_error())?
+    }
+
+    /// Overwrite the token under `key`. Used only to RESTORE a prior token
+    /// during commit compensation; new logins go through `save_login`.
+    pub(crate) async fn restore_by_key(
+        &self,
+        key: String,
+        token: OAuthToken,
+    ) -> Result<(), OAuthError> {
+        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || {
+            let _guard = guard;
+            store.save(&key, &token)
+        })
+        .await
+        .map_err(|_| storage_error())?
+    }
+
+    /// Delete the token under `key`. Commit compensation only: called when a
+    /// brand-new credential was written but the config save failed, and never
+    /// when a prior token was replaced without a successful restore.
+    pub(crate) async fn delete_by_key(&self, key: String) -> Result<(), OAuthError> {
+        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || {
+            let _guard = guard;
+            store.delete(&key)
+        })
+        .await
+        .map_err(|_| storage_error())?
+    }
+
     pub async fn access_token(
         &self,
         provider: Provider,
@@ -270,6 +312,20 @@ impl AuthorizedLogin {
         config: &OAuthConfig,
     ) -> std::collections::BTreeMap<String, String> {
         super::account_params(provider, config, &self.token.metadata)
+    }
+}
+
+impl AuthorizedLogin {
+    /// Vault key derived at `begin`; reused verbatim on reauth (RF2.8).
+    pub(crate) fn key(&self) -> &str {
+        &self.key
+    }
+}
+
+#[cfg(test)]
+impl AuthorizedLogin {
+    pub(crate) fn for_test(key: String, token: OAuthToken) -> Self {
+        Self { key, token }
     }
 }
 

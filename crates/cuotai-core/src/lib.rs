@@ -11,6 +11,9 @@ mod providers;
 pub mod refresh;
 pub mod text;
 
+/// RF2 shared login driver, re-exported for convenience.
+pub use oauth::login;
+
 use chrono::Utc;
 use futures_util::{stream, StreamExt};
 pub use model::*;
