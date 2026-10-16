@@ -124,3 +124,46 @@ async fn native_metadata_stays_secure_and_options_isolate_sessions() {
         Err(OAuthError::Configuration(_))
     ));
 }
+
+#[tokio::test]
+async fn separate_kiro_accounts_keep_their_tokens_when_one_is_removed() {
+    let session = OAuthSession::new(Arc::new(MemoryStore::default()), Arc::new(NoSecrets)).unwrap();
+    let first = OAuthConfig::new(String::new());
+    let second = OAuthConfig::new(String::new());
+    assert_ne!(
+        storage_key(Provider::Kiro, &first).unwrap(),
+        storage_key(Provider::Kiro, &second).unwrap()
+    );
+
+    for (config, access) in [(&first, "kiro-one"), (&second, "kiro-two")] {
+        session
+            .save_login(&AuthorizedLogin {
+                key: storage_key(Provider::Kiro, config).unwrap(),
+                token: OAuthToken {
+                    access_token: access.into(),
+                    refresh_token: None,
+                    expires_at: None,
+                    metadata: Default::default(),
+                },
+            })
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        session.access_token(Provider::Kiro, &first).await.unwrap(),
+        "kiro-one"
+    );
+    assert_eq!(
+        session.access_token(Provider::Kiro, &second).await.unwrap(),
+        "kiro-two"
+    );
+    session.logout(Provider::Kiro, &first).await.unwrap();
+    assert!(matches!(
+        session.access_token(Provider::Kiro, &first).await,
+        Err(OAuthError::Configuration(_))
+    ));
+    assert_eq!(
+        session.access_token(Provider::Kiro, &second).await.unwrap(),
+        "kiro-two"
+    );
+}
