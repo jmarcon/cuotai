@@ -63,9 +63,9 @@ pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthErr
 
     match timed {
         Ok(Ok(status)) if status.success() => Ok(()),
-        Ok(Ok(_)) => Err(OAuthError::Configuration(format!(
-            "Login SSO não concluído para o perfil '{profile}'. Verifique a configuração SSO do perfil (`aws configure sso`) e tente novamente."
-        ))),
+        Ok(Ok(_)) => Err(OAuthError::Configuration(
+            "Login SSO não concluído. Verifique a configuração SSO do perfil (`aws configure sso`) e tente novamente.".into(),
+        )),
         Ok(Err(_)) => Err(OAuthError::Configuration("Falha ao aguardar a AWS CLI.".into())),
         Err(_) => {
             // Past the device sign-in budget: reap the child before returning.

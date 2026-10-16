@@ -197,8 +197,8 @@ fn read_token_from(path: &Path, default_was_stable: bool) -> Result<OAuthToken, 
         }
     };
 
-    let token = clean_value(&token, MAX_TOKEN_LEN, "token")?;
-    let machine = clean_value(&machine, MAX_MACHINE_LEN, "identificador de máquina")?;
+    let token = clean_value(&token, MAX_TOKEN_LEN)?;
+    let machine = clean_value(&machine, MAX_MACHINE_LEN)?;
 
     if token.len() < 50 {
         return Err(OAuthError::Configuration(
@@ -270,25 +270,22 @@ fn unwrap_quoted_or_raw(raw: &str) -> String {
     trimmed.to_string()
 }
 
-fn clean_value(input: &str, max_len: usize, label: &str) -> Result<String, OAuthError> {
+fn clean_value(input: &str, max_len: usize) -> Result<String, OAuthError> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
-        return Err(OAuthError::Configuration(format!(
-            "Valor de {} ausente no banco de dados do Cursor.",
-            label
-        )));
+        return Err(OAuthError::Configuration(
+            "Valor de campo ausente no banco de dados do Cursor.".into(),
+        ));
     }
     if trimmed.chars().any(char::is_control) {
-        return Err(OAuthError::Configuration(format!(
-            "Valor de {} contém caracteres inválidos.",
-            label
-        )));
+        return Err(OAuthError::Configuration(
+            "Valor de campo contém caracteres inválidos no banco de dados do Cursor.".into(),
+        ));
     }
     if trimmed.len() > max_len {
-        return Err(OAuthError::Configuration(format!(
-            "Valor de {} excede o limite esperado; verifique o arquivo do Cursor.",
-            label
-        )));
+        return Err(OAuthError::Configuration(
+            "Valor de campo excede o limite esperado no banco de dados do Cursor.".into(),
+        ));
     }
     Ok(trimmed.to_string())
 }
