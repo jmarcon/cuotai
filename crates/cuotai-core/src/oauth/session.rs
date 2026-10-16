@@ -185,13 +185,13 @@ impl OAuthSession {
     }
 }
 
-fn storage_error() -> OAuthError {
+pub(crate) fn storage_error() -> OAuthError {
     OAuthError::Storage("Falha na operação com o cofre do sistema.".into())
 }
 
 // Bind saved tokens to provider, registered app and tenant. Editing the TOML
 // must not redirect a token to a different provider/application.
-fn storage_key(provider: Provider, config: &OAuthConfig) -> Result<String, OAuthError> {
+pub(crate) fn storage_key(provider: Provider, config: &OAuthConfig) -> Result<String, OAuthError> {
     config.validate(provider)?;
     let namespace =
         uuid::Uuid::parse_str(&config.credential_id).map_err(|_| OAuthError::InvalidResponse)?;
