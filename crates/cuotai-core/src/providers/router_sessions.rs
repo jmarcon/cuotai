@@ -1003,6 +1003,76 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn kiro_accounts_keep_credential_and_quota_isolated() {
+        struct TwoAccounts;
+        impl Credentials for TwoAccounts {
+            fn get(&self, name: &str) -> Option<String> {
+                match name {
+                    "KIRO_FIRST" => Some("first-token".into()),
+                    "KIRO_SECOND" => Some("second-token".into()),
+                    _ => None,
+                }
+            }
+        }
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(header("authorization", "Bearer first-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "usageBreakdownList": [{
+                    "resourceType": "AGENTIC_REQUEST",
+                    "currentUsageWithPrecision": 7,
+                    "usageLimitWithPrecision": 100
+                }]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(header("authorization", "Bearer second-token"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(header("authorization", "Bearer second-token"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::new();
+        let credentials = TwoAccounts;
+        let ctx = Context {
+            http: &http,
+            credentials: &credentials,
+            timeout: Duration::from_secs(2),
+        };
+        let mut first = account(Provider::Kiro, &[]);
+        first.name = "Kiro first".into();
+        first.credential_env = Some("KIRO_FIRST".into());
+        let mut second = account(Provider::Kiro, &[]);
+        second.name = "Kiro second".into();
+        second.credential_env = Some("KIRO_SECOND".into());
+
+        let result = kiro(&first, &ctx, &server.uri(), &server.uri(), &server.uri())
+            .await
+            .unwrap();
+        assert_eq!(result.metrics[0].used, Some(7.0));
+        let error = kiro(&second, &ctx, &server.uri(), &server.uri(), &server.uri())
+            .await
+            .unwrap_err();
+        assert_eq!(error.status, Status::AuthenticationError);
+        assert!(!error.message.contains("second-token"));
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 4);
+        assert_eq!(
+            header_value(&requests[0], "authorization").as_deref(),
+            Some("Bearer first-token")
+        );
+        assert!(requests[1..].iter().all(|request| {
+            header_value(request, "authorization").as_deref() == Some("Bearer second-token")
+        }));
+    }
+
+    #[tokio::test]
     async fn kiro_falls_back_to_post_with_default_profile_arn_after_403() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))

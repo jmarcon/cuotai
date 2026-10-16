@@ -186,6 +186,14 @@ provider = "kiro"
 credential_env = "KIRO_ACCESS_TOKEN"
 # Token Kiro, não credenciais IAM/Bedrock. Consulta interna getUsageLimits.
 # params = { auth_method = "builder-id", profile_arn = "arn:aws:codewhisperer:us-east-1:...:profile/..." }
+# Repita [[accounts]] para outra conta Kiro com nome e credential_env distintos.
+# Alternativamente, use o wizard e faça login separado em cada conta; cada login
+# recebe um credential_id próprio no cofre. Nunca reutilize o token de outra conta.
+# [[accounts]]
+# name = "Kiro (segunda conta)"
+# provider = "kiro"
+# credential_env = "KIRO_SECOND_ACCESS_TOKEN"
+# params = { auth_method = "builder-id" }
 
 [[accounts]]
 name = "Cline"
