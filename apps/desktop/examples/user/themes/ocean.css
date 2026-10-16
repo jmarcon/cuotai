@@ -1,0 +1,37 @@
+/*! cuotai-theme {"label":"Ocean (exemplo)","group":"custom","modes":["dark","light"]} */
+/* Copie este arquivo para <pasta de configuração>/cuotai/themes/ocean.css e reinicie o app.
+   O nome do arquivo (sem .css) é o id do tema e deve aparecer nos seletores. */
+:root[data-theme="ocean"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #0b1a24;
+  --surface: #11293a;
+  --surface-2: #19384d;
+  --border: #2b5a78;
+  --fg: #e6f4ff;
+  --fg-muted: #9cc3dc;
+  --accent: #ffb454;
+  --accent-fg: #1b1203;
+  --good: #5be3a8;
+  --warn: #ffd166;
+  --bad: #ff6b6b;
+  --info: #6cc8ff;
+  --track: #1d3f57;
+  --radius-lg: 14px;
+}
+:root[data-theme="ocean"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #eef6fb;
+  --surface: #ffffff;
+  --surface-2: #e2eff7;
+  --border: #b6d2e3;
+  --fg: #0d2433;
+  --fg-muted: #4a6b80;
+  --accent: #b45309;
+  --accent-fg: #ffffff;
+  --good: #167a4f;
+  --warn: #8a6100;
+  --bad: #b3261e;
+  --info: #0b6a99;
+  --track: #d3e6f1;
+  --radius-lg: 14px;
+}

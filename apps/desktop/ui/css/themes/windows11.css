@@ -1,0 +1,63 @@
+/* Windows 11 (Fluent Design) — skin de sistema. */
+:root[data-theme="windows11"][data-mode="light"] {
+  color-scheme: light;
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, monospace;
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-pill: 99px;
+  --bg: #f3f3f3;
+  --surface: #ffffff;
+  --surface-2: #f6f6f6;
+  --border: #e5e5e5;
+  --fg: #1a1a1a;
+  --fg-muted: #5d5d5d;
+  --accent: #0067c0;
+  --accent-fg: #ffffff;
+  --good: #0f7b0f;
+  --warn: #9d5d00;
+  --bad: #c42b1c;
+  --info: #005fb8;
+  --track: #d6d6d6;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-dialog: 0 8px 16px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12);
+  --topbar-bg: rgba(243, 243, 243, 0.78);
+  --btn-bg: #fdfdfd;
+  --btn-fg: #1a1a1a;
+  --switch-knob: #ffffff;
+}
+
+:root[data-theme="windows11"][data-mode="dark"] {
+  color-scheme: dark;
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, monospace;
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-pill: 99px;
+  --bg: #202020;
+  --surface: #2b2b2b;
+  --surface-2: #323232;
+  --border: #404040;
+  --fg: #ffffff;
+  --fg-muted: #c5c5c5;
+  --accent: #60cdff;
+  --accent-fg: #003a5c;
+  --good: #6ccb5f;
+  --warn: #fce100;
+  --bad: #ff99a4;
+  --info: #60cdff;
+  --track: #4a4a4a;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.26), 0 0 2px rgba(0, 0, 0, 0.24);
+  --shadow-dialog: 0 8px 16px rgba(0, 0, 0, 0.4), 0 0 2px rgba(0, 0, 0, 0.3);
+  --topbar-bg: rgba(32, 32, 32, 0.78);
+  --btn-bg: #373737;
+  --btn-fg: #ffffff;
+  --switch-knob: #ffffff;
+}
+
+:root[data-theme="windows11"] .topbar {
+  -webkit-backdrop-filter: blur(30px) saturate(125%);
+  backdrop-filter: blur(30px) saturate(125%);
+}

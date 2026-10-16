@@ -1,0 +1,42 @@
+/* Tokyo Night (dark) e Tokyo Night Day (light). */
+:root[data-theme="tokyo"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #16161e;
+  --surface: #1a1b26;
+  --surface-2: #24283b;
+  --border: #3b4261;
+  --fg: #c0caf5;
+  --fg-muted: #9aa5ce;
+  --accent: #7aa2f7;
+  --accent-fg: #16161e;
+  --good: #9ece6a;
+  --warn: #e0af68;
+  --bad: #f7768e;
+  --info: #7dcfff;
+  --track: #292e42;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 7px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(122, 162, 247, 0.06);
+}
+
+:root[data-theme="tokyo"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #e1e2e7;
+  --surface: #eceef4;
+  --surface-2: #d5d6db;
+  --border: #b4b8cc;
+  --fg: #2f56b0;
+  --fg-muted: #4f609e;
+  --accent: #2e5fc9;
+  --accent-fg: #ffffff;
+  --good: #44631f;
+  --warn: #7a5a2c;
+  --bad: #d4144f;
+  --info: #0b6f8f;
+  --track: #c8cbd8;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 7px;
+  --shadow: 0 1px 2px rgba(55, 96, 191, 0.08), 0 8px 24px rgba(55, 96, 191, 0.1);
+}

@@ -1,0 +1,177 @@
+/* Windows XP (Luna) — modos claro (Luna) e escuro (Royale Noir). Sem imagens externas; gradientes CSS puros. */
+:root[data-theme="winxp"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #ece9d8;
+  --surface: #ffffff;
+  --surface-2: #f1efe2;
+  --border: #7f9db9;
+  --fg: #000000;
+  --fg-muted: #4b4b4b;
+  --accent: #2a7f1a;
+  --accent-fg: #ffffff;
+  --good: #1a7a1a;
+  --warn: #8a5a00;
+  --bad: #c00000;
+  --info: #0a3da8;
+  --track: #d4d0c8;
+  --font-ui: Tahoma, "Segoe UI", Verdana, sans-serif;
+  --font-mono: "Lucida Console", Consolas, monospace;
+  --radius-lg: 8px;
+  --radius-md: 3px;
+  --radius-sm: 3px;
+  --radius-pill: 3px;
+  --logo-radius: 12%;
+  --border-w: 1px;
+  --shadow: 2px 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-dialog: 3px 3px 10px rgba(0, 0, 0, 0.5);
+  --card-bg: #ffffff;
+  --head-bg: linear-gradient(#0997ff 0%, #0053ee 8%, #0050ee 40%, #0066ff 88%, #0066ff 93%, #005bff 95%, #003dd7 96%, #003dd7 100%);
+  --topbar-bg: linear-gradient(#0997ff 0%, #0053ee 8%, #0050ee 40%, #0066ff 88%, #0066ff 93%, #005bff 95%, #003dd7 96%, #003dd7 100%);
+  --btn-bg: linear-gradient(#ffffff, #ece9d8 85%, #d6d0c5);
+  --btn-fg: #000000;
+  --input-bg: #ffffff;
+  --switch-knob: #ffffff;
+  --body-bg: linear-gradient(#d6dff7, #ece9d8);
+}
+
+:root[data-theme="winxp"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #171c26;
+  --surface: #262c3a;
+  --surface-2: #323a4c;
+  --border: #3d5a99;
+  --fg: #f0f3fa;
+  --fg-muted: #a8b3cc;
+  --accent: #5fcf4a;
+  --accent-fg: #0b2506;
+  --good: #7ddc6a;
+  --warn: #f0c040;
+  --bad: #ff6b5e;
+  --info: #6cb4ff;
+  --track: #1a2030;
+  --font-ui: Tahoma, "Segoe UI", Verdana, sans-serif;
+  --font-mono: "Lucida Console", Consolas, monospace;
+  --radius-lg: 8px;
+  --radius-md: 3px;
+  --radius-sm: 3px;
+  --radius-pill: 3px;
+  --logo-radius: 12%;
+  --border-w: 1px;
+  --shadow: 2px 2px 6px rgba(0, 0, 0, 0.55);
+  --shadow-dialog: 3px 3px 10px rgba(0, 0, 0, 0.7);
+  --card-bg: #262c3a;
+  --head-bg: linear-gradient(#0997ff 0%, #0053ee 8%, #0050ee 40%, #0066ff 88%, #0066ff 93%, #005bff 95%, #003dd7 96%, #003dd7 100%);
+  --topbar-bg: linear-gradient(#0997ff 0%, #0053ee 8%, #0050ee 40%, #0066ff 88%, #0066ff 93%, #005bff 95%, #003dd7 96%, #003dd7 100%);
+  --btn-bg: linear-gradient(#2e3648, #232a38);
+  --btn-fg: #f0f3fa;
+  --input-bg: #1a2030;
+  --switch-knob: #f0f3fa;
+  --body-bg: linear-gradient(#1e2430, #171c26);
+}
+
+/* Janela XP: borda azul e barra de título Luna */
+:root[data-theme="winxp"] .card {
+  border-color: #0054e3;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+:root[data-theme="winxp"] .card-head {
+  border-bottom-color: #003c74;
+}
+:root[data-theme="winxp"] .card-head h2,
+:root[data-theme="winxp"] .card-head p,
+:root[data-theme="winxp"] .card-head .icon,
+:root[data-theme="winxp"] .card-head .icon svg {
+  color: #ffffff;
+}
+:root[data-theme="winxp"] .card-head h2 {
+  text-shadow: 1px 1px 0 rgba(0, 0, 40, 0.6);
+}
+:root[data-theme="winxp"] .card-head .icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+:root[data-theme="winxp"] .card-head .icon.danger {
+  color: #ffffff;
+}
+
+/* Barra superior azul Luna */
+:root[data-theme="winxp"] .topbar {
+  border-bottom: 1px solid #003c74;
+}
+:root[data-theme="winxp"] .topbar h1,
+:root[data-theme="winxp"] .topbar .check {
+  color: #ffffff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 40, 0.6);
+}
+:root[data-theme="winxp"] .topbar .icon {
+  color: #ffffff;
+}
+:root[data-theme="winxp"] .topbar .icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Controles bege sobre a barra (claro) */
+:root[data-theme="winxp"][data-mode="light"] .btn,
+:root[data-theme="winxp"][data-mode="light"] .theme-switch select {
+  border-color: #003c74;
+  color: #000000;
+}
+:root[data-theme="winxp"][data-mode="light"] .btn:hover:not(:disabled) {
+  background: linear-gradient(#fff8e0, #ffe9a8 85%, #f8d36a);
+  border-color: #e5a50a;
+}
+:root[data-theme="winxp"][data-mode="light"] .segmented {
+  background: #ece9d8;
+  border: 1px solid #003c74;
+}
+:root[data-theme="winxp"][data-mode="light"] .segmented button {
+  color: #000000;
+}
+:root[data-theme="winxp"][data-mode="light"] .segmented button.on {
+  background: #ffffff;
+  color: #000000;
+}
+:root[data-theme="winxp"][data-mode="light"] .theme-switch select {
+  background: #ffffff;
+}
+
+/* Barras de progresso em estilo "blocos" */
+:root[data-theme="winxp"][data-mode="light"] .bar {
+  border: 1px solid #7f9db9;
+}
+:root[data-theme="winxp"][data-mode="light"] .switch.on {
+  background: #2a7f1a;
+}
+
+/* Controles escuros (Royale Noir) mantendo a barra azul */
+:root[data-theme="winxp"][data-mode="dark"] .btn,
+:root[data-theme="winxp"][data-mode="dark"] .theme-switch select {
+  border-color: #0b2b66;
+  color: #f0f3fa;
+}
+:root[data-theme="winxp"][data-mode="dark"] .btn:hover:not(:disabled) {
+  background: linear-gradient(#3d5a99, #26457a);
+  border-color: #6cb4ff;
+}
+:root[data-theme="winxp"][data-mode="dark"] .segmented {
+  background: #1a2030;
+  border: 1px solid #0b2b66;
+}
+:root[data-theme="winxp"][data-mode="dark"] .segmented button {
+  color: #f0f3fa;
+}
+:root[data-theme="winxp"][data-mode="dark"] .segmented button.on {
+  background: #3d5a99;
+  color: #ffffff;
+}
+:root[data-theme="winxp"][data-mode="dark"] .theme-switch select {
+  background: #2e3648;
+}
+:root[data-theme="winxp"][data-mode="dark"] .bar {
+  border: 1px solid #3d5a99;
+}
+:root[data-theme="winxp"][data-mode="dark"] .switch.on {
+  background: #5fcf4a;
+}

@@ -1,0 +1,98 @@
+/* CRT — monitor de tubo: fósforo verde no escuro, âmbar sobre papel bege no claro. */
+:root[data-theme="crt"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #050a05;
+  --surface: #0a140a;
+  --surface-2: #132313;
+  --border: #1f6b2a;
+  --fg: #7dff8a;
+  --fg-muted: #4fbf5a;
+  --accent: #ffb000;
+  --accent-fg: #050a05;
+  --good: #5cff6a;
+  --warn: #ffd23f;
+  --bad: #ff5a4d;
+  --info: #4fd6c4;
+  --track: #123a18;
+  --font-ui: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+  --radius-lg: 14px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-pill: 4px;
+  --logo-radius: 8%;
+  --border-w: 1px;
+  --shadow: 0 0 0 1px rgba(31, 107, 42, 0.45), inset 0 0 18px rgba(92, 255, 106, 0.05);
+  --shadow-dialog: 0 0 0 1px #1f6b2a, 0 0 28px rgba(92, 255, 106, 0.12), 0 24px 64px rgba(0, 0, 0, 0.7);
+  --switch-knob: #050a05;
+}
+
+:root[data-theme="crt"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #e8e2cc;
+  --surface: #f7f1de;
+  --surface-2: #ece4cb;
+  --border: #8a7d4d;
+  --fg: #1c2a12;
+  --fg-muted: #5b5430;
+  --accent: #8a4b00;
+  --accent-fg: #fff8e0;
+  --good: #2d6a1a;
+  --warn: #8a5a00;
+  --bad: #a8281c;
+  --info: #1d6a63;
+  --track: #d8cfae;
+  --font-ui: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+  --radius-lg: 14px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-pill: 4px;
+  --logo-radius: 8%;
+  --border-w: 1px;
+  --shadow: 0 0 0 1px rgba(138, 125, 77, 0.4), 0 4px 14px rgba(60, 48, 10, 0.1);
+  --shadow-dialog: 0 0 0 1px #8a7d4d, 0 24px 56px rgba(60, 48, 10, 0.3);
+  --switch-knob: #fff8e0;
+}
+
+/* Brilho de fósforo (apenas no escuro) */
+:root[data-theme="crt"][data-mode="dark"] .card-head h2,
+:root[data-theme="crt"][data-mode="dark"] .who {
+  text-shadow: 0 0 6px rgba(92, 255, 106, 0.35);
+}
+:root[data-theme="crt"][data-mode="dark"] .bar > span {
+  box-shadow: 0 0 6px 0 rgba(92, 255, 106, 0.3);
+}
+:root[data-theme="crt"][data-mode="dark"] .switch.on {
+  box-shadow: 0 0 8px rgba(255, 176, 0, 0.4);
+}
+
+/* Scanlines */
+:root[data-theme="crt"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+}
+:root[data-theme="crt"][data-mode="dark"] body::before {
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07) 0, rgba(0, 0, 0, 0.07) 1px, transparent 1px, transparent 3px);
+}
+:root[data-theme="crt"][data-mode="light"] body::before {
+  background: repeating-linear-gradient(0deg, rgba(40, 30, 0, 0.035) 0, rgba(40, 30, 0, 0.035) 1px, transparent 1px, transparent 4px);
+}
+
+/* Vinheta de tela abaulada */
+:root[data-theme="crt"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+:root[data-theme="crt"][data-mode="dark"] body::after {
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.35) 100%);
+}
+:root[data-theme="crt"][data-mode="light"] body::after {
+  background: radial-gradient(ellipse at center, transparent 65%, rgba(90, 60, 10, 0.12) 100%);
+}

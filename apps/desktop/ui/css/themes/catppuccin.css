@@ -1,0 +1,42 @@
+/* Catppuccin — Mocha (dark) e Latte (light). https://catppuccin.com */
+:root[data-theme="catppuccin"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #181825;
+  --surface: #1e1e2e;
+  --surface-2: #313244;
+  --border: #45475a;
+  --fg: #cdd6f4;
+  --fg-muted: #a6adc8;
+  --accent: #cba6f7;
+  --accent-fg: #11111b;
+  --good: #a6e3a1;
+  --warn: #f9e2af;
+  --bad: #f38ba8;
+  --info: #89b4fa;
+  --track: #313244;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 9px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(17, 17, 27, 0.4);
+}
+
+:root[data-theme="catppuccin"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #e6e9ef;
+  --surface: #eff1f5;
+  --surface-2: #dce0e8;
+  --border: #bcc0cc;
+  --fg: #4c4f69;
+  --fg-muted: #5c5f77;
+  --accent: #8839ef;
+  --accent-fg: #ffffff;
+  --good: #2d7a1f;
+  --warn: #8f5a06;
+  --bad: #d20f39;
+  --info: #1e66f5;
+  --track: #ccd0da;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 9px;
+  --shadow: 0 1px 2px rgba(76, 79, 105, 0.08), 0 8px 24px rgba(76, 79, 105, 0.1);
+}

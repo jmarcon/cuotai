@@ -1,0 +1,71 @@
+/* macOS (Sonoma/Sequoia) — skin de sistema. */
+:root[data-theme="macos"][data-mode="light"] {
+  color-scheme: light;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-sm: 6px;
+  --logo-radius: 22%;
+  --bg: #ececec;
+  --surface: #ffffff;
+  --surface-2: #f5f5f7;
+  --border: #d2d2d7;
+  --fg: #1d1d1f;
+  --fg-muted: #6e6e73;
+  --accent: #0066d6;
+  --accent-fg: #ffffff;
+  --good: #1d8a3b;
+  --warn: #b25000;
+  --bad: #d70015;
+  --info: #0a6cc2;
+  --track: #e3e3e8;
+  --shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-dialog: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.12), 0 24px 48px rgba(0, 0, 0, 0.18);
+  --topbar-bg: rgba(246, 246, 246, 0.72);
+  --btn-bg: #ffffff;
+  --btn-fg: #1d1d1f;
+  --switch-knob: #ffffff;
+}
+
+:root[data-theme="macos"][data-mode="dark"] {
+  color-scheme: dark;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-sm: 6px;
+  --logo-radius: 22%;
+  --bg: #1e1e1e;
+  --surface: #2a2a2c;
+  --surface-2: #323234;
+  --border: #3d3d40;
+  --fg: #f5f5f7;
+  --fg-muted: #a1a1a6;
+  --accent: #0a84ff;
+  --accent-fg: #000000;
+  --good: #30d158;
+  --warn: #ffd60a;
+  --bad: #ff453a;
+  --info: #64d2ff;
+  --track: #3a3a3d;
+  --shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 16px rgba(0, 0, 0, 0.28);
+  --shadow-dialog: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 4px 16px rgba(0, 0, 0, 0.4), 0 24px 48px rgba(0, 0, 0, 0.5);
+  --topbar-bg: rgba(40, 40, 42, 0.72);
+  --btn-bg: #3a3a3d;
+  --btn-fg: #f5f5f7;
+  --switch-knob: #ffffff;
+}
+
+:root[data-theme="macos"] .topbar {
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+:root[data-theme="macos"][data-mode="light"] .switch.on {
+  background: #34c759;
+}
+
+:root[data-theme="macos"][data-mode="dark"] .switch.on {
+  background: #30d158;
+}

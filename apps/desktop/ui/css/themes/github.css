@@ -1,0 +1,44 @@
+/* GitHub Dark / GitHub Light — paleta Primer. */
+:root[data-theme="github"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #21262d;
+  --border: #30363d;
+  --fg: #e6edf3;
+  --fg-muted: #8d96a0;
+  --accent: #1f7a35;
+  --accent-fg: #ffffff;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --info: #58a6ff;
+  --track: #30363d;
+  --font-ui: -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --radius-lg: 10px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 0 rgba(1, 4, 9, 0.4);
+}
+
+:root[data-theme="github"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #eaeef2;
+  --border: #d0d7de;
+  --fg: #1f2328;
+  --fg-muted: #59636e;
+  --accent: #1f883d;
+  --accent-fg: #ffffff;
+  --good: #1a7f37;
+  --warn: #9a6700;
+  --bad: #d1242f;
+  --info: #0969da;
+  --track: #e1e6eb;
+  --font-ui: -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --radius-lg: 10px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 0 rgba(31, 35, 40, 0.04);
+}
