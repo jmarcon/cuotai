@@ -2,13 +2,13 @@ import { boot } from "./boot.js";
 import { te, t, tl } from "./i18n.js";
 import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
-import { confirmDelete, errText, openAccountDialog } from "./account-dialog.js";
+import { confirmDelete, errText, offerExternalReload, openAccountDialog } from "./account-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, statusLabel,
+  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig,
 } from "./lib.js";
 
 await boot();
@@ -333,3 +333,18 @@ if (window.__TAURI__) {
   window.__TAURI__.event.listen("open-settings", () => openSettings({ configPath: store.view?.config_path, onChange: render, view: () => store.view }));
   window.__TAURI__.event.listen("user-content-changed", () => location.reload());
 }
+
+// RF4: cheap external-change detection. When the window regains focus the
+// file may have been edited in another tool; the backend compares bytes
+// (`config_changed_on_disk`) and, on drift, the user chooses whether to
+// reload. Skipped while a dialog is open: the editor runs the same check
+// when it opens and offers reload on a save conflict.
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden || document.querySelector("dialog[open]")) return;
+  try {
+    if (!(await configChangedOnDisk())) return;
+    if ((await offerExternalReload()) === "reload") await reloadConfig();
+  } catch (x) {
+    setNotice("bad", errText(x));
+  }
+});
