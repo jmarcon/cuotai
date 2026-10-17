@@ -124,6 +124,10 @@ pub struct Monitor {
     credentials: Arc<dyn Credentials>,
     oauth: Arc<oauth::OAuthSession>,
     query_slots: Semaphore,
+    /// Test-only base URL for Groq so contract tests can count the HTTP
+    /// requests a `Monitor` issues against a local `wiremock` server.
+    #[cfg(test)]
+    groq_url: Option<String>,
 }
 
 impl Monitor {
@@ -162,6 +166,8 @@ impl Monitor {
             credentials,
             oauth,
             query_slots,
+            #[cfg(test)]
+            groq_url: None,
         })
     }
 
@@ -199,6 +205,8 @@ impl Monitor {
             credentials: Arc::clone(&self.credentials),
             oauth: Arc::clone(&self.oauth),
             query_slots,
+            #[cfg(test)]
+            groq_url: self.groq_url.clone(),
         })
     }
 
@@ -295,6 +303,10 @@ impl Monitor {
                 credentials: &credentials,
                 timeout,
             };
+            #[cfg(test)]
+            if let (Provider::Groq, Some(url)) = (account.provider, self.groq_url.as_deref()) {
+                return providers::router_keys::groq_at(account, &ctx, url).await;
+            }
             match account.provider {
                 Provider::OpenAiApi | Provider::AnthropicApi => {
                     providers::api::fetch(account, &ctx).await
@@ -560,62 +572,24 @@ credential_id = "4be708d8-7073-4d01-85ba-3306cc3cf087"
         assert!(config.validate().is_ok());
     }
 
-    // ----------------------------------------------------------------
-    // RF1 contract: edit/remove triggers exactly the queries implied by
-    // the operation, never a full sweep. The OAuth token store load is
-    // the gateway to per-account network activity: every account that
-    // needs a refresh goes through `OAuthSession::credentials`, which
-    // loads the bearer token before any HTTP request is issued. Counting
-    // `load` calls per credential_id therefore counts the per-account
-    // external requests the cycle will initiate. The fixture keeps a
-    // per-key map so accounts that must NOT be touched stay silent.
-    // ----------------------------------------------------------------
-    use parking_lot::Mutex;
-    use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    /// Token store with no credentials; tests here never save or delete.
+    struct EmptyStore;
 
-    struct KeyedCountingStore {
-        keys: HashMap<String, AtomicUsize>,
-        unexpected: Mutex<Vec<String>>,
-    }
-
-    impl KeyedCountingStore {
-        fn new(keys: &[&str]) -> Arc<Self> {
-            let mut map = HashMap::new();
-            for k in keys {
-                map.insert((*k).to_string(), AtomicUsize::new(0));
-            }
-            Arc::new(Self {
-                keys: map,
-                unexpected: Mutex::new(Vec::new()),
-            })
-        }
-        fn count(&self, key: &str) -> usize {
-            self.keys
-                .get(key)
-                .map(|c| c.load(Ordering::SeqCst))
-                .unwrap_or_else(|| {
-                    self.unexpected.lock().push(format!("unexpected key {key}"));
-                    0
-                })
+    impl EmptyStore {
+        fn new() -> Arc<Self> {
+            Arc::new(Self)
         }
     }
 
-    impl oauth::TokenStore for KeyedCountingStore {
-        fn load(&self, key: &str) -> Result<Option<oauth::OAuthToken>, oauth::OAuthError> {
-            if let Some(counter) = self.keys.get(key) {
-                counter.fetch_add(1, Ordering::SeqCst);
-                Ok(None)
-            } else {
-                self.unexpected.lock().push(format!("unexpected key {key}"));
-                Ok(None)
-            }
+    impl oauth::TokenStore for EmptyStore {
+        fn load(&self, _: &str) -> Result<Option<oauth::OAuthToken>, oauth::OAuthError> {
+            Ok(None)
         }
         fn save(&self, _: &str, _: &oauth::OAuthToken) -> Result<(), oauth::OAuthError> {
-            unreachable!("save must not be exercised by RF1 contract tests")
+            unreachable!("save must not be exercised by monitor tests")
         }
         fn delete(&self, _: &str) -> Result<(), oauth::OAuthError> {
-            unreachable!("delete must not be exercised by RF1 contract tests")
+            unreachable!("delete must not be exercised by monitor tests")
         }
     }
 
@@ -626,8 +600,19 @@ credential_id = "4be708d8-7073-4d01-85ba-3306cc3cf087"
         }
     }
 
-    fn three_oauth_accounts() -> (Config, Vec<&'static str>) {
-        let config = Config::from_toml(
+    // RF1 acceptance: an edit refreshes exactly the edited account and a
+    // removal refreshes none. Counted as real HTTP requests per account key
+    // against a local `wiremock` server reached through the Groq adapter.
+    struct GroqKeys;
+    impl Credentials for GroqKeys {
+        fn get(&self, name: &str) -> Option<String> {
+            name.strip_prefix("GROQ_KEY_")
+                .map(|account| format!("gsk_{account}"))
+        }
+    }
+
+    fn three_groq_accounts() -> Config {
+        Config::from_toml(
             r#"
 refresh_seconds = 60
 concurrency = 2
@@ -635,169 +620,117 @@ timeout_seconds = 30
 
 [[accounts]]
 name = "alpha"
-provider = "chat_gpt"
-[accounts.oauth]
-credential_id = "11111111-1111-1111-1111-111111111111"
+provider = "groq"
+credential_env = "GROQ_KEY_ALPHA"
 
 [[accounts]]
 name = "beta"
-provider = "chat_gpt"
-[accounts.oauth]
-credential_id = "22222222-2222-2222-2222-222222222222"
+provider = "groq"
+credential_env = "GROQ_KEY_BETA"
 
 [[accounts]]
 name = "gamma"
-provider = "chat_gpt"
-[accounts.oauth]
-credential_id = "33333333-3333-3333-3333-333333333333"
+provider = "groq"
+credential_env = "GROQ_KEY_GAMMA"
 "#,
         )
-        .unwrap();
-        let keys = vec![
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
-            "33333333-3333-3333-3333-333333333333",
-        ];
-        (config, keys)
+        .unwrap()
+    }
+
+    async fn groq_monitor(config: Config) -> (wiremock::MockServer, Monitor) {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "data": [] })),
+            )
+            .mount(&server)
+            .await;
+        let creds: Arc<dyn Credentials> = Arc::new(GroqKeys);
+        let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
+        let session = Arc::new(oauth::OAuthSession::new(store, Arc::clone(&creds)).unwrap());
+        let mut monitor = Monitor::with_oauth(config, creds, session).unwrap();
+        monitor.groq_url = Some(server.uri());
+        (server, monitor)
+    }
+
+    /// HTTP requests received so far, by account (`ALPHA`, `BETA`, `GAMMA`).
+    async fn requests_per_account(server: &wiremock::MockServer) -> [usize; 3] {
+        let requests = server.received_requests().await.unwrap();
+        ["ALPHA", "BETA", "GAMMA"].map(|account| {
+            let expected = format!("Bearer gsk_{account}");
+            requests
+                .iter()
+                .filter(|request| {
+                    request
+                        .headers
+                        .get("authorization")
+                        .and_then(|value| value.to_str().ok())
+                        == Some(expected.as_str())
+                })
+                .count()
+        })
+    }
+
+    async fn primed_cycle(monitor: &Monitor, config: &Config) -> crate::refresh::RefreshCycle {
+        let mut cycle = crate::refresh::RefreshCycle::new(config, Instant::now());
+        let token = cycle.begin_full().expect("begin_full");
+        cycle.finish_full(Some(monitor.refresh().await), token, Instant::now());
+        cycle
     }
 
     #[tokio::test]
-    async fn refresh_account_targets_only_the_edited_account_after_apply_edit() {
-        // Contract from RF1.1 / RF1 acceptance: editing one account must
-        // produce exactly one query for that account and zero for the
-        // others. We use a shared counter (across all credential ids) so
-        // the contract reads as: the edit drives exactly one additional
-        // token-store load beyond whatever the baseline already paid.
-        use crate::refresh::{Edit, RefreshCycle};
-        use std::sync::atomic::AtomicUsize;
-        struct SharedStore(Arc<AtomicUsize>);
-        impl oauth::TokenStore for SharedStore {
-            fn load(&self, _: &str) -> Result<Option<oauth::OAuthToken>, oauth::OAuthError> {
-                self.0.fetch_add(1, Ordering::SeqCst);
-                Ok(None)
-            }
-            fn save(&self, _: &str, _: &oauth::OAuthToken) -> Result<(), oauth::OAuthError> {
-                unreachable!()
-            }
-            fn delete(&self, _: &str) -> Result<(), oauth::OAuthError> {
-                unreachable!()
-            }
-        }
-        let (config, _keys) = three_oauth_accounts();
-        let counter = Arc::new(AtomicUsize::new(0));
-        let creds: Arc<dyn Credentials> = Arc::new(NoCreds);
-        let session = Arc::new(
-            oauth::OAuthSession::new(
-                Arc::new(SharedStore(Arc::clone(&counter))),
-                Arc::clone(&creds),
-            )
-            .unwrap(),
-        );
-        let monitor = Monitor::with_oauth(config.clone(), creds, Arc::clone(&session)).unwrap();
-        // Baseline: an initial sweep fills the cycle so the dashboard
-        // has data to show.
-        let initial_snapshot = monitor.refresh().await;
-        let baseline = counter.load(Ordering::SeqCst);
-        let mut cycle = RefreshCycle::new(&config, Instant::now());
-        let sweep_token = cycle.begin_full().expect("begin_full");
-        cycle.finish_full(Some(initial_snapshot), sweep_token, Instant::now());
+    async fn saving_one_of_three_accounts_issues_exactly_one_http_request() {
+        use crate::refresh::Edit;
+        let config = three_groq_accounts();
+        let (server, monitor) = groq_monitor(config.clone()).await;
+        let mut cycle = primed_cycle(&monitor, &config).await;
+        assert_eq!(requests_per_account(&server).await, [1, 1, 1]);
 
-        // Edit one account; only the touched slot becomes pending.
-        let mut edited_beta = config.accounts[1].clone();
-        edited_beta.name = "beta-renamed".into();
-        let mut new_config = config.clone();
-        new_config.accounts[1] = edited_beta.clone();
+        let mut edited = config.clone();
+        edited.accounts[1].name = "beta-renamed".into();
         let due = cycle
-            .apply_edit(&config, &new_config, Edit::Upsert(1), Instant::now())
+            .apply_edit(&config, &edited, Edit::Upsert(1), Instant::now())
             .expect("upsert accepted");
-        assert_eq!(due, vec![1usize]);
+        assert_eq!(due, vec![1]);
+        let next = monitor.with_config(edited).expect("with_config");
+        for index in due {
+            let _ = next.refresh_account(index).await;
+        }
 
-        // Drive the single follow-up refresh through the new monitor.
-        let new_monitor = monitor
-            .with_config(new_config.clone())
-            .expect("with_config");
-        let _ = new_monitor.refresh_account(due[0]).await;
-        assert_eq!(
-            counter.load(Ordering::SeqCst),
-            baseline + 1,
-            "the edit must trigger exactly one extra token-store load"
+        assert_eq!(requests_per_account(&server).await, [1, 2, 1]);
+        assert!(
+            cycle.snapshot().is_none(),
+            "the edited account stays pending instead of showing its old report"
         );
-        // Public snapshot stays hidden while the slot is pending.
-        assert!(cycle.snapshot().is_none());
     }
 
     #[tokio::test]
-    async fn apply_edit_remove_zero_queries_and_reindexes_unchanged_slots() {
-        // Contract from RF1 acceptance: removing one account must not
-        // trigger any query, and the surviving accounts must keep their
-        // previous reports (no stale-row reassociation).
-        use crate::refresh::{Edit, RefreshCycle};
-        let (config, keys) = three_oauth_accounts();
-        let store = KeyedCountingStore::new(&keys);
-        let creds: Arc<dyn Credentials> = Arc::new(NoCreds);
-        let session = Arc::new(
-            oauth::OAuthSession::new(
-                Arc::clone(&store) as Arc<dyn oauth::TokenStore>,
-                Arc::clone(&creds),
-            )
-            .unwrap(),
-        );
-        let monitor = Monitor::with_oauth(config.clone(), creds, Arc::clone(&session)).unwrap();
-        let snapshot = monitor.refresh().await;
-        // Establish a baseline after the initial sweep: every key has
-        // been loaded exactly once. Removal must not bump any counter.
-        let baseline = (
-            store.count(keys[0]),
-            store.count(keys[1]),
-            store.count(keys[2]),
-        );
-        let mut cycle = RefreshCycle::new(&config, Instant::now());
-        let sweep_token = cycle.begin_full().expect("begin_full");
-        cycle.finish_full(Some(snapshot), sweep_token, Instant::now());
-        assert!(cycle.snapshot().is_some());
+    async fn removing_an_account_issues_no_http_request_and_keeps_survivor_reports() {
+        use crate::refresh::Edit;
+        let config = three_groq_accounts();
+        let (server, monitor) = groq_monitor(config.clone()).await;
+        let mut cycle = primed_cycle(&monitor, &config).await;
 
-        // Remove the middle account: cycle returns zero indices to query.
-        let new_config = config.without_account(1).unwrap();
+        let removed = config.without_account(1).unwrap();
         let due = cycle
-            .apply_edit(&config, &new_config, Edit::Remove(1), Instant::now())
+            .apply_edit(&config, &removed, Edit::Remove(1), Instant::now())
             .expect("remove accepted");
-        assert!(due.is_empty(), "removal must not trigger any query");
-
-        // The frontend should never start any extra work as a result of
-        // the removal; even if it did, the counters would have moved.
-        let new_monitor = monitor
-            .with_config(new_config.clone())
-            .expect("with_config");
-        for index in &due {
-            let _ = new_monitor.refresh_account(*index).await;
+        assert!(due.is_empty(), "removal must not schedule any query");
+        let next = monitor.with_config(removed).expect("with_config");
+        for index in due {
+            let _ = next.refresh_account(index).await;
         }
-        assert_eq!(
-            store.count(keys[0]),
-            baseline.0,
-            "alpha must not be re-queried"
-        );
-        assert_eq!(
-            store.count(keys[1]),
-            baseline.1,
-            "the removed account's token must not be loaded again"
-        );
-        assert_eq!(
-            store.count(keys[2]),
-            baseline.2,
-            "gamma must not be re-queried"
-        );
-        // Public snapshot still reflects the surviving accounts in order.
-        let snap = cycle
+
+        assert_eq!(requests_per_account(&server).await, [1, 1, 1]);
+        let accounts: Vec<_> = cycle
             .snapshot()
-            .expect("snapshot stays available after remove");
-        assert_eq!(snap.reports.len(), 2);
-        assert_eq!(snap.reports[0].account, "alpha");
-        assert_eq!(snap.reports[1].account, "gamma");
-        // gamma slid up to index 1.
-        assert_eq!(
-            cycle.account_report(1).map(|r| r.account.clone()),
-            Some("gamma".into())
-        );
+            .expect("survivors keep a complete snapshot")
+            .reports
+            .iter()
+            .map(|report| report.account.clone())
+            .collect();
+        assert_eq!(accounts, ["alpha", "gamma"]);
     }
 
     #[test]
@@ -812,7 +745,7 @@ credential_env = "OPENAI_ADMIN_KEY"
         )
         .unwrap();
         let creds: Arc<dyn Credentials> = Arc::new(NoCreds);
-        let store: Arc<dyn oauth::TokenStore> = KeyedCountingStore::new(&[]);
+        let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::clone(&store), Arc::clone(&creds)).unwrap());
         let monitor = Monitor::with_oauth(config.clone(), creds, Arc::clone(&session)).unwrap();
@@ -845,7 +778,7 @@ credential_env = "OPENAI_ADMIN_KEY"
         )
         .unwrap();
         let creds: Arc<dyn Credentials> = Arc::new(NoCreds);
-        let store: Arc<dyn oauth::TokenStore> = KeyedCountingStore::new(&[]);
+        let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::clone(&store), Arc::clone(&creds)).unwrap());
         let monitor = Monitor::with_oauth(config.clone(), creds, Arc::clone(&session)).unwrap();
