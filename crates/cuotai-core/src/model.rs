@@ -217,7 +217,7 @@ pub struct Account {
     pub credential_env: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth: Option<crate::oauth::OAuthConfig>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, String>,
     /// Per-account override for the global `Config::refresh_seconds`. When
     /// `None`, the global interval applies; otherwise the value must be
