@@ -30,6 +30,24 @@ body {
   font-size: 15px;
   font-weight: 650;
 }
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.brand-link:hover {
+  opacity: 0.8;
+}
+.brand-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm, 4px);
+}
 .alerts {
   display: flex;
   flex: 1 1 0;
