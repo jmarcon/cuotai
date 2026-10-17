@@ -1,11 +1,12 @@
 // Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, notas, selos e ações.
 import { te, tl } from "./i18n.js";
 import { brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
-import { detailHtml } from "./detail.js";
+import { detailHtml, mountModels } from "./detail.js";
 
 let dlg = null;
 let currentKey = null;
-let ctx = null; // { reports(), onEdit(index), onRemove(index, label), onChange() }
+let ctx = null; // { reports(), generation(), onEdit(index), onRemove(index, label), onChange() }
+let models = null; // seção de modelos montada uma vez por diálogo; sobrevive aos redesenhos
 
 const badges = (list) =>
   list.length ? `<div class="badges">${list.map((b) => `<span class="badge ${esc(b.tone)}">${esc(tl(b.text))}</span>`).join("")}</div>` : "";
@@ -13,6 +14,9 @@ const badges = (list) =>
 function render() {
   const r = ctx.reports().find((x) => reportKey(x) === currentKey);
   if (!r) return dlg.close(); // a conta foi removida ou mudou de identidade
+  models ??= mountModels({ key: currentKey, index: r.index, generation: ctx.generation() });
+  models.update(r.index, ctx.generation());
+  const focus = models.focused();
   const id = r.identity;
   dlg.innerHTML = `<div class="dlg-body">
     <div class="det-head">
@@ -25,9 +29,10 @@ function render() {
       </div>
     </div>
     ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
-    <div class="det-body">${detailHtml(r, { eye: true })}</div>
+    <div class="det-body">${detailHtml(r, { eye: true })}<div data-models-slot></div></div>
     <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;
+  models.attach(dlg, focus);
 }
 
 export function openDetails(key, context) {
@@ -37,7 +42,7 @@ export function openDetails(key, context) {
     dlg = document.createElement("dialog");
     dlg.className = "dlg details";
     document.body.append(dlg);
-    dlg.addEventListener("close", () => { dlg.remove(); dlg = null; });
+    dlg.addEventListener("close", () => { models?.dispose(); models = null; dlg.remove(); dlg = null; });
     dlg.addEventListener("click", (e) => {
       const t = e.target;
       const r = () => ctx.reports().find((x) => reportKey(x) === currentKey);

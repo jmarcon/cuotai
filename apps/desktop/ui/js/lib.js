@@ -111,6 +111,27 @@ export const configLabel = (view) => view?.config_path ? `${view.config_path} ·
 export const setTrayMenu = (payload) => isDesktop && T.core.invoke("set_tray_menu", { payload });
 export const openMainWindow = () => isDesktop && T.core.invoke("show_main_window");
 export const quitApp = () => isDesktop && T.core.invoke("quit_app");
+// PRD 0002 RF6.1: catálogo de modelos por conta. `generation` vem da `View` lida pela UI; se a configuração mudou
+// desde então o backend recusa com "stale" e o resultado (da identidade antiga) é descartado.
+export const STALE = "stale";
+export const modelState = (index, generation) => call("model_state", { index, generation });
+export const loadModels = (index, generation) => call("load_models", { index, generation });
+export const syncModels = (index, generation) => call("sync_models", { index, generation });
+/** Fonte do catálogo ou motivo de não listar, para conta ainda não salva (sem rede). */
+export const modelSupport = (provider) => call("model_support", { provider });
+// RF8: erros do backend chegam como JSON `{ id, params, fallback }` ou texto simples.
+export const errText = (e) => {
+  if (e && typeof e === "object" && "id" in e) return tl(e);
+  if (typeof e === "string") {
+    try {
+      const parsed = JSON.parse(e);
+      if (parsed && typeof parsed === "object" && "id" in parsed) return tl(parsed);
+    } catch {}
+    return e;
+  }
+  if (e?.message) return errText(e.message);
+  return t("common.unexpected");
+};
 
 // ---------- formatação ----------
 /** Percentual restante (0–100) segundo a classificação do core; null = sem medida/limite. */
@@ -387,9 +408,16 @@ const demoReports = [
 const demoView = () => {
   const now = new Date().toISOString();
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
-    started_at: now, finished_at: now, reports: demoReports.map((r, index) => ({ ...r, index, next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth })), busy: [], error: null };
+    started_at: now, finished_at: now, reports: demoReports.map((r, index) => ({ ...r, index, next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth })), busy: [], error: null, generation: demoSettings.generation };
 };
-const demoSettings = { custom: null, config: null };
+const demoSettings = { custom: null, config: null, generation: 1 };
+// Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
+// nenhum catálogo inventado é exibido como real.
+const demoModels = async ({ index, generation }) => {
+  if (generation !== demoSettings.generation) throw STALE;
+  if (!demoReports[index]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Conta inexistente nesta configuração." });
+  return { state: "unsupported", reason: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } };
+};
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -427,6 +455,7 @@ const demo = {
     if (!input.name.trim()) throw "Informe um nome para a conta.";
     const r = dr(input.name, input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
     input.index == null ? demoReports.push(r) : (demoReports[input.index] = r);
+    demoSettings.generation++;
     return { cleanup_warning: null };
   },
   // Login de demonstração: emite a sequência de eventos do core (prompt → progresso → concluído).
@@ -442,25 +471,32 @@ const demo = {
   delete_account: async ({ index, purge }) => {
     const oauth = demoReports[index]?.provider === "kiro" || demoReports[index]?.uses_oauth;
     demoReports.splice(index, 1);
+    demoSettings.generation++;
     return { outcome: !oauth ? "removed" : purge ? "purged" : "kept", other_account: null, message: null };
   },
   set_refresh_seconds: async ({ seconds }) => {
     if (seconds < 30) throw JSON.stringify({ id: "edit_error.config_bounds", params: {}, fallback: "refresh_seconds deve ser >= 30." });
     demoSettings.refresh = seconds;
+    demoSettings.generation++;
   },
   move_account: async ({ from, to }) => {
     if (from < 0 || to < 0 || from >= demoReports.length || to >= demoReports.length) throw "Conta inexistente.";
     const [account] = demoReports.splice(from, 1);
     demoReports.splice(to, 0, account);
+    demoSettings.generation++;
   },
   // RF4 demo stubs: no state to reload in the demo, but keep the
   // contract so the wizard/reloder don't have to guard the
   // non-desktop path.
-  reload_config: async () => demoView(),
+  reload_config: async () => { demoSettings.generation++; return demoView(); },
+  model_state: demoModels,
+  load_models: demoModels,
+  sync_models: demoModels,
+  model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
-  set_config_file: async ({ path }) => { demoSettings.config = path ?? null; return demoView(); },
+  set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
 };
 

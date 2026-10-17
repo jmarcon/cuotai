@@ -1,6 +1,6 @@
 import { boot } from "./boot.js";
 import { te, t, currentLocale } from "./i18n.js";
-import { detailHtml } from "./detail.js";
+import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
   bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtReset, icon, initTheme, isDesktop, level,
@@ -15,6 +15,7 @@ const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
 let selected = null;
+let models = null; // seção de modelos da conta aberta no popover; sobrevive aos redesenhos
 
 function row(r) {
   const worst = worstRemaining(r);
@@ -90,7 +91,13 @@ function render() {
   const loading = !!view && view.busy.length > 0;
   const reports = sortReports(view?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
   const cur = reports.find((r) => reportKey(r) === selected) ?? null;
-  const body = cur ? detailHtml(cur)
+  if (models && (!cur || models.key !== selected)) { models.dispose(); models = null; }
+  if (cur) {
+    models ??= mountModels({ key: selected, index: cur.index, generation: view.generation });
+    models.update(cur.index, view.generation);
+  }
+  const focus = models?.focused();
+  const body = cur ? `${detailHtml(cur)}<div data-models-slot></div>`
     : trayView === "donut" ? `<div class="tiles">${reports.map(tile).join("")}</div>` : reports.map(row).join("");
   syncTrayMenu(view);
   root.innerHTML = `<div class="pop">
@@ -111,6 +118,7 @@ function render() {
         ${isDesktop ? `<button class="icon danger" data-quit title="${te("common.quit")}" aria-label="${te("common.quit")}">${icon("power")}</button>` : ""}
       </div>
     </footer></div>`;
+  models?.attach(root, focus);
 }
 
 root.addEventListener("click", (e) => {

@@ -11,6 +11,7 @@ use cuotai_core::{
     identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{classify_metric, classify_report, AccountClass, MetricState},
+    models::{self, ModelError, ModelState},
     oauth::OAuthSession,
     refresh::{Edit, RefreshCycle},
     Config, EnvironmentCredentials, Metric, Monitor, Provider, Report, Status,
@@ -18,6 +19,7 @@ use cuotai_core::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
+    future::Future,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -256,6 +258,9 @@ pub struct View {
     error: Option<String>,
     /// Intervalo global de atualização (`refresh_seconds` do arquivo); 0 antes de carregar a configuração.
     refresh_seconds: u64,
+    /// RF6.1: identidade da configuração carregada (muda a cada save/remove/move/reload/troca);
+    /// a UI a devolve nos comandos de modelos. 0 antes de carregar (nunca aceita).
+    generation: u64,
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -305,6 +310,7 @@ impl Inner {
                 busy: vec![],
                 error: self.load_error.clone(),
                 refresh_seconds: 0,
+                generation: 0,
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -357,6 +363,7 @@ impl Inner {
                 .collect(),
             error: None,
             refresh_seconds: l.file.config.refresh_seconds,
+            generation: l.generation,
         }
     }
 
@@ -1502,6 +1509,70 @@ impl Backend {
             }
         }
     }
+
+    // ---------- modelos (PRD 0002 RF6.1) ----------
+
+    /// Runs a model operation of `Monitor` for account `index` of the
+    /// configuration `generation` (the token the UI read with its `View`).
+    /// Another generation before or after the operation (save, remove, move,
+    /// reload, file switch) yields [`STALE`]: the result belongs to the old
+    /// identity and is never attributed to the account now at `index`. The
+    /// core validates the index; the quota cycle and its tokens are untouched.
+    pub async fn models<F, Fut>(
+        &self,
+        index: usize,
+        generation: u64,
+        op: F,
+    ) -> Result<ModelState, String>
+    where
+        F: FnOnce(Arc<Monitor>, usize) -> Fut,
+        Fut: Future<Output = Result<ModelState, ModelError>>,
+    {
+        let monitor = {
+            let g = self.inner.lock().await;
+            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            if l.generation != generation {
+                return Err(STALE.into());
+            }
+            Arc::clone(&l.monitor)
+        };
+        let state = op(monitor, index).await;
+        let live = self
+            .inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .map(|l| l.generation);
+        if live != Some(generation) {
+            return Err(STALE.into());
+        }
+        state.map_err(|e| l10n_to_json(&e.l10n()))
+    }
+}
+
+/// Erro estável dos comandos de modelos: a configuração mudou desde a view da UI.
+pub const STALE: &str = "stale";
+
+#[derive(Serialize)]
+pub struct ModelSupport {
+    supported: bool,
+    /// Fonte do catálogo quando `supported`, senão o motivo (sem rede).
+    text: cuotai_core::text::Localized,
+}
+
+/// Orientação para uma conta ainda não salva: o mesmo probe padrão do
+/// assistente da TUI (sem parâmetros gravados nem rede).
+pub fn model_support(provider: Provider) -> ModelSupport {
+    let probe = cuotai_core::Account {
+        provider,
+        ..Default::default()
+    };
+    let (supported, text) = match models::support(&probe) {
+        Ok(text) => (true, text),
+        Err(text) => (false, text),
+    };
+    ModelSupport { supported, text }
 }
 
 // ---------- formulário ----------
@@ -2537,6 +2608,49 @@ mod tests {
                 PathSource::System,
                 0
             )
+        );
+    }
+
+    // PRD 0002 RF6.1: model commands are bound to the generation of the
+    // view the UI read; a result computed for an old identity is refused.
+    #[tokio::test(flavor = "current_thread")]
+    async fn model_commands_validate_index_and_reject_stale_generation() {
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("alpha"), plain_account("beta")],
+        )
+        .await;
+        let b = &backend.inner;
+        let state = |m: Arc<Monitor>, i: usize| async move { m.model_state(i) };
+        // Current generation: the core answers (ChatGPT lists nothing, no network).
+        assert!(matches!(
+            b.models(1, 1, state).await,
+            Ok(ModelState::Unsupported { .. })
+        ));
+        // Invalid index is the core's typed error, never a panic.
+        let err = b.models(9, 1, state).await.unwrap_err();
+        assert!(err.contains("models.error.invalid_index"), "{err}");
+        // Unknown/old token is refused before running anything.
+        assert_eq!(b.models(0, 0, state).await.unwrap_err(), STALE);
+
+        // Removal while the query runs: "beta" moves to index 0, and the
+        // result computed for the old generation must not be returned.
+        let raced = b
+            .models(1, 1, |m, i| async move {
+                let result = m.model_state(i);
+                b.drive_delete_account(0, false).await.unwrap();
+                result
+            })
+            .await;
+        assert_eq!(raced.unwrap_err(), STALE);
+        // The old token stays stale; the new view's token works.
+        assert_eq!(b.models(0, 1, state).await.unwrap_err(), STALE);
+        let live = b.view().await.generation;
+        assert!(live > 1);
+        assert!(b.models(0, live, state).await.is_ok());
+        assert!(
+            b.models(1, live, state).await.is_err(),
+            "only one account left"
         );
     }
 

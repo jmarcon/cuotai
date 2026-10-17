@@ -2,13 +2,13 @@ import { boot } from "./boot.js";
 import { te, t, tl } from "./i18n.js";
 import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
-import { confirmDelete, errText, offerExternalReload, openAccountDialog } from "./account-dialog.js";
+import { confirmDelete, offerExternalReload, openAccountDialog } from "./account-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel,
+  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText,
 } from "./lib.js";
 
 await boot();
@@ -160,6 +160,7 @@ const onSaved = (result) => {
 
 const detailsContext = {
   reports: () => store.view?.reports ?? [],
+  generation: () => store.view?.generation ?? 0,
   onEdit: (index) => openAccountDialog(index, { onSaved }),
   onRemove: (index, label) =>
     confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),
