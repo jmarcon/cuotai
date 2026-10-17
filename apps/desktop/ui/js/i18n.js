@@ -30,6 +30,7 @@ const uiCatalogs = new Map(); // código -> objeto de mensagens da UI
 const userCatalogs = new Map(); // idiomas do usuário já validados (têm prioridade sobre o builtin de mesmo código)
 const coreCatalogs = new Map(); // código -> catálogo do core (mescla sob o de UI na resolução)
 let current = FALLBACK;
+const merged = new Map(); // código -> catálogo mesclado (invalidado a cada carga/registro)
 
 const store = {
   get: () => { try { return localStorage.getItem(KEY); } catch { return null; } },
@@ -43,6 +44,7 @@ export const hasLocale = (code) => LOCALES.some((l) => l.code === code);
 export function registerLocale(code, name, messages, flag) {
   userCatalogs.set(code, messages);
   uiCatalogs.set(code, messages);
+  merged.clear();
   const i = LOCALES.findIndex((l) => l.code === code);
   if (i >= 0) LOCALES[i] = { code, name, flag, user: true };
   else LOCALES.push({ code, name, flag, user: true });
@@ -54,9 +56,11 @@ async function loadUi(code) {
     const res = await fetch(`locales/${code}.json`);
     const data = res.ok ? await res.json() : {};
     uiCatalogs.set(code, data);
+    merged.clear();
     return data;
   } catch {
     uiCatalogs.set(code, {});
+    merged.clear();
     return {};
   }
 }
@@ -72,6 +76,7 @@ async function loadCore(code) {
   try {
     const data = await T.core.invoke("core_catalog", { locale: code });
     coreCatalogs.set(code, data ?? {});
+    merged.clear();
     return coreCatalogs.get(code);
   } catch {
     coreCatalogs.set(code, {});
@@ -81,6 +86,8 @@ async function loadCore(code) {
 
 /** Catálogo mesclado: as do usuário (se houver) cobrem as da UI, e as do core são mescladas por baixo para os ids do core. */
 function mergedCatalog(code) {
+  const hit = merged.get(code);
+  if (hit) return hit;
   const ui = uiCatalogs.get(code) ?? {};
   const fallback = uiCatalogs.get(FALLBACK) ?? {};
   const user = userCatalogs.get(code); // se ausente, sem pacote do usuário
@@ -91,6 +98,7 @@ function mergedCatalog(code) {
   Object.assign(out, fallback);
   Object.assign(out, ui);
   if (user) Object.assign(out, user);
+  merged.set(code, out);
   return out;
 }
 
@@ -191,14 +199,14 @@ export function tl(value, vars = {}, escape = false) {
   if (!isL10n(value)) {
     return escape ? esc(String(value)) : String(value);
   }
-  const merged = { ...(value.params ?? {}), ...vars };
+  const allVars = { ...(value.params ?? {}), ...vars };
   const currentCatalog = mergedCatalog(current);
   const fallbackCatalog = mergedCatalog(FALLBACK);
   const own = currentCatalog[value.id];
   // pt-* não consulta fallback en-US: o fallback do próprio valor (português) é autoritativo.
   const template = own ?? (current.toLowerCase().startsWith("pt") ? undefined : fallbackCatalog[value.id]);
   const text = template ?? value.fallback;
-  return substitute(typeof text === "string" ? text : value.fallback, merged, escape);
+  return substitute(typeof text === "string" ? text : value.fallback, allVars, escape);
 }
 
 /** HTML-safe variant of `tl`. */
