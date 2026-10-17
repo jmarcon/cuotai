@@ -252,7 +252,11 @@ async fn opencode_go_at(
 /// Groq não tem endpoint de quota: os limites trafegam nos cabeçalhos
 /// x-ratelimit-* de toda resposta. Lê-se GET /openai/v1/models (listagem,
 /// não gera tokens). Cabeçalho ausente ≠ zero: a métrica é omitida.
-async fn groq_at(account: &Account, ctx: &Context<'_>, url: &str) -> Result<Data, QueryError> {
+pub(crate) async fn groq_at(
+    account: &Account,
+    ctx: &Context<'_>,
+    url: &str,
+) -> Result<Data, QueryError> {
     let key = secret(account, ctx, "GROQ_API_KEY")?;
     let request = ctx
         .http
