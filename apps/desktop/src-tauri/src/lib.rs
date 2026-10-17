@@ -97,6 +97,20 @@ async fn delete_account(
     b.delete_account(&app, index, purge).await
 }
 
+/// RF3: retry a vault purge using the opaque handle the previous
+/// `delete_account` returned. The retry runs against the *current*
+/// configuration, so the core's shared-key guard naturally decides
+/// whether the credential is still shared (refused with an honest
+/// message) or unique (purged). The handle is consumed on success.
+#[tauri::command]
+async fn retry_purge(
+    app: AppHandle,
+    b: Shared<'_>,
+    handle: String,
+) -> Result<backend::DeleteResult, String> {
+    b.retry_purge(&app, handle).await
+}
+
 #[tauri::command]
 async fn set_refresh_seconds(app: AppHandle, b: Shared<'_>, seconds: u64) -> Result<(), String> {
     b.set_refresh_seconds(&app, seconds).await
@@ -287,6 +301,7 @@ pub fn run() {
             get_account,
             save_account,
             delete_account,
+            retry_purge,
             set_refresh_seconds,
             move_account,
             login_start,

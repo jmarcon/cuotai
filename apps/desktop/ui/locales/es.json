@@ -782,6 +782,7 @@
   "delete.kept": "Cuenta eliminada; la credencial permanece en el almacén.",
   "delete.keptShared": "Cuenta eliminada; la credencial se conservó porque la cuenta {other} también la usa.",
   "delete.partial": "Cuenta eliminada del archivo, pero la credencial NO se borró del almacén: {message}",
+  "delete.retry": "Intentar borrar la credencial ahora",
   "common.dismiss": "Descartar",
   "settings.refresh.title": "Actualización",
   "settings.refresh.help": "Intervalo global entre consultas. Las cuentas con intervalo propio no cambian; los proveedores que cobran por consulta tienen un mínimo mayor.",

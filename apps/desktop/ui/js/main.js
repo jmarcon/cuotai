@@ -2,12 +2,12 @@ import { boot } from "./boot.js";
 import { te, t, tl } from "./i18n.js";
 import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
-import { confirmDelete, openAccountDialog } from "./account-dialog.js";
+import { confirmDelete, errText, openAccountDialog } from "./account-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
-  moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
+  moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, statusLabel,
 } from "./lib.js";
 
@@ -111,20 +111,47 @@ const matchesFilter = (r) =>
   !filterText.trim() || norm([brand(r.provider).label, r.account, r.identity?.email, r.provider].join(" ")).includes(norm(filterText.trim()));
 
 // Aviso curto após remover uma conta (o que aconteceu com a credencial no cofre).
+// `retry` é opcional: quando presente, o aviso ganha um botão "Tentar
+// de novo" que re-executa o `purge_credential` no backend usando o
+// mesmo handle. O backend re-roda o shared-key guard do core contra a
+// configuração atual; o usuário só precisa recarregar quando a
+// sobrevivente cair.
 let notice = null;
 let noticeTimer = null;
-function setNotice(tone, text) {
-  notice = { tone, text };
+function setNotice(tone, text, retry = null) {
+  notice = { tone, text, retry };
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => { notice = null; render(); }, 12000);
   render();
 }
 function onDeleted(result) {
   if (!result) return;
+  const retry = result.recovery_handle ? { handle: result.recovery_handle } : null;
   if (result.outcome === "purged") setNotice("ok", t("delete.purged"));
-  else if (result.outcome === "kept") setNotice("ok", t("delete.kept"));
-  else if (result.outcome === "kept_shared") setNotice("ok", t("delete.keptShared", { other: result.other_account ?? "" }));
-  else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }));
+  else if (result.outcome === "kept") setNotice("ok", t("delete.kept"), retry);
+  else if (result.outcome === "kept_shared") setNotice("ok", t("delete.keptShared", { other: result.other_account ?? "" }), retry);
+  else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }), retry);
+}
+
+// Botão "Tentar de novo" do aviso RF3. Reusa `onDeleted` para re-render
+// o banner com o resultado fresco (o handle pode voltar como `purged`,
+// `partial_failure` com nova mensagem, etc.). Chamada a partir do
+// handler global de cliques do shell.
+async function retryDelete() {
+  if (!notice?.retry) return;
+  const handle = notice.retry.handle;
+  // Desabilita o aviso enquanto a chamada está em voo para não
+  // empilhar retentativas. O `setTimeout` é cancelado pelo próximo
+  // `setNotice` quando `onDeleted` rodar de novo.
+  const previous = notice;
+  notice = { tone: previous.tone, text: previous.text, retry: null };
+  render();
+  try {
+    const result = await retryPurge(handle);
+    onDeleted(result);
+  } catch (x) {
+    setNotice("bad", errText(x), previous.retry);
+  }
 }
 
 const onSaved = (result) => {
@@ -166,7 +193,7 @@ function render() {
       <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
-    ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
+    ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(view.config_path ?? "")}</small></div>` : ""}
@@ -191,6 +218,7 @@ root.addEventListener("click", (e) => {
   }
   if (t.closest("[data-clear-filter]")) { filterText = ""; return render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
+  if (t.closest("[data-retry-delete]")) return retryDelete();
   const move = t.closest("[data-move-from]");
   if (move) return reorderAccounts(Number(move.dataset.moveFrom), Number(move.dataset.moveTo));
   const one = t.closest("[data-refresh]");

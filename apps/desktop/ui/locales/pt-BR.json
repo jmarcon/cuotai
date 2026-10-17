@@ -170,6 +170,7 @@
   "delete.kept": "Conta removida; a credencial continua no cofre.",
   "delete.keptShared": "Conta removida; a credencial foi mantida porque a conta {other} também a usa.",
   "delete.partial": "Conta removida do arquivo, mas a credencial NÃO foi apagada do cofre: {message}",
+  "delete.retry": "Tentar apagar a credencial agora",
   "common.dismiss": "Dispensar",
   "settings.refresh.title": "Atualização",
   "settings.refresh.help": "Intervalo global entre consultas. Contas com intervalo próprio não mudam; provedores cobrados por consulta têm um mínimo maior.",

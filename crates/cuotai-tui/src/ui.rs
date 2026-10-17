@@ -1377,7 +1377,7 @@ fn render_deletion_result(index: usize, outcome: &RemoveOutcome) -> (String, Str
                 index,
                 safe(&vault_error.to_string()),
             ),
-            "r tenta apagar a credencial agora • Enter/Esc fechada".into(),
+            "r tenta apagar a credencial agora • Enter/Esc fecha".into(),
         ),
     }
 }

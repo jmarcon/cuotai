@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "cuotai-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -858,16 +858,18 @@ dependencies = [
 
 [[package]]
 name = "cuotai-desktop"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "cuotai-core",
  "dirs 6.0.0",
+ "parking_lot",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tempfile",
  "tokio",
 ]
 

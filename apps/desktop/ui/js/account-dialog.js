@@ -20,7 +20,7 @@ function open(html) {
 // `{ id, params, fallback }`; legacy callers still emit plain strings.
 // `tl` handles both shapes; we keep the diagnostic "Falha inesperada."
 // fallback for the truly unexpected case.
-const errText = (e) => {
+export const errText = (e) => {
   if (e && typeof e === "object" && "id" in e) return tl(e);
   if (typeof e === "string") {
     try {

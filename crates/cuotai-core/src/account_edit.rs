@@ -1933,6 +1933,50 @@ pub async fn remove_account(
     index: usize,
     purge_credentials: bool,
 ) -> Result<RemoveOutcome, RemoveError> {
+    let staged = remove_account_save_only(file, index, purge_credentials)?;
+    match staged {
+        StagedRemoval::RemovedNoCredential(account) => {
+            Ok(RemoveOutcome::RemovedNoCredential(account))
+        }
+        StagedRemoval::Kept { account, reason } => {
+            Ok(RemoveOutcome::CredentialKept { account, reason })
+        }
+        StagedRemoval::ReadyForPurge {
+            account,
+            provider,
+            oauth,
+        } => match purge_credential(session, &file.config, provider, &oauth).await {
+            Ok(()) => Ok(RemoveOutcome::RemovedFromVault(account)),
+            Err(error) => Ok(RemoveOutcome::PartialFailure {
+                account,
+                vault_error: error,
+            }),
+        },
+    }
+}
+
+/// Sync phase of [`remove_account`]: validates the index, derives the
+/// effective vault key, runs the shared-key guard, writes the TOML
+/// (or refuses on save failure), and decides what to do next. Does
+/// NOT touch the vault — that is the caller's responsibility, which
+/// is what lets the desktop release the inner mutex around the
+/// `OAuthSession::logout` round-trip while keeping the rest of the
+/// critical section as short as a TOML write.
+///
+/// Returned [`StagedRemoval`] covers the four documented outcomes:
+/// * `RemovedNoCredential` — env-var or AWS profile, nothing in the
+///   vault to purge.
+/// * `Kept` — `purge_credentials = false` or the storage key is shared
+///   with a surviving account.
+/// * `ReadyForPurge` — TOML saved, the caller MUST call
+///   [`purge_credential`] next (the shared-key guard is the only thing
+///   protecting the survivor and must be re-run against the
+///   *current* config in case another edit changed the survivor set).
+pub fn remove_account_save_only(
+    file: &mut crate::config_file::ConfigFile,
+    index: usize,
+    purge_credentials: bool,
+) -> Result<StagedRemoval, RemoveError> {
     let prev = file.config.clone();
     if index >= prev.accounts.len() {
         return Err(RemoveError::Index(index));
@@ -1954,13 +1998,6 @@ pub async fn remove_account(
         Some(cfg) => match crate::oauth::session::storage_key(target.provider, cfg) {
             Ok(key) => Some(key),
             Err(_) => {
-                // The OAuth config is structurally invalid (malformed
-                // `credential_id`, missing/invalid `client_id`, etc.).
-                // We deliberately do NOT echo the typed `OAuthError`
-                // (its `Debug` impl would leak variant names that
-                // describe the OAuth shape, which is itself a hint
-                // about the account's configuration). The user-facing
-                // message is fixed and names the manual cleanup path.
                 return Err(RemoveError::InvalidOAuth(
                     "Configuração OAuth inválida; não é possível garantir a \
                      remoção completa. Remova a entrada manualmente do cofre \
@@ -1986,50 +2023,32 @@ pub async fn remove_account(
             .map(|(_, name)| name)
     });
 
-    // 2) Build the new TOML. `without_account` enforces the bounds check
-    //    again on the same `index`; we already validated above so this
-    //    cannot fail for any reason other than a concurrent mutation,
-    //    which the frontends do not allow inside a critical section.
+    // 2) Build the new TOML.
     let updated = prev.without_account(index).map_err(RemoveError::Save)?;
-    // 3) Persist FIRST. If the disk write fails, the vault is not
-    //    touched and the live `ConfigFile` is unchanged.
+    // 3) Persist FIRST.
     file.save(updated.clone()).map_err(RemoveError::Save)?;
-    // From this point the TOML is committed. Even a vault failure
-    // leaves the user in an honest "config saved, credential kept"
-    // state — recoverable from disk + vault state.
 
     // 4) Decide whether to purge.
-    //
-    // - Account has no OAuth credential: nothing in the vault to purge;
-    //   the vault was never touched. `RemovedNoCredential` keeps the
-    //   variant honest (vs. `RemovedFromVault` which actually deleted
-    //   an entry).
-    // - `purge_credentials = false`: caller declined the purge; we keep
-    //   the credential and surface the user-facing reason
-    //   (`KeptReason::Declined`).
-    // - Storage key shared with a surviving account: the purge would
-    //   break the survivor; we keep the credential and surface the
-    //   shared reason so the dialog names the survivor honestly.
     let kept_account = || RemovedAccount {
         provider: target.provider,
         oauth: target.oauth.clone(),
         storage_key: target_key.clone(),
     };
     if target_key.is_none() {
-        return Ok(RemoveOutcome::RemovedNoCredential(RemovedAccount {
+        return Ok(StagedRemoval::RemovedNoCredential(RemovedAccount {
             provider: target.provider,
             oauth: target.oauth.clone(),
             storage_key: None,
         }));
     }
     if !purge_credentials {
-        return Ok(RemoveOutcome::CredentialKept {
+        return Ok(StagedRemoval::Kept {
             account: kept_account(),
             reason: KeptReason::Declined,
         });
     }
     if let Some(other) = shared_with {
-        return Ok(RemoveOutcome::CredentialKept {
+        return Ok(StagedRemoval::Kept {
             account: kept_account(),
             reason: KeptReason::SharedWith {
                 other_account: other,
@@ -2037,33 +2056,36 @@ pub async fn remove_account(
         });
     }
 
-    // 5) Purge. `logout` derives the same key internally; the pre-check
-    //    above already validated the OAuth config, so the only failure
-    //    modes are vault / IPC / OS errors. We report them as a typed
-    //    `PartialFailure` so the caller can decide whether to retry.
-    let key = target_key.expect("checked Some above");
-    match purge_credential(
-        session,
-        &file.config,
-        target.provider,
-        target.oauth.as_ref().expect("checked Some above"),
-    )
-    .await
-    {
-        Ok(()) => Ok(RemoveOutcome::RemovedFromVault(RemovedAccount {
-            provider: target.provider,
-            oauth: target.oauth.clone(),
-            storage_key: Some(key),
-        })),
-        Err(error) => Ok(RemoveOutcome::PartialFailure {
-            account: RemovedAccount {
-                provider: target.provider,
-                oauth: target.oauth.clone(),
-                storage_key: Some(key),
-            },
-            vault_error: error,
-        }),
-    }
+    // 5) TOML saved, vault untouched. Caller drives the async purge.
+    let provider = target.provider;
+    let oauth = target.oauth.clone().expect("checked Some above");
+    Ok(StagedRemoval::ReadyForPurge {
+        account: kept_account(),
+        provider,
+        oauth,
+    })
+}
+
+/// Sync staging result of [`remove_account_save_only`]. The
+/// `ReadyForPurge` variant hands the caller the projection of
+/// [`RemovedAccount`] they need to call [`purge_credential`] outside
+/// the critical section that holds the lock on the live config.
+#[derive(Debug)]
+pub enum StagedRemoval {
+    /// TOML saved; account had no OAuth credential. Nothing to do.
+    RemovedNoCredential(RemovedAccount),
+    /// TOML saved; credential kept in the vault (declined or shared).
+    Kept {
+        account: RemovedAccount,
+        reason: KeptReason,
+    },
+    /// TOML saved; caller MUST call [`purge_credential`] next against
+    /// the current config to actually delete the vault entry.
+    ReadyForPurge {
+        account: RemovedAccount,
+        provider: Provider,
+        oauth: crate::oauth::OAuthConfig,
+    },
 }
 
 /// Best-effort purge of a credential, intended for retries after

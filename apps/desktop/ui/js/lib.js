@@ -69,6 +69,14 @@ const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
 export const saveAccount = (input) => call("save_account", { input });
 export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
+/// RF3 retry: re-attempt the vault purge for a previous
+/// `delete_account` that returned a recovery handle (kept,
+/// kept_shared, partial_failure). The backend runs the core's
+/// shared-key guard against the *current* configuration; the
+/// promise resolves to a fresh `DeleteResult` describing the
+/// outcome (purged / kept_shared / partial_failure with the same
+/// handle, ready for another retry).
+export const retryPurge = (handle) => call("retry_purge", { handle });
 export const setRefreshSeconds = (seconds) => call("set_refresh_seconds", { seconds });
 export const moveAccount = (from, to) => call("move_account", { from, to });
 export const getSettings = () => call("get_settings");
