@@ -21,7 +21,7 @@
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Datelike, Months, Utc};
 use reqwest::RequestBuilder;
 use serde::Deserialize;
@@ -255,6 +255,8 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
             format!("Custo no mês corrente ({currency})"),
             total,
             currency,
+            MetricKind::Spend,
+            Some(MetricWindow::Monthly),
         );
         m.period = Some(period.clone());
         m.resets_at = Some(reset);
@@ -269,7 +271,13 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
             "requisições",
         ),
     ] {
-        let mut m = Metric::usage(label, value, unit);
+        let mut m = Metric::usage(
+            label,
+            value,
+            unit,
+            MetricKind::Usage,
+            Some(MetricWindow::Monthly),
+        );
         m.period = Some(period.clone());
         m.resets_at = Some(reset);
         metrics.push(m);
@@ -428,7 +436,13 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         );
     }
     if saw_cost {
-        let mut m = Metric::usage("Custo no mês corrente (USD)", costs, "USD");
+        let mut m = Metric::usage(
+            "Custo no mês corrente (USD)",
+            costs,
+            "USD",
+            MetricKind::Spend,
+            Some(MetricWindow::Monthly),
+        );
         m.period = Some(period.clone());
         m.resets_at = Some(reset);
         metrics.push(m);
@@ -437,7 +451,13 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         ("Tokens de entrada (mensagens)", input as f64),
         ("Tokens de saída (mensagens)", output as f64),
     ] {
-        let mut m = Metric::usage(label, value, "tokens");
+        let mut m = Metric::usage(
+            label,
+            value,
+            "tokens",
+            MetricKind::Usage,
+            Some(MetricWindow::Monthly),
+        );
         m.period = Some(period.clone());
         m.resets_at = Some(reset);
         metrics.push(m);
@@ -574,6 +594,8 @@ mod tests {
         assert_eq!(custo.used, Some(0.12));
         assert!(custo.limit.is_none() && custo.remaining.is_none());
         assert!(custo.period.is_some() && custo.resets_at.is_some());
+        assert_eq!(custo.kind, MetricKind::Spend);
+        assert_eq!(custo.window, Some(MetricWindow::Monthly));
         assert_eq!(
             metric(&data, "Tokens de entrada (completions)").used,
             Some(1500.0)
@@ -586,6 +608,14 @@ mod tests {
             metric(&data, "Requisições de modelo (completions)").used,
             Some(7.0)
         );
+        for label in [
+            "Tokens de entrada (completions)",
+            "Tokens de saída (completions)",
+            "Requisições de modelo (completions)",
+        ] {
+            assert_eq!(metric(&data, label).kind, MetricKind::Usage);
+            assert_eq!(metric(&data, label).window, Some(MetricWindow::Monthly));
+        }
     }
 
     #[tokio::test]
@@ -778,6 +808,8 @@ mod tests {
             (total - 2.24).abs() < 1e-9,
             "224 centavos devem virar 2.24 USD, obtido {total}"
         );
+        assert_eq!(custo.kind, MetricKind::Spend);
+        assert_eq!(custo.window, Some(MetricWindow::Monthly));
         // 1500 + 200 + 10 + 90 = 1800 tokens de entrada
         assert_eq!(
             metric(&data, "Tokens de entrada (mensagens)").used,
@@ -787,6 +819,13 @@ mod tests {
             metric(&data, "Tokens de saída (mensagens)").used,
             Some(500.0)
         );
+        for label in [
+            "Tokens de entrada (mensagens)",
+            "Tokens de saída (mensagens)",
+        ] {
+            assert_eq!(metric(&data, label).kind, MetricKind::Usage);
+            assert_eq!(metric(&data, label).window, Some(MetricWindow::Monthly));
+        }
     }
 
     #[tokio::test]

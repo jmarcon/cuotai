@@ -25,7 +25,7 @@
 
 use super::{secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider, Status};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use serde_json::{json, Value};
 
@@ -535,6 +535,7 @@ fn window_metric(
     quota: &serde_json::Map<String, Value>,
     label: &str,
     period: &str,
+    window: MetricWindow,
     used_keys: &[&str],
     total_keys: &[&str],
     reset_keys: &[&str],
@@ -551,6 +552,8 @@ fn window_metric(
         limit,
         remaining,
         unit: "requisições".into(),
+        kind: MetricKind::Quota,
+        window: Some(window),
         period: Some(period.into()),
         resets_at: parse_date(direct_value(quota, reset_keys)),
     })
@@ -616,6 +619,7 @@ fn parse_coding_plan_payload(
         quota,
         "Coding Plan: 5h",
         "janela de 5h",
+        MetricWindow::Window5h,
         &["per5HourUsedQuota", "perFiveHourUsedQuota"],
         &["per5HourTotalQuota", "perFiveHourTotalQuota"],
         &[
@@ -629,6 +633,7 @@ fn parse_coding_plan_payload(
         quota,
         "Coding Plan: semanal",
         "janela semanal",
+        MetricWindow::Weekly,
         &["perWeekUsedQuota"],
         &["perWeekTotalQuota"],
         &["perWeekQuotaNextRefreshTime"],
@@ -639,6 +644,7 @@ fn parse_coding_plan_payload(
         quota,
         "Coding Plan: mensal",
         "ciclo mensal",
+        MetricWindow::Monthly,
         &["perBillMonthUsedQuota", "perMonthUsedQuota"],
         &["perBillMonthTotalQuota", "perMonthTotalQuota"],
         &[
@@ -960,10 +966,11 @@ fn token_plan_metrics(
         });
     }
     let mut metrics = Vec::new();
-    for (label, period, percentage, reset, total) in [
+    for (label, period, window, percentage, reset, total) in [
         (
             "Token Plan: 5h",
             "janela de 5h",
+            MetricWindow::Window5h,
             "per5HourPercentage",
             "per5HourResetTime",
             quota.five_hour,
@@ -971,6 +978,7 @@ fn token_plan_metrics(
         (
             "Token Plan: semanal",
             "janela semanal",
+            MetricWindow::Weekly,
             "per1WeekPercentage",
             "per1WeekResetTime",
             quota.weekly,
@@ -978,6 +986,7 @@ fn token_plan_metrics(
         (
             "Token Plan: mensal",
             "ciclo mensal",
+            MetricWindow::Monthly,
             "per1MonthPercentage",
             "per1MonthResetTime",
             quota.monthly,
@@ -1005,6 +1014,8 @@ fn token_plan_metrics(
                     limit: Some(total),
                     remaining: Some((total - used).max(0.0)),
                     unit: "tokens".into(),
+                    kind: MetricKind::Quota,
+                    window: Some(window),
                     period: Some(period.into()),
                     resets_at,
                 });
@@ -1014,6 +1025,8 @@ fn token_plan_metrics(
                     used: Some(used_percent),
                     limit: Some(100.0),
                     remaining: Some(100.0 - used_percent),
+                    kind: MetricKind::Quota,
+                    window: Some(window),
                     unit: "%".into(),
                     period: Some(period.into()),
                     resets_at,
@@ -1414,16 +1427,18 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
         });
     }
     let mut metrics = Vec::new();
-    for (label, period, percentage, reset) in [
+    for (label, period, window, percentage, reset) in [
         (
             "Token Plan: 5h",
             "janela de 5h",
+            MetricWindow::Window5h,
             "per5HourPercentage",
             "per5HourResetTime",
         ),
         (
             "Token Plan: semanal",
             "janela semanal",
+            MetricWindow::Weekly,
             "per1WeekPercentage",
             "per1WeekResetTime",
         ),
@@ -1447,6 +1462,8 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
                 limit: Some(100.0),
                 remaining: Some(100.0 - fraction * 100.0),
                 unit: "%".into(),
+                kind: MetricKind::Quota,
+                window: Some(window),
                 period: Some(period.into()),
                 resets_at,
             });
@@ -1788,6 +1805,8 @@ mod tests {
         assert_eq!(five_hour.used, Some(12.5));
         assert_eq!(five_hour.limit, Some(100.25));
         assert_eq!(five_hour.remaining, Some(87.75));
+        assert_eq!(five_hour.kind, MetricKind::Quota);
+        assert_eq!(five_hour.window, Some(MetricWindow::Window5h));
         assert_eq!(
             five_hour.resets_at,
             DateTime::<Utc>::from_timestamp_millis(1_700_000_300_000)
@@ -1795,6 +1814,8 @@ mod tests {
         let weekly = metric(&data, "Coding Plan: semanal");
         assert_eq!(weekly.used, Some(2.25));
         assert_eq!(weekly.limit, Some(10.5));
+        assert_eq!(weekly.kind, MetricKind::Quota);
+        assert_eq!(weekly.window, Some(MetricWindow::Weekly));
         assert_eq!(
             weekly.resets_at,
             Some(
@@ -1807,6 +1828,8 @@ mod tests {
         assert_eq!(monthly.used, None);
         assert_eq!(monthly.limit, Some(90.0));
         assert_eq!(monthly.remaining, None);
+        assert_eq!(monthly.kind, MetricKind::Quota);
+        assert_eq!(monthly.window, Some(MetricWindow::Monthly));
     }
 
     #[tokio::test]
@@ -2065,6 +2088,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(metrics.len(), 3);
+        assert!(metrics.iter().all(|m| m.kind == MetricKind::Quota));
+        let windows: Vec<_> = metrics.iter().map(|m| m.window).collect();
+        assert_eq!(
+            windows,
+            [
+                Some(MetricWindow::Window5h),
+                Some(MetricWindow::Weekly),
+                Some(MetricWindow::Monthly),
+            ]
+        );
         assert_eq!(metrics[0].unit, "tokens");
         assert_eq!(metrics[0].limit, Some(8_000.0));
         assert_eq!(metrics[0].used, Some(2_000.0));
@@ -2314,6 +2347,9 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(metrics.len(), 2);
+        assert!(metrics.iter().all(|m| m.kind == MetricKind::Quota));
+        assert_eq!(metrics[0].window, Some(MetricWindow::Window5h));
+        assert_eq!(metrics[1].window, Some(MetricWindow::Weekly));
         assert_eq!(metrics[0].label, "Token Plan: 5h");
         assert_eq!(metrics[0].used, Some(25.0));
         assert_eq!(metrics[0].unit, "%");

@@ -7,7 +7,7 @@
 //! quota-reset or credit-consume operation is performed.
 use super::{json, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -142,6 +142,8 @@ async fn grok_cli(
                 limit: Some(100.0),
                 remaining: Some(100.0 - used),
                 unit: "%".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Weekly),
                 period: Some("semanal".into()),
                 resets_at: grpc.reset_at,
             });
@@ -319,6 +321,7 @@ fn quota_metric(
     limit: Option<f64>,
     unit: &str,
     period: Option<&str>,
+    window: Option<MetricWindow>,
     resets_at: Option<DateTime<Utc>>,
 ) -> Metric {
     let remaining = match (used, limit) {
@@ -331,6 +334,8 @@ fn quota_metric(
         limit,
         remaining,
         unit: unit.into(),
+        kind: MetricKind::Quota,
+        window,
         period: period.map(Into::into),
         resets_at,
     }
@@ -363,6 +368,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             Some(limit),
             "créditos",
             Some("mensal"),
+            Some(MetricWindow::Monthly),
             resets_at,
         ));
     }
@@ -377,6 +383,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             Some(cap),
             "créditos",
             Some("ciclo de cobrança"),
+            Some(MetricWindow::Monthly),
             resets_at,
         )),
         // Cap 0 is the exhausted free/promo state (chat returns 402
@@ -389,6 +396,8 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
                 limit: Some(0.0),
                 remaining: Some(0.0),
                 unit: "créditos".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Monthly),
                 period: Some("ciclo de cobrança".into()),
                 resets_at,
             });
@@ -406,6 +415,8 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             limit: None,
             remaining: Some(balance),
             unit: "créditos".into(),
+            kind: MetricKind::Credits,
+            window: None,
             period: None,
             resets_at: None,
         });
@@ -427,6 +438,8 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             limit: Some(100.0),
             remaining: Some(100.0 - used),
             unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(MetricWindow::Weekly),
             period: Some("semanal".into()),
             resets_at,
         });
@@ -869,6 +882,8 @@ mod tests {
         assert_eq!(on_demand.label, "Grok CLI: sob demanda");
         assert_eq!(on_demand.used, Some(35.0));
         assert_eq!(on_demand.limit, Some(100.0));
+        assert_eq!(on_demand.kind, MetricKind::Quota);
+        assert_eq!(on_demand.window, Some(MetricWindow::Monthly));
         assert_eq!(on_demand.remaining, Some(65.0));
         assert_eq!(on_demand.unit, "créditos");
         assert_eq!(
@@ -879,6 +894,8 @@ mod tests {
         assert_eq!(prepaid.remaining, Some(12.5));
         assert_eq!(prepaid.used, None);
         assert_eq!(prepaid.limit, None);
+        assert_eq!(prepaid.kind, MetricKind::Credits);
+        assert_eq!(prepaid.window, None);
         assert!(data.notes.iter().any(|n| n.contains("Plano: Grok Code")));
         let requests = server.received_requests().await.unwrap();
         assert_eq!(requests.len(), 2, "REST quotas present: no gRPC fallback");
@@ -969,6 +986,8 @@ mod tests {
         assert_eq!(weekly.label, "Grok CLI: semanal SuperGrok");
         assert_eq!(weekly.used, Some(35.0));
         assert_eq!(weekly.limit, Some(100.0));
+        assert_eq!(weekly.kind, MetricKind::Quota);
+        assert_eq!(weekly.window, Some(MetricWindow::Weekly));
         assert_eq!(weekly.remaining, Some(65.0));
         assert_eq!(weekly.unit, "%");
         assert_eq!(weekly.resets_at, Some(expected_reset()));
@@ -1061,6 +1080,8 @@ mod tests {
         assert_eq!(monthly.used, Some(275.0));
         assert_eq!(monthly.limit, Some(1000.0));
         assert_eq!(monthly.remaining, Some(725.0));
+        assert_eq!(monthly.kind, MetricKind::Quota);
+        assert_eq!(monthly.window, Some(MetricWindow::Monthly));
         assert_eq!(
             monthly.resets_at.unwrap().to_rfc3339(),
             "2026-08-01T00:00:00+00:00"
@@ -1083,6 +1104,8 @@ mod tests {
         assert_eq!(weekly.label, "Grok CLI: semanal SuperGrok");
         assert_eq!(weekly.used, Some(99.0));
         assert_eq!(weekly.remaining, Some(1.0));
+        assert_eq!(weekly.kind, MetricKind::Quota);
+        assert_eq!(weekly.window, Some(MetricWindow::Weekly));
         assert_eq!(
             weekly.resets_at.unwrap().to_rfc3339(),
             "2026-07-24T12:42:26.494595+00:00"

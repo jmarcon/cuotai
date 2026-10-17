@@ -45,7 +45,7 @@
 
 use super::{json, param, secret, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, TimeZone, Utc};
 use serde::Deserialize;
 
@@ -93,12 +93,13 @@ fn percent_metric(
     label: impl Into<String>,
     used_percent: f64,
     resets_at: Option<DateTime<Utc>>,
+    window: MetricWindow,
 ) -> Result<Metric, QueryError> {
     let used = finite(used_percent)?;
     if used < 0.0 {
         return Err(QueryError::schema());
     }
-    let mut m = Metric::usage(label, used, "%");
+    let mut m = Metric::usage(label, used, "%", MetricKind::Quota, Some(window));
     m.limit = Some(100.0);
     m.remaining = Some(finite(100.0 - used)?);
     m.resets_at = resets_at;
@@ -169,6 +170,15 @@ fn window_label(prefix: &str, seconds: Option<i64>) -> String {
     }
 }
 
+fn codex_window(seconds: Option<i64>) -> MetricWindow {
+    match seconds {
+        Some(18_000) => MetricWindow::Window5h,
+        Some(86_400) => MetricWindow::Daily,
+        Some(604_800) => MetricWindow::Weekly,
+        _ => MetricWindow::Other,
+    }
+}
+
 async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, QueryError> {
     let token = secret(account, ctx, "CHATGPT_ACCESS_TOKEN")?;
     let mut req = ctx
@@ -208,6 +218,7 @@ async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 window_label("Codex", w.limit_window_seconds),
                 w.used_percent,
                 w.reset_at.and_then(epoch_seconds),
+                codex_window(w.limit_window_seconds),
             )?);
         }
         if let Some(w) = rl.secondary_window {
@@ -215,6 +226,7 @@ async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 window_label("Codex", w.limit_window_seconds),
                 w.used_percent,
                 w.reset_at.and_then(epoch_seconds),
+                codex_window(w.limit_window_seconds),
             )?);
         }
     }
@@ -226,7 +238,13 @@ async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             );
         } else if let Some(balance) = credits.balance {
             let value: f64 = balance.trim().parse().map_err(|_| QueryError::schema())?;
-            let mut m = Metric::usage("Créditos Codex — saldo restante", 0.0, "créditos");
+            let mut m = Metric::usage(
+                "Créditos Codex — saldo restante",
+                0.0,
+                "créditos",
+                MetricKind::Credits,
+                None,
+            );
             // Saldo é o que RESTA: used fica desconhecido, remaining carrega o valor.
             m.used = None;
             m.remaining = Some(finite(value)?);
@@ -273,6 +291,7 @@ fn claude_window(
     metrics: &mut Vec<Metric>,
     label: &str,
     window: &Option<ClaudeWindow>,
+    metric_window: MetricWindow,
 ) -> Result<(), QueryError> {
     if let Some(w) = window {
         if let Some(u) = w.utilization {
@@ -280,6 +299,7 @@ fn claude_window(
                 format!("{label} (%)"),
                 u,
                 iso(&w.resets_at)?,
+                metric_window,
             )?);
         }
     }
@@ -299,20 +319,42 @@ async fn claude(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
     .await?;
 
     let mut metrics = Vec::new();
-    claude_window(&mut metrics, "Sessão (5 horas)", &body.five_hour)?;
-    claude_window(&mut metrics, "Semana (7 dias)", &body.seven_day)?;
-    claude_window(&mut metrics, "Semana — Opus (7 dias)", &body.seven_day_opus)?;
+    claude_window(
+        &mut metrics,
+        "Sessão (5 horas)",
+        &body.five_hour,
+        MetricWindow::Window5h,
+    )?;
+    claude_window(
+        &mut metrics,
+        "Semana (7 dias)",
+        &body.seven_day,
+        MetricWindow::Weekly,
+    )?;
+    claude_window(
+        &mut metrics,
+        "Semana — Opus (7 dias)",
+        &body.seven_day_opus,
+        MetricWindow::Weekly,
+    )?;
     claude_window(
         &mut metrics,
         "Semana — Sonnet (7 dias)",
         &body.seven_day_sonnet,
+        MetricWindow::Weekly,
     )?;
     if let Some(extra) = body.extra_usage {
         if extra.is_enabled == Some(true) {
             if let Some(used) = extra.used_credits {
                 // Unidade exata (créditos vs. centavos) não é documentada: rotulamos como
                 // unidades brutas do provedor.
-                let mut m = Metric::usage("Uso extra — utilizado", finite(used)?, "unid. provedor");
+                let mut m = Metric::usage(
+                    "Uso extra — utilizado",
+                    finite(used)?,
+                    "unid. provedor",
+                    MetricKind::Quota,
+                    Some(MetricWindow::Monthly),
+                );
                 if let Some(limit) = extra.monthly_limit {
                     m.limit = Some(finite(limit)?);
                     m.remaining = Some(finite(limit - used)?);
@@ -424,9 +466,17 @@ async fn cursor(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         "Gasto sob demanda no ciclo",
         finite(spend_cents / 100.0)?,
         "USD",
+        MetricKind::Spend,
+        Some(MetricWindow::Monthly),
     );
     demanda.period = Some("ciclo de cobrança".into());
-    let mut total = Metric::usage("Gasto total no ciclo (inclui uso incluído)", 0.0, "USD");
+    let mut total = Metric::usage(
+        "Gasto total no ciclo (inclui uso incluído)",
+        0.0,
+        "USD",
+        MetricKind::Spend,
+        Some(MetricWindow::Monthly),
+    );
     total.used = if overall_known {
         Some(finite(overall_cents / 100.0)?)
     } else {
@@ -443,6 +493,8 @@ async fn cursor(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
             "Membros na equipe",
             f64::from(members),
             "membros",
+            MetricKind::Usage,
+            None,
         ));
     }
     require_metrics(Data::new(
@@ -563,9 +615,21 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         amount = finite(amount + item.net_amount)?;
     }
     let unit = unit.unwrap_or("unid.").to_string();
-    let mut usage = Metric::usage(usage_label, used, unit);
+    let mut usage = Metric::usage(
+        usage_label,
+        used,
+        unit,
+        MetricKind::Usage,
+        Some(MetricWindow::Monthly),
+    );
     usage.period = Some(format!("{year}-{month}"));
-    let mut cost = Metric::usage(cost_label, amount, "USD");
+    let mut cost = Metric::usage(
+        cost_label,
+        amount,
+        "USD",
+        MetricKind::Spend,
+        Some(MetricWindow::Monthly),
+    );
     cost.period = Some(format!("{year}-{month}"));
     notes.push(
         "note.subscriptions.copilot_user.coverage",
@@ -658,7 +722,13 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
             used = finite(used + finite(user.prompt_credits_used)?)?;
         }
         let used = finite(used / 100.0)?;
-        let mut m = Metric::usage("Créditos de prompt usados no ciclo", used, "créditos");
+        let mut m = Metric::usage(
+            "Créditos de prompt usados no ciclo",
+            used,
+            "créditos",
+            MetricKind::Credits,
+            Some(MetricWindow::Monthly),
+        );
         m.period = Some("ciclo de cobrança".into());
         m.resets_at = cycle_end;
         metrics.push(m);
@@ -674,18 +744,32 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
         limit: Some(finite(per_seat * seats)?),
         remaining: None,
         unit: "créditos".into(),
+        kind: MetricKind::Credits,
+        window: Some(MetricWindow::Monthly),
         period: Some("ciclo de cobrança".into()),
         resets_at: cycle_end,
     });
 
     // addOnCreditsAvailable é a alocação do ciclo (recalculada no início de cada ciclo),
     // não necessariamente o restante em tempo real.
-    let mut add = Metric::usage("Créditos adicionais usados no ciclo", add_used, "créditos");
+    let mut add = Metric::usage(
+        "Créditos adicionais usados no ciclo",
+        add_used,
+        "créditos",
+        MetricKind::Credits,
+        Some(MetricWindow::Monthly),
+    );
     add.limit = Some(add_available);
     add.period = Some("ciclo de cobrança".into());
     add.resets_at = cycle_end;
     metrics.push(add);
-    metrics.push(Metric::usage("Assentos", seats, "membros"));
+    metrics.push(Metric::usage(
+        "Assentos",
+        seats,
+        "membros",
+        MetricKind::Usage,
+        None,
+    ));
     notes.push(
         "note.subscriptions.windsurf.balance_semantics",
         "Uso de prompt pode incluir créditos adicionais; não inferimos saldo do conjunto. addOnCreditsAvailable é a alocação informada para o ciclo, não um saldo vitalício; o restante permanece desconhecido.",
@@ -778,13 +862,17 @@ mod tests {
         assert_eq!(primaria.limit, Some(100.0));
         assert_eq!(primaria.remaining, Some(58.0));
         assert_eq!(primaria.resets_at, epoch_seconds(1790000000));
-        assert_eq!(
-            metric(&data, "Codex — janela de 1 semana(s) (%)").used,
-            Some(10.0)
-        );
+        assert_eq!(primaria.kind, MetricKind::Quota);
+        assert_eq!(primaria.window, Some(MetricWindow::Window5h));
+        let semanal = metric(&data, "Codex — janela de 1 semana(s) (%)");
+        assert_eq!(semanal.used, Some(10.0));
+        assert_eq!(semanal.kind, MetricKind::Quota);
+        assert_eq!(semanal.window, Some(MetricWindow::Weekly));
         let saldo = metric(&data, "Créditos Codex — saldo restante");
         assert_eq!(saldo.used, None);
         assert_eq!(saldo.remaining, Some(12.5));
+        assert_eq!(saldo.kind, MetricKind::Credits);
+        assert_eq!(saldo.window, None);
     }
 
     #[tokio::test]
@@ -854,6 +942,11 @@ mod tests {
         let sessao = metric(&data, "Sessão (5 horas) (%)");
         assert_eq!(sessao.used, Some(25.5));
         assert_eq!(sessao.remaining, Some(74.5));
+        assert_eq!(sessao.kind, MetricKind::Quota);
+        assert_eq!(sessao.window, Some(MetricWindow::Window5h));
+        let semana = metric(&data, "Semana (7 dias) (%)");
+        assert_eq!(semana.kind, MetricKind::Quota);
+        assert_eq!(semana.window, Some(MetricWindow::Weekly));
         assert_eq!(
             sessao.resets_at,
             iso(&Some("2026-09-28T12:00:00Z".to_string())).unwrap()
@@ -863,6 +956,8 @@ mod tests {
         assert_eq!(extra.limit, Some(50.0));
         assert_eq!(extra.remaining, Some(37.5));
         assert_eq!(extra.unit, "unid. provedor");
+        assert_eq!(extra.kind, MetricKind::Quota);
+        assert_eq!(extra.window, Some(MetricWindow::Monthly));
     }
 
     #[tokio::test]
@@ -927,6 +1022,15 @@ mod tests {
             Some(31.0)
         );
         assert_eq!(metric(&data, "Membros na equipe").used, Some(2.0));
+        for label in [
+            "Gasto sob demanda no ciclo",
+            "Gasto total no ciclo (inclui uso incluído)",
+        ] {
+            assert_eq!(metric(&data, label).kind, MetricKind::Spend);
+            assert_eq!(metric(&data, label).window, Some(MetricWindow::Monthly));
+        }
+        assert_eq!(metric(&data, "Membros na equipe").kind, MetricKind::Usage);
+        assert_eq!(metric(&data, "Membros na equipe").window, None);
     }
 
     #[tokio::test]
@@ -1071,6 +1175,8 @@ mod tests {
         let uso = metric(&data, "Solicitações premium utilizadas (mês corrente)");
         assert_eq!(uso.used, Some(175.0));
         assert_eq!(uso.unit, "requests");
+        assert_eq!(uso.kind, MetricKind::Usage);
+        assert_eq!(uso.window, Some(MetricWindow::Monthly));
         assert_eq!(
             metric(
                 &data,
@@ -1079,6 +1185,12 @@ mod tests {
             .used,
             Some(6.0)
         );
+        let custo = metric(
+            &data,
+            "Custo líquido de solicitações premium (mês corrente)",
+        );
+        assert_eq!(custo.kind, MetricKind::Spend);
+        assert_eq!(custo.window, Some(MetricWindow::Monthly));
     }
 
     #[tokio::test]
@@ -1215,6 +1327,8 @@ mod tests {
         assert_eq!(creditos.used, Some(200.0));
         assert_eq!(creditos.limit, None);
         assert_eq!(creditos.remaining, None);
+        assert_eq!(creditos.kind, MetricKind::Credits);
+        assert_eq!(creditos.window, Some(MetricWindow::Monthly));
         assert_eq!(
             creditos.resets_at,
             iso(&Some("2026-10-01T00:00:00Z".to_string())).unwrap()
@@ -1223,6 +1337,16 @@ mod tests {
         assert_eq!(adicionais.used, Some(3500.0));
         assert_eq!(adicionais.limit, Some(6500.0));
         assert_eq!(adicionais.remaining, None);
+        assert_eq!(adicionais.kind, MetricKind::Credits);
+        assert_eq!(adicionais.window, Some(MetricWindow::Monthly));
+        let alocacao = metric(
+            &data,
+            "Alocação de prompt da equipe (por assento × assentos)",
+        );
+        assert_eq!(alocacao.kind, MetricKind::Credits);
+        assert_eq!(alocacao.window, Some(MetricWindow::Monthly));
+        assert_eq!(metric(&data, "Assentos").kind, MetricKind::Usage);
+        assert_eq!(metric(&data, "Assentos").window, None);
     }
 
     #[tokio::test]

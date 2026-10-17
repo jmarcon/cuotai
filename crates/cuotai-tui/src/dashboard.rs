@@ -1121,7 +1121,7 @@ fn format_reset_line(reset: DateTime<Utc>, now: DateTime<Utc>) -> String {
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use cuotai_core::Provider;
+    use cuotai_core::{MetricKind, Provider};
 
     fn metric(
         label: &str,
@@ -1135,6 +1135,8 @@ mod tests {
             limit,
             remaining,
             unit: "req".into(),
+            kind: MetricKind::Quota,
+            window: None,
             period: None,
             resets_at: None,
         }

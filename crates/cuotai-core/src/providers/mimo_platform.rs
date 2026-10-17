@@ -32,7 +32,7 @@
 
 use super::{Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
-use crate::{Metric, Status};
+use crate::{Metric, MetricKind, MetricWindow, Status};
 use chrono::{DateTime, Utc};
 
 /// Base fixa da API do console web. Em testes, a URL do mock é injetada.
@@ -238,6 +238,8 @@ fn build_data(
                     remaining: Some(limit - used),
                     // Unidade vista na UI oficial ("Credits"/积分) e no CodexBar.
                     unit: "créditos".into(),
+                    kind: MetricKind::Quota,
+                    window: Some(MetricWindow::Monthly),
                     period: Some("mensal".into()),
                     resets_at,
                 });
@@ -250,6 +252,8 @@ fn build_data(
                     limit: Some(100.0),
                     remaining: Some(100.0 - used_pct),
                     unit: "%".into(),
+                    kind: MetricKind::Quota,
+                    window: Some(MetricWindow::Monthly),
                     period: Some("mensal".into()),
                     resets_at,
                 });
@@ -297,6 +301,8 @@ fn build_data(
         limit: None,
         remaining: Some(balance),
         unit: currency.to_string(),
+        kind: MetricKind::Balance,
+        window: None,
         period: Some("saldo atual".into()),
         resets_at: None,
     });
@@ -416,6 +422,8 @@ mod tests {
         assert_eq!(plan.label, "Plano de tokens MiMo");
         assert_eq!(plan.used, Some(250.0));
         assert_eq!(plan.limit, Some(1000.0));
+        assert_eq!(plan.kind, MetricKind::Quota);
+        assert_eq!(plan.window, Some(MetricWindow::Monthly));
         assert_eq!(plan.remaining, Some(750.0));
         assert_eq!(plan.period.as_deref(), Some("mensal"));
         assert_eq!(
@@ -429,6 +437,8 @@ mod tests {
         assert_eq!(saldo.remaining, Some(12.5));
         assert_eq!(saldo.used, None);
         assert_eq!(saldo.unit, "USD");
+        assert_eq!(saldo.kind, MetricKind::Balance);
+        assert_eq!(saldo.window, None);
         assert!(data.notes.iter().any(|n| n.contains("mimo-pro")));
         assert!(data.notes.iter().any(|n| n.contains("bonificado")));
     }
@@ -533,6 +543,8 @@ mod tests {
         // percent 0.4 = 40% USADOS → 60% restantes.
         assert_eq!(plan.used, Some(40.0));
         assert_eq!(plan.remaining, Some(60.0));
+        assert_eq!(plan.kind, MetricKind::Quota);
+        assert_eq!(plan.window, Some(MetricWindow::Monthly));
         assert_eq!(plan.unit, "%");
     }
 

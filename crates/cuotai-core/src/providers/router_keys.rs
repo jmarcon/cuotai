@@ -16,7 +16,7 @@
 
 use super::{secret, Context, Data, QueryError};
 use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider, Status};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, Utc};
 
 const OPENCODE_GO_USAGE_URL: &str = "https://opencode.ai/zen/go/v1/usage";
@@ -210,10 +210,15 @@ async fn opencode_go_at(
         .ok_or_else(QueryError::schema)?;
 
     let mut metrics = Vec::new();
-    for (period_key, label, period_pt) in [
-        ("rolling", "Janela móvel", "janela móvel"),
-        ("weekly", "Semanal", "semanal"),
-        ("monthly", "Mensal", "mensal"),
+    for (period_key, label, period_pt, window) in [
+        (
+            "rolling",
+            "Janela móvel",
+            "janela móvel",
+            MetricWindow::Other,
+        ),
+        ("weekly", "Semanal", "semanal", MetricWindow::Weekly),
+        ("monthly", "Mensal", "mensal", MetricWindow::Monthly),
     ] {
         let Some(quota) = usage.get(period_key).and_then(|q| q.as_object()) else {
             continue;
@@ -229,6 +234,8 @@ async fn opencode_go_at(
             limit: Some(100.0),
             remaining: Some(100.0 - used),
             unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(window),
             period: Some(period_pt.into()),
             resets_at: parse_reset_time(quota.get("resetsAt")),
         });
@@ -305,6 +312,8 @@ pub(crate) async fn groq_at(
             limit: Some(limit),
             remaining: Some(remaining.max(0.0)),
             unit: unit.into(),
+            kind: MetricKind::RateLimit,
+            window: Some(MetricWindow::Other),
             period: Some("janela corrente do rate limit".into()),
             resets_at,
         });
@@ -479,6 +488,8 @@ async fn kimi_coding_at(
                 limit: Some(limit),
                 remaining: Some(remaining.unwrap_or((limit - used).max(0.0))),
                 unit: "créditos".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Weekly),
                 period: Some("semanal".into()),
                 resets_at: reset,
             });
@@ -504,6 +515,8 @@ async fn kimi_coding_at(
                 limit: Some(limit),
                 remaining: Some(remaining.max(0.0)),
                 unit: "requisições".into(),
+                kind: MetricKind::RateLimit,
+                window: Some(MetricWindow::Other),
                 period: Some("janela corrente do rate limit".into()),
                 resets_at: parse_reset_time(pick(&["resetTime", "reset_at", "resetAt"])),
             });
@@ -830,6 +843,8 @@ fn mimo_data_from_body(
         limit: Some(100.0),
         remaining: Some(remaining),
         unit: "%".into(),
+        kind: MetricKind::Quota,
+        window: Some(MetricWindow::Weekly),
         period: Some("semanal".into()),
         resets_at,
     }];
@@ -964,6 +979,16 @@ mod tests {
             .expect("sucesso");
 
         assert_eq!(data.metrics.len(), 3);
+        assert!(data.metrics.iter().all(|m| m.kind == MetricKind::Quota));
+        let windows: Vec<_> = data.metrics.iter().map(|m| m.window).collect();
+        assert_eq!(
+            windows,
+            [
+                Some(MetricWindow::Other),
+                Some(MetricWindow::Weekly),
+                Some(MetricWindow::Monthly),
+            ]
+        );
         let rolling = &data.metrics[0];
         assert_eq!(rolling.used, Some(13.0));
         assert_eq!(rolling.limit, Some(100.0));
@@ -1044,6 +1069,11 @@ mod tests {
             .expect("sucesso");
 
         assert_eq!(data.metrics.len(), 2);
+        assert!(data.metrics.iter().all(|m| m.kind == MetricKind::RateLimit));
+        assert!(data
+            .metrics
+            .iter()
+            .all(|m| m.window == Some(MetricWindow::Other)));
         let req = &data.metrics[0];
         assert_eq!(req.used, Some(30.0));
         assert_eq!(req.limit, Some(14_400.0));
@@ -1133,6 +1163,8 @@ mod tests {
         assert_eq!(weekly.used, Some(35.0));
         assert_eq!(weekly.limit, Some(100.0));
         assert_eq!(weekly.remaining, Some(65.0));
+        assert_eq!(weekly.kind, MetricKind::Quota);
+        assert_eq!(weekly.window, Some(MetricWindow::Weekly));
         assert_eq!(
             weekly.resets_at,
             DateTime::parse_from_rfc3339("2026-08-01T00:00:00Z")
@@ -1143,6 +1175,8 @@ mod tests {
         assert_eq!(rate.used, Some(20.0));
         assert_eq!(rate.limit, Some(60.0));
         assert_eq!(rate.remaining, Some(40.0));
+        assert_eq!(rate.kind, MetricKind::RateLimit);
+        assert_eq!(rate.window, Some(MetricWindow::Other));
         assert!(data.notes.iter().any(|n| n.contains("Allegro")));
     }
 
@@ -1264,6 +1298,8 @@ mod tests {
         // percent = RESTANTE: 94 restantes → 6 usados.
         assert_eq!(m.used, Some(6.0));
         assert_eq!(m.remaining, Some(94.0));
+        assert_eq!(m.kind, MetricKind::Quota);
+        assert_eq!(m.window, Some(MetricWindow::Weekly));
         assert_eq!(m.limit, Some(100.0));
         assert_eq!(
             m.resets_at,

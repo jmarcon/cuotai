@@ -42,7 +42,7 @@
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, Provider};
 use serde::Deserialize;
 
 /// URLs internacionais oficiais (não configuráveis pelo usuário final;
@@ -192,6 +192,8 @@ async fn minimax_balance_at(
                 limit: None,
                 remaining: Some(available),
                 unit: "—".into(),
+                kind: MetricKind::Balance,
+                window: None,
                 period: Some("saldo atual".into()),
                 resets_at: None,
             },
@@ -202,6 +204,8 @@ async fn minimax_balance_at(
                 remaining: Some(cash),
                 unit: "—".into(),
                 period: Some("saldo atual".into()),
+                kind: MetricKind::Balance,
+                window: None,
                 resets_at: None,
             },
             Metric {
@@ -212,6 +216,8 @@ async fn minimax_balance_at(
                 unit: "—".into(),
                 period: Some("saldo atual".into()),
                 resets_at: None,
+                kind: MetricKind::Credits,
+                window: None,
             },
             Metric {
                 label: "Crédito".into(),
@@ -220,6 +226,8 @@ async fn minimax_balance_at(
                 remaining: Some(credit),
                 unit: "—".into(),
                 period: Some("saldo atual".into()),
+                kind: MetricKind::Credits,
+                window: None,
                 resets_at: None,
             },
             Metric {
@@ -229,6 +237,8 @@ async fn minimax_balance_at(
                 remaining: Some(owed),
                 unit: "—".into(),
                 period: Some("saldo atual".into()),
+                kind: MetricKind::Balance,
+                window: None,
                 resets_at: None,
             },
         ],
@@ -286,20 +296,30 @@ async fn kimi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         return Err(QueryError::schema());
     }
     let mut metrics = Vec::with_capacity(3);
-    let mut add = |label: &str, value: f64| {
+    let mut add = |label: &str, value: f64, kind: MetricKind| {
         metrics.push(Metric {
             label: label.into(),
             used: None,
             limit: None,
             remaining: Some(value),
             unit: "USD".into(),
+            kind,
+            window: None,
             period: Some("saldo atual".into()),
             resets_at: None,
         });
     };
-    add("Saldo disponível (KIMI_API_KEY)", data.available_balance);
-    add("Voucher", data.voucher_balance);
-    add("Saldo em caixa (pode ser negativo)", data.cash_balance);
+    add(
+        "Saldo disponível (KIMI_API_KEY)",
+        data.available_balance,
+        MetricKind::Balance,
+    );
+    add("Voucher", data.voucher_balance, MetricKind::Credits);
+    add(
+        "Saldo em caixa (pode ser negativo)",
+        data.cash_balance,
+        MetricKind::Balance,
+    );
     let mut notes = Notes::new();
     notes.push(
         "note.kimi.platform_key_scope",
@@ -414,6 +434,13 @@ mod tests {
         assert_eq!(find("Voucher"), 2.5);
         assert_eq!(find("Crédito"), 0.0);
         assert_eq!(find("Valor devido (dívida)"), 0.0);
+        assert!(data.metrics.iter().all(|m| m.window.is_none()));
+        for index in [0, 1, 4] {
+            assert_eq!(data.metrics[index].kind, MetricKind::Balance);
+        }
+        for index in [2, 3] {
+            assert_eq!(data.metrics[index].kind, MetricKind::Credits);
+        }
         assert!(data.notes.iter().any(|n| n.contains("ativado")));
         assert_eq!(data.source, MINIMAX_ACCOUNT_BALANCE_URL);
     }
@@ -494,6 +521,10 @@ mod tests {
         assert!((find("Saldo disponível (KIMI_API_KEY)") - 49.58894).abs() < 1e-9);
         assert!((find("Voucher") - 46.58893).abs() < 1e-9);
         assert!((find("Saldo em caixa (pode ser negativo)") + 3.0).abs() < 1e-9);
+        assert!(data.metrics.iter().all(|m| m.window.is_none()));
+        assert_eq!(data.metrics[0].kind, MetricKind::Balance);
+        assert_eq!(data.metrics[1].kind, MetricKind::Credits);
+        assert_eq!(data.metrics[2].kind, MetricKind::Balance);
         assert_eq!(data.source, KIMI_BALANCE_URL);
     }
 

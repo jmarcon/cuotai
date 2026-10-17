@@ -5,7 +5,7 @@
 //! No token generation/reset/purchase calls; credentials come only from explicit env refs.
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::Deserialize;
 use serde_json::Value;
@@ -98,6 +98,8 @@ fn qoder_metric(
             .clone()
             .filter(|unit| !unit.trim().is_empty())
             .unwrap_or_else(|| "créditos".into()),
+        kind: MetricKind::Quota,
+        window: Some(MetricWindow::Other),
         period: Some("ciclo de quota Qoder".into()),
         resets_at,
     }))
@@ -221,14 +223,25 @@ async fn qoder(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
 // Ollama Cloud
 // ---------------------------------------------------------------------------
 
-/// (label, period) per window key, in 9router's OLLAMA_LIMIT_WINDOWS order.
-const OLLAMA_WINDOWS: [(&str, &str, &str); 3] = [
-    ("session", "Ollama Cloud: sessão", "janela de 5h"),
-    ("weekly", "Ollama Cloud: semanal", "janela de 7d"),
+/// (key, label, period, typed window) in 9router's OLLAMA_LIMIT_WINDOWS order.
+const OLLAMA_WINDOWS: [(&str, &str, &str, MetricWindow); 3] = [
+    (
+        "session",
+        "Ollama Cloud: sessão",
+        "janela de 5h",
+        MetricWindow::Window5h,
+    ),
+    (
+        "weekly",
+        "Ollama Cloud: semanal",
+        "janela de 7d",
+        MetricWindow::Weekly,
+    ),
     (
         "monthly",
         "Ollama Cloud: mensal",
         "mês da assinatura gratuita",
+        MetricWindow::Monthly,
     ),
 ];
 
@@ -373,7 +386,7 @@ async fn ollama(
         (&OLLAMA_WINDOWS[2], limits.monthly),
     ];
     let mut metrics = Vec::new();
-    for ((key, label, period), limit) in by_window {
+    for ((key, label, period, window), limit) in by_window {
         let Some(ratio) = limit.and_then(|limit| limit.usage) else {
             continue;
         };
@@ -388,6 +401,8 @@ async fn ollama(
             limit: Some(100.0),
             remaining: Some(100.0 - used),
             unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(*window),
             period: Some((*period).into()),
             resets_at: if *key == "monthly" {
                 monthly_reset
@@ -485,11 +500,15 @@ mod tests {
         assert_eq!(session.used, Some(0.0));
         assert_eq!(session.limit, Some(100.0));
         assert_eq!(session.remaining, Some(100.0));
+        assert_eq!(session.kind, MetricKind::Quota);
+        assert_eq!(session.window, Some(MetricWindow::Window5h));
         assert_eq!(session.unit, "%");
         assert_eq!(session.resets_at, None);
         let weekly = &data.metrics[1];
         assert_eq!(weekly.used, Some(100.0));
         assert_eq!(weekly.remaining, Some(0.0));
+        assert_eq!(weekly.kind, MetricKind::Quota);
+        assert_eq!(weekly.window, Some(MetricWindow::Weekly));
         assert_eq!(weekly.resets_at, None);
     }
 
@@ -529,6 +548,8 @@ mod tests {
         let monthly = &data.metrics[0];
         assert_eq!(monthly.used, Some(2.0));
         assert_eq!(monthly.remaining, Some(98.0));
+        assert_eq!(monthly.kind, MetricKind::Quota);
+        assert_eq!(monthly.window, Some(MetricWindow::Monthly));
         assert_eq!(monthly.resets_at, Some(now("2026-10-06T22:15:39.871687Z")));
     }
 
@@ -625,6 +646,8 @@ mod tests {
         assert_eq!(user.used, Some(250.0));
         assert_eq!(user.limit, Some(1000.0));
         assert_eq!(user.remaining, Some(750.0));
+        assert_eq!(user.kind, MetricKind::Quota);
+        assert_eq!(user.window, Some(MetricWindow::Other));
         assert_eq!(user.unit, "credits");
         assert_eq!(
             user.resets_at,
@@ -632,6 +655,8 @@ mod tests {
         );
         let org = &data.metrics[1];
         assert_eq!(org.remaining, Some(4900.0));
+        assert_eq!(org.kind, MetricKind::Quota);
+        assert_eq!(org.window, Some(MetricWindow::Other));
     }
 
     #[tokio::test]

@@ -59,7 +59,7 @@
 
 use super::{json, Context, Data, QueryError};
 use crate::text::{params, provider_l10n, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Datelike, Months, Utc};
 use reqwest::RequestBuilder;
 use serde::Deserialize;
@@ -317,6 +317,8 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
         "Créditos consumidos no mês (Perplexity Computer)",
         total,
         "créditos",
+        MetricKind::Credits,
+        Some(MetricWindow::Monthly),
     );
     m.period = Some(period.clone());
     m.resets_at = Some(reset);
@@ -444,6 +446,8 @@ async fn mistral(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         format!("Uso de completion no mês corrente ({currency})"),
         used_opt.unwrap_or(0.0),
         currency.clone(),
+        MetricKind::Spend,
+        Some(MetricWindow::Monthly),
     );
     m.used = used_opt;
     m.period = Some(period.clone());
@@ -641,7 +645,13 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
     // `None` porque o campo da API é saldo, não consumo.
     match parse_usd_cents(&prepaid.total.val)? {
         Some(saldo) => {
-            let mut m = Metric::usage("Saldo de créditos pré-pagos", 0.0, "USD");
+            let mut m = Metric::usage(
+                "Saldo de créditos pré-pagos",
+                0.0,
+                "USD",
+                MetricKind::Credits,
+                None,
+            );
             m.used = None;
             m.remaining = Some(saldo);
             // Sem reset documentado para pré-pago: permanece None.
@@ -667,7 +677,13 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
 
     match (cycle_total, spending_limit) {
         (Some(total), limit_opt) => {
-            let mut m = Metric::usage("Uso pós-pago previsto no ciclo corrente", total, "USD");
+            let mut m = Metric::usage(
+                "Uso pós-pago previsto no ciclo corrente",
+                total,
+                "USD",
+                MetricKind::Spend,
+                Some(MetricWindow::Monthly),
+            );
             if preview.billing_cycle.year > 0 {
                 let month = preview.billing_cycle.month.max(1) as u32;
                 m.period = Some(format!("{:04}-{:02}", preview.billing_cycle.year, month));
@@ -1043,6 +1059,8 @@ mod tests {
         approx(total.used.unwrap(), 350.0);
         assert_eq!(total.unit, "créditos");
         assert!(total.limit.is_none() && total.remaining.is_none());
+        assert_eq!(total.kind, MetricKind::Credits);
+        assert_eq!(total.window, Some(MetricWindow::Monthly));
         assert!(total.period.is_some() && total.resets_at.is_some());
     }
 
@@ -1311,6 +1329,8 @@ mod tests {
         approx(m.used.unwrap(), 42.5);
         assert_eq!(m.unit, "USD");
         approx(m.limit.unwrap(), 100.0);
+        assert_eq!(m.kind, MetricKind::Spend);
+        assert_eq!(m.window, Some(MetricWindow::Monthly));
         approx(m.remaining.unwrap(), 57.5);
         assert!(m.period.is_some() && m.resets_at.is_some());
     }
@@ -1556,6 +1576,8 @@ mod tests {
         // Pré-pago: `used` permanece None; o saldo é exposto em `remaining`.
         assert!(prepaid.used.is_none());
         approx(prepaid.remaining.unwrap(), 123.45);
+        assert_eq!(prepaid.kind, MetricKind::Credits);
+        assert_eq!(prepaid.window, None);
         assert_eq!(prepaid.unit, "USD");
         assert!(prepaid.period.is_none());
         // Sem reset documentado para pré-pago.
@@ -1565,6 +1587,8 @@ mod tests {
         approx(cycle.used.unwrap(), 11.80);
         approx(cycle.limit.unwrap(), 200.0);
         approx(cycle.remaining.unwrap(), 188.20);
+        assert_eq!(cycle.kind, MetricKind::Spend);
+        assert_eq!(cycle.window, Some(MetricWindow::Monthly));
         assert_eq!(cycle.period.as_deref(), Some("2025-11"));
 
         // Notas explicam que effectiveSpendingLimit é orçamento, não cota.

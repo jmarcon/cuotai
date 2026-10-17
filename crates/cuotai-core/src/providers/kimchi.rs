@@ -20,7 +20,7 @@
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Status};
+use crate::{Account, Metric, MetricKind, MetricWindow, Status};
 use chrono::{DateTime, Utc};
 use serde_json::{Map, Value};
 
@@ -62,6 +62,8 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         limit: None,
         remaining: Some(remaining),
         unit: "USD".into(),
+        kind: MetricKind::Credits,
+        window: None,
         period: None,
         resets_at: None,
     }];
@@ -302,6 +304,8 @@ fn push_budget_metric(
         limit,
         remaining,
         unit: "USD".into(),
+        kind: MetricKind::Spend,
+        window: Some(MetricWindow::Other),
         period: Some(period.into()),
         resets_at: Some(resets_at),
     });
@@ -477,11 +481,17 @@ mod tests {
         assert_eq!(data.metrics.len(), 3);
         assert_eq!(data.metrics[0].label, "Créditos restantes");
         assert_eq!(data.metrics[0].remaining, Some(18.4));
+        assert_eq!(data.metrics[0].kind, MetricKind::Credits);
+        assert_eq!(data.metrics[0].window, None);
         assert_eq!(data.metrics[1].used, Some(6.6));
         assert_eq!(data.metrics[1].limit, Some(25.0));
         assert_eq!(data.metrics[1].remaining, Some(18.4));
         assert_eq!(data.metrics[2].used, Some(4.0));
         assert_eq!(data.metrics[2].remaining, Some(6.0));
+        for metric in &data.metrics[1..] {
+            assert_eq!(metric.kind, MetricKind::Spend);
+            assert_eq!(metric.window, Some(MetricWindow::Other));
+        }
         assert_eq!(
             data.metrics[2].resets_at,
             DateTime::parse_from_rfc3339("2026-10-01T00:00:00Z")

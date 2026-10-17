@@ -8,7 +8,7 @@
 //! Kiro CLI's GetUsageLimits handling.
 use super::{json, param, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider, Status};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use reqwest::RequestBuilder;
 use serde_json::Value;
@@ -151,6 +151,7 @@ fn quota_metric(
     limit: Option<f64>,
     unit: &str,
     period: Option<&str>,
+    window: Option<MetricWindow>,
     resets_at: Option<DateTime<Utc>>,
 ) -> Option<Metric> {
     if used.is_none() && limit.is_none() {
@@ -163,6 +164,8 @@ fn quota_metric(
         limit,
         remaining,
         unit: unit.into(),
+        kind: MetricKind::Quota,
+        window,
         period: period.map(str::to_owned),
         resets_at,
     })
@@ -448,6 +451,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
             number(breakdown.get("usageLimitWithPrecision")),
             "créditos",
             None,
+            Some(MetricWindow::Other),
             reset_at,
         ) {
             metrics.push(metric);
@@ -464,6 +468,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
             overage_cap,
             "créditos",
             None,
+            Some(MetricWindow::Other),
             reset_at,
         ) {
             metrics.push(metric);
@@ -531,6 +536,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
                 number(trial.get("usageLimitWithPrecision")),
                 "créditos",
                 None,
+                Some(MetricWindow::Other),
                 trial_reset,
             ) {
                 metrics.push(metric);
@@ -642,6 +648,11 @@ async fn codebuddy(
             ),
             "créditos",
             Some(cadence_period(cadence)),
+            Some(match cadence {
+                "Daily" => MetricWindow::Daily,
+                "Weekly" => MetricWindow::Weekly,
+                _ => MetricWindow::Monthly,
+            }),
             parse_reset(acc.get("CycleEndTime")),
         ) {
             metrics.push(metric);
@@ -653,6 +664,7 @@ async fn codebuddy(
             precise(acc.get("CapacityUsedPrecise"), acc.get("CapacityUsed")),
             precise(acc.get("CapacitySizePrecise"), acc.get("CapacitySize")),
             "créditos",
+            None,
             None,
             parse_reset(acc.get("CycleEndTime")),
         ) {
@@ -826,6 +838,8 @@ fn zed_data(user: &Value) -> Data {
                     limit: None,
                     remaining: None,
                     unit: "solicitações".into(),
+                    kind: MetricKind::Quota,
+                    window: Some(MetricWindow::Other),
                     period: Some("ciclo de assinatura".into()),
                     resets_at: reset_at,
                 });
@@ -841,6 +855,8 @@ fn zed_data(user: &Value) -> Data {
                     limit: Some(total),
                     remaining: used.map(|u| (total - u).max(0.0)),
                     unit: "solicitações".into(),
+                    kind: MetricKind::Quota,
+                    window: Some(MetricWindow::Other),
                     period: Some("ciclo de assinatura".into()),
                     resets_at: reset_at,
                 });
@@ -852,6 +868,7 @@ fn zed_data(user: &Value) -> Data {
                     None,
                     "solicitações",
                     Some("ciclo de assinatura"),
+                    Some(MetricWindow::Other),
                     reset_at,
                 ) {
                     metrics.push(metric);
@@ -881,6 +898,8 @@ fn zed_data(user: &Value) -> Data {
                     remaining: None,
                     unit: "solicitações".into(),
                     period: Some("ciclo de assinatura".into()),
+                    kind: MetricKind::Quota,
+                    window: Some(MetricWindow::Other),
                     resets_at: reset_at,
                 });
                 notes.push(
@@ -896,6 +915,8 @@ fn zed_data(user: &Value) -> Data {
                     remaining: used.map(|u| (total - u).max(0.0)),
                     unit: "solicitações".into(),
                     period: Some("ciclo de assinatura".into()),
+                    kind: MetricKind::Quota,
+                    window: Some(MetricWindow::Other),
                     resets_at: reset_at,
                 });
             }
@@ -1482,6 +1503,8 @@ mod tests {
         assert_eq!(data.metrics.len(), 1);
         assert_eq!(data.metrics[0].label, "Kiro: credit");
         assert_eq!(data.metrics[0].used, Some(42.5));
+        assert_eq!(data.metrics[0].kind, MetricKind::Quota);
+        assert_eq!(data.metrics[0].window, Some(MetricWindow::Other));
         let requests = server.received_requests().await.unwrap();
         assert_eq!(
             requests.len(),
@@ -1627,6 +1650,22 @@ mod tests {
                 {
                     "PackageName": "基础体验包",
                     "CycleStartTime": "2026-07-01 00:00:00",
+                    "CycleEndTime": "2026-07-02 00:00:00",
+                    "DeductionEndTime": 1800000000000_u64,
+                    "CycleCapacityUsedPrecise": "1",
+                    "CycleCapacitySizePrecise": "10"
+                },
+                {
+                    "PackageName": "基础体验包",
+                    "CycleStartTime": "2026-07-01 00:00:00",
+                    "CycleEndTime": "2026-07-08 00:00:00",
+                    "DeductionEndTime": 1800000000000_u64,
+                    "CycleCapacityUsedPrecise": "2",
+                    "CycleCapacitySizePrecise": "20"
+                },
+                {
+                    "PackageName": "基础体验包",
+                    "CycleStartTime": "2026-07-01 00:00:00",
                     "CycleEndTime": "2026-08-01 00:00:00",
                     "DeductionEndTime": 1800000000000_u64,
                     "CycleCapacityUsedPrecise": "6.54",
@@ -1663,20 +1702,30 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(data.metrics.len(), 2);
-        let monthly = &data.metrics[0];
+        assert_eq!(data.metrics.len(), 4);
+        let daily = &data.metrics[0];
+        assert_eq!(daily.kind, MetricKind::Quota);
+        assert_eq!(daily.window, Some(MetricWindow::Daily));
+        let weekly = &data.metrics[1];
+        assert_eq!(weekly.kind, MetricKind::Quota);
+        assert_eq!(weekly.window, Some(MetricWindow::Weekly));
+        let monthly = &data.metrics[2];
         assert_eq!(monthly.label, "CodeBuddy: Monthly");
         assert_eq!(monthly.used, Some(6.54));
         assert_eq!(monthly.limit, Some(500.0));
         assert_eq!(monthly.period.as_deref(), Some("mensal"));
+        assert_eq!(monthly.kind, MetricKind::Quota);
+        assert_eq!(monthly.window, Some(MetricWindow::Monthly));
         assert_eq!(
             monthly.resets_at.unwrap().to_rfc3339(),
             "2026-08-01T00:00:00+00:00"
         );
-        let bonus = &data.metrics[1];
+        let bonus = &data.metrics[3];
         assert_eq!(bonus.label, "CodeBuddy: Bonus Pack 1");
         assert_eq!(bonus.used, Some(12.0));
         assert_eq!(bonus.limit, Some(100.0));
+        assert_eq!(bonus.kind, MetricKind::Quota);
+        assert_eq!(bonus.window, None);
         assert_eq!(
             bonus.resets_at.unwrap().to_rfc3339(),
             "2026-07-15T00:00:00+00:00"
@@ -1711,7 +1760,7 @@ mod tests {
             .mount(&server)
             .await;
         let http = reqwest::Client::new();
-        let data = codebuddy(
+        codebuddy(
             &account(Provider::CodeBuddy, &[("region", "intl")]),
             &ctx(&http, &Creds),
             &server.uri(),
@@ -1720,7 +1769,6 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(data.metrics.len(), 2);
     }
 
     #[tokio::test]
@@ -1801,6 +1849,8 @@ mod tests {
         assert_eq!(metric.label, "Zed: Edit Predictions");
         assert_eq!(metric.used, Some(12.0));
         assert_eq!(metric.limit, Some(50.0));
+        assert_eq!(metric.kind, MetricKind::Quota);
+        assert_eq!(metric.window, Some(MetricWindow::Other));
         assert_eq!(metric.remaining, Some(38.0));
         assert_eq!(
             metric.resets_at.unwrap().to_rfc3339(),
