@@ -472,6 +472,13 @@ mod tests {
         let mut ids = Vec::new();
         ids.push("edit_error.option_not_valid_for_auth_mode".to_string());
         ids.push("edit_notice.option_replaced_for_auth_mode".to_string());
+        for error in [
+            crate::models::ModelError::InvalidIndex,
+            crate::models::ModelError::NoCache,
+            crate::models::ModelError::Storage,
+        ] {
+            ids.push(error.l10n().id.to_string());
+        }
         for auth_mode in [
             edit::AUTH_MODE_CREDENTIAL,
             "oauth",
@@ -482,6 +489,9 @@ mod tests {
             ids.push(edit::auth_mode_label(auth_mode).id.to_string());
         }
         for provider in Provider::ALL {
+            let models = crate::models::source(provider)
+                .unwrap_or_else(|| crate::models::unsupported_reason(provider));
+            ids.push(models.id.to_string());
             ids.push(edit::credential_help(provider).id.to_string());
             if let Some(note) = edit::cost_advisory(provider) {
                 ids.push(note.id.to_string());

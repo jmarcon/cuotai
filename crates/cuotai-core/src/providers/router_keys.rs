@@ -20,7 +20,7 @@ use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, Utc};
 
 const OPENCODE_GO_USAGE_URL: &str = "https://opencode.ai/zen/go/v1/usage";
-const GROQ_MODELS_URL: &str = "https://api.groq.com/openai/v1/models";
+pub(crate) const GROQ_MODELS_URL: &str = "https://api.groq.com/openai/v1/models";
 const KIMI_CODING_USAGES_URL: &str = "https://api.kimi.com/coding/v1/usages";
 const MIMO_AISTUDIO_USAGE_URL: &str = "https://aistudio.xiaomimimo.com/open-apis/v1/user/usage";
 
@@ -335,6 +335,48 @@ pub(crate) async fn groq_at(
     }
 
     Ok(Data::new(metrics, notes, GROQ_MODELS_URL))
+}
+
+/// Model catalog from the same GET /openai/v1/models (OpenAI list shape).
+/// Only `data[].id` is used: `owned_by` is an organization, not a model
+/// name. Any entry without a string id rejects the whole response.
+pub(crate) async fn groq_models_at(
+    account: &Account,
+    ctx: &Context<'_>,
+    url: &str,
+) -> Result<Vec<crate::models::ModelInfo>, QueryError> {
+    #[derive(serde::Deserialize)]
+    struct List {
+        data: Vec<Entry>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        id: String,
+    }
+    let key = secret(account, ctx, "GROQ_API_KEY")?;
+    let request = ctx
+        .http
+        .get(url)
+        .bearer_auth(key.trim())
+        .header("Accept", "application/json")
+        .timeout(ctx.timeout);
+    let list: List = send(request)
+        .await?
+        .json()
+        .await
+        .map_err(|_| QueryError::schema())?;
+    let ids: std::collections::BTreeSet<String> = list.data.into_iter().map(|e| e.id).collect();
+    if ids.iter().any(|id| id.trim().is_empty()) {
+        return Err(QueryError::schema());
+    }
+    Ok(ids
+        .into_iter()
+        .map(|id| crate::models::ModelInfo {
+            id,
+            name: None,
+            description: None,
+        })
+        .collect())
 }
 
 fn header_number(headers: &reqwest::header::HeaderMap, name: &str) -> Option<f64> {

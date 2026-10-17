@@ -15,6 +15,7 @@ use cuotai_core::{
     account_edit::{self, RemoveError, RemoveOutcome, RemovedAccount},
     config_file::ConfigFile,
     login::{self, CompletedLogin},
+    models::ModelCache,
     oauth::OAuthSession,
     refresh::{Edit, RefreshCycle},
     Account, Config, EnvironmentCredentials, Metric, Monitor, Snapshot,
@@ -182,7 +183,7 @@ enum DeletionState {
 }
 
 pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result<()> {
-    let mut monitor = new_monitor(&file.config, &session)?;
+    let mut monitor = new_monitor(&file, &session)?;
     let mut auth_task: Option<LoginTask> = None;
     let mut authorized: Option<CompletedLogin> = None;
     let mut saving_config: Option<(Config, Option<usize>)> = None;
@@ -1048,14 +1049,19 @@ fn location(file: &ConfigFile) -> String {
     format!("{} ({source})", file.path.display())
 }
 
-fn new_monitor(config: &Config, session: &Arc<OAuthSession>) -> io::Result<Arc<Monitor>> {
-    Monitor::with_oauth(
-        config.clone(),
+/// Monitor for `file` with its model cache in the OS data dir; without a
+/// resolvable data dir, model operations report `NoCache` and quotas work.
+fn new_monitor(file: &ConfigFile, session: &Arc<OAuthSession>) -> io::Result<Arc<Monitor>> {
+    let monitor = Monitor::with_oauth(
+        file.config.clone(),
         Arc::new(EnvironmentCredentials),
         Arc::clone(session),
     )
-    .map(Arc::new)
-    .map_err(io::Error::other)
+    .map_err(io::Error::other)?;
+    Ok(Arc::new(match ModelCache::in_data_dir(file) {
+        Ok(cache) => monitor.with_model_cache(cache),
+        Err(_) => monitor,
+    }))
 }
 
 /// RF4 conflict recovery: re-read the file from disk and rebuild the
@@ -1091,8 +1097,7 @@ fn reload_config_after_conflict(
         true,
     )
     .map_err(|e| e.message())?;
-    let new_monitor =
-        new_monitor(&candidate.config, session).map_err(|e| format!("monitor: {e}"))?;
+    let new_monitor = new_monitor(&candidate, session).map_err(|e| format!("monitor: {e}"))?;
     // Commit: from here on a panic would leave the runtime in a
     // consistent (old) configuration; the candidate has been
     // validated but not yet swapped.
