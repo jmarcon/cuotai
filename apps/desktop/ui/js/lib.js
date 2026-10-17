@@ -371,7 +371,7 @@ const demo = {
   list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label })),
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
     credential_help: { id: "credential_help.demo", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },
-    login: { modes: [{ id: "oauth", label: { id: "login.demo.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "login.demo.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, requires_client_registration: false, options: [], unavailable_reason: { id: "login.demo.oauth.unavailable_reason", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
+    login: { modes: [{ id: "oauth", label: { id: "login.demo.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "login.demo.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "login.demo.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "login.demo.oauth.unavailable_reason", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
     cost_advisory: null,
     fields: [{ id: "field.demo.project_id", key: "project_id", label: { id: "field.demo.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "field.demo.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "field.demo.mode", key: "mode", label: { id: "field.demo.mode.label", params: {}, fallback: "Modo" }, help: { id: "field.demo.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "field.demo.mode.option.personal", value: "personal", label: { id: "field.demo.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "field.demo.mode.option.org", value: "org", label: { id: "field.demo.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
@@ -379,12 +379,13 @@ const demo = {
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
     : ["project_id", "mode"],
   get_account: async ({ index }) => ({ name: demoReports[index].account, provider: demoReports[index].provider, credential: "DEMO_API_KEY",
-    interval: "", uses_oauth: false, native_login: false, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }] }),
+    interval: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }] }),
   save_account: async ({ input }) => {
     window.__lastSaveRequest = input;
     if (!input.name.trim()) throw "Informe um nome para a conta.";
     const r = dr(input.name, input.provider, [dm("Exemplo", 10, 100, 5)]);
     input.index == null ? demoReports.push(r) : (demoReports[input.index] = r);
+    return { cleanup_warning: null };
   },
   // Login de demonstração: emite a sequência de eventos do core (prompt → progresso → concluído).
   login_start: async ({ request }) => {
@@ -509,11 +510,13 @@ function demoKiroSchema() {
   return {
     credential_kind: "env", default_env: "KIRO_ACCESS_TOKEN", credential_help: dl("credential_help.kiro", "Access token Kiro (demo)."), cost_advisory: null,
     login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("login.oauth.label", "Login no navegador"), help: dl("login.oauth.help", "Login nativo no navegador do sistema."),
-      requires_client_registration: false, unavailable_reason: null,
+      completion_notice: dl("login.oauth.completion", "Login autorizado (demo)."),
+      credential_store: "cuotai_vault", account_binding: { type: "none" },
+      registration: [], unavailable_reason: null,
       options: [
-        { key: "auth_method", label: dl("o.auth_method", "Método de autenticação"), help: dl("o.auth_method.h", "builder-id ou idc."), choices: opts("o.auth_method", [["builder-id", "AWS Builder ID"], ["idc", "IAM Identity Center"]]) },
-        { key: "region", label: dl("o.region", "Região (opcional)"), help: dl("o.region.h", ""), choices: null },
-        { key: "start_url", label: dl("o.start_url", "URL de início IDC (opcional)"), help: dl("o.start_url.h", ""), choices: null },
+        { key: "auth_method", label: dl("o.auth_method", "Método de autenticação"), help: dl("o.auth_method.h", "builder-id ou idc."), required: false, validation: "none", choices: opts("o.auth_method", [["builder-id", "AWS Builder ID"], ["idc", "IAM Identity Center"]]) },
+        { key: "region", label: dl("o.region", "Região (opcional)"), help: dl("o.region.h", ""), required: false, validation: "no_whitespace", choices: null },
+        { key: "start_url", label: dl("o.start_url", "URL de início IDC (opcional)"), help: dl("o.start_url.h", ""), required: false, validation: "no_whitespace", choices: null },
       ] }] },
     fields: [
       { key: "auth_method", label: dl("f.auth_method", "Método de autenticação"), help: dl("f.auth_method.h", "Origem do access token."), required: false,

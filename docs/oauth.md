@@ -25,10 +25,10 @@ O Cuotai suporta fluxos de autenticação nativa (OAuth no navegador, Device Cod
 
 1. **Na TUI:** Inicie `cargo run -p cuotai-tui`, pressione **a** para adicionar ou **e** para editar uma conta. Escolha o provedor e o nome da conta e, na etapa **Credencial**, pressione **Tab**.
    **No Desktop:** Clique em **Adicionar conta** ou **Editar**, escolha **Login no navegador** e clique em **Entrar**.
-2. Para login nativo, a interface não pede `client_id`. Kiro oferece método/região/start URL; Qoder, CodeBuddy e Xiaomi oferecem região.
+2. Para login nativo, a interface não pede `client_id`. Modos que exigem registro de aplicativo próprio (Gemini API, Vertex AI, Azure OpenAI) descrevem, no próprio descritor do modo (`cuotai_core::login`), quais campos de registro se aplicam (`client_id`, `tenant` ou a variável do `client_secret`) — TUI e Desktop apenas renderizam essa lista, sem saber de antemão quais provedores pedem o quê. Kiro oferece método/região/start URL; Qoder, CodeBuddy e Xiaomi oferecem região.
 3. Ao iniciar, o Cuotai abre o navegador e, quando necessário, exibe a URL e o código de dispositivo para copiar. Autorize na página do provedor.
 4. Ao receber a autorização, os parâmetros de quota são preenchidos automaticamente. Salve para gravar os tokens no cofre do SO e a configuração no arquivo TOML.
-5. Para renovar uma autorização revogada ou expirada, edite a conta e use **F2** (TUI) ou **Refazer login / Reautenticar** (Desktop).
+5. Para renovar uma autorização revogada ou expirada, edite a conta e use **F2** (TUI) ou **Refazer login / Reautenticar** (Desktop). A reautenticação reaproveita o mesmo `credential_id` da conta (decisão do core, não do frontend): o token é sobrescrito no cofre e nenhuma credencial fica órfã.
 
 O login nativo seleciona automaticamente o produto correto (Copilot quota pessoal, Kimi Coding, Gemini CLI, Grok CLI e Qoder bearer), sem substituir essas sessões por chaves comerciais de geração. IDs Zed, perfil Kiro, device ID Kimi e account ID Codex são derivados do retorno quando disponíveis; metadados de quota não secretos são preenchidos e credenciais de refresh ficam somente no cofre.
 
@@ -91,7 +91,7 @@ Prepare uma vez com `aws configure sso`. Ao configurar AWS Bedrock, informe o pe
 
 - **Cofre do sistema:** Por padrão, os logins integrados armazenam access token, refresh token e contexto secreto no cofre nativo, serviço **`cuotai.oauth`** (Keychain no macOS, Windows Credential Manager e Linux Secret Service). Sem acesso autorizado, há erro explícito; nunca há fallback automático para SQLite.
 - **Formato no TOML:** O TOML guarda `accounts.oauth.credential_id`, client ID/tenant/referência de client secret quando aplicável, e `options` não secretas (`region`, `auth_method`, `start_url`). `oauth` e `credential_env` não podem coexistir na mesma conta.
-- **Commit estagiado:** Tokens de login novo ficam em memória até o salvamento final da conta. O core grava primeiro no cofre e depois no TOML; se o arquivo falhar, restaura a credencial anterior ou remove a nova.
+- **Commit estagiado:** Tokens de login novo ficam em memória até o salvamento final da conta. O core grava primeiro no cofre e depois no TOML; se o arquivo falhar, restaura a credencial anterior ou remove a nova. Se o salvamento do TOML tiver sucesso e a chave do cofre tiver mudado (por exemplo, ao alterar método/região do Kiro, `client_id` ou tenant mantendo o mesmo `credential_id`), a chave antiga é removida **somente depois** do salvamento, a menos que outra conta do arquivo salvo ainda a referencie. Uma falha nessa limpeza é reportada como resultado tipado não fatal (configuração e nova credencial salvas; credencial anterior mantida no cofre), exibido de forma verdadeira na TUI e no Desktop — nunca como um rollback fictício.
 - **Renovação automática:** Antes de consultar, tokens com menos de 60 segundos de validade são renovados quando existe refresh token e o protocolo o suporta (Claude, Codex, Google, Kimi, Kiro, Grok, CodeBuddy, Cline e GitHub quando aplicável). Uma rotação já iniciada termina sua persistência mesmo que a consulta seja cancelada, evitando perder o refresh token novo.
 
 ## Credenciais SQLite — somente desenvolvimento

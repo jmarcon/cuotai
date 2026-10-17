@@ -1,5 +1,5 @@
 import { boot } from "./boot.js";
-import { te, t } from "./i18n.js";
+import { te, t, tl } from "./i18n.js";
 import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
 import { confirmDelete, openAccountDialog } from "./account-dialog.js";
@@ -127,9 +127,13 @@ function onDeleted(result) {
   else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }));
 }
 
+const onSaved = (result) => {
+  if (result?.cleanup_warning) setNotice("bad", tl(result.cleanup_warning));
+};
+
 const detailsContext = {
   reports: () => store.view?.reports ?? [],
-  onEdit: (index) => openAccountDialog(index),
+  onEdit: (index) => openAccountDialog(index, { onSaved }),
   onRemove: (index, label) =>
     confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),
   onChange: () => render(),
@@ -192,7 +196,7 @@ root.addEventListener("click", (e) => {
   const one = t.closest("[data-refresh]");
   if (one) return store.refreshOne(Number(one.dataset.refresh));
   if (t.closest("[data-refresh-all]")) return store.refresh();
-  if (t.closest("[data-add]")) return openAccountDialog();
+  if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
   if (t.closest("[data-settings]")) return openSettings({ configPath: store.view?.config_path, onChange: render, view: () => store.view });
   const det = t.closest("[data-details]");
   if (det) return openDetails(det.dataset.details, detailsContext);

@@ -70,9 +70,22 @@ pub const MODE_OAUTH: &str = "oauth";
 pub const MODE_AWS_SSO: &str = "aws_sso";
 pub const MODE_BAILIAN_CONSOLE: &str = "bailian_console";
 
-/// Owned, serializable mirror of [`account_edit::NativeOptionDescriptor`]:
-/// a nonsecret flow option (region, auth_method, start_url) or a CLI argument
-/// (AWS profile, Bailian console site/profile).
+/// Validation owned by the core for a nonsecret login input.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginOptionValidation {
+    #[default]
+    None,
+    ClientId,
+    EnvName,
+    Tenant,
+    NoWhitespace,
+    Path,
+    CliProfile,
+}
+
+/// A text or closed-choice input accepted by a login mode. Registration and
+/// native-flow inputs share this descriptor so frontends never hardcode keys.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginOption {
     pub key: String,
@@ -80,6 +93,8 @@ pub struct LoginOption {
     pub help: String,
     /// Closed value list; `None` means free text.
     pub choices: Option<Vec<(String, String)>>,
+    pub required: bool,
+    pub validation: LoginOptionValidation,
 }
 
 impl LoginOption {
@@ -89,7 +104,19 @@ impl LoginOption {
             label: label.to_string(),
             help: help.to_string(),
             choices: None,
+            required: false,
+            validation: LoginOptionValidation::None,
         }
+    }
+
+    fn required(mut self) -> Self {
+        self.required = true;
+        self
+    }
+
+    fn validation(mut self, validation: LoginOptionValidation) -> Self {
+        self.validation = validation;
+        self
     }
 
     fn from_native(descriptor: &account_edit::NativeOptionDescriptor) -> Self {
@@ -103,64 +130,208 @@ impl LoginOption {
                     .collect(),
             ),
         };
+        let validation = if descriptor.key == "database_path" {
+            LoginOptionValidation::Path
+        } else {
+            LoginOptionValidation::NoWhitespace
+        };
         Self {
             key: descriptor.key.to_string(),
             label: descriptor.label.to_string(),
             help: descriptor.help.to_string(),
             choices,
+            required: false,
+            validation,
+        }
+    }
+
+    /// Validate one value against this trusted descriptor. The input itself is
+    /// never echoed in the error.
+    pub fn validate(&self, value: &str) -> Result<(), OAuthError> {
+        let value = value.trim();
+        if value.is_empty() {
+            if self.required {
+                return Err(OAuthError::Configuration(format!(
+                    "{} é obrigatório.",
+                    self.label
+                )));
+            }
+            return Ok(());
+        }
+        if value.len() > 2048 || value.chars().any(char::is_control) {
+            return Err(OAuthError::Configuration(format!(
+                "{} contém caracteres inválidos ou é longo demais.",
+                self.label
+            )));
+        }
+        if let Some(choices) = &self.choices {
+            if !choices.iter().any(|(choice, _)| choice == value) {
+                return Err(OAuthError::Configuration(format!(
+                    "{} não contém uma opção reconhecida.",
+                    self.label
+                )));
+            }
+        }
+        let valid = match self.validation {
+            LoginOptionValidation::None | LoginOptionValidation::Path => true,
+            LoginOptionValidation::ClientId => value.len() <= 256,
+            LoginOptionValidation::EnvName => account_edit::valid_env_name(value),
+            LoginOptionValidation::Tenant => value
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.')),
+            LoginOptionValidation::NoWhitespace => !value.chars().any(char::is_whitespace),
+            LoginOptionValidation::CliProfile => account_edit::is_valid_cli_profile(value),
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(OAuthError::Configuration(format!(
+                "{} tem um valor inválido.",
+                self.label
+            )))
         }
     }
 }
 
-/// One interactive login mode offered (or explicitly not offered) for a
-/// provider. Frontends render the list verbatim and send the chosen `id`
-/// back in [`LoginRequest::mode`] — no provider branching (RF2.6/RF2.7).
+/// Where a successful login stores its credential.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginCredentialStore {
+    /// Cuotai owns the token and commits it to the OS vault.
+    CuotaiVault,
+    /// An external CLI owns its credential; Cuotai only records public params.
+    External,
+}
+
+/// Generic binding from public login values to the account draft.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LoginAccountBinding {
+    None,
+    /// The named option/result value is the account's credential text (AWS
+    /// profile, which `build_account` maps to `params.profile`).
+    Credential {
+        option: String,
+    },
+    /// The named option/result value is the isolated `bl --config` profile.
+    CliProfile {
+        option: String,
+    },
+}
+
+/// One interactive login mode offered for a provider. All labels, help,
+/// registration fields, outcome text and account bindings come from the core.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginMode {
     pub id: String,
     pub label: String,
     pub help: String,
-    /// True when the flow needs a user-registered application (`client_id`,
-    /// optional `tenant`/`client_secret_env`); those fields are inputs of
-    /// [`LoginRequest`] itself and never appear in [`LoginMode::options`].
-    pub requires_client_registration: bool,
+    pub completion_notice: String,
+    pub credential_store: LoginCredentialStore,
+    pub account_binding: LoginAccountBinding,
+    /// User-registered application inputs accepted in
+    /// [`LoginRequest::registration`]. Empty for native/external flows.
+    pub registration: Vec<LoginOption>,
     /// Nonsecret flow options accepted in [`LoginRequest::options`].
     pub options: Vec<LoginOption>,
-    /// Set when the mode exists but cannot start now (reason shown as-is).
     pub unavailable_reason: Option<String>,
 }
 
-/// Result of [`login_modes`]: the interactive modes a frontend may offer for
-/// `provider`, plus the reason when no login exists at all.
+/// Result of [`login_modes`]: interactive modes and the reason when no login
+/// exists at all.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderLogin {
     pub modes: Vec<LoginMode>,
     pub unsupported_reason: Option<String>,
 }
 
-/// RF2.7: every interactive login mode for `provider`, with descriptors.
-/// The flow choice behind [`MODE_OAUTH`] (browser loopback, device code,
-/// MiMo manual code, Cursor import) stays in the core.
+fn registration_options(provider: Provider) -> Vec<LoginOption> {
+    if !requires_client_registration(provider) {
+        return Vec::new();
+    }
+    let client_id = LoginOption::text(
+        "client_id",
+        "Client ID do app",
+        "Do SEU aplicativo registrado; o Cuotai não tem app próprio.",
+    )
+    .required()
+    .validation(LoginOptionValidation::ClientId);
+    if provider == Provider::AzureOpenAi {
+        vec![
+            client_id,
+            LoginOption::text(
+                "tenant",
+                "Tenant (opcional)",
+                "Vazio usa \"organizations\" (contas em qualquer organização).",
+            )
+            .validation(LoginOptionValidation::Tenant),
+        ]
+    } else {
+        vec![
+            client_id,
+            LoginOption::text(
+                "client_secret_env",
+                "Variável do client secret (opcional)",
+                "Apenas o NOME da variável exportada com o secret; nunca o valor.",
+            )
+            .validation(LoginOptionValidation::EnvName),
+        ]
+    }
+}
+
+fn oauth_help(provider: Provider) -> String {
+    if requires_client_registration(provider) {
+        return account_edit::oauth_registration_help(provider).to_string();
+    }
+    match provider {
+        Provider::Cursor => "Importa a sessão pessoal do Cursor instalado neste computador. Não inicia OAuth: faça login no aplicativo Cursor primeiro. Somente após confirmar, accessToken e machine ID serão lidos do SQLite local em modo somente leitura. Tokens não serão exibidos; a cópia só será salva no cofre na revisão final.".into(),
+        Provider::Qwen => "Fluxo EXPERIMENTAL baseado no cliente nativo. Qwen Code: OAuth gratuito descontinuado em 15/04/2026; a tentativa pode ser recusada e login não garante quota disponível. Nenhuma senha ou token é digitada no Cuotai.".into(),
+        Provider::Claude => "Fluxo EXPERIMENTAL baseado no cliente nativo. O provedor pode restringir este fluxo a clientes próprios; se recusado, use a variável de ambiente. Nenhuma senha ou token é digitada no Cuotai.".into(),
+        Provider::XiaomiMimo => "O código autoriza uma chave de inferência, não a sessão do console. Saldo e Token Plan usam platform_session_env; quota semanal do Desktop usa session_env. Nenhuma senha é digitada no Cuotai.".into(),
+        _ => "Fluxo EXPERIMENTAL baseado no cliente nativo do provedor (interface interna, sem suporte oficial; pode falhar ou ser restringido a qualquer momento). O consentimento acontece no navegador/código de dispositivo; nenhuma senha ou token é digitada no Cuotai.".into(),
+    }
+}
+
+fn oauth_completion_notice(provider: Provider) -> String {
+    match provider {
+        Provider::Cursor => "Sessão Cursor importada em memória. Revise e grave para persistir no cofre.".into(),
+        Provider::XiaomiMimo => "Chave MiMo autorizada. Para consultar saldo/plano, configure platform_session_env com a sessão web; não repita o código.".into(),
+        _ => "Login autorizado; parâmetros da conta preenchidos automaticamente.".into(),
+    }
+}
+
+/// RF2.7: every interactive login mode for `provider`, with all descriptors.
 pub fn login_modes(provider: Provider) -> ProviderLogin {
     let mut modes = Vec::new();
     match provider {
         Provider::AwsBedrock => modes.push(LoginMode {
             id: MODE_AWS_SSO.to_string(),
             label: "AWS SSO (AWS CLI)".to_string(),
-            help: "Executa `aws sso login --use-device-code` no perfil informado; o token fica no cache da própria AWS CLI, fora do cofre do Cuotai.".to_string(),
-            requires_client_registration: false,
+            help: "Executa `aws sso login --use-device-code` no perfil informado; o token fica no cache da própria AWS CLI, fora do cofre do Cuotai. Configure o perfil antes com `aws configure sso`; o Cost Explorer cobra por consulta.".to_string(),
+            completion_notice: "Login SSO do AWS CLI concluído.".to_string(),
+            credential_store: LoginCredentialStore::External,
+            account_binding: LoginAccountBinding::Credential {
+                option: "profile".to_string(),
+            },
+            registration: Vec::new(),
             options: vec![LoginOption::text(
                 "profile",
                 "Perfil AWS",
                 "Perfil SSO configurado previamente via `aws configure sso`.",
-            )],
+            )
+            .required()],
             unavailable_reason: None,
         }),
         Provider::AlibabaTokenPlan => modes.push(LoginMode {
             id: MODE_BAILIAN_CONSOLE.to_string(),
             label: "Console Bailian (`bl`)".to_string(),
-            help: "Executa `bl auth login --console` em um perfil dedicado do `bl`; o login fica no cofre local do `bl`, fora do cofre do Cuotai.".to_string(),
-            requires_client_registration: false,
+            help: "Executa `bl auth login --console` em um perfil dedicado do `bl`; o login fica no cofre local do `bl`, fora do cofre do Cuotai. Cancelar não desfaz o que o `bl` gravou. `params.session_env` continua um override opcional de Cookie; `QWEN_API_KEY` autentica apenas inferência e não é enviada à consulta de quota.".to_string(),
+            completion_notice: "Login `bl auth login --console` concluído no perfil dedicado.".to_string(),
+            credential_store: LoginCredentialStore::External,
+            account_binding: LoginAccountBinding::CliProfile {
+                option: "profile".to_string(),
+            },
+            registration: Vec::new(),
             options: vec![
                 LoginOption {
                     key: "console_site".to_string(),
@@ -170,27 +341,34 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                         "international".to_string(),
                         "Internacional".to_string(),
                     )]),
+                    required: true,
+                    validation: LoginOptionValidation::None,
                 },
                 LoginOption::text(
                     "profile",
-                    "Perfil do `bl`",
-                    "Perfil dedicado (`--config`) onde o `bl` grava o login.",
-                ),
+                    "Perfil dedicado do `bl` (opcional)",
+                    "Perfil (`--config`) onde o `bl` grava o login; vazio gera um perfil isolado.",
+                )
+                .validation(LoginOptionValidation::CliProfile),
             ],
             unavailable_reason: None,
         }),
         _ if supports_login(provider) => {
-            let registration = requires_client_registration(provider);
-            let help = if registration {
-                account_edit::oauth_registration_help(provider).to_string()
-            } else {
-                "Login nativo no navegador do sistema; nenhum registro de aplicativo é necessário.".to_string()
-            };
+            let registration = registration_options(provider);
             modes.push(LoginMode {
                 id: MODE_OAUTH.to_string(),
-                label: "Login no navegador".to_string(),
-                help,
-                requires_client_registration: registration,
+                label: if provider == Provider::Cursor {
+                    "Importar sessão Cursor".to_string()
+                } else if registration.is_empty() {
+                    "Login nativo no navegador".to_string()
+                } else {
+                    "Login OAuth com aplicativo próprio".to_string()
+                },
+                help: oauth_help(provider),
+                completion_notice: oauth_completion_notice(provider),
+                credential_store: LoginCredentialStore::CuotaiVault,
+                account_binding: LoginAccountBinding::None,
+                registration,
                 options: account_edit::native_option_descriptors(provider)
                     .iter()
                     .map(LoginOption::from_native)
@@ -206,66 +384,157 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
     }
 }
 
-// ---------------------------------------------------------------------------
-// RF2.1/RF2.6 — login driver
-// ---------------------------------------------------------------------------
+/// Resolve one trusted mode descriptor by its stable id.
+pub fn login_mode(provider: Provider, mode_id: &str) -> Option<LoginMode> {
+    login_modes(provider)
+        .modes
+        .into_iter()
+        .find(|mode| mode.id == mode_id)
+}
 
-/// What the user asked to start. `mode` must be one of the ids returned by
-/// [`login_modes`] for the provider; anything else is rejected up front.
+/// What the user asked to start. Use [`LoginRequest::for_account`] for both
+/// new logins and reauthentication: the core, not a frontend, decides whether
+/// an existing `credential_id` is reused and which prior key may be replaced.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LoginRequest {
     pub mode: String,
-    /// Nonsecret flow options: native OAuth options (region/auth_method/
-    /// start_url), `profile` for AWS SSO, `console_site`+`profile` for the
-    /// Bailian console. Secrets never belong here.
     #[serde(default)]
     pub options: BTreeMap<String, String>,
     #[serde(default)]
-    pub client_id: Option<String>,
+    pub registration: BTreeMap<String, String>,
     #[serde(default)]
-    pub client_secret_env: Option<String>,
-    #[serde(default)]
-    pub tenant: Option<String>,
-    /// RF2.8: `Some(existing_id)` reautentica reutilizando a mesma chave do
-    /// cofre (sem credencial órfã); `None` gera um identificador novo.
-    #[serde(default)]
-    pub credential_id: Option<String>,
+    credential_id: Option<String>,
+    /// Existing account being replaced; never accepted from serialized IPC.
+    #[serde(skip)]
+    replaced_account: Option<crate::Account>,
 }
 
 impl LoginRequest {
-    /// Build an OAuth request from an existing [`OAuthConfig`] (used by
-    /// frontends whose forms already produce one).
-    pub fn oauth(config: &OAuthConfig) -> Self {
+    pub fn new(mode: impl Into<String>) -> Self {
         Self {
-            mode: MODE_OAUTH.to_string(),
-            options: config.options.clone(),
-            client_id: Some(config.client_id.clone()),
-            client_secret_env: config.client_secret_env.clone(),
-            tenant: config.tenant.clone(),
-            credential_id: Some(config.credential_id.clone()),
-        }
-    }
-
-    /// AWS SSO device login for a configured CLI profile.
-    pub fn aws_sso(profile: String) -> Self {
-        let mut options = BTreeMap::new();
-        options.insert("profile".to_string(), profile);
-        Self {
-            mode: MODE_AWS_SSO.to_string(),
-            options,
+            mode: mode.into(),
             ..Self::default()
         }
     }
 
-    /// Bailian console login in a dedicated `bl` profile.
-    pub fn bailian_console(console_site: String, profile: String) -> Self {
-        let mut options = BTreeMap::new();
-        options.insert("console_site".to_string(), console_site);
-        options.insert("profile".to_string(), profile);
-        Self {
-            mode: MODE_BAILIAN_CONSOLE.to_string(),
-            options,
-            ..Self::default()
+    /// Build a request bound to the account being edited. Existing public
+    /// options/registration are prefilled; a same-provider OAuth reauth keeps
+    /// its `credential_id`. The replaced account is retained privately so the
+    /// commit can clean up a changed vault key after the TOML save succeeds.
+    pub fn for_account(
+        provider: Provider,
+        mode: impl Into<String>,
+        existing: Option<&crate::Account>,
+    ) -> Self {
+        let mut request = Self::new(mode);
+        let Some(account) = existing else {
+            return request;
+        };
+        request.replaced_account = Some(account.clone());
+        if account.provider != provider {
+            return request;
+        }
+        if let Some(oauth) = &account.oauth {
+            if login_mode(provider, &request.mode)
+                .is_some_and(|mode| mode.credential_store == LoginCredentialStore::CuotaiVault)
+            {
+                request.credential_id = Some(oauth.credential_id.clone());
+                request.options = oauth.options.clone();
+                if !oauth.client_id.is_empty() {
+                    request
+                        .registration
+                        .insert("client_id".to_string(), oauth.client_id.clone());
+                }
+                if let Some(tenant) = &oauth.tenant {
+                    request
+                        .registration
+                        .insert("tenant".to_string(), tenant.clone());
+                }
+                if let Some(secret) = &oauth.client_secret_env {
+                    request
+                        .registration
+                        .insert("client_secret_env".to_string(), secret.clone());
+                }
+            }
+        }
+        if let Some(mode) = login_mode(provider, &request.mode) {
+            match mode.account_binding {
+                LoginAccountBinding::Credential { option } => {
+                    let value = account_edit::stored_credential(account);
+                    if !value.is_empty() {
+                        request.options.insert(option, value);
+                    }
+                }
+                LoginAccountBinding::CliProfile { option } => {
+                    if let Some(value) = account.params.get("cli_profile") {
+                        request.options.insert(option, value.clone());
+                    }
+                }
+                LoginAccountBinding::None => {}
+            }
+        }
+        request
+    }
+
+    /// Public read-only view used by frontend contract tests and diagnostics.
+    pub fn credential_id(&self) -> Option<&str> {
+        self.credential_id.as_deref()
+    }
+}
+
+/// Resolve the credential text and dedicated CLI params for the selected mode.
+/// Frontends pass the same public option/result maps to this helper; only the
+/// core knows the AWS profile and `bl cli_profile` persistence semantics.
+pub fn account_login_inputs(
+    provider: Provider,
+    mode_id: &str,
+    credential: &str,
+    options: &BTreeMap<String, String>,
+    result_params: &BTreeMap<String, String>,
+    login_completed: bool,
+) -> Result<(String, Option<BTreeMap<String, String>>), OAuthError> {
+    let mode = login_mode(provider, mode_id).ok_or_else(|| {
+        OAuthError::Configuration("Modo de login não oferecido para este provedor.".into())
+    })?;
+    let value = |option: &str| {
+        result_params
+            .get(option)
+            .or_else(|| options.get(option))
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default()
+    };
+    match mode.account_binding {
+        LoginAccountBinding::None => Ok((credential.to_string(), None)),
+        LoginAccountBinding::Credential { option } => {
+            let credential = value(&option);
+            if credential.is_empty() {
+                return Err(OAuthError::Configuration(
+                    "Informe o perfil configurado antes de salvar.".into(),
+                ));
+            }
+            Ok((credential, None))
+        }
+        LoginAccountBinding::CliProfile { option } => {
+            let mut params = BTreeMap::new();
+            let profile = value(&option);
+            let profile = if profile.is_empty() {
+                if login_completed {
+                    return Err(OAuthError::Configuration(
+                        "O login concluído não informou o perfil dedicado.".into(),
+                    ));
+                }
+                account_edit::ensure_cli_profile(&mut params)
+            } else {
+                if !account_edit::is_valid_cli_profile(&profile) {
+                    return Err(OAuthError::Configuration(
+                        "Perfil do `bl` inválido; use letras, números, '-' ou '_', até 32 caracteres."
+                            .into(),
+                    ));
+                }
+                profile
+            };
+            params.insert("cli_profile".to_string(), profile);
+            Ok((credential.to_string(), Some(params)))
         }
     }
 }
@@ -284,8 +553,7 @@ pub enum SubmitCodeError {
 
 enum FlowDone {
     Authorized(CompletedLogin),
-    AwsSso,
-    BailianConsole,
+    External(ExternalLogin),
 }
 
 /// A running login flow. Owns the background task; dropping or
@@ -305,15 +573,19 @@ impl Drop for LoginDriver {
     }
 }
 
+/// Public result of a login whose credential is owned by an external CLI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalLogin {
+    pub params: BTreeMap<String, String>,
+}
+
 /// The terminal result of a login flow, after [`LoginDriver::finish`].
 pub enum LoginResult {
     /// Tokens authorized and held in memory; commit via [`commit_login`] or
     /// [`begin_credential_commit`]. Nothing is in the vault yet.
     Authorized(CompletedLogin),
-    /// `aws sso login` finished; the token lives in the AWS CLI cache.
-    AwsSso,
-    /// `bl auth login --console` finished; the login lives in the `bl` vault.
-    BailianConsole,
+    /// An external CLI completed; only nonsecret account params are returned.
+    External(ExternalLogin),
 }
 
 impl LoginDriver {
@@ -356,8 +628,7 @@ impl LoginDriver {
         let done = job.await.map_err(|_| OAuthError::Network)??;
         Ok(match done {
             FlowDone::Authorized(login) => LoginResult::Authorized(login),
-            FlowDone::AwsSso => LoginResult::AwsSso,
-            FlowDone::BailianConsole => LoginResult::BailianConsole,
+            FlowDone::External(login) => LoginResult::External(login),
         })
     }
 
@@ -370,25 +641,20 @@ impl LoginDriver {
     }
 }
 
-/// Start a login flow. Fails synchronously only when `request.mode` is not
-/// offered for `provider`; all flow failures are delivered as
-/// [`LoginEvent::Failed`] plus the [`LoginDriver::finish`] error.
+/// Start a login flow. Mode discovery, input validation and flow selection
+/// stay in the core; frontends only forward a [`LoginRequest`].
 pub fn start_login(
     session: Arc<OAuthSession>,
     provider: Provider,
     request: LoginRequest,
 ) -> Result<LoginDriver, OAuthError> {
-    let offered = login_modes(provider);
-    let mode = offered
-        .modes
-        .iter()
-        .find(|mode| mode.id == request.mode)
-        .ok_or_else(|| {
-            OAuthError::Configuration("Modo de login não oferecido para este provedor.".into())
-        })?;
+    let mode = login_mode(provider, &request.mode).ok_or_else(|| {
+        OAuthError::Configuration("Modo de login não oferecido para este provedor.".into())
+    })?;
     if let Some(reason) = &mode.unavailable_reason {
         return Err(OAuthError::Configuration(reason.clone()));
     }
+    validate_request(&mode, &request)?;
     match mode.id.as_str() {
         MODE_OAUTH => Ok(start_oauth(session, provider, request)),
         MODE_AWS_SSO => Ok(start_aws_sso(request.options.get("profile").cloned())),
@@ -402,11 +668,46 @@ pub fn start_login(
     }
 }
 
+fn validate_request(mode: &LoginMode, request: &LoginRequest) -> Result<(), OAuthError> {
+    for (key, value) in &request.options {
+        let option = mode
+            .options
+            .iter()
+            .find(|option| &option.key == key)
+            .ok_or_else(|| {
+                OAuthError::Configuration("Opção de login desconhecida para este modo.".into())
+            })?;
+        option.validate(value)?;
+    }
+    for option in &mode.options {
+        if option.required && !request.options.contains_key(&option.key) {
+            option.validate("")?;
+        }
+    }
+    for (key, value) in &request.registration {
+        let option = mode
+            .registration
+            .iter()
+            .find(|option| &option.key == key)
+            .ok_or_else(|| {
+                OAuthError::Configuration("Campo de registro desconhecido para este modo.".into())
+            })?;
+        option.validate(value)?;
+    }
+    for option in &mode.registration {
+        if option.required && !request.registration.contains_key(&option.key) {
+            option.validate("")?;
+        }
+    }
+    Ok(())
+}
+
 fn oauth_config_from(request: LoginRequest) -> OAuthConfig {
+    let value = |key: &str| request.registration.get(key).cloned();
     OAuthConfig {
-        client_id: request.client_id.unwrap_or_default(),
-        tenant: request.tenant,
-        client_secret_env: request.client_secret_env,
+        client_id: value("client_id").unwrap_or_default(),
+        tenant: value("tenant").filter(|value| !value.trim().is_empty()),
+        client_secret_env: value("client_secret_env").filter(|value| !value.trim().is_empty()),
         credential_id: request
             .credential_id
             .filter(|id| uuid::Uuid::parse_str(id).is_ok())
@@ -426,6 +727,10 @@ fn start_oauth(
     provider: Provider,
     request: LoginRequest,
 ) -> LoginDriver {
+    let replaced_key = request
+        .replaced_account
+        .as_ref()
+        .and_then(account_edit::account_storage_key);
     let config = oauth_config_from(request);
     // The manual-code step exists only for the MiMo native flow; every other
     // provider completes via loopback callback or device polling (RF2.6: the
@@ -437,6 +742,7 @@ fn start_oauth(
         session,
         provider,
         config,
+        replaced_key,
         manual_code.then_some(codes),
         event_tx,
     ));
@@ -451,10 +757,11 @@ async fn run_oauth(
     session: Arc<OAuthSession>,
     provider: Provider,
     config: OAuthConfig,
+    replaced_key: Option<String>,
     codes: Option<mpsc::Receiver<String>>,
     events: mpsc::Sender<LoginEvent>,
 ) -> Result<FlowDone, OAuthError> {
-    match run_oauth_inner(&session, provider, &config, codes, &events).await {
+    match run_oauth_inner(&session, provider, &config, replaced_key, codes, &events).await {
         Ok(login) => {
             let params = login.params.clone();
             send(&events, LoginEvent::Finished { params }).await;
@@ -477,6 +784,7 @@ async fn run_oauth_inner(
     session: &OAuthSession,
     provider: Provider,
     config: &OAuthConfig,
+    replaced_key: Option<String>,
     codes: Option<mpsc::Receiver<String>>,
     events: &mpsc::Sender<LoginEvent>,
 ) -> Result<CompletedLogin, OAuthError> {
@@ -491,7 +799,12 @@ async fn run_oauth_inner(
         )
         .await;
         let login = session.import_cursor(config).await?;
-        return Ok(CompletedLogin::new(provider, config.clone(), login));
+        return Ok(CompletedLogin::new(
+            provider,
+            config.clone(),
+            login,
+            replaced_key,
+        ));
     }
     send(
         events,
@@ -532,7 +845,12 @@ async fn run_oauth_inner(
         }
         None => pending.finish().await?,
     };
-    Ok(CompletedLogin::new(provider, config.clone(), login))
+    Ok(CompletedLogin::new(
+        provider,
+        config.clone(),
+        login,
+        replaced_key,
+    ))
 }
 
 fn start_aws_sso(profile: Option<String>) -> LoginDriver {
@@ -540,13 +858,13 @@ fn start_aws_sso(profile: Option<String>) -> LoginDriver {
     let job = tokio::spawn(async move {
         let result = run_aws_sso(profile, &event_tx).await;
         match result {
-            Ok(()) => {
+            Ok(login) => {
                 let _ = event_tx
                     .send(LoginEvent::Finished {
-                        params: BTreeMap::new(),
+                        params: login.params.clone(),
                     })
                     .await;
-                Ok(FlowDone::AwsSso)
+                Ok(FlowDone::External(login))
             }
             Err(error) => {
                 let _ = event_tx
@@ -568,7 +886,7 @@ fn start_aws_sso(profile: Option<String>) -> LoginDriver {
 async fn run_aws_sso(
     profile: Option<String>,
     events: &mpsc::Sender<LoginEvent>,
-) -> Result<(), OAuthError> {
+) -> Result<ExternalLogin, OAuthError> {
     let profile = profile.filter(|p| !p.trim().is_empty()).ok_or_else(|| {
         OAuthError::Configuration(
             "Informe o perfil AWS configurado via `aws configure sso`.".into(),
@@ -580,30 +898,39 @@ async fn run_aws_sso(
         })
         .await;
     let (lines_tx, mut lines_rx) = mpsc::channel(16);
-    let login = aws::login(&profile, lines_tx);
-    tokio::pin!(login);
-    loop {
-        tokio::select! {
-            result = &mut login => return result,
-            Some(line) = lines_rx.recv() => {
-                let _ = events.send(LoginEvent::Progress { text: line }).await;
+    let result = {
+        let login = aws::login(&profile, lines_tx);
+        tokio::pin!(login);
+        loop {
+            tokio::select! {
+                result = &mut login => break result,
+                Some(line) = lines_rx.recv() => {
+                    let _ = events.send(LoginEvent::Progress { text: line }).await;
+                }
             }
         }
-    }
+    };
+    result?;
+    Ok(ExternalLogin {
+        params: BTreeMap::from([("profile".to_string(), profile)]),
+    })
 }
 
 fn start_bailian_console(console_site: Option<String>, profile: Option<String>) -> LoginDriver {
+    let profile = profile
+        .filter(|p| !p.trim().is_empty())
+        .unwrap_or_else(|| account_edit::ensure_cli_profile(&mut BTreeMap::new()));
     let (event_tx, events) = mpsc::channel(8);
     let job = tokio::spawn(async move {
         let result = run_bailian_console(console_site, profile, &event_tx).await;
         match result {
-            Ok(()) => {
+            Ok(login) => {
                 let _ = event_tx
                     .send(LoginEvent::Finished {
-                        params: BTreeMap::new(),
+                        params: login.params.clone(),
                     })
                     .await;
-                Ok(FlowDone::BailianConsole)
+                Ok(FlowDone::External(login))
             }
             Err(error) => {
                 let _ = event_tx
@@ -624,19 +951,14 @@ fn start_bailian_console(console_site: Option<String>, profile: Option<String>) 
 
 async fn run_bailian_console(
     console_site: Option<String>,
-    profile: Option<String>,
+    profile: String,
     events: &mpsc::Sender<LoginEvent>,
-) -> Result<(), OAuthError> {
+) -> Result<ExternalLogin, OAuthError> {
     let site = console_site
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| {
             OAuthError::Configuration("Site do console em branco; informe `international`.".into())
         })?;
-    let profile = profile.filter(|p| !p.trim().is_empty()).ok_or_else(|| {
-        OAuthError::Configuration(
-            "Perfil do `bl` em branco; impossível iniciar o login isolado.".into(),
-        )
-    })?;
     // Mensagens estáticas e genéricas — nunca conteúdo do stdout do CLI.
     let _ = events
         .send(LoginEvent::Progress {
@@ -652,7 +974,9 @@ async fn run_bailian_console(
         })
         .await;
     let _ = events.send(LoginEvent::Progress { text: "A consulta Token Plan usará esse perfil via `bl --config <name>`. `params.session_env` permanece um override opcional (Cookie manual) caso você prefira a rota antiga.".into() }).await;
-    Ok(())
+    Ok(ExternalLogin {
+        params: BTreeMap::from([("cli_profile".to_string(), profile)]),
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -704,16 +1028,25 @@ pub struct CompletedLogin {
     pub config: OAuthConfig,
     /// Whitelisted public quota metadata from the login (`account_params`).
     pub params: BTreeMap<String, String>,
+    /// Key referenced by the account before this login, if any. It is only
+    /// eligible for cleanup after the replacement TOML was saved.
+    replaced_key: Option<String>,
     login: Arc<AuthorizedLogin>,
 }
 
 impl CompletedLogin {
-    fn new(provider: Provider, config: OAuthConfig, login: AuthorizedLogin) -> Self {
+    fn new(
+        provider: Provider,
+        config: OAuthConfig,
+        login: AuthorizedLogin,
+        replaced_key: Option<String>,
+    ) -> Self {
         let params = login.account_params(provider, &config);
         Self {
             provider,
             config,
             params,
+            replaced_key,
             login: Arc::new(login),
         }
     }
@@ -755,29 +1088,40 @@ pub struct PartialFailure {
     pub message: String,
 }
 
+/// Non-fatal post-save cleanup failure: the TOML and NEW credential are
+/// saved, while the replaced credential remains in the vault.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CleanupFailure {
+    pub message: String,
+}
+
 /// Outcome of [`commit_login`]. On [`LoginCommitOutcome::PartialFailure`] the
 /// [`CompletedLogin`] is untouched and the commit may simply be retried.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LoginCommitOutcome {
     Saved,
+    SavedWithCleanupFailure(CleanupFailure),
     PartialFailure(PartialFailure),
 }
 
 /// Commit an authorized login: write the credential to the vault, then save
 /// the new configuration to the TOML. Ordering and compensation are owned by
-/// the core (RF2.4):
+/// the core (RF2.4/RF2.8):
 ///
 /// 1. The prior token under the same key is captured (reauth case).
 /// 2. The new token is written; a failure here writes nothing anywhere.
 /// 3. `file.save(config)` persists the TOML; on failure the vault is
 ///    compensated — restore the prior token, or remove the brand-new one.
-///    A replaced token is never deleted without a successful restore
-///    ([`Compensation::Failed`] reports that state instead).
+/// 4. Only after a successful save, a different key used by the replaced
+///    account is deleted unless the saved config still shares it. A deletion
+///    failure is a typed, non-fatal outcome; both credentials remain saved.
 ///
-/// Retrying with the same [`CompletedLogin`] and `config` is safe and
-/// idempotent. AWS SSO and Bailian console logins write outside the Cuotai
-/// vault and are not part of this commit.
+/// A replaced token is never deleted without a successful restore
+/// ([`Compensation::Failed`] reports that state instead). Retrying with the
+/// same [`CompletedLogin`] and `config` is safe and idempotent. AWS SSO and
+/// Bailian console logins write outside the Cuotai vault and are not part of
+/// this commit.
 pub async fn commit_login(
     file: &mut ConfigFile,
     session: &OAuthSession,
@@ -797,7 +1141,7 @@ pub async fn commit_login(
         }
     };
     match file.save(config) {
-        Ok(()) => commit.confirm(),
+        Ok(()) => commit.confirm(session, &file.config).await,
         Err(error) => {
             LoginCommitOutcome::PartialFailure(commit.rollback(session, error.message()).await)
         }
@@ -816,7 +1160,12 @@ pub async fn begin_credential_commit(
     let key = login.login.key().to_string();
     let prior = session.load_by_key(&key).await?;
     session.save_login(&login.login).await?;
-    Ok(CredentialCommit { key, prior })
+    let replaced_key = login.replaced_key.clone().filter(|old| old != &key);
+    Ok(CredentialCommit {
+        key,
+        prior,
+        replaced_key,
+    })
 }
 
 /// In-flight credential commit awaiting the TOML save verdict. Holds the
@@ -824,12 +1173,34 @@ pub async fn begin_credential_commit(
 pub struct CredentialCommit {
     key: String,
     prior: Option<super::OAuthToken>,
+    replaced_key: Option<String>,
 }
 
 impl CredentialCommit {
-    /// The TOML save succeeded; the commit is complete.
-    pub fn confirm(self) -> LoginCommitOutcome {
-        LoginCommitOutcome::Saved
+    /// The TOML save succeeded. Only now may a replaced, unshared key be
+    /// removed; failure keeps the old token and returns a non-fatal outcome.
+    pub async fn confirm(
+        self,
+        session: &OAuthSession,
+        saved_config: &Config,
+    ) -> LoginCommitOutcome {
+        let Some(previous) = self.replaced_key else {
+            return LoginCommitOutcome::Saved;
+        };
+        let shared = saved_config
+            .accounts
+            .iter()
+            .filter_map(account_edit::account_storage_key)
+            .any(|key| key == previous);
+        if shared {
+            return LoginCommitOutcome::Saved;
+        }
+        match session.delete_by_key(previous).await {
+            Ok(()) => LoginCommitOutcome::Saved,
+            Err(_) => LoginCommitOutcome::SavedWithCleanupFailure(CleanupFailure {
+                message: "Configuração e nova credencial salvas; a credencial anterior permanece no cofre porque não foi possível removê-la.".into(),
+            }),
+        }
     }
 
     /// The TOML save failed; compensate the vault write. `message` is the
@@ -878,21 +1249,33 @@ mod tests {
     use crate::config_file::ConfigFile;
     use crate::oauth::session::storage_key;
     use crate::oauth::{OAuthToken, TokenStore};
+    use crate::Account;
     use parking_lot::Mutex;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     #[derive(Default)]
-    struct MemoryStore(Mutex<HashMap<String, OAuthToken>>);
+    struct MemoryStore {
+        tokens: Mutex<HashMap<String, OAuthToken>>,
+        fail_deletes: Mutex<HashSet<String>>,
+    }
+    impl MemoryStore {
+        fn len(&self) -> usize {
+            self.tokens.lock().len()
+        }
+    }
     impl TokenStore for MemoryStore {
         fn load(&self, id: &str) -> Result<Option<OAuthToken>, OAuthError> {
-            Ok(self.0.lock().get(id).cloned())
+            Ok(self.tokens.lock().get(id).cloned())
         }
         fn save(&self, id: &str, token: &OAuthToken) -> Result<(), OAuthError> {
-            self.0.lock().insert(id.into(), token.clone());
+            self.tokens.lock().insert(id.into(), token.clone());
             Ok(())
         }
         fn delete(&self, id: &str) -> Result<(), OAuthError> {
-            self.0.lock().remove(id);
+            if self.fail_deletes.lock().contains(id) {
+                return Err(OAuthError::Storage("falha".into()));
+            }
+            self.tokens.lock().remove(id);
             Ok(())
         }
     }
@@ -918,16 +1301,6 @@ mod tests {
         }
     }
 
-    fn completed(provider: Provider) -> CompletedLogin {
-        let config = OAuthConfig::new("test-client".into());
-        let key = storage_key(provider, &config).unwrap();
-        CompletedLogin::new(
-            provider,
-            config,
-            crate::oauth::AuthorizedLogin::for_test(key, token("access-new")),
-        )
-    }
-
     fn empty_config() -> Config {
         Config {
             refresh_seconds: 60,
@@ -937,9 +1310,56 @@ mod tests {
         }
     }
 
-    // RF2.7: every provider resolves to the expected interactive modes.
+    fn config_with(accounts: Vec<Account>) -> Config {
+        Config {
+            accounts,
+            ..empty_config()
+        }
+    }
+
+    fn oauth_account(name: &str, provider: Provider, config: OAuthConfig) -> Account {
+        Account {
+            name: name.into(),
+            provider,
+            credential_env: None,
+            oauth: Some(config),
+            params: BTreeMap::new(),
+            refresh_seconds: None,
+        }
+    }
+
+    fn request_for(provider: Provider, existing: Option<&Account>) -> LoginRequest {
+        let mut request = LoginRequest::for_account(provider, MODE_OAUTH, existing);
+        if requires_client_registration(provider) && !request.registration.contains_key("client_id")
+        {
+            request
+                .registration
+                .insert("client_id".into(), "test-client".into());
+        }
+        request
+    }
+
+    fn completed_from(request: LoginRequest, provider: Provider) -> CompletedLogin {
+        let replaced_key = request
+            .replaced_account
+            .as_ref()
+            .and_then(account_edit::account_storage_key);
+        let config = oauth_config_from(request);
+        let key = storage_key(provider, &config).unwrap();
+        CompletedLogin::new(
+            provider,
+            config,
+            crate::oauth::AuthorizedLogin::for_test(key, token("access-new")),
+            replaced_key,
+        )
+    }
+
+    fn completed(provider: Provider) -> CompletedLogin {
+        completed_from(request_for(provider, None), provider)
+    }
+
     #[test]
-    fn login_modes_cover_every_existing_flow() {
+    fn login_modes_describe_every_flow_and_registration_field() {
         let aws = login_modes(Provider::AwsBedrock);
         assert_eq!(aws.modes.len(), 1);
         assert_eq!(aws.modes[0].id, MODE_AWS_SSO);
@@ -957,21 +1377,30 @@ mod tests {
             let modes = login_modes(provider);
             assert_eq!(modes.modes.len(), 1, "{provider:?}");
             assert_eq!(modes.modes[0].id, MODE_OAUTH);
-            assert!(!modes.modes[0].requires_client_registration);
+            assert!(modes.modes[0].registration.is_empty());
             assert!(modes.unsupported_reason.is_none());
         }
 
         let google = login_modes(Provider::GeminiApi);
-        assert_eq!(google.modes.len(), 1);
-        assert!(google.modes[0].requires_client_registration);
+        let keys: Vec<&str> = google.modes[0]
+            .registration
+            .iter()
+            .map(|option| option.key.as_str())
+            .collect();
+        assert_eq!(keys, ["client_id", "client_secret_env"]);
+        let azure = login_modes(Provider::AzureOpenAi);
+        let keys: Vec<&str> = azure.modes[0]
+            .registration
+            .iter()
+            .map(|option| option.key.as_str())
+            .collect();
+        assert_eq!(keys, ["client_id", "tenant"]);
 
         let openai = login_modes(Provider::OpenAiApi);
         assert!(openai.modes.is_empty());
         assert!(openai.unsupported_reason.is_some());
     }
 
-    // RF2.6: adding a provider flow must never require frontend branching;
-    // the offered mode options stay within the declared descriptor keys.
     #[test]
     fn oauth_mode_options_match_native_descriptors() {
         for provider in [Provider::Kiro, Provider::Qwen, Provider::Cursor] {
@@ -986,7 +1415,6 @@ mod tests {
         }
     }
 
-    // RF2.5: serialized events carry no token material and use stable tags.
     #[test]
     fn events_serialize_without_secrets() {
         let event = LoginEvent::Prompt {
@@ -1013,20 +1441,17 @@ mod tests {
         assert!(json.contains("\"compensation\":\"previous_restored\""));
     }
 
-    // RF2.6: a mode id that was not offered for the provider is rejected
-    // before any flow starts.
     #[test]
     fn start_login_rejects_mode_not_offered() {
         let (session, _) = session();
         let result = start_login(
             Arc::new(session),
             Provider::Kiro,
-            LoginRequest::aws_sso("default".into()),
+            LoginRequest::new(MODE_AWS_SSO),
         );
         assert!(matches!(result, Err(OAuthError::Configuration(_))));
     }
 
-    // RF2.4: vault failure writes nothing anywhere.
     #[tokio::test]
     async fn commit_vault_failure_leaves_toml_untouched() {
         struct FailingStore;
@@ -1062,22 +1487,192 @@ mod tests {
         assert!(!path.exists());
     }
 
-    // RF2.4/RF2.8: reauth commit whose TOML save conflicts restores the prior
-    // token — never leaves the new token behind, never loses the old one.
+    #[tokio::test]
+    async fn reauth_same_identity_overwrites_one_vault_entry() {
+        let (session, store) = session();
+        let old = oauth_account(
+            "Kiro",
+            Provider::Kiro,
+            oauth_config_from(request_for(Provider::Kiro, None)),
+        );
+        let old_key = account_edit::account_storage_key(&old).unwrap();
+        store.save(&old_key, &token("access-old")).unwrap();
+        let request = request_for(Provider::Kiro, Some(&old));
+        assert_eq!(
+            request.credential_id(),
+            Some(old.oauth.as_ref().unwrap().credential_id.as_str())
+        );
+        let completed = completed_from(request, Provider::Kiro);
+        let new_key = storage_key(Provider::Kiro, &completed.config).unwrap();
+        assert_eq!(new_key, old_key);
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = ConfigFile::load(Some(dir.path().join("cuotai.toml")), true).unwrap();
+        file.save(config_with(vec![old])).unwrap();
+        let replacement = oauth_account("Kiro", Provider::Kiro, completed.config.clone());
+        let outcome = commit_login(
+            &mut file,
+            &session,
+            &completed,
+            config_with(vec![replacement]),
+        )
+        .await;
+        assert_eq!(outcome, LoginCommitOutcome::Saved);
+        assert_eq!(store.len(), 1);
+        assert_eq!(
+            store.load(&old_key).unwrap().unwrap().access_token,
+            "access-new"
+        );
+    }
+
+    #[tokio::test]
+    async fn staged_identity_change_deletes_replaced_key_only_after_save() {
+        let (session, store) = session();
+        let mut old_oauth = oauth_config_from(request_for(Provider::Kiro, None));
+        old_oauth
+            .options
+            .insert("region".into(), "us-east-1".into());
+        let old = oauth_account("Kiro", Provider::Kiro, old_oauth);
+        let old_key = account_edit::account_storage_key(&old).unwrap();
+        store.save(&old_key, &token("access-old")).unwrap();
+        let mut request = request_for(Provider::Kiro, Some(&old));
+        request.options.insert("region".into(), "us-west-2".into());
+        let completed = completed_from(request, Provider::Kiro);
+        let new_key = storage_key(Provider::Kiro, &completed.config).unwrap();
+        assert_ne!(new_key, old_key);
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = ConfigFile::load(Some(dir.path().join("cuotai.toml")), true).unwrap();
+        file.save(config_with(vec![old])).unwrap();
+        let commit = begin_credential_commit(&session, &completed).await.unwrap();
+        assert!(store.load(&old_key).unwrap().is_some());
+        let replacement = oauth_account("Kiro", Provider::Kiro, completed.config.clone());
+        file.save(config_with(vec![replacement])).unwrap();
+        assert_eq!(
+            commit.confirm(&session, &file.config).await,
+            LoginCommitOutcome::Saved
+        );
+        assert!(store.load(&old_key).unwrap().is_none());
+        assert_eq!(
+            store.load(&new_key).unwrap().unwrap().access_token,
+            "access-new"
+        );
+        assert_eq!(store.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn identity_change_keeps_replaced_key_shared_by_survivor() {
+        let (session, store) = session();
+        let old_oauth = oauth_config_from(request_for(Provider::Kiro, None));
+        let first = oauth_account("First", Provider::Kiro, old_oauth.clone());
+        let shared = oauth_account("Shared", Provider::Kiro, old_oauth);
+        let old_key = account_edit::account_storage_key(&first).unwrap();
+        store.save(&old_key, &token("access-old")).unwrap();
+        let mut request = request_for(Provider::Kiro, Some(&first));
+        request.options.insert("region".into(), "us-west-2".into());
+        let completed = completed_from(request, Provider::Kiro);
+        let new_key = storage_key(Provider::Kiro, &completed.config).unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = ConfigFile::load(Some(dir.path().join("cuotai.toml")), true).unwrap();
+        file.save(config_with(vec![first, shared.clone()])).unwrap();
+        let replacement = oauth_account("First", Provider::Kiro, completed.config.clone());
+        let outcome = commit_login(
+            &mut file,
+            &session,
+            &completed,
+            config_with(vec![replacement, shared]),
+        )
+        .await;
+        assert_eq!(outcome, LoginCommitOutcome::Saved);
+        assert!(store.load(&old_key).unwrap().is_some());
+        assert!(store.load(&new_key).unwrap().is_some());
+        assert_eq!(store.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn cleanup_failure_is_non_fatal_and_keeps_both_tokens() {
+        let (session, store) = session();
+        let old = oauth_account(
+            "Kiro",
+            Provider::Kiro,
+            oauth_config_from(request_for(Provider::Kiro, None)),
+        );
+        let old_key = account_edit::account_storage_key(&old).unwrap();
+        store.save(&old_key, &token("access-old")).unwrap();
+        store.fail_deletes.lock().insert(old_key.clone());
+        let mut request = request_for(Provider::Kiro, Some(&old));
+        request.options.insert("region".into(), "us-west-2".into());
+        let completed = completed_from(request, Provider::Kiro);
+        let new_key = storage_key(Provider::Kiro, &completed.config).unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = ConfigFile::load(Some(dir.path().join("cuotai.toml")), true).unwrap();
+        file.save(config_with(vec![old])).unwrap();
+        let replacement = oauth_account("Kiro", Provider::Kiro, completed.config.clone());
+        let outcome = commit_login(
+            &mut file,
+            &session,
+            &completed,
+            config_with(vec![replacement]),
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            LoginCommitOutcome::SavedWithCleanupFailure(_)
+        ));
+        assert!(store.load(&old_key).unwrap().is_some());
+        assert!(store.load(&new_key).unwrap().is_some());
+        assert_eq!(file.config.accounts[0].oauth, Some(completed.config));
+    }
+
+    #[tokio::test]
+    async fn save_failure_never_deletes_replaced_key() {
+        let (session, store) = session();
+        let old = oauth_account(
+            "Kiro",
+            Provider::Kiro,
+            oauth_config_from(request_for(Provider::Kiro, None)),
+        );
+        let old_key = account_edit::account_storage_key(&old).unwrap();
+        store.save(&old_key, &token("access-old")).unwrap();
+        let mut request = request_for(Provider::Kiro, Some(&old));
+        request.options.insert("region".into(), "us-west-2".into());
+        let completed = completed_from(request, Provider::Kiro);
+        let new_key = storage_key(Provider::Kiro, &completed.config).unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        let mut file = ConfigFile::load(Some(path.clone()), true).unwrap();
+        file.save(config_with(vec![old])).unwrap();
+        std::fs::write(&path, "refresh_seconds = 300\naccounts = []\n").unwrap();
+        let replacement = oauth_account("Kiro", Provider::Kiro, completed.config.clone());
+        let outcome = commit_login(
+            &mut file,
+            &session,
+            &completed,
+            config_with(vec![replacement]),
+        )
+        .await;
+        let LoginCommitOutcome::PartialFailure(failure) = outcome else {
+            panic!("esperava falha parcial");
+        };
+        assert_eq!(failure.compensation, Compensation::NewRemoved);
+        assert!(store.load(&old_key).unwrap().is_some());
+        assert!(store.load(&new_key).unwrap().is_none());
+    }
+
     #[tokio::test]
     async fn commit_config_conflict_restores_prior_token() {
         let (session, store) = session();
         let completed = completed(Provider::GeminiApi);
         let key = storage_key(Provider::GeminiApi, &completed.config).unwrap();
-        store
-            .save(&key, &token("access-old"))
-            .expect("preload prior token");
+        store.save(&key, &token("access-old")).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("cuotai.toml");
         let mut file = ConfigFile::load(Some(path.clone()), true).unwrap();
         file.save(empty_config()).unwrap();
-        // External tamper -> ConfigFile::save must report Conflict.
         std::fs::write(&path, "refresh_seconds = 300\naccounts = []\n").unwrap();
 
         let outcome = commit_login(&mut file, &session, &completed, empty_config()).await;
@@ -1088,18 +1683,20 @@ mod tests {
         assert!(!failure.config_saved);
         assert!(failure.credential_saved);
         assert_eq!(failure.compensation, Compensation::PreviousRestored);
-        let stored = store.load(&key).unwrap().unwrap();
-        assert_eq!(stored.access_token, "access-old");
+        assert_eq!(
+            store.load(&key).unwrap().unwrap().access_token,
+            "access-old"
+        );
 
-        // Retry after resolving the conflict succeeds and writes the new token.
         file.reload().unwrap();
         let outcome = commit_login(&mut file, &session, &completed, empty_config()).await;
         assert_eq!(outcome, LoginCommitOutcome::Saved);
-        let stored = store.load(&key).unwrap().unwrap();
-        assert_eq!(stored.access_token, "access-new");
+        assert_eq!(
+            store.load(&key).unwrap().unwrap().access_token,
+            "access-new"
+        );
     }
 
-    // RF2.4: a brand-new credential is removed again when the TOML save fails.
     #[tokio::test]
     async fn commit_config_conflict_removes_fresh_token() {
         let (session, store) = session();
@@ -1121,8 +1718,6 @@ mod tests {
         assert!(store.load(&key).unwrap().is_none());
     }
 
-    // RF2.4: cancel before commit never touches the vault — a completed login
-    // that is simply dropped leaves no trace.
     #[tokio::test]
     async fn dropped_completed_login_writes_nothing() {
         let (_, store) = session();

@@ -177,5 +177,6 @@
   "settings.refresh.save": "Aplicar",
   "settings.refresh.saved": "Intervalo atualizado.",
   "settings.refresh.presets": "Atalhos",
-  "settings.refresh.min": "mín. 30 s"
+  "settings.refresh.min": "mín. 30 s",
+  "edit_error.login_cleanup_failed": "A configuração e a nova credencial foram salvas; a credencial anterior permanece no cofre porque não foi possível removê-la."
 }

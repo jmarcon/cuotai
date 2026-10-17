@@ -789,5 +789,6 @@
   "settings.refresh.save": "Aplicar",
   "settings.refresh.saved": "Intervalo actualizado.",
   "settings.refresh.presets": "Atajos",
-  "settings.refresh.min": "mín. 30 s"
+  "settings.refresh.min": "mín. 30 s",
+  "edit_error.login_cleanup_failed": "Se guardaron la configuración y la nueva credencial; la credencial anterior permanece en el almacén porque no se pudo eliminar."
 }

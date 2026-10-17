@@ -10,7 +10,7 @@ use cuotai_core::{
     config_file::{ConfigFile, Discovery},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{classify_metric, classify_report, AccountClass, MetricState},
-    oauth::{requires_client_registration, supports_login, OAuthSession},
+    oauth::OAuthSession,
     refresh::{Edit, RefreshCycle},
     Account, Config, EnvironmentCredentials, Metric, Monitor, Provider, Report, Status,
 };
@@ -713,7 +713,11 @@ impl Backend {
 
     // ---------- edição de contas ----------
 
-    pub async fn save_account(&self, app: &AppHandle, input: AccountInput) -> Result<(), String> {
+    pub async fn save_account(
+        &self,
+        app: &AppHandle,
+        input: AccountInput,
+    ) -> Result<SaveAccountResult, String> {
         self.ensure_loaded().await;
         // Everything below runs under ONE inner.lock so a concurrent
         // refresh / scheduler tick cannot observe a half-applied edit.
@@ -722,7 +726,10 @@ impl Backend {
         // desktop is single-user with a modal dialog, and keeping the
         // lock avoids any half-applied window between the vault and
         // TOML stages.
-        let refresh_target: Option<usize> = {
+        let (refresh_target, cleanup_warning): (
+            Option<usize>,
+            Option<cuotai_core::text::Localized>,
+        ) = {
             let mut g = self.inner.lock().await;
             // Split borrows: pending login, session and loaded config are
             // disjoint fields.
@@ -765,35 +772,27 @@ impl Backend {
             let had_oauth = existing
                 .filter(|a| a.provider == input.provider)
                 .is_some_and(|a| a.oauth.is_some());
-            // Modo de autenticação escolhido no diálogo. O frontend envia o
-            // id do `LoginMode` (ou "credential") para que o backend
-            // determine com clareza: credencial manual REMOVE o oauth
-            // existente; modo OAuth preserva o oauth existente quando não
-            // há novo login nesta sessão.
-            let auth_mode_credential = input.auth_mode == "credential";
-            let oauth_existing = match (auth_mode_credential, had_oauth) {
-                // Trocar para credencial manual remove o oauth.
-                (true, _) => None,
-                // Edicao OAuth sem novo login: preserva a config existente.
-                (false, true) => existing
+            let selected_mode = if input.auth_mode == "credential" {
+                None
+            } else {
+                Some(
+                    login::login_mode(input.provider, &input.auth_mode)
+                        .ok_or("Modo de autenticação não oferecido para este provedor.")?,
+                )
+            };
+            let vault_mode = selected_mode.as_ref().is_some_and(|mode| {
+                mode.credential_store == login::LoginCredentialStore::CuotaiVault
+            });
+            let oauth_existing = if vault_mode && had_oauth {
+                existing
                     .filter(|a| a.provider == input.provider)
                     .and_then(|a| a.oauth.as_ref())
-                    .cloned(),
-                // Conta sem oauth: nada a preservar.
-                (false, false) => None,
+                    .cloned()
+            } else {
+                None
             };
-            // Habilita o modo OAuth SOMENTE quando há credencial Cuotai
-            // (token gravado no cofre). Modos `aws_sso` e `bailian_console`
-            // gravam fora do cofre Cuotai (AWS CLI cache / `bl` vault), e o
-            // core exige `oauth_authorized` ou `oauth_existing` quando
-            // `oauth_mode = true`. Marcar `oauth_mode = true` para esses
-            // modos faria `build_account` falhar com "Faça login". A
-            // credencial/opções deles vão nos campos do rascunho e em
-            // `params` (Bailian adiciona `cli_profile` por conta do core).
-            let oauth_mode = completed.is_some() || oauth_existing.is_some();
-            // Modo de login do Cuotai escolhido, mas sem login concluído nem credencial existente: o core cobraria a
-            // "variável de ambiente", que não existe nesse modo. Dizemos o motivo real.
-            if login_needed_before_save(&input.auth_mode, oauth_mode) {
+            let oauth_mode = vault_mode && (completed.is_some() || oauth_existing.is_some());
+            if login_needed_before_save(selected_mode.as_ref(), oauth_mode) {
                 return Err(
                     "Conclua o login antes de salvar (ou volte para a credencial manual).".into(),
                 );
@@ -810,31 +809,24 @@ impl Backend {
                     Some(DraftField { key: d.key, value })
                 })
                 .collect();
-            // Opções nativas registradas neste salvamento (sem segredos) só
-            // fluem se o login foi concluído; o core resolve o que
-            // sobrescreve e o que mantém das `oauth_existing`/`params`.
             let oauth_login_params = completed.map(|c| c.params.clone()).unwrap_or_default();
-            // Bailian stores its login in the `bl` profile; persist the exact
-            // profile passed to the CLI. A missing profile is generated only
-            // when saving without a login (the manual Cookie path).
-            let credential_params = if input.auth_mode == login::MODE_BAILIAN_CONSOLE {
-                let mut params = BTreeMap::new();
-                let profile = input.cli_profile_override.trim();
-                if profile.is_empty() && !input.commit_login {
-                    account_edit::ensure_cli_profile(&mut params);
-                } else if account_edit::is_valid_cli_profile(profile) {
-                    params.insert("cli_profile".to_string(), profile.to_string());
-                } else {
-                    return Err("Perfil do `bl` inválido; use letras, números, '-' ou '_', até 32 caracteres.".into());
-                }
-                Some(params)
+            let (credential, credential_params) = if let Some(mode) = &selected_mode {
+                login::account_login_inputs(
+                    input.provider,
+                    &mode.id,
+                    &input.credential,
+                    &input.auth_options,
+                    &input.auth_params,
+                    input.commit_login,
+                )
+                .map_err(|error| error.to_string())?
             } else {
-                None
+                (input.credential.clone(), None)
             };
             let draft = AccountDraft {
                 provider: input.provider,
                 name: &input.name,
-                credential: &input.credential,
+                credential: &credential,
                 oauth_mode,
                 oauth_existing: oauth_existing.as_ref(),
                 oauth_authorized: completed.map(|c| c.config.clone()),
@@ -868,11 +860,9 @@ impl Backend {
                     )));
                 }
             };
-            // Persist. O caminho de commit delega a escrita encenada
-            // cofre→TOML ao core (RF2.4): cofre primeiro capturando o
-            // token anterior (reauth), depois `ConfigFile::save`; uma
-            // `PartialFailure` NUNCA apaga um token substituído sem
-            // restaurá-lo. O caminho simples só toca o TOML.
+            // Persist. Core owns vault→TOML ordering, compensation and the
+            // post-save replaced-key cleanup/shared-key guard.
+            let mut cleanup_warning = None;
             if let Some(completed) = completed {
                 let session = session
                     .as_ref()
@@ -880,10 +870,13 @@ impl Backend {
                     .ok_or("Sessão OAuth não inicializada.")?;
                 match login::commit_login(&mut l.file, session, completed, updated.clone()).await {
                     login::LoginCommitOutcome::Saved => {}
+                    login::LoginCommitOutcome::SavedWithCleanupFailure(failure) => {
+                        cleanup_warning = Some(cuotai_core::text::Localized::fixed(
+                            "edit_error.login_cleanup_failed",
+                            failure.message,
+                        ));
+                    }
                     login::LoginCommitOutcome::PartialFailure(failure) => {
-                        // Runtime fica na config anterior; o pendente NÃO é
-                        // consumido, então "Salvar" refaz o commit sem novo
-                        // OAuth. A mensagem do core carrega a verdade exata.
                         let wrapped = format!(
                             "{} A autorização continua em memória: clique em Salvar novamente para concluir sem refazer o login.",
                             failure.message
@@ -895,8 +888,6 @@ impl Backend {
                     }
                 }
             } else if let Err(e) = l.file.save(updated.clone()) {
-                // `save` roda `validate` de novo; falha aqui é I/O real e o
-                // runtime continua na configuração anterior.
                 return Err(l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)));
             }
             // Persistido: pendente consumido (committed credential ou modo
@@ -921,13 +912,13 @@ impl Backend {
             }
             l.generation += 1;
             *generation = l.generation;
-            refresh_target
+            (refresh_target, cleanup_warning)
         };
         self.emit(app).await;
         if let Some(index) = refresh_target {
             self.refresh_account(app, index).await?;
         }
-        Ok(())
+        Ok(SaveAccountResult { cleanup_warning })
     }
 
     /// `purge_credentials`: apagar também a credencial OAuth do cofre do sistema. O core decide se pode (credencial
@@ -1131,16 +1122,17 @@ impl Backend {
         // o id de modo é o que combina com o provider: hoje o core só
         // emite "oauth" para fluxos com credencial Cuotai; AWS SSO/Bailian
         // não ficam em `oauth` (eles não têm `Account::oauth`).
-        let (auth_mode, auth_options, client_id, client_secret_env, tenant) = match &a.oauth {
-            Some(cfg) => (
-                login::MODE_OAUTH,
-                cfg.options.clone(),
-                cfg.client_id.clone(),
-                cfg.client_secret_env.clone(),
-                cfg.tenant.clone(),
-            ),
-            None => ("credential", BTreeMap::new(), String::new(), None, None),
+        let (auth_mode, auth_options, auth_registration) = if a.oauth.is_some() {
+            let request = LoginRequest::for_account(a.provider, login::MODE_OAUTH, Some(a));
+            (login::MODE_OAUTH, request.options, request.registration)
+        } else {
+            ("credential", BTreeMap::new(), BTreeMap::new())
         };
+        let native_login = a.oauth.is_some()
+            && login::login_mode(a.provider, auth_mode).is_some_and(|mode| {
+                mode.credential_store == login::LoginCredentialStore::CuotaiVault
+                    && mode.registration.is_empty()
+            });
         let fields = field_descriptors(a.provider)
             .iter()
             .map(|d| match d.kind {
@@ -1167,14 +1159,10 @@ impl Backend {
             credential,
             interval: a.refresh_seconds.map(|s| s.to_string()).unwrap_or_default(),
             uses_oauth: a.oauth.is_some(),
-            native_login: a.oauth.is_some()
-                && !requires_client_registration(a.provider)
-                && supports_login(a.provider),
+            native_login,
             auth_mode,
             auth_options,
-            client_id,
-            client_secret_env,
-            tenant,
+            auth_registration,
             fields,
         })
     }
@@ -1204,37 +1192,19 @@ impl Backend {
             return Err("Já há um login em andamento; conclua ou cancele.".into());
         }
         let session = Arc::clone(g.session.as_ref().ok_or("Sessão OAuth não inicializada.")?);
-        // RF2.8: reautenticação reaproveita o credential_id da conta
-        // existente (mesmo provider); conta nova recebe id novo (None =>
-        // o core gera um uuid v4). Nenhuma decisão de fluxo por provider
-        // acontece aqui (RF2.6).
-        let credential_id = input
-            .index
-            .and_then(|i| {
-                g.loaded
-                    .as_ref()
-                    .and_then(|l| l.file.config.accounts.get(i))
-            })
-            .filter(|a| a.provider == input.provider)
-            .and_then(|a| a.oauth.as_ref())
-            .map(|o| o.credential_id.clone());
-        // Valida o NOVO pedido ANTES de tomar o predecessor: se o core
-        // recusar (modo não oferecido, indisponível, etc.), a credencial
-        // completada do login anterior permanece em memória e pode ser
-        // consumida por um `save_account` subsequente.
-        let driver = login::start_login(
-            session,
-            input.provider,
-            LoginRequest {
-                mode: input.mode.clone(),
-                options: input.options.clone(),
-                client_id: input.client_id.clone(),
-                client_secret_env: input.client_secret_env.clone(),
-                tenant: input.tenant.clone(),
-                credential_id,
-            },
-        )
-        .map_err(|e| e.to_string())?;
+        // RF2.8: the core helper binds the request to the edited account and
+        // owns credential_id reuse plus the replaced-key cleanup context.
+        let existing = input.index.and_then(|index| {
+            g.loaded
+                .as_ref()
+                .and_then(|loaded| loaded.file.config.accounts.get(index))
+        });
+        let mut request = LoginRequest::for_account(input.provider, &input.mode, existing);
+        request.options = input.options.clone();
+        request.registration = input.registration.clone();
+        // Valida o NOVO pedido ANTES de tomar o predecessor.
+        let driver =
+            login::start_login(session, input.provider, request).map_err(|e| e.to_string())?;
         // Novo pedido validado: agora sim descarta o predecessor terminal
         // (o forwarder dele é cancelado para que não confunda o novo slot).
         if let Some(mut old) = g.login.take() {
@@ -1432,8 +1402,8 @@ pub struct FieldValue {
     pub choice: Option<usize>,
 }
 
-/// A interface envia os campos em camelCase (`commitLogin`, `loginAttempt`, `authMode`, `cliProfileOverride`).
-/// Sem o `rename_all`, o serde ignora o que não conhece e o login concluído nunca chega ao salvar.
+/// A interface envia os campos em camelCase. Login options/results contain
+/// only public values; the core applies the selected mode's account binding.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountInput {
@@ -1443,51 +1413,38 @@ pub struct AccountInput {
     pub credential: String,
     pub fields: Vec<FieldValue>,
     pub interval: String,
-    /// RF2: gravar junto a credencial do login pendente desta conta
-    /// (cofre + TOML encenados pelo core). `false` = só TOML.
     #[serde(default)]
     pub commit_login: bool,
-    /// Identificador da tentativa de login casada com este salvamento.
-    /// O `save_account` exige que o `PendingLogin` atual tenha o mesmo
-    /// `attempt` — protege contra um forwarder velho/confuso e contra
-    /// a UI reaproveitar credenciais de uma tentativa anterior.
     #[serde(default)]
     pub login_attempt: u64,
-    /// Modo de autenticação escolhido no diálogo: "credential" para
-    /// credencial manual (env/perfil), ou o id de um `LoginMode` do core
-    /// (oauth, aws_sso, bailian_console). Determina se o oauth existente
-    /// é preservado ou removido.
     #[serde(default = "default_credential_mode")]
     pub auth_mode: String,
-    /// Override do `params.cli_profile` (modo `bailian_console`): vazio
-    /// deixa o core gerar um identificador único; não-vazio é validado
-    /// por `is_valid_cli_profile`.
     #[serde(default)]
-    pub cli_profile_override: String,
+    pub auth_options: BTreeMap<String, String>,
+    #[serde(default)]
+    pub auth_params: BTreeMap<String, String>,
+}
+
+#[derive(Serialize)]
+pub struct SaveAccountResult {
+    pub cleanup_warning: Option<cuotai_core::text::Localized>,
 }
 
 fn default_credential_mode() -> String {
     "credential".to_string()
 }
 
-/// Entrada de `login_start`: modo escolhido + opções não secretas. A
-/// seleção do fluxo por provider fica no core (RF2.6); aqui só há repasse.
+/// Entrada de `login_start`: modo escolhido + opções/registro não secretos.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginStartInput {
     pub provider: Provider,
-    /// Conta em reautenticação (reuso do `credential_id`, RF2.8).
     pub index: Option<usize>,
-    /// `id` do modo devolvido por `form_schema` (enviado de volta intacto).
     pub mode: String,
-    /// Opções não secretas do fluxo (region/auth_method/start_url,
-    /// profile do AWS SSO, console_site+profile do Bailian).
     #[serde(default)]
     pub options: BTreeMap<String, String>,
-    /// Registro próprio (modos com `requires_client_registration`).
-    pub client_id: Option<String>,
-    pub client_secret_env: Option<String>,
-    pub tenant: Option<String>,
+    #[serde(default)]
+    pub registration: BTreeMap<String, String>,
 }
 
 #[derive(Serialize)]
@@ -1497,21 +1454,10 @@ pub struct AccountForm {
     credential: String,
     interval: String,
     uses_oauth: bool,
-    /// Login nativo: campos de identidade ficam ocultos (regra do core).
     native_login: bool,
-    /// Id do modo de login da config existente (oauth/aws_sso/
-    /// bailian_console) para prefill da UI na reautenticação.
     auth_mode: &'static str,
-    /// Opções não secretas da OAuthConfig existente (region/auth_method/
-    /// start_url, profile do AWS SSO, console_site+profile do Bailian)
-    /// para prefill.
     auth_options: BTreeMap<String, String>,
-    /// client_id registrado na OAuthConfig existente (prefill).
-    client_id: String,
-    /// Variável do client secret (apenas NOME, nunca valor) para prefill.
-    client_secret_env: Option<String>,
-    /// Tenant Microsoft configurado, para prefill.
-    tenant: Option<String>,
+    auth_registration: BTreeMap<String, String>,
     fields: Vec<FieldValue>,
 }
 
@@ -1555,6 +1501,8 @@ pub struct LoginOptionSchema {
     label: cuotai_core::text::Localized,
     help: cuotai_core::text::Localized,
     choices: Option<Vec<ChoiceSchema>>,
+    required: bool,
+    validation: login::LoginOptionValidation,
 }
 
 #[derive(Serialize)]
@@ -1562,7 +1510,10 @@ pub struct LoginModeSchema {
     id: String,
     label: cuotai_core::text::Localized,
     help: cuotai_core::text::Localized,
-    requires_client_registration: bool,
+    completion_notice: cuotai_core::text::Localized,
+    credential_store: login::LoginCredentialStore,
+    account_binding: login::LoginAccountBinding,
+    registration: Vec<LoginOptionSchema>,
     options: Vec<LoginOptionSchema>,
     unavailable_reason: Option<cuotai_core::text::Localized>,
 }
@@ -1583,9 +1534,62 @@ pub struct FormSchema {
     login: ProviderLoginSchema,
 }
 
+fn login_option_schema(
+    provider: Provider,
+    mode_id: &str,
+    option: login::LoginOption,
+    registration: bool,
+) -> LoginOptionSchema {
+    let slug = provider.slug();
+    let key = option.key.clone();
+    let (id, label_id, help_id) = if registration {
+        let base = format!("login.{slug}.{mode_id}.registration.{key}");
+        (
+            base.clone(),
+            format!("{base}.label"),
+            format!("{base}.help"),
+        )
+    } else {
+        (
+            format!("native.{slug}.{key}"),
+            account_edit::native_option_label_id(provider, &key),
+            account_edit::native_option_help_id(provider, &key),
+        )
+    };
+    let choices = option.choices.map(|choices| {
+        choices
+            .into_iter()
+            .map(|(value, fallback)| {
+                let choice_id = if registration {
+                    format!("{id}.option.{value}")
+                } else {
+                    account_edit::native_option_option_id(provider, &key, &value)
+                };
+                ChoiceSchema {
+                    id: choice_id.clone(),
+                    value,
+                    label: cuotai_core::text::Localized::fixed(choice_id, fallback),
+                }
+            })
+            .collect()
+    });
+    LoginOptionSchema {
+        id,
+        key: option.key,
+        label: cuotai_core::text::Localized::fixed(label_id, option.label),
+        help: cuotai_core::text::Localized::fixed(help_id, option.help),
+        choices,
+        required: option.required,
+        validation: option.validation,
+    }
+}
+
 pub fn form_schema(provider: Provider) -> FormSchema {
     let slug = provider.slug();
     let login = login::login_modes(provider);
+    let unsupported_reason = login.unsupported_reason.map(|fallback| {
+        cuotai_core::text::Localized::fixed(format!("oauth.unsupported_reason.{slug}"), fallback)
+    });
     FormSchema {
         credential_kind: match account_edit::credential_kind(provider) {
             CredentialKind::AwsProfile => "profile",
@@ -1611,53 +1615,32 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                             format!("login.{slug}.{mode_id}.help"),
                             mode.help,
                         ),
-                        requires_client_registration: mode.requires_client_registration,
+                        completion_notice: cuotai_core::text::Localized::fixed(
+                            format!("login.{slug}.{mode_id}.completion_notice"),
+                            mode.completion_notice,
+                        ),
+                        credential_store: mode.credential_store,
+                        account_binding: mode.account_binding,
+                        registration: mode
+                            .registration
+                            .into_iter()
+                            .map(|option| login_option_schema(provider, &mode_id, option, true))
+                            .collect(),
+                        options: mode
+                            .options
+                            .into_iter()
+                            .map(|option| login_option_schema(provider, &mode_id, option, false))
+                            .collect(),
                         unavailable_reason: mode.unavailable_reason.map(|fallback| {
                             cuotai_core::text::Localized::fixed(
                                 format!("login.{slug}.{mode_id}.unavailable_reason"),
                                 fallback,
                             )
                         }),
-                        options: mode
-                            .options
-                            .into_iter()
-                            .map(|option| {
-                                let key = option.key.clone();
-                                LoginOptionSchema {
-                                    id: format!("native.{slug}.{key}"),
-                                    key: option.key,
-                                    label: cuotai_core::text::Localized::fixed(
-                                        account_edit::native_option_label_id(provider, &key),
-                                        option.label,
-                                    ),
-                                    help: cuotai_core::text::Localized::fixed(
-                                        account_edit::native_option_help_id(provider, &key),
-                                        option.help,
-                                    ),
-                                    choices: option.choices.map(|choices| {
-                                        choices
-                                            .into_iter()
-                                            .map(|(value, fallback)| {
-                                                let id = account_edit::native_option_option_id(
-                                                    provider, &key, &value,
-                                                );
-                                                ChoiceSchema {
-                                                    id: id.clone(),
-                                                    value,
-                                                    label: cuotai_core::text::Localized::fixed(
-                                                        id, fallback,
-                                                    ),
-                                                }
-                                            })
-                                            .collect()
-                                    }),
-                                }
-                            })
-                            .collect(),
                     }
                 })
                 .collect(),
-            unsupported_reason: account_edit::oauth_unsupported_reason(provider),
+            unsupported_reason,
         },
         fields: field_descriptors(provider)
             .iter()
@@ -1728,10 +1711,11 @@ fn rebuild_cycle_keeping_reports(old: &RefreshCycle, config: &Config) -> Refresh
     cycle
 }
 
-/// O modo de login nativo (OAuth) exige uma autorização concluída ou uma credencial já existente para salvar.
-/// `aws_sso` e `bailian_console` gravam fora do cofre do Cuotai e não passam por aqui.
-fn login_needed_before_save(auth_mode: &str, oauth_mode: bool) -> bool {
-    auth_mode == login::MODE_OAUTH && !oauth_mode
+/// Cuotai-vault modes require an authorized/existing credential. External
+/// CLI modes never inherit this requirement.
+fn login_needed_before_save(mode: Option<&login::LoginMode>, oauth_mode: bool) -> bool {
+    mode.is_some_and(|mode| mode.credential_store == login::LoginCredentialStore::CuotaiVault)
+        && !oauth_mode
 }
 
 /// Chaves dos campos visíveis para as escolhas atuais (regra do core). `auth_mode` é o modo escolhido no
@@ -1744,9 +1728,10 @@ pub fn visible_keys(
     login: &BTreeMap<String, String>,
 ) -> Vec<&'static str> {
     let mut vis = FieldVisibility::new(login, &choices);
-    vis.native_login = auth_mode == login::MODE_OAUTH
-        && !requires_client_registration(provider)
-        && supports_login(provider);
+    vis.native_login = login::login_mode(provider, auth_mode).is_some_and(|mode| {
+        mode.credential_store == login::LoginCredentialStore::CuotaiVault
+            && mode.registration.is_empty()
+    });
     let d = field_descriptors(provider);
     visible_field_indices(provider, &vis)
         .into_iter()
@@ -1814,15 +1799,21 @@ mod tests {
     fn login_start_input_reads_the_camel_case_fields_the_ui_sends() {
         let input: LoginStartInput = serde_json::from_value(serde_json::json!({
             "provider": "gemini_api", "index": null, "mode": "oauth", "options": {},
-            "clientId": "meu-client", "clientSecretEnv": "MEU_SEGREDO", "tenant": null
+            "registration": {"client_id": "meu-client", "client_secret_env": "MEU_SEGREDO"}
         }))
         .expect("pedido de login");
         assert_eq!(
-            input.client_id.as_deref(),
+            input.registration.get("client_id").map(String::as_str),
             Some("meu-client"),
-            "clientId foi ignorado"
+            "registration client_id foi ignorado"
         );
-        assert_eq!(input.client_secret_env.as_deref(), Some("MEU_SEGREDO"));
+        assert_eq!(
+            input
+                .registration
+                .get("client_secret_env")
+                .map(String::as_str),
+            Some("MEU_SEGREDO")
+        );
     }
 
     #[test]
@@ -1831,25 +1822,30 @@ mod tests {
         let input: AccountInput = serde_json::from_value(serde_json::json!({
             "index": null, "provider": "kiro", "name": "Kiro Pessoal", "credential": "",
             "fields": [], "interval": "",
-            "commitLogin": true, "loginAttempt": 7, "authMode": "oauth", "cliProfileOverride": "perfil"
+            "commitLogin": true, "loginAttempt": 7, "authMode": "oauth",
+            "authOptions": {"region": "us-east-1"}, "authParams": {}
         }))
         .expect("pedido do diálogo");
         assert!(input.commit_login, "commitLogin foi ignorado");
         assert_eq!(input.login_attempt, 7);
         assert_eq!(input.auth_mode, "oauth");
-        assert_eq!(input.cli_profile_override, "perfil");
+        assert_eq!(
+            input.auth_options.get("region").map(String::as_str),
+            Some("us-east-1")
+        );
     }
 
     #[test]
     fn oauth_mode_without_login_is_reported_as_missing_login_not_missing_env_var() {
-        assert!(login_needed_before_save(login::MODE_OAUTH, false));
-        assert!(!login_needed_before_save(login::MODE_OAUTH, true)); // login concluído ou credencial existente
-        assert!(!login_needed_before_save("credential", false)); // credencial manual: o core cobra a variável
-        assert!(!login_needed_before_save(login::MODE_AWS_SSO, false));
-        assert!(!login_needed_before_save(
-            login::MODE_BAILIAN_CONSOLE,
-            false
-        ));
+        let oauth_mode = login::login_mode(Provider::GeminiApi, login::MODE_OAUTH);
+        let aws_mode = login::login_mode(Provider::AwsBedrock, login::MODE_AWS_SSO);
+        let bailian_mode =
+            login::login_mode(Provider::AlibabaTokenPlan, login::MODE_BAILIAN_CONSOLE);
+        assert!(login_needed_before_save(oauth_mode.as_ref(), false));
+        assert!(!login_needed_before_save(oauth_mode.as_ref(), true));
+        assert!(!login_needed_before_save(None, false));
+        assert!(!login_needed_before_save(aws_mode.as_ref(), false));
+        assert!(!login_needed_before_save(bailian_mode.as_ref(), false));
     }
 
     #[test]
