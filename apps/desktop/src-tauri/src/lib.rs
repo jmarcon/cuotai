@@ -282,6 +282,18 @@ fn open_user_dir() -> Result<(), String> {
     settings::open_user_dir().map_err(str::to_owned)
 }
 
+/// RF1.2: `path = None` volta ao `cuotai.toml` padrão do SO. Recarrega pelo core e só então
+/// grava a escolha em `desktop.json`. Erros: códigos de `settings` ou o JSON tipado do core.
+#[tauri::command]
+async fn set_config_file(
+    app: AppHandle,
+    b: Shared<'_>,
+    path: Option<String>,
+) -> Result<View, String> {
+    b.set_config_file(&app, path.map(std::path::PathBuf::from))
+        .await
+}
+
 #[tauri::command]
 fn open_settings(app: AppHandle) {
     show_main_window(app.clone());
@@ -353,6 +365,7 @@ pub fn run() {
             set_refresh_seconds,
             move_account,
             reload_config,
+            set_config_file,
             config_changed_on_disk,
             login_start,
             login_submit_code,

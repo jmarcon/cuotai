@@ -209,7 +209,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
         selection: TableState::default(),
         filter: String::new(),
         filtering: false,
-        location: file.path.display().to_string(),
+        location: location(&file),
         error: None,
         detail_scroll: 0,
         show_unmeasured: true,
@@ -1035,6 +1035,19 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
     Ok(())
 }
 
+/// Header line: effective path plus the rule that selected it.
+fn location(file: &ConfigFile) -> String {
+    use cuotai_core::config_file::PathSource;
+    let source = match file.source {
+        PathSource::Argument => "--config",
+        PathSource::Env => "CUOTAI_CONFIG",
+        PathSource::Chosen => "escolhido",
+        PathSource::Local => "local",
+        PathSource::System => "padrão do SO",
+    };
+    format!("{} ({source})", file.path.display())
+}
+
 fn new_monitor(config: &Config, session: &Arc<OAuthSession>) -> io::Result<Arc<Monitor>> {
     Monitor::with_oauth(
         config.clone(),
@@ -1064,18 +1077,18 @@ fn reload_config_after_conflict(
     session: &Arc<OAuthSession>,
 ) -> Result<(), String> {
     // RF4 review: stage the reload as a candidate BEFORE mutating
-    // any live state. The candidate is built via `load_with` against
-    // the same explicit path the original file used (preserving the
-    // symlink semantics and the missing-file fallback) and rebuilt
-    // against the freshly-loaded `Config`. Only on success do we
-    // abort the in-flight tasks and commit. On any failure the live
-    // `file`, `monitor`, `cycle`, and `account_refresh` table are
-    // untouched.
-    let candidate_path = file.path.clone();
-    let candidate = ConfigFile::load_with(
-        Some(candidate_path.clone()),
+    // any live state. The candidate re-opens the same path and source
+    // the original file used (preserving the symlink semantics and the
+    // missing-file fallback) and is rebuilt against the freshly-loaded
+    // `Config`. Only on success do we abort the in-flight tasks and
+    // commit. On any failure the live `file`, `monitor`, `cycle`, and
+    // `account_refresh` table are untouched.
+    let candidate = ConfigFile::open(
+        cuotai_core::config_file::ResolvedPath {
+            path: file.path.clone(),
+            source: file.source,
+        },
         true,
-        cuotai_core::config_file::Discovery::LocalAndSystem,
     )
     .map_err(|e| e.message())?;
     let new_monitor =

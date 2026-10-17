@@ -16,12 +16,16 @@
 //! requested config before writing. Only on success are `config`/`exists`/
 //! snapshot updated; on any failure `self` is untouched.
 //!
-//! Discovery is controlled by [`Discovery`]:
-//! - [`Discovery::LocalAndSystem`] is the CLI/TUI behaviour: explicit path,
-//!   then `./cuotai.toml`, then the platform config dir.
-//! - [`Discovery::SystemOnly`] is the GUI behaviour: explicit path, then the
-//!   platform config dir (never `./cuotai.toml`, whose meaning in a graphical
-//!   application is unpredictable).
+//! Discovery is controlled by [`Discovery`] over injectable [`Locations`]:
+//! - [`Discovery::Cli`] (CLI/TUI): `--config`, `CUOTAI_CONFIG`, existing
+//!   `./cuotai.toml`, then `<OS config dir>/cuotai/config.toml`.
+//! - [`Discovery::Gui`]: `CUOTAI_CONFIG`, the file chosen in the app
+//!   settings, then the OS path (never `./cuotai.toml`, whose meaning in a
+//!   graphical application is unpredictable).
+//!
+//! With nothing found, both create the file in the OS path. The selected
+//! rule is kept as [`PathSource`]; [`ConfigIdentity`] normalizes relative
+//! paths and symlinks so per-config caches can be keyed by file.
 //!
 //! Errors are typed via [`crate::edit_error::EditError`] so a frontend can
 //! distinguish a [`EditError::Conflict`] (the file changed on disk; offer
@@ -39,67 +43,143 @@ use crate::edit_error::{
 };
 use crate::{Account, Config};
 
-/// Discovery policy used by [`ConfigFile::load`]. The default
-/// (`LocalAndSystem`) preserves the CLI/TUI behaviour so existing
-/// frontends see no regression; `SystemOnly` is intended for graphical
-/// apps whose `cwd` has no meaningful relation to the user's config.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Discovery policy for [`ConfigFile::load_with`].
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Discovery {
-    /// Explicit path, then `./cuotai.toml`, then the platform config
-    /// directory.
-    #[default]
-    LocalAndSystem,
-    /// Explicit path, then the platform config directory. Never
-    /// consult `./cuotai.toml` so a GUI does not pick up an unrelated
-    /// file from the process working directory.
-    SystemOnly,
+    /// CLI/TUI: `--config` > `CUOTAI_CONFIG` > existing `./cuotai.toml` >
+    /// `<OS config dir>/cuotai/config.toml`.
+    Cli { config: Option<PathBuf> },
+    /// GUI: `CUOTAI_CONFIG` > file chosen in the app settings > OS path.
+    /// Never consults `./cuotai.toml`.
+    Gui { chosen: Option<PathBuf> },
 }
 
-/// Path selected by [`ConfigFile::resolve_path`] for the requested
-/// discovery policy. Returned so callers (and tests) can verify which
-/// path the loader is about to read.
+/// Process inputs consulted by discovery; injectable so tests never touch
+/// the real environment or OS directories.
+#[derive(Debug, Clone, Default)]
+pub struct Locations {
+    /// `CUOTAI_CONFIG` (an empty value counts as unset).
+    pub env: Option<PathBuf>,
+    /// Directory searched for `cuotai.toml` by [`Discovery::Cli`]; empty = cwd.
+    pub cwd: PathBuf,
+    /// Platform config directory (`dirs::config_dir()`).
+    pub config_dir: Option<PathBuf>,
+}
+
+impl Locations {
+    pub fn from_process() -> Self {
+        Self {
+            env: std::env::var_os("CUOTAI_CONFIG")
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from),
+            cwd: PathBuf::new(),
+            config_dir: dirs::config_dir(),
+        }
+    }
+}
+
+/// Rule that selected the effective path; frontends show it next to the path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathSource {
+    /// `--config`.
+    Argument,
+    /// `CUOTAI_CONFIG`.
+    Env,
+    /// File chosen in the desktop settings.
+    Chosen,
+    /// Existing `./cuotai.toml`.
+    Local,
+    /// `<OS config dir>/cuotai/config.toml`, also the creation default.
+    System,
+}
+
+/// Path selected by [`ConfigFile::resolve_path`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPath {
     pub path: PathBuf,
-    pub explicit: bool,
-    pub from_local: bool,
-    pub from_system: bool,
+    pub source: PathSource,
+}
+
+/// Normalized identity of a configuration, the key for per-config caches.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ConfigIdentity {
+    /// Canonical path of the TOML file (see [`ConfigIdentity::of_path`]).
+    File(PathBuf),
+    /// Stable id supplied by an integrator that has no config file.
+    Explicit(String),
+}
+
+impl ConfigIdentity {
+    /// Resolve relative components and symlinks. A file that does not exist
+    /// yet maps to its canonical (existing) parent plus file name, so the
+    /// identity is the same before and after creation.
+    pub fn of_path(path: &Path) -> std::io::Result<Self> {
+        match fs::canonicalize(path) {
+            Ok(real) => Ok(Self::File(real)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let name = path.file_name().ok_or(e)?;
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."));
+                Ok(Self::File(fs::canonicalize(parent)?.join(name)))
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl std::fmt::Display for ConfigIdentity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::File(path) => write!(f, "{}", path.display()),
+            Self::Explicit(id) => f.write_str(id),
+        }
+    }
 }
 
 pub struct ConfigFile {
     pub config: Config,
     pub path: PathBuf,
+    /// Rule that selected `path`.
+    pub source: PathSource,
     pub exists: bool,
     /// Byte snapshot of the file when loaded/saved; `None` when it did not exist.
     original: Option<Vec<u8>>,
 }
 
 impl ConfigFile {
-    /// Load precedence: explicit path, `./cuotai.toml`, platform config dir.
-    ///
-    /// Convenience wrapper around [`ConfigFile::load_with`] that uses the
-    /// CLI/TUI discovery (`LocalAndSystem`). Existing CLI and TUI callers
-    /// see no behaviour change.
+    /// CLI/TUI load: `explicit` is `--config` (see [`Discovery::Cli`]),
+    /// reading `CUOTAI_CONFIG`, cwd and the OS dir from the process.
     pub fn load(explicit: Option<PathBuf>, interactive: bool) -> Result<Self, EditError> {
-        Self::load_with(explicit, interactive, Discovery::LocalAndSystem)
+        Self::load_with(
+            Discovery::Cli { config: explicit },
+            interactive,
+            &Locations::from_process(),
+        )
     }
 
-    /// Load the configuration with an explicit discovery policy.
+    /// Resolve with `discovery` over `locations`, then [`ConfigFile::open`].
+    pub fn load_with(
+        discovery: Discovery,
+        interactive: bool,
+        locations: &Locations,
+    ) -> Result<Self, EditError> {
+        Self::open(Self::resolve_path(discovery, locations), interactive)
+    }
+
+    /// Load exactly `resolved` (also used to re-read the live file).
     ///
     /// Missing file behaviour:
     /// - interactive always yields an empty-accounts config with `exists =
     ///   false` (so the caller can open the wizard);
-    /// - non-interactive errors only for an explicit path, otherwise
-    ///   falls back to the default provider catalog.
+    /// - non-interactive errors for a user-named path (`--config`, env,
+    ///   chosen), otherwise falls back to the default provider catalog.
     ///
     /// Errors never include raw TOML contents or user-typed secrets.
-    pub fn load_with(
-        explicit: Option<PathBuf>,
-        interactive: bool,
-        discovery: Discovery,
-    ) -> Result<Self, EditError> {
-        let resolved = Self::resolve_path(explicit.as_deref(), discovery);
-        let path = resolved.path;
+    pub fn open(resolved: ResolvedPath, interactive: bool) -> Result<Self, EditError> {
+        let ResolvedPath { path, source } = resolved;
         match fs::read(&path) {
             Ok(bytes) => {
                 let text = std::str::from_utf8(&bytes).map_err(|_| {
@@ -116,6 +196,7 @@ impl ConfigFile {
                 Ok(Self {
                     config,
                     path,
+                    source,
                     exists: true,
                     original: Some(bytes),
                 })
@@ -129,10 +210,14 @@ impl ConfigFile {
                     Ok(Self {
                         config,
                         path,
+                        source,
                         exists: false,
                         original: None,
                     })
-                } else if resolved.explicit {
+                } else if matches!(
+                    source,
+                    PathSource::Argument | PathSource::Env | PathSource::Chosen
+                ) {
                     Err(EditError::Io {
                         path: path.clone(),
                         source: e,
@@ -141,6 +226,7 @@ impl ConfigFile {
                     Ok(Self {
                         config: Config::default(),
                         path,
+                        source,
                         exists: false,
                         original: None,
                     })
@@ -153,63 +239,35 @@ impl ConfigFile {
         }
     }
 
-    /// Pure path-resolution helper. Returns the path the loader would
-    /// read, with flags the tests use to assert the policy. Does not
-    /// touch the filesystem; `exists` checks use `is_file`.
-    pub fn resolve_path(explicit: Option<&Path>, discovery: Discovery) -> ResolvedPath {
-        let local = PathBuf::from("cuotai.toml");
-        if let Some(path) = explicit {
-            return ResolvedPath {
-                path: path.to_path_buf(),
-                explicit: true,
-                from_local: false,
-                from_system: false,
-            };
+    /// Pure precedence (see [`Discovery`]); only `./cuotai.toml` is probed
+    /// with `is_file`. With nothing found the OS path is returned so a new
+    /// file is created there.
+    pub fn resolve_path(discovery: Discovery, locations: &Locations) -> ResolvedPath {
+        let at = |path, source| ResolvedPath { path, source };
+        let (chosen, local) = match discovery {
+            Discovery::Cli { config: Some(path) } => return at(path, PathSource::Argument),
+            Discovery::Cli { config: None } => (None, true),
+            Discovery::Gui { chosen } => (chosen, false),
+        };
+        if let Some(env) = &locations.env {
+            return at(env.clone(), PathSource::Env);
         }
-        match discovery {
-            Discovery::LocalAndSystem => {
-                if local.is_file() {
-                    return ResolvedPath {
-                        path: local,
-                        explicit: false,
-                        from_local: true,
-                        from_system: false,
-                    };
-                }
-                match dirs::config_dir() {
-                    Some(dir) if dir.join("cuotai/config.toml").is_file() => ResolvedPath {
-                        path: dir.join("cuotai/config.toml"),
-                        explicit: false,
-                        from_local: false,
-                        from_system: true,
-                    },
-                    _ => ResolvedPath {
-                        path: local,
-                        explicit: false,
-                        from_local: false,
-                        from_system: false,
-                    },
-                }
-            }
-            Discovery::SystemOnly => match dirs::config_dir() {
-                Some(dir) if dir.join("cuotai/config.toml").is_file() => ResolvedPath {
-                    path: dir.join("cuotai/config.toml"),
-                    explicit: false,
-                    from_local: false,
-                    from_system: true,
-                },
-                _ => ResolvedPath {
-                    path: explicit.map(Path::to_path_buf).unwrap_or_else(|| {
-                        dirs::config_dir()
-                            .unwrap_or_default()
-                            .join("cuotai/config.toml")
-                    }),
-                    explicit: false,
-                    from_local: false,
-                    from_system: false,
-                },
-            },
+        if let Some(chosen) = chosen {
+            return at(chosen, PathSource::Chosen);
         }
+        let local_path = locations.cwd.join("cuotai.toml");
+        if local && local_path.is_file() {
+            return at(local_path, PathSource::Local);
+        }
+        // ponytail: without a platform config dir (rare) this is relative to
+        // the cwd, as before; add an error when such a platform matters.
+        let dir = locations.config_dir.clone().unwrap_or_default();
+        at(dir.join("cuotai").join("config.toml"), PathSource::System)
+    }
+
+    /// Normalized identity of [`ConfigFile::path`] (see [`ConfigIdentity::of_path`]).
+    pub fn identity(&self) -> std::io::Result<ConfigIdentity> {
+        ConfigIdentity::of_path(&self.path)
     }
 
     /// Validate and durably persist `config`. See module docs for the policy.
@@ -220,6 +278,16 @@ impl ConfigFile {
         toml_int_in_range("refresh_seconds", config.refresh_seconds)?;
         toml_int_in_range("concurrency", config.concurrency as u64)?;
         toml_int_in_range("timeout_seconds", config.timeout_seconds)?;
+        // The OS default lives in our own `cuotai/` dir, which a fresh
+        // machine lacks; user-named paths must already have a parent.
+        if self.source == PathSource::System && self.original.is_none() {
+            if let Some(parent) = self.path.parent().filter(|p| !p.as_os_str().is_empty()) {
+                fs::create_dir_all(parent).map_err(|e| EditError::Io {
+                    path: parent.to_path_buf(),
+                    source: e,
+                })?;
+            }
+        }
         // Resolve symlinks so we replace the destination, never the link.
         let dest = match fs::canonicalize(&self.path) {
             Ok(real) => real,
@@ -1205,58 +1273,123 @@ mod tests {
         file.save(cfg).unwrap();
     }
 
-    #[test]
-    fn load_system_only_skips_cwd() {
-        // Plant a `./cuotai.toml` next to the cwd; SystemOnly must not
-        // find it.
-        let dir = tempfile::tempdir().unwrap();
-        let cwd = dir.path().join("cwd");
-        std::fs::create_dir_all(&cwd).unwrap();
-        std::fs::write(
-            cwd.join("cuotai.toml"),
-            "refresh_seconds = 300\nconcurrency = 4\ntimeout_seconds = 30\naccounts = []\n",
-        )
-        .unwrap();
-        // `dirs::config_dir()` is OS-defined; we cannot force its
-        // value in a unit test. Use the explicit-path form to assert
-        // SystemOnly still respects an explicit path even when no
-        // system config exists, and that resolve_path with no
-        // explicit + no system falls back to a config-dir path.
-        let resolved = ConfigFile::resolve_path(None, Discovery::SystemOnly);
-        assert!(!resolved.explicit);
-        assert!(!resolved.from_local);
+    const EMPTY: &str =
+        "refresh_seconds = 300\nconcurrency = 4\ntimeout_seconds = 30\naccounts = []\n";
+
+    /// Temp cwd (with or without `cuotai.toml`) plus a fake OS config dir.
+    fn locations(dir: &Path, local: bool, env: Option<&str>) -> Locations {
+        let cwd = dir.join("cwd");
+        fs::create_dir_all(&cwd).unwrap();
+        if local {
+            fs::write(cwd.join("cuotai.toml"), EMPTY).unwrap();
+        }
+        Locations {
+            env: env.map(|e| dir.join(e)),
+            cwd,
+            config_dir: Some(dir.join("os")),
+        }
+    }
+
+    fn resolve(discovery: Discovery, loc: &Locations) -> (PathBuf, PathSource) {
+        let r = ConfigFile::resolve_path(discovery, loc);
+        (r.path, r.source)
     }
 
     #[test]
-    fn resolve_path_prefers_system_over_local_when_system_only() {
-        // Build a fake platform config dir by using dirs::config_dir
-        // and writing the expected file there. If the platform returns
-        // None we skip; the test asserts the policy shape, not the
-        // specific path.
+    fn cli_precedence_argument_env_local_system() {
         let dir = tempfile::tempdir().unwrap();
-        let cfg_dir = dir.path().join("cuotai-system");
-        std::fs::create_dir_all(cfg_dir.join("cuotai")).unwrap();
-        std::fs::write(
-            cfg_dir.join("cuotai/config.toml"),
-            "refresh_seconds = 300\nconcurrency = 4\ntimeout_seconds = 30\naccounts = []\n",
-        )
-        .unwrap();
-        // Plant a local `./cuotai.toml` and verify SystemOnly via
-        // resolve_path still resolves to a path that includes the
-        // system dir when present. We do not actually mutate
-        // dirs::config_dir() (not possible portably); we only assert
-        // that the explicit branch is taken when an explicit path
-        // is given and that the local path is ignored.
-        std::fs::write(
-            dir.path().join("cuotai.toml"),
-            "refresh_seconds = 300\nconcurrency = 4\ntimeout_seconds = 30\naccounts = []\n",
-        )
-        .unwrap();
-        let resolved = ConfigFile::resolve_path(
-            Some(&dir.path().join("explicit.toml")),
-            Discovery::SystemOnly,
+        let d = dir.path();
+        let cli = |config: Option<PathBuf>| Discovery::Cli { config };
+        let loc = locations(d, true, Some("env.toml"));
+        assert_eq!(
+            resolve(cli(Some(d.join("arg.toml"))), &loc),
+            (d.join("arg.toml"), PathSource::Argument)
         );
-        assert!(resolved.explicit);
-        assert_eq!(resolved.path, dir.path().join("explicit.toml"));
+        assert_eq!(
+            resolve(cli(None), &loc),
+            (d.join("env.toml"), PathSource::Env)
+        );
+        let loc = locations(d, true, None);
+        assert_eq!(
+            resolve(cli(None), &loc),
+            (loc.cwd.join("cuotai.toml"), PathSource::Local)
+        );
+        fs::remove_file(loc.cwd.join("cuotai.toml")).unwrap();
+        assert_eq!(
+            resolve(cli(None), &loc),
+            (d.join("os/cuotai/config.toml"), PathSource::System)
+        );
+    }
+
+    #[test]
+    fn gui_precedence_env_chosen_system_never_local() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let gui = |chosen: Option<PathBuf>| Discovery::Gui { chosen };
+        let loc = locations(d, true, Some("env.toml"));
+        assert_eq!(
+            resolve(gui(Some(d.join("chosen.toml"))), &loc),
+            (d.join("env.toml"), PathSource::Env)
+        );
+        let loc = locations(d, true, None);
+        assert_eq!(
+            resolve(gui(Some(d.join("chosen.toml"))), &loc),
+            (d.join("chosen.toml"), PathSource::Chosen)
+        );
+        assert_eq!(
+            resolve(gui(None), &loc),
+            (d.join("os/cuotai/config.toml"), PathSource::System)
+        );
+    }
+
+    #[test]
+    fn without_local_wizard_creates_in_os_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let loc = locations(dir.path(), false, None);
+        let mut file = ConfigFile::load_with(Discovery::Cli { config: None }, true, &loc).unwrap();
+        assert!(!file.exists);
+        file.save(config(vec![account("OpenAI", None)])).unwrap();
+        assert!(dir.path().join("os/cuotai/config.toml").is_file());
+        assert!(!loc.cwd.join("cuotai.toml").exists());
+    }
+
+    #[test]
+    fn explicit_local_path_is_created_and_missing_one_errors_non_interactive() {
+        let dir = tempfile::tempdir().unwrap();
+        let loc = locations(dir.path(), false, None);
+        let local = Discovery::Cli {
+            config: Some(loc.cwd.join("cuotai.toml")),
+        };
+        assert!(ConfigFile::load_with(local.clone(), false, &loc).is_err());
+        let mut file = ConfigFile::load_with(local, true, &loc).unwrap();
+        file.save(config(vec![])).unwrap();
+        assert!(loc.cwd.join("cuotai.toml").is_file());
+        assert!(!dir.path().join("os").exists());
+    }
+
+    #[test]
+    fn identity_normalizes_relative_symlink_and_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real.toml");
+        let id = |p: &Path| ConfigIdentity::of_path(p).unwrap();
+        // Not created yet: canonical parent + name, stable across creation.
+        let before = id(&real);
+        fs::write(&real, EMPTY).unwrap();
+        assert_eq!(id(&real), before);
+        #[cfg(unix)]
+        {
+            // Relative to the process cwd (`../..` up to `/`), without changing it.
+            let cwd = std::env::current_dir().unwrap();
+            let mut relative: PathBuf = cwd.components().skip(1).map(|_| "..").collect();
+            relative.push(real.strip_prefix("/").unwrap());
+            assert!(relative.is_relative());
+            assert_eq!(id(&relative), before);
+            let link = dir.path().join("link.toml");
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            assert_eq!(id(&link), before);
+        }
+        assert_ne!(id(&dir.path().join("other.toml")), before);
+        let file = load_at(&real, false).unwrap();
+        assert_eq!(file.identity().unwrap(), before);
     }
 }
