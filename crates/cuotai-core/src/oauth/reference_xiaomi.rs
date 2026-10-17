@@ -101,9 +101,10 @@ pub(crate) async fn begin(
     config: &OAuthConfig,
 ) -> Result<PendingLogin, OAuthError> {
     if provider != Provider::XiaomiMimo {
-        return Err(OAuthError::Configuration(
-            "Este provedor não usa o fluxo nativo Xiaomi MiMo.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.xiaomi.provider_no_native_flow",
+            "Este provedor não usa o fluxo nativo Xiaomi MiMo.",
+        )));
     }
 
     // Bind before returning so the browser can be opened immediately after.

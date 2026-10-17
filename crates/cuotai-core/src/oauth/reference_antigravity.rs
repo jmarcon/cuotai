@@ -502,9 +502,10 @@ fn ensure_provider(provider: Provider) -> Result<(), OAuthError> {
     if provider == Provider::Antigravity {
         Ok(())
     } else {
-        Err(OAuthError::Configuration(
-            "Este fluxo OAuth é exclusivo do Antigravity.".into(),
-        ))
+        Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.antigravity.exclusive_flow",
+            "Este fluxo OAuth é exclusivo do Antigravity.",
+        )))
     }
 }
 
@@ -513,21 +514,14 @@ fn client_credentials(config: &OAuthConfig) -> Result<(String, String), OAuthErr
     if configured.is_empty() || configured == CLIENT_ID {
         return Ok((CLIENT_ID.to_owned(), CLIENT_SECRET.to_owned()));
     }
-    let env_name = config.client_secret_env.as_deref().ok_or_else(|| {
-        OAuthError::Configuration(
-            "Um client_id próprio do Google exige client_secret_env com o segredo correspondente."
-                .into(),
-        )
-    })?;
-    let secret = std::env::var(env_name).map_err(|_| {
-        OAuthError::Configuration(
-            "A variável de ambiente do client secret do Google não está definida.".into(),
-        )
-    })?;
+    let env_name = config
+        .client_secret_env
+        .as_deref()
+        .ok_or_else(OAuthError::google_client_secret_env_required)?;
+    let secret =
+        std::env::var(env_name).map_err(|_| OAuthError::google_client_secret_env_unset())?;
     if secret.is_empty() {
-        return Err(OAuthError::Configuration(
-            "A variável de ambiente do client secret do Google está vazia.".into(),
-        ));
+        return Err(OAuthError::google_client_secret_env_empty());
     }
     Ok((configured.to_owned(), secret))
 }
@@ -535,11 +529,9 @@ fn client_credentials(config: &OAuthConfig) -> Result<(String, String), OAuthErr
 fn random_url_safe_32() -> Result<String, OAuthError> {
     use rand::RngCore;
     let mut bytes = [0u8; 32];
-    rand::rngs::OsRng.try_fill_bytes(&mut bytes).map_err(|_| {
-        OAuthError::Configuration(
-            "gerador de números aleatórios do sistema operacional indisponível".into(),
-        )
-    })?;
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut bytes)
+        .map_err(|_| OAuthError::os_rng_unavailable())?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 

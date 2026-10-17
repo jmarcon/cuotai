@@ -6,7 +6,7 @@
 //! colors, labels, layout, and the unmeasured toggle. No credentials are read
 //! or stored here.
 
-use crate::ui::{metric_text, safe};
+use crate::ui::{metric_text, resolve_l10n, safe};
 use chrono::{DateTime, Utc};
 use cuotai_core::metrics::{classify_metric, classify_report, AccountClass, MetricState};
 #[cfg(test)]
@@ -997,9 +997,19 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ));
     }
-    for note in &report.notes {
+    // RF8: prefer the structured sidecar so the active locale (CUOTAI_LANG,
+    // default pt-BR) is respected; fall back to the legacy plain Portuguese
+    // vector when a note is somehow missing from the sidecar.
+    let mut note_texts: Vec<String> = Vec::with_capacity(report.notes.len());
+    for (idx, fallback_text) in report.notes.iter().enumerate() {
+        note_texts.push(match report.notes_l10n.get(idx) {
+            Some(note) => resolve_l10n(note),
+            None => fallback_text.clone(),
+        });
+    }
+    for text in &note_texts {
         lines.push(Line::from(Span::styled(
-            safe(note),
+            safe(text),
             Style::default().fg(YELLOW),
         )));
     }

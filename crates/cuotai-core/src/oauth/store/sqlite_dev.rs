@@ -6,7 +6,9 @@ use std::{fs, path::Path, sync::Mutex, time::Duration};
 pub(super) struct SqliteDevStore(Mutex<Connection>);
 
 fn error() -> OAuthError {
-    OAuthError::Storage("SQLite de desenvolvimento indisponível. Use um arquivo privado em diretório existente, sem links simbólicos; no Unix, permissões 0600. Nenhum fallback ao Keychain foi feito.".into())
+    OAuthError::Storage(crate::text::Localized::fixed(
+            "oauth_error.store.sqlite_dev_unavailable", "SQLite de desenvolvimento indisponível. Use um arquivo privado em diretório existente, sem links simbólicos; no Unix, permissões 0600. Nenhum fallback ao Keychain foi feito.",
+        ))
 }
 
 impl SqliteDevStore {

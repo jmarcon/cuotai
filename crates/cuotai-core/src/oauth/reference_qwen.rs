@@ -123,9 +123,10 @@ pub(super) async fn begin(
     config: &OAuthConfig,
 ) -> Result<PendingLogin, OAuthError> {
     if provider != Provider::Qwen {
-        return Err(OAuthError::Configuration(
-            "Este provedor não usa o fluxo nativo Qwen Code.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.qwen.provider_no_native_flow",
+            "Este provedor não usa o fluxo nativo Qwen Code.",
+        )));
     }
     let client_id = client_id_or_default(config);
     begin_qwen(
@@ -576,11 +577,9 @@ fn classify_poll_response(body: &Value) -> Result<PollStep, OAuthError> {
 
 fn random_url_safe_43() -> Result<String, OAuthError> {
     let mut buf = [0u8; 32];
-    rand::rngs::OsRng.try_fill_bytes(&mut buf).map_err(|_| {
-        OAuthError::Configuration(
-            "gerador de números aleatórios do sistema operacional indisponível".into(),
-        )
-    })?;
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut buf)
+        .map_err(|_| OAuthError::os_rng_unavailable())?;
     Ok(URL_SAFE_NO_PAD.encode(buf))
 }
 

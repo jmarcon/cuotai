@@ -203,9 +203,7 @@ pub(super) async fn begin(
                     QODER_CN_AUTH_HOSTS,
                 ),
                 Some(_) => {
-                    return Err(OAuthError::Configuration(
-                        "Região inválida; use \"intl\" ou \"cn\".".into(),
-                    ));
+                    return Err(OAuthError::native_invalid_region());
                 }
             };
             begin_qoder(
@@ -241,16 +239,12 @@ pub(super) async fn begin(
                     region: "intl",
                 },
                 Some(_) => {
-                    return Err(OAuthError::Configuration(
-                        "Região inválida; use \"intl\" ou \"cn\".".into(),
-                    ));
+                    return Err(OAuthError::native_invalid_region());
                 }
             };
             begin_codebuddy(http, endpoints, true).await
         }
-        _ => Err(OAuthError::Configuration(
-            "Este provedor não tem fluxo de login nativo integrado.".into(),
-        )),
+        _ => Err(OAuthError::native_no_integrated_flow()),
     }
 }
 
@@ -316,12 +310,22 @@ async fn begin_zed(
     })
     .await
     .map_err(|_| OAuthError::Network)?
-    .map_err(|_| OAuthError::Configuration("Falha ao gerar a chave local de login.".into()))?;
+    .map_err(|_| {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.native.local_key_generation_failed",
+            "Falha ao gerar a chave local de login.",
+        ))
+    })?;
 
     use rsa::pkcs1::EncodeRsaPublicKey;
     let public_der = rsa::RsaPublicKey::from(&private_key)
         .to_pkcs1_der()
-        .map_err(|_| OAuthError::Configuration("Falha ao gerar a chave local de login.".into()))?;
+        .map_err(|_| {
+            OAuthError::Configuration(crate::text::Localized::fixed(
+                "oauth_error.native.local_key_generation_failed",
+                "Falha ao gerar a chave local de login.",
+            ))
+        })?;
     // Padded base64url of the PKCS#1 DER public key (reference: b64urlPadded).
     let public_key = URL_SAFE.encode(public_der.as_bytes());
 
@@ -335,8 +339,12 @@ async fn begin_zed(
         ])
         .finish();
     let url = format!("{web_base}/native_app_signin?{query}");
-    ensure_trusted_url(&url, auth_hosts, require_https)
-        .map_err(|_| OAuthError::Configuration("Endpoint de login do provedor inválido.".into()))?;
+    ensure_trusted_url(&url, auth_hosts, require_https).map_err(|_| {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.native.invalid_login_endpoint",
+            "Endpoint de login do provedor inválido.",
+        ))
+    })?;
 
     Ok(PendingLogin {
         prompt: LoginPrompt {
@@ -605,8 +613,12 @@ async fn begin_qoder(
         ])
         .finish();
     let url = format!("{login_url}?{query}");
-    ensure_trusted_url(&url, auth_hosts, require_https)
-        .map_err(|_| OAuthError::Configuration("Endpoint de login do provedor inválido.".into()))?;
+    ensure_trusted_url(&url, auth_hosts, require_https).map_err(|_| {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.native.invalid_login_endpoint",
+            "Endpoint de login do provedor inválido.",
+        ))
+    })?;
 
     // The reference surfaces the first 8 nonce chars (hex) as the user code.
     let user_code: String = nonce.chars().take(8).collect::<String>().to_uppercase();

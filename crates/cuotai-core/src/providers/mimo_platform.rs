@@ -324,7 +324,11 @@ fn build_data(
         }
     }
 
-    notes.push("note.mimo_platform.console_api_reference", REF_NOTE);
+    notes.push_params(
+        "note.mimo_platform.console_api_reference",
+        params([("base", ParamValue::from(base.to_string()))]),
+        format!("Fonte: {base}. {REF_NOTE}"),
+    );
     Ok(Data::new(metrics, notes, base))
 }
 

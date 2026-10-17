@@ -39,9 +39,30 @@ async fn consultar(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 
 Textos estruturados emitidos pelo core carregam `Localized { id, params, fallback }`:
 
-- O aplicativo Desktop resolve `id` nos catálogos `apps/desktop/ui/locales/{pt-BR,en-US,es}.json` (e em pacotes de idioma do usuário) e usa `fallback` em português caso não haja tradução.
-- A TUI utiliza diretamente o `fallback` em português.
-- `Report.notes` mantém texto em português para compatibilidade com consumidores CLI/JSON e `Report.notes_l10n` acompanha as notas na mesma ordem com IDs e parâmetros estruturados (nunca contendo tokens).
+- O **core é dono do catálogo dos ids que ele mesmo emite**:
+  `crates/cuotai-core/locales/{en-US,es}.json` (carregados por
+  `include_str!` e `serde_json` atrás de `LazyLock`). Cada id do core
+  (field.*, native.*, login.*, credential_help.*, oauth.*,
+  cost_advisory.*, edit_error.*, query.*, note.*, remove_error.*,
+  remove.kept.*, status.*, provider.*) vive em `en-US.json` e `es.json`
+  com o mesmo conjunto de chaves; `pt-BR` não consulta catálogo e usa
+  o `fallback` em português embutido em cada `Localized`. A resolução
+  (`Localized::resolve`, `cuotai_core::text::core_catalog`) segue a ordem
+  idioma exato → mesma língua → `en-US` → `fallback`.
+- O aplicativo Desktop recebe o catálogo do core via o comando Tauri
+  `core_catalog(locale)` e o `js/i18n.js` mescla esse catálogo sob o da
+  UI (`apps/desktop/ui/locales/*.json`); pacotes do usuário (em
+  `<user dir>/locales/<code>.json`) cobrem ambos. Frontends **não fazem
+  correspondência por texto** — `t()` e `tl()` consultam o catálogo.
+- A TUI resolve os `Localized` do core via `Localized::resolve` na
+  locale ativa (`CUOTAI_LANG`, padrão `pt-BR`); as próprias legendas do
+  Ratatui (atalhos, molduras, ...) ficam fora do escopo do RF8 e
+  permanecem em português.
+- `Report.notes` mantém texto em português para compatibilidade com
+  consumidores CLI/JSON; `Report.notes_l10n` acompanha as notas na
+  mesma ordem com IDs e parâmetros estruturados (nunca contendo
+  tokens). Acrescentar um idioma significa apenas acrescentar um
+  catálogo.
 
 ## Comandos de desenvolvimento e verificação
 

@@ -145,6 +145,24 @@ fn load_user_content() -> Result<user_content::UserContent, String> {
     user_content::load().ok_or_else(|| "Pasta de configuração indisponível.".to_string())
 }
 
+/// RF8: ship the core-owned locale catalog (`crates/cuotai-core/locales/*.json`)
+/// to the desktop frontend so it can resolve every id the core emits without
+/// shipping those strings itself. `locale` follows the same precedence as
+/// `cuotai_core::text::Locale::resolve`; pt-* returns an empty catalog so
+/// the frontend falls back to the Portuguese `fallback` text embedded in
+/// each `Localized`.
+#[tauri::command]
+fn core_catalog(locale: String) -> std::collections::BTreeMap<String, String> {
+    cuotai_core::text::core_catalog(&locale)
+        .map(|catalog| {
+            catalog
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Linhas do menu do ícone da bandeja (clique direito), já traduzidas pela interface: o shell não conhece idioma.
 #[derive(serde::Deserialize)]
 struct TrayMenuPayload {
@@ -329,6 +347,7 @@ pub fn run() {
             login_submit_code,
             login_cancel,
             load_user_content,
+            core_catalog,
             get_settings,
             set_tray_menu,
             set_user_dir,

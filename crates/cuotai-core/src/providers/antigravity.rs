@@ -318,7 +318,12 @@ async fn fetch_antigravity_at(
         };
         return Err(QueryError {
             status: crate::Status::Error,
-            note: Localized::fixed("note.antigravity.fatal_summary", summary),
+            note: Localized::with_param(
+                "note.antigravity.fatal_summary",
+                "summary",
+                summary.clone(),
+                summary,
+            ),
         });
     }
 

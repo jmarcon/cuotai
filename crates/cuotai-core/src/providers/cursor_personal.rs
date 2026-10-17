@@ -115,14 +115,14 @@ async fn fetch_at_base(
         if let Some(email) = info.email.as_deref().filter(|s| !s.trim().is_empty()) {
             notes.push_params(
                 "note.cursor_personal.account_email",
-                params([]),
+                params([("email", ParamValue::from(email.to_string()))]),
                 format!("Conta: {email}"),
             );
         }
         if let Some(name) = info.name.as_deref().filter(|s| !s.trim().is_empty()) {
             notes.push_params(
                 "note.cursor_personal.user_name",
-                params([]),
+                params([("name", ParamValue::from(name.to_string()))]),
                 format!("Usuário: {name}"),
             );
         }
