@@ -25,7 +25,7 @@ O Cuotai suporta fluxos de autenticação nativa (OAuth no navegador, Device Cod
 
 1. **Na TUI:** Inicie `cargo run -p cuotai-tui`, pressione **a** para adicionar ou **e** para editar uma conta. Escolha o provedor e o nome da conta e, na etapa **Credencial**, pressione **Tab**.
    **No Desktop:** Clique em **Adicionar conta** ou **Editar**, escolha **Login no navegador** e clique em **Entrar**.
-2. Para login nativo, a interface não pede `client_id`. Modos que exigem registro de aplicativo próprio (Gemini API, Vertex AI, Azure OpenAI) descrevem, no próprio descritor do modo (`cuotai_core::login`), quais campos de registro se aplicam (`client_id`, `tenant` ou a variável do `client_secret`) — TUI e Desktop apenas renderizam essa lista, sem saber de antemão quais provedores pedem o quê. Kiro oferece método/região/start URL; Qoder, CodeBuddy e Xiaomi oferecem região.
+2. Para login nativo, a interface não pede `client_id`. Modos que exigem registro de aplicativo próprio (Gemini API, Vertex AI, Azure OpenAI) descrevem, no próprio descritor do modo (`cuotai_core::login`), quais campos de registro se aplicam (`client_id`, `tenant` ou a variável do `client_secret`) — TUI e Desktop apenas renderizam essa lista, sem saber de antemão quais provedores pedem o quê. Kiro oferece `auth_method` (`builder-id` ou `idc`), região e start URL; Qoder, CodeBuddy e Xiaomi oferecem região.
 3. Ao iniciar, o Cuotai abre o navegador e, quando necessário, exibe a URL e o código de dispositivo para copiar. Autorize na página do provedor.
 4. Ao receber a autorização, os parâmetros de quota são preenchidos automaticamente. Salve para gravar os tokens no cofre do SO e a configuração no arquivo TOML.
 5. Para renovar uma autorização revogada ou expirada, edite a conta e use **F2** (TUI) ou **Refazer login / Reautenticar** (Desktop). A reautenticação reaproveita o mesmo `credential_id` da conta (decisão do core, não do frontend): o token é sobrescrito no cofre e nenhuma credencial fica órfã.
@@ -35,6 +35,14 @@ O login nativo seleciona automaticamente o produto correto (Copilot quota pessoa
 Os fluxos compatíveis usam os identificadores de clientes nativos e protocolos presentes na revisão de referência do 9router. Podem ser recusados, alterados ou restringidos pelo provedor. Em particular, a política publicada da Anthropic restringe login Claude.ai em aplicativos terceiros; implementar o protocolo **não constitui autorização ou garantia de aceitação**. Senhas e consentimento são tratados no navegador do provedor, nunca pelo Cuotai.
 
 **Separação importante:** `gemini_api` e `vertex_ai` (Cloud Monitoring), além de Azure, conservam os fluxos com aplicativo próprio descritos abaixo. `gemini_ai` em login nativo acompanha Gemini CLI/Code Assist.
+
+### Kiro: método por tipo de autenticação
+
+`auth_method` tem um único descritor no core e cada opção declara sua aplicabilidade. O login nativo oferece **exatamente** `builder-id` (padrão) e `idc`, os dois métodos aceitos pelo fluxo AWS SSO OIDC. A credencial `KIRO_ACCESS_TOKEN` oferece `google` (padrão explícito para contas novas), `github`, `import`, `api_key` e `external_idp`; ela não oferece `builder-id` nem `idc`.
+
+Ao alternar entre credencial e login, o core filtra a lista. Se o valor anterior não servir no novo tipo, seleciona o primeiro valor aplicável e retorna um aviso localizado; TUI e Desktop apenas exibem esse contrato. Um envio direto ou obsoleto com combinação inválida é recusado por `edit_error.option_not_valid_for_auth_mode`.
+
+A restrição ocorre somente ao editar/salvar. Configurações antigas sem `auth_method` (padrão histórico implícito `builder-id`) ou com `credential_env` + `builder-id` continuam carregando e consultando sem migração automática.
 
 ## Fluxos específicos por provedor
 

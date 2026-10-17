@@ -132,16 +132,16 @@ Ao integrar, apareceram lacunas que só o core pode resolver. Hoje o desktop con
 
 **Critérios de aceite**
 
-- Para o Kiro, a lista do campo `auth_method` com variável de ambiente **não** contém `builder-id` nem `idc` (ver questões), e a do login contém exatamente os valores que o fluxo nativo suporta.
+- Para o Kiro, a lista do campo `auth_method` com variável de ambiente **não** contém `builder-id` nem `idc` (ver decisões abaixo), e a do login contém exatamente os valores que o fluxo nativo suporta.
 - Trocar de variável de ambiente para login e vice-versa produz a lista correta e o valor substituto, nos dois frontends (TUI e desktop), sem lógica própria de cada um.
 - Teste de contrato por provedor: cada opção declarada vale nos tipos informados, e `build_account` recusa as demais.
 - Contas existentes com combinação antiga continuam carregando e sendo consultadas.
 
-**Questões em aberto (decidir antes de implementar)**
+**Decisões tomadas para a implementação**
 
-1. Quais métodos do Kiro valem com variável de ambiente? Proposta inicial: `api_key` e `external_idp` (tokens de longa duração ou emitidos por outro sistema); `google`, `github` e `import` dependem de como o token chega à variável; `builder-id` e `idc` ficam só no login.
-2. O campo `auth_method` do modo de credencial e a opção `auth_method` do login devem ser unificados num só descritor com aplicabilidade por opção, em vez de duas listas?
-3. Outros provedores com o mesmo problema além do Kiro (ver RF11.5)?
+1. Com variável de ambiente, Kiro aceita `google`, `github`, `import`, `api_key` e `external_idp`; `builder-id` e `idc` ficam somente no login nativo.
+2. `auth_method` é um único descritor compartilhado, com aplicabilidade declarada por opção. Região/start URL continuam descritores próprios do login.
+3. A auditoria não encontrou outra incompatibilidade por tipo de autenticação comprovada pelos adaptadores. As demais escolhas permanecem válidas em todos os modos oferecidos por seu provedor; a matriz completa está em `docs/providers.md`.
 
 ## 6. Requisitos não funcionais
 
@@ -172,7 +172,7 @@ Decisões abaixo avaliam os requisitos, não aprovam automaticamente as assinatu
 
 1. **Fase 1 — custo e consistência:** RF1, RF3, RF4.
 2. **Fase 2 — login:** RF2 (maior), com migração da TUI.
-3. **Fase 3 — acabamento:** RF5, RF6, RF7, RF11 (depende das decisões das questões do RF11).
+3. **Fase 3 — acabamento:** RF5, RF6, RF7, RF11 (decisões do RF11 registradas na seção correspondente).
 
 ## 8. Impacto nos consumidores
 
@@ -185,7 +185,7 @@ Decisões abaixo avaliam os requisitos, não aprovam automaticamente as assinatu
 2. Qual o mínimo de intervalo para provedores cobrados, e quais entram na lista inicial além do AWS Cost Explorer?
 3. O login deve poder ser retomado após o app fechar, ou é sempre reiniciado?
 4. A purga de credenciais deve ser o padrão ao remover, ou opcional na UI?
-5. RF11: quais métodos de autenticação do Kiro valem com variável de ambiente, e as listas de credencial e de login são unificadas em um descritor só?
+5. **Decidida — RF11:** Kiro por variável usa `google`, `github`, `import`, `api_key` ou `external_idp`; login usa `builder-id` ou `idc`; ambos compartilham um descritor com aplicabilidade por opção (ver seção RF11).
 
 ## 10. Referências no código
 

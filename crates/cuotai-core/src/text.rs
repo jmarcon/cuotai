@@ -463,10 +463,24 @@ mod tests {
             ids.push(option.help.id.to_string());
             for choice in option.choices.iter().flatten() {
                 ids.push(choice.label.id.to_string());
+                if let Some(reason) = &choice.unavailable_reason {
+                    ids.push(reason.id.to_string());
+                }
             }
         }
 
         let mut ids = Vec::new();
+        ids.push("edit_error.option_not_valid_for_auth_mode".to_string());
+        ids.push("edit_notice.option_replaced_for_auth_mode".to_string());
+        for auth_mode in [
+            edit::AUTH_MODE_CREDENTIAL,
+            "oauth",
+            "aws_sso",
+            "bailian_console",
+            "unknown",
+        ] {
+            ids.push(edit::auth_mode_label(auth_mode).id.to_string());
+        }
         for provider in Provider::ALL {
             ids.push(edit::credential_help(provider).id.to_string());
             if let Some(note) = edit::cost_advisory(provider) {
@@ -476,8 +490,15 @@ mod tests {
                 ids.push(edit::field_label_id(provider, d.key));
                 ids.push(edit::field_help_id(provider, d.key));
                 if let FieldDescriptorKind::Choice(choice) = d.kind {
-                    for (value, _) in choice.options {
-                        ids.push(edit::field_option_id(provider, d.key, value));
+                    for option in choice.options {
+                        ids.push(edit::field_option_id(provider, d.key, option.value));
+                        if option.auth_modes.is_some() {
+                            ids.push(edit::field_option_unavailable_id(
+                                provider,
+                                d.key,
+                                option.value,
+                            ));
+                        }
                     }
                 }
             }

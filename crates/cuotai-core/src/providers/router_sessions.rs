@@ -1616,28 +1616,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn kiro_default_placeholder_arn_stays_on_legacy_attempts() {
-        // No explicit profile_arn: the shared builder-id placeholder must NOT
-        // trigger the native path — first request stays the legacy GET.
+    async fn old_kiro_builder_id_accounts_still_load_and_query_unchanged() {
+        // RF11 rejects this combination only when editing. Existing files
+        // (including the historical implicit builder-id default) remain valid
+        // inputs to Config and preserve the adapter's legacy GET query.
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .respond_with(ResponseTemplate::new(200).set_body_json(kiro_fixture()))
             .mount(&server)
             .await;
         let http = reqwest::Client::new();
-        let data = kiro(
-            &account(Provider::Kiro, &[]),
-            &ctx(&http, &Creds),
-            &server.uri(),
-            &server.uri(),
-            &server.uri(),
-        )
-        .await
-        .unwrap();
-        assert_eq!(data.metrics.len(), 2);
+        for params in ["", "params = { auth_method = \"builder-id\" }\n"] {
+            let toml = format!(
+                "[[accounts]]\nname = \"old-kiro\"\nprovider = \"kiro\"\ncredential_env = \"KIRO_ACCESS_TOKEN\"\n{params}"
+            );
+            let config: crate::Config = toml::from_str(&toml).expect("old Kiro TOML loads");
+            config
+                .validate()
+                .expect("old Kiro combination remains valid");
+            let data = kiro(
+                &config.accounts[0],
+                &ctx(&http, &Creds),
+                &server.uri(),
+                &server.uri(),
+                &server.uri(),
+            )
+            .await
+            .expect("old Kiro account still queries");
+            assert_eq!(data.metrics.len(), 2);
+        }
         let requests = server.received_requests().await.unwrap();
-        assert_eq!(requests.len(), 1);
-        assert_eq!(requests[0].method.as_str(), "GET");
+        assert_eq!(requests.len(), 2);
+        assert!(requests
+            .iter()
+            .all(|request| request.method.as_str() == "GET"));
     }
 
     // -- CodeBuddy ----------------------------------------------------------

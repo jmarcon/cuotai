@@ -112,7 +112,9 @@ struct Field {
 enum FieldKind {
     Text(String),
     Choice {
-        options: &'static [(&'static str, &'static str)],
+        /// Auth-mode-filtered options. Each carries its full descriptor index
+        /// so the draft remains unambiguous to `build_account`.
+        options: Vec<edit::FieldOption>,
         selected: usize,
     },
 }
@@ -131,17 +133,15 @@ impl Field {
         key: &'static str,
         label: &'static str,
         help: &'static str,
-        options: &'static [(&'static str, &'static str)],
+        options: Vec<edit::FieldOption>,
+        selected: usize,
     ) -> Self {
         Self {
             key,
             label,
             help,
             required: false,
-            kind: FieldKind::Choice {
-                options,
-                selected: 0,
-            },
+            kind: FieldKind::Choice { options, selected },
         }
     }
 }
@@ -250,8 +250,20 @@ impl Wizard {
             .and_then(|a| a.oauth.clone());
         let login = login::login_modes(provider);
         let auth_mode = initial_auth_mode(provider, &login, oauth_existing.is_some());
+        let (fields, notices) = default_fields(
+            provider,
+            &auth_mode,
+            existing.filter(|account| account.provider == provider),
+        );
         let mode = login.modes.iter().find(|mode| mode.id == auth_mode);
-        let login_fields = login_fields_for(provider, mode, existing);
+        let login_fields = login_fields_for(provider, mode, existing, &fields);
+        let notice = (!notices.is_empty()).then(|| {
+            notices
+                .iter()
+                .map(|notice| notice.text())
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
         Self {
             base: config.clone(),
             editing,
@@ -261,7 +273,7 @@ impl Wizard {
             provider_offset: 0,
             name,
             credential,
-            fields: default_fields(provider, existing.filter(|a| a.provider == provider)),
+            fields,
             field_idx: 0,
             interval: existing
                 .and_then(|a| a.refresh_seconds)
@@ -270,7 +282,7 @@ impl Wizard {
             summary_scroll: 0,
             error: None,
             conflict: None,
-            notice: None,
+            notice,
             login,
             auth_mode,
             login_fields,
@@ -354,6 +366,7 @@ impl Wizard {
     fn visible_fields(&self) -> Vec<usize> {
         let selections = self.choice_selections();
         let visibility = edit::FieldVisibility {
+            auth_mode: &self.auth_mode,
             native_login: self.native_login(),
             login_params: &self.oauth_login_params,
             choice_selections: &selections,
@@ -368,8 +381,10 @@ impl Wizard {
     fn choice_selections(&self) -> BTreeMap<String, usize> {
         let mut map = BTreeMap::new();
         for field in &self.fields {
-            if let FieldKind::Choice { selected, .. } = &field.kind {
-                map.insert(field.key.to_string(), *selected);
+            if let FieldKind::Choice { options, selected } = &field.kind {
+                if let Some(option) = options.get(*selected) {
+                    map.insert(field.key.to_string(), option.index);
+                }
             }
         }
         map
@@ -407,11 +422,19 @@ impl Wizard {
                     // Troca de provedor: parâmetros incompatíveis são descartados e a
                     // credencial volta ao padrão do novo provedor (nunca reutiliza a anterior).
                     self.provider = selected;
-                    self.fields = default_fields(selected, None);
                     self.field_idx = 0;
                     self.credential = edit::suggested_credential(selected).to_string();
                     self.login = login::login_modes(selected);
                     self.auth_mode = initial_auth_mode(selected, &self.login, false);
+                    let (fields, notices) = default_fields(selected, &self.auth_mode, None);
+                    self.fields = fields;
+                    self.notice = (!notices.is_empty()).then(|| {
+                        notices
+                            .iter()
+                            .map(|notice| notice.text())
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    });
                     self.reload_login_fields();
                     self.invalidate_oauth();
                 }
@@ -463,12 +486,16 @@ impl Wizard {
         let Some(&idx) = visible.get(self.field_idx) else {
             return;
         };
-        if let FieldKind::Choice {
-            options, selected, ..
-        } = &mut self.fields[idx].kind
-        {
+        let key = self.fields[idx].key;
+        let changed = if let FieldKind::Choice { options, selected } = &mut self.fields[idx].kind {
             let len = options.len() as isize;
             *selected = ((*selected as isize + delta).rem_euclid(len)) as usize;
+            options.get(*selected).map(|option| (key, option.value))
+        } else {
+            None
+        };
+        if let Some((key, value)) = changed {
+            self.sync_field_choice_to_login(key, value);
         }
     }
 
@@ -510,6 +537,7 @@ impl Wizard {
             return;
         }
         self.auth_mode = next;
+        self.reconcile_field_choices();
         self.reload_login_fields();
         self.invalidate_oauth();
         self.error = None;
@@ -537,8 +565,74 @@ impl Wizard {
 
     fn reload_login_fields(&mut self) {
         let existing = self.editing.and_then(|index| self.base.accounts.get(index));
-        self.login_fields = login_fields_for(self.provider, self.selected_mode(), existing);
+        self.login_fields =
+            login_fields_for(self.provider, self.selected_mode(), existing, &self.fields);
         self.login_idx = 0;
+    }
+
+    fn reconcile_field_choices(&mut self) {
+        let mut notices = Vec::new();
+        for field in &mut self.fields {
+            let FieldKind::Choice { options, selected } = &mut field.kind else {
+                continue;
+            };
+            let current = options.get(*selected).map(|option| option.value);
+            let Some(resolved) =
+                edit::resolve_field_choice(self.provider, field.key, &self.auth_mode, current)
+            else {
+                continue;
+            };
+            let Some(mode_options) = edit::field_options(self.provider, field.key, &self.auth_mode)
+            else {
+                continue;
+            };
+            *selected = mode_options
+                .options
+                .iter()
+                .position(|option| option.index == resolved.option.index)
+                .unwrap_or(0);
+            *options = mode_options.options;
+            if let Some(notice) = resolved.notice {
+                notices.push(notice);
+            }
+        }
+        self.notice = (!notices.is_empty()).then(|| {
+            notices
+                .iter()
+                .map(|notice| notice.text())
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+    }
+
+    fn sync_field_choice_to_login(&mut self, key: &str, value: &str) {
+        let Some(field) = self
+            .login_fields
+            .iter_mut()
+            .find(|field| !field.registration && field.option.key == key)
+        else {
+            return;
+        };
+        let (Some(choices), LoginFieldKind::Choice { selected }) =
+            (&field.option.choices, &mut field.kind)
+        else {
+            return;
+        };
+        if let Some(position) = choices.iter().position(|choice| choice.value == value) {
+            *selected = position;
+        }
+    }
+
+    fn sync_login_choice_to_field(&mut self, key: &str, value: &str) {
+        let Some(field) = self.fields.iter_mut().find(|field| field.key == key) else {
+            return;
+        };
+        let FieldKind::Choice { options, selected } = &mut field.kind else {
+            return;
+        };
+        if let Some(position) = options.iter().position(|option| option.value == value) {
+            *selected = position;
+        }
     }
 
     fn oauth_active(&self) -> bool {
@@ -564,17 +658,25 @@ impl Wizard {
     }
 
     fn cycle_login_option(&mut self, delta: isize) {
-        let Some(field) = self.login_fields.get_mut(self.login_idx) else {
-            return;
+        let changed = {
+            let Some(field) = self.login_fields.get_mut(self.login_idx) else {
+                return;
+            };
+            let Some(choices) = &field.option.choices else {
+                return;
+            };
+            let LoginFieldKind::Choice { selected } = &mut field.kind else {
+                return;
+            };
+            let len = choices.len() as isize;
+            *selected = ((*selected as isize + delta).rem_euclid(len)) as usize;
+            choices
+                .get(*selected)
+                .map(|choice| (field.option.key.clone(), choice.value.clone()))
         };
-        let Some(choices) = &field.option.choices else {
-            return;
-        };
-        let LoginFieldKind::Choice { selected } = &mut field.kind else {
-            return;
-        };
-        let len = choices.len() as isize;
-        *selected = ((*selected as isize + delta).rem_euclid(len)) as usize;
+        if let Some((key, value)) = changed {
+            self.sync_login_choice_to_field(&key, &value);
+        }
         self.invalidate_oauth();
     }
 
@@ -673,10 +775,8 @@ impl Wizard {
             if let Some(field) = self.fields.iter_mut().find(|f| f.key == key.as_str()) {
                 match &mut field.kind {
                     FieldKind::Text(text) => *text = value.clone(),
-                    FieldKind::Choice {
-                        options, selected, ..
-                    } => {
-                        if let Some(pos) = options.iter().position(|(v, _)| *v == value) {
+                    FieldKind::Choice { options, selected } => {
+                        if let Some(pos) = options.iter().position(|option| option.value == value) {
                             *selected = pos;
                         }
                     }
@@ -1167,7 +1267,9 @@ impl Wizard {
             let field = &self.fields[i];
             let value = match &field.kind {
                 FieldKind::Text(value) => edit::DraftValue::Text(value.clone()),
-                FieldKind::Choice { selected, .. } => edit::DraftValue::Choice(*selected),
+                FieldKind::Choice { options, selected } => {
+                    edit::DraftValue::Choice(options[*selected].index)
+                }
             };
             draft_fields.push(edit::DraftField {
                 key: field.key,
@@ -1184,6 +1286,7 @@ impl Wizard {
             provider: self.provider,
             name: &self.name,
             credential: &credential,
+            auth_mode: &self.auth_mode,
             oauth_mode: self.oauth_active(),
             oauth_existing: self.oauth_existing.as_ref(),
             oauth_authorized: self.oauth_authorized.clone(),
@@ -1722,9 +1825,9 @@ impl Wizard {
             };
             let value = match &field.kind {
                 FieldKind::Text(v) => crate::ui::safe(v).into_owned(),
-                FieldKind::Choice {
-                    options, selected, ..
-                } => format!("< {} >", options[*selected].0),
+                FieldKind::Choice { options, selected } => {
+                    format!("< {} >", options[*selected].label)
+                }
             };
             lines.push(Line::from(Span::styled(
                 format!("{marker}{}{req}: {value}", field.label),
@@ -1796,11 +1899,25 @@ fn login_fields_for(
     provider: Provider,
     mode: Option<&LoginMode>,
     existing: Option<&Account>,
+    fields: &[Field],
 ) -> Vec<LoginField> {
     let Some(mode) = mode else {
         return Vec::new();
     };
-    let request = LoginRequest::for_account(provider, &mode.id, existing);
+    let mut request = LoginRequest::for_account(provider, &mode.id, existing);
+    for field in fields {
+        let FieldKind::Choice { options, selected } = &field.kind else {
+            continue;
+        };
+        if !mode.options.iter().any(|option| option.key == field.key) {
+            continue;
+        }
+        if let Some(option) = options.get(*selected) {
+            request
+                .options
+                .insert(field.key.to_string(), option.value.to_string());
+        }
+    }
     mode.registration
         .iter()
         .cloned()
@@ -1814,18 +1931,33 @@ fn login_fields_for(
         .collect()
 }
 
-/// Schema (key/label/help/required/options) é fornecido por
-/// [`edit::field_descriptors`]; o TUI só materializa cada descritor num
-/// widget de Field, pré-preenchendo valores da conta em edição.
-fn default_fields(provider: Provider, existing: Option<&Account>) -> Vec<Field> {
-    edit::field_descriptors(provider)
-        .iter()
-        .map(|descriptor| descriptor_to_field(descriptor, existing))
-        .collect()
+/// Materialize the core schema for one auth mode. Existing absent choice keys
+/// mean the provider's historical implicit first option; this distinction lets
+/// RF11 surface a notice when that old implicit value is no longer applicable.
+fn default_fields(
+    provider: Provider,
+    auth_mode: &str,
+    existing: Option<&Account>,
+) -> (Vec<Field>, Vec<cuotai_core::text::Localized>) {
+    let mut fields = Vec::new();
+    let mut notices = Vec::new();
+    for descriptor in edit::field_descriptors(provider) {
+        let (field, notice) = descriptor_to_field(provider, descriptor, auth_mode, existing);
+        fields.push(field);
+        if let Some(notice) = notice {
+            notices.push(notice);
+        }
+    }
+    (fields, notices)
 }
 
-fn descriptor_to_field(descriptor: &edit::FieldDescriptor, existing: Option<&Account>) -> Field {
-    let existing_value = existing.and_then(|a| a.params.get(descriptor.key));
+fn descriptor_to_field(
+    provider: Provider,
+    descriptor: &edit::FieldDescriptor,
+    auth_mode: &str,
+    existing: Option<&Account>,
+) -> (Field, Option<cuotai_core::text::Localized>) {
+    let existing_value = existing.and_then(|account| account.params.get(descriptor.key));
     match descriptor.kind {
         edit::FieldDescriptorKind::Text => {
             let mut field = Field::text(
@@ -1837,27 +1969,33 @@ fn descriptor_to_field(descriptor: &edit::FieldDescriptor, existing: Option<&Acc
             if let Some(value) = existing_value {
                 field.kind = FieldKind::Text(value.clone());
             }
-            field
+            (field, None)
         }
-        edit::FieldDescriptorKind::Choice(choice_desc) => {
-            let mut field = Field::choice(
-                descriptor.key,
-                descriptor.label,
-                descriptor.help,
-                choice_desc.options,
-            );
-            if let Some(value) = existing_value {
-                if let Some(pos) = choice_desc
-                    .options
-                    .iter()
-                    .position(|(option, _)| *option == value)
-                {
-                    if let FieldKind::Choice { selected, .. } = &mut field.kind {
-                        *selected = pos;
-                    }
-                }
-            }
-            field
+        edit::FieldDescriptorKind::Choice(choice) => {
+            let current = existing.map(|_| {
+                existing_value
+                    .map(String::as_str)
+                    .unwrap_or(choice.options[0].value)
+            });
+            let resolved = edit::resolve_field_choice(provider, descriptor.key, auth_mode, current)
+                .expect("choice descriptor must expose an option for every offered auth mode");
+            let mode_options = edit::field_options(provider, descriptor.key, auth_mode)
+                .expect("choice descriptor must expose an option for every offered auth mode");
+            let selected = mode_options
+                .options
+                .iter()
+                .position(|option| option.index == resolved.option.index)
+                .expect("resolved choice belongs to the filtered option list");
+            (
+                Field::choice(
+                    descriptor.key,
+                    descriptor.label,
+                    descriptor.help,
+                    mode_options.options,
+                    selected,
+                ),
+                resolved.notice,
+            )
         }
     }
 }
@@ -2029,7 +2167,7 @@ mod tests {
         // must agree with `edit::visible_field_indices`.
         let mut wiz = Wizard::new(&Config::default(), None);
         wiz.provider = Provider::Grok;
-        wiz.fields = default_fields(Provider::Grok, None);
+        wiz.fields = default_fields(Provider::Grok, edit::AUTH_MODE_CREDENTIAL, None).0;
         let baseline = wiz.visible_fields();
         let product_index = wiz
             .fields
@@ -2219,5 +2357,67 @@ mod tests {
                     .any(|offered| offered.id == mode.id));
             }
         }
+    }
+    #[test]
+    fn kiro_mode_switch_reconciles_shared_choice_and_shows_notice() {
+        let config = Config {
+            accounts: vec![Account {
+                name: "Kiro".into(),
+                provider: Provider::Kiro,
+                credential_env: None,
+                oauth: Some(OAuthConfig::new(String::new())),
+                params: BTreeMap::from([("auth_method".into(), "builder-id".into())]),
+                refresh_seconds: None,
+            }],
+            ..Config::default()
+        };
+        let mut wizard = Wizard::new(&config, Some(0));
+        assert_eq!(wizard.auth_mode, login::MODE_OAUTH);
+
+        wizard.select_auth_choice(0);
+
+        assert_eq!(wizard.auth_mode, edit::AUTH_MODE_CREDENTIAL);
+        let auth_method = wizard
+            .fields
+            .iter()
+            .find(|field| field.key == "auth_method")
+            .expect("Kiro auth_method field");
+        let FieldKind::Choice { options, selected } = &auth_method.kind else {
+            panic!("auth_method must be a choice");
+        };
+        assert_eq!(options[*selected].value, "google");
+        assert!(
+            wizard
+                .notice
+                .as_deref()
+                .is_some_and(|notice| notice.contains("substituído por Google")),
+            "mode switch must visibly explain the substitution"
+        );
+    }
+
+    #[test]
+    fn editing_old_invalid_kiro_combination_substitutes_with_notice() {
+        let config = Config {
+            accounts: vec![Account {
+                name: "Kiro".into(),
+                provider: Provider::Kiro,
+                credential_env: Some("KIRO_ACCESS_TOKEN".into()),
+                oauth: None,
+                params: BTreeMap::new(),
+                refresh_seconds: None,
+            }],
+            ..Config::default()
+        };
+        let wizard = Wizard::new(&config, Some(0));
+        let auth_method = wizard
+            .fields
+            .iter()
+            .find(|field| field.key == "auth_method")
+            .expect("Kiro auth_method field");
+        let FieldKind::Choice { options, selected } = &auth_method.kind else {
+            panic!("auth_method must be a choice");
+        };
+        assert_eq!(options[*selected].value, "google");
+        assert!(wizard.notice.is_some());
     }
 }

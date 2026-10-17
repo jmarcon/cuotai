@@ -106,11 +106,16 @@ pub struct LoginOption {
 
 /// One closed-choice entry of a [`LoginOption`]. `value` is the stable
 /// machine identifier (validated by the core); `label` is the user-visible
-/// text, localizable through the catalog id built at construction time.
+/// text. Applicability metadata is additive for API consumers: `None` means
+/// all auth modes, matching [`account_edit::ChoiceOptionDescriptor`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginChoice {
     pub value: String,
     pub label: crate::text::Localized,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_modes: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unavailable_reason: Option<crate::text::Localized>,
 }
 
 impl LoginOption {
@@ -137,7 +142,8 @@ impl LoginOption {
 
     fn from_native(
         provider: crate::Provider,
-        descriptor: &account_edit::NativeOptionDescriptor,
+        auth_mode: &str,
+        descriptor: &account_edit::FieldDescriptor,
     ) -> Self {
         let key = descriptor.key;
         let choices = match descriptor.kind {
@@ -146,11 +152,20 @@ impl LoginOption {
                 choice
                     .options
                     .iter()
-                    .map(|(value, label)| LoginChoice {
-                        value: value.to_string(),
+                    .filter(|option| option.applies_to(auth_mode))
+                    .map(|option| LoginChoice {
+                        value: option.value.to_string(),
                         label: crate::text::Localized::fixed(
-                            account_edit::native_option_option_id(provider, key, value),
-                            label.to_string(),
+                            account_edit::native_option_option_id(provider, key, option.value),
+                            option.label.to_string(),
+                        ),
+                        auth_modes: option
+                            .auth_modes
+                            .map(|modes| modes.iter().map(|mode| (*mode).to_string()).collect()),
+                        unavailable_reason: account_edit::field_option_unavailability(
+                            provider,
+                            key,
+                            option.value,
                         ),
                     })
                     .collect(),
@@ -454,6 +469,8 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                                 format!("{site_prefix}.option.international"),
                                 "Internacional".to_string(),
                             ),
+                            auth_modes: None,
+                            unavailable_reason: None,
                         }]),
                         required: true,
                         validation: LoginOptionValidation::None,
@@ -490,8 +507,7 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                 account_binding: LoginAccountBinding::None,
                 registration,
                 options: account_edit::native_option_descriptors(provider)
-                    .iter()
-                    .map(|d| LoginOption::from_native(provider, d))
+                    .map(|descriptor| LoginOption::from_native(provider, MODE_OAUTH, descriptor))
                     .collect(),
                 unavailable_reason: None,
             });
@@ -1573,13 +1589,37 @@ mod tests {
         for provider in [Provider::Kiro, Provider::Qwen, Provider::Cursor] {
             let modes = login_modes(provider);
             let declared: Vec<&str> = account_edit::native_option_descriptors(provider)
-                .iter()
                 .map(|d| d.key)
                 .collect();
             for option in &modes.modes[0].options {
                 assert!(declared.contains(&option.key.as_str()));
             }
         }
+    }
+
+    #[test]
+    fn kiro_native_login_exposes_exactly_builder_id_and_idc() {
+        let modes = login_modes(Provider::Kiro);
+        let oauth = modes
+            .modes
+            .iter()
+            .find(|mode| mode.id == MODE_OAUTH)
+            .expect("Kiro OAuth mode");
+        let auth_method = oauth
+            .options
+            .iter()
+            .find(|option| option.key == "auth_method")
+            .expect("shared auth_method option");
+        assert_eq!(
+            auth_method
+                .choices
+                .as_ref()
+                .expect("auth_method choices")
+                .iter()
+                .map(|choice| choice.value.as_str())
+                .collect::<Vec<_>>(),
+            ["builder-id", "idc"]
+        );
     }
 
     #[test]
