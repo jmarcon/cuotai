@@ -166,7 +166,7 @@ impl LoginField {
         let existing = values.get(&option.key);
         let kind = if let Some(choices) = &option.choices {
             let selected = existing
-                .and_then(|value| choices.iter().position(|(choice, _)| choice == value))
+                .and_then(|value| choices.iter().position(|choice| choice.value == *value))
                 .unwrap_or(0);
             LoginFieldKind::Choice { selected }
         } else {
@@ -187,7 +187,7 @@ impl LoginField {
                 .choices
                 .as_ref()
                 .and_then(|choices| choices.get(*selected))
-                .map(|(value, _)| value.clone())
+                .map(|choice| choice.value.clone())
                 .unwrap_or_default(),
         }
     }
@@ -687,7 +687,7 @@ impl Wizard {
         self.error = None;
         self.notice = Some(
             self.selected_mode()
-                .map(|mode| mode.completion_notice.clone())
+                .map(|mode| mode.completion_notice.to_string())
                 .unwrap_or_else(|| "Login autorizado.".into()),
         );
         if self.step == Step::Credential {
@@ -700,7 +700,7 @@ impl Wizard {
         self.error = None;
         self.notice = Some(
             self.selected_mode()
-                .map(|mode| mode.completion_notice.clone())
+                .map(|mode| mode.completion_notice.to_string())
                 .unwrap_or_else(|| "Login concluído.".into()),
         );
         if self.step == Step::Credential {
@@ -1223,7 +1223,7 @@ impl Wizard {
                 };
             lines.push(Line::from(vec![
                 Span::styled("Autenticação: ", dim),
-                Span::raw(mode.label.clone()),
+                Span::raw(mode.label.to_string()),
                 Span::raw("  "),
                 Span::styled(status, Style::default().fg(color)),
             ]));
@@ -1582,7 +1582,7 @@ impl Wizard {
         lines.push(Line::default());
         if let Some(mode) = self.selected_mode() {
             lines.push(Line::from(Span::styled(
-                mode.help.clone(),
+                mode.help.to_string(),
                 Style::default().fg(DRACULA_COMMENT),
             )));
             lines.push(Line::default());
@@ -1602,7 +1602,7 @@ impl Wizard {
                         .choices
                         .as_ref()
                         .and_then(|choices| choices.get(*selected))
-                        .map(|(_, label)| label.clone())
+                        .map(|choice| choice.label.to_string())
                         .unwrap_or_default(),
                 };
                 lines.push(Line::from(Span::styled(

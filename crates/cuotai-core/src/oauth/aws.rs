@@ -40,10 +40,12 @@ pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthErr
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| match e.kind() {
-            ErrorKind::NotFound => OAuthError::Configuration(
-                "AWS CLI (aws) não encontrada. Instale a AWS CLI v2 e configure o perfil com `aws configure sso`.".into(),
-            ),
-            _ => OAuthError::Configuration("Não foi possível iniciar a AWS CLI.".into()),
+            ErrorKind::NotFound => OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.aws.cli_not_found", "AWS CLI (aws) não encontrada. Instale a AWS CLI v2 e configure o perfil com `aws configure sso`.",
+        )),
+            _ => OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.aws.cli_start_failed", "Não foi possível iniciar a AWS CLI.",
+        )),
         })?;
 
     let stdout = child.stdout.take().expect("stdout piped");
@@ -63,10 +65,12 @@ pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthErr
 
     match timed {
         Ok(Ok(status)) if status.success() => Ok(()),
-        Ok(Ok(_)) => Err(OAuthError::Configuration(
-            "Login SSO não concluído. Verifique a configuração SSO do perfil (`aws configure sso`) e tente novamente.".into(),
-        )),
-        Ok(Err(_)) => Err(OAuthError::Configuration("Falha ao aguardar a AWS CLI.".into())),
+        Ok(Ok(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.aws.sso_login_incomplete", "Login SSO não concluído. Verifique a configuração SSO do perfil (`aws configure sso`) e tente novamente.",
+        ))),
+        Ok(Err(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.aws.cli_wait_failed", "Falha ao aguardar a AWS CLI.",
+        ))),
         Err(_) => {
             // Past the device sign-in budget: reap the child before returning.
             let _ = child.kill().await;
@@ -84,9 +88,10 @@ fn validate_profile(profile: &str) -> Result<(), OAuthError> {
     if ok {
         Ok(())
     } else {
-        Err(OAuthError::Configuration(
-            "Nome de perfil AWS inválido.".into(),
-        ))
+        Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.aws.invalid_profile_name",
+            "Nome de perfil AWS inválido.",
+        )))
     }
 }
 

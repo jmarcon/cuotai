@@ -198,9 +198,10 @@ pub(super) async fn begin(
             )
             .await
         }
-        _ => Err(OAuthError::Configuration(
-            "Este provedor não usa fluxo de código de dispositivo.".into(),
-        )),
+        _ => Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.device.provider_no_device_flow",
+            "Este provedor não usa fluxo de código de dispositivo.",
+        ))),
     }
 }
 
@@ -318,9 +319,10 @@ fn classify_error(code: &str) -> OAuthError {
         "access_denied" | "authorization_declined" => OAuthError::Denied,
         "expired_token" | "invalid_grant" | "incorrect_device_code" => OAuthError::Expired,
         "invalid_client" | "incorrect_client_credentials" | "unauthorized_client" => {
-            OAuthError::Configuration(
-                "Registro do cliente recusado pelo provedor; refaça o login.".into(),
-            )
+            OAuthError::Configuration(crate::text::Localized::fixed(
+                "oauth_error.device.client_registration_refused",
+                "Registro do cliente recusado pelo provedor; refaça o login.",
+            ))
         }
         _ => OAuthError::InvalidResponse,
     }
@@ -815,9 +817,10 @@ fn kiro_options(config: &OAuthConfig) -> Result<(String, String, String), OAuthE
         .unwrap_or(KIRO_DEFAULT_REGION)
         .to_string();
     if !valid_aws_region(&region) {
-        return Err(OAuthError::Configuration(
-            "Região AWS inválida para o login Kiro.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.kiro.invalid_aws_region",
+            "Região AWS inválida para o login Kiro.",
+        )));
     }
     let start_url = config
         .options
@@ -827,7 +830,10 @@ fn kiro_options(config: &OAuthConfig) -> Result<(String, String, String), OAuthE
         .unwrap_or(KIRO_DEFAULT_START_URL)
         .to_string();
     let parsed = url::Url::parse(&start_url).map_err(|_| {
-        OAuthError::Configuration("URL inicial do Identity Center inválida.".into())
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.kiro.identity_center_url_invalid",
+            "URL inicial do Identity Center inválida.",
+        ))
     })?;
     let host_ok = parsed
         .host_str()
@@ -841,17 +847,19 @@ fn kiro_options(config: &OAuthConfig) -> Result<(String, String, String), OAuthE
         || !parsed.username().is_empty()
         || parsed.password().is_some()
     {
-        return Err(OAuthError::Configuration(
-            "URL inicial do Identity Center deve ser HTTPS no domínio awsapps.com.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.kiro.identity_center_url_https",
+            "URL inicial do Identity Center deve ser HTTPS no domínio awsapps.com.",
+        )));
     }
     let auth_method = match config.options.get("auth_method").map(|m| m.trim()) {
         Some("builder-id") => "builder-id".to_string(),
         Some("idc") => "idc".to_string(),
         Some(_) => {
-            return Err(OAuthError::Configuration(
-                "auth_method inválido para o login Kiro (use builder-id ou idc).".into(),
-            ));
+            return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                "oauth_error.kiro.invalid_auth_method",
+                "auth_method inválido para o login Kiro (use builder-id ou idc).",
+            )));
         }
         None => "builder-id".to_string(),
     };
@@ -922,9 +930,7 @@ async fn begin_kiro(
     let (device_code, user_code, server_uri, server_complete) = device_code_fields(&device_data)?;
     let prompt_url = trusted_verification_url(server_complete.as_deref(), KIRO_TRUSTED_HOSTS)
         .or_else(|| trusted_verification_url(server_uri.as_deref(), KIRO_TRUSTED_HOSTS))
-        .ok_or(OAuthError::Configuration(
-            "O provedor retornou um endereço de verificação não confiável.".into(),
-        ))?;
+        .ok_or(OAuthError::device_verification_url_untrusted())?;
     Ok(PendingLogin {
         prompt: LoginPrompt {
             url: prompt_url,
@@ -1132,9 +1138,7 @@ async fn begin_grok(
     let (device_code, user_code, server_uri, server_complete) = device_code_fields(&body)?;
     let prompt_url = trusted_verification_url(server_complete.as_deref(), trusted_hosts)
         .or_else(|| trusted_verification_url(server_uri.as_deref(), trusted_hosts))
-        .ok_or(OAuthError::Configuration(
-            "O provedor retornou um endereço de verificação não confiável.".into(),
-        ))?;
+        .ok_or(OAuthError::device_verification_url_untrusted())?;
     Ok(PendingLogin {
         prompt: LoginPrompt {
             url: prompt_url,

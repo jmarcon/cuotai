@@ -3,11 +3,18 @@
 // Chaves ausentes caem para o idioma de reserva (en-US) e, por fim, para a própria chave.
 //
 // RF8 — resolutor `tl()`: textos entregues pelo core (campos, avisos, erros
-// de edição, notas de relatório) viajam como `{ id, params, fallback }` onde
-// `fallback` é o texto em português. O desktop resolve `id` no catálogo
-// corrente e usa `fallback` quando a chave está ausente. Parâmetros podem ser
-// strings ou um `Localized` aninhado, resolvido recursivamente para que
-// rótulos de status/provedor embarcados nas notas também sejam traduzidos.
+// de edição, notas de relatório, login modes/options/registration) viajam
+// como `{ id, params, fallback }` onde `fallback` é o texto em português.
+// O desktop resolve `id` no catálogo corrente e usa `fallback` quando a
+// chave está ausente. Parâmetros podem ser strings ou um `Localized`
+// aninhado, resolvido recursivamente para que rótulos de
+// status/provedor embarcados nas notas também sejam traduzidos.
+//
+// O catálogo do core (crates/cuotai-core/locales/{en-US,es}.json) é carregado
+// pelo comando Tauri `core_catalog(locale)` e mesclado sob o catálogo de UI:
+// as chaves do core têm prioridade para os ids que o core emite; chaves de
+// UI apenas permanecem no JSON local. Pacotes de idioma do usuário podem
+// sobrescrever ambos (e acrescentar ids novos do core para um idioma novo).
 import { esc } from "./util.js";
 
 /** Idiomas que acompanham o app. Idiomas do usuário são acrescentados em tempo de execução. */
@@ -19,8 +26,9 @@ export const LOCALES = [
 export const FALLBACK = "en-US";
 const KEY = "cuotai.locale";
 
-const catalogs = new Map(); // código -> objeto de mensagens
+const uiCatalogs = new Map(); // código -> objeto de mensagens da UI
 const userCatalogs = new Map(); // idiomas do usuário já validados (têm prioridade sobre o builtin de mesmo código)
+const coreCatalogs = new Map(); // código -> catálogo do core (mescla sob o de UI na resolução)
 let current = FALLBACK;
 
 const store = {
@@ -34,23 +42,56 @@ export const hasLocale = (code) => LOCALES.some((l) => l.code === code);
 /** Registra um idioma do usuário (já validado). */
 export function registerLocale(code, name, messages, flag) {
   userCatalogs.set(code, messages);
-  catalogs.set(code, messages);
+  uiCatalogs.set(code, messages);
   const i = LOCALES.findIndex((l) => l.code === code);
   if (i >= 0) LOCALES[i] = { code, name, flag, user: true };
   else LOCALES.push({ code, name, flag, user: true });
 }
 
-async function load(code) {
-  if (catalogs.has(code)) return catalogs.get(code);
+async function loadUi(code) {
+  if (uiCatalogs.has(code)) return uiCatalogs.get(code);
   try {
     const res = await fetch(`locales/${code}.json`);
     const data = res.ok ? await res.json() : {};
-    catalogs.set(code, data);
+    uiCatalogs.set(code, data);
     return data;
   } catch {
-    catalogs.set(code, {});
+    uiCatalogs.set(code, {});
     return {};
   }
+}
+
+/** Carrega (e cacheia) o catálogo do core para `code` via Tauri. */
+async function loadCore(code) {
+  if (coreCatalogs.has(code)) return coreCatalogs.get(code);
+  const T = window.__TAURI__;
+  if (!T || !T.core?.invoke) {
+    coreCatalogs.set(code, {});
+    return {};
+  }
+  try {
+    const data = await T.core.invoke("core_catalog", { locale: code });
+    coreCatalogs.set(code, data ?? {});
+    return coreCatalogs.get(code);
+  } catch {
+    coreCatalogs.set(code, {});
+    return {};
+  }
+}
+
+/** Catálogo mesclado: as do usuário (se houver) cobrem as da UI, e as do core são mescladas por baixo para os ids do core. */
+function mergedCatalog(code) {
+  const ui = uiCatalogs.get(code) ?? {};
+  const fallback = uiCatalogs.get(FALLBACK) ?? {};
+  const user = userCatalogs.get(code); // se ausente, sem pacote do usuário
+  const core = coreCatalogs.get(code) ?? {};
+  const out = {};
+  // Ordem da mescla (sobreposição vence): core < en-US UI < atual UI < usuário.
+  Object.assign(out, core);
+  Object.assign(out, fallback);
+  Object.assign(out, ui);
+  if (user) Object.assign(out, user);
+  return out;
 }
 
 /** Escolhe o idioma: preferência salva → idioma do sistema (exato ou mesma língua) → en-US. */
@@ -68,9 +109,11 @@ export function pickLocale(preferred, systemLangs = navigator.languages ?? [navi
 }
 
 export async function initI18n() {
-  await load(FALLBACK);
+  await loadUi(FALLBACK);
+  await loadCore(FALLBACK);
   current = pickLocale(store.get());
-  await load(current);
+  await loadUi(current);
+  await loadCore(current);
   document.documentElement.lang = current;
 }
 
@@ -78,12 +121,18 @@ export async function setLocale(code) {
   if (!hasLocale(code)) return;
   current = code;
   store.set(code);
-  await load(code);
+  await loadUi(code);
+  await loadCore(code);
   document.documentElement.lang = code;
 }
 
 function lookup(key) {
-  return catalogs.get(current)?.[key] ?? catalogs.get(FALLBACK)?.[key];
+  // Mescla sob a UI para todas as resoluções de chave em ambas as
+  // resoluções — sem isso, `tl()` e `t()` divergem quando o catálogo
+  // do core tem uma chave ausente do catálogo de UI.
+  const currentCatalog = mergedCatalog(current);
+  const fallbackCatalog = mergedCatalog(FALLBACK);
+  return currentCatalog[key] ?? fallbackCatalog[key];
 }
 
 function resolve(key, vars) {
@@ -128,10 +177,14 @@ function substitute(template, vars, escape) {
 }
 
 /**
- * Resolve an RF8 core text (`{ id, params, fallback }`) against the active
- * catalog with `en-US` and `fallback` as the cascade. When the value is a
- * plain string (pre-RF8 callers) it is returned unchanged. `vars` is merged
- * with `note.params` so callers can override individual placeholders.
+ * Resolve an RF8 core text (`{ id, params, fallback }`) against the merged
+ * catalog (UI + core) for the current locale, falling back to `en-US` then
+ * to the Portuguese `fallback` embedded in the value. Plain strings
+ * (pre-RF8 callers) are returned unchanged. `vars` is merged with
+ * `note.params` so callers can override individual placeholders.
+ *
+ * pt-* never falls back to the en-US catalog for a missing key: the
+ * Portuguese `fallback` is authoritative.
  */
 export function tl(value, vars = {}, escape = false) {
   if (value == null) return "";
@@ -139,9 +192,11 @@ export function tl(value, vars = {}, escape = false) {
     return escape ? esc(String(value)) : String(value);
   }
   const merged = { ...(value.params ?? {}), ...vars };
-  // Textos do core já chegam em português (`fallback`): no pt-BR uma chave ausente usa esse texto, nunca o inglês de reserva.
-  const own = catalogs.get(current)?.[value.id];
-  const template = own ?? (current.toLowerCase().startsWith("pt") ? undefined : catalogs.get(FALLBACK)?.[value.id]);
+  const currentCatalog = mergedCatalog(current);
+  const fallbackCatalog = mergedCatalog(FALLBACK);
+  const own = currentCatalog[value.id];
+  // pt-* não consulta fallback en-US: o fallback do próprio valor (português) é autoritativo.
+  const template = own ?? (current.toLowerCase().startsWith("pt") ? undefined : fallbackCatalog[value.id]);
   const text = template ?? value.fallback;
   return substitute(typeof text === "string" ? text : value.fallback, merged, escape);
 }

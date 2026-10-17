@@ -264,7 +264,7 @@ impl Monitor {
                                 }
                                 _ => Status::Error,
                             },
-                            note: crate::text::Localized::fixed("query.oauth", error.to_string()),
+                            note: error.l10n(),
                         })?,
                 ),
                 None => None,

@@ -86,23 +86,39 @@ pub enum LoginOptionValidation {
 
 /// A text or closed-choice input accepted by a login mode. Registration and
 /// native-flow inputs share this descriptor so frontends never hardcode keys.
+///
+/// RF8: `label` and `help` travel as [`Localized`] with stable ids
+/// (`login.<provider>.<mode>.registration.<key>.label` for registration
+/// options, `native.<provider>.<key>.label` for native options). Frontends
+/// resolve them against their catalog and use the embedded Portuguese
+/// fallback when the id is unknown.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginOption {
     pub key: String,
-    pub label: String,
-    pub help: String,
-    /// Closed value list; `None` means free text.
-    pub choices: Option<Vec<(String, String)>>,
+    pub label: crate::text::Localized,
+    pub help: crate::text::Localized,
+    /// Closed value list; `None` means free text. Each entry carries the
+    /// choice's localizable label so the UI can render translated text.
+    pub choices: Option<Vec<LoginChoice>>,
     pub required: bool,
     pub validation: LoginOptionValidation,
 }
 
+/// One closed-choice entry of a [`LoginOption`]. `value` is the stable
+/// machine identifier (validated by the core); `label` is the user-visible
+/// text, localizable through the catalog id built at construction time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoginChoice {
+    pub value: String,
+    pub label: crate::text::Localized,
+}
+
 impl LoginOption {
-    fn text(key: &str, label: &str, help: &str) -> Self {
+    fn text(id_prefix: &str, key: &str, label: &str, help: &str) -> Self {
         Self {
             key: key.to_string(),
-            label: label.to_string(),
-            help: help.to_string(),
+            label: localized_at(id_prefix, "label", label),
+            help: localized_at(id_prefix, "help", help),
             choices: None,
             required: false,
             validation: LoginOptionValidation::None,
@@ -119,26 +135,42 @@ impl LoginOption {
         self
     }
 
-    fn from_native(descriptor: &account_edit::NativeOptionDescriptor) -> Self {
+    fn from_native(
+        provider: crate::Provider,
+        descriptor: &account_edit::NativeOptionDescriptor,
+    ) -> Self {
+        let key = descriptor.key;
         let choices = match descriptor.kind {
             account_edit::FieldDescriptorKind::Text => None,
             account_edit::FieldDescriptorKind::Choice(choice) => Some(
                 choice
                     .options
                     .iter()
-                    .map(|(value, label)| (value.to_string(), label.to_string()))
+                    .map(|(value, label)| LoginChoice {
+                        value: value.to_string(),
+                        label: crate::text::Localized::fixed(
+                            account_edit::native_option_option_id(provider, key, value),
+                            label.to_string(),
+                        ),
+                    })
                     .collect(),
             ),
         };
-        let validation = if descriptor.key == "database_path" {
+        let validation = if key == "database_path" {
             LoginOptionValidation::Path
         } else {
             LoginOptionValidation::NoWhitespace
         };
         Self {
-            key: descriptor.key.to_string(),
-            label: descriptor.label.to_string(),
-            help: descriptor.help.to_string(),
+            key: key.to_string(),
+            label: crate::text::Localized::fixed(
+                account_edit::native_option_label_id(provider, key),
+                descriptor.label.to_string(),
+            ),
+            help: crate::text::Localized::fixed(
+                account_edit::native_option_help_id(provider, key),
+                descriptor.help.to_string(),
+            ),
             choices,
             required: false,
             validation,
@@ -149,27 +181,46 @@ impl LoginOption {
     /// never echoed in the error.
     pub fn validate(&self, value: &str) -> Result<(), OAuthError> {
         let value = value.trim();
+        // RF8: the offending field's label travels as a nested `Localized`
+        // param (`{field}`) so it translates with the message instead of
+        // baking the Portuguese label into an English sentence.
+        let field = crate::text::ParamValue::from(self.label.clone());
         if value.is_empty() {
             if self.required {
-                return Err(OAuthError::Configuration(format!(
-                    "{} é obrigatório.",
-                    self.label
-                )));
+                return Err(OAuthError::Configuration(
+                    crate::text::Localized::with_param(
+                        "oauth_error.login.field_required",
+                        "field",
+                        field,
+                        format!("{} é obrigatório.", self.label.fallback),
+                    ),
+                ));
             }
             return Ok(());
         }
         if value.len() > 2048 || value.chars().any(char::is_control) {
-            return Err(OAuthError::Configuration(format!(
-                "{} contém caracteres inválidos ou é longo demais.",
-                self.label
-            )));
+            return Err(OAuthError::Configuration(
+                crate::text::Localized::with_param(
+                    "oauth_error.login.field_invalid_chars",
+                    "field",
+                    field,
+                    format!(
+                        "{} contém caracteres inválidos ou é longo demais.",
+                        self.label.fallback
+                    ),
+                ),
+            ));
         }
         if let Some(choices) = &self.choices {
-            if !choices.iter().any(|(choice, _)| choice == value) {
-                return Err(OAuthError::Configuration(format!(
-                    "{} não contém uma opção reconhecida.",
-                    self.label
-                )));
+            if !choices.iter().any(|choice| choice.value == value) {
+                return Err(OAuthError::Configuration(
+                    crate::text::Localized::with_param(
+                        "oauth_error.login.field_unknown_choice",
+                        "field",
+                        field,
+                        format!("{} não contém uma opção reconhecida.", self.label.fallback),
+                    ),
+                ));
             }
         }
         let valid = match self.validation {
@@ -185,12 +236,23 @@ impl LoginOption {
         if valid {
             Ok(())
         } else {
-            Err(OAuthError::Configuration(format!(
-                "{} tem um valor inválido.",
-                self.label
-            )))
+            Err(OAuthError::Configuration(
+                crate::text::Localized::with_param(
+                    "oauth_error.login.field_invalid_value",
+                    "field",
+                    field,
+                    format!("{} tem um valor inválido.", self.label.fallback),
+                ),
+            ))
         }
     }
+}
+
+/// Build a [`Localized`] under `id_prefix.<suffix>` (e.g. for an option
+/// descriptor). Used by registration/native option constructors to attach
+/// stable ids while keeping the construction call sites readable.
+fn localized_at(id_prefix: &str, suffix: &str, fallback: &str) -> crate::text::Localized {
+    crate::text::Localized::fixed(format!("{id_prefix}.{suffix}"), fallback.to_string())
 }
 
 /// Where a successful login stores its credential.
@@ -221,12 +283,16 @@ pub enum LoginAccountBinding {
 
 /// One interactive login mode offered for a provider. All labels, help,
 /// registration fields, outcome text and account bindings come from the core.
+///
+/// RF8: `label`, `help`, `completion_notice` and `unavailable_reason` are
+/// [`crate::text::Localized`] with stable ids derived from the provider
+/// slug and the mode id (`login.<provider>.<mode>.{label,help,...}`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginMode {
     pub id: String,
-    pub label: String,
-    pub help: String,
-    pub completion_notice: String,
+    pub label: crate::text::Localized,
+    pub help: crate::text::Localized,
+    pub completion_notice: crate::text::Localized,
     pub credential_store: LoginCredentialStore,
     pub account_binding: LoginAccountBinding,
     /// User-registered application inputs accepted in
@@ -234,22 +300,26 @@ pub struct LoginMode {
     pub registration: Vec<LoginOption>,
     /// Nonsecret flow options accepted in [`LoginRequest::options`].
     pub options: Vec<LoginOption>,
-    pub unavailable_reason: Option<String>,
+    pub unavailable_reason: Option<crate::text::Localized>,
 }
 
 /// Result of [`login_modes`]: interactive modes and the reason when no login
-/// exists at all.
+/// exists at all. `unsupported_reason` is a [`Localized`] when the
+/// provider has no built-in OAuth (RF8 id `oauth.unsupported_reason.<slug>`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderLogin {
     pub modes: Vec<LoginMode>,
-    pub unsupported_reason: Option<String>,
+    pub unsupported_reason: Option<crate::text::Localized>,
 }
 
 fn registration_options(provider: Provider) -> Vec<LoginOption> {
     if !requires_client_registration(provider) {
         return Vec::new();
     }
+    let slug = provider.slug();
+    let client_id_prefix = format!("login.{slug}.oauth.registration.client_id");
     let client_id = LoginOption::text(
+        &client_id_prefix,
         "client_id",
         "Client ID do app",
         "Do SEU aplicativo registrado; o Cuotai não tem app próprio.",
@@ -257,9 +327,11 @@ fn registration_options(provider: Provider) -> Vec<LoginOption> {
     .required()
     .validation(LoginOptionValidation::ClientId);
     if provider == Provider::AzureOpenAi {
+        let tenant_prefix = format!("login.{slug}.oauth.registration.tenant");
         vec![
             client_id,
             LoginOption::text(
+                &tenant_prefix,
                 "tenant",
                 "Tenant (opcional)",
                 "Vazio usa \"organizations\" (contas em qualquer organização).",
@@ -267,9 +339,11 @@ fn registration_options(provider: Provider) -> Vec<LoginOption> {
             .validation(LoginOptionValidation::Tenant),
         ]
     } else {
+        let secret_prefix = format!("login.{slug}.oauth.registration.client_secret_env");
         vec![
             client_id,
             LoginOption::text(
+                &secret_prefix,
                 "client_secret_env",
                 "Variável do client secret (opcional)",
                 "Apenas o NOME da variável exportada com o secret; nunca o valor.",
@@ -304,74 +378,120 @@ fn oauth_completion_notice(provider: Provider) -> String {
 pub fn login_modes(provider: Provider) -> ProviderLogin {
     let mut modes = Vec::new();
     match provider {
-        Provider::AwsBedrock => modes.push(LoginMode {
-            id: MODE_AWS_SSO.to_string(),
-            label: "AWS SSO (AWS CLI)".to_string(),
-            help: "Executa `aws sso login --use-device-code` no perfil informado; o token fica no cache da própria AWS CLI, fora do cofre do Cuotai. Configure o perfil antes com `aws configure sso`; o Cost Explorer cobra por consulta.".to_string(),
-            completion_notice: "Login SSO do AWS CLI concluído.".to_string(),
-            credential_store: LoginCredentialStore::External,
-            account_binding: LoginAccountBinding::Credential {
-                option: "profile".to_string(),
-            },
-            registration: Vec::new(),
-            options: vec![LoginOption::text(
-                "profile",
-                "Perfil AWS",
-                "Perfil SSO configurado previamente via `aws configure sso`.",
-            )
-            .required()],
-            unavailable_reason: None,
-        }),
-        Provider::AlibabaTokenPlan => modes.push(LoginMode {
-            id: MODE_BAILIAN_CONSOLE.to_string(),
-            label: "Console Bailian (`bl`)".to_string(),
-            help: "Executa `bl auth login --console` em um perfil dedicado do `bl`; o login fica no cofre local do `bl`, fora do cofre do Cuotai. Cancelar não desfaz o que o `bl` gravou. `params.session_env` continua um override opcional de Cookie; `QWEN_API_KEY` autentica apenas inferência e não é enviada à consulta de quota.".to_string(),
-            completion_notice: "Login `bl auth login --console` concluído no perfil dedicado.".to_string(),
-            credential_store: LoginCredentialStore::External,
-            account_binding: LoginAccountBinding::CliProfile {
-                option: "profile".to_string(),
-            },
-            registration: Vec::new(),
-            options: vec![
-                LoginOption {
-                    key: "console_site".to_string(),
-                    label: "Site do console".to_string(),
-                    help: "Site do Token Plan atendido pelo `bl --console-site`.".to_string(),
-                    choices: Some(vec![(
-                        "international".to_string(),
-                        "Internacional".to_string(),
-                    )]),
-                    required: true,
-                    validation: LoginOptionValidation::None,
-                },
-                LoginOption::text(
-                    "profile",
-                    "Perfil dedicado do `bl` (opcional)",
-                    "Perfil (`--config`) onde o `bl` grava o login; vazio gera um perfil isolado.",
-                )
-                .validation(LoginOptionValidation::CliProfile),
-            ],
-            unavailable_reason: None,
-        }),
-        _ if supports_login(provider) => {
-            let registration = registration_options(provider);
+        Provider::AwsBedrock => {
+            let id = MODE_AWS_SSO.to_string();
+            let slug = provider.slug();
+            let mode_prefix = format!("login.{slug}.{id}");
+            let option_prefix = format!("{mode_prefix}.option.profile");
             modes.push(LoginMode {
-                id: MODE_OAUTH.to_string(),
-                label: if provider == Provider::Cursor {
-                    "Importar sessão Cursor".to_string()
-                } else if registration.is_empty() {
-                    "Login nativo no navegador".to_string()
-                } else {
-                    "Login OAuth com aplicativo próprio".to_string()
+                id,
+                label: crate::text::Localized::fixed(
+                    format!("{mode_prefix}.label"),
+                    "AWS SSO (AWS CLI)".to_string(),
+                ),
+                help: crate::text::Localized::fixed(
+                    format!("{mode_prefix}.help"),
+                    "Executa `aws sso login --use-device-code` no perfil informado; o token fica no cache da própria AWS CLI, fora do cofre do Cuotai. Configure o perfil antes com `aws configure sso`; o Cost Explorer cobra por consulta.".to_string(),
+                ),
+                completion_notice: crate::text::Localized::fixed(
+                    format!("{mode_prefix}.completion_notice"),
+                    "Login SSO do AWS CLI concluído.".to_string(),
+                ),
+                credential_store: LoginCredentialStore::External,
+                account_binding: LoginAccountBinding::Credential {
+                    option: "profile".to_string(),
                 },
-                help: oauth_help(provider),
-                completion_notice: oauth_completion_notice(provider),
+                registration: Vec::new(),
+                options: vec![LoginOption::text(
+                    &option_prefix,
+                    "profile",
+                    "Perfil AWS",
+                    "Perfil SSO configurado previamente via `aws configure sso`.",
+                )
+                .required()],
+                unavailable_reason: None,
+            });
+        }
+        Provider::AlibabaTokenPlan => {
+            let id = MODE_BAILIAN_CONSOLE.to_string();
+            let slug = provider.slug();
+            let mode_prefix = format!("login.{slug}.{id}");
+            let site_prefix = format!("{mode_prefix}.option.console_site");
+            let profile_prefix = format!("{mode_prefix}.option.profile");
+            modes.push(LoginMode {
+                id,
+                label: crate::text::Localized::fixed(
+                    format!("{mode_prefix}.label"),
+                    "Console Bailian (`bl`)".to_string(),
+                ),
+                help: crate::text::Localized::fixed(
+                    format!("{mode_prefix}.help"),
+                    "Executa `bl auth login --console` em um perfil dedicado do `bl`; o login fica no cofre local do `bl`, fora do cofre do Cuotai. Cancelar não desfaz o que o `bl` gravou. `params.session_env` continua um override opcional de Cookie; `QWEN_API_KEY` autentica apenas inferência e não é enviada à consulta de quota.".to_string(),
+                ),
+                completion_notice: crate::text::Localized::fixed(
+                    format!("{mode_prefix}.completion_notice"),
+                    "Login `bl auth login --console` concluído no perfil dedicado.".to_string(),
+                ),
+                credential_store: LoginCredentialStore::External,
+                account_binding: LoginAccountBinding::CliProfile {
+                    option: "profile".to_string(),
+                },
+                registration: Vec::new(),
+                options: vec![
+                    LoginOption {
+                        key: "console_site".to_string(),
+                        label: crate::text::Localized::fixed(
+                            format!("{site_prefix}.label"),
+                            "Site do console".to_string(),
+                        ),
+                        help: crate::text::Localized::fixed(
+                            format!("{site_prefix}.help"),
+                            "Site do Token Plan atendido pelo `bl --console-site`.".to_string(),
+                        ),
+                        choices: Some(vec![LoginChoice {
+                            value: "international".to_string(),
+                            label: crate::text::Localized::fixed(
+                                format!("{site_prefix}.option.international"),
+                                "Internacional".to_string(),
+                            ),
+                        }]),
+                        required: true,
+                        validation: LoginOptionValidation::None,
+                    },
+                    LoginOption::text(
+                        &profile_prefix,
+                        "profile",
+                        "Perfil dedicado do `bl` (opcional)",
+                        "Perfil (`--config`) onde o `bl` grava o login; vazio gera um perfil isolado.",
+                    )
+                    .validation(LoginOptionValidation::CliProfile),
+                ],
+                unavailable_reason: None,
+            });
+        }
+        _ if supports_login(provider) => {
+            let id = MODE_OAUTH.to_string();
+            let slug = provider.slug();
+            let mode_prefix = format!("login.{slug}.{id}");
+            let registration = registration_options(provider);
+            let label_text = if provider == Provider::Cursor {
+                "Importar sessão Cursor".to_string()
+            } else if registration.is_empty() {
+                "Login nativo no navegador".to_string()
+            } else {
+                "Login OAuth com aplicativo próprio".to_string()
+            };
+            modes.push(LoginMode {
+                id,
+                label: crate::text::Localized::fixed(format!("{mode_prefix}.label"), label_text),
+                help: oauth_help_localized(provider, &mode_prefix),
+                completion_notice: oauth_completion_notice_localized(provider, &mode_prefix),
                 credential_store: LoginCredentialStore::CuotaiVault,
                 account_binding: LoginAccountBinding::None,
                 registration,
                 options: account_edit::native_option_descriptors(provider)
                     .iter()
-                    .map(LoginOption::from_native)
+                    .map(|d| LoginOption::from_native(provider, d))
                     .collect(),
                 unavailable_reason: None,
             });
@@ -380,8 +500,31 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
     }
     ProviderLogin {
         modes,
-        unsupported_reason: account_edit::oauth_unsupported_reason(provider).map(|l| l.to_string()),
+        unsupported_reason: account_edit::oauth_unsupported_reason(provider),
     }
+}
+
+/// Localized help text for the OAuth mode (per-provider variants for
+/// Cursor/Qwen/Claude/XiaomiMiMo + a generic fallback). `id_prefix` is
+/// `login.<slug>.oauth`; the function emits `<id_prefix>.help`.
+fn oauth_help_localized(provider: Provider, id_prefix: &str) -> crate::text::Localized {
+    crate::text::Localized::fixed(
+        format!("{id_prefix}.help"),
+        oauth_help(provider).to_string(),
+    )
+}
+
+/// Localized completion notice for the OAuth mode (Cursor/XiaomiMiMo
+/// variants + a generic fallback). `id_prefix` is `login.<slug>.oauth`;
+/// the function emits `<id_prefix>.completion_notice`.
+fn oauth_completion_notice_localized(
+    provider: Provider,
+    id_prefix: &str,
+) -> crate::text::Localized {
+    crate::text::Localized::fixed(
+        format!("{id_prefix}.completion_notice"),
+        oauth_completion_notice(provider).to_string(),
+    )
 }
 
 /// Resolve one trusted mode descriptor by its stable id.
@@ -494,7 +637,10 @@ pub fn account_login_inputs(
     login_completed: bool,
 ) -> Result<(String, Option<BTreeMap<String, String>>), OAuthError> {
     let mode = login_mode(provider, mode_id).ok_or_else(|| {
-        OAuthError::Configuration("Modo de login não oferecido para este provedor.".into())
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.login.mode_not_offered",
+            "Modo de login não oferecido para este provedor.",
+        ))
     })?;
     let value = |option: &str| {
         result_params
@@ -508,9 +654,10 @@ pub fn account_login_inputs(
         LoginAccountBinding::Credential { option } => {
             let credential = value(&option);
             if credential.is_empty() {
-                return Err(OAuthError::Configuration(
-                    "Informe o perfil configurado antes de salvar.".into(),
-                ));
+                return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.login.profile_required_before_save",
+                    "Informe o perfil configurado antes de salvar.",
+                )));
             }
             Ok((credential, None))
         }
@@ -519,17 +666,18 @@ pub fn account_login_inputs(
             let profile = value(&option);
             let profile = if profile.is_empty() {
                 if login_completed {
-                    return Err(OAuthError::Configuration(
-                        "O login concluído não informou o perfil dedicado.".into(),
-                    ));
+                    return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                        "oauth_error.login.dedicated_profile_missing",
+                        "O login concluído não informou o perfil dedicado.",
+                    )));
                 }
                 account_edit::ensure_cli_profile(&mut params)
             } else {
                 if !account_edit::is_valid_cli_profile(&profile) {
-                    return Err(OAuthError::Configuration(
-                        "Perfil do `bl` inválido; use letras, números, '-' ou '_', até 32 caracteres."
-                            .into(),
-                    ));
+                    return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                        "oauth_error.login.invalid_bl_profile",
+                        "Perfil do `bl` inválido; use letras, números, '-' ou '_', até 32 caracteres.",
+                    )));
                 }
                 profile
             };
@@ -649,10 +797,20 @@ pub fn start_login(
     request: LoginRequest,
 ) -> Result<LoginDriver, OAuthError> {
     let mode = login_mode(provider, &request.mode).ok_or_else(|| {
-        OAuthError::Configuration("Modo de login não oferecido para este provedor.".into())
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.login.mode_not_offered",
+            "Modo de login não oferecido para este provedor.",
+        ))
     })?;
     if let Some(reason) = &mode.unavailable_reason {
-        return Err(OAuthError::Configuration(reason.clone()));
+        return Err(OAuthError::Configuration(
+            crate::text::Localized::with_param(
+                "oauth_error.login.mode_unavailable",
+                "reason",
+                reason.fallback.clone().into_owned(),
+                reason.fallback.clone().into_owned(),
+            ),
+        ));
     }
     validate_request(&mode, &request)?;
     match mode.id.as_str() {
@@ -662,9 +820,10 @@ pub fn start_login(
             request.options.get("console_site").cloned(),
             request.options.get("profile").cloned(),
         )),
-        _ => Err(OAuthError::Configuration(
-            "Modo de login desconhecido.".into(),
-        )),
+        _ => Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.login.unknown_mode",
+            "Modo de login desconhecido.",
+        ))),
     }
 }
 
@@ -675,7 +834,10 @@ fn validate_request(mode: &LoginMode, request: &LoginRequest) -> Result<(), OAut
             .iter()
             .find(|option| &option.key == key)
             .ok_or_else(|| {
-                OAuthError::Configuration("Opção de login desconhecida para este modo.".into())
+                OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.login.unknown_option",
+                    "Opção de login desconhecida para este modo.",
+                ))
             })?;
         option.validate(value)?;
     }
@@ -690,7 +852,10 @@ fn validate_request(mode: &LoginMode, request: &LoginRequest) -> Result<(), OAut
             .iter()
             .find(|option| &option.key == key)
             .ok_or_else(|| {
-                OAuthError::Configuration("Campo de registro desconhecido para este modo.".into())
+                OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.login.unknown_registration_field",
+                    "Campo de registro desconhecido para este modo.",
+                ))
             })?;
         option.validate(value)?;
     }
@@ -888,9 +1053,10 @@ async fn run_aws_sso(
     events: &mpsc::Sender<LoginEvent>,
 ) -> Result<ExternalLogin, OAuthError> {
     let profile = profile.filter(|p| !p.trim().is_empty()).ok_or_else(|| {
-        OAuthError::Configuration(
-            "Informe o perfil AWS configurado via `aws configure sso`.".into(),
-        )
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.login.aws_profile_required",
+            "Informe o perfil AWS configurado via `aws configure sso`.",
+        ))
     })?;
     let _ = events
         .send(LoginEvent::Progress {
@@ -956,9 +1122,7 @@ async fn run_bailian_console(
 ) -> Result<ExternalLogin, OAuthError> {
     let site = console_site
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| {
-            OAuthError::Configuration("Site do console em branco; informe `international`.".into())
-        })?;
+        .ok_or_else(OAuthError::bailian_console_site_blank)?;
     // Mensagens estáticas e genéricas — nunca conteúdo do stdout do CLI.
     let _ = events
         .send(LoginEvent::Progress {
@@ -1273,7 +1437,10 @@ mod tests {
         }
         fn delete(&self, id: &str) -> Result<(), OAuthError> {
             if self.fail_deletes.lock().contains(id) {
-                return Err(OAuthError::Storage("falha".into()));
+                return Err(OAuthError::Storage(crate::text::Localized::fixed(
+                    "oauth_error.login.storage_failure",
+                    "falha",
+                )));
             }
             self.tokens.lock().remove(id);
             Ok(())
@@ -1460,7 +1627,10 @@ mod tests {
                 Ok(None)
             }
             fn save(&self, _: &str, _: &OAuthToken) -> Result<(), OAuthError> {
-                Err(OAuthError::Storage("falha".into()))
+                Err(OAuthError::Storage(crate::text::Localized::fixed(
+                    "oauth_error.login.storage_failure",
+                    "falha",
+                )))
             }
             fn delete(&self, _: &str) -> Result<(), OAuthError> {
                 Ok(())

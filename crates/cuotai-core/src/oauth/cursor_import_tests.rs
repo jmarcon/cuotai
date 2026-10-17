@@ -173,12 +173,11 @@ async fn missing_token_is_actionable_error() {
     let err = import(Some(path)).await.err().expect("expected error");
     match err {
         OAuthError::Configuration(msg) => {
+            let fb = msg.fallback.to_lowercase();
             assert!(
-                msg.to_lowercase().contains("token")
-                    || msg.to_lowercase().contains("login")
-                    || msg.to_lowercase().contains("caminho"),
+                fb.contains("token") || fb.contains("login") || fb.contains("caminho"),
                 "expected actionable message, got {:?}",
-                msg
+                msg.fallback
             );
         }
         other => panic!("expected Configuration error, got {:?}", other),
@@ -192,7 +191,8 @@ async fn missing_machine_id_is_actionable_error() {
     let err = import(Some(path)).await.err().expect("expected error");
     match err {
         OAuthError::Configuration(msg) => {
-            assert!(msg.to_lowercase().contains("máquina") || msg.to_lowercase().contains("login"));
+            let fb = msg.fallback.to_lowercase();
+            assert!(fb.contains("máquina") || fb.contains("login"));
         }
         other => panic!("expected Configuration error, got {:?}", other),
     }
@@ -211,7 +211,7 @@ async fn short_token_is_rejected() {
     );
     let err = import(Some(path)).await.err().expect("expected error");
     match err {
-        OAuthError::Configuration(msg) => assert!(msg.to_lowercase().contains("token")),
+        OAuthError::Configuration(msg) => assert!(msg.fallback.to_lowercase().contains("token")),
         other => panic!("expected Configuration error, got {:?}", other),
     }
 }

@@ -113,8 +113,13 @@ fn print_snapshot(snapshot: &Snapshot) {
                 println!("    Renova: {}", reset.to_rfc3339());
             }
         }
-        for note in &report.notes {
-            println!("  {}", ui::safe(note));
+        for (idx, fallback_text) in report.notes.iter().enumerate() {
+            let text = report
+                .notes_l10n
+                .get(idx)
+                .map(ui::resolve_l10n)
+                .unwrap_or_else(|| fallback_text.clone());
+            println!("  {}", ui::safe(&text));
         }
         if !report.source.is_empty() {
             println!("  Fonte: {}", ui::safe(&report.source));

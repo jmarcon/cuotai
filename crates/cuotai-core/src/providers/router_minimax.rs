@@ -461,10 +461,20 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
         "Baldes M-series (\"MiniMax-M*\" em respostas antigas, \"general\" nas novas) publicam \
          apenas o percentual restante; exibidos como %, sem total de requisições.",
     );
-    notes.push(
+    // Capture the first reset timestamp the adapter actually derived so the
+    // catalog template's `{reset_at}` placeholder resolves to a concrete
+    // value (otherwise translation drops it inside the English text).
+    let first_reset = metrics.iter().find_map(|m| m.resets_at);
+    let reset_text = first_reset
+        .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        .unwrap_or_else(|| "epoch não disponível".to_string());
+    notes.push_params(
         "note.router_minimax.reset_source",
-        "resets_at usa a duração remains_time (ms) quando presente; caso contrário end_time \
-         (epoch s/ms ou ISO 8601).",
+        params([("reset_at", ParamValue::from(reset_text.clone()))]),
+        format!(
+            "resets_at: {reset_text}; calculado de remains_time (ms) quando presente, \
+             caso contrário end_time (epoch s/ms ou ISO 8601)."
+        ),
     );
     Ok(Data::new(metrics, notes, REF))
 }

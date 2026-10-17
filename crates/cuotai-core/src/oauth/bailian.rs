@@ -28,19 +28,19 @@ const BAILIAN_ALLOWED_SITES: &[&str] = &["international"];
 fn validate_console_site(site: &str) -> Result<(), OAuthError> {
     let trimmed = site.trim();
     if trimmed.is_empty() {
-        return Err(OAuthError::Configuration(
-            "Site do console em branco; informe `international`.".into(),
-        ));
+        return Err(OAuthError::bailian_console_site_blank());
     }
     if !BAILIAN_ALLOWED_SITES.contains(&trimmed) {
-        return Err(OAuthError::Configuration(
-            "Site de console desconhecido. Valores aceitos: international.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.unknown_console_site",
+            "Site de console desconhecido. Valores aceitos: international.",
+        )));
     }
     if trimmed.starts_with('-') || trimmed.chars().any(char::is_control) {
-        return Err(OAuthError::Configuration(
-            "Site do console inválido.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.invalid_console_site",
+            "Site do console inválido.",
+        )));
     }
     Ok(())
 }
@@ -53,27 +53,31 @@ fn validate_console_site(site: &str) -> Result<(), OAuthError> {
 fn validate_cli_profile(name: &str) -> Result<(), OAuthError> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return Err(OAuthError::Configuration(
-            "Perfil do `bl` em branco; impossível iniciar o login isolado.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.profile_blank",
+            "Perfil do `bl` em branco; impossível iniciar o login isolado.",
+        )));
     }
     if trimmed.len() > 32 {
-        return Err(OAuthError::Configuration(
-            "Perfil do `bl` excede 32 caracteres.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.profile_too_long",
+            "Perfil do `bl` excede 32 caracteres.",
+        )));
     }
     if trimmed.starts_with('-') {
-        return Err(OAuthError::Configuration(
-            "Perfil do `bl` não pode começar com '-'.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.profile_leading_hyphen",
+            "Perfil do `bl` não pode começar com '-'.",
+        )));
     }
     if !trimmed
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
-        return Err(OAuthError::Configuration(
-            "Perfil do `bl` aceita apenas letras, dígitos, '-' e '_'.".into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.profile_invalid_chars",
+            "Perfil do `bl` aceita apenas letras, dígitos, '-' e '_'.",
+        )));
     }
     Ok(())
 }
@@ -107,12 +111,16 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => OAuthError::Configuration(
-                "`bl` (Bailian CLI) não encontrado. Instale a CLI e tente novamente.".into(),
-            ),
-            _ => OAuthError::Configuration(
-                "Não foi possível iniciar o `bl auth login --console`.".into(),
-            ),
+            std::io::ErrorKind::NotFound => {
+                OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.bailian.cli_not_found",
+                    "`bl` (Bailian CLI) não encontrado. Instale a CLI e tente novamente.",
+                ))
+            }
+            _ => OAuthError::Configuration(crate::text::Localized::fixed(
+                "oauth_error.bailian.cli_start_failed",
+                "Não foi possível iniciar o `bl auth login --console`.",
+            )),
         })?;
 
     let stdout = child.stdout.take().expect("stdout piped");
@@ -127,12 +135,14 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
 
     match timed {
         Ok(Ok(status)) if status.success() => Ok(()),
-        Ok(Ok(_)) => Err(OAuthError::Configuration(
-            "`bl auth login --console` saiu com erro. Verifique a CLI e tente novamente.".into(),
-        )),
-        Ok(Err(_)) => Err(OAuthError::Configuration(
-            "Falha ao aguardar o `bl`.".into(),
-        )),
+        Ok(Ok(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.console_login_failed",
+            "`bl auth login --console` saiu com erro. Verifique a CLI e tente novamente.",
+        ))),
+        Ok(Err(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.cli_wait_failed",
+            "Falha ao aguardar o `bl`.",
+        ))),
         Err(_) => {
             // Tempo esgotado: mata o filho antes de devolver erro.
             let _ = child.kill().await;

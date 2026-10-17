@@ -113,10 +113,14 @@ pub(super) async fn begin(
             .await
         }
         Provider::AzureOpenAi => begin_azure(http, config).await,
-        other => Err(OAuthError::Configuration(format!(
-            "{} não oferece suporte a login OAuth",
-            other.label()
-        ))),
+        other => Err(OAuthError::Configuration(
+            crate::text::Localized::with_param(
+                "oauth_error.flows.provider_no_oauth",
+                "provider",
+                crate::text::provider_l10n(other),
+                format!("{} não oferece suporte a login OAuth", other.label()),
+            ),
+        )),
     }
 }
 
@@ -157,10 +161,14 @@ pub(super) async fn refresh(
             )
             .await
         }
-        other => Err(OAuthError::Configuration(format!(
-            "{} não oferece suporte a login OAuth",
-            other.label()
-        ))),
+        other => Err(OAuthError::Configuration(
+            crate::text::Localized::with_param(
+                "oauth_error.flows.provider_no_oauth",
+                "provider",
+                crate::text::provider_l10n(other),
+                format!("{} não oferece suporte a login OAuth", other.label()),
+            ),
+        )),
     }
 }
 
@@ -170,10 +178,10 @@ pub(super) async fn refresh(
 
 fn require_client_id(config: &OAuthConfig) -> Result<(), OAuthError> {
     if config.client_id.trim().is_empty() {
-        return Err(OAuthError::Configuration(
-            "client_id OAuth é obrigatório; registre seu próprio aplicativo OAuth no provedor"
-                .into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.flows.client_id_required",
+            "client_id OAuth é obrigatório; registre seu próprio aplicativo OAuth no provedor",
+        )));
     }
     Ok(())
 }
@@ -193,10 +201,10 @@ fn resolve_tenant(config: &OAuthConfig) -> Result<String, OAuthError> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.');
     if !valid {
-        return Err(OAuthError::Configuration(
-            "locatário do Azure inválido; use um GUID de locatário, um domínio ou `organizations`"
-                .into(),
-        ));
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.flows.invalid_azure_tenant",
+            "locatário do Azure inválido; use um GUID de locatário, um domínio ou `organizations`",
+        )));
     }
     Ok(tenant.to_owned())
 }
@@ -204,11 +212,9 @@ fn resolve_tenant(config: &OAuthConfig) -> Result<String, OAuthError> {
 fn random_url_safe_32() -> Result<String, OAuthError> {
     use rand::RngCore;
     let mut buf = [0u8; 32];
-    rand::rngs::OsRng.try_fill_bytes(&mut buf).map_err(|_| {
-        OAuthError::Configuration(
-            "gerador de números aleatórios do sistema operacional indisponível".into(),
-        )
-    })?;
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut buf)
+        .map_err(|_| OAuthError::os_rng_unavailable())?;
     Ok(URL_SAFE_NO_PAD.encode(buf))
 }
 

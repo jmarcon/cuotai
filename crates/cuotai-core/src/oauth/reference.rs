@@ -80,9 +80,7 @@ pub(super) async fn begin(
         Provider::XiaomiMimo => reference_xiaomi::begin(http, provider, config)
             .await
             .map(PendingLogin::Xiaomi),
-        _ => Err(OAuthError::Configuration(
-            "Este provedor não tem fluxo de login nativo integrado.".into(),
-        )),
+        _ => Err(OAuthError::native_no_integrated_flow()),
     }
 }
 

@@ -1829,6 +1829,31 @@ pub(crate) fn safe(text: &str) -> Cow<'_, str> {
     }
 }
 
+/// Locale for resolving RF8 core messages in the TUI.
+///
+/// Opt-in via the `CUOTAI_LANG` environment variable; defaults to
+/// `pt-BR` so the Portuguese chrome stays consistent. RFC 5646 codes
+/// are accepted (`en-US`, `es`, `es-AR`, ...); resolution mirrors
+/// `cuotai_core::text::Locale::resolve` so the desktop and the TUI
+/// never disagree about which language a code refers to.
+pub(crate) fn tui_locale() -> &'static str {
+    use std::sync::OnceLock;
+    static LOCALE: OnceLock<String> = OnceLock::new();
+    LOCALE
+        .get_or_init(|| {
+            std::env::var("CUOTAI_LANG")
+                .ok()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| "pt-BR".to_string())
+        })
+        .as_str()
+}
+
+/// Resolve a [`cuotai_core::text::Localized`] for the TUI locale.
+pub(crate) fn resolve_l10n(note: &cuotai_core::text::Localized) -> String {
+    note.resolve(tui_locale())
+}
+
 pub(crate) fn metric_text(metric: &Metric) -> String {
     let number = |value: Option<f64>| {
         value

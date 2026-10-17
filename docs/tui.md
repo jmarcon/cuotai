@@ -11,6 +11,14 @@ cargo run -p cuotai-tui -- --list-providers
 cargo run -p cuotai-tui
 ```
 
+A TUI resolve os textos entregues pelo core (rótulos de login,
+campos, ajuda, erros de edição, notas de relatório, avisos de custo)
+contra o catálogo do core usando a locale definida em `CUOTAI_LANG`
+(códigos RFC 5646: `en-US`, `es`, `pt-BR`...). Sem `CUOTAI_LANG`,
+mantém o padrão `pt-BR` para preservar o chrome em português. A
+própria moldura da TUI (atalhos, menus, mensagens próprias do
+Ratatui) permanece em português — fora do escopo do RF8.
+
 Para execução única ou instalação local:
 
 ```sh

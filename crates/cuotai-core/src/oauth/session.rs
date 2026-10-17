@@ -87,7 +87,9 @@ impl OAuthSession {
     fn client_secret(&self, config: &OAuthConfig) -> Result<Option<String>, OAuthError> {
         config.client_secret_env.as_ref().map(|name| self.secrets.get(name)
             .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| OAuthError::Configuration("Variável do client secret ausente; exporte-a antes de iniciar o aplicativo.".into())))
+            .ok_or_else(|| OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.session.client_secret_env_missing", "Variável do client secret ausente; exporte-a antes de iniciar o aplicativo.",
+        ))))
             .transpose()
     }
 
@@ -166,7 +168,9 @@ impl OAuthSession {
         let load_key = key.clone();
         let token = tokio::task::spawn_blocking(move || store.load(&load_key)).await
             .map_err(|_| storage_error())??
-            .ok_or_else(|| OAuthError::Configuration("Login não encontrado no armazenamento seguro. Abra o wizard e autentique novamente.".into()))?;
+            .ok_or_else(|| OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.session.login_not_found", "Login não encontrado no armazenamento seguro. Abra o wizard e autentique novamente.",
+        )))?;
         if token
             .expires_at
             .is_none_or(|expiry| expiry > Utc::now() + chrono::Duration::seconds(60))
@@ -228,7 +232,10 @@ impl OAuthSession {
 }
 
 pub(crate) fn storage_error() -> OAuthError {
-    OAuthError::Storage("Falha na operação com o cofre do sistema.".into())
+    OAuthError::Storage(crate::text::Localized::fixed(
+        "oauth_error.session.vault_operation_failed",
+        "Falha na operação com o cofre do sistema.",
+    ))
 }
 
 // Bind saved tokens to provider, registered app and tenant. Editing the TOML

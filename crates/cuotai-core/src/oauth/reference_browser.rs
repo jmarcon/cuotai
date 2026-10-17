@@ -165,10 +165,17 @@ impl Endpoints {
                 redirect_host: "localhost",
             },
             other => {
-                return Err(OAuthError::Configuration(format!(
-                    "{} não oferece suporte a login OAuth por navegador",
-                    other.label()
-                )))
+                return Err(OAuthError::Configuration(
+                    crate::text::Localized::with_param(
+                        "oauth_error.browser.provider_no_oauth",
+                        "provider",
+                        crate::text::provider_l10n(other),
+                        format!(
+                            "{} não oferece suporte a login OAuth por navegador",
+                            other.label()
+                        ),
+                    ),
+                ))
             }
         };
         Ok(endpoints)
@@ -268,8 +275,13 @@ async fn begin_with(
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, bind_port))
         .await
         .map_err(|_| match endpoints.fixed_port {
-            Some(port) => OAuthError::Configuration(format!(
-                "A porta local {port} exigida por este login está em uso; aguarde o login em andamento terminar."
+            Some(port) => OAuthError::Configuration(crate::text::Localized::with_param(
+                "oauth_error.browser.local_port_in_use",
+                "port",
+                port,
+                format!(
+                    "A porta local {port} exigida por este login está em uso; aguarde o login em andamento terminar."
+                ),
             )),
             None => OAuthError::Network,
         })?;
@@ -391,10 +403,17 @@ async fn begin_with(
             )
         }
         other => {
-            return Err(OAuthError::Configuration(format!(
-                "{} não oferece suporte a login OAuth por navegador",
-                other.label()
-            )))
+            return Err(OAuthError::Configuration(
+                crate::text::Localized::with_param(
+                    "oauth_error.browser.provider_no_oauth",
+                    "provider",
+                    crate::text::provider_l10n(other),
+                    format!(
+                        "{} não oferece suporte a login OAuth por navegador",
+                        other.label()
+                    ),
+                ),
+            ))
         }
     };
     validate_url_host(&url, &endpoints.authorize_hosts, endpoints.require_https)?;
@@ -830,10 +849,17 @@ async fn refresh_with(
                 t
             })
         }
-        other => Err(OAuthError::Configuration(format!(
-            "{} não oferece suporte a login OAuth por navegador",
-            other.label()
-        ))),
+        other => Err(OAuthError::Configuration(
+            crate::text::Localized::with_param(
+                "oauth_error.browser.provider_no_oauth",
+                "provider",
+                crate::text::provider_l10n(other),
+                format!(
+                    "{} não oferece suporte a login OAuth por navegador",
+                    other.label()
+                ),
+            ),
+        )),
     }
 }
 
@@ -1110,21 +1136,14 @@ fn gemini_client_credentials(config: &OAuthConfig) -> Result<(String, String), O
     if configured.is_empty() || configured == GEMINI_CLIENT_ID {
         return Ok((GEMINI_CLIENT_ID.to_owned(), GEMINI_CLIENT_SECRET.to_owned()));
     }
-    let env_name = config.client_secret_env.as_deref().ok_or_else(|| {
-        OAuthError::Configuration(
-            "Um client_id próprio do Google exige client_secret_env com o segredo correspondente."
-                .into(),
-        )
-    })?;
-    let secret = std::env::var(env_name).map_err(|_| {
-        OAuthError::Configuration(
-            "A variável de ambiente do client secret do Google não está definida.".into(),
-        )
-    })?;
+    let env_name = config
+        .client_secret_env
+        .as_deref()
+        .ok_or_else(OAuthError::google_client_secret_env_required)?;
+    let secret =
+        std::env::var(env_name).map_err(|_| OAuthError::google_client_secret_env_unset())?;
     if secret.is_empty() {
-        return Err(OAuthError::Configuration(
-            "A variável de ambiente do client secret do Google está vazia.".into(),
-        ));
+        return Err(OAuthError::google_client_secret_env_empty());
     }
     Ok((configured.to_owned(), secret))
 }
@@ -1132,11 +1151,9 @@ fn gemini_client_credentials(config: &OAuthConfig) -> Result<(String, String), O
 fn random_url_safe_32() -> Result<String, OAuthError> {
     use rand::RngCore;
     let mut buf = [0u8; 32];
-    rand::rngs::OsRng.try_fill_bytes(&mut buf).map_err(|_| {
-        OAuthError::Configuration(
-            "gerador de números aleatórios do sistema operacional indisponível".into(),
-        )
-    })?;
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut buf)
+        .map_err(|_| OAuthError::os_rng_unavailable())?;
     Ok(URL_SAFE_NO_PAD.encode(buf))
 }
 

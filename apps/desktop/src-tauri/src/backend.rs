@@ -1770,42 +1770,31 @@ fn login_option_schema(
 ) -> LoginOptionSchema {
     let slug = provider.slug();
     let key = option.key.clone();
-    let (id, label_id, help_id) = if registration {
-        let base = format!("login.{slug}.{mode_id}.registration.{key}");
-        (
-            base.clone(),
-            format!("{base}.label"),
-            format!("{base}.help"),
-        )
+    // RF8: the option descriptor already carries stable Localized ids for
+    // label/help/choices (built by `LoginOption::text`/`from_native`).
+    // Wrap it in a small schema envelope so the UI can still group the
+    // option under the parent mode (registration vs native flow) without
+    // re-deriving the ids.
+    let id = if registration {
+        format!("login.{slug}.{mode_id}.registration.{key}")
     } else {
-        (
-            format!("native.{slug}.{key}"),
-            account_edit::native_option_label_id(provider, &key),
-            account_edit::native_option_help_id(provider, &key),
-        )
+        format!("native.{slug}.{key}")
     };
     let choices = option.choices.map(|choices| {
         choices
             .into_iter()
-            .map(|(value, fallback)| {
-                let choice_id = if registration {
-                    format!("{id}.option.{value}")
-                } else {
-                    account_edit::native_option_option_id(provider, &key, &value)
-                };
-                ChoiceSchema {
-                    id: choice_id.clone(),
-                    value,
-                    label: cuotai_core::text::Localized::fixed(choice_id, fallback),
-                }
+            .map(|choice| ChoiceSchema {
+                id: choice.label.id.clone().into_owned(),
+                value: choice.value,
+                label: choice.label,
             })
             .collect()
     });
     LoginOptionSchema {
         id,
         key: option.key,
-        label: cuotai_core::text::Localized::fixed(label_id, option.label),
-        help: cuotai_core::text::Localized::fixed(help_id, option.help),
+        label: option.label,
+        help: option.help,
         choices,
         required: option.required,
         validation: option.validation,
@@ -1815,9 +1804,6 @@ fn login_option_schema(
 pub fn form_schema(provider: Provider) -> FormSchema {
     let slug = provider.slug();
     let login = login::login_modes(provider);
-    let unsupported_reason = login.unsupported_reason.map(|fallback| {
-        cuotai_core::text::Localized::fixed(format!("oauth.unsupported_reason.{slug}"), fallback)
-    });
     FormSchema {
         credential_kind: account_edit::credential_kind(provider),
         default_env: default_env(provider),
@@ -1831,18 +1817,9 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                     let mode_id = mode.id.clone();
                     LoginModeSchema {
                         id: mode.id,
-                        label: cuotai_core::text::Localized::fixed(
-                            format!("login.{slug}.{mode_id}.label"),
-                            mode.label,
-                        ),
-                        help: cuotai_core::text::Localized::fixed(
-                            format!("login.{slug}.{mode_id}.help"),
-                            mode.help,
-                        ),
-                        completion_notice: cuotai_core::text::Localized::fixed(
-                            format!("login.{slug}.{mode_id}.completion_notice"),
-                            mode.completion_notice,
-                        ),
+                        label: mode.label,
+                        help: mode.help,
+                        completion_notice: mode.completion_notice,
                         credential_store: mode.credential_store,
                         account_binding: mode.account_binding,
                         registration: mode
@@ -1855,16 +1832,11 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                             .into_iter()
                             .map(|option| login_option_schema(provider, &mode_id, option, false))
                             .collect(),
-                        unavailable_reason: mode.unavailable_reason.map(|fallback| {
-                            cuotai_core::text::Localized::fixed(
-                                format!("login.{slug}.{mode_id}.unavailable_reason"),
-                                fallback,
-                            )
-                        }),
+                        unavailable_reason: mode.unavailable_reason,
                     }
                 })
                 .collect(),
-            unsupported_reason,
+            unsupported_reason: login.unsupported_reason,
         },
         fields: field_descriptors(provider)
             .iter()
@@ -2232,7 +2204,10 @@ mod tests {
             if *remaining > 0 {
                 *remaining -= 1;
                 return Err(cuotai_core::oauth::OAuthError::Storage(
-                    "Keychain indisponível no teste".into(),
+                    cuotai_core::text::Localized::fixed(
+                        "oauth_error.test.keychain_unavailable",
+                        "Keychain indisponível no teste",
+                    ),
                 ));
             }
             self.entries.lock().remove(id);

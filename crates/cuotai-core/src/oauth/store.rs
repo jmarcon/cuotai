@@ -33,7 +33,9 @@ pub(crate) fn development_store(
     #[cfg(not(debug_assertions))]
     {
         let _ = path;
-        Err(OAuthError::Configuration("SQLite de credenciais é permitido apenas em builds de desenvolvimento; release exige o cofre do sistema.".into()))
+        Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.store.sqlite_dev_only", "SQLite de credenciais é permitido apenas em builds de desenvolvimento; release exige o cofre do sistema.",
+        )))
     }
 }
 
@@ -70,27 +72,32 @@ fn validate_id(id: &str) -> Result<&str, OAuthError> {
     if ok {
         Ok(id)
     } else {
-        Err(OAuthError::Configuration(
-            "Identificador de credencial OAuth ausente ou inválido; vincule a conta novamente no assistente"
-                .to_string(),
-        ))
+        Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.store.invalid_credential_id",
+            "Identificador de credencial OAuth ausente ou inválido; vincule a conta novamente no assistente",
+        )))
     }
 }
 
 /// Serialize a token for storage. Failure to serialize a well-formed struct
 /// is an internal error, not user-recoverable.
 fn encode(token: &OAuthToken) -> Result<String, OAuthError> {
-    serde_json::to_string(token)
-        .map_err(|_| OAuthError::Storage("Falha ao codificar o token OAuth".to_string()))
+    serde_json::to_string(token).map_err(|_| {
+        OAuthError::Storage(crate::text::Localized::fixed(
+            "oauth_error.store.token_encode_failed",
+            "Falha ao codificar o token OAuth",
+        ))
+    })
 }
 
 /// Deserialize a stored token. The raw payload and the parser's error text
 /// are intentionally discarded so no token material can leak via messages.
 fn decode(raw: &str) -> Result<OAuthToken, OAuthError> {
     serde_json::from_str(raw).map_err(|_| {
-        OAuthError::Storage(
-            "Token OAuth armazenado ilegível; entre novamente para revincular a conta".to_string(),
-        )
+        OAuthError::Storage(crate::text::Localized::fixed(
+            "oauth_error.store.token_unreadable",
+            "Token OAuth armazenado ilegível; entre novamente para revincular a conta",
+        ))
     })
 }
 
@@ -130,24 +137,24 @@ impl SystemTokenStore {
 fn storage_error() -> OAuthError {
     #[cfg(target_os = "macos")]
     {
-        OAuthError::Storage(
-            "O Keychain do macOS está indisponível ou o acesso foi negado; desbloqueie o keychain de login e tente novamente"
-                .to_string(),
-        )
+        OAuthError::Storage(crate::text::Localized::fixed(
+            "oauth_error.store.macos_keychain_unavailable",
+            "O Keychain do macOS está indisponível ou o acesso foi negado; desbloqueie o keychain de login e tente novamente",
+        ))
     }
     #[cfg(target_os = "windows")]
     {
-        OAuthError::Storage(
-            "O Gerenciador de Credenciais do Windows está indisponível; verifique se o serviço está em execução e tente novamente"
-                .to_string(),
-        )
+        OAuthError::Storage(crate::text::Localized::fixed(
+            "oauth_error.store.windows_credential_manager_unavailable",
+            "O Gerenciador de Credenciais do Windows está indisponível; verifique se o serviço está em execução e tente novamente",
+        ))
     }
     #[cfg(target_os = "linux")]
     {
-        OAuthError::Storage(
-            "Nenhum provedor Secret Service disponível; inicie o GNOME Keyring ou KWallet (com sessão D-Bus) e tente novamente"
-                .to_string(),
-        )
+        OAuthError::Storage(crate::text::Localized::fixed(
+            "oauth_error.store.linux_secret_service_unavailable",
+            "Nenhum provedor Secret Service disponível; inicie o GNOME Keyring ou KWallet (com sessão D-Bus) e tente novamente",
+        ))
     }
 }
 

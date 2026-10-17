@@ -38,8 +38,13 @@ pub struct OAuthConfig {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthError {
-    #[error("Configuração OAuth: {0}")]
-    Configuration(String),
+    #[error("{0}")]
+    /// RF8: every construction site passes a [`crate::text::Localized`]
+    /// with a stable id (e.g. `oauth_error.session.client_secret_env`).
+    /// `Display` renders the embedded Portuguese fallback;
+    /// `l10n()` forwards the inner `Localized` unchanged so the
+    /// catalog translates the message structure.
+    Configuration(crate::text::Localized),
     #[error("Falha de rede durante autenticação OAuth.")]
     Network,
     #[error("Autorização recusada ou revogada. Inicie o login novamente.")]
@@ -48,8 +53,184 @@ pub enum OAuthError {
     Expired,
     #[error("Resposta OAuth inválida; nenhuma credencial foi aceita.")]
     InvalidResponse,
-    #[error("Armazenamento seguro: {0}")]
-    Storage(String),
+    #[error("{0}")]
+    Storage(crate::text::Localized),
+}
+
+/// Backwards-compat: callers that still have a plain message build
+/// `OAuthError::Configuration` from a `String`/`&str`. The message becomes
+/// the `{detail}` parameter of the canonical `query.oauth.configuration`
+/// template, so the catalog renders the wrapper sentence in its own
+/// language and the detail (already sanitized: never a secret, URL or
+/// body) flows through the placeholder. Sites needing a richer id should
+/// construct a [`crate::text::Localized`] and use [`OAuthError::Configuration`].
+impl From<String> for OAuthError {
+    fn from(message: String) -> Self {
+        let fallback = format!("Configuração OAuth: {message}");
+        OAuthError::Configuration(crate::text::Localized::with_param(
+            "query.oauth.configuration",
+            "detail",
+            message,
+            fallback,
+        ))
+    }
+}
+impl From<&str> for OAuthError {
+    fn from(message: &str) -> Self {
+        OAuthError::from(message.to_string())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RF8: shared message text for errors emitted from multiple modules with an
+// identical meaning. Each group shares ONE stable id (so the catalog carries
+// a single translation) and ONE Portuguese fallback const (so the wording
+// lives in exactly one place). The constructor helpers below keep call sites
+// short and guarantee id/fallback stay in sync.
+// ---------------------------------------------------------------------------
+pub(crate) const MSG_OS_RNG_UNAVAILABLE: &str =
+    "gerador de números aleatórios do sistema operacional indisponível";
+pub(crate) const MSG_GOOGLE_CLIENT_SECRET_ENV_REQUIRED: &str =
+    "Um client_id próprio do Google exige client_secret_env com o segredo correspondente.";
+pub(crate) const MSG_GOOGLE_CLIENT_SECRET_ENV_UNSET: &str =
+    "A variável de ambiente do client secret do Google não está definida.";
+pub(crate) const MSG_GOOGLE_CLIENT_SECRET_ENV_EMPTY: &str =
+    "A variável de ambiente do client secret do Google está vazia.";
+pub(crate) const MSG_DEVICE_VERIFICATION_URL_UNTRUSTED: &str =
+    "O provedor retornou um endereço de verificação não confiável.";
+pub(crate) const MSG_BAILIAN_CONSOLE_SITE_BLANK: &str =
+    "Site do console em branco; informe `international`.";
+pub(crate) const MSG_NATIVE_INVALID_REGION: &str = "Região inválida; use \"intl\" ou \"cn\".";
+pub(crate) const MSG_NATIVE_NO_INTEGRATED_FLOW: &str =
+    "Este provedor não tem fluxo de login nativo integrado.";
+
+impl OAuthError {
+    /// OS random-number generator unavailable (PKCE/state generation).
+    pub(crate) fn os_rng_unavailable() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.os.rng_unavailable",
+            MSG_OS_RNG_UNAVAILABLE,
+        ))
+    }
+    /// A custom Google client_id requires `client_secret_env`.
+    pub(crate) fn google_client_secret_env_required() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.google.client_secret_env_required",
+            MSG_GOOGLE_CLIENT_SECRET_ENV_REQUIRED,
+        ))
+    }
+    /// The Google client-secret env var is not set.
+    pub(crate) fn google_client_secret_env_unset() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.google.client_secret_env_unset",
+            MSG_GOOGLE_CLIENT_SECRET_ENV_UNSET,
+        ))
+    }
+    /// The Google client-secret env var is set but empty.
+    pub(crate) fn google_client_secret_env_empty() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.google.client_secret_env_empty",
+            MSG_GOOGLE_CLIENT_SECRET_ENV_EMPTY,
+        ))
+    }
+    /// Device-flow verification URL returned by the provider is untrusted.
+    pub(crate) fn device_verification_url_untrusted() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.device.verification_url_untrusted",
+            MSG_DEVICE_VERIFICATION_URL_UNTRUSTED,
+        ))
+    }
+    /// Bailian console site left blank.
+    pub(crate) fn bailian_console_site_blank() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.bailian.console_site_blank",
+            MSG_BAILIAN_CONSOLE_SITE_BLANK,
+        ))
+    }
+    /// Native-flow region is neither `intl` nor `cn`.
+    pub(crate) fn native_invalid_region() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.native.invalid_region",
+            MSG_NATIVE_INVALID_REGION,
+        ))
+    }
+    /// Provider has no integrated native login flow.
+    pub(crate) fn native_no_integrated_flow() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.native.no_integrated_flow",
+            MSG_NATIVE_NO_INTEGRATED_FLOW,
+        ))
+    }
+}
+
+impl OAuthError {
+    /// RF8: stable localized form of the error. Frontends resolve the id
+    /// against their catalog; the embedded Portuguese text acts as
+    /// fallback. `Configuration` and `Storage` carry the offending detail
+    /// in the `{detail}` parameter so translation drops the value through
+    /// `{detail}` rather than concatenating Portuguese into English.
+    pub fn l10n(&self) -> crate::text::Localized {
+        use crate::text::Localized;
+        match self {
+            // RF8: Configuration/Storage carry a `Localized` whose stable
+            // id the catalog already resolves; we forward it as-is so the
+            // catalog translates the message structure (no Portuguese
+            // fragment inside English text).
+            OAuthError::Configuration(note) | OAuthError::Storage(note) => note.clone(),
+            OAuthError::Network => Localized::fixed(
+                "query.oauth.network",
+                "Falha de rede durante autenticação OAuth.",
+            ),
+            OAuthError::Denied => Localized::fixed(
+                "query.oauth.denied",
+                "Autorização recusada ou revogada. Inicie o login novamente.",
+            ),
+            OAuthError::Expired => Localized::fixed(
+                "query.oauth.expired",
+                "Autorização expirada. Inicie o login novamente.",
+            ),
+            OAuthError::InvalidResponse => Localized::fixed(
+                "query.oauth.invalid_response",
+                "Resposta OAuth inválida; nenhuma credencial foi aceita.",
+            ),
+        }
+    }
+
+    /// Specialized form for the `purge_credential` path: rewrites the
+    /// inner Configuration/Storage id into `remove_error.purge_vault.*`
+    /// so the desktop doesn't render an OAuth-flavoured id in a "purge"
+    /// context. The inner params (e.g. `{detail}`) are preserved.
+    pub fn l10n_for_purge(&self) -> crate::text::Localized {
+        use crate::text::Localized;
+        match self {
+            OAuthError::Configuration(note) => Localized::with_params(
+                "remove_error.purge_vault.configuration",
+                note.params.clone(),
+                note.fallback.clone().into_owned(),
+            ),
+            OAuthError::Storage(note) => Localized::with_params(
+                "remove_error.purge_vault.storage",
+                note.params.clone(),
+                note.fallback.clone().into_owned(),
+            ),
+            OAuthError::Network => Localized::fixed(
+                "remove_error.purge_vault.network",
+                "Falha de rede ao apagar o cofre.",
+            ),
+            OAuthError::Denied => Localized::fixed(
+                "remove_error.purge_vault.denied",
+                "Operação recusada pelo cofre do sistema.",
+            ),
+            OAuthError::Expired => Localized::fixed(
+                "remove_error.purge_vault.expired",
+                "Sessão expirada; tente novamente.",
+            ),
+            OAuthError::InvalidResponse => Localized::fixed(
+                "remove_error.purge_vault.invalid_response",
+                "Resposta inválida do cofre do sistema.",
+            ),
+        }
+    }
 }
 
 /// Secret payload: intentionally no Debug implementation. Never write to TOML/logs.
@@ -115,22 +296,25 @@ impl OAuthConfig {
 
     pub fn validate(&self, provider: Provider) -> Result<(), OAuthError> {
         if !supports_login(provider) {
-            return Err(OAuthError::Configuration(
-                "Este provedor não oferece login OAuth integrado para esta consulta.".into(),
-            ));
+            return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                "oauth_error.config.provider_no_integrated_oauth",
+                "Este provedor não oferece login OAuth integrado para esta consulta.",
+            )));
         }
         if (requires_client_registration(provider) && self.client_id.trim().is_empty())
             || self.client_id.len() > 256
             || self.client_id.chars().any(char::is_control)
         {
-            return Err(OAuthError::Configuration(
-                "Informe o client_id do seu aplicativo registrado.".into(),
-            ));
+            return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                "oauth_error.config.client_id_required",
+                "Informe o client_id do seu aplicativo registrado.",
+            )));
         }
         if uuid::Uuid::parse_str(&self.credential_id).is_err() {
-            return Err(OAuthError::Configuration(
-                "Identificador local de credencial inválido; refaça o login.".into(),
-            ));
+            return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                "oauth_error.config.invalid_local_credential_id",
+                "Identificador local de credencial inválido; refaça o login.",
+            )));
         }
         if let Some(tenant) = &self.tenant {
             if tenant.is_empty()
@@ -138,9 +322,10 @@ impl OAuthConfig {
                     .chars()
                     .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
             {
-                return Err(OAuthError::Configuration(
-                    "Tenant Microsoft inválido.".into(),
-                ));
+                return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.config.invalid_microsoft_tenant",
+                    "Tenant Microsoft inválido.",
+                )));
             }
         }
         for (key, value) in &self.options {
@@ -149,10 +334,10 @@ impl OAuthConfig {
                 || value.len() > 2048
                 || value.chars().any(char::is_control)
             {
-                return Err(OAuthError::Configuration(
-                    "Opção de login inválida; credenciais não devem ser armazenadas nas opções."
-                        .into(),
-                ));
+                return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.config.credentials_not_in_options",
+                    "Opção de login inválida; credenciais não devem ser armazenadas nas opções.",
+                )));
             }
         }
         if let Some(name) = &self.client_secret_env {
@@ -162,9 +347,10 @@ impl OAuthConfig {
                 .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
                 || !chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
             {
-                return Err(OAuthError::Configuration(
-                    "Informe apenas o nome da variável do client secret, nunca seu valor.".into(),
-                ));
+                return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.config.client_secret_name_only",
+                    "Informe apenas o nome da variável do client secret, nunca seu valor.",
+                )));
             }
         }
         Ok(())

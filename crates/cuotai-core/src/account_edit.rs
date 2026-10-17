@@ -299,7 +299,7 @@ pub fn validate_param(
     value: &str,
     params: &BTreeMap<String, String>,
 ) -> Result<(), crate::text::Localized> {
-    use crate::text::Localized as L10n;
+    use crate::text::{params as l10n_params, Localized as L10n, ParamValue};
     match key {
         "billing_cycle" => {
             if value.len() == 7
@@ -420,7 +420,15 @@ pub fn validate_param(
             if valid {
                 Ok(())
             } else {
-                Err(L10n::fixed("edit_error.param.resource_id", "resource_id deve ser o ID ARM completo dentro da assinatura informada: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}."))
+                Err(L10n::with_params(
+                    "edit_error.param.resource_id",
+                    l10n_params([
+                        ("name", ParamValue::from(key.to_string())),
+                        ("rg", ParamValue::from("{rg}".to_string())),
+                        ("sub", ParamValue::from("{sub}".to_string())),
+                    ]),
+                    "resource_id deve ser o ID ARM completo dentro da assinatura informada: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}.",
+                ))
             }
         }
         "org" => {
@@ -2121,16 +2129,9 @@ pub async fn purge_credential(
             "Outra conta ainda usa esta credencial; não é possível apagar o cofre sem quebrar a sobrevivente.",
         ));
     }
-    use crate::oauth::OAuthError;
     match session.logout(provider, oauth).await {
         Ok(()) => Ok(()),
-        Err(OAuthError::Configuration(msg)) | Err(OAuthError::Storage(msg)) => Err(
-            crate::text::Localized::fixed("remove_error.purge_vault", msg),
-        ),
-        Err(_) => Err(crate::text::Localized::fixed(
-            "remove_error.purge_vault",
-            "Falha na operação com o cofre do sistema.",
-        )),
+        Err(error) => Err(error.l10n_for_purge()),
     }
 }
 
@@ -3413,7 +3414,10 @@ mod tests {
             if *remaining > 0 {
                 *remaining -= 1;
                 return Err(crate::oauth::OAuthError::Storage(
-                    "Keychain indisponível no teste".into(),
+                    crate::text::Localized::fixed(
+                        "oauth_error.test.keychain_unavailable",
+                        "Keychain indisponível no teste",
+                    ),
                 ));
             }
             self.entries.lock().remove(id);

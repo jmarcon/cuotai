@@ -76,20 +76,25 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::Perplexity => perplexity(account, ctx, PERPLEXITY_BASE).await,
         Provider::Mistral => mistral(account, ctx, MISTRAL_BASE).await,
         Provider::Grok => grok(account, ctx, XAI_MANAGEMENT_BASE).await,
-        Provider::NvidiaNim => Err(QueryError::unsupported(
+        Provider::NvidiaNim => Err(QueryError::unsupported_params(
             "query.inference.nvidia_nim_no_public_balance",
+            params([(
+                "source",
+                ParamValue::from("https://docs.api.nvidia.com/nim/reference/llm-apis"),
+            )]),
             "NVIDIA NIM não expõe endpoint público de saldo por chave de \
              inferência: a cobrança é controlada pela conta NVIDIA Cloud, \
-             fora do escopo desta chave. Fonte: \
-             https://docs.api.nvidia.com/nim/reference/llm-apis"
-                .to_string(),
+             fora do escopo desta chave. Fonte: {source}.",
         )),
-        Provider::Poolside => Err(QueryError::unsupported(
+        Provider::Poolside => Err(QueryError::unsupported_params(
             "query.inference.poolside_no_public_usage",
+            params([(
+                "source",
+                ParamValue::from("https://docs.poolside.ai/api/overview.md"),
+            )]),
             "Poolside não publica endpoint de uso/saldo por chave: a API \
              hospedada expõe apenas /v1/models e /v1/chat/completions. \
-             Fonte: https://docs.poolside.ai/api/overview.md"
-                .to_string(),
+             Fonte: {source}.",
         )),
         other => Err(QueryError::unsupported_params(
             "query.inference.provider_handled_elsewhere",
@@ -346,8 +351,9 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
          disponível.",
     );
     if let Some(email) = user_email {
-        notes.push(
+        notes.push_params(
             "note.inference.perplexity_member_filter",
+            params([("email", ParamValue::from(email.to_string()))]),
             format!("Filtrado por membro da organização: {email}."),
         );
     }
@@ -619,12 +625,10 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
          chave usada é a Management Key gerada em console.x.ai → \
          Settings → Management Keys.",
     );
-    notes.push(
-        "note.inference.grok_soft_spending_limit",
-        "`effectiveSpendingLimit` é o teto mensal pós-pago configurado \
-         pelo usuário (soft spending limit) — é um orçamento de gasto, \
-         não uma cota da plataforma.",
-    );
+    // We don't know `spending_limit` yet here; push the placeholder note
+    // later when the value is known so the catalog template's `{limit}`
+    // actually resolves. The placeholder-less variant stays as a
+    // fallback for the rare case where preview returns without a limit.
     notes.push(
         "note.inference.grok_prepaid_no_monthly_expiration",
         "Créditos pré-pagos não têm expiração mensal documentada; não \
@@ -694,6 +698,18 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
             "note.inference.grok_spending_limit_missing",
             "Sem orçamento pós-pago configurado (soft spending limit \
              ausente): o teto de gasto permanece desconhecido.",
+        );
+    } else if let Some(limit) = spending_limit {
+        // RF8: surface the configured USD ceiling through `{limit}` so
+        // the catalog template renders it. Without the placeholder the
+        // catalog drops the value inside the English text.
+        notes.push_params(
+            "note.inference.grok_soft_spending_limit",
+            params([("limit", ParamValue::from(limit.to_string()))]),
+            format!(
+                "`effectiveSpendingLimit` é o teto pós-pago efetivo: {limit} USD; \
+                 é um orçamento (soft spending limit), não uma cota da plataforma."
+            ),
         );
     }
 
