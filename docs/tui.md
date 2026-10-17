@@ -44,6 +44,7 @@ cargo install --path crates/cuotai-tui --locked
 - **Navegação:** `↑↓`/`j k` selecionam, `PgUp/PgDn` paginam, `Home/End` vão às extremidades, `Enter` abre detalhes da conta (`←→` alternam entre contas visíveis nos detalhes; `↑↓` ou `[`/`]` rolam detalhes; `Enter`/`Esc` voltam).
 - **Filtro e visualização:** `/` filtra, `Enter/Esc` encerram edição do filtro, `c` limpa o filtro, `u` mostra/oculta contas sem dados (visíveis por padrão).
 - **Atualização:** `r` atualiza todas as contas e `R` atualiza somente a conta selecionada.
+- **Modelos:** nos detalhes, `m` abre Modelos da conta; no passo Provedor do wizard, `m` lista as contas **já configuradas** do provedor destacado e `Enter` abre a escolhida (sem conta, mostra só suporte/orientação). A primeira abertura consulta somente se suportada e nunca consultada; depois lê o cache. `/` busca por ID/nome localmente (separado do filtro de contas), `c` limpa, `s` **Sincronizar modelos**, `↑↓`/`PgUp/PgDn`/`Home/End`/roda rolam, `Esc` (ou botão direito) volta. A consulta roda em segundo plano, não atualiza quotas e é descartada se a conta mudar (editar, excluir, mover, recarregar). `r`, `R`, `--once` e `--json` nunca sincronizam modelos.
 - **Reordenação:** `K`/`J` movem a conta selecionada para cima/baixo na ordem persistida em `cuotai.toml` (compartilhada com o app Desktop, preservando comentários de cada conta), sem disparar consultas aos provedores.
 - **Saída:** `q` ou `Ctrl-C`.
 - **Dimensões mínimas do terminal:** painel `45 × 18`; wizard `60 × 20`. Tema Dracula.

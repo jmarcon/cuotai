@@ -63,23 +63,24 @@ pub(crate) async fn gemini_models(
         description: Option<String>,
     }
     let key = secret(account, ctx, "GEMINI_API_KEY")?;
-    paginate(async |token: Option<String>| {
+    paginate(|token: Option<String>| {
         let mut query = vec![("pageSize", "1000".to_string())];
         query.extend(token.map(|t| ("pageToken", t)));
-        let page: Page = json(
-            ctx.http
-                .get(url)
-                .header("x-goog-api-key", key.trim())
-                .query(&query)
-                .timeout(ctx.timeout),
-        )
-        .await?;
-        let models = page.models.into_iter().map(|m| ModelInfo {
-            id: m.name,
-            name: m.display_name,
-            description: m.description,
-        });
-        Ok((models.collect(), page.next_page_token))
+        let request = ctx
+            .http
+            .get(url)
+            .header("x-goog-api-key", key.trim())
+            .query(&query)
+            .timeout(ctx.timeout);
+        async move {
+            let page: Page = json(request).await?;
+            let models = page.models.into_iter().map(|m| ModelInfo {
+                id: m.name,
+                name: m.display_name,
+                description: m.description,
+            });
+            Ok((models.collect(), page.next_page_token))
+        }
     })
     .await
 }

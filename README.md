@@ -117,7 +117,7 @@ No JSON, cada métrica inclui `kind` (`quota`, `rate_limit`, `balance`, `credits
 
 Toda a documentação técnica detalhada está organizada na pasta **[`docs/`](docs/)**:
 
-- **[Guia da TUI, CLI e Wizard de Contas (`docs/tui.md`)](docs/tui.md)** — Atalhos de teclado e mouse, fluxo passo a passo do wizard, precedência de arquivos de configuração e códigos de saída da CLI.
+- **[Guia da TUI, CLI e Wizard de Contas (`docs/tui.md`)](docs/tui.md)** — Atalhos de teclado e mouse (incluindo a seção Modelos, `m`, com busca local e `s` Sincronizar modelos), fluxo passo a passo do wizard, precedência de arquivos de configuração e códigos de saída da CLI.
 - **[Login OAuth, Sessões e Cofre (`docs/oauth.md`)](docs/oauth.md)** — Como funcionam os logins nativos no navegador/Device Code, importação assistida do Cursor, preparação OAuth para Google/Azure/AWS SSO e armazenamento seguro no Keychain.
 - **[Catálogo de Provedores e Limitações (`docs/providers.md`)](docs/providers.md)** — Tabela completa dos 36 provedores, variáveis de ambiente padrão, compatibilidade com o `9router`, semântica das métricas e avisos de custos por consulta (como AWS Cost Explorer).
 - **[Arquitetura, Biblioteca Rust e Verificação (`docs/architecture.md`)](docs/architecture.md)** — Separação entre `cuotai-core`, `cuotai-tui` e `apps/desktop`, uso do `cuotai-core` como biblioteca Rust, contrato de internacionalização e suíte de testes.

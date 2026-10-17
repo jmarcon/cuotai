@@ -1,5 +1,6 @@
 mod auth_ui;
 mod dashboard;
+mod models_view;
 mod ui;
 mod wizard;
 

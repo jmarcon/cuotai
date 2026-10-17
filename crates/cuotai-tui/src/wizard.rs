@@ -63,6 +63,11 @@ pub(crate) enum Action {
     /// The wizard stays open; the user can edit the draft and retry
     /// the save.
     ConflictDismiss,
+    /// RF5.1: open the Models section of an already-configured account,
+    /// chosen explicitly in the provider step (index into the base config).
+    Models {
+        index: usize,
+    },
 }
 
 const MAX_INTERVAL: u64 = edit::MAX_REFRESH_SECONDS;
@@ -230,6 +235,9 @@ pub(crate) struct Wizard {
     external_login_params: Option<BTreeMap<String, String>>,
     /// Params públicos devolvidos pelo login concluído nesta sessão.
     oauth_login_params: BTreeMap<String, String>,
+    /// Models picker of the provider step: highlighted position among the
+    /// configured accounts of the highlighted provider.
+    models_pick: Option<usize>,
 }
 
 impl Wizard {
@@ -291,7 +299,95 @@ impl Wizard {
             oauth_authorized: None,
             external_login_params: None,
             oauth_login_params: BTreeMap::new(),
+            models_pick: None,
         }
+    }
+
+    pub(crate) fn base_account(&self, index: usize) -> Option<&Account> {
+        self.base.accounts.get(index)
+    }
+
+    /// Base-config indices of the accounts of the highlighted provider.
+    fn provider_accounts(&self) -> Vec<usize> {
+        let provider = self.provider_at_sel();
+        (0..self.base.accounts.len())
+            .filter(|&i| self.base.accounts[i].provider == provider)
+            .collect()
+    }
+
+    /// Keys of the Models picker; `None` when closed.
+    fn handle_models_pick(&mut self, code: KeyCode) -> Option<Action> {
+        let pick = self.models_pick?;
+        let accounts = self.provider_accounts();
+        Some(match code {
+            KeyCode::Esc => {
+                self.models_pick = None;
+                Action::Continue
+            }
+            KeyCode::Up => {
+                self.models_pick = Some(pick.saturating_sub(1));
+                Action::Continue
+            }
+            KeyCode::Down => {
+                self.models_pick = Some((pick + 1).min(accounts.len().saturating_sub(1)));
+                Action::Continue
+            }
+            KeyCode::Enter => match accounts.get(pick) {
+                Some(&index) => {
+                    self.models_pick = None;
+                    Action::Models { index }
+                }
+                None => Action::Continue,
+            },
+            _ => Action::Continue,
+        })
+    }
+
+    fn models_pick_lines(&self) -> Vec<Line<'static>> {
+        let provider = self.provider_at_sel();
+        let accounts = self.provider_accounts();
+        let mut lines = vec![Line::from(Span::styled(
+            format!("Modelos · {}", provider.label()),
+            Style::default().add_modifier(Modifier::BOLD),
+        ))];
+        if accounts.is_empty() {
+            // A new account has no saved credential: explain support only.
+            let probe = Account {
+                provider,
+                ..Default::default()
+            };
+            let text = match cuotai_core::models::support(&probe) {
+                Ok(source) => format!(
+                    "Fonte: {}\nNenhuma conta deste provedor está configurada; grave a conta e abra Modelos para consultá-la.",
+                    crate::ui::resolve_l10n(&source)
+                ),
+                Err(reason) => crate::ui::resolve_l10n(&reason),
+            };
+            lines.extend(text.lines().map(|l| Line::from(l.to_string())));
+            return lines;
+        }
+        lines.push(Line::from(Span::styled(
+            "Escolha a conta configurada a consultar (Enter abre Modelos):",
+            Style::default().fg(DRACULA_COMMENT),
+        )));
+        let pick = self.models_pick.unwrap_or(0);
+        for (pos, &i) in accounts.iter().enumerate() {
+            let (marker, style) = if pos == pick {
+                (
+                    "▶ ",
+                    Style::default()
+                        .fg(DRACULA_CYAN)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                ("  ", Style::default())
+            };
+            lines.push(Line::from(Span::styled(
+                format!("{marker}{}", crate::ui::safe(&self.base.accounts[i].name)),
+                style,
+            )));
+        }
+        lines
     }
 
     pub(crate) fn set_error(&mut self, message: String) {
@@ -824,6 +920,13 @@ impl Wizard {
                 _ => Action::Continue,
             };
         }
+        if let Some(action) = self.handle_models_pick(key.code) {
+            return action;
+        }
+        if self.step == Step::Provider && key.code == KeyCode::Char('m') {
+            self.models_pick = Some(0);
+            return Action::Continue;
+        }
         if key.code == KeyCode::Esc {
             return Action::Cancel;
         }
@@ -1039,6 +1142,10 @@ impl Wizard {
             }
             MouseEventKind::ScrollDown => {
                 return self.handle(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+            }
+            // The picker is keyboard-only (wheel moves it via `handle`).
+            MouseEventKind::Down(MouseButton::Left) if self.models_pick.is_some() => {
+                return Action::Continue;
             }
             MouseEventKind::Down(MouseButton::Left) => {}
             _ => return Action::Continue,
@@ -1450,6 +1557,10 @@ impl Wizard {
         frame.render_widget(body, chunks[1]);
 
         match self.step {
+            Step::Provider if self.models_pick.is_some() => frame.render_widget(
+                Paragraph::new(self.models_pick_lines()).wrap(Wrap { trim: false }),
+                inner,
+            ),
             Step::Provider => self.draw_provider(frame, inner),
             Step::Name => {
                 let lines = vec![
@@ -1500,7 +1611,10 @@ impl Wizard {
         }
 
         let hint = match self.step {
-            Step::Provider => " ↑↓ navegar  Enter selecionar  Esc cancelar",
+            Step::Provider if self.models_pick.is_some() => {
+                " ↑↓ conta  Enter abrir Modelos  Esc voltar aos provedores"
+            }
+            Step::Provider => " ↑↓ navegar  Enter selecionar  m Modelos  Esc cancelar",
             Step::Params => {
                 " Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
             }
@@ -2014,6 +2128,39 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
         }
+    }
+
+    #[test]
+    fn models_picker_requires_an_explicit_configured_account() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut other = account("B", "B_KEY");
+        other.provider = Provider::Groq;
+        let config = Config {
+            accounts: vec![account("A", "A_KEY"), other, account("C", "C_KEY")],
+            ..Config::default()
+        };
+        // OpenAI highlighted: picker lists A and C (indices 0 and 2).
+        let mut wizard = Wizard::new(&config, None);
+        press(&mut wizard, KeyCode::Char('m'));
+        press(&mut wizard, KeyCode::Down);
+        assert!(matches!(
+            press(&mut wizard, KeyCode::Enter),
+            Action::Models { index: 2 }
+        ));
+        // Provider without configured accounts: Enter queries nothing.
+        let empty = Config {
+            accounts: Vec::new(),
+            ..Config::default()
+        };
+        let mut wizard = Wizard::new(&empty, None);
+        press(&mut wizard, KeyCode::Char('m'));
+        assert!(matches!(
+            press(&mut wizard, KeyCode::Enter),
+            Action::Continue
+        ));
+        // Esc closes the picker without cancelling the wizard.
+        assert!(matches!(press(&mut wizard, KeyCode::Esc), Action::Continue));
+        assert_eq!(wizard.step, Step::Provider);
     }
 
     fn wizard_with(name: &str, env: &str, interval: &str) -> Wizard {

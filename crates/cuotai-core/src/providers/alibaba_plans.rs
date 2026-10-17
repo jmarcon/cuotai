@@ -94,36 +94,41 @@ pub(crate) async fn model_studio_models(
         description: Option<String>,
     }
     let key = secret(account, ctx, "DASHSCOPE_API_KEY")?;
-    let mut read = 0u64;
-    paginate(async |token: Option<String>| {
-        let page_no: u64 = token.as_deref().unwrap_or("1").parse().unwrap_or(1);
-        let body: Body = fetch_json(
-            ctx.http
-                .get(url)
-                .bearer_auth(key.trim())
-                .query(&[
-                    ("page_no", page_no.to_string()),
-                    ("page_size", MODEL_STUDIO_PAGE_SIZE.to_string()),
-                ])
-                .timeout(ctx.timeout),
-        )
-        .await?;
-        let output = body.output;
-        read += output.models.len() as u64;
-        if !body.success
-            || output.page_no != page_no
-            || read > output.total
-            || (output.models.is_empty() && read < output.total)
-        {
-            return Err(QueryError::schema());
+    // The token carries `page_no:read` so each page future owns its state.
+    paginate(|token: Option<String>| {
+        let (page_no, read) = token
+            .as_deref()
+            .and_then(|t| t.split_once(':'))
+            .and_then(|(p, r)| Some((p.parse::<u64>().ok()?, r.parse::<u64>().ok()?)))
+            .unwrap_or((1, 0));
+        let request = ctx
+            .http
+            .get(url)
+            .bearer_auth(key.trim())
+            .query(&[
+                ("page_no", page_no.to_string()),
+                ("page_size", MODEL_STUDIO_PAGE_SIZE.to_string()),
+            ])
+            .timeout(ctx.timeout);
+        async move {
+            let body: Body = fetch_json(request).await?;
+            let output = body.output;
+            let read = read + output.models.len() as u64;
+            if !body.success
+                || output.page_no != page_no
+                || read > output.total
+                || (output.models.is_empty() && read < output.total)
+            {
+                return Err(QueryError::schema());
+            }
+            let next = (read < output.total).then(|| format!("{}:{read}", page_no + 1));
+            let models = output.models.into_iter().map(|m| crate::models::ModelInfo {
+                id: m.model,
+                name: m.name,
+                description: m.description,
+            });
+            Ok((models.collect(), next))
         }
-        let next = (read < output.total).then(|| (page_no + 1).to_string());
-        let models = output.models.into_iter().map(|m| crate::models::ModelInfo {
-            id: m.model,
-            name: m.name,
-            description: m.description,
-        });
-        Ok((models.collect(), next))
     })
     .await
 }
