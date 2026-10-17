@@ -2,7 +2,7 @@
 // RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
-  configChangedOnDisk, deleteAccount, esc, formSchema, getAccount, listProviders,
+  configChangedOnDisk, deleteAccount, esc, fieldChoices, formSchema, getAccount, listProviders,
   loginCancel, loginStart, loginSubmitCode, onLogin, reloadConfig,
   saveAccount, visibleFields,
 } from "./lib.js";
@@ -103,6 +103,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     <div id="dyn-fields"></div></div>
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <p class="cost-advisory" id="cost-warn" hidden></p>
+    <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
     <p class="err" id="err" role="alert"></p>
     <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn primary" id="ok">${te("common.save")}</button></div>
   </form>`);
@@ -113,6 +114,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   const nameErr = dlg.querySelector("#name-err");
   const err = dlg.querySelector("#err");
   const costWarn = dlg.querySelector("#cost-warn");
+  const choiceNotice = dlg.querySelector("#choice-notice");
   const nameInput = dlg.querySelector('[name="name"]');
   // O login só começa com a conta nomeada (ao terminar ela é salva sozinha). Em vez de `disabled`, que engole o
   // clique sem explicar, o botão fica apagado, mostra o motivo logo abaixo e, ao clicar, leva ao campo do nome.
@@ -318,11 +320,16 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     for (const f of schema.fields) {
       const el = dyn.querySelector(`[name="f:${f.key}"]`);
       if (!el) continue;
-      values.set(f.key, f.options ? { key: f.key, choice: Number(el.value), text: null } : { key: f.key, text: el.value, choice: null });
+      values.set(f.key, f.options
+        ? { key: f.key, choice: Number(el.value), text: null }
+        : { key: f.key, text: el.value, choice: null });
     }
   };
-  const choices = () => Object.fromEntries(schema.fields.filter((f) => f.options).map((f) => [f.key, values.get(f.key)?.choice ?? 0]));
-
+  const choices = () => Object.fromEntries(
+    schema.fields
+      .filter((f) => f.options && Number.isInteger(values.get(f.key)?.choice))
+      .map((f) => [f.key, values.get(f.key).choice]),
+  );
   function copyText(text, btn) {
     navigator.clipboard?.writeText(text).then(
       () => { const prev = btn.textContent; btn.textContent = t("dialog.copied"); setTimeout(() => (btn.textContent = prev), 1500); },
@@ -430,8 +437,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
         for (const [key, value] of Object.entries(loginState.params)) {
           const f = schema.fields.find((x) => x.key === key);
           if (!f) continue;
+          const option = f.options?.find((candidate) => candidate.value === value);
           values.set(key, f.options
-            ? { key, choice: Math.max(0, f.options.findIndex((opt) => opt.value === value)), text: null }
+            ? { key, choice: option?.index ?? f.options[0]?.index ?? 0, text: null }
             : { key, text: value, choice: null });
         }
         loginState.lines.push(selectedMode()?.completion_notice
@@ -515,6 +523,17 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     return { options, registration };
   };
 
+  const syncModeChoicesToFields = (mode) => {
+    const { options } = collectModeInputs(mode);
+    for (const [key, value] of Object.entries(options)) {
+      const field = schema.fields.find((candidate) => candidate.key === key && candidate.options);
+      const option = field?.options.find((candidate) => candidate.value === value);
+      if (field && option) {
+        values.set(key, { key, choice: option.index, text: null });
+      }
+    }
+  };
+
   async function startLogin(btn) {
     const mode = selectedMode();
     if (!mode) return;
@@ -543,6 +562,17 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     for (const el of dyn.querySelectorAll("[name^='o:'],[name^='r:']")) {
       optSnapshot.set(el.name, el.value);
     }
+    const resolvedChoices = await fieldChoices(provider, choices(), authMode);
+    const notices = [];
+    for (const resolved of resolvedChoices) {
+      const field = schema.fields.find((candidate) => candidate.key === resolved.key);
+      if (!field) continue;
+      field.options = resolved.options;
+      values.set(resolved.key, { key: resolved.key, choice: resolved.choice, text: null });
+      if (resolved.notice) notices.push(tl(resolved.notice));
+    }
+    choiceNotice.textContent = notices.join(" ");
+    choiceNotice.hidden = notices.length === 0;
     visible = new Set(await visibleFields(provider, choices(), authMode, loginParams()));
     if (schema.cost_advisory) {
       costWarn.textContent = tl(schema.cost_advisory);
@@ -583,9 +613,15 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     } else {
       const renderOption = (option, isRegistration) => {
         const prefix = isRegistration ? "r" : "o";
-        const prefill = isRegistration
+        const sharedField = !isRegistration
+          ? schema.fields.find((field) => field.key === option.key && field.options)
+          : null;
+        const sharedChoice = sharedField?.options.find(
+          (choice) => choice.index === values.get(option.key)?.choice,
+        )?.value;
+        const prefill = sharedChoice ?? (isRegistration
           ? existing?.auth_registration?.[option.key] ?? ""
-          : existing?.auth_options?.[option.key] ?? "";
+          : existing?.auth_options?.[option.key] ?? "");
         const input = option.choices
           ? `<select name="${prefix}:${esc(option.key)}">${option.choices.map((choice, i) => `<option value="${i}" ${(prefill && choice.value === prefill) || (!prefill && i === 0) ? "selected" : ""}>${esc(tl(choice.label))}</option>`).join("")}</select>`
           : `<input name="${prefix}:${esc(option.key)}" value="${esc(prefill)}" ${option.required ? "required" : ""} />`;
@@ -608,7 +644,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       schema.fields.filter((f) => visible.has(f.key)).map((f) => {
         const v = values.get(f.key);
         const input = f.options
-          ? `<select name="f:${esc(f.key)}">${f.options.map((option, i) => `<option value="${i}" ${(v?.choice ?? 0) === i ? "selected" : ""}>${esc(tl(option.label))}</option>`).join("")}</select>`
+          ? `<select name="f:${esc(f.key)}">${f.options.map((option) => `<option value="${option.index}" ${(v?.choice ?? f.options[0]?.index ?? 0) === option.index ? "selected" : ""}>${esc(tl(option.label))}</option>`).join("")}</select>`
           : `<input name="f:${esc(f.key)}" value="${esc(v?.text ?? "")}" ${f.required ? "required" : ""} />`;
         return `<label class="f" data-field="f:${esc(f.key)}"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}<small class="field-err" hidden></small>${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
       }).join("");
@@ -630,10 +666,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       authMode = schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential";
       await renderDynamic();
     } else if (e.target.name === "auth") {
+      syncModeChoicesToFields(selectedMode());
       await resetLogin();
       authMode = e.target.value;
       await renderDynamic();
     } else if (e.target.name?.startsWith("o:") || e.target.name?.startsWith("r:")) {
+      syncModeChoicesToFields(selectedMode());
       await resetLogin();
       await renderDynamic();
     } else if (e.target.name?.startsWith("f:")) {

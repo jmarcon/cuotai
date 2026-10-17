@@ -5,7 +5,8 @@ mod settings;
 mod user_content;
 
 use backend::{
-    AccountForm, AccountInput, Backend, FormSchema, LoginStartInput, ProviderInfo, View,
+    AccountForm, AccountInput, Backend, FieldChoiceSchema, FormSchema, LoginStartInput,
+    ProviderInfo, View,
 };
 use cuotai_core::Provider;
 use std::{collections::BTreeMap, sync::Arc};
@@ -51,6 +52,15 @@ fn visible_fields(
     login_params: BTreeMap<String, String>,
 ) -> Vec<&'static str> {
     backend::visible_keys(provider, choices, &auth_mode, &login_params)
+}
+
+#[tauri::command]
+fn field_choices(
+    provider: Provider,
+    choices: BTreeMap<String, usize>,
+    auth_mode: String,
+) -> Vec<FieldChoiceSchema> {
+    backend::field_choices(provider, choices, &auth_mode)
 }
 
 #[tauri::command]
@@ -335,6 +345,7 @@ pub fn run() {
             list_providers,
             form_schema,
             visible_fields,
+            field_choices,
             get_account,
             save_account,
             delete_account,

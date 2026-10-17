@@ -54,6 +54,7 @@ export const refreshAccount = (index) => call("refresh_account", { index });
 export const listProviders = () => call("list_providers");
 export const formSchema = (provider) => call("form_schema", { provider });
 export const visibleFields = (provider, choices, authMode, loginParams = {}) => call("visible_fields", { provider, choices, authMode, loginParams });
+export const fieldChoices = (provider, choices, authMode) => call("field_choices", { provider, choices, authMode });
 // RF2: login orquestrado pelo core; a UI só renderiza eventos e envia entradas.
 export const loginStart = (request) => call("login_start", { request });
 export const loginSubmitCode = (code) => call("login_submit_code", { code });
@@ -390,10 +391,26 @@ const demo = {
     login: { modes: [{ id: "oauth", label: { id: "login.demo.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "login.demo.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "login.demo.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "login.demo.oauth.unavailable_reason", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
     cost_advisory: null,
     fields: [{ id: "field.demo.project_id", key: "project_id", label: { id: "field.demo.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "field.demo.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
-             { id: "field.demo.mode", key: "mode", label: { id: "field.demo.mode.label", params: {}, fallback: "Modo" }, help: { id: "field.demo.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "field.demo.mode.option.personal", value: "personal", label: { id: "field.demo.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "field.demo.mode.option.org", value: "org", label: { id: "field.demo.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
+             { id: "field.demo.mode", key: "mode", label: { id: "field.demo.mode.label", params: {}, fallback: "Modo" }, help: { id: "field.demo.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "field.demo.mode.option.personal", index: 0, value: "personal", label: { id: "field.demo.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "field.demo.mode.option.org", index: 1, value: "org", label: { id: "field.demo.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
     : ["project_id", "mode"],
+  field_choices: async ({ provider, choices, authMode }) => {
+    const schema = provider === "kiro" ? demoKiroSchema() : await demo.form_schema({ provider });
+    return schema.fields.filter((field) => field.options).map((field) => {
+      const options = field.options.filter((option) => !option.auth_modes || option.auth_modes.includes(authMode));
+      const current = field.options.find((option) => option.index === choices[field.key]);
+      const selected = current && options.some((option) => option.index === current.index) ? current : options[0];
+      return {
+        key: field.key,
+        options,
+        choice: selected.index,
+        notice: current && current !== selected
+          ? dl("edit_notice.option_replaced_for_auth_mode", `${current.label.fallback} não está disponível neste modo; ${selected.label.fallback} foi selecionado.`)
+          : null,
+      };
+    });
+  },
   get_account: async ({ index }) => ({ name: demoReports[index].account, provider: demoReports[index].provider, credential: "DEMO_API_KEY",
     interval: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }] }),
   save_account: async ({ input }) => {
@@ -527,7 +544,7 @@ export const alertOf = (r) => ALERTS.find((c) => c.match(r)) ?? null;
 // Kiro de demonstração: um modo de login (oauth) e os campos de credencial, como no core.
 const dl = (id, fallback) => ({ id, params: {}, fallback });
 function demoKiroSchema() {
-  const opts = (key, items) => items.map(([value, label]) => ({ id: `${key}.${value}`, value, label: dl(`${key}.${value}`, label) }));
+  const opts = (key, items) => items.map(([value, label], index) => ({ id: `${key}.${value}`, index, value, label: dl(`${key}.${value}`, label) }));
   return {
     credential_kind: "env", default_env: "KIRO_ACCESS_TOKEN", credential_help: dl("credential_help.kiro", "Access token Kiro (demo)."), cost_advisory: null,
     login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("login.oauth.label", "Login no navegador"), help: dl("login.oauth.help", "Login nativo no navegador do sistema."),
@@ -541,7 +558,10 @@ function demoKiroSchema() {
       ] }] },
     fields: [
       { key: "auth_method", label: dl("f.auth_method", "Método de autenticação"), help: dl("f.auth_method.h", "Origem do access token."), required: false,
-        options: opts("f.auth_method", [["builder-id", "AWS Builder ID (padrão)"], ["idc", "IAM Identity Center"], ["google", "Google"], ["github", "GitHub"]]) },
+        options: [
+          ...opts("f.auth_method", [["builder-id", "AWS Builder ID (padrão)"], ["idc", "IAM Identity Center"]]).map((option) => ({ ...option, auth_modes: ["oauth"], unavailable_reason: dl(`${option.id}.unavailable`, "Disponível somente no login nativo.") })),
+          ...opts("f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Importado"], ["api_key", "API key"], ["external_idp", "IdP externo"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl(`${option.id}.unavailable`, "Disponível somente com credencial de ambiente.") })),
+        ] },
       { key: "profile_arn", label: dl("f.profile_arn", "ARN do perfil CodeWhisperer (opcional)"), help: dl("f.profile_arn.h", ""), required: false, options: null },
     ],
   };

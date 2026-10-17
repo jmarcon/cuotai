@@ -848,6 +848,7 @@ impl Backend {
                 provider: input.provider,
                 name: &input.name,
                 credential: &credential,
+                auth_mode: &input.auth_mode,
                 oauth_mode,
                 oauth_existing: oauth_existing.as_ref(),
                 oauth_authorized: completed.map(|c| c.config.clone()),
@@ -1289,7 +1290,9 @@ impl Backend {
                     choice: Some(
                         a.params
                             .get(d.key)
-                            .and_then(|v| c.options.iter().position(|(val, _)| val == v))
+                            .and_then(|value| {
+                                c.options.iter().position(|option| option.value == value)
+                            })
                             .unwrap_or(0),
                     ),
                 },
@@ -1622,8 +1625,13 @@ pub fn providers() -> Vec<ProviderInfo> {
 #[derive(Serialize)]
 pub struct ChoiceSchema {
     id: String,
+    index: usize,
     value: String,
     label: cuotai_core::text::Localized,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_modes: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unavailable_reason: Option<cuotai_core::text::Localized>,
 }
 
 #[derive(Serialize)]
@@ -1634,6 +1642,14 @@ pub struct FieldSchema {
     help: cuotai_core::text::Localized,
     required: bool,
     options: Option<Vec<ChoiceSchema>>,
+}
+
+#[derive(Serialize)]
+pub struct FieldChoiceSchema {
+    key: &'static str,
+    options: Vec<ChoiceSchema>,
+    choice: usize,
+    notice: Option<cuotai_core::text::Localized>,
 }
 
 #[derive(Serialize)]
@@ -1697,10 +1713,14 @@ fn login_option_schema(
     let choices = option.choices.map(|choices| {
         choices
             .into_iter()
-            .map(|choice| ChoiceSchema {
+            .enumerate()
+            .map(|(index, choice)| ChoiceSchema {
                 id: choice.label.id.clone().into_owned(),
+                index,
                 value: choice.value,
                 label: choice.label,
+                auth_modes: choice.auth_modes,
+                unavailable_reason: choice.unavailable_reason,
             })
             .collect()
     });
@@ -1771,12 +1791,23 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                     FieldDescriptorKind::Choice(c) => Some(
                         c.options
                             .iter()
-                            .map(|&(value, fallback)| {
-                                let id = account_edit::field_option_id(provider, d.key, value);
+                            .enumerate()
+                            .map(|(index, option)| {
+                                let id =
+                                    account_edit::field_option_id(provider, d.key, option.value);
                                 ChoiceSchema {
                                     id: id.clone(),
-                                    value: value.to_owned(),
-                                    label: cuotai_core::text::Localized::fixed(id, fallback),
+                                    index,
+                                    value: option.value.to_owned(),
+                                    label: cuotai_core::text::Localized::fixed(id, option.label),
+                                    auth_modes: option.auth_modes.map(|modes| {
+                                        modes.iter().map(|mode| (*mode).to_string()).collect()
+                                    }),
+                                    unavailable_reason: account_edit::field_option_unavailability(
+                                        provider,
+                                        d.key,
+                                        option.value,
+                                    ),
                                 }
                             })
                             .collect(),
@@ -1785,6 +1816,59 @@ pub fn form_schema(provider: Provider) -> FormSchema {
             })
             .collect(),
     }
+}
+
+/// Resolve every provider-owned choice for an authentication mode. The UI
+/// round-trips full descriptor indices; filtering and substitution stay in the
+/// core contract rather than being reimplemented in JavaScript.
+pub fn field_choices(
+    provider: Provider,
+    choices: BTreeMap<String, usize>,
+    auth_mode: &str,
+) -> Vec<FieldChoiceSchema> {
+    field_descriptors(provider)
+        .iter()
+        .filter_map(|descriptor| {
+            let FieldDescriptorKind::Choice(choice) = descriptor.kind else {
+                return None;
+            };
+            let current = choices
+                .get(descriptor.key)
+                .and_then(|index| choice.options.get(*index))
+                .map(|option| option.value);
+            let resolved =
+                account_edit::resolve_field_choice(provider, descriptor.key, auth_mode, current)?;
+            let mode_options = account_edit::field_options(provider, descriptor.key, auth_mode)?;
+            let options = mode_options
+                .options
+                .into_iter()
+                .map(|field_option| {
+                    let option = &choice.options[field_option.index];
+                    let id = account_edit::field_option_id(provider, descriptor.key, option.value);
+                    ChoiceSchema {
+                        id: id.clone(),
+                        index: field_option.index,
+                        value: option.value.to_string(),
+                        label: cuotai_core::text::Localized::fixed(id, option.label),
+                        auth_modes: option
+                            .auth_modes
+                            .map(|modes| modes.iter().map(|mode| (*mode).to_string()).collect()),
+                        unavailable_reason: account_edit::field_option_unavailability(
+                            provider,
+                            descriptor.key,
+                            option.value,
+                        ),
+                    }
+                })
+                .collect();
+            Some(FieldChoiceSchema {
+                key: descriptor.key,
+                options,
+                choice: resolved.option.index,
+                notice: resolved.notice,
+            })
+        })
+        .collect()
 }
 
 /// Resultado de remover uma conta, para a UI dizer a verdade sobre o cofre.
@@ -1864,7 +1948,7 @@ pub fn visible_keys(
     auth_mode: &str,
     login: &BTreeMap<String, String>,
 ) -> Vec<&'static str> {
-    let mut vis = FieldVisibility::new(login, &choices);
+    let mut vis = FieldVisibility::new(auth_mode, login, &choices);
     vis.native_login = login::login_mode(provider, auth_mode).is_some_and(|mode| {
         mode.credential_store == login::LoginCredentialStore::CuotaiVault
             && mode.registration.is_empty()
@@ -2561,6 +2645,45 @@ mod tests {
             l.generation,
             initial_generation + 1,
             "exactly one install ran (the original load's install plus this reload)"
+        );
+    }
+    #[test]
+    fn desktop_field_choices_use_full_indices_and_report_kiro_substitution() {
+        let fresh = field_choices(Provider::Kiro, BTreeMap::new(), "credential");
+        let auth_method = fresh
+            .iter()
+            .find(|field| field.key == "auth_method")
+            .expect("Kiro auth_method schema");
+        assert_eq!(
+            auth_method
+                .options
+                .iter()
+                .map(|option| (option.index, option.value.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                (2, "google"),
+                (3, "github"),
+                (4, "import"),
+                (5, "api_key"),
+                (6, "external_idp")
+            ]
+        );
+        assert_eq!(auth_method.choice, 2);
+        assert!(auth_method.notice.is_none());
+
+        let reconciled = field_choices(
+            Provider::Kiro,
+            BTreeMap::from([("auth_method".to_string(), 0)]),
+            "credential",
+        );
+        let auth_method = reconciled
+            .iter()
+            .find(|field| field.key == "auth_method")
+            .expect("Kiro auth_method schema");
+        assert_eq!(auth_method.choice, 2);
+        assert_eq!(
+            auth_method.notice.as_ref().map(|notice| notice.id.as_ref()),
+            Some("edit_notice.option_replaced_for_auth_mode")
         );
     }
 }

@@ -124,7 +124,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::Groq => "GROQ_API_KEY da conta; a própria chave do usuário autentica a consulta interna.",
         Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY da conta (Bearer); uso em GET ollama.com/api/usage e plano em POST /api/me. Não é necessário importar cookies.",
         Provider::XiaomiMimo => "Saldo/Token Plan: configure platform_session_env com a sessão web platform.xiaomimimo.com. O código nativo entrega chave de inferência, não cookie. session_env é separado: quota semanal do MiMo Desktop.",
-        Provider::Kiro => "Access token Kiro/CodeWhisperer (não refresh token). Origem via auth_method: builder-id (padrão), idc, google, github, import, api_key ou external_idp.",
+        Provider::Kiro => "Access token Kiro/CodeWhisperer (não refresh token). Com variável: auth_method google, github, import, api_key ou external_idp. Builder ID e Identity Center exigem login nativo para renovação.",
         Provider::CodeBuddy => "Access token de sessão do CodeBuddy (cn: copilot.tencent.com; intl: www.codebuddy.ai).",
         Provider::Zed => "ZED_ACCESS_TOKEN (cloud access token do fluxo de login nativo zed.dev). Informe também o user_id numérico — é enviado como `Authorization: <user_id> <token>`.",
         Provider::AlibabaModelStudio => "API key Alibaba Model Studio/DashScope. Pode apontar para QWEN_API_KEY. Selecione a região correspondente à conta; não é login OAuth Qwen Code.",
@@ -501,12 +501,89 @@ pub fn ensure_cli_profile(params: &mut BTreeMap<String, String>) -> String {
     profile
 }
 
+/// Authentication-mode id used by a manually supplied credential (environment
+/// variable or provider-specific profile). Interactive mode ids come from
+/// `oauth::login` (`oauth`, `aws_sso`, `bailian_console`).
+pub const AUTH_MODE_CREDENTIAL: &str = "credential";
+
+/// One machine value and label in a choice field. `auth_modes = None` means
+/// the option applies to every authentication type. A restricted option also
+/// carries the Portuguese fallback for its localizable unavailability reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChoiceOptionDescriptor {
+    pub value: &'static str,
+    pub label: &'static str,
+    pub auth_modes: Option<&'static [&'static str]>,
+    pub unavailable_reason: Option<&'static str>,
+}
+
+impl ChoiceOptionDescriptor {
+    pub const fn new(value: &'static str, label: &'static str) -> Self {
+        Self {
+            value,
+            label,
+            auth_modes: None,
+            unavailable_reason: None,
+        }
+    }
+
+    pub const fn for_auth_modes(
+        value: &'static str,
+        label: &'static str,
+        auth_modes: &'static [&'static str],
+        unavailable_reason: &'static str,
+    ) -> Self {
+        Self {
+            value,
+            label,
+            auth_modes: Some(auth_modes),
+            unavailable_reason: Some(unavailable_reason),
+        }
+    }
+
+    pub fn applies_to(&self, auth_mode: &str) -> bool {
+        match self.auth_modes {
+            Some(modes) => modes.contains(&auth_mode),
+            None => true,
+        }
+    }
+}
+
 /// Descriptor for a choice field. `omit_default` skips writing the provider
-/// key when the first option is selected.
+/// key only when the first declared option is selected. If that option is not
+/// applicable to the active authentication mode, the mode default is written
+/// explicitly so an adapter's implicit default cannot silently change it.
 #[derive(Debug, Clone, Copy)]
 pub struct ChoiceDescriptor {
-    pub options: &'static [(&'static str, &'static str)],
+    pub options: &'static [ChoiceOptionDescriptor],
     pub omit_default: bool,
+}
+
+/// A choice option valid for one authentication mode. `index` always refers
+/// to the complete trusted descriptor list, including options filtered out for
+/// the mode. Drafts therefore remain unambiguous and `build_account` can reject
+/// a tampered or stale selection instead of mistaking it for another option.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FieldOption {
+    pub index: usize,
+    pub value: &'static str,
+    pub label: &'static str,
+}
+
+/// Valid options for `(provider, field, auth mode)` and the default used when
+/// the current value is absent or no longer applicable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldOptions {
+    pub options: Vec<FieldOption>,
+    pub default: FieldOption,
+}
+
+/// Result of reconciling a current choice with an authentication mode.
+/// `notice` is present only when a known option had to be replaced.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldChoiceResolution {
+    pub option: FieldOption,
+    pub notice: Option<crate::text::Localized>,
 }
 
 /// Kind of a field descriptor (text or choice). Mirrors the visual shape the
@@ -522,7 +599,8 @@ pub enum FieldDescriptorKind {
 /// `key`, `label`, `help`, `required` and the `kind` to render their own
 /// widget; `build_account` uses the same descriptor to enforce requiredness
 /// and validate choice selections against the trusted options list, refusing
-/// to honour tampered drafts.
+/// to honour tampered drafts. Native-only login inputs use this same type
+/// with `required = false`; shared fields are never duplicated.
 #[derive(Debug, Clone, Copy)]
 pub struct FieldDescriptor {
     pub key: &'static str,
@@ -530,45 +608,6 @@ pub struct FieldDescriptor {
     pub help: &'static str,
     pub required: bool,
     pub kind: FieldDescriptorKind,
-}
-
-/// Descriptor for a non-secret option exposed by the native OAuth login flow
-/// (region/auth_method/start_url). Identical shape to [`FieldDescriptor`]
-/// except no `required` flag — every native option is optional.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeOptionDescriptor {
-    pub key: &'static str,
-    pub label: &'static str,
-    pub help: &'static str,
-    pub kind: FieldDescriptorKind,
-}
-
-impl NativeOptionDescriptor {
-    pub const fn text(key: &'static str, label: &'static str, help: &'static str) -> Self {
-        Self {
-            key,
-            label,
-            help,
-            kind: FieldDescriptorKind::Text,
-        }
-    }
-
-    pub const fn choice(
-        key: &'static str,
-        label: &'static str,
-        help: &'static str,
-        options: &'static [(&'static str, &'static str)],
-    ) -> Self {
-        Self {
-            key,
-            label,
-            help,
-            kind: FieldDescriptorKind::Choice(ChoiceDescriptor {
-                options,
-                omit_default: true,
-            }),
-        }
-    }
 }
 
 impl FieldDescriptor {
@@ -589,13 +628,13 @@ impl FieldDescriptor {
     }
 
     /// Convenience constructor for a choice field. `omit_default = true` is
-    /// the common case (skip writing the key when the first option is
-    /// selected, treating it as the implicit default).
+    /// the common case (skip writing the key when the first declared option
+    /// is selected, treating it as the provider's implicit default).
     pub const fn choice(
         key: &'static str,
         label: &'static str,
         help: &'static str,
-        options: &'static [(&'static str, &'static str)],
+        options: &'static [ChoiceOptionDescriptor],
         omit_default: bool,
     ) -> Self {
         Self {
@@ -632,6 +671,17 @@ pub fn field_help_id(provider: Provider, key: &str) -> String {
 /// `field.<provider>.<key>.option.<value>`.
 pub fn field_option_id(provider: Provider, key: &str, option: &str) -> String {
     format!("field.{}.{}.option.{}", provider.slug(), key, option)
+}
+
+/// Stable id of an option's unavailability reason:
+/// `field.<provider>.<key>.option.<value>.unavailable`.
+pub fn field_option_unavailable_id(provider: Provider, key: &str, option: &str) -> String {
+    format!(
+        "field.{}.{}.option.{}.unavailable",
+        provider.slug(),
+        key,
+        option
+    )
 }
 
 /// Stable id of a native-login option label:
@@ -685,17 +735,205 @@ fn field_note(
     )
 }
 
-/// Inputs needed to decide which provider-owned fields are visible. Captures
-/// Inputs needed to decide which provider-owned fields are visible. Captures
-/// every value that the wizard can flip between choices so the visibility
-/// rules can be evaluated without consulting UI state.
-///
-/// No `Default` derive: the two reference fields would otherwise need to
-/// point to a static empty map, which clashes with `&'a BTreeMap<…>`
-/// lifetimes. Construct explicitly via [`FieldVisibility::empty`] or the
-/// field-init syntax when the caller already has the maps in scope.
+fn declared_option(
+    provider: Provider,
+    key: &str,
+    value: &str,
+) -> Option<(&'static FieldDescriptor, &'static ChoiceOptionDescriptor)> {
+    let descriptor = descriptor(provider, key)?;
+    let FieldDescriptorKind::Choice(choice) = descriptor.kind else {
+        return None;
+    };
+    choice
+        .options
+        .iter()
+        .find(|option| option.value == value)
+        .map(|option| (descriptor, option))
+}
+
+fn option_label_note(
+    provider: Provider,
+    key: &str,
+    option: &ChoiceOptionDescriptor,
+) -> crate::text::Localized {
+    crate::text::Localized::fixed(field_option_id(provider, key, option.value), option.label)
+}
+
+/// Localizable label of an authentication type used in validation errors and
+/// substitution notices. Unknown ids use a generic, non-echoing label.
+pub fn auth_mode_label(auth_mode: &str) -> crate::text::Localized {
+    let (id, fallback) = match auth_mode {
+        AUTH_MODE_CREDENTIAL => ("auth_mode.credential.label", "Credencial manual"),
+        "oauth" => ("auth_mode.oauth.label", "Login nativo"),
+        "aws_sso" => ("auth_mode.aws_sso.label", "AWS SSO"),
+        "bailian_console" => ("auth_mode.bailian_console.label", "Console Bailian"),
+        _ => (
+            "auth_mode.unknown.label",
+            "Tipo de autenticação desconhecido",
+        ),
+    };
+    crate::text::Localized::fixed(id, fallback)
+}
+
+/// Reason declared for an option that is restricted to a subset of auth
+/// modes. The id is stable even when the fallback is the generic reason.
+pub fn field_option_unavailability(
+    provider: Provider,
+    key: &str,
+    value: &str,
+) -> Option<crate::text::Localized> {
+    let (_, option) = declared_option(provider, key, value)?;
+    option.auth_modes?;
+    let fallback = option
+        .unavailable_reason
+        .unwrap_or("Esta opção não está disponível para o tipo de autenticação selecionado.");
+    Some(crate::text::Localized::fixed(
+        field_option_unavailable_id(provider, key, value),
+        fallback,
+    ))
+}
+
+/// Localized reason why `value` cannot be used with `auth_mode`, or `None`
+/// when the option is valid (or is not a declared choice value).
+pub fn field_option_unavailable_reason(
+    provider: Provider,
+    key: &str,
+    value: &str,
+    auth_mode: &str,
+) -> Option<crate::text::Localized> {
+    let (_, option) = declared_option(provider, key, value)?;
+    if option.applies_to(auth_mode) {
+        None
+    } else {
+        field_option_unavailability(provider, key, value)
+    }
+}
+
+/// RF11.2: return the valid options and mode default for a provider field.
+/// Indices refer to the complete descriptor, not the filtered vector. `None`
+/// means the key is unknown, is not a choice, or has no valid option for the
+/// supplied mode.
+pub fn field_options(provider: Provider, key: &str, auth_mode: &str) -> Option<FieldOptions> {
+    let descriptor = descriptor(provider, key)?;
+    let FieldDescriptorKind::Choice(choice) = descriptor.kind else {
+        return None;
+    };
+    let options: Vec<FieldOption> = choice
+        .options
+        .iter()
+        .enumerate()
+        .filter(|(_, option)| option.applies_to(auth_mode))
+        .map(|(index, option)| FieldOption {
+            index,
+            value: option.value,
+            label: option.label,
+        })
+        .collect();
+    let default = *options.first()?;
+    Some(FieldOptions { options, default })
+}
+
+fn option_not_valid_for_auth_mode_note(
+    provider: Provider,
+    descriptor: &FieldDescriptor,
+    option: &ChoiceOptionDescriptor,
+    auth_mode: &str,
+) -> crate::text::Localized {
+    let reason = field_option_unavailable_reason(provider, descriptor.key, option.value, auth_mode)
+        .expect("invalid auth-mode combination must have an unavailability reason");
+    crate::text::Localized::with_params(
+        "edit_error.option_not_valid_for_auth_mode",
+        crate::text::params([
+            ("field", field_label_note(provider, descriptor).into()),
+            (
+                "value",
+                option_label_note(provider, descriptor.key, option).into(),
+            ),
+            ("auth_mode", auth_mode_label(auth_mode).into()),
+            ("reason", reason.clone().into()),
+        ]),
+        format!(
+            "{}: a opção {} não é válida com {}. {}",
+            descriptor.label,
+            option.label,
+            auth_mode_label(auth_mode).fallback,
+            reason.fallback
+        ),
+    )
+}
+
+/// RF11.3: reconcile a machine value with an auth mode. A known value that
+/// became invalid is replaced by the mode default and accompanied by a fully
+/// localizable notice naming the field, old/new labels, auth type and reason.
+/// Unknown values retain the legacy prefill behaviour (default without
+/// echoing the unknown text); direct draft submission still rejects them.
+pub fn resolve_field_choice(
+    provider: Provider,
+    key: &str,
+    auth_mode: &str,
+    current: Option<&str>,
+) -> Option<FieldChoiceResolution> {
+    let options = field_options(provider, key, auth_mode)?;
+    if let Some(value) = current {
+        if let Some(option) = options.options.iter().find(|option| option.value == value) {
+            return Some(FieldChoiceResolution {
+                option: *option,
+                notice: None,
+            });
+        }
+    }
+    let notice = current.and_then(|value| {
+        let (descriptor, previous) = declared_option(provider, key, value)?;
+        if previous.applies_to(auth_mode) {
+            return None;
+        }
+        let reason = field_option_unavailable_reason(provider, key, value, auth_mode)?;
+        let replacement = choice_descriptor_option(descriptor, options.default.index)?;
+        Some(crate::text::Localized::with_params(
+            "edit_notice.option_replaced_for_auth_mode",
+            crate::text::params([
+                ("field", field_label_note(provider, descriptor).into()),
+                ("value", option_label_note(provider, key, previous).into()),
+                (
+                    "replacement",
+                    option_label_note(provider, key, replacement).into(),
+                ),
+                ("auth_mode", auth_mode_label(auth_mode).into()),
+                ("reason", reason.clone().into()),
+            ]),
+            format!(
+                "{}: {} não está disponível com {}; substituído por {}. {}",
+                descriptor.label,
+                previous.label,
+                auth_mode_label(auth_mode).fallback,
+                replacement.label,
+                reason.fallback
+            ),
+        ))
+    });
+    Some(FieldChoiceResolution {
+        option: options.default,
+        notice,
+    })
+}
+
+fn choice_descriptor_option(
+    descriptor: &FieldDescriptor,
+    index: usize,
+) -> Option<&'static ChoiceOptionDescriptor> {
+    let FieldDescriptorKind::Choice(choice) = descriptor.kind else {
+        return None;
+    };
+    choice.options.get(index)
+}
+
+/// Inputs needed to decide which provider-owned fields are visible and which
+/// choice values are valid for the active authentication mode.
 #[derive(Debug)]
 pub struct FieldVisibility<'a> {
+    /// Stable id of the selected authentication type (`credential`, `oauth`,
+    /// `aws_sso` or `bailian_console`).
+    pub auth_mode: &'a str,
     /// True when the credential step is in OAuth mode AND the provider is
     /// native-login (no client registration). Native-param keys become
     /// hidden — the identity is rewritten from public login metadata.
@@ -704,20 +942,19 @@ pub struct FieldVisibility<'a> {
     /// becomes editable only when the login metadata did NOT already pin
     /// it; otherwise it stays hidden to mirror the auth result).
     pub login_params: &'a BTreeMap<String, String>,
-    /// Currently selected choice index per `key` in the form. Choices with
-    /// no entry default to `0`. The wizard updates this map when the user
-    /// cycles a choice; core reads it as the source of truth.
+    /// Currently selected full-descriptor choice index per `key`. Choices
+    /// with no entry default to index `0`.
     pub choice_selections: &'a BTreeMap<String, usize>,
 }
 
 impl<'a> FieldVisibility<'a> {
-    /// Build a visibility struct from the two reference maps. Defaults
-    /// `native_login` to `false` (env-var / non-native mode).
     pub fn new(
+        auth_mode: &'a str,
         login_params: &'a BTreeMap<String, String>,
         choice_selections: &'a BTreeMap<String, usize>,
     ) -> Self {
         Self {
+            auth_mode,
             native_login: false,
             login_params,
             choice_selections,
@@ -853,14 +1090,29 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "query_mode",
             "Modo de consulta",
             "billing (padrão): APIs de cobrança documentadas. quota: quota pessoal (interface interna; exige token OAuth/PAT do GitHub, NÃO o copilotToken interno).",
-            &[("billing", "Cobrança documentada (padrão)"), ("quota", "Quota pessoal (opt-in, interface interna)")],
+            &[
+                ChoiceOptionDescriptor::new("billing", "Cobrança documentada (padrão)"),
+                ChoiceOptionDescriptor::new(
+                    "quota",
+                    "Quota pessoal (opt-in, interface interna)",
+                ),
+            ],
             true,
         ),
         FieldDescriptor::choice(
             "mode",
             "Escopo",
             "user: cobrança pessoal; org: cobrança da organização (requer admin). Sem efeito no modo quota.",
-            &[("user", "Cobrança pessoal do usuário autenticado"), ("org", "Cobrança da organização (requer admin)")],
+            &[
+                ChoiceOptionDescriptor::new(
+                    "user",
+                    "Cobrança pessoal do usuário autenticado",
+                ),
+                ChoiceOptionDescriptor::new(
+                    "org",
+                    "Cobrança da organização (requer admin)",
+                ),
+            ],
             true,
         ),
         FieldDescriptor::text(
@@ -873,7 +1125,10 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "billing",
             "Produto",
             "premium_requests (padrão) ou ai_credits.",
-            &[("premium_requests", "Solicitações premium"), ("ai_credits", "Créditos de IA")],
+            &[
+                ChoiceOptionDescriptor::new("premium_requests", "Solicitações premium"),
+                ChoiceOptionDescriptor::new("ai_credits", "Créditos de IA"),
+            ],
             true,
         ),
     ];
@@ -888,7 +1143,16 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "product",
             "Produto",
             "Padrão: saldo da conta internacional Kimi/Moonshot. coding: opt-in para a quota do plano Kimi for Coding (interface interna, sujeita a mudanças).",
-            &[("default", "Saldo da conta internacional (padrão)"), ("coding", "Kimi for Coding — quota do plano (opt-in, interno)")],
+            &[
+                ChoiceOptionDescriptor::new(
+                    "default",
+                    "Saldo da conta internacional (padrão)",
+                ),
+                ChoiceOptionDescriptor::new(
+                    "coding",
+                    "Kimi for Coding — quota do plano (opt-in, interno)",
+                ),
+            ],
             true,
         ),
         FieldDescriptor::text(
@@ -903,7 +1167,10 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "product",
             "Produto",
             "Padrão: Management API xAI (saldo/cobrança, exige Team ID). cli: opt-in para a quota do Grok CLI (interface interna) com token de sessão.",
-            &[("management", "Management API (padrão)"), ("cli", "Grok CLI (opt-in, interface interna)")],
+            &[
+                ChoiceOptionDescriptor::new("management", "Management API (padrão)"),
+                ChoiceOptionDescriptor::new("cli", "Grok CLI (opt-in, interface interna)"),
+            ],
             true,
         ),
         FieldDescriptor::text(
@@ -962,7 +1229,16 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "product",
             "Produto",
             "A chave de API Gemini/AI Studio NÃO tem consulta de quota. cli: opt-in para a quota do Gemini CLI (CodeAssist, interface interna) com token de sessão.",
-            &[("default", "Chave de API (sem consulta de quota)"), ("cli", "Gemini CLI / CodeAssist (opt-in, interno)")],
+            &[
+                ChoiceOptionDescriptor::new(
+                    "default",
+                    "Chave de API (sem consulta de quota)",
+                ),
+                ChoiceOptionDescriptor::new(
+                    "cli",
+                    "Gemini CLI / CodeAssist (opt-in, interno)",
+                ),
+            ],
             true,
         ),
         FieldDescriptor::text(
@@ -983,14 +1259,24 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "region",
             "Região",
             "intl (padrão): openapi.qoder.sh. cn: openapi.qoder.com.cn.",
-            &[("intl", "Internacional (openapi.qoder.sh)"), ("cn", "China (openapi.qoder.com.cn)")],
+            &[
+                ChoiceOptionDescriptor::new(
+                    "intl",
+                    "Internacional (openapi.qoder.sh)",
+                ),
+                ChoiceOptionDescriptor::new("cn", "China (openapi.qoder.com.cn)"),
+            ],
             true,
         ),
         FieldDescriptor::choice(
             "credential_type",
             "Tipo de credencial",
             "auto (padrão): detecta o prefixo pt-. pat: Personal Access Token (trocado por job token). bearer: token Bearer/job já existente.",
-            &[("auto", "Automático (detecta pt-)"), ("pat", "Personal Access Token"), ("bearer", "Bearer/job token existente")],
+            &[
+                ChoiceOptionDescriptor::new("auto", "Automático (detecta pt-)"),
+                ChoiceOptionDescriptor::new("pat", "Personal Access Token"),
+                ChoiceOptionDescriptor::new("bearer", "Bearer/job token existente"),
+            ],
             true,
         ),
     ];
@@ -998,15 +1284,50 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         FieldDescriptor::choice(
             "auth_method",
             "Método de autenticação",
-            "Origem do access token: builder-id (padrão), idc, google, github, import, api_key ou external_idp.",
+            "No login nativo: builder-id (padrão) ou idc. Com credencial manual: google (padrão para novas contas), github, import, api_key ou external_idp.",
             &[
-                ("builder-id", "AWS Builder ID (padrão)"),
-                ("idc", "IAM Identity Center"),
-                ("google", "Google"),
-                ("github", "GitHub"),
-                ("import", "Importado"),
-                ("api_key", "API key"),
-                ("external_idp", "IdP externo"),
+                ChoiceOptionDescriptor::for_auth_modes(
+                    "builder-id",
+                    "AWS Builder ID",
+                    &["oauth"],
+                    "O Cuotai não renova tokens curtos de Builder ID recebidos por variável de ambiente; use o login nativo.",
+                ),
+                ChoiceOptionDescriptor::for_auth_modes(
+                    "idc",
+                    "IAM Identity Center",
+                    &["oauth"],
+                    "O Cuotai não renova tokens curtos do Identity Center recebidos por variável de ambiente; use o login nativo.",
+                ),
+                ChoiceOptionDescriptor::for_auth_modes(
+                    "google",
+                    "Google",
+                    &[AUTH_MODE_CREDENTIAL],
+                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                ),
+                ChoiceOptionDescriptor::for_auth_modes(
+                    "github",
+                    "GitHub",
+                    &[AUTH_MODE_CREDENTIAL],
+                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                ),
+                ChoiceOptionDescriptor::for_auth_modes(
+                    "import",
+                    "Importado",
+                    &[AUTH_MODE_CREDENTIAL],
+                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                ),
+                ChoiceOptionDescriptor::for_auth_modes(
+                    "api_key",
+                    "API key",
+                    &[AUTH_MODE_CREDENTIAL],
+                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                ),
+                ChoiceOptionDescriptor::for_auth_modes(
+                    "external_idp",
+                    "IdP externo",
+                    &[AUTH_MODE_CREDENTIAL],
+                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                ),
             ],
             true,
         ),
@@ -1021,7 +1342,10 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         "region",
         "Região",
         "cn (padrão): copilot.tencent.com (cabeçalhos CLI). intl: www.codebuddy.ai (cabeçalhos IDE).",
-        &[("cn", "China (copilot.tencent.com)"), ("intl", "Internacional (www.codebuddy.ai)")],
+        &[
+            ChoiceOptionDescriptor::new("cn", "China (copilot.tencent.com)"),
+            ChoiceOptionDescriptor::new("intl", "Internacional (www.codebuddy.ai)"),
+        ],
         true,
     )];
     const ZED: [FieldDescriptor; 2] = [
@@ -1056,11 +1380,11 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "Região",
             "Região do serviço MiMo: sgp (padrão), cn, ams, ru ou in.",
             &[
-                ("sgp", "Singapura (padrão)"),
-                ("cn", "China"),
-                ("ams", "Amsterdã"),
-                ("ru", "Rússia"),
-                ("in", "Índia"),
+                ChoiceOptionDescriptor::new("sgp", "Singapura (padrão)"),
+                ChoiceOptionDescriptor::new("cn", "China"),
+                ChoiceOptionDescriptor::new("ams", "Amsterdã"),
+                ChoiceOptionDescriptor::new("ru", "Rússia"),
+                ChoiceOptionDescriptor::new("in", "Índia"),
             ],
             true,
         ),
@@ -1075,7 +1399,10 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         "region",
         "Região Alibaba",
         "Use a região onde sua conta/chave foi criada; China e internacional possuem endpoints distintos.",
-        &[("intl", "Internacional"), ("cn", "China continental")],
+        &[
+            ChoiceOptionDescriptor::new("intl", "Internacional"),
+            ChoiceOptionDescriptor::new("cn", "China continental"),
+        ],
         true,
     )];
     const ALIBABA_CODING_PLAN: [FieldDescriptor; 2] = [
@@ -1083,7 +1410,10 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "region",
             "Região Alibaba",
             "Use a região da assinatura; a credencial não será enviada automaticamente para outra região.",
-            &[("intl", "Internacional"), ("cn", "China continental")],
+            &[
+                ChoiceOptionDescriptor::new("intl", "Internacional"),
+                ChoiceOptionDescriptor::new("cn", "China continental"),
+            ],
             true,
         ),
         FieldDescriptor::text(
@@ -1104,7 +1434,10 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "region",
             "Conta de faturamento",
             "Internacional ou China continental; corresponde à conta de cobrança Alibaba.",
-            &[("intl", "Internacional"), ("cn", "China continental")],
+            &[
+                ChoiceOptionDescriptor::new("intl", "Internacional"),
+                ChoiceOptionDescriptor::new("cn", "China continental"),
+            ],
             true,
         ),
         FieldDescriptor::text(
@@ -1165,68 +1498,53 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
     }
 }
 
-/// Provider-owned schema for the non-secret options of the native OAuth
-/// login step (region/auth_method/start_url). Same shape as
-/// [`field_descriptors`], but each option corresponds to one row of the
-/// OAuth step rather than a persistent param.
-///
-/// Const arrays so the items are constructed in const context; the function
-/// just returns a slice pointing at the right constant.
-pub fn native_option_descriptors(provider: Provider) -> &'static [NativeOptionDescriptor] {
-    const CURSOR: [NativeOptionDescriptor; 1] = [NativeOptionDescriptor::text(
+/// Provider-owned schema for non-secret native-login options. Fields shared
+/// with the account form (`auth_method`/`region`) are borrowed from the single
+/// [`field_descriptors`] declaration; only native-only inputs live in the
+/// private slice below. The iterator avoids allocating while composing them.
+pub fn native_option_descriptors(
+    provider: Provider,
+) -> impl Iterator<Item = &'static FieldDescriptor> {
+    let shared_keys = native_shared_field_keys(provider);
+    field_descriptors(provider)
+        .iter()
+        .filter(move |descriptor| shared_keys.contains(&descriptor.key))
+        .chain(native_only_option_descriptors(provider).iter())
+}
+
+fn native_shared_field_keys(provider: Provider) -> &'static [&'static str] {
+    match provider {
+        Provider::Kiro => &["auth_method"],
+        Provider::CodeBuddy | Provider::Qoder | Provider::XiaomiMimo => &["region"],
+        _ => &[],
+    }
+}
+
+fn native_only_option_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
+    const CURSOR: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "database_path",
         "Banco local Cursor (opcional)",
         "Caminho completo de state.vscdb; vazio usa Cursor instalado. Nunca informe o token neste campo.",
+        false,
     )];
-    const KIRO: [NativeOptionDescriptor; 3] = [
-        NativeOptionDescriptor::choice(
-            "auth_method",
-            "Método de autenticação",
-            "builder-id (padrão): AWS Builder ID. idc: IAM Identity Center (usa região/URL abaixo).",
-            &[("builder-id", "AWS Builder ID"), ("idc", "IAM Identity Center")],
-        ),
-        NativeOptionDescriptor::text(
+    const KIRO: [FieldDescriptor; 2] = [
+        FieldDescriptor::text(
             "region",
             "Região (opcional)",
             "Região AWS do Identity Center (ex.: us-east-1); vazio usa o padrão do fluxo.",
+            false,
         ),
-        NativeOptionDescriptor::text(
+        FieldDescriptor::text(
             "start_url",
             "URL de início IDC (opcional)",
             "URL do portal IAM Identity Center; usada apenas no método idc.",
+            false,
         ),
     ];
-    const CODEBUDDY: [NativeOptionDescriptor; 1] = [NativeOptionDescriptor::choice(
-        "region",
-        "Região",
-        "cn (padrão): copilot.tencent.com. intl: www.codebuddy.ai.",
-        &[("cn", "China"), ("intl", "Internacional")],
-    )];
-    const QODER: [NativeOptionDescriptor; 1] = [NativeOptionDescriptor::choice(
-        "region",
-        "Região",
-        "intl (padrão): openapi.qoder.sh. cn: openapi.qoder.com.cn.",
-        &[("intl", "Internacional"), ("cn", "China")],
-    )];
-    const XIAOMI_MIMO: [NativeOptionDescriptor; 1] = [NativeOptionDescriptor::choice(
-        "region",
-        "Região",
-        "Região do serviço MiMo: sgp (padrão), cn, ams, ru ou in.",
-        &[
-            ("sgp", "Singapura"),
-            ("cn", "China"),
-            ("ams", "Amsterdã"),
-            ("ru", "Rússia"),
-            ("in", "Índia"),
-        ],
-    )];
-    const EMPTY: [NativeOptionDescriptor; 0] = [];
+    const EMPTY: [FieldDescriptor; 0] = [];
     match provider {
         Provider::Cursor => &CURSOR,
         Provider::Kiro => &KIRO,
-        Provider::CodeBuddy => &CODEBUDDY,
-        Provider::Qoder => &QODER,
-        Provider::XiaomiMimo => &XIAOMI_MIMO,
         _ => &EMPTY,
     }
 }
@@ -1261,6 +1579,9 @@ pub struct AccountDraft<'a> {
     /// Credential text: env-var name (validated), AWS profile, or whatever
     /// the active credential field is collecting.
     pub credential: &'a str,
+    /// Stable authentication type selected by the frontend (`credential` or
+    /// one of the ids returned by `login_modes`).
+    pub auth_mode: &'a str,
     /// True if OAuth mode is active (provider supports login).
     pub oauth_mode: bool,
     pub oauth_existing: Option<&'a OAuthConfig>,
@@ -1365,14 +1686,48 @@ pub fn resolve_oauth(
     ))
 }
 
-/// Apply managed-keys cleanup to the cloned params and write the active
-/// fields into them. Active fields are the VISIBLE descriptors
-/// (per [`FieldVisibility`]) — hidden ones are skipped silently so a
-/// frontend cannot persist metadata outside the schema.
-///
-/// Core walks its own descriptors. A required visible descriptor absent
-/// from the draft or sent with empty text is rejected. Choice indices are
-/// resolved exclusively against the trusted provider option list.
+fn selected_choice_option<'a>(
+    provider: Provider,
+    descriptor: &FieldDescriptor,
+    choice: &'a ChoiceDescriptor,
+    selected: usize,
+    auth_mode: &str,
+) -> Result<&'a ChoiceOptionDescriptor, crate::text::Localized> {
+    let Some(option) = choice.options.get(selected) else {
+        return Err(field_note(
+            provider,
+            descriptor,
+            "edit_error.choice_invalid",
+            format!("Seleção inválida para {}.", descriptor.label),
+        ));
+    };
+    if !option.applies_to(auth_mode) {
+        return Err(option_not_valid_for_auth_mode_note(
+            provider, descriptor, option, auth_mode,
+        ));
+    }
+    Ok(option)
+}
+
+fn write_choice(
+    provider: Provider,
+    descriptor: &FieldDescriptor,
+    choice: &ChoiceDescriptor,
+    selected: usize,
+    auth_mode: &str,
+    params: &mut BTreeMap<String, String>,
+) -> Result<(), crate::text::Localized> {
+    let option = selected_choice_option(provider, descriptor, choice, selected, auth_mode)?;
+    if selected != 0 || !choice.omit_default {
+        params.insert(descriptor.key.into(), option.value.into());
+    }
+    Ok(())
+}
+
+/// Apply managed-keys cleanup and write the active fields into `params`.
+/// Choice indices always refer to the complete trusted descriptor. A choice
+/// supplied for a hidden field is still checked for auth applicability before
+/// being discarded, so a stale/tampered Kiro combination cannot evade RF11.4.
 pub fn apply_draft_fields(
     provider: Provider,
     params: &mut BTreeMap<String, String>,
@@ -1383,20 +1738,52 @@ pub fn apply_draft_fields(
     let descriptors = field_descriptors(provider);
     let visible = visible_field_indices(provider, visibility);
     let draft_by_key: BTreeMap<&'static str, &DraftField> =
-        fields.iter().map(|f| (f.key, f)).collect();
+        fields.iter().map(|field| (field.key, field)).collect();
+
+    // Validate auth applicability independently of visibility. Hidden values
+    // remain non-persistent, but known invalid combinations are never accepted.
+    for field in fields {
+        let Some((_, descriptor)) = descriptor_for(descriptors, field.key) else {
+            continue;
+        };
+        if let (FieldDescriptorKind::Choice(choice), DraftValue::Choice(selected)) =
+            (&descriptor.kind, &field.value)
+        {
+            selected_choice_option(
+                provider,
+                descriptor,
+                choice,
+                *selected,
+                visibility.auth_mode,
+            )?;
+        }
+    }
 
     for idx in visible {
         let descriptor = &descriptors[idx];
         let Some(field) = draft_by_key.get(descriptor.key) else {
-            // Required descriptor visible but caller did not supply a
-            // draft. Persisting would either drop a required key or leave
-            // it absent; either way the saved account diverges from the
-            // schema, so refuse.
             if descriptor.required {
                 return Err(required_field_note(provider, descriptor));
             }
-            // Optional descriptor missing: skip silently (existing params
-            // are kept; the caller just didn't expose the field).
+            if let FieldDescriptorKind::Choice(choice) = descriptor.kind {
+                let options = field_options(provider, descriptor.key, visibility.auth_mode)
+                    .ok_or_else(|| {
+                        field_note(
+                            provider,
+                            descriptor,
+                            "edit_error.choice_invalid",
+                            format!("Seleção inválida para {}.", descriptor.label),
+                        )
+                    })?;
+                write_choice(
+                    provider,
+                    descriptor,
+                    &choice,
+                    options.default.index,
+                    visibility.auth_mode,
+                    params,
+                )?;
+            }
             continue;
         };
         match (&descriptor.kind, &field.value) {
@@ -1412,19 +1799,14 @@ pub fn apply_draft_fields(
                 params.insert(descriptor.key.into(), trimmed.to_string());
             }
             (FieldDescriptorKind::Choice(choice), DraftValue::Choice(selected)) => {
-                if *selected >= choice.options.len() {
-                    return Err(field_note(
-                        provider,
-                        descriptor,
-                        "edit_error.choice_invalid",
-                        format!("Seleção inválida para {}.", descriptor.label),
-                    ));
-                }
-                let (option_key, _) = choice.options[*selected];
-                let is_default = *selected == 0 && choice.omit_default;
-                if !is_default {
-                    params.insert(descriptor.key.into(), option_key.into());
-                }
+                write_choice(
+                    provider,
+                    descriptor,
+                    choice,
+                    *selected,
+                    visibility.auth_mode,
+                    params,
+                )?;
             }
             (FieldDescriptorKind::Text, DraftValue::Choice(_)) => {
                 return Err(field_note(
@@ -1483,6 +1865,35 @@ pub fn apply_native_login_params(
             }
         }
     }
+}
+
+fn validate_account_choice_params(
+    provider: Provider,
+    params: &BTreeMap<String, String>,
+    auth_mode: &str,
+) -> Result<(), crate::text::Localized> {
+    for descriptor in field_descriptors(provider) {
+        let FieldDescriptorKind::Choice(choice) = descriptor.kind else {
+            continue;
+        };
+        let Some(value) = params.get(descriptor.key) else {
+            continue;
+        };
+        let Some(option) = choice.options.iter().find(|option| option.value == value) else {
+            return Err(field_note(
+                provider,
+                descriptor,
+                "edit_error.choice_invalid",
+                format!("Seleção inválida para {}.", descriptor.label),
+            ));
+        };
+        if !option.applies_to(auth_mode) {
+            return Err(option_not_valid_for_auth_mode_note(
+                provider, descriptor, option, auth_mode,
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Push the AWS profile (when present) into `params["profile"]`; the
@@ -1604,6 +2015,7 @@ pub fn build_account(
         provider,
         name,
         credential,
+        auth_mode,
         oauth_mode,
         oauth_existing,
         oauth_authorized,
@@ -1653,6 +2065,7 @@ pub fn build_account(
         && !requires_client_registration(*provider)
         && crate::oauth::supports_login(*provider);
     let visibility = FieldVisibility {
+        auth_mode,
         native_login,
         login_params: oauth_login_params,
         choice_selections: &choice_selections,
@@ -1661,17 +2074,22 @@ pub fn build_account(
         .map_err(|message| build_account_field_error("params", message))?;
 
     let editing_account = editing.and_then(|i| config.accounts.get(i));
-    apply_native_login_params(
-        *provider,
-        oauth_authorized.as_ref(),
-        oauth_login_params,
-        editing_account.filter(|a| a.provider == *provider),
-        &mut params,
-    );
+    if oauth.is_some() {
+        apply_native_login_params(
+            *provider,
+            oauth_authorized.as_ref(),
+            oauth_login_params,
+            editing_account.filter(|account| account.provider == *provider),
+            &mut params,
+        );
+    }
 
     if *provider == Provider::AwsBedrock {
         params.insert("profile".into(), credential.trim().to_string());
     }
+
+    validate_account_choice_params(*provider, &params, auth_mode)
+        .map_err(|message| build_account_field_error("params", message))?;
 
     let refresh_seconds = parse_refresh_seconds(interval_text)
         .map_err(|message| build_account_field_error("interval", message))?;
@@ -2386,6 +2804,7 @@ mod tests {
             provider: Provider::ChatGpt,
             name: "Codex",
             credential: "",
+            auth_mode: "oauth",
             oauth_mode: true,
             oauth_existing: account.oauth.as_ref(),
             oauth_authorized: None,
@@ -2415,6 +2834,7 @@ mod tests {
             provider: Provider::ChatGpt,
             name: "Codex",
             credential: "",
+            auth_mode: "oauth",
             oauth_mode: true,
             oauth_existing: None,
             oauth_authorized: Some(authorized.clone()),
@@ -2440,6 +2860,7 @@ mod tests {
             provider: Provider::ChatGpt,
             name: "Codex",
             credential: "",
+            auth_mode: "oauth",
             oauth_mode: true,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2497,6 +2918,7 @@ mod tests {
             provider: Provider::OpenAiApi,
             name: "OpenAI",
             credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2521,6 +2943,7 @@ mod tests {
             provider: Provider::OpenAiApi,
             name: "OpenAI",
             credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2551,6 +2974,7 @@ mod tests {
             provider: Provider::Mistral,
             name: "Multi",
             credential: "MISTRAL_API_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2586,6 +3010,7 @@ mod tests {
             provider: Provider::OpenAiApi,
             name: "OpenAI",
             credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2609,6 +3034,7 @@ mod tests {
             provider: Provider::AwsBedrock,
             name: "Prod",
             credential: "default",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2631,6 +3057,7 @@ mod tests {
             provider: Provider::AlibabaTokenPlan,
             name: "Qwen Cloud",
             credential: "QWEN_API_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2659,6 +3086,7 @@ mod tests {
             provider: Provider::AnthropicApi,
             name: "OpenAI",
             credential: "ANTHROPIC_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2677,6 +3105,7 @@ mod tests {
             provider: Provider::GeminiApi,
             name: "Cloud",
             credential: "GOOGLE_CLOUD_ACCESS_TOKEN",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2705,6 +3134,7 @@ mod tests {
             provider: Provider::AzureOpenAi,
             name: "Azure",
             credential: "AZURE_ACCESS_TOKEN",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -2773,6 +3203,7 @@ mod tests {
             provider: Provider::Kiro,
             name: "Kiro",
             credential: "",
+            auth_mode: "oauth",
             oauth_mode: true,
             oauth_existing: existing_account.oauth.as_ref(),
             oauth_authorized: None,
@@ -2815,6 +3246,7 @@ mod tests {
         choice_selections: &'a BTreeMap<String, usize>,
     ) -> FieldVisibility<'a> {
         FieldVisibility {
+            auth_mode: AUTH_MODE_CREDENTIAL,
             native_login: false,
             login_params,
             choice_selections,
@@ -3165,6 +3597,7 @@ mod tests {
             provider: Provider::Copilot,
             name: "GH",
             credential: "GITHUB_TOKEN",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -3196,6 +3629,7 @@ mod tests {
             provider: Provider::OpenAiApi,
             name: "OpenAI",
             credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -3223,6 +3657,7 @@ mod tests {
             provider: Provider::Copilot,
             name: "GH",
             credential: "GITHUB_TOKEN",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -3263,6 +3698,7 @@ mod tests {
             provider: Provider::OpenAiApi,
             name: "   ",
             credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -3283,6 +3719,7 @@ mod tests {
             provider: Provider::OpenAiApi,
             name: "OpenAI",
             credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
             oauth_mode: false,
             oauth_existing: None,
             oauth_authorized: None,
@@ -3844,5 +4281,227 @@ mod tests {
             store.entries.lock().contains_key(&key),
             "credential must still be in the vault after refused retry"
         );
+    }
+    #[test]
+    fn choice_applicability_contract_covers_every_provider_and_auth_mode() {
+        let mut restricted = Vec::new();
+        for provider in Provider::ALL {
+            let mut auth_modes = vec![AUTH_MODE_CREDENTIAL.to_string()];
+            auth_modes.extend(
+                crate::oauth::login::login_modes(provider)
+                    .modes
+                    .into_iter()
+                    .map(|mode| mode.id),
+            );
+            auth_modes.sort();
+            auth_modes.dedup();
+
+            for descriptor in field_descriptors(provider) {
+                let FieldDescriptorKind::Choice(choice) = descriptor.kind else {
+                    continue;
+                };
+                for (index, option) in choice.options.iter().enumerate() {
+                    if option.auth_modes.is_some() {
+                        restricted.push((provider, descriptor.key, option.value));
+                    }
+                    for auth_mode in &auth_modes {
+                        let options = field_options(provider, descriptor.key, auth_mode)
+                            .expect("every offered auth mode has a choice default");
+                        let is_listed = options
+                            .options
+                            .iter()
+                            .any(|candidate| candidate.index == index);
+                        assert_eq!(
+                            is_listed,
+                            option.applies_to(auth_mode),
+                            "{provider:?}.{}={} in {auth_mode}",
+                            descriptor.key,
+                            option.value
+                        );
+                        assert_eq!(
+                            selected_choice_option(
+                                provider,
+                                descriptor,
+                                &choice,
+                                index,
+                                auth_mode,
+                            )
+                            .is_ok(),
+                            option.applies_to(auth_mode),
+                            "draft validation diverged for {provider:?}.{}={} in {auth_mode}",
+                            descriptor.key,
+                            option.value
+                        );
+
+                        let mut draft_fields = Vec::new();
+                        for candidate in field_descriptors(provider) {
+                            match candidate.kind {
+                                FieldDescriptorKind::Text if candidate.required => {
+                                    let value = match candidate.key {
+                                        "org" => "example",
+                                        "team_id" => "team-1",
+                                        _ => "value",
+                                    };
+                                    draft_fields.push(DraftField {
+                                        key: candidate.key,
+                                        value: DraftValue::Text(value.to_string()),
+                                    });
+                                }
+                                FieldDescriptorKind::Choice(_) => {
+                                    let selected = if candidate.key == descriptor.key {
+                                        index
+                                    } else {
+                                        field_options(provider, candidate.key, auth_mode)
+                                            .expect("choice default for offered auth mode")
+                                            .default
+                                            .index
+                                    };
+                                    draft_fields.push(DraftField {
+                                        key: candidate.key,
+                                        value: DraftValue::Choice(selected),
+                                    });
+                                }
+                                FieldDescriptorKind::Text => {}
+                            }
+                        }
+                        let oauth_mode = auth_mode == crate::oauth::login::MODE_OAUTH;
+                        let draft = AccountDraft {
+                            provider,
+                            name: provider.label(),
+                            credential: if oauth_mode {
+                                ""
+                            } else {
+                                suggested_credential(provider)
+                            },
+                            auth_mode,
+                            oauth_mode,
+                            oauth_existing: None,
+                            oauth_authorized: oauth_mode.then(|| OAuthConfig::new(String::new())),
+                            oauth_login_params: BTreeMap::new(),
+                            existing_params: None,
+                            credential_params: None,
+                            fields: &draft_fields,
+                            interval_text: "",
+                        };
+                        let result = build_account(&draft, &config_with(Vec::new()), None);
+                        if option.applies_to(auth_mode) {
+                            result.unwrap_or_else(|error| {
+                                panic!(
+                                    "build_account rejected {provider:?}.{}={} in {auth_mode}: {error}",
+                                    descriptor.key, option.value
+                                )
+                            });
+                        } else {
+                            let note = result
+                                .expect_err("build_account must reject inapplicable option")
+                                .l10n();
+                            assert_eq!(
+                                note.id, "edit_error.option_not_valid_for_auth_mode",
+                                "{provider:?}.{}={} in {auth_mode}",
+                                descriptor.key, option.value
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            restricted
+                .iter()
+                .all(|(provider, key, _)| { *provider == Provider::Kiro && *key == "auth_method" }),
+            "only the adapter-evidenced Kiro auth_method restrictions are declared: {restricted:?}"
+        );
+        assert_eq!(restricted.len(), 7);
+    }
+
+    #[test]
+    fn kiro_auth_method_contract_has_exact_mode_options_and_replacement_notice() {
+        let credential = field_options(Provider::Kiro, "auth_method", AUTH_MODE_CREDENTIAL)
+            .expect("Kiro environment choices");
+        assert_eq!(
+            credential
+                .options
+                .iter()
+                .map(|option| option.value)
+                .collect::<Vec<_>>(),
+            ["google", "github", "import", "api_key", "external_idp"]
+        );
+        assert_eq!(credential.default.value, "google");
+
+        let native = field_options(
+            Provider::Kiro,
+            "auth_method",
+            crate::oauth::login::MODE_OAUTH,
+        )
+        .expect("Kiro native-login choices");
+        assert_eq!(
+            native
+                .options
+                .iter()
+                .map(|option| option.value)
+                .collect::<Vec<_>>(),
+            ["builder-id", "idc"]
+        );
+        assert_eq!(native.default.value, "builder-id");
+
+        let resolved = resolve_field_choice(
+            Provider::Kiro,
+            "auth_method",
+            AUTH_MODE_CREDENTIAL,
+            Some("builder-id"),
+        )
+        .expect("Kiro choice resolution");
+        assert_eq!(resolved.option.value, "google");
+        let notice = resolved
+            .notice
+            .expect("invalid prior choice emits a notice");
+        assert_eq!(notice.id, "edit_notice.option_replaced_for_auth_mode");
+        for key in ["field", "value", "replacement", "auth_mode", "reason"] {
+            assert!(
+                notice.params.contains_key(key),
+                "missing notice param {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn kiro_environment_build_persists_google_and_rejects_native_only_choice() {
+        let config = Config::default();
+        let base = AccountDraft {
+            provider: Provider::Kiro,
+            name: "Kiro",
+            credential: "KIRO_ACCESS_TOKEN",
+            auth_mode: AUTH_MODE_CREDENTIAL,
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &[],
+            interval_text: "",
+        };
+        let account = build_account(&base, &config, None).expect("new Kiro env account");
+        assert_eq!(
+            account.params.get("auth_method").map(String::as_str),
+            Some("google")
+        );
+
+        let fields = [DraftField {
+            key: "auth_method",
+            value: DraftValue::Choice(0),
+        }];
+        let invalid = AccountDraft {
+            fields: &fields,
+            ..base
+        };
+        let error = build_account(&invalid, &config, None)
+            .expect_err("builder-id must be rejected for an environment credential");
+        assert_eq!(error.field(), Some("params"));
+        let note = error.l10n();
+        assert_eq!(note.id, "edit_error.option_not_valid_for_auth_mode");
+        for key in ["field", "value", "auth_mode", "reason"] {
+            assert!(note.params.contains_key(key), "missing error param {key}");
+        }
     }
 }

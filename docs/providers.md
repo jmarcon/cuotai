@@ -20,6 +20,55 @@ O catálogo do Cuotai contém **36 provedores**, combinando APIs administrativas
 
 Chave de geração não substitui chave administrativa ou token de assinatura. Nenhum cookie, Keychain ou arquivo de credenciais de outro app é extraído automaticamente; só entradas do próprio Cuotai são lidas no cofre.
 
+## Aplicabilidade das opções por autenticação
+
+Os identificadores abaixo são valores de máquina. `credential` significa a credencial manual/variável do provedor; `oauth` significa login nativo. Uma opção sem restrição comprovada pelo adaptador permanece disponível em todos os tipos oferecidos pelo provedor. O core é a fonte desta tabela: TUI e Desktop recebem a lista filtrada e o índice completo da opção, sem regras específicas por provedor.
+
+| Provedor | Campo | Opção | Tipos de autenticação |
+|---|---|---|---|
+| Copilot | `query_mode` | `billing` | `credential`, `oauth` |
+| Copilot | `query_mode` | `quota` | `credential`, `oauth` |
+| Copilot | `mode` | `user` | `credential`, `oauth` |
+| Copilot | `mode` | `org` | `credential`, `oauth` |
+| Copilot | `billing` | `premium_requests` | `credential`, `oauth` |
+| Copilot | `billing` | `ai_credits` | `credential`, `oauth` |
+| Kimi | `product` | `default` | `credential`, `oauth` |
+| Kimi | `product` | `coding` | `credential`, `oauth` |
+| Grok | `product` | `management` | `credential`, `oauth` |
+| Grok | `product` | `cli` | `credential`, `oauth` |
+| Gemini AI | `product` | `default` | `credential`, `oauth` |
+| Gemini AI | `product` | `cli` | `credential`, `oauth` |
+| Qoder | `region` | `intl` | `credential`, `oauth` |
+| Qoder | `region` | `cn` | `credential`, `oauth` |
+| Qoder | `credential_type` | `auto` | `credential`, `oauth` |
+| Qoder | `credential_type` | `pat` | `credential`, `oauth` |
+| Qoder | `credential_type` | `bearer` | `credential`, `oauth` |
+| Kiro | `auth_method` | `builder-id` | `oauth` |
+| Kiro | `auth_method` | `idc` | `oauth` |
+| Kiro | `auth_method` | `google` | `credential` |
+| Kiro | `auth_method` | `github` | `credential` |
+| Kiro | `auth_method` | `import` | `credential` |
+| Kiro | `auth_method` | `api_key` | `credential` |
+| Kiro | `auth_method` | `external_idp` | `credential` |
+| CodeBuddy | `region` | `cn` | `credential`, `oauth` |
+| CodeBuddy | `region` | `intl` | `credential`, `oauth` |
+| Xiaomi MiMo | `region` | `sgp` | `credential`, `oauth` |
+| Xiaomi MiMo | `region` | `cn` | `credential`, `oauth` |
+| Xiaomi MiMo | `region` | `ams` | `credential`, `oauth` |
+| Xiaomi MiMo | `region` | `ru` | `credential`, `oauth` |
+| Xiaomi MiMo | `region` | `in` | `credential`, `oauth` |
+| Alibaba Model Studio | `region` | `intl` | `credential` |
+| Alibaba Model Studio | `region` | `cn` | `credential` |
+| Alibaba Coding Plan | `region` | `intl` | `credential` |
+| Alibaba Coding Plan | `region` | `cn` | `credential` |
+| Alibaba Cloud | `region` | `intl` | `credential` |
+| Alibaba Cloud | `region` | `cn` | `credential` |
+| Alibaba Token Plan | `login.console_site` | `international` | `bailian_console` |
+
+No Kiro, `auth_method` é um único descritor compartilhado. O login nativo recebe exatamente `builder-id` e `idc`; a credencial de ambiente recebe `google` (padrão explícito para contas novas), `github`, `import`, `api_key` e `external_idp`. Ao trocar de tipo, um valor incompatível é substituído pelo primeiro valor aplicável e a interface exibe o aviso localizado retornado pelo core.
+
+Arquivos antigos não são reescritos ao carregar: a ausência de `auth_method` e combinações antigas como `credential` + `builder-id` continuam sendo lidas e consultadas com a semântica histórica do adaptador. Ao editar e salvar, porém, a combinação precisa obedecer à tabela.
+
 ## Catálogo de API keys, PATs e sessões
 
 Os nomes abaixo são os defaults configurados no wizard. `credential_env` pode apontar para outra variável, sem copiar a chave para o TOML. Estar no catálogo **não significa** que o provedor disponibiliza quota por API key de inferência.
@@ -53,7 +102,7 @@ Para Mistral, Perplexity Computer e Grok, a variável da etapa Credencial deve c
 ## Outros assistentes
 
 - **Cline (`cline`)**: consulta saldo pessoal com `CLINE_API_KEY` (API key ou account auth token Cline) ou login nativo; `/users/me` descobre o ID antes da consulta de saldo. `params.organization_id` seleciona saldo da organização. Não agrega histórico incompleto nem quotas dos provedores BYOK.
-- **Kiro (`kiro`)**: login nativo recomendado (**AWS Builder ID** ou **IAM Identity Center**) ou `KIRO_ACCESS_TOKEN`, consulta interna `getUsageLimits` em CodeWhisperer/Q. `params.auth_method` seleciona `builder-id`, `idc`, `google`, `github`, `import`, `api_key` ou `external_idp`; `params.profile_arn` permite indicar seu perfil. Quota de Kiro é distinta do faturamento Bedrock.
+- **Kiro (`kiro`)**: login nativo recomendado (**AWS Builder ID** ou **IAM Identity Center**) ou `KIRO_ACCESS_TOKEN`, consulta interna `getUsageLimits` em CodeWhisperer/Q. No login, `params.auth_method=builder-id|idc`; por variável, `google` (padrão), `github`, `import`, `api_key` ou `external_idp`. `params.profile_arn` permite indicar seu perfil. Quota de Kiro é distinta do faturamento Bedrock.
   - Com `profile_arn` da própria conta (descoberto pelo login ou informado no campo opcional), consulta créditos com POST `{profileArn}` no host regional conhecido (`us-east-1` ou `eu-central-1`) antes das três tentativas legadas do 9router. Mostra plano, teste gratuito, excedente habilitado e renovação; bônus não separáveis são sinalizados.
   - **Várias contas:** adicione uma entrada Kiro por identidade, com nomes distintos. Faça o login nativo separadamente em cada entrada; cada uma recebe seu próprio `credential_id` e consulta sua própria quota.
 - **CodeBuddy (`code_buddy`)**: login nativo ou `CODEBUDDY_ACCESS_TOKEN`, POST interno `/v2/billing/meter/get-user-resource`. `params.region=cn|intl`; pacotes de renovação e bônus aparecem separados.
@@ -77,7 +126,7 @@ No modo **variável de ambiente**, selecione o produto em **Parâmetros** confor
 | Grok CLI | `product = "cli"`; `session_env` opcional (default `GROK_CLI_ACCESS_TOKEN`), `email`/`user_id` opcionais. Não utiliza a Management Key nesse modo |
 | Xiaomi MiMo | `session_env = "XIAOMI_MIMO_COOKIE"`, cookie de conta exportado pelo usuário; `region = "sgp"` (ou cn/ams/ru/in) |
 | Qoder | PAT/job token em `QODER_API_KEY`; `region = "intl"` (ou cn), `credential_type = "auto"` (ou pat/bearer). Troca PAT→job token sem fazer inferência |
-| Kiro/CodeBuddy/Zed | Preferencialmente login nativo no wizard/diálogo; tokens e metadados são preenchidos automaticamente. O método manual por variável permanece disponível |
+| Kiro/CodeBuddy/Zed | Preferencialmente login nativo no wizard/diálogo; tokens e metadados são preenchidos automaticamente. O método manual por variável permanece disponível; no Kiro ele usa `google` por padrão e não oferece `builder-id`/`idc` |
 
 Diferenças deliberadas em relação ao 9router: campos ausentes não viram zero ou ilimitado; Gemini CLI mostra `remainingFraction` em **%**, não como 1000 requisições reais; Ollama identifica a renovação calculada a partir do cadastro como estimativa; respostas de erro não expõem corpo bruto; datas sem timezone de pacotes CodeBuddy são interpretadas como UTC.
 
