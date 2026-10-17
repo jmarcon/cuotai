@@ -2,8 +2,9 @@
 // RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
-  deleteAccount, esc, formSchema, getAccount, listProviders, loginCancel,
-  loginStart, loginSubmitCode, onLogin, saveAccount, visibleFields,
+  configChangedOnDisk, deleteAccount, esc, formSchema, getAccount, listProviders,
+  loginCancel, loginStart, loginSubmitCode, onLogin, reloadConfig,
+  saveAccount, visibleFields,
 } from "./lib.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
 
@@ -37,6 +38,23 @@ export const errText = (e) => {
 
 
 export async function openAccountDialog(index = null, { onSaved = () => {} } = {}) {
+  // RF4: cheap external-change detection. If the file on disk
+  // changed since the last view render, give the user a chance to
+  // reload BEFORE they spend time editing the now-stale draft.
+  // Falls back silently on the browser demo (`configChangedOnDisk`
+  // always returns `false` there).
+  try {
+    if (await configChangedOnDisk()) {
+      const choice = await offerExternalReload();
+      if (choice === "reload") await reloadConfig();
+      // "keep" leaves the wizard open with the old snapshot — the
+      // user gets the typed-conflict banner on save either way.
+    }
+  } catch {
+    // Detection failure (headless test, missing backend): open
+    // the wizard anyway. The save path's own conflict handling
+    // remains the last line of defence.
+  }
   const editing = index != null;
   const providers = (await listProviders()).sort((a, b) => a.label.localeCompare(b.label, currentLocale(), { sensitivity: "base" }));
   const existing = editing ? await getAccount(index) : null;
@@ -58,9 +76,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
 
   const dlg = open(`<form method="dialog" class="dlg-body" autocomplete="off">
     <h2>${te(editing ? "dialog.editTitle" : "dialog.addTitle")}</h2>
-    <label class="f"><span>${te("dialog.provider")}</span>
-      <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select></label>
-    <label class="f"><span>${te("dialog.name")}</span><input name="name" value="${esc(existing?.name ?? "")}" required /><small class="field-err" id="name-err" role="alert" hidden></small></label>
+    <label class="f" data-field="provider"><span>${te("dialog.provider")}</span>
+      <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>
+      <small class="field-err" hidden></small></label>
+    <label class="f" data-field="name"><span>${te("dialog.name")}</span><input name="name" value="${esc(existing?.name ?? "")}" required /><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
     <div class="login-panel" id="login-panel" hidden>
       <div class="login-log" id="login-log" role="status" aria-live="polite"></div>
@@ -74,7 +93,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
           <button type="button" class="btn" id="copy-code" aria-label="${te("dialog.login.copyCodeLabel")}">${te("dialog.copy")}</button></p>
       </div>
       <div id="login-code-row" hidden>
-        <label class="f"><span>${te("dialog.login.codeLabel")}</span>
+        <label class="f" data-field="code"><span>${te("dialog.login.codeLabel")}</span>
           <input id="login-code-input" autocomplete="off" placeholder="${te("dialog.login.codePlaceholder")}" />
           <small id="login-code-status" role="alert"></small></label>
         <div class="dlg-actions"><button type="button" class="btn primary" id="login-code-send">${te("dialog.login.sendCode")}</button></div>
@@ -82,7 +101,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       <div class="dlg-actions"><button type="button" class="btn" id="login-cancel">${te("dialog.login.cancel")}</button></div>
     </div>
     <div id="dyn-fields"></div></div>
-    <label class="f"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /></label>
+    <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="err" id="err" role="alert"></p>
     <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn primary" id="ok">${te("common.save")}</button></div>
@@ -116,6 +135,168 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     if (hint) { hint.hidden = !missing; hint.textContent = t("dialog.login.nameFirst"); }
   };
   nameInput.addEventListener("input", syncLoginBtn);
+
+  // ----- RF4 per-field error + conflict-recovery helpers -----
+  //
+  // The core returns an `EditError::Validation { field, note }` whose
+  // `field` names the offending schema field (e.g. "name",
+  // "credential", "credential_env", "params.<key>", "interval",
+  // or any provider-specific key). The dialog renders a `<label
+  // data-field=…>` row for every input the user can edit, plus
+  // `data-field="provider"` / `"name"` / `"credential"` / `"interval"`
+  // for the static rows. Mapping the typed `field` to the row is
+  // straightforward: for dynamic params we split on the first dot
+  // and look up `data-field="f:<key>"`; everything else is a
+  // literal token.
+  const clearFieldErrors = () => {
+    for (const row of dlg.querySelectorAll("[data-field]")) {
+      row.classList.remove("invalid");
+      // `codeStatus` is owned by the login code flow (it's set after
+      // `login_submit_code`), so we deliberately leave it alone:
+      // clearFieldErrors runs on every save attempt, but the user
+      // can keep typing a code in flight.
+      const small = row.querySelector(".field-err");
+      if (small && small.id !== "login-code-status") {
+        small.textContent = "";
+        small.hidden = true;
+      }
+    }
+    err.textContent = "";
+    err.classList.remove("err-conflict");
+    // Drop any banner from a previous failed save so the form opens
+    // clean; new banner is rebuilt by `showConflict` when needed.
+    const oldBanner = dlg.querySelector("#conflict-banner");
+    if (oldBanner) oldBanner.remove();
+  };
+
+  // Resolve the `field` token produced by the core (`name`, `credential`,
+  // `credential_env`, `interval`, `params.<key>`, `params`, `oauth`,
+  // `field.<key>`) to the dialog row.
+  const fieldRow = (field) => {
+    if (!field) return null;
+    // The `params` summary from `build_account` covers both a missing
+    // `<key>` and any "params" structural failure; the per-key form
+    // is the most specific row we can show, falling back to the first
+    // visible dynamic row when no key was named.
+    if (field.startsWith("params.") || field === "params" || field.startsWith("field.")) {
+      const key = field.startsWith("field.") ? field.slice("field.".length) : field.startsWith("params.") ? field.slice("params.".length) : null;
+      const row = key
+        ? dlg.querySelector(`[data-field="f:${CSS.escape(key)}"]`)
+        : dlg.querySelector('[data-field^="f:"]');
+      return row || dlg.querySelector('[data-field="credential"]');
+    }
+    return dlg.querySelector(`[data-field="${CSS.escape(field)}"]`);
+  };
+
+  const setFieldError = (field, message) => {
+    if (!field) {
+      err.textContent = message;
+      return;
+    }
+    const row = fieldRow(field);
+    if (!row) {
+      // Field was named but the dialog has no corresponding input
+      // (e.g. `credential_env` derived from credential+oauth, or a
+      // doc-wide rule that somehow carries a token): surface the
+      // message globally instead of guessing a row.
+      err.textContent = message;
+      return;
+    }
+    row.classList.add("invalid");
+    const small = row.querySelector(".field-err");
+    if (small) {
+      small.textContent = message;
+      small.hidden = false;
+      if (row.querySelector("input, select")) row.querySelector("input, select").focus({ preventScroll: true });
+    } else {
+      err.textContent = message;
+    }
+  };
+
+  // RF4: a `Conflict` from the core means the file on disk changed
+  // since we loaded it; show the typed message and offer a reload
+  // button. The wizard draft stays in place so the user can retry
+  // the same save afterwards without retyping.
+  const showConflict = (message, reload) => {
+    err.textContent = "";
+    let banner = dlg.querySelector("#conflict-banner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "conflict-banner";
+      banner.className = "banner bad";
+      err.parentNode.insertBefore(banner, err);
+    }
+    banner.innerHTML = `${esc(message)} <button type="button" class="btn" id="conflict-reload">${te("dialog.conflict.reload")}</button>`;
+    banner.querySelector("#conflict-reload").addEventListener("click", () => reload());
+  };
+
+  clearFieldErrors();
+
+  // Pull the structured envelope out of a value that may be a JSON
+  // string from Tauri, a plain string, or a thrown object. Returns
+  // the parsed `{ id, params, fallback, field? }` shape when it
+  // matches the contract; otherwise `null` so the caller can fall
+  // back to the legacy generic text path.
+  const parseErrorEnvelope = (value) => {
+    let obj = value;
+    if (typeof value === "string") {
+      try {
+        obj = JSON.parse(value);
+      } catch {
+        return null;
+      }
+    } else if (value && typeof value === "object" && "message" in value) {
+      obj = value.message;
+      if (typeof obj === "string") {
+        try { obj = JSON.parse(obj); }
+        catch { return null; }
+      } else {
+        return null;
+      }
+    }
+    if (obj && typeof obj === "object" && typeof obj.id === "string" && "fallback" in obj) {
+      return obj;
+    }
+    return null;
+  };
+
+  // Reload the config from disk without closing the dialog so the
+  // user can retry the same save. Re-runs the active schema fetch
+  // only when the provider changed (rare for the wizard, but
+  // cheap), then drops the conflict banner so a fresh save attempt
+  // can succeed against the new snapshot.
+  const reloadDialog = async () => {
+    const reloadBtn = dlg.querySelector("#conflict-reload");
+    if (reloadBtn) reloadBtn.disabled = true;
+    try {
+      const view = await reloadConfig();
+      // Refresh the "name collision" form baseline in case another
+      // account appeared while the dialog was open; renaming the
+      // current edit into an existing name still fails at save
+      // with the same field error.
+      const exist = await getAccountExists(index, view);
+      existing = exist;
+      const cfg = view?.config_exists ? view : null;
+      // Re-validate the name when the live config differs.
+      clearFieldErrors();
+      const banner = dlg.querySelector("#conflict-banner");
+      if (banner) banner.remove();
+      err.textContent = t("dialog.conflict.reloaded");
+    } catch (x) {
+      if (reloadBtn) reloadBtn.disabled = false;
+      err.textContent = errText(x);
+    }
+  };
+
+  // `get_account` requires an index; `null` accounts (a brand-new
+  // dialog) re-fetch nothing and we just trust the current
+  // `existing` shape.
+  const getAccountExists = async (idx, _view) => {
+    if (idx == null) return existing;
+    try { return await getAccount(idx); }
+    catch { return existing; }
+  };
+
   const panel = dlg.querySelector("#login-panel");
   const log = dlg.querySelector("#login-log");
   const promptBox = dlg.querySelector("#login-prompt");
@@ -274,7 +455,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     if (ev.type === "waiting_code") codeInput.focus();
   }
   dlg.addEventListener("close", () => {
-    unlisten.then((f) => f());
+    unlisten();
     // Fechar o diálogo com login ativo e sem commit cancela o fluxo: o token
     // autorizado morre em memória e nada é gravado no cofre (RF2.4).
     if (loginState && !committing) {
@@ -395,8 +576,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     if (!mode) {
       bodyHtml = cred === "none"
         ? `<p class="hint">${te("dialog.credNone")}</p>`
-        : `<label class="f"><span>${te(cred === "profile" ? "dialog.credProfile" : "dialog.credEnv")}</span>
+        : `<label class="f" data-field="credential"><span>${te(cred === "profile" ? "dialog.credProfile" : "dialog.credEnv")}</span>
             <input name="credential" value="${esc(existing?.credential ?? "")}" placeholder="${esc(cred === "env" ? schema.default_env : "")}" required />
+            <small class="field-err" hidden></small>
             <small>${esc(tl(schema.credential_help))}</small></label>`;
     } else {
       const renderOption = (option, isRegistration) => {
@@ -428,7 +610,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
         const input = f.options
           ? `<select name="f:${esc(f.key)}">${f.options.map((option, i) => `<option value="${i}" ${(v?.choice ?? 0) === i ? "selected" : ""}>${esc(tl(option.label))}</option>`).join("")}</select>`
           : `<input name="f:${esc(f.key)}" value="${esc(v?.text ?? "")}" ${f.required ? "required" : ""} />`;
-        return `<label class="f"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
+        return `<label class="f" data-field="f:${esc(f.key)}"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}<small class="field-err" hidden></small>${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
       }).join("");
     for (const [name, value] of optSnapshot) {
       const el = dyn.querySelector(`[name="${name}"]`);
@@ -502,7 +684,31 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       dlg.close();
       onSaved(result);
     } catch (x) {
-      err.textContent = errText(x);
+      // RF4: typed per-field errors + conflict reload offer.
+      // Errors come from the backend as JSON strings with
+      // `{ id, params, fallback, field? }`. Parse the envelope here
+      // (without going through `errText`, which only renders the
+      // human text) so a `field` token points at the corresponding
+      // form row, and so a `Conflict` shows the reload banner
+      // instead of just a red message.
+      const parsed = parseErrorEnvelope(x);
+      clearFieldErrors();
+      if (parsed && parsed.id === "edit_error.conflict") {
+        // Offer the reload — the user keeps the dialog draft and
+        // can retry the same save afterwards. The button replaces
+        // the OK button's role until reload completes, so we
+        // re-enable submit/cancel so the user isn't trapped.
+        showConflict(errText(parsed), () => reloadDialog());
+        ok.disabled = false;
+        committing = false;
+        dlg.querySelector("[data-cancel]").disabled = false;
+        return;
+      }
+      if (parsed && parsed.field) {
+        setFieldError(parsed.field, errText(parsed));
+      } else {
+        err.textContent = errText(x);
+      }
       ok.disabled = false;
       committing = false;
       dlg.querySelector("[data-cancel]").disabled = false;
@@ -539,4 +745,35 @@ export function confirmDelete(index, label, { usesOauth = false, onDone = () => 
       }
     });
   }
+}
+
+/** Modal prompt offered when the file on disk drifted from the snapshot we
+ *  hold (detected via the backend's `config_changed_on_disk`): on opening an
+ *  account editor and when the main window regains focus. Resolves
+ *  `"reload"` when the user chose to refresh the snapshot, or `"keep"` when
+ *  they accept editing against a stale snapshot. */
+export function offerExternalReload() {
+  return new Promise((resolve) => {
+    const dlg = document.createElement("dialog");
+    dlg.className = "dlg";
+    dlg.innerHTML = `<form method="dialog" class="dlg-body">
+      <h2>${te("dialog.external.title")}</h2>
+      <p>${te("dialog.external.body")}</p>
+      <p class="err" id="err" role="alert"></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" data-choice="keep">${te("dialog.external.keep")}</button>
+        <button type="button" class="btn primary" data-choice="reload">${te("dialog.external.reload")}</button>
+      </div>
+    </form>`;
+    document.body.append(dlg);
+    dlg.addEventListener("close", () => dlg.remove());
+    dlg.showModal();
+    for (const btn of dlg.querySelectorAll("[data-choice]")) {
+      btn.addEventListener("click", () => {
+        const choice = btn.dataset.choice;
+        dlg.close();
+        resolve(choice);
+      });
+    }
+  });
 }

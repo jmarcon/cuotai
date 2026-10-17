@@ -3321,6 +3321,70 @@ mod tests {
         assert!(!account.params.contains_key("billing"));
     }
 
+    // RF4: per-field error mapping. The desktop dialog uses
+    // `EditError::field()` to point at the offending input; each
+    // variant below asserts that the right field token is exposed
+    // for the three named fields the UI cares most about (name,
+    // interval, params). Document-wide rules (config-level
+    // validation) keep `field = None` so the dialog surfaces the
+    // error globally.
+    #[test]
+    fn build_account_blank_name_returns_named_field_error() {
+        let draft = AccountDraft {
+            provider: Provider::OpenAiApi,
+            name: "   ",
+            credential: "OPENAI_ADMIN_KEY",
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &[],
+            interval_text: "",
+        };
+        let err = build_account(&draft, &config_with(Vec::new()), None).unwrap_err();
+        assert_eq!(err.field(), Some("name"));
+        assert_eq!(err.l10n().id, "edit_error.name_required");
+    }
+
+    #[test]
+    fn build_account_bad_interval_returns_named_field_error() {
+        let draft = AccountDraft {
+            provider: Provider::OpenAiApi,
+            name: "OpenAI",
+            credential: "OPENAI_ADMIN_KEY",
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &[],
+            interval_text: "not-a-number",
+        };
+        let err = build_account(&draft, &config_with(Vec::new()), None).unwrap_err();
+        assert_eq!(err.field(), Some("interval"));
+        assert_eq!(err.l10n().id, "edit_error.interval_invalid");
+    }
+
+    #[test]
+    fn save_invalid_config_returns_fieldless_validation() {
+        // Document-wide rules (e.g. refresh_seconds out of range,
+        // duplicate names after upsert) intentionally omit the
+        // `field` token so the dialog uses the global error slot
+        // rather than guessing a row.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        let mut file =
+            crate::config_file::ConfigFile::load(Some(path), /*interactive*/ true).unwrap();
+        let mut bad = file.config.clone();
+        bad.refresh_seconds = 5;
+        let err = file.save(bad).unwrap_err();
+        assert!(err.is_validation(), "expected Validation, got {err:?}");
+        assert_eq!(err.field(), None);
+    }
+
     #[test]
     fn validate_name_does_not_echo_user_entered_value() {
         // The duplicate-name error must not echo the user-entered string;

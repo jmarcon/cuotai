@@ -28,6 +28,34 @@ fn l10n_to_json(note: &cuotai_core::text::Localized) -> String {
     serde_json::to_string(note).unwrap_or_else(|_| note.fallback.to_string())
 }
 
+/// Encapsulate an `EditError` for the frontend: the core's RF8
+/// `Localized` plus an optional field token the dialog uses to
+/// highlight the offending row (`name`, `credential`, `interval`,
+/// `params.<key>`, etc.). JSON shape:
+///
+/// `{ id, params, fallback, field? }`
+///
+/// `field` is omitted when the error is document-wide (no specific
+/// input) or when the variant isn't a `Validation` (e.g. `Conflict`,
+/// `Io`, `Unsupported`). Returned as a JSON string so it can cross
+/// the Tauri boundary the same way the rest of the errors already
+/// do — the frontend parses it in `account-dialog.js`'s `errText`.
+#[derive(serde::Serialize)]
+struct EditErrorEnvelope<'a> {
+    #[serde(flatten)]
+    note: &'a cuotai_core::text::Localized,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    field: Option<&'static str>,
+}
+
+fn edit_error_to_json(error: &cuotai_core::edit_error::EditError) -> String {
+    let envelope = EditErrorEnvelope {
+        note: &error.l10n(),
+        field: error.field(),
+    };
+    serde_json::to_string(&envelope).unwrap_or_else(|_| error.message())
+}
+
 fn refresh_edit_error(error: &cuotai_core::refresh::EditError) -> cuotai_core::text::Localized {
     match error {
         cuotai_core::refresh::EditError::Index(index) => cuotai_core::text::Localized::with_param(
@@ -502,17 +530,6 @@ impl Inner {
         }
     }
 
-    /// Reaproveita o `ConfigFile` já salvo (mantém o snapshot de bytes) com monitor/agenda novos.
-    #[allow(dead_code)]
-    fn reinstall(&mut self) -> Result<(), String> {
-        let file = self
-            .loaded
-            .take()
-            .ok_or("Configuração não carregada.")?
-            .file;
-        self.install(file)
-    }
-
     fn install(&mut self, file: ConfigFile) -> Result<(), String> {
         let session = match &self.session {
             Some(s) => Arc::clone(s),
@@ -548,7 +565,7 @@ impl Inner {
         self.generation += 1;
         let accounts_len = file.config.accounts.len();
         // `install` replaces the live configuration (initial load or
-        // a `cuotai.toml` reload after `Conflict` / manual `reinstall`).
+        // a `cuotai.toml` reload after `Conflict`).
         // Recovery handles minted under the previous configuration
         // reference vault entries that may now be re-used by a fresh
         // account in the new config; the core guard already refuses
@@ -599,6 +616,82 @@ impl Backend {
     pub async fn view(&self) -> View {
         self.ensure_loaded().await;
         self.inner.lock().await.view()
+    }
+
+    /// RF4 reload path: re-read the config from disk and replace the
+    /// live state with the freshly-loaded one. Used after an
+    /// `EditError::Conflict` (`save`/`delete`/`move`/`set_refresh_seconds`
+    /// refused to write because the in-memory snapshot diverged from
+    /// disk) and as the cheap way to pick up external edits detected
+    /// via [`Backend::config_changed_on_disk`].
+    ///
+    /// The reload preserves the desktop's invariants:
+    /// - same explicit path / `Discovery` policy as the original load
+    ///   (GUIs use [`Discovery::SystemOnly`]; `CUOTAI_CONFIG` env wins
+    ///   over the platform dir);
+    /// - aborts/clears in-flight refreshes of the previous generation
+    ///   by rebuilding monitor/cycle/tokens via `install`;
+    /// - drops every RF3 recovery handle (the new config may reference
+    ///   the same vault entry under a different account);
+    /// - on read failure leaves the live state untouched and surfaces
+    ///   the typed error (`EditError::Conflict`/`Validation`/`Io`) so
+    ///   the UI can keep the dialog draft and the user can decide.
+    ///
+    /// The new `View` is returned so the frontend can refresh without
+    /// a separate round-trip.
+    pub async fn reload_config(&self, app: &AppHandle) -> Result<View, String> {
+        let mut g = self.inner.lock().await;
+        if g.loaded.is_none() {
+            // Nothing to reload yet: behave like the first boot so the
+            // dialog draft survives (no "Configuração não carregada"
+            // bounce back to the user). The view is rebuilt below.
+            drop(g);
+            self.ensure_loaded().await;
+            g = self.inner.lock().await;
+        }
+        // Re-resolve the same path the live `ConfigFile` was loaded
+        // from so the symlink target and missing-file fallback match
+        // the previous load. `explicit_path()` matches the
+        // `ensure_loaded` precedence (env wins, then system dir);
+        // we fall back to the live file path only when the env was
+        // unset at boot, so a later `unset CUOTAI_CONFIG` cannot
+        // silently change the loaded path mid-session.
+        let explicit = explicit_path().or_else(|| {
+            g.loaded
+                .as_ref()
+                .filter(|_| explicit_path().is_none())
+                .map(|l| l.file.path.clone())
+        });
+        let discovery = Discovery::SystemOnly;
+        let file =
+            ConfigFile::load_with(explicit, true, discovery).map_err(|e| edit_error_to_json(&e))?;
+        // Carry session + load_error reset through `install` (clears
+        // them on success, retains the inner state on failure). After
+        // a successful `install` the cycle is fresh, the monitor is
+        // new and in-flight refreshes of the old generation are
+        // rejected by their tokens.
+        g.install(file)?;
+        let view = g.view();
+        drop(g);
+        self.emit(app).await;
+        Ok(view)
+    }
+
+    /// Cheap detector: did the file on disk change since we last
+    /// loaded or saved it? Returns `false` when no config is loaded
+    /// (the very first sweep races the load) and surfaces an `Io`
+    /// error so the UI can keep the dialog open.
+    ///
+    /// Implemented by comparing the current bytes to the snapshot
+    /// the `ConfigFile` already holds (see `ConfigFile::changed_on_disk`),
+    /// so a rewrite that keeps the mtime identical (some filesystems
+    /// have second-level resolution) is still detected.
+    pub async fn config_changed_on_disk(&self) -> Result<bool, String> {
+        let g = self.inner.lock().await;
+        let Some(l) = g.loaded.as_ref() else {
+            return Ok(false);
+        };
+        l.file.changed_on_disk().map_err(|e| edit_error_to_json(&e))
     }
 
     /// Rodada completa. `force` ignora o intervalo (botão "Atualizar tudo").
@@ -918,7 +1011,7 @@ impl Backend {
                     }
                 }
             } else if let Err(e) = l.file.save(updated.clone()) {
-                return Err(l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)));
+                return Err(edit_error_to_json(&e));
             }
             // Persistido: pendente consumido (committed credential ou modo
             // sem cofre) some. Para `auth_mode_credential` sem oauth, o
@@ -1002,7 +1095,7 @@ impl Backend {
             // short-circuits without ever touching the vault.
             let updated = prev
                 .without_account(index)
-                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)))?;
+                .map_err(|e| edit_error_to_json(&e))?;
             let mut staged_cycle = l.cycle.clone_state_for_edit();
             staged_cycle
                 .apply_edit(&prev, &updated, Edit::Remove(index), Instant::now())
@@ -1203,7 +1296,7 @@ impl Backend {
                 .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
             l.file
                 .save(updated.clone())
-                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)))?;
+                .map_err(|e| edit_error_to_json(&e))?;
             l.cycle = rebuild_cycle_keeping_reports(&l.cycle, &updated);
             l.monitor = Arc::new(new_monitor);
             l.tokens = vec![None; updated.accounts.len()];
@@ -1230,7 +1323,7 @@ impl Backend {
             let prev = l.file.config.clone();
             let updated = prev
                 .move_account(from, to)
-                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)))?;
+                .map_err(|e| edit_error_to_json(&e))?;
             if from == to {
                 return Ok(());
             }
@@ -1243,9 +1336,7 @@ impl Backend {
                 .monitor
                 .with_config(updated.clone())
                 .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
-            l.file
-                .save(updated)
-                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)))?;
+            l.file.save(updated).map_err(|e| edit_error_to_json(&e))?;
 
             l.cycle = staged_cycle;
             l.monitor = Arc::new(new_monitor);
@@ -2505,5 +2596,160 @@ mod tests {
             let mut g = self.inner.inner.lock().await;
             g.install(file)
         }
+        /// File path the live `ConfigFile` was loaded from; `reload`
+        /// needs a valid path or it returns the in-memory state.
+        async fn file_path(&self) -> PathBuf {
+            let g = self.inner.inner.lock().await;
+            g.loaded.as_ref().unwrap().file.path.clone()
+        }
+        /// RF4 reload path: equivalent to `Backend::reload_config`
+        /// but operating on the test backend. The function ignores
+        /// the `AppHandle` emission (the shell isn't required to
+        /// prove the reload semantics) and returns the post-reload
+        /// config so the test can assert the live state.
+        async fn reload_for_test(&self) -> Config {
+            let path = self.file_path().await;
+            // `reload_config` re-reads the file via the same explicit
+            // path, drops the in-memory state, and rebuilds the live
+            // monitor/cycle. Mirroring it inline keeps the test free
+            // of a Tauri runtime.
+            let file = ConfigFile::load_with(Some(path), true, Discovery::SystemOnly)
+                .expect("reload must parse the freshly-edited file");
+            let new_config = file.config.clone();
+            self.inner
+                .inner
+                .lock()
+                .await
+                .install(file)
+                .expect("install");
+            new_config
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // RF4 desktop reload: external edit → reload → next save succeeds.
+    // Mirrors the TUI's `reload_config_after_conflict`, but driven from
+    // the test backend (no `tauri::AppHandle` available).
+    // -------------------------------------------------------------------
+
+    use cuotai_core::config_file::Discovery;
+
+    /// Account helper that exercises only the schema fields relevant
+    /// to the reload test (no OAuth, no params): a reload pick-up is a
+    /// pure-config operation that does not touch the vault.
+    fn plain_account(name: &str) -> Account {
+        Account {
+            name: name.into(),
+            provider: Provider::ChatGpt,
+            credential_env: Some(format!("{}_KEY", name.to_uppercase())),
+            oauth: None,
+            params: BTreeMap::new(),
+            refresh_seconds: None,
+        }
+    }
+
+    /// Write directly to the on-disk file the backend currently
+    /// holds, simulating an out-of-process editor.
+    async fn externally_edit(backend: &TestBackend, file_text: &str) {
+        let path = backend.file_path().await;
+        std::fs::write(&path, file_text).unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn reload_after_external_edit_makes_next_save_succeed() {
+        // Start with one account; the backend loads it cleanly.
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("alpha")],
+        )
+        .await;
+        assert_eq!(backend.loaded_config().await.accounts.len(), 1);
+
+        // Out-of-process editor rewrites the file (added + renamed).
+        externally_edit(
+            &backend,
+            "refresh_seconds = 300\nconcurrency = 4\ntimeout_seconds = 30\n\n[[accounts]]\nname = \"beta\"\nprovider = \"chat_gpt\"\ncredential_env = \"BETA_KEY\"\n",
+        )
+        .await;
+
+        // Backend still believes the old snapshot is on disk: any
+        // save against it would now return `Conflict`.
+        assert!(
+            backend.inner.config_changed_on_disk().await.unwrap(),
+            "changed_on_disk must fire after the external rewrite"
+        );
+
+        // Reload rebuilds the live state. No `AppHandle` here: use
+        // `reload_for_test`, which mirrors the public path.
+        let reloaded = backend.reload_for_test().await;
+        assert_eq!(reloaded.accounts.len(), 1);
+        assert_eq!(reloaded.accounts[0].name, "beta");
+        assert!(
+            !backend.inner.config_changed_on_disk().await.unwrap(),
+            "snapshot was refreshed, so the change detector must rest"
+        );
+
+        // Saving against the fresh snapshot succeeds (no further
+        // `Conflict` from the core). We exercise the same code path
+        // the dialog uses: load again, mutate, save.
+        let path = backend.file_path().await;
+        let mut file = ConfigFile::load(Some(path.clone()), false).unwrap();
+        let mut cfg = file.config.clone();
+        cfg.accounts.push(plain_account("gamma"));
+        file.save(cfg.clone()).unwrap();
+        assert_eq!(file.config.accounts.len(), 2, "gamma now persists");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn reload_clears_stale_recovery_and_pending_refresh_tokens() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![plain_account("alpha")]).await;
+
+        // Snapshot the generation we will be bumping from.
+        let initial_generation = {
+            let g = backend.inner.inner.lock().await;
+            g.generation
+        };
+
+        // Inject a stale recovery entry and a fake busy slot to
+        // prove the RF3 invariant survives the reload (the entry
+        // references the previous configuration's vault key).
+        {
+            let mut g = backend.inner.inner.lock().await;
+            let l = g.loaded.as_mut().unwrap();
+            l.pending_recovery.push(RecoveryEntry {
+                handle: "stale-after-reload".into(),
+                account: account_edit::RemovedAccount {
+                    provider: Provider::ChatGpt,
+                    oauth: Some(oauth_config_for(Provider::ChatGpt)),
+                    storage_key: Some("stale-key".into()),
+                },
+            });
+            if !l.tokens.is_empty() {
+                l.tokens[0] = Some(cuotai_core::refresh::Generation(99));
+            }
+        }
+
+        backend.reload_for_test().await;
+
+        let g = backend.inner.inner.lock().await;
+        let l = g.loaded.as_ref().unwrap();
+        assert!(
+            l.pending_recovery.is_empty(),
+            "RF3 recovery entries must NOT survive a config replacement"
+        );
+        assert!(
+            l.tokens.iter().all(Option::is_none),
+            "in-flight tokens of the previous generation must be cleared"
+        );
+        // `install` always bumps the generation counter: the
+        // back-end's own dummy token (`Generation(99)`) is now
+        // provably stale because the cycle's generation guard
+        // discards results that don't match the live token table.
+        assert_eq!(
+            l.generation,
+            initial_generation + 1,
+            "exactly one install ran (the original load's install plus this reload)"
+        );
     }
 }

@@ -121,6 +121,25 @@ async fn move_account(app: AppHandle, b: Shared<'_>, from: usize, to: usize) -> 
     b.move_account(&app, from, to).await
 }
 
+/// RF4: re-read the config from disk and rebuild the live state
+/// (monitor/cycle/tokens/RF3 recovery). Used after `EditError::Conflict`
+/// and to pick up external edits detected via [`config_changed_on_disk`].
+/// Returns the new view so the frontend can render without a second
+/// round-trip.
+#[tauri::command]
+async fn reload_config(app: AppHandle, b: Shared<'_>) -> Result<backend::View, String> {
+    b.reload_config(&app).await
+}
+
+/// RF4: returns `true` when the file on disk differs from the
+/// snapshot the backend last loaded/saved. Cheap (byte comparison,
+/// not mtime) so the UI can poll on window focus / before opening
+/// the editor.
+#[tauri::command]
+async fn config_changed_on_disk(b: Shared<'_>) -> Result<bool, String> {
+    b.config_changed_on_disk().await
+}
+
 #[tauri::command]
 fn load_user_content() -> Result<user_content::UserContent, String> {
     user_content::load().ok_or_else(|| "Pasta de configuração indisponível.".to_string())
@@ -304,6 +323,8 @@ pub fn run() {
             retry_purge,
             set_refresh_seconds,
             move_account,
+            reload_config,
+            config_changed_on_disk,
             login_start,
             login_submit_code,
             login_cancel,

@@ -69,6 +69,16 @@ const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
 export const saveAccount = (input) => call("save_account", { input });
 export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
+/// RF4: re-read the configuration from disk and rebuild the live
+/// state (monitor/cycle/tokens/RF3 recovery). Returns the new
+/// view. Used after an `edit_error.conflict` so the next save can
+/// succeed against the fresh snapshot, and as the manual path for
+/// external edits the UI detected via `configChangedOnDisk`.
+export const reloadConfig = () => call("reload_config");
+/// RF4: cheapest detector for "the file changed under us". Byte
+/// comparison in the core, so it's safe to call on every focus /
+/// before opening the editor without a noticeable cost.
+export const configChangedOnDisk = () => call("config_changed_on_disk");
 /// RF3 retry: re-attempt the vault purge for a previous
 /// `delete_account` that returned a recovery handle (kept,
 /// kept_shared, partial_failure). The backend runs the core's
@@ -419,6 +429,11 @@ const demo = {
     const [account] = demoReports.splice(from, 1);
     demoReports.splice(to, 0, account);
   },
+  // RF4 demo stubs: no state to reload in the demo, but keep the
+  // contract so the wizard/reloder don't have to guard the
+  // non-desktop path.
+  reload_config: async () => demoView(),
+  config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   open_user_dir: async () => {},
