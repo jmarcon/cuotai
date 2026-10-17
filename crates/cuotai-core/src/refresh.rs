@@ -532,11 +532,13 @@ impl RefreshCycle {
     /// `RateLimited` / `AuthenticationError` / task-failure results
     /// would produce for an account whose configured interval is
     /// `base`. Doubles the interval per consecutive failure, capped at
-    /// `BACKOFF_CAP_SECONDS`. Exposed for tests so the contract is
+    /// `BACKOFF_CAP_SECONDS`; an interval already above the cap is kept
+    /// as is, so a failure never polls sooner than configured (metered
+    /// providers included). Exposed for tests so the contract is
     /// assertable independently of the live clock.
     fn backoff_for(base: Duration, failures: u32) -> Duration {
         let base_secs = base.as_secs().max(1);
-        let cap = BACKOFF_CAP_SECONDS;
+        let cap = BACKOFF_CAP_SECONDS.max(base_secs);
         let mut seconds = base_secs;
         // Saturating shift would overflow quickly on 64-bit values;
         // explicit cap short-circuit makes the bound obvious to the
@@ -1963,6 +1965,20 @@ mod tests {
         // exponentially growing rate.
         let backoff = RefreshCycle::backoff_for(Duration::from_secs(1), 50);
         assert_eq!(backoff, Duration::from_secs(BACKOFF_CAP_SECONDS));
+    }
+
+    #[test]
+    fn backoff_never_shortens_an_interval_above_the_cap() {
+        // A daily account (allowed up to 86 400 s) that gets rate-limited
+        // must not be polled after 1 h: the failure keeps its interval.
+        let day = Duration::from_secs(86_400);
+        assert_eq!(RefreshCycle::backoff_for(day, 1), day);
+        assert_eq!(RefreshCycle::backoff_for(day, 10), day);
+        // Below the cap the doubling still stops at the cap.
+        assert_eq!(
+            RefreshCycle::backoff_for(Duration::from_secs(2_400), 1),
+            Duration::from_secs(BACKOFF_CAP_SECONDS)
+        );
     }
 
     #[test]
