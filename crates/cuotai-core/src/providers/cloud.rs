@@ -14,7 +14,7 @@
 
 use super::{json, param, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider, Status};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
@@ -202,6 +202,8 @@ fn google_metrics(label: &str, limits: &[Ts], usage: &[Ts]) -> Result<Vec<Metric
             limit: Some(value),
             remaining: None,
             unit: "unidades".into(),
+            kind: MetricKind::Quota,
+            window: Some(MetricWindow::Other),
             period: None,
             resets_at: None,
         });
@@ -233,6 +235,8 @@ fn google_metrics(label: &str, limits: &[Ts], usage: &[Ts]) -> Result<Vec<Metric
             format!("{label}: uso recente {quota} ({location})"),
             total,
             "unidades",
+            MetricKind::Usage,
+            Some(MetricWindow::Other),
         );
         m.period = Some("últimos 10 min".into());
         metrics.push(m);
@@ -418,7 +422,13 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
             if !t.cost.is_finite() {
                 return Err(QueryError::schema());
             }
-            let mut m = Metric::usage("Custo do recurso Azure (mês corrente)", t.cost, t.currency);
+            let mut m = Metric::usage(
+                "Custo do recurso Azure (mês corrente)",
+                t.cost,
+                t.currency,
+                MetricKind::Spend,
+                Some(MetricWindow::Monthly),
+            );
             m.period = Some("mês corrente".into());
             m.resets_at = next_month_start(Utc::now());
             m
@@ -429,7 +439,13 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
                 "note.cloud.azure_no_cost_rows",
                 "A consulta não retornou linhas: não foi possível confirmar custo do recurso neste escopo no mês corrente.",
             );
-            let mut m = Metric::usage("Custo do recurso Azure (mês corrente)", 0.0, "desconhecida");
+            let mut m = Metric::usage(
+                "Custo do recurso Azure (mês corrente)",
+                0.0,
+                "desconhecida",
+                MetricKind::Spend,
+                Some(MetricWindow::Monthly),
+            );
             m.used = None;
             m.period = Some("mês corrente".into());
             m
@@ -619,6 +635,8 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
         "Custo AWS Bedrock (mês corrente)",
         parsed.cost,
         parsed.currency,
+        MetricKind::Spend,
+        Some(MetricWindow::Monthly),
     );
     cost.period = Some("mês corrente".into());
     cost.resets_at = next_month_start(Utc::now());
@@ -732,6 +750,8 @@ mod tests {
         assert_eq!(metrics.len(), 1);
         assert_eq!(metrics[0].limit, Some(150.0));
         assert_eq!(metrics[0].used, None);
+        assert_eq!(metrics[0].kind, MetricKind::Quota);
+        assert_eq!(metrics[0].window, Some(MetricWindow::Other));
         assert!(metrics[0].label.contains("generate_requests"));
         assert!(metrics[0].label.contains("us-central1"));
     }
@@ -767,6 +787,8 @@ mod tests {
         )];
         let metrics = google_metrics("Gemini API", &[], &usage).unwrap();
         assert_eq!(metrics[0].used, Some(5.5));
+        assert_eq!(metrics[0].kind, MetricKind::Usage);
+        assert_eq!(metrics[0].window, Some(MetricWindow::Other));
     }
 
     #[test]
@@ -873,6 +895,8 @@ mod tests {
             .unwrap();
         assert_eq!(data.metrics[0].used, Some(15.5));
         assert_eq!(data.metrics[0].unit, "USD");
+        assert_eq!(data.metrics[0].kind, MetricKind::Spend);
+        assert_eq!(data.metrics[0].window, Some(MetricWindow::Monthly));
     }
 
     #[tokio::test]

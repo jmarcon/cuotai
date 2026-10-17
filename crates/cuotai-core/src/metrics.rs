@@ -223,6 +223,8 @@ mod tests {
             limit,
             remaining,
             unit: "req".into(),
+            kind: crate::MetricKind::Quota,
+            window: None,
             period: None,
             resets_at: None,
         }

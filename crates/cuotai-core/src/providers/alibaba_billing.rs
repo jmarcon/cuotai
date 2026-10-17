@@ -49,7 +49,7 @@
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params as l10n_params, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider, Status};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use base64::Engine;
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
@@ -612,6 +612,8 @@ async fn fetch_balance(
             limit: None,
             remaining: Some(available),
             unit: unit.clone(),
+            kind: MetricKind::Balance,
+            window: None,
             period: Some("saldo atual".into()),
             resets_at: None,
         },
@@ -621,6 +623,8 @@ async fn fetch_balance(
             limit: None,
             remaining: Some(cash),
             unit: unit.clone(),
+            kind: MetricKind::Balance,
+            window: None,
             period: Some("saldo atual".into()),
             resets_at: None,
         },
@@ -631,6 +635,8 @@ async fn fetch_balance(
             used: None,
             limit: Some(credit),
             remaining: None,
+            kind: MetricKind::Credits,
+            window: None,
             unit,
             period: Some("saldo atual".into()),
             resets_at: None,
@@ -847,13 +853,21 @@ async fn fetch_bill(
             "Custo Alibaba Cloud (BSS, PreTaxAmount)",
             0.0,
             "desconhecida",
+            MetricKind::Spend,
+            Some(MetricWindow::Monthly),
         );
         m.used = None;
         m.period = Some(format!("ciclo {billing_cycle}"));
         Some(m)
     } else {
         let total = total.unwrap_or(0.0);
-        let mut m = Metric::usage("Custo Alibaba Cloud (BSS, PreTaxAmount)", total, unit);
+        let mut m = Metric::usage(
+            "Custo Alibaba Cloud (BSS, PreTaxAmount)",
+            total,
+            unit,
+            MetricKind::Spend,
+            Some(MetricWindow::Monthly),
+        );
         m.period = Some(format!("ciclo {billing_cycle}"));
         Some(m)
     };
@@ -1225,6 +1239,12 @@ mod tests {
         assert_eq!(data.credit_metric.limit, Some(23.45));
         assert_eq!(data.credit_metric.remaining, None);
         assert_eq!(data.available_metric.unit, "CNY");
+        assert_eq!(data.available_metric.kind, MetricKind::Balance);
+        assert_eq!(data.available_metric.window, None);
+        assert_eq!(data.cash_metric.kind, MetricKind::Balance);
+        assert_eq!(data.cash_metric.window, None);
+        assert_eq!(data.credit_metric.kind, MetricKind::Credits);
+        assert_eq!(data.credit_metric.window, None);
         assert!(data.notes.iter().any(|n| n.contains("AccountID: 12345")));
     }
 
@@ -1406,6 +1426,8 @@ mod tests {
         assert!((metric.used.unwrap() - 12.5).abs() < 1e-9);
         assert_eq!(metric.unit, "CNY");
         assert_eq!(metric.period.as_deref(), Some("ciclo 2026-09"));
+        assert_eq!(metric.kind, MetricKind::Spend);
+        assert_eq!(metric.window, Some(MetricWindow::Monthly));
         assert!(report.notes[0].contains("1 linhas"));
     }
 

@@ -109,6 +109,8 @@ cargo run -p cuotai-tui -- --config cuotai.toml --once
 cargo run -p cuotai-tui -- --config cuotai.toml --json
 ```
 
+No JSON, cada métrica inclui `kind` (`quota`, `rate_limit`, `balance`, `credits`, `spend` ou `usage`) e `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` ou `null`), classificados pelo adaptador do provedor. Consumidores não precisam interpretar `label` ou `period` para distinguir cotas, rate limits e janelas.
+
 ---
 
 ## Documentação

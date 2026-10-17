@@ -347,6 +347,37 @@ impl Status {
     }
 }
 
+/// Semantic category assigned by the provider adapter, never inferred from display text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetricKind {
+    /// Consumption or allowance associated with a plan or service quota.
+    Quota,
+    /// A short request/token throughput window, distinct from a plan quota.
+    RateLimit,
+    /// A current monetary account position, such as available cash or debt.
+    Balance,
+    /// Provider-issued credit balance, grant, or consumption outside a plan quota.
+    Credits,
+    /// Monetary cost or accrued spend in a billing period.
+    Spend,
+    /// Resource consumption or a count without plan-quota semantics.
+    Usage,
+}
+
+/// Recurrence of the provider window. `Other` covers provider-specific or
+/// unspecified cadences; `None` on [`Metric::window`] means no window applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetricWindow {
+    #[serde(rename = "window_5h")]
+    Window5h,
+    Daily,
+    Weekly,
+    Monthly,
+    Other,
+}
+
 /// A missing value means unknown, not zero. Currency units use ISO codes.
 /// Values are for monitoring, not financial settlement.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -356,18 +387,28 @@ pub struct Metric {
     pub limit: Option<f64>,
     pub remaining: Option<f64>,
     pub unit: String,
+    pub kind: MetricKind,
+    pub window: Option<MetricWindow>,
     pub period: Option<String>,
     pub resets_at: Option<DateTime<Utc>>,
 }
 
 impl Metric {
-    pub fn usage(label: impl Into<String>, used: f64, unit: impl Into<String>) -> Self {
+    pub fn usage(
+        label: impl Into<String>,
+        used: f64,
+        unit: impl Into<String>,
+        kind: MetricKind,
+        window: Option<MetricWindow>,
+    ) -> Self {
         Self {
             label: label.into(),
             used: Some(used),
             limit: None,
             remaining: None,
             unit: unit.into(),
+            kind,
+            window,
             period: None,
             resets_at: None,
         }
@@ -415,6 +456,40 @@ mod tests {
                 provider.slug(),
                 "{provider:?}"
             );
+        }
+    }
+
+    #[test]
+    fn metric_kind_and_window_use_stable_serde_names() {
+        for (kind, expected) in [
+            (MetricKind::Quota, "quota"),
+            (MetricKind::RateLimit, "rate_limit"),
+            (MetricKind::Balance, "balance"),
+            (MetricKind::Credits, "credits"),
+            (MetricKind::Spend, "spend"),
+            (MetricKind::Usage, "usage"),
+        ] {
+            let metric = Metric::usage("metric", 1.0, "req", kind, None);
+            let json = serde_json::to_value(&metric).unwrap();
+            assert_eq!(json["kind"], expected);
+            assert!(json["window"].is_null());
+            let back: Metric = serde_json::from_value(json).unwrap();
+            assert_eq!(back.kind, kind);
+            assert_eq!(back.window, None);
+        }
+
+        for (window, expected) in [
+            (MetricWindow::Window5h, "window_5h"),
+            (MetricWindow::Daily, "daily"),
+            (MetricWindow::Weekly, "weekly"),
+            (MetricWindow::Monthly, "monthly"),
+            (MetricWindow::Other, "other"),
+        ] {
+            let metric = Metric::usage("metric", 1.0, "req", MetricKind::Quota, Some(window));
+            let json = serde_json::to_value(&metric).unwrap();
+            assert_eq!(json["window"], expected);
+            let back: Metric = serde_json::from_value(json).unwrap();
+            assert_eq!(back.window, Some(window));
         }
     }
 

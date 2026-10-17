@@ -34,7 +34,7 @@
 use super::{json, param, secret, Context, Data, QueryError};
 use crate::oauth::cursor_import::session_user_id_from_jwt;
 use crate::text::{params, Notes, ParamValue};
-use crate::{Account, Metric};
+use crate::{Account, Metric, MetricKind, MetricWindow};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -360,6 +360,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             limit: Some(100.0),
             remaining: Some(100.0 - total),
             unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
         });
@@ -372,6 +374,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             limit: limit_usd,
             remaining: None,
             unit: "USD".into(),
+            kind: MetricKind::Quota,
+            window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
         });
@@ -385,6 +389,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             limit: None,
             remaining: None,
             unit: "%".into(),
+            kind: MetricKind::Usage,
+            window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
         });
@@ -394,6 +400,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             limit: None,
             remaining: None,
             unit: "%".into(),
+            kind: MetricKind::Usage,
+            window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
         });
@@ -404,6 +412,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             limit: None,
             remaining: None,
             unit: "%".into(),
+            kind: MetricKind::Usage,
+            window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
         });
@@ -414,6 +424,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             limit: None,
             remaining: None,
             unit: "%".into(),
+            kind: MetricKind::Usage,
+            window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
         });
@@ -442,6 +454,8 @@ fn on_demand_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> 
         limit,
         remaining: None,
         unit: "USD".into(),
+        kind: MetricKind::Spend,
+        window: Some(MetricWindow::Monthly),
         period: Some("ciclo de cobrança".into()),
         resets_at,
     }])
@@ -470,6 +484,8 @@ fn legacy_request_metric(
         limit: limit.map(|v| v as f64),
         remaining: None,
         unit: percent.map(|_| "%").unwrap_or("solicitações").into(),
+        kind: MetricKind::Quota,
+        window: Some(MetricWindow::Monthly),
         period: Some("ciclo de cobrança".into()),
         resets_at,
     }))
@@ -717,6 +733,17 @@ mod tests {
         assert_eq!(plan.used, Some(24.25));
         assert_eq!(plan.limit, Some(100.0));
         assert_eq!(plan.remaining, Some(75.75));
+        assert_eq!(plan.kind, MetricKind::Quota);
+        assert_eq!(plan.window, Some(MetricWindow::Monthly));
+        for label in ["Cursor Auto (Composer)", "Cursor modelos nomeados"] {
+            let usage = data
+                .metrics
+                .iter()
+                .find(|m| m.label == label)
+                .expect("usage metric");
+            assert_eq!(usage.kind, MetricKind::Usage);
+            assert_eq!(usage.window, Some(MetricWindow::Monthly));
+        }
         let on_demand = data
             .metrics
             .iter()
@@ -725,6 +752,8 @@ mod tests {
         assert_eq!(on_demand.unit, "USD");
         assert_eq!(on_demand.used, Some(0.5));
         assert_eq!(on_demand.limit, Some(50.0));
+        assert_eq!(on_demand.kind, MetricKind::Spend);
+        assert_eq!(on_demand.window, Some(MetricWindow::Monthly));
         assert!(data.notes.iter().any(|n| n.contains("[email protected]")));
     }
 

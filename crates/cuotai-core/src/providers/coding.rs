@@ -30,7 +30,7 @@
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Notes};
-use crate::{Account, Metric};
+use crate::{Account, Metric, MetricKind};
 use serde::Deserialize;
 
 const CLINE_BASE: &str = "https://api.cline.bot";
@@ -75,6 +75,8 @@ fn push_balance(metrics: &mut Vec<Metric>, label: &str, balance: f64) -> Result<
         limit: None,
         remaining: Some(balance),
         unit: "USD".into(),
+        kind: MetricKind::Balance,
+        window: None,
         period: None,
         resets_at: None,
     });
@@ -256,6 +258,8 @@ mod tests {
         assert_eq!(saldo.used, None);
         assert_eq!(saldo.limit, None);
         assert_eq!(saldo.remaining, Some(-2.5));
+        assert_eq!(saldo.kind, MetricKind::Balance);
+        assert_eq!(saldo.window, None);
         assert_eq!(saldo.unit, "USD");
         assert_eq!(
             data.source,

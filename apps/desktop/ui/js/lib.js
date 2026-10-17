@@ -344,37 +344,35 @@ export function createStore(render) {
 
 // ---------- demo (só no navegador; mesma forma dos comandos Tauri) ----------
 const h = (n) => new Date(Date.now() + n * 3600e3).toISOString();
-const dm = (label, used, limit, resetH, unit = "solicitações") => {
+const dm = (label, used, limit, resetH, kind, window, unit = "solicitações") => {
   const unmeasured = used === 0 && limit === 0;
   const exhausted = !unmeasured && limit > 0 && used >= limit;
-  return { label, used, limit, remaining: limit - used, unit, period: null, resets_at: h(resetH),
+  return { label, used, limit, remaining: limit - used, unit, kind, window, period: null, resets_at: h(resetH),
     state: unmeasured ? "unmeasured" : exhausted ? "exhausted" : "available",
-    ratio: unmeasured || exhausted ? (exhausted ? 0 : null) : (limit - used) / limit, uncapped: false, no_cap: false,
-    kind: /rate ?limit/i.test(label) ? "rate_limit" : "quota",
-    window: /rate ?limit/i.test(label) ? null : /5 ?h|5 hora|sess/i.test(label) ? "5h" : /7 ?d|seman|week/i.test(label) ? "week" : null };
+    ratio: unmeasured || exhausted ? (exhausted ? 0 : null) : (limit - used) / limit, uncapped: false, no_cap: false };
 };
 const dr = (account, provider, metrics, notes = [], status = "ready") => ({
   account, provider, checked_at: new Date().toISOString(), status, metrics, notes, source: "demo",
   class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null } });
 const demoReports = [
-  dr("juliano.marcon@gmail.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37), dm("Claude & GPT (5h)", 0, 1000, 5), dm("Gemini (Weekly)", 26, 1000, 151), dm("Claude & GPT (Weekly)", 0, 1000, 151.9)]),
-  dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "%"), dm("weekly (7d)", 41, 100, 24.6, "%")]),
-  dr("juliano.marcon@gmail.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "%")]),
-  { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6), dm("premium_interactions", 7026, 7000, 2.6)]), class: "exhausted" },
+  dr("juliano.marcon@gmail.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 26, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
+  dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 24.6, "quota", "weekly", "%")]),
+  dr("juliano.marcon@gmail.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]),
+  { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("premium_interactions", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]),
-  dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6), dm("M-series (7d)", 1, 100, 98.6), dm("Video (5h)", 0, 100, 2.6)]),
-  dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757), dm("Bonus Pack 1", 0, 250, 62)]),
-  dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109), dm("Ratelimit", 0, 100, 4.8)]),
-  dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248)]),
+  dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 1, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
+  dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
+  dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),
+  dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
   dr("Personal", "anthropic_api", [], ["Credencial ausente ou expirada."], "authentication_error"),
   dr("Pessoal", "mistral", [], ["HTTP 429: limite de requisições atingido."], "rate_limited"),
   dr("Dev", "cursor", [], ["Serviço indisponível no momento."], "error"),
   dr("Work", "windsurf", [], ["Informe a variável de ambiente da credencial."], "needs_configuration"),
-  { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "créditos")]),
+  { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "quota", "other", "créditos")]),
     identity: { email: null, copy: { label: "ARN do perfil", value: "arn:aws:codewhisperer:us-east-1:499578350335:profile/QRDG99H" },
       badges: [{ tone: "accent", text: "IAM Identity Center" }, { tone: "info", text: "us-east-1" }, { tone: "good", text: "ativa" }] } },
-  { ...dr("juliano.marcon@gmail.com", "grok", [dm("On-demand", 1, 1, 100)]), identity: { email: "juliano.marcon@gmail.com", badges: [], copy: null } },
-  dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false, kind: "quota" }]),
+  { ...dr("juliano.marcon@gmail.com", "grok", [dm("On-demand", 1, 1, 100, "quota", "monthly")]), identity: { email: "juliano.marcon@gmail.com", badges: [], copy: null } },
+  dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false }]),
 ];
 const demoView = () => {
   const now = new Date().toISOString();
@@ -401,7 +399,7 @@ const demo = {
   save_account: async ({ input }) => {
     window.__lastSaveRequest = input;
     if (!input.name.trim()) throw "Informe um nome para a conta.";
-    const r = dr(input.name, input.provider, [dm("Exemplo", 10, 100, 5)]);
+    const r = dr(input.name, input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
     input.index == null ? demoReports.push(r) : (demoReports[input.index] = r);
     return { cleanup_warning: null };
   },
@@ -467,13 +465,13 @@ export function summaryOf(r) {
   const planAll = r.metrics.filter((m) => m.kind !== "rate_limit");
   return { kind: planAll.length && !quotas.length ? "hidden" : "none" };
 }
-/** Janelas de 5h e semanal da conta (a classificação vem do shell: `metric.window`). Em cada janela vale a quota mais
+/** Janelas de 5h e semanal da conta (a classificação vem do core: `metric.window`). Em cada janela vale a quota mais
  *  apertada, entre as não ocultas; null quando a conta não tem a janela. */
 export function windowsOf(r) {
   const when = (m) => (m.resets_at ? new Date(m.resets_at).getTime() : Infinity);
   const pick = (w) => planMetrics(r).filter((m) => m.window === w).map((m) => ({ m, pct: remainingPct(m) })).filter((x) => x.pct != null)
     .sort((a, b) => a.pct - b.pct || when(a.m) - when(b.m))[0] ?? null;
-  return { h5: pick("5h"), week: pick("week") };
+  return { h5: pick("window_5h"), week: pick("weekly") };
 }
 /** Pior % disponível entre as janelas de rate limit (não ocultas); null quando não há. */
 export function rateLimitOf(r) {

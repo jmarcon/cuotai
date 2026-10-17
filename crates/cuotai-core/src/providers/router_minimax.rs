@@ -21,7 +21,7 @@
 
 use super::{secret, Context, Data, QueryError};
 use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider, Status};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
 use serde_json::Value;
@@ -220,6 +220,7 @@ fn push_quota(
     metrics: &mut Vec<Metric>,
     name: &str,
     suffix: &str,
+    window: MetricWindow,
     total: f64,
     count: f64,
     percent: Option<f64>,
@@ -241,6 +242,8 @@ fn push_quota(
             limit: Some(100.0),
             remaining: Some(remaining),
             unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(window),
             period: None,
             resets_at,
         });
@@ -260,6 +263,8 @@ fn push_quota(
         limit: Some(total),
         remaining: Some(remaining),
         unit: "consultas".into(),
+        kind: MetricKind::Quota,
+        window: Some(window),
         period: None,
         resets_at,
     });
@@ -414,6 +419,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
             &mut metrics,
             &name,
             "(5h)",
+            MetricWindow::Window5h,
             finite_or_zero(model.current_interval_total_count),
             finite_or_zero(model.current_interval_usage_count),
             model.current_interval_remaining_percent,
@@ -424,6 +430,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
             &mut metrics,
             &name,
             "(7d)",
+            MetricWindow::Weekly,
             finite_or_zero(model.current_weekly_total_count),
             finite_or_zero(model.current_weekly_usage_count),
             model.current_weekly_remaining_percent,
@@ -593,6 +600,8 @@ mod tests {
         assert_eq!(curto.used, Some(25.0));
         assert_eq!(curto.limit, Some(4000.0));
         assert_eq!(curto.remaining, Some(3975.0));
+        assert_eq!(curto.kind, MetricKind::Quota);
+        assert_eq!(curto.window, Some(MetricWindow::Window5h));
         assert_eq!(curto.unit, "consultas");
         assert_eq!(
             curto.resets_at.expect("reset").to_rfc3339(),
@@ -603,6 +612,8 @@ mod tests {
         assert_eq!(semanal.used, Some(100.0));
         assert_eq!(semanal.limit, Some(12000.0));
         assert_eq!(semanal.remaining, Some(11900.0));
+        assert_eq!(semanal.kind, MetricKind::Quota);
+        assert_eq!(semanal.window, Some(MetricWindow::Weekly));
         assert_eq!(
             semanal.resets_at.expect("reset").to_rfc3339(),
             "2026-05-19T10:00:00+00:00"

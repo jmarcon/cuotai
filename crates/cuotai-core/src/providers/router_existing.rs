@@ -2,7 +2,7 @@
 //! See THIRD_PARTY_NOTICES for MIT attribution. No token generation/reset calls.
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
@@ -112,6 +112,8 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 limit,
                 remaining,
                 unit: "solicitações".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Other),
                 period: Some("janela do plano".into()),
                 resets_at,
             });
@@ -135,6 +137,8 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 limit,
                 remaining,
                 unit: "solicitações".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Monthly),
                 period: Some("janela mensal do plano".into()),
                 resets_at,
             });
@@ -242,6 +246,8 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
             limit: Some(100.0),
             remaining: Some(fraction * 100.0),
             unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(MetricWindow::Other),
             period: None,
             resets_at: reset(bucket.reset_time.as_deref())?,
         });
@@ -309,6 +315,8 @@ mod tests {
         assert_eq!(metric.used, Some(225.0));
         assert_eq!(metric.remaining, Some(75.0));
         assert_eq!(metric.limit, Some(300.0));
+        assert_eq!(metric.kind, MetricKind::Quota);
+        assert_eq!(metric.window, Some(MetricWindow::Other));
         assert_eq!(
             metric.resets_at.unwrap().to_rfc3339(),
             "2026-10-01T00:00:00+00:00"
@@ -340,5 +348,7 @@ mod tests {
         assert_eq!(data.metrics[0].used, Some(25.0));
         assert_eq!(data.metrics[0].remaining, Some(75.0));
         assert_eq!(data.metrics[0].unit, "%");
+        assert_eq!(data.metrics[0].kind, MetricKind::Quota);
+        assert_eq!(data.metrics[0].window, Some(MetricWindow::Other));
     }
 }

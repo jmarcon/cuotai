@@ -3,6 +3,8 @@
 Front-end multiplataforma: janela principal + popover na bandeja. Sem npm/bundler:
 a UI é HTML/CSS/JS puro em `ui/` e o shell é Rust em `src-tauri/`. Só lê `cuotai-core`.
 
+As janelas de 5 horas/semanais e a exclusão de rate limits do resumo usam diretamente `Metric.kind` e `Metric.window` do core; o shell e o JS não classificam métricas pelo texto de `label` ou `period`.
+
 ```sh
 cd apps/desktop/src-tauri
 cargo run                 # desenvolvimento

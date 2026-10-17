@@ -55,7 +55,7 @@
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
-use crate::{Account, Metric, Provider};
+use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
 
@@ -345,6 +345,7 @@ async fn fetch_antigravity_at(
             entry.remaining_fraction,
             entry.reset_at,
             "semanal",
+            MetricWindow::Weekly,
         ) {
             metrics.push(metric);
         }
@@ -356,6 +357,7 @@ async fn fetch_antigravity_at(
             entry.remaining_fraction,
             entry.reset_at,
             "5h",
+            MetricWindow::Window5h,
         ) {
             metrics.push(metric);
         }
@@ -369,7 +371,13 @@ async fn fetch_antigravity_at(
 // ─── Helpers compartilhados ──────────────────────────────────────────
 fn build_model_metric(label: String, entry: &QuotaEntry) -> Metric {
     if let Some(fraction) = entry.remaining_fraction {
-        if let Some(metric) = build_percent_metric(label.clone(), fraction, entry.reset_at, "5h") {
+        if let Some(metric) = build_percent_metric(
+            label.clone(),
+            fraction,
+            entry.reset_at,
+            "5h",
+            MetricWindow::Window5h,
+        ) {
             return metric;
         }
     }
@@ -379,6 +387,8 @@ fn build_model_metric(label: String, entry: &QuotaEntry) -> Metric {
         limit: None,
         remaining: None,
         unit: "%".into(),
+        kind: MetricKind::Quota,
+        window: Some(MetricWindow::Window5h),
         period: Some("5h".into()),
         resets_at: entry.reset_at,
     }
@@ -389,6 +399,7 @@ fn build_percent_metric(
     remaining_fraction: f64,
     reset_at: Option<DateTime<Utc>>,
     period: &'static str,
+    window: MetricWindow,
 ) -> Option<Metric> {
     if !remaining_fraction.is_finite() {
         return None;
@@ -396,7 +407,7 @@ fn build_percent_metric(
     // Sem `clamp` — quotas acima de 100% (uso excedente) são preservadas.
     let used_percent = (1.0 - remaining_fraction) * 100.0;
     let remaining_percent = remaining_fraction * 100.0;
-    let mut metric = Metric::usage(label, used_percent, "%");
+    let mut metric = Metric::usage(label, used_percent, "%", MetricKind::Quota, Some(window));
     metric.limit = Some(100.0);
     metric.remaining = Some(remaining_percent);
     metric.period = Some(period.into());
@@ -1060,6 +1071,8 @@ mod tests {
             (metric.used, metric.limit, metric.remaining),
             (None, None, None)
         );
+        assert_eq!(metric.kind, MetricKind::Quota);
+        assert_eq!(metric.window, Some(MetricWindow::Window5h));
     }
 
     #[test]
@@ -1621,6 +1634,7 @@ mod tests {
         assert!(labels.contains(&"Claude Sonnet 4.6"));
         assert!(labels.contains(&"Gemini (Semanal)"));
         assert!(labels.contains(&"Gemini (5h)"));
+        assert!(data.metrics.iter().all(|m| m.kind == MetricKind::Quota));
 
         // Reconciliação: gemini_3.8_flash_high tem 0.85 (não zero),
         // então a sessão permanece intacta em 100%.
@@ -1630,6 +1644,13 @@ mod tests {
             .find(|m| m.label == "Gemini (5h)")
             .expect("session metric");
         assert!((session.remaining.unwrap() - 100.0).abs() < 1e-9);
+        assert_eq!(session.window, Some(MetricWindow::Window5h));
+        let weekly = data
+            .metrics
+            .iter()
+            .find(|m| m.label == "Gemini (Semanal)")
+            .expect("weekly metric");
+        assert_eq!(weekly.window, Some(MetricWindow::Weekly));
     }
 
     #[tokio::test]

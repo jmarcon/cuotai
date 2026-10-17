@@ -213,10 +213,6 @@ pub struct MetricView {
     /// "available") plus `no_cap` or `ratio`/`uncapped`.
     #[serde(flatten)]
     state: MetricState,
-    /// "quota" (cota do plano) ou "rate_limit" (janela curta de limite de taxa).
-    kind: &'static str,
-    /// Janela da cota: "5h" (sessão de 5 horas) ou "week" (semanal); `None` para as demais (mensal, créditos…).
-    window: Option<&'static str>,
 }
 
 #[derive(Serialize, Clone)]
@@ -279,92 +275,10 @@ pub struct View {
     refresh_seconds: u64,
 }
 
-/// Distingue a janela curta de rate limit da cota do plano. O core ainda não tem um tipo para isso
-/// (PRD 0001, RF10): hoje só marca em texto livre (`period` e rótulo), então reconhecemos esses termos.
-fn metric_kind(metric: &Metric) -> &'static str {
-    let is_rate = |text: &str| {
-        let t = text.to_lowercase();
-        t.contains("rate limit") || t.contains("rate-limit") || t.contains("ratelimit")
-    };
-    if is_rate(&metric.label) || metric.period.as_deref().is_some_and(is_rate) {
-        "rate_limit"
-    } else {
-        "quota"
-    }
-}
-
-/// Minúsculas e sem acentos comuns do português, para casar rótulos como "Sessão" e "Semana".
-fn fold(text: &str) -> String {
-    text.to_lowercase()
-        .chars()
-        .map(|c| match c {
-            'á' | 'à' | 'â' | 'ã' => 'a',
-            'é' | 'ê' => 'e',
-            'í' => 'i',
-            'ó' | 'ô' | 'õ' => 'o',
-            'ú' => 'u',
-            'ç' => 'c',
-            other => other,
-        })
-        .collect()
-}
-
-/// `needle` em `hay` sem dígito imediatamente antes ("5h" casa, "25h" não).
-fn has_unprefixed(hay: &str, needle: &str) -> bool {
-    hay.match_indices(needle).any(|(i, _)| {
-        !hay[..i]
-            .chars()
-            .next_back()
-            .is_some_and(|c| c.is_ascii_digit())
-    })
-}
-
-/// Janela de 5 horas ou semanal de uma cota. O core ainda não informa a janela (PRD 0001, RF10.2): os adaptadores
-/// só a descrevem em texto livre (`label`/`period`: "Sessão (5 horas)", "M-series (5h)", "Coding Plan: 5h",
-/// "Semanal", "weekly (7d)"), então reconhecemos esses termos num único ponto. A janela de rate limit nunca conta.
-fn metric_window(metric: &Metric) -> Option<&'static str> {
-    if metric_kind(metric) == "rate_limit" {
-        return None;
-    }
-    let text = fold(&format!(
-        "{} {}",
-        metric.label,
-        metric.period.as_deref().unwrap_or("")
-    ));
-    let five = [
-        "5h",
-        "5 h",
-        "5hour",
-        "5-hour",
-        "5 hour",
-        "5 hora",
-        "five hour",
-        "five_hour",
-    ];
-    let week = ["7d", "7 d", "7-day", "7 day", "7 dia"];
-    if text.contains("session")
-        || text.contains("sessao")
-        || five.iter().any(|n| has_unprefixed(&text, n))
-    {
-        Some("5h")
-    } else if text.contains("semana")
-        || text.contains("semanal")
-        || text.contains("weekly")
-        || text.contains("week")
-        || week.iter().any(|n| has_unprefixed(&text, n))
-    {
-        Some("week")
-    } else {
-        None
-    }
-}
-
 fn metric_view(metric: &Metric) -> MetricView {
     MetricView {
         metric: metric.clone(),
         state: classify_metric(metric),
-        kind: metric_kind(metric),
-        window: metric_window(metric),
     }
 }
 
@@ -1966,12 +1880,6 @@ pub fn visible_keys(
 mod tests {
     use super::*;
 
-    fn metric(label: &str, period: Option<&str>) -> Metric {
-        let mut m = Metric::usage(label, 1.0, "solicitações");
-        m.period = period.map(str::to_owned);
-        m
-    }
-
     #[test]
     fn global_interval_change_keeps_reports_and_reschedules_deadlines() {
         let mut config = Config::default();
@@ -2082,58 +1990,6 @@ mod tests {
         assert!(!native.contains(&"auth_method"));
         // o ARN continua editável enquanto o login não o fixar
         assert!(native.contains(&"profile_arn"));
-    }
-
-    #[test]
-    fn recognizes_five_hour_and_weekly_windows_from_adapter_labels() {
-        let w = |label: &str, period: Option<&str>| metric_window(&metric(label, period));
-        for five in [
-            "Sessão (5 horas) (%)",
-            "Codex — janela de 5 hora(s) (%)",
-            "M-series (5h)",
-            "Coding Plan: 5h",
-            "Gemini (5h)",
-            "session (5h)",
-            "Claude & GPT (5h)",
-        ] {
-            assert_eq!(w(five, None), Some("5h"), "{five}");
-        }
-        for week in [
-            "Semana (7 dias) (%)",
-            "Semanal",
-            "weekly (7d)",
-            "Grok CLI: semanal SuperGrok",
-            "Gemini (Semanal)",
-            "M-series (7d)",
-        ] {
-            assert_eq!(w(week, None), Some("week"), "{week}");
-        }
-        for other in [
-            "Monthly",
-            "credit",
-            "Plan (USD)",
-            "Cursor plano (inclusão)",
-            "Balance",
-            "25h extra",
-        ] {
-            assert_eq!(w(other, None), None, "{other}");
-        }
-        // rate limit nunca é janela de cota, mesmo dizendo "5h" no período
-        assert_eq!(w("Rate limit", Some("janela de 5h")), None);
-        assert_eq!(w("Ratelimit", Some("semanal")), None);
-        assert_eq!(w("Tokens", Some("janela corrente do rate limit")), None);
-    }
-
-    #[test]
-    fn rate_limit_windows_are_not_plan_quotas() {
-        assert_eq!(metric_kind(&metric("Rate limit", None)), "rate_limit");
-        assert_eq!(metric_kind(&metric("Ratelimit", None)), "rate_limit");
-        assert_eq!(
-            metric_kind(&metric("Tokens", Some("janela corrente do rate limit"))),
-            "rate_limit"
-        );
-        assert_eq!(metric_kind(&metric("Semanal", Some("semanal"))), "quota");
-        assert_eq!(metric_kind(&metric("Monthly", None)), "quota");
     }
 
     #[test]
