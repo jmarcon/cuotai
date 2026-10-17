@@ -99,26 +99,112 @@ impl From<rusqlite::Error> for ModelError {
     }
 }
 
-/// Catalog source for `provider`, `None` without a verified listing contract.
-pub(crate) fn source(provider: Provider) -> Option<Localized> {
+/// Catalog source of `account`, or why it cannot be listed (no network).
+/// The published matrix lives in `docs/providers.md`.
+pub(crate) fn support(account: &Account) -> Result<Localized, Localized> {
+    let provider = account.provider;
+    let product = |value: &str| account.params.get("product").is_some_and(|v| v == value);
+    let source = |id: &'static str, text: &'static str| Ok(Localized::fixed(id, text));
+    let reason = |id: &'static str, text: &str| {
+        Err(Localized::with_params(
+            id,
+            params([("provider", provider_l10n(provider).into())]),
+            format!("{}: {text} Nenhuma consulta é feita.", provider.label()),
+        ))
+    };
     match provider {
-        Provider::Groq => Some(Localized::fixed(
+        Provider::Groq => source(
             "models.source.groq",
             "Groq GET /openai/v1/models com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
-        )),
-        _ => None,
+        ),
+        Provider::AwsBedrock => source(
+            "models.source.aws_bedrock",
+            "AWS CLI bedrock list-foundation-models no perfil da conta, em params.region ou na região padrão do perfil; não usa Cost Explorer nem comprova acesso ao modelo.",
+        ),
+        Provider::Antigravity => source(
+            "models.source.antigravity",
+            "Antigravity fetchAvailableModels com a sessão da conta (planos pagos); não comprova quota, preço ou disponibilidade atual.",
+        ),
+        Provider::Poolside => source(
+            "models.source.poolside",
+            "Poolside GET /v1/models com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+        ),
+        Provider::GeminiAi if account.oauth.is_none() && !product("cli") => source(
+            "models.source.gemini_ai",
+            "Gemini API models.list paginado com a chave AI Studio da conta; não comprova quota, preço ou disponibilidade atual.",
+        ),
+        Provider::Kimi if account.oauth.is_none() && !product("coding") => source(
+            "models.source.kimi",
+            "Kimi GET /v1/models (api.moonshot.ai) com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+        ),
+        Provider::AlibabaModelStudio if providers::alibaba_plans::model_studio_lists(account) => {
+            source(
+                "models.source.alibaba_model_studio",
+                "Model Studio GET /api/v1/models (Singapura) paginado com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+            )
+        }
+        Provider::GeminiAi | Provider::Kimi => reason(
+            "models.unsupported.product",
+            "o produto ou login configurado não usa a chave de API que lista modelos.",
+        ),
+        Provider::Qwen if account.oauth.is_some() => reason(
+            "models.unsupported.product",
+            "o produto ou login configurado não usa a chave de API que lista modelos.",
+        ),
+        Provider::Qwen | Provider::AlibabaModelStudio => reason(
+            "models.unsupported.region",
+            "a listagem sem WorkspaceId só existe na região internacional (Singapura) do Model Studio; use Alibaba Model Studio com params.region = intl.",
+        ),
+        Provider::OpenAiApi
+        | Provider::AnthropicApi
+        | Provider::Mistral
+        | Provider::Grok
+        | Provider::Windsurf => reason(
+            "models.unsupported.admin_key",
+            "a conta guarda credencial administrativa ou de faturamento, não a chave de inferência exigida para listar modelos.",
+        ),
+        Provider::GeminiApi
+        | Provider::VertexAi
+        | Provider::AzureOpenAi
+        | Provider::CloudflareAi
+        | Provider::AlibabaCloud => reason(
+            "models.unsupported.cloud_credential",
+            "a credencial da conta (escopo Cloud Monitoring, papel Cost Management Reader, AccessKey de faturamento ou sem account_id) não comprova permissão de listar modelos.",
+        ),
+        Provider::MiniMax | Provider::AlibabaCodingPlan => reason(
+            "models.unsupported.plan_key",
+            "a chave da conta pode ser de assinatura/plano, que o contrato oficial de listagem não aceita.",
+        ),
+        Provider::AlibabaTokenPlan
+        | Provider::ChatGpt
+        | Provider::Claude
+        | Provider::Cursor
+        | Provider::Copilot
+        | Provider::Perplexity
+        | Provider::OllamaCloud
+        | Provider::XiaomiMimo
+        | Provider::OpenCodeGo
+        | Provider::Qoder
+        | Provider::NvidiaNim
+        | Provider::Kiro
+        | Provider::Cline
+        | Provider::CodeBuddy
+        | Provider::Zed
+        | Provider::Kimchi => reason(
+            "models.unsupported",
+            "nenhum endpoint oficial verificado lista os modelos desta conta com a credencial configurada.",
+        ),
     }
 }
 
-pub(crate) fn unsupported_reason(provider: Provider) -> Localized {
-    Localized::with_params(
-        "models.unsupported",
-        params([("provider", provider_l10n(provider).into())]),
-        format!(
-            "{}: listagem de modelos não verificada para esta conta; nenhuma consulta é feita.",
-            provider.label()
-        ),
-    )
+/// Reject blank ids, then sort by id and keep the first of each duplicate.
+fn normalize(mut models: Vec<ModelInfo>) -> Result<Vec<ModelInfo>, providers::QueryError> {
+    if models.iter().any(|m| m.id.trim().is_empty()) {
+        return Err(providers::QueryError::schema());
+    }
+    models.sort_by(|a, b| a.id.cmp(&b.id));
+    models.dedup_by(|later, first| later.id == first.id);
+    Ok(models)
 }
 
 /// Note of a claimed attempt: `live` while it runs, otherwise interrupted.
@@ -498,10 +584,9 @@ impl Monitor {
             .accounts
             .get(index)
             .ok_or(ModelError::InvalidIndex)?;
-        let Some(source) = source(account.provider) else {
-            return Ok(Err(ModelState::Unsupported {
-                reason: unsupported_reason(account.provider),
-            }));
+        let source = match support(account) {
+            Ok(source) => source,
+            Err(reason) => return Ok(Err(ModelState::Unsupported { reason })),
         };
         let cache = self.models.as_ref().ok_or(ModelError::NoCache)?;
         Ok(Ok((account, cache, source)))
@@ -576,21 +661,57 @@ impl Monitor {
         &self,
         account: &Account,
     ) -> Result<Vec<ModelInfo>, providers::QueryError> {
+        use providers::{openai_models, secret};
         #[cfg(test)]
-        let url = self
+        let groq = self
             .groq_url
             .as_deref()
             .unwrap_or(providers::router_keys::GROQ_MODELS_URL);
         #[cfg(not(test))]
-        let url = providers::router_keys::GROQ_MODELS_URL;
-        self.with_access(
-            account,
-            async |account: &Account, ctx: &providers::Context<'_>| match account.provider {
-                Provider::Groq => providers::router_keys::groq_models_at(account, ctx, url).await,
-                other => unreachable!("{other:?} has no model source"),
-            },
-        )
-        .await
+        let groq = providers::router_keys::GROQ_MODELS_URL;
+        let models = self
+            .with_access(
+                account,
+                async |account: &Account, ctx: &providers::Context<'_>| match account.provider {
+                    Provider::Groq => {
+                        openai_models(ctx, groq, &secret(account, ctx, "GROQ_API_KEY")?).await
+                    }
+                    Provider::Kimi => {
+                        let key = secret(account, ctx, "KIMI_API_KEY")?;
+                        openai_models(ctx, providers::asia::KIMI_MODELS_URL, &key).await
+                    }
+                    Provider::Poolside => {
+                        let key = secret(account, ctx, "POOLSIDE_API_KEY")?;
+                        openai_models(ctx, providers::inference::POOLSIDE_MODELS_URL, &key).await
+                    }
+                    Provider::GeminiAi => {
+                        let url = providers::cloud_keys::GEMINI_MODELS_URL;
+                        providers::cloud_keys::gemini_models(account, ctx, url).await
+                    }
+                    Provider::AwsBedrock => {
+                        providers::cloud::bedrock_models(account, ctx, "aws").await
+                    }
+                    Provider::Antigravity => {
+                        use providers::antigravity::{
+                            models, FETCH_AVAILABLE_MODELS_URL, LOAD_CODE_ASSIST_URL,
+                        };
+                        models(
+                            account,
+                            ctx,
+                            LOAD_CODE_ASSIST_URL,
+                            FETCH_AVAILABLE_MODELS_URL,
+                        )
+                        .await
+                    }
+                    Provider::AlibabaModelStudio => {
+                        let url = providers::alibaba_plans::MODEL_STUDIO_MODELS_URL;
+                        providers::alibaba_plans::model_studio_models(account, ctx, url).await
+                    }
+                    other => unreachable!("{other:?} has no model source"),
+                },
+            )
+            .await?;
+        normalize(models)
     }
 }
 
@@ -842,6 +963,74 @@ credential_env = "OPENAI_ADMIN_KEY"
         assert_eq!(requests(&server).await, 0);
     }
 
+    /// Mirrors the matrix in docs/providers.md: default accounts of every
+    /// provider, plus the product/region/login variants that switch it off.
+    #[tokio::test]
+    async fn support_matches_published_matrix_and_unsupported_never_queries() {
+        use Provider::*;
+        let supported = [
+            Groq,
+            AwsBedrock,
+            Antigravity,
+            Poolside,
+            GeminiAi,
+            Kimi,
+            AlibabaModelStudio,
+        ];
+        let server = MockServer::start().await;
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::default();
+        let all = monitor_with(
+            &server,
+            &dir.path().join("models.sqlite3"),
+            &ConfigIdentity::Explicit("matrix".into()),
+            &toml::to_string(&config).unwrap(),
+        );
+        for (index, account) in config.accounts.iter().enumerate() {
+            let listed = support(account).is_ok();
+            let provider = account.provider;
+            assert_eq!(listed, supported.contains(&provider), "{provider:?}");
+            if !listed {
+                for state in [all.load_models(index).await, all.sync_models(index).await] {
+                    assert!(matches!(state.unwrap(), ModelState::Unsupported { .. }));
+                }
+            }
+        }
+        assert_eq!(requests(&server).await, 0, "Unsupported uses no network");
+
+        let variant = |provider, key: &str, value: &str| Account {
+            provider,
+            params: [(key.to_string(), value.to_string())].into(),
+            ..Default::default()
+        };
+        for off in [
+            variant(GeminiAi, "product", "cli"),
+            variant(Kimi, "product", "coding"),
+            variant(AlibabaModelStudio, "region", "cn"),
+            Account {
+                provider: GeminiAi,
+                oauth: Some(
+                    serde_json::from_value(serde_json::json!({ "credential_id": "c" })).unwrap(),
+                ),
+                ..Default::default()
+            },
+        ] {
+            assert!(support(&off).is_err(), "{off:?}");
+        }
+    }
+
+    #[test]
+    fn normalize_dedupes_and_sorts_without_rewriting_ids() {
+        let info = |id: &str, name: &str| ModelInfo {
+            id: id.into(),
+            name: Some(name.into()),
+            description: None,
+        };
+        let models = normalize(vec![info("b", "1"), info("A", "2"), info("b", "3")]).unwrap();
+        assert_eq!(models, [info("A", "2"), info("b", "1")]);
+        assert!(normalize(vec![info(" ", "blank")]).is_err());
+    }
+
     fn slow(ids: &[&str]) -> ResponseTemplate {
         list(ids).set_delay(Duration::from_millis(300))
     }
@@ -937,7 +1126,7 @@ credential_env = "OPENAI_ADMIN_KEY"
         );
         let late = ModelCatalog {
             models: Vec::new(),
-            source: source(Provider::Groq).unwrap(),
+            source: support(&old.config.accounts[0]).unwrap(),
             fetched_at: Utc::now(),
         };
         assert_eq!(ids(&stale.finish(Ok(late)).unwrap()), ["new"]);

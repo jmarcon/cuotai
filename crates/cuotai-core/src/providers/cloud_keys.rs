@@ -30,9 +30,59 @@
 //!   [Cloud Monitoring timeSeries.list](https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list)
 //!   via OAuth, atendido pelo adaptador `Gemini (Cloud Monitoring)`.
 
-use super::{Context, Data, QueryError};
+use super::{json, paginate, secret, Context, Data, QueryError};
+use crate::models::ModelInfo;
 use crate::text::{params, ParamValue};
 use crate::{Account, Provider};
+
+/// `models.list` of the Gemini API (<https://ai.google.dev/api/models>):
+/// AI Studio key in `x-goog-api-key`, paginated by `nextPageToken`.
+pub(crate) const GEMINI_MODELS_URL: &str =
+    "https://generativelanguage.googleapis.com/v1beta/models";
+
+/// Gemini AI catalog with the AI Studio key (never the CLI/OAuth session).
+/// `name` (`models/...`) is the resource id the API returns, kept verbatim.
+pub(crate) async fn gemini_models(
+    account: &Account,
+    ctx: &Context<'_>,
+    url: &str,
+) -> Result<Vec<ModelInfo>, QueryError> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Page {
+        // Google omits empty repeated fields.
+        #[serde(default)]
+        models: Vec<Entry>,
+        next_page_token: Option<String>,
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Entry {
+        name: String,
+        display_name: Option<String>,
+        description: Option<String>,
+    }
+    let key = secret(account, ctx, "GEMINI_API_KEY")?;
+    paginate(async |token: Option<String>| {
+        let mut query = vec![("pageSize", "1000".to_string())];
+        query.extend(token.map(|t| ("pageToken", t)));
+        let page: Page = json(
+            ctx.http
+                .get(url)
+                .header("x-goog-api-key", key.trim())
+                .query(&query)
+                .timeout(ctx.timeout),
+        )
+        .await?;
+        let models = page.models.into_iter().map(|m| ModelInfo {
+            id: m.name,
+            name: m.display_name,
+            description: m.description,
+        });
+        Ok((models.collect(), page.next_page_token))
+    })
+    .await
+}
 
 pub(crate) async fn fetch(account: &Account, _ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
@@ -69,4 +119,109 @@ fn gemini_unsupported() -> QueryError {
             "Gemini AI (chave de API do AI Studio, `generativelanguage.googleapis.com`) não expõe endpoint público de uso ou cota residual. Os valores são exibidos apenas no painel AI Studio (https://aistudio.google.com/rate-limit). Para consulta programática, registre a mesma conta via OAuth em 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list sobre `serviceruntime.googleapis.com/quota/limit` e `quota/rate/net_usage`). Fonte: {source}."
         ),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Status;
+    use wiremock::matchers::{header, method, query_param, query_param_is_missing};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    struct Keys;
+    impl crate::Credentials for Keys {
+        fn get(&self, name: &str) -> Option<String> {
+            name.strip_prefix("GEMINI_KEY_").map(|a| format!("AIza{a}"))
+        }
+    }
+
+    async fn list(server: &MockServer, account: &str) -> Result<Vec<String>, QueryError> {
+        let http = reqwest::Client::new();
+        let ctx = Context {
+            http: &http,
+            credentials: &Keys,
+            timeout: std::time::Duration::from_secs(5),
+        };
+        let account = Account {
+            name: account.into(),
+            provider: Provider::GeminiAi,
+            credential_env: Some(format!("GEMINI_KEY_{account}")),
+            ..Default::default()
+        };
+        let models = gemini_models(&account, &ctx, &server.uri()).await?;
+        Ok(models.into_iter().map(|m| m.id).collect())
+    }
+
+    fn page(names: &[&str], next: Option<&str>) -> ResponseTemplate {
+        let models: Vec<_> = names
+            .iter()
+            .map(|n| serde_json::json!({ "name": n, "displayName": n.to_uppercase() }))
+            .collect();
+        ResponseTemplate::new(200)
+            .set_body_json(serde_json::json!({ "models": models, "nextPageToken": next }))
+    }
+
+    async fn reply(server: &MockServer, key: &str, token: Option<&str>, body: ResponseTemplate) {
+        let mock = Mock::given(method("GET")).and(header("x-goog-api-key", key));
+        let mock = match token {
+            Some(token) => mock.and(query_param("pageToken", token)),
+            None => mock.and(query_param_is_missing("pageToken")),
+        };
+        mock.respond_with(body).mount(server).await;
+    }
+
+    #[tokio::test]
+    async fn follows_page_tokens_per_key_and_rejects_bad_pages() {
+        let server = MockServer::start().await;
+        reply(
+            &server,
+            "AIzaA",
+            None,
+            page(&["models/b", "models/a"], Some("t2")),
+        )
+        .await;
+        reply(&server, "AIzaA", Some("t2"), page(&["models/c"], None)).await;
+        reply(&server, "AIzaB", None, page(&["models/only-b"], Some(""))).await;
+        assert_eq!(
+            list(&server, "A").await.unwrap(),
+            ["models/b", "models/a", "models/c"]
+        );
+        assert_eq!(
+            list(&server, "B").await.unwrap(),
+            ["models/only-b"],
+            "another key gets its own catalog; an empty token ends the list"
+        );
+
+        server.reset().await;
+        reply(&server, "AIzaA", None, page(&["models/a"], Some("t2"))).await;
+        reply(
+            &server,
+            "AIzaA",
+            Some("t2"),
+            page(&["models/b"], Some("t2")),
+        )
+        .await;
+        let repeated = list(&server, "A").await.unwrap_err();
+        assert_eq!(repeated.status, Status::Error, "repeated token");
+
+        server.reset().await;
+        reply(&server, "AIzaA", None, page(&["models/a"], Some("t2"))).await;
+        let incomplete = ResponseTemplate::new(200)
+            .set_body_json(serde_json::json!({ "models": [{ "displayName": "No name" }] }));
+        reply(&server, "AIzaA", Some("t2"), incomplete).await;
+        assert_eq!(list(&server, "A").await.unwrap_err().status, Status::Error);
+
+        for (code, status) in [
+            (401, Status::AuthenticationError),
+            (403, Status::AuthenticationError),
+            (429, Status::RateLimited),
+        ] {
+            server.reset().await;
+            let body = ResponseTemplate::new(code).set_body_string("AIzaA leaked");
+            reply(&server, "AIzaA", None, body).await;
+            let error = list(&server, "A").await.unwrap_err();
+            assert_eq!(error.status, status, "HTTP {code}");
+            assert!(!error.note.fallback.contains("AIza"), "no body or key echo");
+        }
+    }
 }

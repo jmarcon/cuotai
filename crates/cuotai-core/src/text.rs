@@ -492,9 +492,21 @@ mod tests {
             ids.push(edit::auth_mode_label(auth_mode).id.to_string());
         }
         for provider in Provider::ALL {
-            let models = crate::models::source(provider)
-                .unwrap_or_else(|| crate::models::unsupported_reason(provider));
-            ids.push(models.id.to_string());
+            // Every source/reason the product/region params can select.
+            for (key, value) in [
+                ("", ""),
+                ("product", "cli"),
+                ("product", "coding"),
+                ("region", "cn"),
+            ] {
+                let account = crate::Account {
+                    provider,
+                    params: [(key.to_string(), value.to_string())].into(),
+                    ..Default::default()
+                };
+                let models = crate::models::support(&account).unwrap_or_else(|reason| reason);
+                ids.push(models.id.to_string());
+            }
             ids.push(edit::credential_help(provider).id.to_string());
             if let Some(note) = edit::cost_advisory(provider) {
                 ids.push(note.id.to_string());

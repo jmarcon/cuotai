@@ -176,3 +176,104 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
     }
     response.json().await.map_err(|_| QueryError::schema())
 }
+
+/// Most pages a model listing may follow (RF4.3).
+const MODEL_PAGE_LIMIT: usize = 50;
+
+/// Follow page tokens to completion. A repeated token, the page limit or
+/// any page error fails the whole listing: callers never get a partial list.
+pub(crate) async fn paginate<T>(
+    mut page: impl AsyncFnMut(Option<String>) -> Result<(Vec<T>, Option<String>), QueryError>,
+) -> Result<Vec<T>, QueryError> {
+    let mut items = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut token = None;
+    for _ in 0..MODEL_PAGE_LIMIT {
+        let (batch, next) = page(token).await?;
+        items.extend(batch);
+        match next.filter(|t| !t.is_empty()) {
+            None => return Ok(items),
+            Some(next) if !seen.insert(next.clone()) => return Err(QueryError::schema()),
+            Some(next) => token = Some(next),
+        }
+    }
+    Err(QueryError {
+        status: Status::Error,
+        note: Localized::fixed(
+            "query.models.page_limit",
+            "A listagem de modelos excedeu o limite de páginas; nada foi salvo.",
+        ),
+    })
+}
+
+/// OpenAI-shaped `GET …/models` (`data[].id`) with a Bearer key. Any entry
+/// without a string id rejects the whole response.
+pub(crate) async fn openai_models(
+    ctx: &Context<'_>,
+    url: &str,
+    key: &str,
+) -> Result<Vec<crate::models::ModelInfo>, QueryError> {
+    #[derive(serde::Deserialize)]
+    struct List {
+        data: Vec<Entry>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        id: String,
+    }
+    let list: List = json(
+        ctx.http
+            .get(url)
+            .bearer_auth(key.trim())
+            .header("Accept", "application/json")
+            .timeout(ctx.timeout),
+    )
+    .await?;
+    Ok(list
+        .data
+        .into_iter()
+        .map(|e| crate::models::ModelInfo {
+            id: e.id,
+            name: None,
+            description: None,
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn paginate_stops_on_repeated_token_and_page_limit() {
+        let mut calls = 0;
+        let looped = paginate(async |_: Option<String>| {
+            calls += 1;
+            Ok((vec![calls], Some("same".to_string())))
+        })
+        .await
+        .unwrap_err();
+        assert_eq!((&*looped.note.id, calls), ("query.schema", 2));
+
+        calls = 0;
+        let endless = paginate(async |_: Option<String>| {
+            calls += 1;
+            Ok((vec![calls], Some(calls.to_string())))
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(
+            (&*endless.note.id, calls),
+            ("query.models.page_limit", MODEL_PAGE_LIMIT)
+        );
+
+        let mut pages = vec![(vec![3], None), (vec![1, 2], Some("p2".to_string()))];
+        let full = paginate(async |token: Option<String>| {
+            assert_eq!(token.is_some(), pages.len() == 1, "token forwarded");
+            Ok(pages.pop().unwrap())
+        })
+        .await
+        .unwrap();
+        assert_eq!(full, [1, 2, 3]);
+    }
+}

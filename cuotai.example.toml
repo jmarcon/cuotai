@@ -51,6 +51,8 @@ name = "AWS Bedrock"
 provider = "aws_bedrock"
 # Requer AWS CLI v2. ATENÇÃO: Cost Explorer cobra por consulta.
 # params = { profile = "seu-perfil" }
+# Catálogo de modelos (só sob demanda, sem Cost Explorer): região padrão do perfil,
+# ou params = { profile = "seu-perfil", region = "us-east-1" }; exige bedrock:ListFoundationModels.
 
 [[accounts]]
 name = "Azure OpenAI"

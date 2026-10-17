@@ -70,6 +70,8 @@ const MAX_PAGES: usize = 8;
 const MISTRAL_BASE: &str = "https://api.mistral.ai";
 const PERPLEXITY_BASE: &str = "https://api.perplexity.ai";
 const XAI_MANAGEMENT_BASE: &str = "https://management-api.x.ai";
+/// OpenAI-shaped model list for the inference key (`docs.poolside.ai/api/overview.md`).
+pub(crate) const POOLSIDE_MODELS_URL: &str = "https://inference.poolside.ai/v1/models";
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
