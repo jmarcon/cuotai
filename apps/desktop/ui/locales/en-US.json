@@ -782,6 +782,7 @@
   "delete.kept": "Account removed; the credential stays in the vault.",
   "delete.keptShared": "Account removed; the credential was kept because account {other} also uses it.",
   "delete.partial": "Account removed from the file, but its credential was NOT deleted from the vault: {message}",
+  "delete.retry": "Try to delete the credential now",
   "common.dismiss": "Dismiss",
   "settings.refresh.title": "Refresh",
   "settings.refresh.help": "Global interval between queries. Accounts with their own interval do not change; providers billed per query have a higher minimum.",

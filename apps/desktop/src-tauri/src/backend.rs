@@ -133,6 +133,28 @@ struct Loaded {
     /// Stored on `Loaded` so the inner mutex can quickly check "slot
     /// busy?" without going through the cycle.
     tokens: Vec<Option<cuotai_core::refresh::Generation>>,
+    /// RF3 retry handles: `RemovedAccount`s retained after a removal
+    /// that left the credential in the vault (`CredentialKept`) or
+    /// whose vault delete failed (`PartialFailure`). The vault key
+    /// changes when `install` rebuilds the live configuration, so we
+    /// drop the entire list on reload/replacement to honour the
+    /// invariant "a retry must not delete a credential now referenced
+    /// again". The core guard still runs on every retry against the
+    /// current config; the handle list is the UX primitive that lets
+    /// the desktop offer a "Tentar de novo" button without depending
+    /// on the removed account index (which no longer exists in TOML).
+    pending_recovery: Vec<RecoveryEntry>,
+}
+
+/// RF3 recovery primitive stored in the desktop so the UI can retry
+/// a vault purge against the *current* configuration. `handle` is an
+/// opaque id the UI round-trips; `account` carries the
+/// non-secret [`account_edit::RemovedAccount`] the core needs to
+/// re-derive the vault key and run the shared-key guard.
+#[derive(Debug, Clone)]
+struct RecoveryEntry {
+    handle: String,
+    account: account_edit::RemovedAccount,
 }
 
 #[derive(Default)]
@@ -525,12 +547,20 @@ impl Inner {
         );
         self.generation += 1;
         let accounts_len = file.config.accounts.len();
+        // `install` replaces the live configuration (initial load or
+        // a `cuotai.toml` reload after `Conflict` / manual `reinstall`).
+        // Recovery handles minted under the previous configuration
+        // reference vault entries that may now be re-used by a fresh
+        // account in the new config; the core guard already refuses
+        // such retries, but dropping the list here means the UI will
+        // not offer a button for a stale handle in the first place.
         self.loaded = Some(Loaded {
             cycle: RefreshCycle::new(&file.config, Instant::now()),
             file,
             monitor,
             generation: self.generation,
             tokens: vec![None; accounts_len],
+            pending_recovery: Vec::new(),
         });
         self.load_error = None;
         Ok(())
@@ -930,28 +960,34 @@ impl Backend {
         purge_credentials: bool,
     ) -> Result<DeleteResult, String> {
         self.ensure_loaded().await;
-        // The core RF3 `remove_account` owns the save-then-purge
-        // ordering and the shared-key guard. On the no-purge path
-        // (the only path the desktop ever sends) the core performs no
-        // `.await` — the only async point is `ConfigFile::save`, which
-        // is fully synchronous — so we can hold the inner mutex
-        // across the entire core call. This avoids the `Option::take`
-        // pattern that would briefly expose `loaded = None` to a
-        // concurrent `ensure_loaded`, which would then install a fresh
-        // cycle / monitor only for our phase 3 commit to clobber it.
-        // `purge_credentials = false` is the conscious desktop default
-        // — the web UI never asks for a purge, so we keep the
-        // no-purge path explicit without duplicating policy. When a
-        // future revision sends `purge_credentials = true`, the IPC
-        // round-trip will block the inner mutex; that is a real
-        // trade-off the product needs to make explicitly.
-        let outcome = {
+        let result = self.drive_delete_account(index, purge_credentials).await?;
+        self.emit(app).await;
+        Ok(result)
+    }
+
+    /// Testable inner half of [`Backend::delete_account`]: stage the
+    /// removal under the inner mutex (snapshot session, validate the
+    /// index, write the TOML, mirror cycle + monitor + tokens +
+    /// generation), release the mutex, then run the optional vault
+    /// purge without holding it. Splitting the work from `emit` lets
+    /// the unit tests drive the state machine without standing up a
+    /// Tauri runtime.
+    pub(crate) async fn drive_delete_account(
+        &self,
+        index: usize,
+        purge_credentials: bool,
+    ) -> Result<DeleteResult, String> {
+        // RF3 split: stage the removal under the inner mutex (snapshot
+        // session, validate the index, write the TOML, mirror cycle +
+        // monitor + tokens + generation), release the mutex, then run
+        // the optional vault purge without holding it. The desktop UI
+        // sends `purge_credentials = true` whenever the user picks
+        // "Remover e apagar do cofre" (`dialog.deleteVaultPurge`), so
+        // the vault IPC round-trip can take a moment; releasing the
+        // mutex here unblocks `view`, `refresh_*` and `login_*` while
+        // we wait for the OS keychain.
+        let staged = {
             let mut g = self.inner.lock().await;
-            // Clone the session Arc up front so we can drop the
-            // `&g.session` immutable borrow before taking a mutable
-            // borrow of `g.loaded` (the borrow checker rejects
-            // overlapping immutable + mutable borrows on the same
-            // `MutexGuard`).
             let session = match &g.session {
                 Some(s) => Arc::clone(s),
                 None => return Err("Sessão OAuth não inicializada.".into()),
@@ -961,6 +997,9 @@ impl Backend {
             if index >= prev.accounts.len() {
                 return Err("Conta inexistente.".into());
             }
+            // Pre-compute the new config + cycle + monitor so a
+            // failure (cycle refusal, monitor refusal, save failure)
+            // short-circuits without ever touching the vault.
             let updated = prev
                 .without_account(index)
                 .map_err(|e| l10n_to_json(&cuotai_core::edit_error::EditError::l10n(&e)))?;
@@ -970,36 +1009,20 @@ impl Backend {
                 .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))?;
             let new_monitor = l
                 .monitor
-                .with_config(updated)
+                .with_config(updated.clone())
                 .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
-            // Drive the core removal under the SAME lock. The
-            // no-purge path does not await IPC; the (future)
-            // purge path will block the mutex until the vault
-            // round-trip completes.
-            let remove_outcome = account_edit::remove_account(
-                &mut l.file,
-                session.as_ref(),
-                index,
-                purge_credentials,
-            )
-            .await;
-            let remove_outcome = match remove_outcome {
-                Ok(outcome) => outcome,
-                Err(error) => {
-                    // On a pre-save failure the live `ConfigFile`
-                    // (and therefore `l.file`) is unchanged, so we
-                    // only need to surface the error. The staged
-                    // cycle + monitor are dropped on return.
-                    return Err(l10n_to_json(&account_edit::RemoveError::l10n(&error)));
-                }
-            };
-            // Commit under the same lock: disk has been updated by
-            // the core, mirror that into the runtime (cycle,
-            // monitor, busy set, generation). The cycle's
-            // `apply_edit(Remove)` already cleared `busy` /
-            // `in_flight` / bumped `generation`; we mirror that
-            // onto `Loaded.tokens` (drop the removed index and
-            // clear the bookkeeping that lost its slot).
+            // Sync TOML save via the core; the core still owns the
+            // shared-key guard and the partial-failure invariant.
+            // On any error here `l.file` is unchanged and the staged
+            // cycle + monitor are dropped on return.
+            let staged =
+                account_edit::remove_account_save_only(&mut l.file, index, purge_credentials)
+                    .map_err(|error| l10n_to_json(&account_edit::RemoveError::l10n(&error)))?;
+            // Mirror the staged runtime into the live state. We
+            // snapshot the post-save config BEFORE assigning
+            // `g.generation` so the borrows do not overlap
+            // (Rust's NLL tracks the lifetime of the cloned value).
+            let post_save_config = l.file.config.clone();
             l.cycle = staged_cycle;
             l.monitor = Arc::new(new_monitor);
             if index < l.tokens.len() {
@@ -1007,28 +1030,158 @@ impl Backend {
             }
             l.generation += 1;
             g.generation = l.generation;
-            remove_outcome
+            (staged, session, post_save_config)
         };
-        // Remover não dispara consultas (RF1); o resultado diz o que aconteceu com o cofre, sem silêncio.
-        let result = match outcome {
-            account_edit::RemoveOutcome::RemovedNoCredential(_) => DeleteResult::new("removed"),
-            account_edit::RemoveOutcome::RemovedFromVault(_) => DeleteResult::new("purged"),
-            account_edit::RemoveOutcome::CredentialKept { reason, .. } => match reason {
-                account_edit::KeptReason::Declined => DeleteResult::new("kept"),
-                account_edit::KeptReason::SharedWith { other_account } => DeleteResult {
-                    outcome: "kept_shared",
-                    other_account: Some(other_account),
-                    message: None,
-                },
-            },
-            account_edit::RemoveOutcome::PartialFailure { vault_error, .. } => DeleteResult {
-                outcome: "partial_failure",
-                other_account: None,
-                message: Some(vault_error.to_string()),
+        // We are OUT of the inner mutex from here. The vault purge,
+        // when applicable, runs without blocking other backend
+        // commands.
+        let (staged, session, post_save_config) = staged;
+        let (result, pending_recovery) = match staged {
+            account_edit::StagedRemoval::RemovedNoCredential(_) => {
+                (DeleteResult::new("removed"), None)
+            }
+            account_edit::StagedRemoval::Kept { account, reason } => {
+                let handle = mint_handle();
+                let result = match reason {
+                    account_edit::KeptReason::Declined => DeleteResult::new("kept"),
+                    account_edit::KeptReason::SharedWith { other_account } => DeleteResult {
+                        outcome: "kept_shared",
+                        other_account: Some(other_account),
+                        message: None,
+                        recovery_handle: None,
+                    },
+                };
+                (
+                    result.with_recovery(handle.clone()),
+                    Some((handle, account)),
+                )
+            }
+            account_edit::StagedRemoval::ReadyForPurge {
+                account,
+                provider,
+                oauth,
+            } => match account_edit::purge_credential(
+                session.as_ref(),
+                &post_save_config,
+                provider,
+                &oauth,
+            )
+            .await
+            {
+                Ok(()) => (DeleteResult::new("purged"), None),
+                Err(vault_error) => {
+                    // Mint a recovery handle so the UI can offer a
+                    // retry. The handle references the
+                    // `RemovedAccount` we keep in the backend state
+                    // below; the core guard still runs against the
+                    // *live* config on every retry.
+                    let handle = mint_handle();
+                    (
+                        DeleteResult {
+                            outcome: "partial_failure",
+                            other_account: None,
+                            message: Some(vault_error.to_string()),
+                            recovery_handle: Some(handle.clone()),
+                        },
+                        Some((handle, account)),
+                    )
+                }
             },
         };
+        // Re-acquire the mutex briefly to register the recovery
+        // handle. The handle MUST NOT survive a config replacement
+        // (`install` already clears the list); the mutex section here
+        // is just bookkeeping.
+        if let Some((handle, account)) = pending_recovery {
+            let mut g = self.inner.lock().await;
+            if let Some(l) = g.loaded.as_mut() {
+                l.pending_recovery.push(RecoveryEntry { handle, account });
+            }
+        }
+        Ok(result)
+    }
+
+    /// RF3: re-attempt a vault purge against the *current* configuration
+    /// using the [`account_edit::RemovedAccount`] the backend
+    /// retained when the original removal could not (or would not)
+    /// touch the vault. The shared-key guard runs on every call, so a
+    /// retry after the survivor was dropped succeeds and a retry
+    /// while a new shared reference exists is refused with the same
+    /// honest message the core uses everywhere else. The handle is
+    /// consumed on success (no further retry) and left in place on
+    /// failure (the UI may retry again).
+    pub async fn retry_purge(
+        &self,
+        app: &AppHandle,
+        handle: String,
+    ) -> Result<DeleteResult, String> {
+        self.ensure_loaded().await;
+        let result = self.drive_retry(&handle).await?;
         self.emit(app).await;
         Ok(result)
+    }
+
+    /// Testable inner half of [`Backend::retry_purge`]: snapshots
+    /// the recovery state under the mutex, releases it, calls the
+    /// core's `purge_credential` outside the lock, then re-acquires
+    /// the mutex briefly to drop the handle on success. Splitting
+    /// the work from `emit` lets the unit tests drive the state
+    /// machine without standing up a Tauri runtime.
+    pub(crate) async fn drive_retry(&self, handle: &str) -> Result<DeleteResult, String> {
+        // Snapshot the session + the live config + the recovery
+        // entry under the mutex, then release it before the vault
+        // round-trip (same split as `delete_account`).
+        let (session, current_config, removed) = {
+            let g = self.inner.lock().await;
+            let session = match &g.session {
+                Some(s) => Arc::clone(s),
+                None => return Err("Sessão OAuth não inicializada.".into()),
+            };
+            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let pos = l
+                .pending_recovery
+                .iter()
+                .position(|entry| entry.handle == handle)
+                .ok_or_else(|| "Sem credencial pendente para este identificador.".to_string())?;
+            let removed = l.pending_recovery[pos].account.clone();
+            let current_config = l.file.config.clone();
+            (session, current_config, removed)
+        };
+        let oauth = match removed.oauth.as_ref() {
+            Some(o) => o,
+            None => {
+                return Err("A conta original não tinha credencial OAuth para apagar.".to_string());
+            }
+        };
+        let provider = removed.provider;
+        let outcome =
+            account_edit::purge_credential(session.as_ref(), &current_config, provider, oauth)
+                .await;
+        match outcome {
+            Ok(()) => {
+                // Success: drop the entry, surface the truthful
+                // result. The handle is consumed so a stale UI
+                // button cannot retry after we already deleted the
+                // vault entry.
+                let mut g = self.inner.lock().await;
+                if let Some(l) = g.loaded.as_mut() {
+                    l.pending_recovery.retain(|entry| entry.handle != handle);
+                }
+                Ok(DeleteResult::new("purged"))
+            }
+            Err(vault_error) => {
+                // Refused (still shared) or vault failure. Keep the
+                // handle so the UI can keep offering the retry; the
+                // core guard will continue to refuse while the
+                // survivor exists and succeed once it is dropped.
+                Ok(DeleteResult {
+                    outcome: "partial_failure",
+                    other_account: None,
+                    message: Some(vault_error.to_string()),
+                    recovery_handle: Some(handle.to_string()),
+                })
+            }
+        }
     }
 
     /// Troca o intervalo global de atualização (`refresh_seconds`). Valida e grava pelo core; o ciclo é recriado com
@@ -1678,13 +1831,19 @@ pub fn form_schema(provider: Provider) -> FormSchema {
 }
 
 /// Resultado de remover uma conta, para a UI dizer a verdade sobre o cofre.
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct DeleteResult {
     /// "removed" (sem credencial no cofre), "purged" (apagada do cofre), "kept" (mantida a pedido),
     /// "kept_shared" (mantida porque outra conta a usa) ou "partial_failure" (TOML salvo, cofre não apagado).
     outcome: &'static str,
     other_account: Option<String>,
     message: Option<String>,
+    /// RF3 handle round-tripped to `retry_purge`. Present when the
+    /// credential is still in the vault (`kept`, `kept_shared`,
+    /// `partial_failure`) and the UI should offer a retry button.
+    /// Opaque: the UI never inspects the value, only echoes it back.
+    /// Absent for `removed` and `purged` (nothing to retry).
+    recovery_handle: Option<String>,
 }
 
 impl DeleteResult {
@@ -1693,8 +1852,29 @@ impl DeleteResult {
             outcome,
             other_account: None,
             message: None,
+            recovery_handle: None,
         }
     }
+
+    fn with_recovery(mut self, handle: String) -> Self {
+        self.recovery_handle = Some(handle);
+        self
+    }
+}
+
+/// Mint an opaque, monotonically increasing recovery handle. The
+/// value is never inspected — the UI round-trips it verbatim — but a
+/// fresh id per removal makes stale handles self-evident in the logs
+/// and prevents the UI from replaying an old `retry_purge` after a
+/// config replacement cleared the list (the lookup misses cleanly
+/// instead of deleting the wrong credential).
+fn mint_handle() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    // Process-global counter; the value is opaque to the UI, only the
+    // uniqueness and the monotonicity matter (a stale handle after
+    // config replacement just misses the lookup).
+    COUNTER.fetch_add(1, Ordering::Relaxed).to_string()
 }
 
 /// Novo ciclo para a configuração `config` mantendo os relatórios do ciclo anterior (sem consultar nada).
@@ -1935,5 +2115,395 @@ mod tests {
     fn cycle_token() -> Option<cuotai_core::refresh::Generation> {
         let config = Config::default();
         RefreshCycle::new(&config, Instant::now()).begin(0)
+    }
+
+    // -------------------------------------------------------------------
+    // RF3 desktop recovery: `delete_account` registers an opaque
+    // handle on `kept` / `partial_failure`, drops it on config
+    // replacement, and `retry_purge` honours the core's shared-key
+    // guard so a retry after the survivor drops succeeds and a retry
+    // while the survivor remains is refused with the same honest
+    // message the core uses everywhere else.
+    // -------------------------------------------------------------------
+
+    use cuotai_core::oauth::{OAuthConfig, OAuthToken, TokenStore};
+    use parking_lot::Mutex;
+    use std::collections::{BTreeMap, HashMap};
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    /// In-memory `TokenStore` mirroring the core's RF3 test fixture.
+    #[derive(Default)]
+    struct MemoryStore {
+        entries: Mutex<HashMap<String, OAuthToken>>,
+        delete_calls: Mutex<Vec<String>>,
+        fail_deletes: Mutex<u32>,
+    }
+
+    impl MemoryStore {
+        #[allow(dead_code)] // exercised by future PartialFailure tests; mirrors the core fixture.
+        fn fail_next_deletes(&self, n: u32) {
+            *self.fail_deletes.lock() = n;
+        }
+    }
+
+    impl TokenStore for MemoryStore {
+        fn load(&self, id: &str) -> Result<Option<OAuthToken>, cuotai_core::oauth::OAuthError> {
+            Ok(self.entries.lock().get(id).cloned())
+        }
+        fn save(&self, id: &str, token: &OAuthToken) -> Result<(), cuotai_core::oauth::OAuthError> {
+            self.entries.lock().insert(id.into(), token.clone());
+            Ok(())
+        }
+        fn delete(&self, id: &str) -> Result<(), cuotai_core::oauth::OAuthError> {
+            self.delete_calls.lock().push(id.into());
+            let mut remaining = self.fail_deletes.lock();
+            if *remaining > 0 {
+                *remaining -= 1;
+                return Err(cuotai_core::oauth::OAuthError::Storage(
+                    "Keychain indisponível no teste".into(),
+                ));
+            }
+            self.entries.lock().remove(id);
+            Ok(())
+        }
+    }
+
+    struct NoSecrets;
+    impl cuotai_core::Credentials for NoSecrets {
+        fn get(&self, _: &str) -> Option<String> {
+            None
+        }
+    }
+
+    fn oauth_config_for(provider: Provider) -> OAuthConfig {
+        let mut config = OAuthConfig::new(String::new());
+        config.credential_id = "4be708d8-7073-4d01-85ba-3306cc3cf087".into();
+        config.validate(provider).unwrap();
+        config
+    }
+
+    fn oauth_account(name: &str, provider: Provider) -> Account {
+        Account {
+            name: name.into(),
+            provider,
+            credential_env: None,
+            oauth: Some(oauth_config_for(provider)),
+            params: BTreeMap::new(),
+            refresh_seconds: None,
+        }
+    }
+
+    async fn save_token_for(
+        store: &MemoryStore,
+        provider: Provider,
+        oauth: &OAuthConfig,
+    ) -> String {
+        let key = account_edit::account_storage_key(&Account {
+            name: "probe".into(),
+            provider,
+            credential_env: None,
+            oauth: Some(oauth.clone()),
+            params: BTreeMap::new(),
+            refresh_seconds: None,
+        })
+        .expect("OAuth config is valid; the storage key is derivable");
+        store.entries.lock().insert(
+            key.clone(),
+            OAuthToken {
+                access_token: format!("access-for-{}", oauth.credential_id),
+                refresh_token: None,
+                expires_at: None,
+                metadata: BTreeMap::new(),
+            },
+        );
+        key
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn delete_account_registers_handle_on_kept_and_drops_after_install() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(
+            store.clone(),
+            vec![oauth_account("solo", Provider::ChatGpt)],
+        )
+        .await;
+        let oauth = backend.loaded_config().await.accounts[0]
+            .oauth
+            .clone()
+            .unwrap();
+        let key = save_token_for(&store, Provider::ChatGpt, &oauth).await;
+
+        // `purge_credentials = true` + unique key → the staged
+        // outcome is `ReadyForPurge`, the vault delete succeeds, and
+        // no recovery handle is registered (nothing left to retry).
+        let result = backend
+            .drive_delete_account(0, true)
+            .await
+            .expect("delete_account must succeed");
+        assert_eq!(result.outcome, "purged");
+        assert!(result.recovery_handle.is_none());
+        assert!(backend.pending_recovery().await.is_empty());
+        assert!(store.entries.lock().get(&key).is_none());
+
+        // `install` (config replacement) must NOT carry stale
+        // recovery entries into the next session; this is the
+        // invariant that protects against "retry on a credential
+        // now referenced again". The test injects a fake entry,
+        // reinstalls, and checks the list is empty.
+        {
+            let mut g = backend.inner.inner.lock().await;
+            g.loaded
+                .as_mut()
+                .unwrap()
+                .pending_recovery
+                .push(RecoveryEntry {
+                    handle: "stale-handle".into(),
+                    account: account_edit::RemovedAccount {
+                        provider: Provider::ChatGpt,
+                        oauth: Some(oauth.clone()),
+                        storage_key: Some(key.clone()),
+                    },
+                });
+        }
+        backend
+            .reinstall_for_test(Config::default())
+            .await
+            .expect("reinstall");
+        assert!(
+            backend.pending_recovery().await.is_empty(),
+            "install must drop recovery handles"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn retry_purge_succeeds_after_survivor_drops_and_refuses_while_shared() {
+        // Two accounts sharing the same OAuth config (same
+        // credential_id → same storage key). The first removal
+        // returns `kept_shared` with a recovery handle; a retry
+        // must refuse while the survivor exists, then succeed once
+        // the survivor is also removed.
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(
+            store.clone(),
+            vec![
+                oauth_account("first", Provider::ChatGpt),
+                oauth_account("second", Provider::ChatGpt),
+            ],
+        )
+        .await;
+        let oauth = backend.loaded_config().await.accounts[0]
+            .oauth
+            .clone()
+            .unwrap();
+        let key = save_token_for(&store, Provider::ChatGpt, &oauth).await;
+
+        let result = backend
+            .drive_delete_account(0, true)
+            .await
+            .expect("delete_account must succeed");
+        let handle = result
+            .recovery_handle
+            .expect("kept_shared must register a recovery handle");
+        assert_eq!(result.outcome, "kept_shared");
+        assert_eq!(backend.pending_recovery().await.len(), 1);
+        // Credential still in the vault (shared-key guard).
+        assert!(store.entries.lock().contains_key(&key));
+
+        // Retry while the survivor still shares the key: refused.
+        let refused = backend
+            .drive_retry(&handle)
+            .await
+            .expect("retry must return a DeleteResult, not error");
+        assert_eq!(refused.outcome, "partial_failure");
+        assert!(refused.recovery_handle.is_some());
+        assert!(
+            refused
+                .message
+                .as_deref()
+                .unwrap_or_default()
+                .contains("sobrevive")
+                || refused
+                    .message
+                    .as_deref()
+                    .unwrap_or_default()
+                    .contains("compartilh")
+                || refused
+                    .message
+                    .as_deref()
+                    .unwrap_or_default()
+                    .contains("shared"),
+            "refusal message must mention the survivor: {:?}",
+            refused.message,
+        );
+        // Handle is preserved so the UI can keep offering the retry.
+        assert_eq!(backend.pending_recovery().await.len(), 1);
+
+        // Drop the survivor (same OAuth config, the config still
+        // has one account after we removed it manually via a fresh
+        // delete). The shared-key guard must now let the retry
+        // through.
+        let second_result = backend
+            .drive_delete_account(0, false /* declined */)
+            .await
+            .expect("second removal must succeed");
+        assert_eq!(second_result.outcome, "kept");
+        assert!(second_result.recovery_handle.is_some());
+        assert!(store.entries.lock().contains_key(&key));
+
+        // Retry against the now-unique config must purge.
+        let purged = backend
+            .drive_retry(&handle)
+            .await
+            .expect("retry must succeed");
+        assert_eq!(purged.outcome, "purged");
+        assert!(purged.recovery_handle.is_none());
+        assert!(store.entries.lock().get(&key).is_none());
+        // Only the retried handle is consumed; the second removal's
+        // handle is still in the list (it references a different
+        // credential that is now alone and not shared).
+        let remaining = backend.pending_recovery().await;
+        assert_eq!(remaining.len(), 1);
+        assert_ne!(remaining[0], handle, "retried handle must be dropped");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn retry_purge_rejects_unknown_handle() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(
+            store.clone(),
+            vec![oauth_account("solo", Provider::ChatGpt)],
+        )
+        .await;
+        let oauth = backend.loaded_config().await.accounts[0]
+            .oauth
+            .clone()
+            .unwrap();
+        save_token_for(&store, Provider::ChatGpt, &oauth).await;
+
+        // No removal happened: no handles exist. A retry for an
+        // unknown id must error (not silently succeed and not
+        // accidentally delete the survivor's credential).
+        let err = backend.drive_retry("never-issued").await.unwrap_err();
+        assert!(
+            err.contains("Sem credencial pendente") || err.contains("pendente"),
+            "unexpected error message: {err}"
+        );
+        assert!(
+            store.entries.lock().contains_key(
+                &account_edit::account_storage_key(&Account {
+                    name: "solo".into(),
+                    provider: Provider::ChatGpt,
+                    credential_env: None,
+                    oauth: Some(oauth.clone()),
+                    params: BTreeMap::new(),
+                    refresh_seconds: None,
+                })
+                .unwrap()
+            ),
+            "an unknown-handle retry must not touch the vault"
+        );
+    }
+
+    // --- test helpers (kept local; do not export) ---
+
+    /// Build a `Backend` whose `Inner.loaded` already contains the
+    /// given accounts (no `Monitor::refresh`, no OS discovery).
+    async fn build_backend(store: Arc<MemoryStore>, accounts: Vec<Account>) -> TestBackend {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        std::fs::write(&path, "refresh_seconds = 300\naccounts = []\n").unwrap();
+        let mut file = ConfigFile::load(Some(path), false).unwrap();
+        let config = Config {
+            refresh_seconds: 300,
+            concurrency: 4,
+            timeout_seconds: 30,
+            accounts,
+        };
+        file.save(config.clone()).unwrap();
+        let session = Arc::new(
+            cuotai_core::oauth::OAuthSession::new(
+                store as Arc<dyn TokenStore>,
+                Arc::new(NoSecrets),
+            )
+            .unwrap(),
+        );
+        let monitor = Arc::new(
+            Monitor::with_oauth(
+                config.clone(),
+                Arc::new(cuotai_core::EnvironmentCredentials),
+                Arc::clone(&session),
+            )
+            .unwrap(),
+        );
+        let backend = Backend::default();
+        let mut g = backend.inner.lock().await;
+        g.generation = 1;
+        g.session = Some(session);
+        g.loaded = Some(Loaded {
+            file,
+            monitor,
+            cycle: RefreshCycle::new(&config, Instant::now()),
+            generation: 1,
+            tokens: vec![None; config.accounts.len()],
+            pending_recovery: Vec::new(),
+        });
+        drop(g);
+        TestBackend {
+            inner: backend,
+            _dir: dir,
+        }
+    }
+
+    /// Wrapper that lets tests reach `Backend::inner.lock().await`
+    /// directly through a thin facade, avoiding the need to spin up
+    /// a `tauri::AppHandle`.
+    struct TestBackend {
+        inner: Backend,
+        _dir: TempDir,
+    }
+
+    impl TestBackend {
+        async fn pending_recovery(&self) -> Vec<String> {
+            let g = self.inner.inner.lock().await;
+            g.loaded
+                .as_ref()
+                .map(|l| {
+                    l.pending_recovery
+                        .iter()
+                        .map(|e| e.handle.clone())
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+        async fn loaded_config(&self) -> Config {
+            let g = self.inner.inner.lock().await;
+            g.loaded.as_ref().unwrap().file.config.clone()
+        }
+    }
+
+    // Trait-bridge so the test helpers above can call the
+    // `pub(crate)` methods that drive the public Tauri commands
+    // without a `tauri::AppHandle`.
+    impl TestBackend {
+        pub(crate) async fn drive_delete_account(
+            &self,
+            index: usize,
+            purge: bool,
+        ) -> Result<DeleteResult, String> {
+            self.inner.drive_delete_account(index, purge).await
+        }
+        pub(crate) async fn drive_retry(&self, handle: &str) -> Result<DeleteResult, String> {
+            self.inner.drive_retry(handle).await
+        }
+        pub(crate) async fn reinstall_for_test(&self, config: Config) -> Result<(), String> {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("cuotai.toml");
+            std::fs::write(&path, "refresh_seconds = 300\naccounts = []\n").unwrap();
+            let mut file = ConfigFile::load(Some(path), false).unwrap();
+            file.save(config).unwrap();
+            let mut g = self.inner.inner.lock().await;
+            g.install(file)
+        }
     }
 }
