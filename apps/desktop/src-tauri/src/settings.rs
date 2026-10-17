@@ -1,5 +1,6 @@
 //! Configurações do app desktop (não confundir com o `cuotai.toml` de contas, que é do core).
-//! Arquivo `desktop.json` na pasta padrão de configuração; hoje guarda só a pasta de temas e idiomas.
+//! Arquivo `desktop.json` na pasta padrão de configuração: pasta de temas e idiomas e o
+//! `cuotai.toml` escolhido pelo usuário (só o caminho; nunca dentro do TOML).
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -11,6 +12,8 @@ use std::{
 struct Stored {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    config_file: Option<String>,
 }
 
 /// Pasta padrão de configuração do Cuotai (`<config do SO>/cuotai`).
@@ -22,11 +25,27 @@ fn settings_file() -> Option<PathBuf> {
     default_dir().map(|d| d.join("desktop.json"))
 }
 
-fn load() -> Stored {
-    settings_file()
-        .and_then(|p| fs::read_to_string(p).ok())
+fn read(file: &Path) -> Stored {
+    fs::read_to_string(file)
+        .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_default()
+}
+
+fn load() -> Stored {
+    settings_file().map(|f| read(&f)).unwrap_or_default()
+}
+
+/// Altera um campo preservando os demais. Escrita atômica (temporário + rename).
+fn update(file: &Path, change: impl FnOnce(&mut Stored)) -> Result<(), &'static str> {
+    let parent = file.parent().ok_or("unwritable")?;
+    fs::create_dir_all(parent).map_err(|_| "unwritable")?;
+    let mut stored = read(file);
+    change(&mut stored);
+    let tmp = parent.join(".desktop.json.tmp");
+    let text = serde_json::to_string_pretty(&stored).map_err(|_| "unwritable")?;
+    fs::write(&tmp, text).map_err(|_| "unwritable")?;
+    fs::rename(&tmp, file).map_err(|_| "unwritable")
 }
 
 /// Pasta personalizada salva pelo usuário (sem considerar `CUOTAI_USER_DIR`).
@@ -64,22 +83,38 @@ pub fn validate_dir(path: &Path) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Grava (ou, com `None`, remove) a pasta personalizada. Escrita atômica (temporário + rename).
+/// Grava (ou, com `None`, remove) a pasta personalizada.
 pub fn save_user_dir(dir: Option<&Path>) -> Result<(), &'static str> {
     if let Some(d) = dir {
         validate_dir(d)?;
     }
     let file = settings_file().ok_or("unwritable")?;
-    let parent = file.parent().ok_or("unwritable")?;
-    fs::create_dir_all(parent).map_err(|_| "unwritable")?;
-    let stored = Stored {
-        user_dir: dir.map(|d| d.display().to_string()),
-    };
-    let tmp = parent.join(".desktop.json.tmp");
-    let text = serde_json::to_string_pretty(&stored).map_err(|_| "unwritable")?;
-    fs::write(&tmp, text).map_err(|_| "unwritable")?;
-    fs::rename(&tmp, &file).map_err(|_| "unwritable")?;
-    Ok(())
+    update(&file, |s| s.user_dir = dir.map(|d| d.display().to_string()))
+}
+
+/// `cuotai.toml` escolhido nas configurações (sem considerar `CUOTAI_CONFIG`).
+pub fn chosen_config() -> Option<PathBuf> {
+    load()
+        .config_file
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+}
+
+/// Erro com código estável (a UI traduz): `not_file` (relativo, ausente ou pasta).
+pub fn validate_config_file(path: &Path) -> Result<(), &'static str> {
+    if path.is_absolute() && path.is_file() {
+        Ok(())
+    } else {
+        Err("not_file")
+    }
+}
+
+/// Grava (ou, com `None`, remove) o arquivo escolhido; o chamador já validou e carregou.
+pub fn save_config_file(path: Option<&Path>) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        s.config_file = path.map(|p| p.display().to_string())
+    })
 }
 
 #[derive(Serialize)]
@@ -91,6 +126,10 @@ pub struct SettingsView {
     custom_dir: Option<String>,
     /// `CUOTAI_USER_DIR` definida: a escolha pela interface não tem efeito.
     env_locked: bool,
+    /// `cuotai.toml` escolhido (vazio = padrão do SO).
+    config_file: Option<String>,
+    /// `CUOTAI_CONFIG` definida: tem prioridade sobre o arquivo escolhido.
+    config_env_locked: bool,
     version: &'static str,
 }
 
@@ -100,6 +139,10 @@ pub fn view() -> SettingsView {
         default_dir: default_dir().map(|p| p.display().to_string()),
         custom_dir: custom_user_dir().map(|p| p.display().to_string()),
         env_locked: env_user_dir().is_some(),
+        config_file: chosen_config().map(|p| p.display().to_string()),
+        config_env_locked: cuotai_core::config_file::Locations::from_process()
+            .env
+            .is_some(),
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -140,5 +183,20 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("cuotai-ok-{}", std::process::id()));
         assert_eq!(validate_dir(&dir), Ok(()));
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn choices_are_updated_independently_and_reset() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        update(&file, |s| s.user_dir = Some("/u".into())).unwrap();
+        update(&file, |s| s.config_file = Some("/c/cuotai.toml".into())).unwrap();
+        let stored = read(&file);
+        assert_eq!(stored.user_dir.as_deref(), Some("/u"));
+        assert_eq!(stored.config_file.as_deref(), Some("/c/cuotai.toml"));
+        update(&file, |s| s.config_file = None).unwrap();
+        let stored = read(&file);
+        assert_eq!(stored.user_dir.as_deref(), Some("/u"));
+        assert_eq!(stored.config_file, None);
     }
 }

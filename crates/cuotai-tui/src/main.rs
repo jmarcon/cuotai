@@ -20,7 +20,8 @@ use std::{
     about = "Quota e consumo de AI: APIs e assinaturas, sem gerar tokens."
 )]
 struct Args {
-    /// Arquivo TOML. Padrão: ./cuotai.toml ou diretório de configuração do sistema.
+    /// Arquivo TOML (cria se ausente). Sem ele: CUOTAI_CONFIG, ./cuotai.toml existente,
+    /// ou <config do SO>/cuotai/config.toml (onde o wizard cria um novo).
     #[arg(short, long)]
     config: Option<PathBuf>,
     /// Consulta uma vez, sem abrir a TUI.

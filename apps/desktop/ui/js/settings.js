@@ -1,8 +1,8 @@
-// Tela de configurações: aparência, idioma e pasta de temas/idiomas do usuário.
+// Tela de configurações: aparência, idioma, arquivo de contas e pasta de temas/idiomas do usuário.
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, getSettings, icon, langMenuHtml, openUserDir, pickFolder, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, openUserDir, pickFolder, pickTomlFile, setConfigFile, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 
 let dlg = null;
@@ -13,7 +13,8 @@ export async function openSettings(extra = {}) {
   dlg.className = "dlg settings";
   document.body.append(dlg);
   dlg.addEventListener("close", () => { dlg.remove(); dlg = null; });
-  const render = async (message = "") => {
+  let view = extra.view?.();
+  const render = async (message = "", configMessage = "") => {
     const s = await getSettings();
     const nThemes = THEMES.filter((x) => x.user).length;
     const nLocales = LOCALES.filter((x) => x.user).length;
@@ -31,6 +32,16 @@ export async function openSettings(extra = {}) {
         </div>
         <p class="err" id="refresh-msg" role="alert"></p>
       </section>
+      <section class="set-sec"><h3>${te("settings.config.title")}</h3>
+        <p class="hint">${te("settings.config.help")}</p>
+        <div class="path-row"><code title="${esc(configLabel(view))}">${esc(configLabel(view) || "—")}</code></div>
+        ${s.config_env_locked ? `<p class="hint warn-txt">${te("settings.config.env")}</p>` : ""}
+        <div class="dlg-actions left">
+          <button class="btn" data-pick-config ${s.config_env_locked ? "disabled" : ""}>${icon("folder")} ${te("settings.config.choose")}</button>
+          <button class="btn" data-reset-config ${s.config_env_locked || !s.config_file ? "disabled" : ""}>${te("settings.config.reset")}</button>
+        </div>
+        <p class="err" role="alert">${esc(configMessage)}</p>
+      </section>
       <section class="set-sec"><h3>${te("settings.folder.title")}</h3>
         <p class="hint">${te("settings.folder.help")}</p>
         <div class="path-row"><code title="${esc(s.user_dir ?? "")}">${esc(s.user_dir ?? "—")}</code></div>
@@ -45,7 +56,7 @@ export async function openSettings(extra = {}) {
         <p class="err" role="alert">${esc(message)}</p>
       </section>
       <section class="set-sec"><h3>${te("settings.about")}</h3>
-        <p class="hint">Cuotai ${esc(s.version)}${extra.configPath ? ` · ${te("settings.configFile", { path: extra.configPath })}` : ""}</p></section>
+        <p class="hint">Cuotai ${esc(s.version)}</p></section>
       <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
     </div>`;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
@@ -70,6 +81,15 @@ export async function openSettings(extra = {}) {
       if (typeof picked === "string" && picked) apply(picked);
     };
     dlg.querySelector("[data-reset]").onclick = () => apply(null);
+    const applyConfig = async (path) => {
+      try { view = await setConfigFile(path); extra.onChange?.(); render(); }
+      catch (e) { render("", configErrorText(e)); }
+    };
+    dlg.querySelector("[data-pick-config]").onclick = async () => {
+      const picked = await pickTomlFile(s.config_file ?? view?.config_path);
+      if (typeof picked === "string" && picked) applyConfig(picked);
+    };
+    dlg.querySelector("[data-reset-config]").onclick = () => applyConfig(null);
   };
   bindThemeSwitch(dlg, () => { extra.onChange?.(); render(); });
   dlg.addEventListener("click", async (e) => {
@@ -88,6 +108,13 @@ const errorText = (e) => {
   const key = `settings.error.${code}`;
   const tr = t(key);
   return tr === key ? t("common.unexpected") : tr;
+};
+
+/** Códigos do shell (`not_file`, `unwritable`, `env_locked`) ou erro tipado do core ao carregar o TOML. */
+const configErrorText = (e) => {
+  const key = `settings.config.error.${e}`;
+  const tr = typeof e === "string" ? t(key) : key;
+  return tr === key ? l10nError(e) : tr;
 };
 
 /** Erro do shell: JSON `{ id, params, fallback }` (RF8) ou texto simples. */

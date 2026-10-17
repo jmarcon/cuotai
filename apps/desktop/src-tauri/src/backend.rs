@@ -7,7 +7,7 @@ use cuotai_core::{
         visible_field_indices, AccountDraft, CredentialKind, DraftField, DraftValue,
         FieldDescriptorKind, FieldVisibility,
     },
-    config_file::{ConfigFile, Discovery},
+    config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
     identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{classify_metric, classify_report, AccountClass, MetricState},
@@ -241,7 +241,10 @@ pub struct ReportView {
 
 #[derive(Serialize, Clone)]
 pub struct View {
+    /// Identidade normalizada (symlinks/relativos resolvidos) do arquivo em uso.
     config_path: Option<String>,
+    /// Regra que escolheu o arquivo: `env`, `chosen` ou `system`.
+    config_source: Option<PathSource>,
     config_exists: bool,
     account_count: usize,
     /// `false` até a primeira rodada completa terminar.
@@ -292,6 +295,7 @@ impl Inner {
         let Some(l) = &self.loaded else {
             return View {
                 config_path: None,
+                config_source: None,
                 config_exists: false,
                 account_count: 0,
                 loaded: false,
@@ -337,7 +341,8 @@ impl Inner {
             })
             .collect();
         View {
-            config_path: Some(l.file.path.display().to_string()),
+            config_path: Some(config_label(&l.file)),
+            config_source: Some(l.file.source),
             config_exists: l.file.exists,
             account_count: l.file.config.accounts.len(),
             loaded,
@@ -409,8 +414,22 @@ impl Inner {
     }
 }
 
-fn explicit_path() -> Option<PathBuf> {
-    std::env::var_os("CUOTAI_CONFIG").map(PathBuf::from)
+fn config_label(file: &ConfigFile) -> String {
+    file.identity()
+        .map(|id| id.to_string())
+        .unwrap_or_else(|_| file.path.display().to_string())
+}
+
+impl Inner {
+    /// RF1.2: `CUOTAI_CONFIG` > arquivo escolhido nas configurações > caminho
+    /// do SO (nunca `./cuotai.toml` do `cwd`). Carrega via core e troca todo o
+    /// estado por configuração (monitor, agenda, tokens, recuperação); em erro
+    /// o estado atual fica intacto.
+    fn switch(&mut self, chosen: Option<PathBuf>, locations: &Locations) -> Result<(), String> {
+        let file = ConfigFile::load_with(Discovery::Gui { chosen }, true, locations)
+            .map_err(|e| edit_error_to_json(&e))?;
+        self.install(file)
+    }
 }
 
 impl Backend {
@@ -425,17 +444,34 @@ impl Backend {
         if g.loaded.is_some() {
             return;
         }
-        // RF4.1: graphical apps MUST NOT pick up a ./cuotai.toml
-        // from the process cwd (whose meaning is unpredictable for a
-        // backgrounded desktop app). Discovery is therefore SystemOnly
-        // unless the user explicitly overrode the path via env.
-        match ConfigFile::load_with(explicit_path(), true, Discovery::SystemOnly) {
-            Ok(file) => match g.install(file) {
-                Ok(()) => {}
-                Err(e) => g.load_error = Some(e),
-            },
-            Err(e) => g.load_error = Some(e.to_string()),
+        let chosen = crate::settings::chosen_config();
+        if let Err(e) = g.switch(chosen, &Locations::from_process()) {
+            g.load_error = Some(e);
         }
+    }
+
+    /// Aplica o `cuotai.toml` escolhido nas configurações (`None` = padrão do
+    /// SO): recarrega pelo core, limpa o estado da configuração anterior e só
+    /// então persiste a escolha em `desktop.json`.
+    pub async fn set_config_file(
+        &self,
+        app: &AppHandle,
+        path: Option<PathBuf>,
+    ) -> Result<View, String> {
+        let locations = Locations::from_process();
+        if locations.env.is_some() {
+            return Err("env_locked".into());
+        }
+        if let Some(p) = &path {
+            crate::settings::validate_config_file(p).map_err(str::to_owned)?;
+        }
+        let mut g = self.inner.lock().await;
+        g.switch(path.clone(), &locations)?;
+        crate::settings::save_config_file(path.as_deref()).map_err(str::to_owned)?;
+        let view = g.view();
+        drop(g);
+        self.emit(app).await;
+        Ok(view)
     }
 
     pub async fn view(&self) -> View {
@@ -450,10 +486,9 @@ impl Backend {
     /// disk) and as the cheap way to pick up external edits detected
     /// via [`Backend::config_changed_on_disk`].
     ///
-    /// The reload preserves the desktop's invariants:
-    /// - same explicit path / `Discovery` policy as the original load
-    ///   (GUIs use [`Discovery::SystemOnly`]; `CUOTAI_CONFIG` env wins
-    ///   over the platform dir);
+    /// - same path and source as the live file (a later change of
+    ///   `CUOTAI_CONFIG` or of the chosen file cannot silently switch
+    ///   files mid-session);
     /// - aborts/clears in-flight refreshes of the previous generation
     ///   by rebuilding monitor/cycle/tokens via `install`;
     /// - drops every RF3 recovery handle (the new config may reference
@@ -474,22 +509,15 @@ impl Backend {
             self.ensure_loaded().await;
             g = self.inner.lock().await;
         }
-        // Re-resolve the same path the live `ConfigFile` was loaded
-        // from so the symlink target and missing-file fallback match
-        // the previous load. `explicit_path()` matches the
-        // `ensure_loaded` precedence (env wins, then system dir);
-        // we fall back to the live file path only when the env was
-        // unset at boot, so a later `unset CUOTAI_CONFIG` cannot
-        // silently change the loaded path mid-session.
-        let explicit = explicit_path().or_else(|| {
-            g.loaded
-                .as_ref()
-                .filter(|_| explicit_path().is_none())
-                .map(|l| l.file.path.clone())
-        });
-        let discovery = Discovery::SystemOnly;
-        let file =
-            ConfigFile::load_with(explicit, true, discovery).map_err(|e| edit_error_to_json(&e))?;
+        let Some(l) = g.loaded.as_ref() else {
+            // The boot load just failed again: surface its typed error.
+            return Err(g.load_error.clone().unwrap_or_default());
+        };
+        let resolved = ResolvedPath {
+            path: l.file.path.clone(),
+            source: l.file.source,
+        };
+        let file = ConfigFile::open(resolved, true).map_err(|e| edit_error_to_json(&e))?;
         // Carry session + load_error reset through `install` (clears
         // them on success, retains the inner state on failure). After
         // a successful `install` the cycle is fresh, the monitor is
@@ -2431,22 +2459,74 @@ mod tests {
         /// prove the reload semantics) and returns the post-reload
         /// config so the test can assert the live state.
         async fn reload_for_test(&self) -> Config {
-            let path = self.file_path().await;
-            // `reload_config` re-reads the file via the same explicit
-            // path, drops the in-memory state, and rebuilds the live
-            // monitor/cycle. Mirroring it inline keeps the test free
-            // of a Tauri runtime.
-            let file = ConfigFile::load_with(Some(path), true, Discovery::SystemOnly)
+            // Mirrors `reload_config` without a Tauri runtime: re-open the
+            // live path/source, then rebuild monitor/cycle via `install`.
+            let mut g = self.inner.inner.lock().await;
+            let l = g.loaded.as_ref().unwrap();
+            let resolved = ResolvedPath {
+                path: l.file.path.clone(),
+                source: l.file.source,
+            };
+            let file = ConfigFile::open(resolved, true)
                 .expect("reload must parse the freshly-edited file");
             let new_config = file.config.clone();
-            self.inner
-                .inner
-                .lock()
-                .await
-                .install(file)
-                .expect("install");
+            g.install(file).expect("install");
             new_config
         }
+    }
+
+    // RF1.2: desktop precedence env > chosen > OS, never `./cuotai.toml`;
+    // switching reloads accounts and drops per-config state.
+    #[tokio::test(flavor = "current_thread")]
+    async fn desktop_switch_follows_env_chosen_os_precedence() {
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("alpha")],
+        )
+        .await;
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, account: &str| {
+            let path = dir.path().join(name);
+            std::fs::write(
+                &path,
+                format!("refresh_seconds = 300\n\n[[accounts]]\nname = \"{account}\"\nprovider = \"chat_gpt\"\ncredential_env = \"K\"\n"),
+            )
+            .unwrap();
+            path
+        };
+        let env = write("env.toml", "from-env");
+        let chosen = write("chosen.toml", "from-chosen");
+        write("cuotai.toml", "from-cwd");
+        let mut loc = Locations {
+            env: Some(env.clone()),
+            cwd: dir.path().to_path_buf(),
+            config_dir: Some(dir.path().join("os")),
+        };
+        let mut g = backend.inner.inner.lock().await;
+        let generation = g.generation;
+        let live = |g: &Inner| {
+            let file = &g.loaded.as_ref().unwrap().file;
+            (file.path.clone(), file.source, file.config.accounts.len())
+        };
+        g.switch(Some(chosen.clone()), &loc).unwrap();
+        assert_eq!(live(&g), (env, PathSource::Env, 1));
+        assert!(g.generation > generation, "per-config state rebuilt");
+        loc.env = None;
+        g.switch(Some(chosen.clone()), &loc).unwrap();
+        assert_eq!(live(&g), (chosen, PathSource::Chosen, 1));
+        assert_eq!(
+            g.loaded.as_ref().unwrap().file.config.accounts[0].name,
+            "from-chosen"
+        );
+        g.switch(None, &loc).unwrap();
+        assert_eq!(
+            live(&g),
+            (
+                dir.path().join("os/cuotai/config.toml"),
+                PathSource::System,
+                0
+            )
+        );
     }
 
     // -------------------------------------------------------------------
@@ -2454,8 +2534,6 @@ mod tests {
     // Mirrors the TUI's `reload_config_after_conflict`, but driven from
     // the test backend (no `tauri::AppHandle` available).
     // -------------------------------------------------------------------
-
-    use cuotai_core::config_file::Discovery;
 
     /// Account helper that exercises only the schema fields relevant
     /// to the reload test (no OAuth, no params): a reload pick-up is a

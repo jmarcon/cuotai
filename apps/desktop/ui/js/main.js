@@ -8,7 +8,7 @@ import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig,
+  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel,
 } from "./lib.js";
 
 await boot();
@@ -196,7 +196,7 @@ function render() {
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error ? `<div class="empty">${te("common.querying")}</div>` : ""}
-    ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(view.config_path ?? "")}</small></div>` : ""}
+    ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
     <main class="grid">${ordered.map((report, position) => card(report, position, ordered)).join("")}</main></div>`;
   if (keepFocus) {
@@ -225,7 +225,7 @@ root.addEventListener("click", (e) => {
   if (one) return store.refreshOne(Number(one.dataset.refresh));
   if (t.closest("[data-refresh-all]")) return store.refresh();
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
-  if (t.closest("[data-settings]")) return openSettings({ configPath: store.view?.config_path, onChange: render, view: () => store.view });
+  if (t.closest("[data-settings]")) return openSettings({ onChange: render, view: () => store.view });
   const det = t.closest("[data-details]");
   if (det) return openDetails(det.dataset.details, detailsContext);
   const tog = t.closest("[data-toggle]");
@@ -330,7 +330,7 @@ render();
 
 // Eventos do shell: abrir a tela de configurações (vindo do popover) e recarregar quando a pasta do usuário mudar.
 if (window.__TAURI__) {
-  window.__TAURI__.event.listen("open-settings", () => openSettings({ configPath: store.view?.config_path, onChange: render, view: () => store.view }));
+  window.__TAURI__.event.listen("open-settings", () => openSettings({ onChange: render, view: () => store.view }));
   window.__TAURI__.event.listen("user-content-changed", () => location.reload());
 }
 

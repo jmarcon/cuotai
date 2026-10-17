@@ -99,6 +99,15 @@ export async function pickFolder(defaultPath) {
   if (isDesktop && T.dialog) return T.dialog.open({ directory: true, multiple: false, defaultPath: defaultPath || undefined });
   return "/Users/demo/CuotaiUser"; // navegador (demo)
 }
+/// RF1.2: aplica o `cuotai.toml` escolhido (`null` = padrão do SO); recarrega as contas e devolve a nova view.
+export const setConfigFile = (path) => call("set_config_file", { path });
+/** Seletor nativo de arquivo TOML. */
+export async function pickTomlFile(defaultPath) {
+  if (isDesktop && T.dialog) return T.dialog.open({ multiple: false, directory: false, defaultPath: defaultPath || undefined, filters: [{ name: "TOML", extensions: ["toml"] }] });
+  return "/Users/demo/cuotai.toml"; // navegador (demo)
+}
+/** Caminho efetivo do `cuotai.toml` com a origem (variável, escolhido ou padrão do SO); texto não escapado. */
+export const configLabel = (view) => view?.config_path ? `${view.config_path} · ${t(`settings.config.source.${view.config_source}`)}` : "";
 export const setTrayMenu = (payload) => isDesktop && T.core.invoke("set_tray_menu", { payload });
 export const openMainWindow = () => isDesktop && T.core.invoke("show_main_window");
 export const quitApp = () => isDesktop && T.core.invoke("quit_app");
@@ -377,10 +386,10 @@ const demoReports = [
 ];
 const demoView = () => {
   const now = new Date().toISOString();
-  return { config_path: "~/cuotai.toml (demo)", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
+  return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
     started_at: now, finished_at: now, reports: demoReports.map((r, index) => ({ ...r, index, next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth })), busy: [], error: null };
 };
-const demoSettings = { custom: null };
+const demoSettings = { custom: null, config: null };
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -449,8 +458,9 @@ const demo = {
   // non-desktop path.
   reload_config: async () => demoView(),
   config_changed_on_disk: async () => false,
-  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, version: "demo" }),
+  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
+  set_config_file: async ({ path }) => { demoSettings.config = path ?? null; return demoView(); },
   open_user_dir: async () => {},
 };
 
