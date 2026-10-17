@@ -3,10 +3,25 @@
 | Campo | Valor |
 |---|---|
 | ID | 0002 |
-| Status | Proposto |
+| Status | Implementado (0.14.x) |
 | Responsável | `cuotai-core`, TUI e Desktop |
 | Consumidores | `crates/cuotai-tui`, `apps/desktop` |
 | Data | 2026-10-16 |
+
+## Estado da implementação (2026-10-17)
+
+Todos os RFs foram implementados no core, na TUI e no desktop, um por vez, com validação (`cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop, smoke da TUI e da UI desktop) antes de cada versão.
+
+| RF | Versão | Entrega |
+|---|---|---|
+| RF1 | 0.8.0, 0.14.0 | Resolução única no core (TUI: `--config` > `CUOTAI_CONFIG` > `./cuotai.toml` existente > SO; desktop: `CUOTAI_CONFIG` > arquivo escolhido > SO), escolha do TOML nas Configurações do desktop, `ConfigIdentity` normalizada e aviso quando TUI e desktop usam arquivos diferentes. |
+| RF2 | 0.9.0 | `ModelInfo`/`ModelCatalog`/`ModelState` e `Monitor::{model_state, load_models, sync_models}` reaproveitando cliente, OAuth, timeout e semáforo. |
+| RF3 | 0.10.0 | `models.sqlite3` no diretório de dados (0700/0600, só digests), estados `fetching`/`ready`/`failed`/`interrupted`, reivindicação entre processos e `prune_models`. |
+| RF4 | 0.11.0 | Adaptadores verificados (Groq, AWS Bedrock, Antigravity, Gemini AI Studio, Kimi, Poolside, Alibaba Model Studio intl), paginação limitada e matriz dos 36 provedores em `docs/providers.md`. |
+| RF5 | 0.12.0 | Seção Modelos na TUI (detalhes e wizard com conta configurada), busca local e sincronização manual. |
+| RF6 | 0.13.0 | Seção Modelos no desktop (detalhes, popover e diálogo de conta), busca acessível, sincronização manual e descarte de resultados de identidade antiga. |
+
+As seções 1 e 2 descrevem a situação de 2026-10-16, antes da implementação. O primeiro conjunto de adaptadores do RF4.1 foi ampliado com Gemini AI Studio, Kimi, Poolside e Alibaba Model Studio (intl), cada um verificado em fonte oficial.
 
 ## 1. Contexto
 
