@@ -175,6 +175,8 @@ struct Loaded {
     /// the desktop offer a "Tentar de novo" button without depending
     /// on the removed account index (which no longer exists in TOML).
     pending_recovery: Vec<RecoveryEntry>,
+    /// RF1.2: arquivo aberto por último pela TUI, quando difere deste.
+    other_config: Option<String>,
 }
 
 /// RF3 recovery primitive stored in the desktop so the UI can retry
@@ -247,6 +249,8 @@ pub struct View {
     config_path: Option<String>,
     /// Regra que escolheu o arquivo: `env`, `chosen` ou `system`.
     config_source: Option<PathSource>,
+    /// RF1.2: caminho que a TUI usou por último, só quando difere.
+    other_config: Option<String>,
     config_exists: bool,
     account_count: usize,
     /// `false` até a primeira rodada completa terminar.
@@ -302,6 +306,7 @@ impl Inner {
                 config_path: None,
                 config_source: None,
                 config_exists: false,
+                other_config: None,
                 account_count: 0,
                 loaded: false,
                 started_at: None,
@@ -350,6 +355,7 @@ impl Inner {
             config_path: Some(config_label(&l.file)),
             config_source: Some(l.file.source),
             config_exists: l.file.exists,
+            other_config: l.other_config.clone(),
             account_count: l.file.config.accounts.len(),
             loaded,
             started_at,
@@ -416,7 +422,15 @@ impl Inner {
         // account in the new config; the core guard already refuses
         // such retries, but dropping the list here means the UI will
         // not offer a button for a stale handle in the first place.
+        // Tests never touch the real OS data dir.
+        let other_config = (!cfg!(test))
+            .then(|| {
+                cuotai_core::last_config::note(cuotai_core::last_config::Frontend::Desktop, &file)
+            })
+            .flatten()
+            .map(|p| p.display().to_string());
         self.loaded = Some(Loaded {
+            other_config,
             cycle: RefreshCycle::new(&file.config, Instant::now()),
             file,
             monitor,
@@ -2465,6 +2479,7 @@ mod tests {
         g.generation = 1;
         g.session = Some(session);
         g.loaded = Some(Loaded {
+            other_config: None,
             file,
             monitor,
             cycle: RefreshCycle::new(&config, Instant::now()),

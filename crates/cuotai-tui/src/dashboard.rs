@@ -351,7 +351,7 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
         .border_style(Style::default().fg(CYAN))
         .title_style(Style::default().fg(CYAN).add_modifier(Modifier::BOLD));
     let mut lines: Vec<Line> = Vec::new();
-    lines.push(Line::from(safe(view.location)));
+    lines.extend(view.location.lines().map(|part| Line::from(safe(part))));
     if view.filtering || !view.filter.is_empty() {
         lines.push(Line::from(format!(
             "Filtro: {}{}",

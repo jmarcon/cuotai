@@ -1098,7 +1098,9 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
     Ok(())
 }
 
-/// Header line: effective path plus the rule that selected it.
+/// Header line: effective path plus the rule that selected it, and the
+/// RF1.2 notice when the desktop app last opened another file. Recording
+/// happens here, i.e. on every load/reload.
 fn location(file: &ConfigFile) -> String {
     use cuotai_core::config_file::PathSource;
     let source = match file.source {
@@ -1108,7 +1110,18 @@ fn location(file: &ConfigFile) -> String {
         PathSource::Local => "local",
         PathSource::System => "padrão do SO",
     };
-    format!("{} ({source})", file.path.display())
+    let mut line = format!("{} ({source})", file.path.display());
+    // Tests never touch the real OS data dir.
+    let other = (!cfg!(test))
+        .then(|| cuotai_core::last_config::note(cuotai_core::last_config::Frontend::Tui, file))
+        .flatten();
+    if let Some(other) = other {
+        line.push_str(&format!(
+            "\nAviso: o desktop usa {}; contas e modelos separados (alinhe com --config ou CUOTAI_CONFIG).",
+            other.display()
+        ));
+    }
+    line
 }
 
 /// Monitor for `file` with its model cache in the OS data dir; without a
@@ -1178,6 +1191,7 @@ fn reload_config_after_conflict(
     state.accounts = file.config.accounts.clone();
     state.detail_scroll = 0;
     state.details = false;
+    state.location = location(file);
     Ok(())
 }
 

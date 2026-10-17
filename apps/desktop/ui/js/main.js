@@ -8,7 +8,7 @@ import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText,
+  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice,
 } from "./lib.js";
 
 await boot();
@@ -194,6 +194,7 @@ function render() {
       <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
+    ${otherConfigNotice(view) ? `<div class="banner" role="status">${esc(otherConfigNotice(view))}</div>` : ""}
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error ? `<div class="empty">${te("common.querying")}</div>` : ""}

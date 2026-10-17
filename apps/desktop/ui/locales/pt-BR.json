@@ -95,6 +95,7 @@
   "settings.about": "Sobre",
   "settings.config.title": "Arquivo de contas",
   "settings.config.help": "cuotai.toml usado pelo app. Escolha o mesmo arquivo da TUI para ver as mesmas contas; nada é copiado nem mesclado.",
+  "config.other": "A TUI usou por último {tui} e este app usa {app}: contas e caches de modelos são separados. Para alinhar, escolha o mesmo arquivo em Configurações › Arquivo de contas.",
   "settings.config.env": "Definido pela variável CUOTAI_CONFIG; a escolha por aqui só vale depois de removê-la.",
   "settings.config.choose": "Escolher arquivo…",
   "settings.config.reset": "Usar padrão do sistema",
