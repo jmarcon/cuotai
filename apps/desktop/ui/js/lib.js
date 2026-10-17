@@ -108,6 +108,8 @@ export async function pickTomlFile(defaultPath) {
 }
 /** Caminho efetivo do `cuotai.toml` com a origem (variável, escolhido ou padrão do SO); texto não escapado. */
 export const configLabel = (view) => view?.config_path ? `${view.config_path} · ${t(`settings.config.source.${view.config_source}`)}` : "";
+/** RF1.2: aviso quando a TUI usou outro arquivo por último; texto não escapado. */
+export const otherConfigNotice = (view) => view?.other_config ? t("config.other", { tui: view.other_config, app: view.config_path }) : "";
 export const setTrayMenu = (payload) => isDesktop && T.core.invoke("set_tray_menu", { payload });
 export const openMainWindow = () => isDesktop && T.core.invoke("show_main_window");
 export const quitApp = () => isDesktop && T.core.invoke("quit_app");

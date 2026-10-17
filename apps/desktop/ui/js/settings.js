@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, openUserDir, pickFolder, pickTomlFile, setConfigFile, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 
 let dlg = null;
@@ -35,6 +35,7 @@ export async function openSettings(extra = {}) {
       <section class="set-sec"><h3>${te("settings.config.title")}</h3>
         <p class="hint">${te("settings.config.help")}</p>
         <div class="path-row"><code title="${esc(configLabel(view))}">${esc(configLabel(view) || "—")}</code></div>
+        ${otherConfigNotice(view) ? `<p class="hint warn-txt">${esc(otherConfigNotice(view))}</p>` : ""}
         ${s.config_env_locked ? `<p class="hint warn-txt">${te("settings.config.env")}</p>` : ""}
         <div class="dlg-actions left">
           <button class="btn" data-pick-config ${s.config_env_locked ? "disabled" : ""}>${icon("folder")} ${te("settings.config.choose")}</button>

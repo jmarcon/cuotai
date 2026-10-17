@@ -30,6 +30,7 @@ cargo install --path crates/cuotai-tui --locked
 ### Precedência de configuração e códigos de saída
 
 - **Precedência:** `--config`, `CUOTAI_CONFIG`, `./cuotai.toml` **existente**, diretório de configuração do sistema (`<config do SO>/cuotai/config.toml`; `~/Library/Application Support/cuotai/config.toml` no macOS). O cabeçalho mostra o caminho efetivo e a origem (`--config`, `CUOTAI_CONFIG`, `local` ou `padrão do SO`).
+- **Aviso de arquivos diferentes:** TUI e desktop registram o último arquivo aberto em `<dados do SO>/cuotai/last-config-*.json` (só o caminho normalizado e a data). Se o desktop usou outro arquivo, o cabeçalho mostra os dois caminhos e lembra que contas e caches de modelos são separados; alinhe com `--config` ou `CUOTAI_CONFIG`.
 - Sem arquivo encontrado em modo interativo, o wizard cria `<config do SO>/cuotai/config.toml` (o mesmo padrão do desktop). Para criar um arquivo local, passe-o explicitamente: `--config ./cuotai.toml`. Arquivos existentes nunca são migrados, mesclados nem sobrescritos automaticamente.
 - Em modo `--once`/`--json`, sem arquivo continuam usando o catálogo padrão (não abrem o wizard), e um arquivo explícito ausente ou inválido retorna erro. Arquivo inválido nunca é ignorado.
 - Consultas HTTP usam as variáveis padrão quando presentes; AWS só consulta após configurar explicitamente `params.profile`.

@@ -89,6 +89,7 @@
   "settings.about": "About",
   "settings.config.title": "Accounts file",
   "settings.config.help": "cuotai.toml used by the app. Pick the same file as the TUI to see the same accounts; nothing is copied or merged.",
+  "config.other": "The TUI last used {tui}, this app uses {app}: accounts and model caches are separate. To align, choose the same file in Settings › Accounts file.",
   "settings.config.env": "Set by the CUOTAI_CONFIG variable; a choice made here only applies after removing it.",
   "settings.config.choose": "Choose file…",
   "settings.config.reset": "Use system default",
