@@ -789,5 +789,6 @@
   "settings.refresh.save": "Apply",
   "settings.refresh.saved": "Interval updated.",
   "settings.refresh.presets": "Presets",
-  "settings.refresh.min": "min. 30 s"
+  "settings.refresh.min": "min. 30 s",
+  "edit_error.login_cleanup_failed": "The configuration and the new credential were saved; the replaced credential remains in the vault because it could not be removed."
 }

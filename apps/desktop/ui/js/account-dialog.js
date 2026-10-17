@@ -35,11 +35,8 @@ const errText = (e) => {
   return t("common.unexpected");
 };
 
-// Chaves de registro de cliente OAuth: viram campos dedicados do pedido de
-// login (nunca opções genéricas), conforme o contrato do core.
-const REGISTRATION_KEYS = ["client_id", "client_secret_env", "tenant"];
 
-export async function openAccountDialog(index = null) {
+export async function openAccountDialog(index = null, { onSaved = () => {} } = {}) {
   const editing = index != null;
   const providers = (await listProviders()).sort((a, b) => a.label.localeCompare(b.label, currentLocale(), { sensitivity: "base" }));
   const existing = editing ? await getAccount(index) : null;
@@ -135,17 +132,6 @@ export async function openAccountDialog(index = null) {
   const loginDone = () => loginState?.phase === "done";
   const loginParams = () => (loginDone() ? loginState.params : {});
 
-  // Stable dedicated profile for Bailian's `bl` login; the same value must
-  // reach its CLI invocation and the saved account. AWS SSO instead requires
-  // an already configured AWS CLI profile entered by the user.
-  const sessionSlug = (() => {
-    const profile = existing?.credential;
-    if (schema.credential_kind === "none" && profile && /^[A-Za-z0-9_-]{1,32}$/.test(profile)
-        && !profile.startsWith("-")) return profile;
-    const bytes = new Uint8Array(8);
-    crypto.getRandomValues(bytes);
-    return "cuotai-" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  })();
 
   const collect = () => {
     for (const f of schema.fields) {
@@ -267,7 +253,9 @@ export async function openAccountDialog(index = null) {
             ? { key, choice: Math.max(0, f.options.findIndex((opt) => opt.value === value)), text: null }
             : { key, text: value, choice: null });
         }
-        loginState.lines.push(t("dialog.login.authorized"));
+        loginState.lines.push(selectedMode()?.completion_notice
+          ? tl(selectedMode().completion_notice)
+          : t("dialog.login.authorized"));
         // Atualiza o formulário com os parâmetros do login e só então salva (o `collect()` do salvar lê esses campos).
         renderDynamic().then(() => {
           if (!dlg.open || loginState?.phase !== "done" || committing) return;
@@ -323,73 +311,43 @@ export async function openAccountDialog(index = null) {
     }
   });
 
+  const collectModeInputs = (mode) => {
+    const options = {};
+    const registration = {};
+    if (!mode) return { options, registration };
+    const read = (option, isRegistration) => {
+      const prefix = isRegistration ? "r" : "o";
+      const el = dyn.querySelector(`[name="${prefix}:${option.key}"]`);
+      if (!el) return "";
+      return option.choices
+        ? option.choices[Number(el.value)]?.value ?? ""
+        : el.value.trim();
+    };
+    for (const option of mode.options ?? []) {
+      const value = read(option, false);
+      if (value !== "") options[option.key] = value;
+    }
+    for (const option of mode.registration ?? []) {
+      const value = read(option, true);
+      if (value !== "") registration[option.key] = value;
+    }
+    return { options, registration };
+  };
+
   async function startLogin(btn) {
     const mode = selectedMode();
     if (!mode) return;
     err.textContent = "";
     if (nameInput.value.trim() === "") { showNameError(); return; }
-    // Zera qualquer login pendente para que o backend não rejeite a nova
-    // tentativa como "já em andamento".
     await resetLogin();
-    const options = {};
-    for (const o of mode.options) {
-      const el = dyn.querySelector(`[name="o:${o.key}"]`);
-      if (!el) continue;
-      // A dedicated Bailian profile must match the later account save;
-      // AWS uses the configured profile entered by the user.
-      let prefill = existing?.auth_options?.[o.key] ?? "";
-      if (o.key === "profile" && el.value === "" && mode.id === "bailian_console") {
-        if (prefill === "") prefill = sessionSlug;
-        el.value = prefill;
-      } else if (el.value === "" && prefill !== "") {
-        el.value = prefill;
-      }
-      // Como na TUI: opção de texto vazia não vai no pedido (o core copia as opções como vieram).
-      if (o.choices) options[o.key] = o.choices[Number(el.value)]?.value ?? "";
-      else if (el.value.trim() !== "") options[o.key] = el.value.trim();
-    }
-    // Bailian exige um perfil dedicado não vazio antes do login; o
-    // `start_login` do core rejeita sem isso.
-    if (mode.id === "bailian_console" && !options.profile) {
-      err.textContent = t("dialog.login.profileRequired");
-      return;
-    }
-    const reg = {};
-    if (mode.requires_client_registration) {
-      for (const key of REGISTRATION_KEYS) {
-        const el = dyn.querySelector(`[name="o:${key}"]`);
-        if (!el) continue;
-        if (el.value === "") {
-          if (key === "client_id" && existing?.client_id) el.value = existing.client_id;
-          else if (key === "client_secret_env" && existing?.client_secret_env) el.value = existing.client_secret_env;
-          else if (key === "tenant" && existing?.tenant) el.value = existing.tenant;
-        }
-        reg[key] = el.value.trim();
-      }
-      if (!reg.client_id) {
-        err.textContent = t("dialog.login.clientIdRequired");
-        return;
-      }
-    }
+    const { options, registration } = collectModeInputs(mode);
     btn.disabled = true;
-    // Zera pendências: nada de uma tentativa anterior pode drenar para a nova.
     pendingEnvelopes = [];
-    // Estabelece o estado ANTES do await: para fluxos instantâneos (Cursor
-    // import, AWS sso terminado de cara) o `loginStart` pode resolver antes
-    // do próximo paint, e o evento `Finished` chega quase junto. Ter o
-    // loginState já presente garante que o handler de evento o encontre.
-    loginState = { phase: "running", lines: [t("dialog.login.preparing")], placeholder: true, url: null, userCode: null, waitingCode: false, params: {}, codeError: "", attempt: 0, options };
+    loginState = { phase: "running", lines: [t("dialog.login.preparing")], placeholder: true, url: null, userCode: null, waitingCode: false, params: {}, codeError: "", attempt: 0 };
     renderLoginPanel();
     try {
-      const attempt = await loginStart({
-        provider, index, mode: mode.id, options,
-        clientId: reg.client_id || null,
-        clientSecretEnv: reg.client_secret_env || null,
-        tenant: reg.tenant || null,
-      });
+      const attempt = await loginStart({ provider, index, mode: mode.id, options, registration });
       loginState.attempt = attempt;
-      // Drena envelopes que chegaram antes do `await loginStart` resolver
-      // (fluxos instantâneos: Cursor import, AWS sso instantâneo).
       drainPending();
     } catch (x) {
       err.textContent = errText(x);
@@ -400,12 +358,8 @@ export async function openAccountDialog(index = null) {
   }
 
   async function renderDynamic() {
-    // Snapshot do que o usuário já digitou na seção de autenticação para
-    // sobreviver ao `innerHTML` abaixo. Os valores de `f:*` continuam no
-    // mapa `values` (atualizado por `collect`); aqui guardamos apenas os
-    // `o:*` (opções do modo + registro) e o radio `auth` corrente.
     const optSnapshot = new Map();
-    for (const el of dyn.querySelectorAll("[name^='o:']")) {
+    for (const el of dyn.querySelectorAll("[name^='o:'],[name^='r:']")) {
       optSnapshot.set(el.name, el.value);
     }
     visible = new Set(await visibleFields(provider, choices(), authMode, loginParams()));
@@ -445,28 +399,20 @@ export async function openAccountDialog(index = null) {
             <input name="credential" value="${esc(existing?.credential ?? "")}" placeholder="${esc(cred === "env" ? schema.default_env : "")}" required />
             <small>${esc(tl(schema.credential_help))}</small></label>`;
     } else {
-      const optInputs = mode.options.map((o) => {
-        const prefill = existing?.auth_options?.[o.key] ?? "";
-        const input = o.choices
-          ? `<select name="o:${esc(o.key)}">${o.choices.map((choice, i) => `<option value="${i}" ${(prefill && choice.value === prefill) || (!prefill && i === 0) ? "selected" : ""}>${esc(tl(choice.label))}</option>`).join("")}</select>`
-          : `<input name="o:${esc(o.key)}" value="${esc(prefill)}" />`;
-        return `<label class="f"><span>${esc(tl(o.label, { key: o.key }))}</span>${input}${o.help ? `<small>${esc(tl(o.help, { key: o.key }))}</small>` : ""}</label>`;
-      });
-      if (mode.requires_client_registration) {
-        const has = (k) => mode.options.some((o) => o.key === k);
-        if (!has("client_id")) {
-          const prefill = existing?.client_id ?? "";
-          optInputs.push(`<label class="f"><span>${te("dialog.reg.clientId")}</span><input name="o:client_id" value="${esc(prefill)}" required /><small>${te("dialog.reg.clientIdHelp")}</small></label>`);
-        }
-        if (!has("client_secret_env")) {
-          const prefill = existing?.client_secret_env ?? "";
-          optInputs.push(`<label class="f"><span>${te("dialog.reg.secretEnv")}</span><input name="o:client_secret_env" value="${esc(prefill)}" /><small>${te("dialog.reg.secretEnvHelp")}</small></label>`);
-        }
-        if (!has("tenant")) {
-          const prefill = existing?.tenant ?? "";
-          optInputs.push(`<label class="f"><span>${te("dialog.reg.tenant")}</span><input name="o:tenant" value="${esc(prefill)}" /><small>${te("dialog.reg.tenantHelp")}</small></label>`);
-        }
-      }
+      const renderOption = (option, isRegistration) => {
+        const prefix = isRegistration ? "r" : "o";
+        const prefill = isRegistration
+          ? existing?.auth_registration?.[option.key] ?? ""
+          : existing?.auth_options?.[option.key] ?? "";
+        const input = option.choices
+          ? `<select name="${prefix}:${esc(option.key)}">${option.choices.map((choice, i) => `<option value="${i}" ${(prefill && choice.value === prefill) || (!prefill && i === 0) ? "selected" : ""}>${esc(tl(choice.label))}</option>`).join("")}</select>`
+          : `<input name="${prefix}:${esc(option.key)}" value="${esc(prefill)}" ${option.required ? "required" : ""} />`;
+        return `<label class="f"><span>${esc(tl(option.label, { key: option.key }))}${option.required ? " *" : ""}</span>${input}${option.help ? `<small>${esc(tl(option.help, { key: option.key }))}</small>` : ""}</label>`;
+      };
+      const optInputs = [
+        ...(mode.registration ?? []).map((option) => renderOption(option, true)),
+        ...(mode.options ?? []).map((option) => renderOption(option, false)),
+      ];
       const button = loginDone()
         ? `<p class="hint">${te("dialog.login.doneHint")}</p>
            <button type="button" class="btn" id="login-btn">${te("dialog.login.redo")}</button>`
@@ -484,10 +430,6 @@ export async function openAccountDialog(index = null) {
           : `<input name="f:${esc(f.key)}" value="${esc(v?.text ?? "")}" ${f.required ? "required" : ""} />`;
         return `<label class="f"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
       }).join("");
-    // Restaura o que o usuário já tinha digitado nos inputs `o:*` (opções
-    // do modo + registro) para que mudanças em `f:` não apaguem a área
-    // de autenticação. Não restaura o radio `auth` porque o handler de
-    // change já cuida dele.
     for (const [name, value] of optSnapshot) {
       const el = dyn.querySelector(`[name="${name}"]`);
       if (el && value !== "") el.value = value;
@@ -506,9 +448,11 @@ export async function openAccountDialog(index = null) {
       authMode = schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential";
       await renderDynamic();
     } else if (e.target.name === "auth") {
-      // Trocar de modo invalida qualquer autorização anterior (identidade muda).
       await resetLogin();
       authMode = e.target.value;
+      await renderDynamic();
+    } else if (e.target.name?.startsWith("o:") || e.target.name?.startsWith("r:")) {
+      await resetLogin();
       await renderDynamic();
     } else if (e.target.name?.startsWith("f:")) {
       collect();
@@ -525,20 +469,11 @@ export async function openAccountDialog(index = null) {
     const ok = dlg.querySelector("#ok");
     err.textContent = "";
     const mode = selectedMode();
-    // Bloqueia salvar se há login em andamento: enquanto o forwarder
-    // pode emitir Finished contra a config que estava em disco no início
-    // do save, misturar commit (TOML) com evento ainda em voo corromperia
-    // a ordem. Aplica-se tanto a OAuth quanto a qualquer modo.
     if (loginState?.phase === "running") {
       err.textContent = t("dialog.save.loginRunning");
       return;
     }
-    // Modo OAuth (sem opção "profile" para servir de credencial) sem
-    // login concluído: bloquear. Para contas já OAuth, a exceção de
-    // "edição sem novo login" só vale quando o `authMode` escolhido
-    // coincide com o da config existente — qualquer outro modo OAuth
-    // exigiria nova autorização.
-    if (mode && !mode.options.some((o) => o.key === "profile") && !loginDone()) {
+    if (mode?.credential_store === "cuotai_vault" && !loginDone()) {
       const sameAsExisting = !!existing?.uses_oauth && existing?.auth_mode === authMode;
       if (!sameAsExisting) {
         err.textContent = t("dialog.save.needLogin");
@@ -550,21 +485,9 @@ export async function openAccountDialog(index = null) {
     dlg.querySelector("[data-cancel]").disabled = true;
     const data = new FormData(form);
     try {
-      const profileOpt = mode?.options.find((o) => o.key === "profile");
-      const profileEl = profileOpt ? dyn.querySelector('[name="o:profile"]') : null;
-      // Modo `aws_sso`: o profile AWS vai em `credential` (o core grava
-      // via `apply_aws_profile` em `params["profile"]`).
-      // Modo `bailian_console`: o `profile` (perfil dedicado do `bl`) vai
-      // em `cliProfileOverride` para que o backend passe em
-      // `credential_params = Some({ cli_profile })`.
-      const profileValue = profileEl ? (profileOpt.choices ? profileOpt.choices[Number(profileEl.value)]?.value ?? "" : profileEl.value.trim()) : "";
-      if (loginDone() && mode?.options.some((o) => o.key === "profile") && profileValue !== loginState.options.profile) {
-        throw t("dialog.save.profileChanged");
-      }
-      const credential = mode?.id === "aws_sso"
-        ? profileValue
-        : (mode ? "" : String(data.get("credential") ?? ""));
-      await saveAccount({
+      const { options } = collectModeInputs(mode);
+      const credential = mode ? "" : String(data.get("credential") ?? "");
+      const result = await saveAccount({
         index, provider, name: String(data.get("name") ?? ""),
         credential,
         fields: schema.fields.filter((f) => visible.has(f.key)).map((f) => ({ key: f.key, text: values.get(f.key)?.text ?? (f.options ? null : ""), choice: values.get(f.key)?.choice ?? (f.options ? 0 : null) })),
@@ -572,10 +495,12 @@ export async function openAccountDialog(index = null) {
         commitLogin: loginDone(),
         loginAttempt: loginState?.attempt ?? 0,
         authMode,
-        cliProfileOverride: mode?.id === "bailian_console" ? profileValue : "",
+        authOptions: options,
+        authParams: loginDone() ? loginState.params : {},
       });
       committing = false;
       dlg.close();
+      onSaved(result);
     } catch (x) {
       err.textContent = errText(x);
       ok.disabled = false;

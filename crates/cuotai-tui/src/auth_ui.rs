@@ -6,10 +6,11 @@ use crate::ui::safe;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use cuotai_core::{
     login::{
-        CompletedLogin, CredentialCommit, LoginDriver, LoginEvent, LoginResult, PartialFailure,
-        SubmitCodeError,
+        CleanupFailure, CompletedLogin, CredentialCommit, ExternalLogin, LoginCommitOutcome,
+        LoginDriver, LoginEvent, LoginResult, PartialFailure, SubmitCodeError,
     },
     oauth::{OAuthError, OAuthSession},
+    Config,
 };
 use ratatui::{
     layout::{Constraint, Layout},
@@ -26,16 +27,14 @@ const DRACULA_FG: Color = Color::Rgb(248, 248, 242);
 const DRACULA_CYAN: Color = Color::Rgb(139, 233, 253);
 
 pub(crate) enum Outcome {
-    /// Login OAuth autorizado; o token está apenas em memória até o commit
-    /// (cuotai_core::login::begin_credential_commit / commit_login).
+    /// Cuotai credential authorized; the token is memory-only until commit.
     Authorized(CompletedLogin),
-    /// `aws sso login` concluiu; o token fica no cache da própria AWS CLI.
-    Aws,
-    /// `bl auth login --console` concluiu no perfil dedicado do próprio CLI;
-    /// a consulta de quota usa esse perfil sem copiar credenciais para o Cuotai.
-    BailianConsole,
+    /// External CLI completed; only public account params are returned.
+    External(ExternalLogin),
     /// Credencial gravada no cofre; falta apenas a gravação do TOML.
     CredentialReady(CredentialCommit),
+    /// TOML saved and post-save cleanup resolved (possibly non-fatally).
+    Committed(LoginCommitOutcome),
     /// A gravação do TOML falhou após a credencial ser gravada; a
     /// compensação do core já foi aplicada e o estado exato é relatado.
     RolledBack(PartialFailure),
@@ -44,10 +43,10 @@ pub(crate) enum Outcome {
 enum Job {
     /// Fluxo interativo conduzido pelo driver do core.
     Login(LoginDriver),
-    /// Etapa 1 do commit (cofre). Não cancelável: cancelar no meio poderia
-    /// deixar o cofre gravado sem o TOML. Se o diálogo for fechado, a tarefa
-    /// continua até o fim (detach) e o retry do commit é idempotente.
+    /// Etapa 1 do commit (cofre). Não cancelável.
     Commit(JoinHandle<Result<CredentialCommit, OAuthError>>),
+    /// TOML já salvo; limpeza da chave substituída em andamento.
+    Confirm(JoinHandle<LoginCommitOutcome>),
     /// Compensação após falha da gravação do TOML; também não cancelável.
     Rollback(JoinHandle<PartialFailure>),
     /// Resultado já coletado.
@@ -90,6 +89,22 @@ impl LoginTask {
         }
     }
 
+    /// Finalize after the TOML save: shared-key guard and replaced-key
+    /// cleanup run only now, never before the config is durable.
+    pub fn confirm(
+        session: Arc<OAuthSession>,
+        commit: CredentialCommit,
+        saved_config: Config,
+    ) -> Self {
+        let job = tokio::spawn(async move { commit.confirm(&session, &saved_config).await });
+        Self {
+            job: Job::Confirm(job),
+            lines: vec!["Configuração salva; verificando a credencial substituída...".into()],
+            scroll: 0,
+            code: String::new(),
+            code_status: String::new(),
+        }
+    }
     /// Compensação do commit quando a gravação do TOML falhou: o core
     /// restaura o token anterior (reauth) ou remove o token novo, e devolve
     /// o estado exato para a UI.
@@ -110,6 +125,7 @@ impl LoginTask {
         match &self.job {
             Job::Login(driver) => driver.is_finished(),
             Job::Commit(job) => job.is_finished(),
+            Job::Confirm(job) => job.is_finished(),
             Job::Rollback(job) => job.is_finished(),
             Job::Done => true,
         }
@@ -154,11 +170,13 @@ impl LoginTask {
         match std::mem::replace(&mut self.job, Job::Done) {
             Job::Login(mut driver) => Ok(match driver.finish().await? {
                 LoginResult::Authorized(login) => Outcome::Authorized(login),
-                LoginResult::AwsSso => Outcome::Aws,
-                LoginResult::BailianConsole => Outcome::BailianConsole,
+                LoginResult::External(login) => Outcome::External(login),
             }),
             Job::Commit(job) => Ok(Outcome::CredentialReady(
                 job.await.map_err(|_| OAuthError::Network)??,
+            )),
+            Job::Confirm(job) => Ok(Outcome::Committed(
+                job.await.map_err(|_| OAuthError::Network)?,
             )),
             Job::Rollback(job) => Ok(Outcome::RolledBack(
                 job.await.map_err(|_| OAuthError::Network)?,
@@ -275,8 +293,11 @@ impl LoginTask {
         frame.render_widget(paragraph.scroll((self.scroll, 0)).block(block), areas[0]);
         let footer = if self.accepts_code() {
             format!("Código MiMo (oculto): {} [{} caracteres]\n{}\nEnter envia • Ctrl-U limpa • Esc cancela • ↑↓ rolam instruções", "*".repeat(self.code.len().min(32)), self.code.len(), self.code_status)
-        } else if matches!(self.job, Job::Commit(_) | Job::Rollback(_)) {
-            "Aguarde a gravação segura. Ctrl-C sai; o arquivo TOML ainda não foi alterado.".into()
+        } else if matches!(
+            self.job,
+            Job::Commit(_) | Job::Confirm(_) | Job::Rollback(_)
+        ) {
+            "Aguarde a gravação segura. Ctrl-C sai; não cancele durante a compensação.".into()
         } else {
             "↑↓ rolar • Esc cancela e retorna ao wizard • Ctrl-C sai".into()
         };
@@ -311,4 +332,13 @@ pub(crate) fn partial_failure_message(failure: &PartialFailure) -> String {
             "{base}\n\nA gravação do TOML foi o que falhou; o cofre não precisava de compensação."
         ),
     }
+}
+
+/// Truthful non-fatal outcome: both the new config and credential were saved,
+/// but the replaced token could not be removed.
+pub(crate) fn cleanup_failure_message(failure: &CleanupFailure) -> String {
+    format!(
+        "Login salvo com aviso: {}\n\nA conta já usa a nova credencial; a anterior foi mantida no cofre.",
+        failure.message
+    )
 }

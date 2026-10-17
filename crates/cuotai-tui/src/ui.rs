@@ -14,10 +14,10 @@ use crossterm::{
 use cuotai_core::{
     account_edit::{self, RemoveError, RemoveOutcome, RemovedAccount},
     config_file::ConfigFile,
-    login::{self, CompletedLogin, LoginRequest},
+    login::{self, CompletedLogin},
     oauth::OAuthSession,
     refresh::{Edit, RefreshCycle},
-    Account, Config, EnvironmentCredentials, Metric, Monitor, Provider, Snapshot,
+    Account, Config, EnvironmentCredentials, Metric, Monitor, Snapshot,
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -322,57 +322,16 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                     wizard = None;
                     authorized = None;
                 }
-                Action::Login { provider, config } => {
+                Action::Login { provider, request } => {
                     authorized = None;
-                    // RF2: a escolha do fluxo (navegador, device code, código
-                    // manual MiMo, importação Cursor) é do core; a TUI só
-                    // inicia o driver e renderiza os eventos.
-                    match login::start_login(
-                        Arc::clone(&session),
-                        provider,
-                        LoginRequest::oauth(&config),
-                    ) {
+                    // Every mode discovered by the core follows this same path.
+                    match login::start_login(Arc::clone(&session), provider, *request) {
                         Ok(driver) => {
                             if driver.accepts_code() {
                                 execute!(io::stdout(), EnableBracketedPaste)?;
                             }
                             auth_task = Some(LoginTask::new(driver));
                         }
-                        Err(error) => {
-                            if let Some(active) = &mut wizard {
-                                active.set_error(error.to_string());
-                            }
-                        }
-                    }
-                }
-                Action::AwsLogin { profile } => {
-                    match login::start_login(
-                        Arc::clone(&session),
-                        Provider::AwsBedrock,
-                        LoginRequest::aws_sso(profile),
-                    ) {
-                        Ok(driver) => auth_task = Some(LoginTask::new(driver)),
-                        Err(error) => {
-                            if let Some(active) = &mut wizard {
-                                active.set_error(error.to_string());
-                            }
-                        }
-                    }
-                }
-                Action::BailianConsoleLogin {
-                    console_site,
-                    profile,
-                } => {
-                    // O CLI do `bl` grava no perfil dedicado (params.cli_profile)
-                    // e o Cuotai só supervisiona — sem ler stdout, sem guardar
-                    // nada. O profile viaja do wizard F2 -> Action -> request
-                    // e o core o passa ao CLI via `--config <profile>`.
-                    match login::start_login(
-                        Arc::clone(&session),
-                        Provider::AlibabaTokenPlan,
-                        LoginRequest::bailian_console(console_site, profile),
-                    ) {
-                        Ok(driver) => auth_task = Some(LoginTask::new(driver)),
                         Err(error) => {
                             if let Some(active) = &mut wizard {
                                 active.set_error(error.to_string());
@@ -682,13 +641,8 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                                 .login_finished(completed.config.clone(), completed.params.clone());
                             authorized = Some(completed);
                         }
-                        Ok(Outcome::Aws) => active.aws_login_finished(),
-                        Ok(Outcome::BailianConsole) => {
-                            // O `bl` gravou no cofre local; nada para Cuotai
-                            // persistir. Apenas fechamos o diálogo: o usuário
-                            // continua no wizard e a próxima consulta Token
-                            // Plan usará o perfil dedicado via --config.
-                            active.bailian_login_finished();
+                        Ok(Outcome::External(login)) => {
+                            active.external_login_finished(login.params);
                         }
                         Ok(Outcome::CredentialReady(commit)) => {
                             // RF2.4: cofre gravado; agora o TOML. Em caso de
@@ -706,10 +660,12 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                                     expected_identity,
                                 ) {
                                     Ok((new_monitor, _refresh_target)) => {
-                                        let _ = commit.confirm();
                                         monitor = new_monitor;
-                                        wizard = None;
-                                        authorized = None;
+                                        auth_task = Some(LoginTask::confirm(
+                                            Arc::clone(&session),
+                                            commit,
+                                            file.config.clone(),
+                                        ));
                                     }
                                     Err(error) => {
                                         auth_task = Some(LoginTask::rollback(
@@ -720,6 +676,22 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                                     }
                                 }
                             }
+                        }
+                        Ok(Outcome::Committed(login::LoginCommitOutcome::Saved)) => {
+                            wizard = None;
+                            authorized = None;
+                        }
+                        Ok(Outcome::Committed(
+                            login::LoginCommitOutcome::SavedWithCleanupFailure(failure),
+                        )) => {
+                            state.error = Some(crate::auth_ui::cleanup_failure_message(&failure));
+                            wizard = None;
+                            authorized = None;
+                        }
+                        Ok(Outcome::Committed(login::LoginCommitOutcome::PartialFailure(
+                            failure,
+                        ))) => {
+                            active.set_error(crate::auth_ui::partial_failure_message(&failure));
                         }
                         Ok(Outcome::RolledBack(failure)) => {
                             // Estado exato reportado pelo core; o login
@@ -1876,6 +1848,7 @@ pub(crate) fn metric_text(metric: &Metric) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Provider;
     use std::collections::BTreeMap;
 
     fn account(name: &str, provider: Provider) -> Account {

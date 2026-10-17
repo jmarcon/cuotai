@@ -10,8 +10,8 @@ use crossterm::event::{
     KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use cuotai_core::account_edit as edit;
-use cuotai_core::login::{self, LoginMode};
-use cuotai_core::oauth::{requires_client_registration, supports_login, OAuthConfig};
+use cuotai_core::login::{self, LoginCredentialStore, LoginMode, LoginOption, LoginRequest};
+use cuotai_core::oauth::OAuthConfig;
 use cuotai_core::{Account, Config, Provider};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -48,22 +48,10 @@ pub(crate) enum Action {
         config: Config,
         edit: Option<usize>,
     },
-    /// Inicia o fluxo OAuth (navegador/device) com o app do próprio usuário.
+    /// Start any core-described flow through the same request/interface.
     Login {
         provider: Provider,
-        config: OAuthConfig,
-    },
-    /// Executa `aws sso login` para um perfil SSO já configurado.
-    AwsLogin {
-        profile: String,
-    },
-    /// Executa `bl auth login --console --console-site <site> --config <profile>`
-    /// para o Token Plan internacional. Cuotai não armazena nada do cofre
-    /// local do `bl`; o `profile` (params.cli_profile) isola credenciais por
-    /// conta via `--config`.
-    BailianConsoleLogin {
-        console_site: String,
-        profile: String,
+        request: Box<LoginRequest>,
     },
     /// RF4: the file on disk changed and the user accepted the
     /// conflict-recovery modal's "reload" action. The TUI must read
@@ -157,6 +145,60 @@ impl Field {
         }
     }
 }
+struct LoginField {
+    option: LoginOption,
+    registration: bool,
+    kind: LoginFieldKind,
+}
+
+enum LoginFieldKind {
+    Text(String),
+    Choice { selected: usize },
+}
+
+impl LoginField {
+    fn new(option: LoginOption, registration: bool, request: &LoginRequest) -> Self {
+        let values = if registration {
+            &request.registration
+        } else {
+            &request.options
+        };
+        let existing = values.get(&option.key);
+        let kind = if let Some(choices) = &option.choices {
+            let selected = existing
+                .and_then(|value| choices.iter().position(|(choice, _)| choice == value))
+                .unwrap_or(0);
+            LoginFieldKind::Choice { selected }
+        } else {
+            LoginFieldKind::Text(existing.cloned().unwrap_or_default())
+        };
+        Self {
+            option,
+            registration,
+            kind,
+        }
+    }
+
+    fn value(&self) -> String {
+        match &self.kind {
+            LoginFieldKind::Text(value) => value.trim().to_string(),
+            LoginFieldKind::Choice { selected } => self
+                .option
+                .choices
+                .as_ref()
+                .and_then(|choices| choices.get(*selected))
+                .map(|(value, _)| value.clone())
+                .unwrap_or_default(),
+        }
+    }
+
+    fn text_mut(&mut self) -> Option<&mut String> {
+        match &mut self.kind {
+            LoginFieldKind::Text(value) => Some(value),
+            LoginFieldKind::Choice { .. } => None,
+        }
+    }
+}
 
 pub(crate) struct Wizard {
     base: Config,
@@ -172,36 +214,22 @@ pub(crate) struct Wizard {
     interval: String,
     summary_scroll: u16,
     error: Option<String>,
-    /// Mensagem do conflito externo detectado ao tentar salvar
-    /// (RF4). Enquanto estiver presente, o assistente exibe um
-    /// diálogo modal oferecendo `r` para recarregar o arquivo do
-    /// disco (mantendo o rascunho) ou `Esc` para cancelar.
     conflict: Option<String>,
-    /// Aviso transitório de sucesso (login OAuth/SSO), exibido até a próxima tecla.
     notice: Option<String>,
-    /// Modo OAuth no passo Credencial (só vale quando `supports_login(provider)`).
-    oauth_mode: bool,
-    oauth_client_id: String,
-    oauth_tenant: String,
-    oauth_secret_env: String,
-    oauth_idx: usize,
+    /// Core-owned discovery plus the selected credential/mode id.
+    login: login::ProviderLogin,
+    auth_mode: String,
+    login_fields: Vec<LoginField>,
+    login_idx: usize,
     /// Config OAuth da conta em edição, preservada enquanto a identidade não mudar.
     oauth_existing: Option<OAuthConfig>,
     /// Config autorizada por login concluído nesta sessão do assistente.
     oauth_authorized: Option<OAuthConfig>,
-    /// credential_id estável entre tentativas do mesmo login; novo após qualquer
-    /// alteração de identidade (modo, provedor, client_id, tenant, secret_env).
-    oauth_pending_id: Option<String>,
-    /// Opções não secretas do fluxo nativo (region/auth_method/start_url),
-    /// editadas no passo Credencial ANTES do login e gravadas em OAuthConfig.options.
-    native_options: Vec<Field>,
-    /// Params públicos devolvidos pelo login concluído nesta sessão
-    /// (metadados seguros: user_id, region, product etc. — nunca tokens).
+    /// Public params returned by an external CLI login (`Some` also means the
+    /// flow completed; an empty map is a valid result for a future mode).
+    external_login_params: Option<BTreeMap<String, String>>,
+    /// Params públicos devolvidos pelo login concluído nesta sessão.
     oauth_login_params: BTreeMap<String, String>,
-    /// Cópia mutável dos params atuais durante o passo Credencial, usada
-    /// para enriquecer `params.cli_profile` (Bailian) sem voltar para os
-    /// params imutáveis do `base`. Reset ao avançar.
-    credential_params: Option<BTreeMap<String, String>>,
 }
 
 impl Wizard {
@@ -213,33 +241,17 @@ impl Wizard {
             .position(|p| *p == provider)
             .unwrap_or(0);
         let name = existing.map(|a| a.name.clone()).unwrap_or_default();
-        // Stored credential value comes from core: AWS uses params["profile"],
-        // AlibabaTokenPlan uses params["cli_profile"], everything else uses
-        // credential_env. Brand-new accounts prefilled with the conventional
-        // env-var name (or empty for non-env kinds).
         let credential = match existing {
             Some(a) => edit::stored_credential(a),
             None => edit::suggested_credential(provider).to_string(),
         };
-        // Pré-carrega o OAuth da conta em edição: nome/params podem ser alterados
-        // sem refazer o login; mexer na identidade (client/tenant/secret) invalida.
         let oauth_existing = existing
-            .filter(|a| a.provider == provider && supports_login(provider))
+            .filter(|a| a.provider == provider)
             .and_then(|a| a.oauth.clone());
-        let oauth_mode = oauth_existing.is_some();
-        let oauth_client_id = oauth_existing
-            .as_ref()
-            .map(|o| o.client_id.clone())
-            .unwrap_or_default();
-        let oauth_tenant = oauth_existing
-            .as_ref()
-            .and_then(|o| o.tenant.clone())
-            .unwrap_or_default();
-        let oauth_secret_env = oauth_existing
-            .as_ref()
-            .and_then(|o| o.client_secret_env.clone())
-            .unwrap_or_default();
-        let native_options = native_option_fields(provider, oauth_existing.as_ref());
+        let login = login::login_modes(provider);
+        let auth_mode = initial_auth_mode(provider, &login, oauth_existing.is_some());
+        let mode = login.modes.iter().find(|mode| mode.id == auth_mode);
+        let login_fields = login_fields_for(provider, mode, existing);
         Self {
             base: config.clone(),
             editing,
@@ -251,9 +263,6 @@ impl Wizard {
             credential,
             fields: default_fields(provider, existing.filter(|a| a.provider == provider)),
             field_idx: 0,
-            // Pré-carrega o intervalo individual desta conta, se existir;
-            // campo vazio significa "herdar o global". Ao criar conta nova
-            // começa vazio (sem override), para que o global continue valendo.
             interval: existing
                 .and_then(|a| a.refresh_seconds)
                 .map(|seconds| seconds.to_string())
@@ -262,17 +271,14 @@ impl Wizard {
             error: None,
             conflict: None,
             notice: None,
-            oauth_mode,
-            oauth_client_id,
-            oauth_tenant,
-            oauth_secret_env,
-            oauth_idx: 0,
+            login,
+            auth_mode,
+            login_fields,
+            login_idx: 0,
             oauth_existing,
             oauth_authorized: None,
-            oauth_pending_id: None,
-            native_options,
+            external_login_params: None,
             oauth_login_params: BTreeMap::new(),
-            credential_params: None,
         }
     }
 
@@ -373,8 +379,8 @@ impl Wizard {
         match self.step {
             Step::Name => Some(&mut self.name),
             Step::Credential => {
-                if self.oauth_active() {
-                    self.oauth_text_mut()
+                if self.selected_mode().is_some() {
+                    self.login_text_mut()
                 } else {
                     Some(&mut self.credential)
                 }
@@ -403,15 +409,11 @@ impl Wizard {
                     self.provider = selected;
                     self.fields = default_fields(selected, None);
                     self.field_idx = 0;
-                    self.credential = edit::default_env(selected).to_string();
-                    // Troca de provedor invalida qualquer login/metadata OAuth anterior.
-                    self.oauth_mode = false;
-                    self.oauth_client_id.clear();
-                    self.oauth_tenant.clear();
-                    self.oauth_secret_env.clear();
-                    self.oauth_idx = 0;
+                    self.credential = edit::suggested_credential(selected).to_string();
+                    self.login = login::login_modes(selected);
+                    self.auth_mode = initial_auth_mode(selected, &self.login, false);
+                    self.reload_login_fields();
                     self.invalidate_oauth();
-                    self.native_options = native_option_fields(selected, None);
                 }
                 self.step = Step::Name;
             }
@@ -470,226 +472,203 @@ impl Wizard {
         }
     }
 
-    /// Modo OAuth só existe para provedores com login integrado.
-    fn oauth_active(&self) -> bool {
-        self.oauth_mode && supports_login(self.provider)
+    fn selected_mode(&self) -> Option<&LoginMode> {
+        self.login
+            .modes
+            .iter()
+            .find(|mode| mode.id == self.auth_mode)
     }
 
-    /// Whether the credential step offers a Tab → OAuth toggle. The core
-    /// `credential_modes` table is the single source of truth: AWS and
-    /// Token Plan never expose OAuth, every other provider with
-    /// `supports_login` does.
-    fn credential_supports_oauth(&self) -> bool {
-        edit::credential_modes(self.provider).oauth
+    fn auth_choice_count(&self) -> usize {
+        usize::from(edit::credential_kind(self.provider) != edit::CredentialKind::None)
+            + self
+                .login
+                .modes
+                .iter()
+                .filter(|mode| mode.unavailable_reason.is_none())
+                .count()
     }
 
-    /// Login nativo: fluxo do cliente do próprio provedor (9router), sem app registrado.
-    fn native_login(&self) -> bool {
-        self.oauth_active() && !requires_client_registration(self.provider)
-    }
-
-    /// Linhas do formulário no passo Credencial em modo OAuth: provedores de
-    /// registro usam client_id + tenant/secret + confirmação; nativos usam as
-    /// opções do fluxo (0..n) + linha de confirmação.
-    fn oauth_rows(&self) -> usize {
-        if requires_client_registration(self.provider) {
-            3 // client_id, tenant (Azure) ou secret_env (demais), iniciar/continuar
-        } else {
-            self.native_options.len() + 1
-        }
-    }
-
-    fn oauth_text_mut(&mut self) -> Option<&mut String> {
-        if !requires_client_registration(self.provider) {
-            return self
-                .native_options
-                .get_mut(self.oauth_idx)
-                .and_then(|f| match &mut f.kind {
-                    FieldKind::Text(value) => Some(value),
-                    FieldKind::Choice { .. } => None,
-                });
-        }
-        match (self.provider, self.oauth_idx) {
-            (Provider::AzureOpenAi, 1) => Some(&mut self.oauth_tenant),
-            (_, 0) => Some(&mut self.oauth_client_id),
-            (_, 1) => Some(&mut self.oauth_secret_env),
-            _ => None,
-        }
-    }
-
-    /// Alterna a opção Choice da linha nativa atual; mudar opção de autenticação
-    /// invalida o login/metadata anterior (identidade mudou).
-    fn cycle_native_option(&mut self, delta: isize) {
-        if !self.native_login() {
+    fn select_auth_choice(&mut self, index: usize) {
+        if index >= self.auth_choice_count() {
             return;
         }
-        if let Some(field) = self.native_options.get_mut(self.oauth_idx) {
-            if let FieldKind::Choice {
-                options, selected, ..
-            } = &mut field.kind
-            {
-                let len = options.len() as isize;
-                *selected = ((*selected as isize + delta).rem_euclid(len)) as usize;
-                self.invalidate_oauth();
-            }
+        let has_credential = edit::credential_kind(self.provider) != edit::CredentialKind::None;
+        let mode_index = index.saturating_sub(usize::from(has_credential));
+        let next = if has_credential && index == 0 {
+            "credential".to_string()
+        } else {
+            self.login
+                .modes
+                .iter()
+                .filter(|mode| mode.unavailable_reason.is_none())
+                .nth(mode_index)
+                .map(|mode| mode.id.clone())
+                .unwrap_or_else(|| "credential".to_string())
+        };
+        if next == self.auth_mode {
+            return;
         }
+        self.auth_mode = next;
+        self.reload_login_fields();
+        self.invalidate_oauth();
+        self.error = None;
     }
 
-    /// Qualquer mudança de identidade (modo, client_id, tenant, secret_env ou
-    /// opção nativa) invalida o login anterior: o próximo login ganha novo
-    /// credential_id e o Save exige nova autorização (ou a config existente intacta).
+    fn cycle_auth_mode(&mut self) {
+        let count = self.auth_choice_count();
+        if count < 2 {
+            return;
+        }
+        let has_credential = edit::credential_kind(self.provider) != edit::CredentialKind::None;
+        let current = if has_credential && self.auth_mode == "credential" {
+            0
+        } else {
+            self.login
+                .modes
+                .iter()
+                .filter(|mode| mode.unavailable_reason.is_none())
+                .position(|mode| mode.id == self.auth_mode)
+                .map(|index| index + usize::from(has_credential))
+                .unwrap_or(0)
+        };
+        self.select_auth_choice((current + 1) % count);
+    }
+
+    fn reload_login_fields(&mut self) {
+        let existing = self.editing.and_then(|index| self.base.accounts.get(index));
+        self.login_fields = login_fields_for(self.provider, self.selected_mode(), existing);
+        self.login_idx = 0;
+    }
+
+    fn oauth_active(&self) -> bool {
+        self.selected_mode()
+            .is_some_and(|mode| mode.credential_store == LoginCredentialStore::CuotaiVault)
+    }
+
+    fn native_login(&self) -> bool {
+        self.selected_mode().is_some_and(|mode| {
+            mode.credential_store == LoginCredentialStore::CuotaiVault
+                && mode.registration.is_empty()
+        })
+    }
+
+    fn login_rows(&self) -> usize {
+        self.login_fields.len() + 1
+    }
+
+    fn login_text_mut(&mut self) -> Option<&mut String> {
+        self.login_fields
+            .get_mut(self.login_idx)
+            .and_then(LoginField::text_mut)
+    }
+
+    fn cycle_login_option(&mut self, delta: isize) {
+        let Some(field) = self.login_fields.get_mut(self.login_idx) else {
+            return;
+        };
+        let Some(choices) = &field.option.choices else {
+            return;
+        };
+        let LoginFieldKind::Choice { selected } = &mut field.kind else {
+            return;
+        };
+        let len = choices.len() as isize;
+        *selected = ((*selected as isize + delta).rem_euclid(len)) as usize;
+        self.invalidate_oauth();
+    }
+
+    /// Any identity/mode edit invalidates completed logins. An explicit F2
+    /// reauth does NOT call this: it keeps the existing config and its id so
+    /// cancellation leaves the old credential usable.
     fn invalidate_oauth(&mut self) {
         self.oauth_existing = None;
         self.oauth_authorized = None;
-        self.oauth_pending_id = None;
+        self.external_login_params = None;
         self.oauth_login_params.clear();
     }
 
-    /// Config OAuth atual do formulário; reutiliza o credential_id pendente para
-    /// que novas tentativas do MESMO login mantenham o mesmo identificador.
-    fn current_oauth_config(&mut self) -> OAuthConfig {
-        let mut config = OAuthConfig::new(self.oauth_client_id.trim().to_string());
-        if requires_client_registration(self.provider) {
-            if self.provider == Provider::AzureOpenAi {
-                let tenant = self.oauth_tenant.trim();
-                if !tenant.is_empty() {
-                    config.tenant = Some(tenant.to_string());
-                }
+    fn login_values(&self) -> (BTreeMap<String, String>, BTreeMap<String, String>) {
+        let mut options = BTreeMap::new();
+        let mut registration = BTreeMap::new();
+        for field in &self.login_fields {
+            let value = field.value();
+            if value.is_empty() {
+                continue;
+            }
+            if field.registration {
+                registration.insert(field.option.key.clone(), value);
             } else {
-                let secret = self.oauth_secret_env.trim();
-                if !secret.is_empty() {
-                    config.client_secret_env = Some(secret.to_string());
-                }
-            }
-        } else {
-            // Opções não secretas do fluxo nativo (region/auth_method/start_url);
-            // tokens e segredos NUNCA entram aqui.
-            for field in &self.native_options {
-                match &field.kind {
-                    FieldKind::Text(value) => {
-                        let value = value.trim();
-                        if !value.is_empty() {
-                            config.options.insert(field.key.into(), value.to_string());
-                        }
-                    }
-                    FieldKind::Choice {
-                        options, selected, ..
-                    } => {
-                        config
-                            .options
-                            .insert(field.key.into(), options[*selected].0.into());
-                    }
-                }
+                options.insert(field.option.key.clone(), value);
             }
         }
-        if let Some(id) = &self.oauth_pending_id {
-            config.credential_id = id.clone();
-        }
-        config
+        (options, registration)
     }
 
-    /// Enter no passo Credencial em modo OAuth: percorre os campos e, na linha de
-    /// confirmação, inicia o login (ou avança quando já há autorização).
-    fn enter_oauth(&mut self) -> Action {
-        if self.oauth_idx + 1 < self.oauth_rows() {
-            if let Err(message) = self.validate_oauth_field() {
-                self.error = Some(message);
-                return Action::Continue;
+    fn enter_login(&mut self) -> Action {
+        if self.login_idx + 1 < self.login_rows() {
+            if let Some(field) = self.login_fields.get(self.login_idx) {
+                if let Err(error) = field.option.validate(&field.value()) {
+                    self.error = Some(error.to_string());
+                    return Action::Continue;
+                }
             }
             self.error = None;
-            self.oauth_idx += 1;
+            self.login_idx += 1;
             return Action::Continue;
         }
-        if self.oauth_authorized.is_some() || self.oauth_existing.is_some() {
+        if !self.oauth_active() || self.oauth_authorized.is_some() || self.oauth_existing.is_some()
+        {
             self.error = None;
             self.advance();
             return Action::Continue;
         }
-        self.start_oauth_login()
+        self.start_selected_login()
     }
 
-    fn validate_oauth_field(&self) -> Result<(), String> {
-        if !requires_client_registration(self.provider) {
-            // Linhas nativas: opções de texto (region/start_url) sem espaços/controle.
-            if let Some(field) = self.native_options.get(self.oauth_idx) {
-                if let FieldKind::Text(value) = &field.kind {
-                    let value = value.trim();
-                    if field.key == "database_path" {
-                        if value.chars().any(char::is_control) {
-                            return Err("Caminho inválido.".into());
-                        }
-                        return Ok(());
-                    }
-                    if !value.is_empty()
-                        && value.chars().any(|c| c.is_control() || c.is_whitespace())
-                    {
-                        return Err(format!(
-                            "{} inválido(a): sem espaços ou caracteres de controle.",
-                            field.label
-                        ));
-                    }
-                }
-            }
-            return Ok(());
-        }
-        match (self.provider, self.oauth_idx) {
-            (_, 0) => {
-                if self.oauth_client_id.trim().is_empty() {
-                    return Err("Informe o client_id do SEU aplicativo OAuth registrado.".into());
-                }
-                Ok(())
-            }
-            (Provider::AzureOpenAi, 1) => {
-                let tenant = self.oauth_tenant.trim();
-                if !tenant.is_empty()
-                    && !tenant
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
-                {
-                    return Err("Tenant inválido (letras, números, '-' e '.'); vazio usa \"organizations\".".into());
-                }
-                Ok(())
-            }
-            (_, 1) => {
-                let secret = self.oauth_secret_env.trim();
-                if !secret.is_empty() && !edit::valid_env_name(secret) {
-                    return Err(
-                        "Informe apenas o NOME da variável do client secret, nunca o valor.".into(),
-                    );
-                }
-                Ok(())
-            }
-            _ => Ok(()),
-        }
-    }
-
-    /// Emite a ação de login para o chamador executar o fluxo (navegador/device).
-    fn start_oauth_login(&mut self) -> Action {
-        let config = self.current_oauth_config();
-        // Fixa o credential_id gerado para manter o mesmo ID entre repetições.
-        self.oauth_pending_id = Some(config.credential_id.clone());
-        match config.validate(self.provider) {
-            Ok(()) => {
-                self.error = None;
-                Action::Login {
-                    provider: self.provider,
-                    config,
-                }
-            }
-            Err(error) => {
+    /// Emit the single generic login action. Core validates again at the
+    /// boundary and owns the actual flow selection.
+    fn start_selected_login(&mut self) -> Action {
+        let Some(mode) = self.selected_mode().cloned() else {
+            return Action::Continue;
+        };
+        for field in &self.login_fields {
+            if let Err(error) = field.option.validate(&field.value()) {
                 self.error = Some(error.to_string());
-                Action::Continue
+                return Action::Continue;
             }
+        }
+        let existing = self.editing.and_then(|index| self.base.accounts.get(index));
+        let mut request = LoginRequest::for_account(self.provider, mode.id, existing);
+        (request.options, request.registration) = self.login_values();
+        self.error = None;
+        Action::Login {
+            provider: self.provider,
+            request: Box::new(request),
         }
     }
 
-    /// Login OAuth concluído com sucesso: registra a config autorizada, aplica os
-    /// params públicos devolvidos (metadados seguros projetados pelo núcleo, nunca
-    /// tokens) aos campos do rascunho e avança. Campos ocultos no modo nativo são
-    /// gravados a partir de `oauth_login_params` no Save.
+    fn account_login_inputs(&self) -> Result<(String, Option<BTreeMap<String, String>>), String> {
+        let Some(mode) = self.selected_mode() else {
+            return Ok((self.credential.clone(), None));
+        };
+        let (options, _) = self.login_values();
+        let empty = BTreeMap::new();
+        let result = self.external_login_params.as_ref().unwrap_or(&empty);
+        login::account_login_inputs(
+            self.provider,
+            &mode.id,
+            &self.credential,
+            &options,
+            result,
+            self.external_login_params.is_some(),
+        )
+        .map_err(|error| error.to_string())
+    }
+
     pub(crate) fn login_finished(&mut self, config: OAuthConfig, params: BTreeMap<String, String>) {
-        self.oauth_pending_id = Some(config.credential_id.clone());
         self.oauth_authorized = Some(config);
+        self.external_login_params = None;
         for (key, value) in &params {
             if let Some(field) = self.fields.iter_mut().find(|f| f.key == key.as_str()) {
                 match &mut field.kind {
@@ -706,34 +685,24 @@ impl Wizard {
         }
         self.oauth_login_params = params;
         self.error = None;
-        let notice = if self.provider == Provider::Cursor {
-            "Sessão Cursor importada em memória. Revise e grave para persistir no Keychain."
-                .to_string()
-        } else if self.provider == Provider::XiaomiMimo {
-            "Chave MiMo autorizada. Para consultar saldo/plano, configure platform_session_env com a sessão web; não repita o código.".to_string()
-        } else {
-            "Login autorizado; parâmetros da conta preenchidos automaticamente.".to_string()
-        };
-        self.notice = Some(notice);
+        self.notice = Some(
+            self.selected_mode()
+                .map(|mode| mode.completion_notice.clone())
+                .unwrap_or_else(|| "Login autorizado.".into()),
+        );
         if self.step == Step::Credential {
             self.advance();
         }
     }
 
-    /// `aws sso login` concluído: o perfil já estava configurado; segue o fluxo.
-    pub(crate) fn aws_login_finished(&mut self) {
+    pub(crate) fn external_login_finished(&mut self, params: BTreeMap<String, String>) {
+        self.external_login_params = Some(params);
         self.error = None;
-        self.notice = Some("Login SSO do AWS CLI concluído.".into());
-        if self.step == Step::Credential {
-            self.advance();
-        }
-    }
-
-    /// `bl auth login --console` concluído no perfil dedicado. O Cuotai
-    /// não armazena nada; basta mostrar o sucesso transitório e avançar.
-    pub(crate) fn bailian_login_finished(&mut self) {
-        self.error = None;
-        self.notice = Some("Login `bl auth login --console` concluído no perfil dedicado.".into());
+        self.notice = Some(
+            self.selected_mode()
+                .map(|mode| mode.completion_notice.clone())
+                .unwrap_or_else(|| "Login concluído.".into()),
+        );
         if self.step == Step::Credential {
             self.advance();
         }
@@ -760,46 +729,42 @@ impl Wizard {
         }
         // Aviso de sucesso é transitório: some na primeira tecla seguinte.
         self.notice = None;
-        // Formulário OAuth do passo Credencial (apenas provedores com login integrado).
-        if self.step == Step::Credential && self.oauth_active() {
+        // Any selected core mode uses the same field navigation and F2 action.
+        if self.step == Step::Credential && self.selected_mode().is_some() {
             match key.code {
-                KeyCode::Enter => return self.enter_oauth(),
+                KeyCode::Enter => return self.enter_login(),
                 KeyCode::Tab => {
-                    // Tab volta para o modo variável de ambiente e invalida o login.
-                    self.oauth_mode = false;
-                    self.oauth_idx = 0;
-                    self.invalidate_oauth();
-                    self.error = None;
+                    self.cycle_auth_mode();
                     return Action::Continue;
                 }
                 KeyCode::F(2) => {
-                    // (Re)login explícito: novo credential_id; o login existente
-                    // permanece utilizável se a nova tentativa falhar/cancelar.
+                    // Explicit reauth keeps oauth_existing (and therefore its
+                    // credential_id) so cancel/failure leaves the old login usable.
                     self.oauth_authorized = None;
-                    self.oauth_pending_id = None;
+                    self.external_login_params = None;
                     self.oauth_login_params.clear();
-                    return self.start_oauth_login();
+                    return self.start_selected_login();
                 }
                 KeyCode::Up => {
-                    self.oauth_idx = self.oauth_idx.saturating_sub(1);
+                    self.login_idx = self.login_idx.saturating_sub(1);
                     return Action::Continue;
                 }
                 KeyCode::Down => {
-                    self.oauth_idx = (self.oauth_idx + 1).min(self.oauth_rows() - 1);
+                    self.login_idx = (self.login_idx + 1).min(self.login_rows() - 1);
                     return Action::Continue;
                 }
                 KeyCode::Left => {
-                    self.cycle_native_option(-1);
+                    self.cycle_login_option(-1);
                     return Action::Continue;
                 }
                 KeyCode::Right => {
-                    self.cycle_native_option(1);
+                    self.cycle_login_option(1);
                     return Action::Continue;
                 }
                 KeyCode::BackTab => {
                     self.error = None;
-                    if self.oauth_idx > 0 {
-                        self.oauth_idx -= 1;
+                    if self.login_idx > 0 {
+                        self.login_idx -= 1;
                     } else {
                         self.back();
                     }
@@ -834,49 +799,8 @@ impl Wizard {
                 self.error = None;
                 self.back();
             }
-            (KeyCode::Tab, _)
-                if self.step == Step::Credential && self.credential_supports_oauth() =>
-            {
-                self.oauth_mode = true;
-                self.oauth_idx = 0;
-                self.invalidate_oauth();
-                self.error = None;
-            }
-            (KeyCode::F(2), _)
-                if self.step == Step::Credential
-                    && wizard_offers_mode(self.provider, login::MODE_AWS_SSO) =>
-            {
-                let profile = self.credential.trim().to_string();
-                if profile.is_empty() {
-                    self.error =
-                        Some("Informe o perfil AWS SSO já configurado antes do login.".into());
-                } else {
-                    self.error = None;
-                    return Action::AwsLogin { profile };
-                }
-            }
-            (KeyCode::F(2), _)
-                if self.step == Step::Credential
-                    && wizard_offers_mode(self.provider, login::MODE_BAILIAN_CONSOLE) =>
-            {
-                // Login `bl` grava no próprio cofre; quota usa este perfil
-                // quando não houver Cookie explícito em `params.session_env`.
-                // Isolar por conta evita consultar o perfil default de outra conta.
-                let mut params = match self
-                    .editing
-                    .and_then(|i| self.base.accounts.get(i))
-                    .filter(|a| a.provider == self.provider)
-                {
-                    Some(a) => a.params.clone(),
-                    None => BTreeMap::new(),
-                };
-                let profile = edit::ensure_cli_profile(&mut params);
-                self.credential_params = Some(params);
-                self.error = None;
-                return Action::BailianConsoleLogin {
-                    console_site: "international".into(),
-                    profile,
-                };
+            (KeyCode::Tab, _) if self.step == Step::Credential && self.auth_choice_count() > 1 => {
+                self.cycle_auth_mode();
             }
             (KeyCode::Char('u'), m) if m.contains(KeyModifiers::CONTROL) => {
                 if let Some(buf) = self.current_text_mut() {
@@ -1081,82 +1005,35 @@ impl Wizard {
                     line += block;
                 }
             }
-            // draw_credential em modo OAuth: linhas clicáveis são as linhas de
-            // formulário e a linha de confirmação (focar; segundo clique ativa).
-            Step::Credential if self.oauth_active() => {
-                if self.provider == Provider::Cursor {
-                    // 4 linhas descritivas + 1 em branco; opcional linha de path
-                    // (+ sua ajuda); 1 em branco; linha de ação.
-                    let mut line = 5u16;
-                    let has_path = matches!(
-                        self.native_options.first().map(|f| &f.kind),
-                        Some(FieldKind::Text(_))
-                    );
-                    if has_path {
-                        if row == line {
-                            self.oauth_idx = 0;
-                            return Action::Continue;
-                        }
-                        line += 2; // path + ajuda fixa
-                    }
-                    line += 1; // em branco
-                    if row == line {
-                        let confirm = self.native_options.len();
-                        if self.oauth_idx == confirm {
-                            return self.handle(enter());
-                        }
-                        self.oauth_idx = confirm;
-                    }
+            // The same logical rows are produced by draw_credential below:
+            // mode list, help, then each descriptor and the confirmation row.
+            Step::Credential => {
+                let choices = self.auth_choice_count() as u16;
+                if row >= 1 && row <= choices {
+                    self.select_auth_choice(usize::from(row - 1));
                     return Action::Continue;
                 }
-                if !requires_client_registration(self.provider) {
-                    // header + em branco + aviso experimental + avisos por
-                    // provedor + consentimento + em branco; depois as opções.
-                    let mut line = 3u16;
-                    line += u16::from(self.provider == Provider::Qwen);
-                    line += u16::from(self.provider == Provider::Claude);
-                    line += u16::from(self.provider == Provider::XiaomiMimo);
-                    line += 2;
-                    for (i, field) in self.native_options.iter().enumerate() {
-                        let block = 1 + u16::from(i == self.oauth_idx);
-                        if row >= line && row < line + block {
-                            if i != self.oauth_idx {
-                                self.oauth_idx = i;
-                            } else if row == line && matches!(field.kind, FieldKind::Choice { .. })
-                            {
-                                return self.handle(right());
-                            }
-                            return Action::Continue;
-                        }
-                        line += block;
-                    }
-                    if row == line {
-                        let confirm = self.native_options.len();
-                        if self.oauth_idx == confirm {
-                            return self.handle(enter());
-                        }
-                        self.oauth_idx = confirm;
-                    }
+                if self.selected_mode().is_none() {
                     return Action::Continue;
                 }
-                // Registro: header + em branco; linhas client_id e tenant/secret
-                // (+ ajuda sob a focada); linha de confirmação.
-                let mut line = 2u16;
-                for i in 0..2 {
-                    let block = 1 + u16::from(i == self.oauth_idx);
+                let mut line = choices + 4;
+                for (index, field) in self.login_fields.iter().enumerate() {
+                    let block = 1 + u16::from(index == self.login_idx);
                     if row >= line && row < line + block {
-                        if self.oauth_idx != i {
-                            self.oauth_idx = i;
+                        if index != self.login_idx {
+                            self.login_idx = index;
+                        } else if row == line && field.option.choices.is_some() {
+                            return self.handle(right());
                         }
                         return Action::Continue;
                     }
                     line += block;
                 }
                 if row == line {
-                    if self.oauth_idx == 2 {
+                    if self.login_idx == self.login_fields.len() {
                         return self.handle(enter());
                     }
-                    self.oauth_idx = 2;
+                    self.login_idx = self.login_fields.len();
                 }
             }
             // Name/Interval/Credential em modo variável de ambiente: um único
@@ -1166,12 +1043,12 @@ impl Wizard {
         Action::Continue
     }
 
-    /// Edição em campo de texto OAuth (não na linha de confirmação) invalida o
-    /// login/metadata anterior: identidade mudou, próximo login usa novo ID.
+    /// Editing any login input invalidates its previous result. Reauth via F2
+    /// deliberately does not edit an input and keeps the existing identity.
     fn after_credential_edit(&mut self) {
         if self.step == Step::Credential
-            && self.oauth_active()
-            && self.oauth_idx + 1 < self.oauth_rows()
+            && self.selected_mode().is_some()
+            && self.login_idx < self.login_fields.len()
         {
             self.invalidate_oauth();
         }
@@ -1192,22 +1069,18 @@ impl Wizard {
         let result = match self.step {
             Step::Name => edit::validate_name(&self.name, &self.base, self.editing).map(|_| ()),
             Step::Credential => {
-                // Credential-form policy lives entirely in core; the wizard
-                // only forwards the current text and the active OAuth state.
+                let (credential, _) = self.account_login_inputs()?;
                 match edit::credential_kind(self.provider) {
                     edit::CredentialKind::AwsProfile => {
-                        edit::apply_aws_profile(self.provider, &self.credential)
+                        edit::apply_aws_profile(self.provider, &credential)
                     }
                     edit::CredentialKind::None => {
-                        // Token-plan quota uses the dedicated `bl` profile;
-                        // the credential text slot is intentionally empty
-                        // and must not be sent to `resolve_credential_env`.
                         let oauth = self
                             .oauth_authorized
                             .as_ref()
                             .or(self.oauth_existing.as_ref());
                         if oauth.is_some() {
-                            edit::resolve_credential_env(self.provider, &self.credential, oauth)
+                            edit::resolve_credential_env(self.provider, &credential, oauth)
                                 .map(|_| ())
                         } else {
                             Ok(())
@@ -1218,8 +1091,7 @@ impl Wizard {
                             .oauth_authorized
                             .as_ref()
                             .or(self.oauth_existing.as_ref());
-                        edit::resolve_credential_env(self.provider, &self.credential, oauth)
-                            .map(|_| ())
+                        edit::resolve_credential_env(self.provider, &credential, oauth).map(|_| ())
                     }
                 }
             }
@@ -1307,16 +1179,17 @@ impl Wizard {
             .and_then(|i| self.base.accounts.get(i))
             .filter(|a| a.provider == self.provider);
         let existing_params = existing_account.map(|a| &a.params);
+        let (credential, credential_params) = self.account_login_inputs()?;
         let draft = edit::AccountDraft {
             provider: self.provider,
             name: &self.name,
-            credential: &self.credential,
+            credential: &credential,
             oauth_mode: self.oauth_active(),
             oauth_existing: self.oauth_existing.as_ref(),
             oauth_authorized: self.oauth_authorized.clone(),
             oauth_login_params: self.oauth_login_params.clone(),
             existing_params,
-            credential_params: self.credential_params.clone(),
+            credential_params,
             fields: &draft_fields,
             interval_text: &self.interval,
         };
@@ -1339,104 +1212,48 @@ impl Wizard {
                 Span::raw(self.provider.label()),
             ]),
         ];
-        if self.provider == Provider::AwsBedrock {
-            lines.push(Line::from(vec![
-                Span::styled("Perfil AWS: ", dim),
-                Span::raw(crate::ui::safe(self.credential.trim()).into_owned()),
-            ]));
-        } else if self.provider == Provider::AlibabaTokenPlan {
-            // Quota Token Plan consulta, por padrão, o perfil dedicado do `bl`.
-            // session_env (Cookie) é override opcional; refletir isso no sumário.
-            if let Some(env) = self
-                .credential_params
-                .as_ref()
-                .and_then(|p| p.get("session_env"))
-                .or_else(|| {
-                    self.editing
-                        .and_then(|i| self.base.accounts.get(i))
-                        .and_then(|a| a.params.get("session_env"))
-                })
-            {
-                if !env.trim().is_empty() {
-                    lines.push(Line::from(format!(
-                        "Quota: Cookie Qwen Cloud (params.session_env = {})",
-                        crate::ui::safe(env.trim())
-                    )));
-                    lines.push(Line::from(
-                        "Perfil `bl` dedicado continua gravado em params.cli_profile.",
-                    ));
+        if let Some(mode) = self.selected_mode() {
+            let (status, color) =
+                if self.oauth_authorized.is_some() || self.external_login_params.is_some() {
+                    ("LOGIN AUTORIZADO", DRACULA_GREEN)
+                } else if self.oauth_existing.is_some() {
+                    ("LOGIN EXISTENTE", DRACULA_GREEN)
                 } else {
-                    lines.push(Line::from(
-                        "Quota: perfil dedicado do `bl` (params.cli_profile); session_env vazio.",
-                    ));
-                }
-            } else if self
-                .credential_params
-                .as_ref()
-                .and_then(|p| p.get("cli_profile"))
-                .is_some()
-                || self
-                    .editing
-                    .and_then(|i| self.base.accounts.get(i))
-                    .and_then(|a| a.params.get("cli_profile"))
-                    .is_some()
-            {
-                lines.push(Line::from(
-                    "Quota: perfil dedicado do `bl` (params.cli_profile); session_env vazio = rota CLI.",
-                ));
-            } else {
-                lines.push(Line::from(
-                    "Quota: perfil dedicado do `bl` ainda não configurado (use F2 na etapa Credencial).",
-                ));
-            }
-        } else if self.oauth_active() {
-            let (status, color) = if self.oauth_authorized.is_some() {
-                ("LOGIN AUTORIZADO", DRACULA_GREEN)
-            } else if self.oauth_existing.is_some() {
-                ("LOGIN EXISTENTE", DRACULA_GREEN)
-            } else {
-                ("LOGIN PENDENTE", DRACULA_YELLOW)
-            };
-            let mode_label = if self.provider == Provider::Cursor {
-                "Sessão pessoal Cursor importada  "
-            } else if requires_client_registration(self.provider) {
-                "OAuth (app do usuário)  "
-            } else {
-                "Login nativo (experimental)  "
-            };
+                    ("LOGIN PENDENTE", DRACULA_YELLOW)
+                };
             lines.push(Line::from(vec![
                 Span::styled("Autenticação: ", dim),
-                Span::raw(mode_label),
-                Span::styled(status, Style::default().fg(color)),
-            ]));
-            if requires_client_registration(self.provider) {
-                lines.push(Line::from(vec![
-                    Span::styled("Client ID: ", dim),
-                    Span::raw(crate::ui::safe(self.oauth_client_id.trim()).into_owned()),
-                ]));
-            } else {
-                for field in &self.native_options {
-                    let value = match &field.kind {
-                        FieldKind::Text(v) => crate::ui::safe(v.trim()).into_owned(),
-                        FieldKind::Choice {
-                            options, selected, ..
-                        } => options[*selected].0.to_string(),
-                    };
-                    lines.push(Line::from(format!("  {} = {value}", field.key)));
-                }
-            }
-            lines.push(Line::from(Span::styled(
-                "(o token fica no armazenamento seguro; nunca é exibido nem gravado no TOML)",
-                dim,
-            )));
-        } else {
-            let (status, color) = self.env_status();
-            lines.push(Line::from(vec![
-                Span::styled("Variável de credencial: ", dim),
-                Span::raw(crate::ui::safe(self.credential.trim()).into_owned()),
+                Span::raw(mode.label.clone()),
                 Span::raw("  "),
                 Span::styled(status, Style::default().fg(color)),
             ]));
+            for field in &self.login_fields {
+                lines.push(Line::from(format!(
+                    "  {} = {}",
+                    field.option.key,
+                    crate::ui::safe(&field.value())
+                )));
+            }
+            lines.push(Line::from(Span::styled(
+                if mode.credential_store == LoginCredentialStore::CuotaiVault {
+                    "(o token fica no armazenamento seguro; nunca é exibido nem gravado no TOML)"
+                } else {
+                    "(a credencial fica no armazenamento do CLI externo, fora do cofre Cuotai)"
+                },
+                dim,
+            )));
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled("Credencial: ", dim),
+                Span::raw(crate::ui::safe(self.credential.trim()).into_owned()),
+            ]));
+            if edit::credential_kind(self.provider) == edit::CredentialKind::EnvVar {
+                let (status, color) = self.env_status();
+                lines.push(Line::from(vec![
+                    Span::styled("Status no ambiente: ", dim),
+                    Span::styled(status, Style::default().fg(color)),
+                ]));
+            }
             lines.push(Line::from(Span::styled(
                 "(o valor da credencial nunca é exibido nem gravado)",
                 dim,
@@ -1588,18 +1405,10 @@ impl Wizard {
                 " Enter GRAVAR no arquivo  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
             }
             Step::Credential => {
-                if self.provider == Provider::AwsBedrock {
-                    " Enter próximo  F2 login SSO (perfil existente)  Shift+Tab voltar  Esc cancelar"
-                } else if self.provider == Provider::AlibabaTokenPlan {
-                    " Enter próximo  F2 bl auth login --console (internacional)  Shift+Tab voltar  Ctrl+U limpar  Esc cancela"
-                } else if self.provider == Provider::Cursor {
-                    " Enter próximo/confirmar • Tab alterna Admin API/importação • F2 reimporta • Esc cancela"
-                } else if self.native_login() {
-                    " Enter próximo/iniciar  F2 (re)login  ←→ opções  Tab variável de ambiente  ↑↓ campos  Shift+Tab voltar  Esc cancela"
-                } else if self.oauth_active() {
-                    " Enter próximo/iniciar  F2 (re)login  Tab variável de ambiente  ↑↓ campos  Shift+Tab voltar  Esc cancela"
-                } else if supports_login(self.provider) {
-                    " Enter próximo  Tab login no navegador  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar"
+                if self.selected_mode().is_some() {
+                    " Enter próximo/avançar  F2 (re)login  ←→ opções  Tab alterna modo  ↑↓ campos  Shift+Tab voltar  Esc cancela"
+                } else if self.auth_choice_count() > 1 {
+                    " Enter próximo  Tab alterna modos de login  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar"
                 } else {
                     " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar"
                 }
@@ -1743,103 +1552,42 @@ impl Wizard {
 
     fn draw_credential(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
         let mut lines: Vec<Line> = Vec::new();
-        if self.provider == Provider::AwsBedrock {
-            lines.push(Line::from(
-                "Perfil do AWS CLI v2 usado para as credenciais:",
-            ));
-            lines.push(Line::default());
+        lines.push(Line::from(
+            "Modo de autenticação (Tab alterna; Enter/F2 confirma):",
+        ));
+        let has_credential = edit::credential_kind(self.provider) != edit::CredentialKind::None;
+        if has_credential {
+            let current = self.auth_mode == "credential";
             lines.push(Line::from(format!(
-                "> {}",
-                crate::ui::safe(&self.credential)
+                "{} Credencial manual (perfil/variável conforme o provedor)",
+                if current { "▶" } else { " " }
             )));
-            lines.push(Line::default());
-            lines.push(Line::from(Span::styled(
-                "Configure antes com `aws configure` ou `aws configure sso`. ATENÇÃO: o Cost Explorer cobra por consulta.",
-                Style::default().fg(DRACULA_COMMENT),
-            )));
-            lines.push(Line::default());
-            lines.push(Line::from(Span::styled(
-                "F2 executa `aws sso login --use-device-code --no-browser` (somente perfis SSO já configurados).",
-                Style::default().fg(DRACULA_COMMENT),
-            )));
-        } else if self.provider == Provider::AlibabaTokenPlan {
-            lines.push(Line::from(
-                "A quota Token Plan consulta, por padrão, o perfil dedicado do `bl` (`params.cli_profile`).",
-            ));
-            lines.push(Line::from(
-                "`session_env` (Cookie de home.qwencloud.com) é override opcional para quem prefere a rota antiga.",
-            ));
-            lines.push(Line::from(
-                "QWEN_API_KEY autentica apenas inferência; não é enviada à consulta.",
-            ));
-            lines.push(Line::default());
-            lines.push(Line::from(Span::styled(
-                "F2 dispara `bl auth login --console --console-site international` no perfil dedicado. O Cuotai NÃO armazena nada; cancelar aqui NÃO desfaz o que o `bl` grava.",
-                Style::default().fg(DRACULA_COMMENT),
-            )));
-        } else if self.provider == Provider::Cursor && self.oauth_active() {
-            lines.push(Line::from(
-                "Importar sessão pessoal do Cursor instalado neste computador",
-            ));
-            lines.push(Line::from(
-                "Não inicia OAuth: faça login no aplicativo Cursor primeiro.",
-            ));
-            lines.push(Line::from("Somente após confirmar, serão lidos accessToken e machine ID do SQLite local (somente leitura)."));
-            lines.push(Line::from(
-                "Tokens não serão exibidos; a cópia só será salva no Keychain na revisão final.",
-            ));
-            lines.push(Line::default());
-            if let Some(field) = self.native_options.first() {
-                if let FieldKind::Text(path) = &field.kind {
-                    lines.push(Line::from(format!(
-                        "{} Banco Cursor (opcional): {}",
-                        if self.oauth_idx == 0 { ">" } else { " " },
-                        crate::ui::safe(path)
-                    )));
-                    lines.push(Line::from("Vazio usa instalação padrão. Insiders/perfil alternativo: informe caminho completo state.vscdb."));
-                }
-            }
-            lines.push(Line::default());
-            let action = if self.oauth_authorized.is_some() || self.oauth_existing.is_some() {
-                "Sessão importada — Enter continua; F2 reimporta do Cursor"
-            } else {
-                "CONFIRMAR leitura e importação da sessão Cursor — Enter autoriza"
-            };
-            lines.push(Line::styled(action, Style::default().fg(DRACULA_YELLOW)));
-        } else if self.oauth_active() && !requires_client_registration(self.provider) {
-            // Login nativo: fluxo do cliente do provedor (referência 9router), sem app registrado.
+        }
+        for mode in self
+            .login
+            .modes
+            .iter()
+            .filter(|mode| mode.unavailable_reason.is_none())
+        {
             lines.push(Line::from(format!(
-                "Login nativo com {} (Tab volta à variável de ambiente):",
-                self.provider.label()
+                "{} {}",
+                if mode.id == self.auth_mode {
+                    "▶"
+                } else {
+                    " "
+                },
+                mode.label
             )));
-            lines.push(Line::default());
+        }
+        lines.push(Line::default());
+        if let Some(mode) = self.selected_mode() {
             lines.push(Line::from(Span::styled(
-                "Fluxo EXPERIMENTAL baseado no cliente nativo do provedor (interface interna, sem suporte oficial; pode falhar ou ser restringido pelo provedor a qualquer momento).",
-                Style::default().fg(DRACULA_YELLOW),
-            )));
-            if self.provider == Provider::Qwen {
-                lines.push(Line::styled("Qwen Code: OAuth gratuito descontinuado em 15/04/2026. Esta tentativa pode ser recusada pelo provedor; login não garante quota disponível.", Style::default().fg(DRACULA_YELLOW)));
-            }
-            if self.provider == Provider::Claude {
-                lines.push(Line::from(Span::styled(
-                    "Claude: o provedor pode restringir este fluxo a clientes próprios; se recusado, use a variável de ambiente.",
-                    Style::default().fg(DRACULA_YELLOW),
-                )));
-            }
-            if self.provider == Provider::XiaomiMimo {
-                lines.push(Line::from(Span::styled(
-                    "O código autoriza uma chave de inferência, não a sessão do console. Saldo e Token Plan usam platform_session_env; quota semanal do Desktop usa session_env.",
-                    Style::default().fg(DRACULA_COMMENT),
-                )));
-            }
-            lines.push(Line::from(Span::styled(
-                "O consentimento acontece no navegador/código de dispositivo; nenhuma senha ou token é digitada neste terminal.",
+                mode.help.clone(),
                 Style::default().fg(DRACULA_COMMENT),
             )));
             lines.push(Line::default());
-            for (i, field) in self.native_options.iter().enumerate() {
-                let current = self.oauth_idx == i;
-                let marker = if current { "▶ " } else { "  " };
+            for (index, field) in self.login_fields.iter().enumerate() {
+                let current = self.login_idx == index;
                 let style = if current {
                     Style::default()
                         .fg(DRACULA_CYAN)
@@ -1848,163 +1596,90 @@ impl Wizard {
                     Style::default()
                 };
                 let value = match &field.kind {
-                    FieldKind::Text(v) => crate::ui::safe(v).into_owned(),
-                    FieldKind::Choice {
-                        options, selected, ..
-                    } => format!("< {} >", options[*selected].0),
+                    LoginFieldKind::Text(value) => crate::ui::safe(value).into_owned(),
+                    LoginFieldKind::Choice { selected } => field
+                        .option
+                        .choices
+                        .as_ref()
+                        .and_then(|choices| choices.get(*selected))
+                        .map(|(_, label)| label.clone())
+                        .unwrap_or_default(),
                 };
                 lines.push(Line::from(Span::styled(
-                    format!("{marker}{}: {value}", field.label),
+                    format!(
+                        "{}{}: {}",
+                        if current { "▶ " } else { "  " },
+                        field.option.label,
+                        value
+                    ),
                     style,
                 )));
                 if current {
                     lines.push(Line::from(Span::styled(
-                        format!("    {}", field.help),
+                        format!("    {}", field.option.help),
                         Style::default().fg(DRACULA_COMMENT),
                     )));
                 }
             }
-            let current = self.oauth_idx == self.native_options.len();
-            let marker = if current { "▶ " } else { "  " };
-            let style = if current {
-                Style::default()
-                    .fg(DRACULA_CYAN)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            let confirm = if self.oauth_authorized.is_some() {
-                "Login autorizado — Enter continua (F2 refaz com novo ID)".to_string()
+            let current = self.login_idx == self.login_fields.len();
+            let action = if self.oauth_authorized.is_some() {
+                "Login autorizado — Enter continua; F2 refaz reutilizando a identidade"
             } else if self.oauth_existing.is_some() {
-                "Login existente — Enter continua (F2 refaz o login, ex.: token expirado)"
-                    .to_string()
+                "Login existente — Enter continua; F2 refaz reutilizando a identidade"
+            } else if self.external_login_params.is_some() {
+                "Login concluído — Enter continua; F2 refaz"
+            } else if mode.credential_store == LoginCredentialStore::CuotaiVault {
+                "Enter inicia o login; F2 também inicia"
             } else {
-                format!(
-                    "Entrar com {} no navegador — Enter inicia o login",
-                    self.provider.label()
-                )
+                "Enter avança sem novo login; F2 inicia o login do CLI"
             };
             lines.push(Line::from(Span::styled(
-                format!("{marker}{confirm}"),
-                style,
-            )));
-            lines.push(Line::default());
-            lines.push(Line::from(Span::styled(
-                "Parâmetros da conta (IDs, região, produto) são preenchidos automaticamente após o login.",
-                Style::default().fg(DRACULA_COMMENT),
-            )));
-        } else if self.oauth_active() {
-            lines.push(Line::from(
-                "Login OAuth com aplicativo registrado por VOCÊ (Tab volta à variável de ambiente):",
-            ));
-            lines.push(Line::default());
-            let second: (&str, &str, &str) = if self.provider == Provider::AzureOpenAi {
-                (
-                    "Tenant (opcional)",
-                    "Vazio usa \"organizations\" (contas em qualquer organização).",
-                    self.oauth_tenant.as_str(),
-                )
-            } else {
-                (
-                    "Variável do client secret (opcional)",
-                    "Apenas o NOME da variável exportada com o secret; nunca o valor.",
-                    self.oauth_secret_env.as_str(),
-                )
-            };
-            let rows = [
-                (
-                    "Client ID do app",
-                    "Do SEU aplicativo registrado; o Cuotai não tem app próprio.",
-                    self.oauth_client_id.as_str(),
-                ),
-                second,
-            ];
-            for (i, (label, help, value)) in rows.iter().enumerate() {
-                let current = self.oauth_idx == i;
-                let marker = if current { "▶ " } else { "  " };
-                let style = if current {
+                format!("{}{}", if current { "▶ " } else { "  " }, action),
+                if current {
                     Style::default()
                         .fg(DRACULA_CYAN)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
-                };
-                lines.push(Line::from(Span::styled(
-                    format!("{marker}{label}: {}", crate::ui::safe(value)),
-                    style,
-                )));
-                if current {
-                    lines.push(Line::from(Span::styled(
-                        format!("    {help}"),
-                        Style::default().fg(DRACULA_COMMENT),
-                    )));
-                }
-            }
-            let current = self.oauth_idx == rows.len();
-            let marker = if current { "▶ " } else { "  " };
-            let style = if current {
-                Style::default()
-                    .fg(DRACULA_CYAN)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            let confirm = if self.oauth_authorized.is_some() {
-                "Login autorizado — Enter continua (F2 refaz com novo ID)"
-            } else if self.oauth_existing.is_some() {
-                "Login existente — Enter continua (F2 refaz o login, ex.: token expirado)"
-            } else {
-                "Iniciar login OAuth — Enter abre o fluxo (navegador/código de dispositivo)"
-            };
-            lines.push(Line::from(Span::styled(
-                format!("{marker}{confirm}"),
-                style,
-            )));
-            lines.push(Line::default());
-            lines.push(Line::from(Span::styled(
-                edit::oauth_registration_help(self.provider).fallback,
-                Style::default().fg(DRACULA_COMMENT),
+                },
             )));
         } else {
-            lines.push(Line::from(
-                "NOME da variável de ambiente exportada com a credencial (nunca o valor):",
-            ));
-            lines.push(Line::default());
-            lines.push(Line::from(format!(
-                "> {}",
-                crate::ui::safe(&self.credential)
-            )));
-            lines.push(Line::default());
-            let (status, color) = self.env_status();
-            let note = match status {
-                "PRESENTE" => " (valor presente no ambiente; nunca exibido nem gravado)",
-                "AUSENTE" => " (pode salvar mesmo assim e exportar antes de usar)",
-                _ => "",
-            };
-            lines.push(Line::from(vec![
-                Span::raw("Status no ambiente: "),
-                Span::styled(status, Style::default().fg(color)),
-                Span::styled(note, Style::default().fg(DRACULA_COMMENT)),
-            ]));
-            lines.push(Line::default());
-            lines.push(Line::from(Span::styled(
-                edit::credential_help(self.provider).fallback,
-                Style::default().fg(DRACULA_COMMENT),
-            )));
-            lines.push(Line::default());
-            if supports_login(self.provider) {
-                let hint = if requires_client_registration(self.provider) {
-                    "Tab alterna para login OAuth com aplicativo registrado por você."
-                } else {
-                    "Tab alterna para login nativo no navegador (experimental, sem registrar aplicativo)."
-                };
+            match edit::credential_kind(self.provider) {
+                edit::CredentialKind::EnvVar => {
+                    lines.push(Line::from(
+                        "NOME da variável de ambiente exportada com a credencial (nunca o valor):",
+                    ));
+                    lines.push(Line::from(format!(
+                        "> {}",
+                        crate::ui::safe(&self.credential)
+                    )));
+                    let (status, color) = self.env_status();
+                    lines.push(Line::from(vec![
+                        Span::raw("Status no ambiente: "),
+                        Span::styled(status, Style::default().fg(color)),
+                    ]));
+                }
+                edit::CredentialKind::AwsProfile => {
+                    lines.push(Line::from(
+                        "Perfil do AWS CLI v2 usado para as credenciais:",
+                    ));
+                    lines.push(Line::from(format!(
+                        "> {}",
+                        crate::ui::safe(&self.credential)
+                    )));
+                }
+                edit::CredentialKind::None => {}
+            }
+            let help = edit::credential_help(self.provider).fallback;
+            if !help.is_empty() {
                 lines.push(Line::from(Span::styled(
-                    hint,
+                    help,
                     Style::default().fg(DRACULA_COMMENT),
                 )));
-            } else if let Some(reason) = edit::oauth_unsupported_reason(self.provider) {
+            }
+            if let Some(reason) = &self.login.unsupported_reason {
                 lines.push(Line::from(Span::styled(
-                    format!("Login OAuth integrado indisponível: {reason}"),
+                    format!("Login integrado indisponível: {reason}"),
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
@@ -2097,55 +1772,46 @@ impl Wizard {
     }
 }
 
-/// Opções não secretas do fluxo de login nativo, editadas no passo Credencial
-/// ANTES de iniciar o login e gravadas em `OAuthConfig.options` (apenas
-/// region/auth_method/start_url — nunca tokens). Pré-carregadas da config
-/// existente ao editar uma conta já autenticada.
-///
-/// Schema é fornecido por [`edit::native_option_descriptors`]: o TUI só
-/// mapeia cada descritor para o widget de Field, mantendo a fonte da verdade
-/// no core.
-fn native_option_fields(provider: Provider, existing: Option<&OAuthConfig>) -> Vec<Field> {
-    edit::native_option_descriptors(provider)
+fn initial_auth_mode(provider: Provider, login: &login::ProviderLogin, has_oauth: bool) -> String {
+    if has_oauth
+        && login.modes.iter().any(|mode| {
+            mode.id == login::MODE_OAUTH
+                && mode.credential_store == LoginCredentialStore::CuotaiVault
+        })
+    {
+        return login::MODE_OAUTH.to_string();
+    }
+    if edit::credential_kind(provider) != edit::CredentialKind::None {
+        return "credential".to_string();
+    }
+    login
+        .modes
         .iter()
-        .map(|descriptor| descriptor_to_native_field(descriptor, existing))
-        .collect()
+        .find(|mode| mode.unavailable_reason.is_none())
+        .map(|mode| mode.id.clone())
+        .unwrap_or_else(|| "credential".to_string())
 }
 
-fn descriptor_to_native_field(
-    descriptor: &edit::NativeOptionDescriptor,
-    existing: Option<&OAuthConfig>,
-) -> Field {
-    let mut field = Field::text(descriptor.key, descriptor.label, descriptor.help, false);
-    let existing_value = existing.and_then(|o| o.options.get(descriptor.key));
-    match descriptor.kind {
-        edit::FieldDescriptorKind::Text => {
-            if let Some(value) = existing_value {
-                field.kind = FieldKind::Text(value.clone());
-            }
-        }
-        edit::FieldDescriptorKind::Choice(choice_desc) => {
-            let mut field = Field::choice(
-                descriptor.key,
-                descriptor.label,
-                descriptor.help,
-                choice_desc.options,
-            );
-            if let Some(value) = existing_value {
-                if let Some(pos) = choice_desc
-                    .options
-                    .iter()
-                    .position(|(option, _)| *option == value)
-                {
-                    if let FieldKind::Choice { selected, .. } = &mut field.kind {
-                        *selected = pos;
-                    }
-                }
-            }
-            return field;
-        }
-    }
-    field
+fn login_fields_for(
+    provider: Provider,
+    mode: Option<&LoginMode>,
+    existing: Option<&Account>,
+) -> Vec<LoginField> {
+    let Some(mode) = mode else {
+        return Vec::new();
+    };
+    let request = LoginRequest::for_account(provider, &mode.id, existing);
+    mode.registration
+        .iter()
+        .cloned()
+        .map(|option| LoginField::new(option, true, &request))
+        .chain(
+            mode.options
+                .iter()
+                .cloned()
+                .map(|option| LoginField::new(option, false, &request)),
+        )
+        .collect()
 }
 
 /// Schema (key/label/help/required/options) é fornecido por
@@ -2196,14 +1862,6 @@ fn descriptor_to_field(descriptor: &edit::FieldDescriptor, existing: Option<&Acc
     }
 }
 
-/// RF2.6: oferecer um atalho F2 só quando o core expõe o modo correspondente;
-/// a TUI não decide o fluxo por `Provider`.
-fn wizard_offers_mode(provider: Provider, mode_id: &str) -> bool {
-    login::login_modes(provider)
-        .modes
-        .iter()
-        .any(|mode: &LoginMode| mode.id == mode_id)
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2311,10 +1969,16 @@ mod tests {
         let action = wiz.handle(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
         assert!(matches!(
             action,
-            Action::BailianConsoleLogin { console_site, profile }
-                if console_site == "international" && profile == "qwen-personal"
+            Action::Login { provider, request }
+                if provider == Provider::AlibabaTokenPlan
+                    && request.mode == login::MODE_BAILIAN_CONSOLE
+                    && request.options.get("console_site").map(String::as_str) == Some("international")
+                    && request.options.get("profile").map(String::as_str) == Some("qwen-personal")
         ));
-        wiz.bailian_login_finished();
+        wiz.external_login_finished(BTreeMap::from([(
+            "cli_profile".into(),
+            "qwen-personal".into(),
+        )]));
         assert_eq!(wiz.step, Step::Params);
         let built = wiz.build_config().unwrap();
         assert_eq!(
@@ -2325,6 +1989,36 @@ mod tests {
             Some("qwen-personal")
         );
         assert!(built.accounts[0].credential_env.is_none());
+    }
+
+    #[test]
+    fn f2_reauth_reuses_existing_credential_id() {
+        let mut oauth = OAuthConfig::new(String::new());
+        oauth.options.insert("region".into(), "us-east-1".into());
+        let credential_id = oauth.credential_id.clone();
+        let config = Config {
+            accounts: vec![Account {
+                name: "Kiro".into(),
+                provider: Provider::Kiro,
+                credential_env: None,
+                oauth: Some(oauth),
+                params: BTreeMap::new(),
+                refresh_seconds: None,
+            }],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Credential;
+        let action = wiz.handle(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
+        let Action::Login { request, .. } = action else {
+            panic!("F2 deve iniciar o modo genérico");
+        };
+        assert_eq!(request.mode, login::MODE_OAUTH);
+        assert_eq!(request.credential_id(), Some(credential_id.as_str()));
+        assert_eq!(
+            request.options.get("region").map(String::as_str),
+            Some("us-east-1")
+        );
     }
 
     #[test]
@@ -2457,11 +2151,12 @@ mod tests {
             }],
             ..Config::default()
         };
-        let wiz = Wizard::new(&config, Some(0));
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Credential;
         assert_eq!(wiz.credential, "default");
-        // AWS never exposes OAuth (per `credential_modes`).
+        assert_eq!(wiz.auth_mode, "credential");
+        assert_eq!(wiz.auth_choice_count(), 2);
         assert!(!wiz.oauth_active());
-        assert!(!wiz.credential_supports_oauth());
         assert_eq!(
             wiz.validate_step(),
             Ok(()),
@@ -2485,17 +2180,15 @@ mod tests {
             }],
             ..Config::default()
         };
-        let wiz = Wizard::new(&config, Some(0));
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Credential;
         assert_eq!(wiz.credential, "qwen-personal");
+        assert_eq!(wiz.auth_mode, login::MODE_BAILIAN_CONSOLE);
         assert_eq!(wiz.validate_step(), Ok(()));
     }
 
     #[test]
-    fn wizard_tab_oauth_toggle_follows_credential_modes() {
-        // RF5: Tab → OAuth only works for providers whose credential
-        // modes expose oauth. AWS Bedrock and AlibabaTokenPlan must
-        // refuse the toggle. Every other provider with native login
-        // support must allow it.
+    fn wizard_tab_cycles_only_modes_discovered_by_core() {
         for provider in Provider::ALL {
             let config = Config {
                 accounts: vec![Account {
@@ -2509,21 +2202,21 @@ mod tests {
                 ..Config::default()
             };
             let mut wiz = Wizard::new(&config, Some(0));
-            wiz.provider = provider;
             wiz.step = Step::Credential;
-            wiz.oauth_mode = false;
+            let before = wiz.auth_mode.clone();
+            let count = wiz.auth_choice_count();
             let action = wiz.handle(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
-            // Tab toggles oauth_mode when the form supports it; otherwise
-            // it is consumed by `handle` and the wizard stays in env mode.
-            let expected = edit::credential_modes(provider).oauth;
-            if expected {
-                // Tab moves the wizard into OAuth mode (returns Continue).
-                assert!(matches!(action, Action::Continue));
-                assert!(wiz.oauth_mode, "{provider:?} should toggle to oauth");
+            assert!(matches!(action, Action::Continue));
+            if count > 1 {
+                assert_ne!(wiz.auth_mode, before, "{provider:?} should cycle mode");
             } else {
-                // Tab is ignored for non-OAuth providers (returns Continue
-                // without flipping the toggle).
-                assert!(!wiz.oauth_mode, "{provider:?} must stay in env mode");
+                assert_eq!(wiz.auth_mode, before, "{provider:?} has no alternate mode");
+            }
+            if let Some(mode) = wiz.selected_mode() {
+                assert!(login::login_modes(provider)
+                    .modes
+                    .iter()
+                    .any(|offered| offered.id == mode.id));
             }
         }
     }

@@ -79,7 +79,11 @@ async fn get_account(b: Shared<'_>, index: usize) -> Result<AccountForm, String>
 }
 
 #[tauri::command]
-async fn save_account(app: AppHandle, b: Shared<'_>, input: AccountInput) -> Result<(), String> {
+async fn save_account(
+    app: AppHandle,
+    b: Shared<'_>,
+    input: AccountInput,
+) -> Result<backend::SaveAccountResult, String> {
     b.save_account(&app, input).await
 }
 
