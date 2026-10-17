@@ -62,8 +62,9 @@ use serde::Deserialize;
 // ─── Endpoints fixos (mesma base do registro 9router) ──────────────────
 /// `loadCodeAssist` mora em `cloudcode-pa.googleapis.com` (sem prefixo
 /// `daily-`); as demais rotas ficam em `daily-cloudcode-pa.googleapis.com`.
-const LOAD_CODE_ASSIST_URL: &str = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
-const FETCH_AVAILABLE_MODELS_URL: &str =
+pub(crate) const LOAD_CODE_ASSIST_URL: &str =
+    "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+pub(crate) const FETCH_AVAILABLE_MODELS_URL: &str =
     "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 const RETRIEVE_USER_QUOTA_SUMMARY_URL: &str =
     "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
@@ -173,6 +174,50 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
             format!("{} é consultado por outro adaptador.", other.label()),
         )),
     }
+}
+
+/// Model catalog of the session: the same `loadCodeAssist` discovery and
+/// `fetchAvailableModels` request as the quota path, keeping every
+/// non-internal entry (not only [`IMPORTANT_MODELS`]). Any failed request
+/// fails the sync; a free tier or a response without `models` is no catalog.
+pub(crate) async fn models(
+    account: &Account,
+    ctx: &Context<'_>,
+    load_code_assist_url: &str,
+    fetch_available_models_url: &str,
+) -> Result<Vec<crate::models::ModelInfo>, QueryError> {
+    let token = secret(account, ctx, DEFAULT_CREDENTIAL_ENV)?;
+    let (discovered, paid_tier_id) = load_code_assist(ctx, &token, load_code_assist_url).await?;
+    let no_catalog = || {
+        QueryError::unsupported(
+            "query.antigravity.no_model_catalog",
+            "A sessão Antigravity não retornou catálogo em fetchAvailableModels (plano gratuito ou resposta sem modelos).",
+        )
+    };
+    if is_free_tier_from(paid_tier_id.as_deref()) {
+        return Err(no_catalog());
+    }
+    let project = account
+        .params
+        .get(PARAM_PROJECT_ID)
+        .map(String::as_str)
+        .filter(|s| !s.trim().is_empty())
+        .or(discovered.as_deref());
+    let response = fetch_available_models(ctx, &token, project, fetch_available_models_url).await?;
+    let mut models = Vec::new();
+    for (id, info) in response.models.ok_or_else(no_catalog)? {
+        let info = info.as_object().ok_or_else(QueryError::schema)?;
+        if info.get("isInternal").and_then(serde_json::Value::as_bool) == Some(true) {
+            continue;
+        }
+        let name = info.get("displayName").and_then(serde_json::Value::as_str);
+        models.push(crate::models::ModelInfo {
+            id,
+            name: name.map(str::to_string),
+            description: None,
+        });
+    }
+    Ok(models)
 }
 
 // ─── Implementação ────────────────────────────────────────────────────
@@ -924,7 +969,7 @@ fn reconcile_exhausted_family(quotas: &mut QuotaMap, weekly: &mut WeeklySummary,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Credentials;
+    use crate::{Credentials, Status};
     use serde_json::json;
     use std::collections::BTreeMap;
     use std::time::Duration;
@@ -1617,6 +1662,80 @@ mod tests {
             &format!("{base}/v1internal:retrieveUserQuotaSummary"),
         )
         .await
+    }
+
+    async fn catalog(
+        load: serde_json::Value,
+        models_response: ResponseTemplate,
+    ) -> (Result<Vec<crate::models::ModelInfo>, QueryError>, usize) {
+        use wiremock::matchers::body_json;
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1internal:loadCodeAssist"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(load))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1internal:fetchAvailableModels"))
+            .and(body_json(json!({ "project": "p1" })))
+            .respond_with(models_response)
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let creds = StaticCred(DEFAULT_CREDENTIAL_ENV, "test-token");
+        let base = server.uri();
+        let result = models(
+            &account(),
+            &ctx(&http, &creds),
+            &format!("{base}/v1internal:loadCodeAssist"),
+            &format!("{base}/v1internal:fetchAvailableModels"),
+        )
+        .await;
+        let calls = server.received_requests().await.unwrap().len();
+        (result, calls)
+    }
+
+    #[tokio::test]
+    async fn catalog_lists_every_public_model_of_paid_sessions_only() {
+        let mut payload = paid_models_payload();
+        payload["models"]["unlisted-model"] = json!({});
+        payload["models"]["internal-model"] = json!({ "isInternal": true });
+        let ok = ResponseTemplate::new(200).set_body_json(payload);
+        let (models, calls) = catalog(paid_tier_payload(), ok.clone()).await;
+        let models = models.unwrap();
+        let mut ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
+        ids.sort_unstable();
+        assert_eq!(
+            ids,
+            [
+                "claude-sonnet-4-6",
+                "gemini-3.8-flash-high",
+                "unlisted-model"
+            ],
+            "not limited to the quota allow-list; internal entries dropped"
+        );
+        assert!(models
+            .iter()
+            .any(|m| m.name.as_deref() == Some("Claude Sonnet 4.6")));
+        assert_eq!(calls, 2);
+
+        let (free, calls) = catalog(free_tier_payload(), ok).await;
+        assert_eq!(free.unwrap_err().status, Status::Unsupported);
+        assert_eq!(calls, 1, "free tier never calls fetchAvailableModels");
+
+        let no_models = ResponseTemplate::new(200).set_body_json(json!({}));
+        let (empty, _) = catalog(paid_tier_payload(), no_models).await;
+        assert_eq!(empty.unwrap_err().status, Status::Unsupported);
+
+        let bad_entry = ResponseTemplate::new(200).set_body_json(json!({ "models": { "x": 1 } }));
+        let (bad, _) = catalog(paid_tier_payload(), bad_entry).await;
+        assert_eq!(bad.unwrap_err().status, Status::Error);
+
+        let denied = ResponseTemplate::new(403).set_body_string("test-token");
+        let (denied, _) = catalog(paid_tier_payload(), denied).await;
+        let denied = denied.unwrap_err();
+        assert_eq!(denied.status, Status::AuthenticationError);
+        assert!(!denied.note.fallback.contains("test-token"));
     }
 
     #[tokio::test]

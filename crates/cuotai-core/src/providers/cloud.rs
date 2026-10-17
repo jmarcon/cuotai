@@ -552,38 +552,25 @@ fn parse_ce(bytes: &[u8]) -> Result<CeParsed, QueryError> {
     }
 }
 
-async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
-    let profile = param(account, "profile")?;
-    let today = Utc::now().date_naive();
-    let start: NaiveDate = today.with_day(1).ok_or_else(QueryError::schema)?;
-    let end = today + ChronoDuration::days(1);
-    let filter = serde_json::json!({"Dimensions": {"Key": "SERVICE", "Values": [BEDROCK_SERVICE]}})
-        .to_string();
-    let period = format!("Start={start},End={end}");
-    let mut cmd = tokio::process::Command::new("aws");
-    cmd.args([
-        "ce",
-        "get-cost-and-usage",
-        "--time-period",
-        &period,
-        "--granularity",
-        "MONTHLY",
-        "--metrics",
-        "UnblendedCost",
-        "--filter",
-        &filter,
-        "--output",
-        "json",
-        "--no-paginate",
-        "--profile",
-        profile,
-    ])
-    .env("AWS_PAGER", "")
-    .env("AWS_CLI_AUTO_PROMPT", "off")
-    .stdin(std::process::Stdio::null())
-    .stdout(std::process::Stdio::piped())
-    .stderr(std::process::Stdio::piped())
-    .kill_on_drop(true);
+/// Run the AWS CLI (`binary`, `aws` in production) with the account's named
+/// profile and return stdout. Errors carry only a classification and the
+/// IAM `permission` hint, never stderr, which may echo ARNs or tokens.
+async fn run_aws(
+    ctx: &Context<'_>,
+    binary: &str,
+    args: &[&str],
+    profile: &str,
+    permission: &str,
+) -> Result<Vec<u8>, QueryError> {
+    let mut cmd = tokio::process::Command::new(binary);
+    cmd.args(args)
+        .args(["--output", "json", "--profile", profile])
+        .env("AWS_PAGER", "")
+        .env("AWS_CLI_AUTO_PROMPT", "off")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
     let child = cmd.spawn().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             QueryError::config(
@@ -598,39 +585,128 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
         Ok(Ok(output)) => output,
         _ => return Err(QueryError::transport()),
     };
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
-        if stderr.contains("credential") || stderr.contains("sso") || stderr.contains("token") {
-            return Err(QueryError {
-                status: Status::AuthenticationError,
-                note: Localized::fixed(
-                    "query.cloud.aws_auth",
-                    "Autenticação AWS falhou para o perfil configurado em params.profile. Verifique as credenciais do perfil (aws configure sso / aws configure).",
-                ),
-            });
-        }
-        if stderr.contains("accessdenied") || stderr.contains("not authorized") {
-            return Err(QueryError {
-                status: Status::AuthenticationError,
-                note: Localized::fixed(
-                    "query.cloud.aws_access_denied",
-                    "Acesso negado no perfil AWS configurado. Conceda ce:GetCostAndUsage ao perfil.",
-                ),
-            });
-        }
-        let code = output.status.code().unwrap_or(-1);
+    if output.status.success() {
+        return Ok(output.stdout);
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
+    if stderr.contains("credential") || stderr.contains("sso") || stderr.contains("token") {
         return Err(QueryError {
-            status: Status::Error,
-            note: Localized::with_params(
-                "query.cloud.aws_cli",
-                params([("code", ParamValue::from(code.to_string()))]),
-                format!(
-                    "AWS CLI falhou (código {code}). Verifique permissão ce:GetCostAndUsage no perfil."
-                ),
+            status: Status::AuthenticationError,
+            note: Localized::fixed(
+                "query.cloud.aws_auth",
+                "Autenticação AWS falhou para o perfil configurado em params.profile. Verifique as credenciais do perfil (aws configure sso / aws configure).",
             ),
         });
     }
-    let parsed = parse_ce(&output.stdout)?;
+    if stderr.contains("accessdenied") || stderr.contains("not authorized") {
+        return Err(QueryError {
+            status: Status::AuthenticationError,
+            note: Localized::with_params(
+                "query.cloud.aws_access_denied",
+                params([("permission", ParamValue::from(permission))]),
+                format!("Acesso negado no perfil AWS configurado. Conceda {permission} ao perfil."),
+            ),
+        });
+    }
+    if stderr.contains("throttl") || stderr.contains("too many requests") {
+        return Err(QueryError {
+            status: Status::RateLimited,
+            note: Localized::fixed(
+                "query.cloud.aws_throttled",
+                "A AWS limitou a taxa de requisições deste perfil; tente novamente mais tarde.",
+            ),
+        });
+    }
+    let code = output.status.code().unwrap_or(-1);
+    Err(QueryError {
+        status: Status::Error,
+        note: Localized::with_params(
+            "query.cloud.aws_cli",
+            params([
+                ("code", ParamValue::from(code.to_string())),
+                ("permission", ParamValue::from(permission)),
+            ]),
+            format!("AWS CLI falhou (código {code}). Verifique permissão {permission} no perfil."),
+        ),
+    })
+}
+
+/// Bedrock catalog: `aws bedrock list-foundation-models` (control plane,
+/// read-only, no Cost Explorer charge; the API has no pagination). Region
+/// is `params.region` when set, otherwise the profile's default region.
+pub(crate) async fn bedrock_models(
+    account: &Account,
+    ctx: &Context<'_>,
+    binary: &str,
+) -> Result<Vec<crate::models::ModelInfo>, QueryError> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct List {
+        model_summaries: Vec<Summary>,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Summary {
+        model_id: String,
+        model_name: Option<String>,
+        provider_name: Option<String>,
+    }
+    let profile = param(account, "profile")?;
+    let mut args = vec!["bedrock", "list-foundation-models"];
+    if let Some(region) = account
+        .params
+        .get("region")
+        .filter(|r| !r.trim().is_empty())
+    {
+        let valid = region.starts_with(|c: char| c.is_ascii_lowercase())
+            && region
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if !valid {
+            return Err(QueryError::config_params(
+                "query.cloud.invalid_resource_identifier",
+                params([("key", ParamValue::from("region"))]),
+                "params.region contém caracteres inválidos para identificador de recurso.",
+            ));
+        }
+        args.extend(["--region", region]);
+    }
+    let stdout = run_aws(ctx, binary, &args, profile, "bedrock:ListFoundationModels").await?;
+    let list: List = serde_json::from_slice(&stdout).map_err(|_| QueryError::schema())?;
+    Ok(list
+        .model_summaries
+        .into_iter()
+        .map(|m| crate::models::ModelInfo {
+            id: m.model_id,
+            name: m.model_name,
+            description: m.provider_name,
+        })
+        .collect())
+}
+
+async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
+    let profile = param(account, "profile")?;
+    let today = Utc::now().date_naive();
+    let start: NaiveDate = today.with_day(1).ok_or_else(QueryError::schema)?;
+    let end = today + ChronoDuration::days(1);
+    let filter = serde_json::json!({"Dimensions": {"Key": "SERVICE", "Values": [BEDROCK_SERVICE]}})
+        .to_string();
+    let period = format!("Start={start},End={end}");
+    let args = [
+        "ce",
+        "get-cost-and-usage",
+        "--time-period",
+        &period,
+        "--granularity",
+        "MONTHLY",
+        "--metrics",
+        "UnblendedCost",
+        "--filter",
+        &filter,
+        "--no-paginate",
+    ];
+    let stdout = run_aws(ctx, "aws", &args, profile, "ce:GetCostAndUsage").await?;
+    let parsed = parse_ce(&stdout)?;
     let mut cost = Metric::usage(
         "Custo AWS Bedrock (mês corrente)",
         parsed.cost,
@@ -1011,6 +1087,84 @@ mod tests {
         let acc = account(Provider::AwsBedrock, &[]);
         let err = fetch_bedrock(&acc, &ctx(&http, &creds)).await.unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
+    }
+
+    /// Fake `aws` answering by profile/region and logging its argv.
+    #[cfg(unix)]
+    fn fake_aws(dir: &std::path::Path) -> String {
+        use std::os::unix::fs::PermissionsExt;
+        let bin = dir.join("aws");
+        let log = dir.join("argv.log");
+        let script = format!(
+            r#"#!/bin/sh
+echo "$@" >> '{log}'
+case "$*" in
+  *"--region eu-west-1"*) echo '{{"modelSummaries":[{{"modelId":"eu.model","modelName":"EU"}}]}}';;
+  *"--profile denied"*) echo 'AccessDeniedException: arn:aws:iam::123:user/secret' >&2; exit 254;;
+  *"--profile throttled"*) echo 'ThrottlingException: Rate exceeded' >&2; exit 254;;
+  *"--profile expired"*) echo 'Error loading SSO Token: AKIASECRET' >&2; exit 255;;
+  *"--profile broken"*) echo '{{"modelSummaries":[{{"modelName":"no id"}}]}}';;
+  *) echo '{{"modelSummaries":[{{"modelId":"b","modelName":"B","providerName":"P"}},{{"modelId":"a"}}]}}';;
+esac
+"#,
+            log = log.display()
+        );
+        std::fs::write(&bin, script).unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        bin.to_string_lossy().into_owned()
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn bedrock_catalog_uses_profile_and_region_and_classifies_failures() {
+        let dir = tempfile::tempdir().unwrap();
+        let aws = fake_aws(dir.path());
+        let (http, creds) = (Client::new(), Creds);
+        let list = async |params: &[(&str, &str)]| {
+            let acc = account(Provider::AwsBedrock, params);
+            bedrock_models(&acc, &ctx(&http, &creds), &aws).await
+        };
+        let ids = |models: Vec<crate::models::ModelInfo>| -> Vec<String> {
+            models.into_iter().map(|m| m.id).collect()
+        };
+
+        let default = list(&[("profile", "prod")]).await.unwrap();
+        assert_eq!(default[0].name.as_deref(), Some("B"));
+        assert_eq!(default[0].description.as_deref(), Some("P"));
+        assert_eq!(ids(default), ["b", "a"]);
+        let eu = list(&[("profile", "prod"), ("region", "eu-west-1")]).await;
+        assert_eq!(
+            ids(eu.unwrap()),
+            ["eu.model"],
+            "region isolates the catalog"
+        );
+
+        for (profile, status) in [
+            ("denied", Status::AuthenticationError),
+            ("expired", Status::AuthenticationError),
+            ("throttled", Status::RateLimited),
+            ("broken", Status::Error),
+        ] {
+            let error = list(&[("profile", profile)]).await.unwrap_err();
+            assert_eq!(error.status, status, "{profile}");
+            assert!(!error.note.fallback.contains("SECRET"), "no stderr echo");
+            assert!(!error.note.fallback.contains("arn:"), "no stderr echo");
+        }
+        let denied = list(&[("profile", "denied")]).await.unwrap_err();
+        assert!(denied
+            .note
+            .fallback
+            .contains("bedrock:ListFoundationModels"));
+
+        let bad_region = list(&[("profile", "prod"), ("region", "us;rm -rf")]).await;
+        assert_eq!(bad_region.unwrap_err().status, Status::NeedsConfiguration);
+        let argv = std::fs::read_to_string(dir.path().join("argv.log")).unwrap();
+        assert_eq!(argv.lines().count(), 7, "invalid region never runs the CLI");
+        assert!(argv
+            .lines()
+            .all(|l| l.starts_with("bedrock list-foundation-models")));
+        assert!(argv.contains("--region eu-west-1 --output json --profile prod"));
+        assert!(!argv.contains(" ce "), "never Cost Explorer");
     }
 
     #[test]

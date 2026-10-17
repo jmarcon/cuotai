@@ -49,6 +49,8 @@ use serde::Deserialize;
 /// apenas os testes recebem uma base privada via `*_at(account, ctx, base)`).
 const MINIMAX_ACCOUNT_BALANCE_URL: &str = "https://www.minimax.io/account/query_balance";
 const KIMI_BALANCE_URL: &str = "https://api.moonshot.ai/v1/users/me/balance";
+/// OpenAI-shaped model list for the same platform key (`platform.kimi.ai/docs/api/list-models`).
+pub(crate) const KIMI_MODELS_URL: &str = "https://api.moonshot.ai/v1/models";
 const QWEN_DASHSCOPE_DOCS_URL: &str =
     "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope";
 const QWEN_BILLING_DOCS_URL: &str =

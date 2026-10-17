@@ -23,7 +23,7 @@
 //! - `region`: `intl` (padrão) ou `cn`;
 //! - `session_env`: nome da variável que contém o header Cookie completo.
 
-use super::{secret, Context, Data, QueryError};
+use super::{json as fetch_json, paginate, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
@@ -56,6 +56,77 @@ const DASHSCOPE_INFERENCE_DOCS: &str =
     "https://help.aliyun.com/zh/model-studio/qwen-api-via-dashscope";
 const ALIBABA_CLOUD_BILL_DOCS: &str =
     "https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview";
+/// Model list of the international (Singapore) region, the only one without
+/// a `{WorkspaceId}` host (<https://www.alibabacloud.com/help/en/model-studio/list-models>).
+pub(crate) const MODEL_STUDIO_MODELS_URL: &str =
+    "https://dashscope-intl.aliyuncs.com/api/v1/models";
+/// Documented default; no maximum is published.
+const MODEL_STUDIO_PAGE_SIZE: u64 = 20;
+
+/// Whether this Model Studio account selects the region the catalog covers.
+pub(crate) fn model_studio_lists(account: &Account) -> bool {
+    matches!(parse_region(account), Ok(Region::Intl))
+}
+
+/// Model Studio catalog with the account's DashScope key, following
+/// `page_no` until `output.total` models were read. A short page before the
+/// total, a mismatched page number or `success = false` rejects the sync.
+pub(crate) async fn model_studio_models(
+    account: &Account,
+    ctx: &Context<'_>,
+    url: &str,
+) -> Result<Vec<crate::models::ModelInfo>, QueryError> {
+    #[derive(serde::Deserialize)]
+    struct Body {
+        success: bool,
+        output: Output,
+    }
+    #[derive(serde::Deserialize)]
+    struct Output {
+        total: u64,
+        page_no: u64,
+        models: Vec<Entry>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        model: String,
+        name: Option<String>,
+        description: Option<String>,
+    }
+    let key = secret(account, ctx, "DASHSCOPE_API_KEY")?;
+    let mut read = 0u64;
+    paginate(async |token: Option<String>| {
+        let page_no: u64 = token.as_deref().unwrap_or("1").parse().unwrap_or(1);
+        let body: Body = fetch_json(
+            ctx.http
+                .get(url)
+                .bearer_auth(key.trim())
+                .query(&[
+                    ("page_no", page_no.to_string()),
+                    ("page_size", MODEL_STUDIO_PAGE_SIZE.to_string()),
+                ])
+                .timeout(ctx.timeout),
+        )
+        .await?;
+        let output = body.output;
+        read += output.models.len() as u64;
+        if !body.success
+            || output.page_no != page_no
+            || read > output.total
+            || (output.models.is_empty() && read < output.total)
+        {
+            return Err(QueryError::schema());
+        }
+        let next = (read < output.total).then(|| (page_no + 1).to_string());
+        let models = output.models.into_iter().map(|m| crate::models::ModelInfo {
+            id: m.model,
+            name: m.name,
+            description: m.description,
+        });
+        Ok((models.collect(), next))
+    })
+    .await
+}
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
@@ -1632,6 +1703,64 @@ mod tests {
             credentials: creds,
             timeout: Duration::from_secs(5),
         }
+    }
+
+    #[tokio::test]
+    async fn model_studio_catalog_reads_every_page_until_total() {
+        let server = MockServer::start().await;
+        let page = |no: u64, total: u64, ids: &[&str]| {
+            let models: Vec<_> = ids
+                .iter()
+                .map(|id| json!({ "model": id, "name": id.to_uppercase() }))
+                .collect();
+            ResponseTemplate::new(200).set_body_json(json!({
+                "success": true,
+                "output": { "total": total, "page_no": no, "page_size": 20, "models": models }
+            }))
+        };
+        let mount = async |no: &str, response: ResponseTemplate| {
+            Mock::given(method("GET"))
+                .and(bearer_token("sk-ms"))
+                .and(query_param("page_no", no))
+                .respond_with(response)
+                .mount(&server)
+                .await;
+        };
+        let creds = TestCredentials("DASHSCOPE_API_KEY", "sk-ms");
+        let http = reqwest::Client::new();
+        let ctx = ctx_with(&http, &creds);
+        let acc = account(Provider::AlibabaModelStudio, "DASHSCOPE_API_KEY", None);
+        let list = async || model_studio_models(&acc, &ctx, &server.uri()).await;
+
+        mount("1", page(1, 3, &["qwen-b", "qwen-a"])).await;
+        mount("2", page(2, 3, &["qwen-c"])).await;
+        let ids: Vec<String> = list().await.unwrap().into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["qwen-b", "qwen-a", "qwen-c"]);
+
+        // Total says more but the next page is empty: incomplete listing.
+        server.reset().await;
+        mount("1", page(1, 5, &["qwen-a"])).await;
+        mount("2", page(2, 5, &[])).await;
+        assert_eq!(list().await.unwrap_err().status, Status::Error);
+
+        // The server echoes another page number: never accepted.
+        server.reset().await;
+        mount("1", page(3, 1, &["qwen-a"])).await;
+        assert_eq!(list().await.unwrap_err().status, Status::Error);
+
+        server.reset().await;
+        mount("1", ResponseTemplate::new(401).set_body_string("sk-ms")).await;
+        let denied = list().await.unwrap_err();
+        assert_eq!(denied.status, Status::AuthenticationError);
+        assert!(!denied.note.fallback.contains("sk-ms"));
+
+        assert!(model_studio_lists(&acc));
+        let cn = account(
+            Provider::AlibabaModelStudio,
+            "DASHSCOPE_API_KEY",
+            Some("cn"),
+        );
+        assert!(!model_studio_lists(&cn), "cn needs a WorkspaceId host");
     }
 
     async fn fetch_on(
