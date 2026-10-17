@@ -1521,15 +1521,6 @@ pub enum CredentialKind {
     None,
 }
 
-/// Credentials modes the form can offer. Orthogonal to `CredentialKind`:
-/// every provider that supports OAuth still picks a credential kind
-/// (the env-var input doubles as the "Tab → OAuth" toggle anchor).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CredentialModes {
-    pub env: bool,
-    pub oauth: bool,
-}
-
 /// Shape of the credential field for `provider`. Mirrors the actual
 /// `build_account` fetcher behaviour so a frontend never has to
 /// `match` `Provider` to render the credential input.
@@ -1539,18 +1530,6 @@ pub fn credential_kind(provider: Provider) -> CredentialKind {
         Provider::AlibabaTokenPlan => CredentialKind::None,
         _ => CredentialKind::EnvVar,
     }
-}
-
-/// Modes the credential step exposes for `provider`. The OAuth flag is
-/// delegated to `oauth::supports_login` so the frontend does not have to
-/// duplicate provider knowledge. The env flag follows `credential_kind`:
-/// `AwsProfile` and `None` kinds deliberately do not expose an env-var
-/// input (AWS uses the CLI profile; Token Plan uses the dedicated `bl`
-/// profile). All other providers expose the env-var input.
-pub fn credential_modes(provider: Provider) -> CredentialModes {
-    let env = matches!(credential_kind(provider), CredentialKind::EnvVar);
-    let oauth = env && crate::oauth::supports_login(provider);
-    CredentialModes { env, oauth }
 }
 
 /// Existing stored value shown on the credential step for an existing
@@ -3003,45 +2982,6 @@ mod tests {
     }
 
     #[test]
-    fn credential_modes_align_with_kind_and_login_support() {
-        // `AwsProfile` and `None` kinds deliberately do not expose an
-        // env-var input: the credential is carried by an external CLI
-        // profile / dedicated `bl` profile. OAuth is only ever paired
-        // with an env-var input.
-        for provider in Provider::ALL {
-            let kind = credential_kind(provider);
-            let modes = credential_modes(provider);
-            match kind {
-                CredentialKind::AwsProfile | CredentialKind::None => {
-                    assert!(
-                        !modes.env && !modes.oauth,
-                        "{provider:?} must not expose env/oauth modes: {modes:?}"
-                    );
-                }
-                CredentialKind::EnvVar => {
-                    assert!(modes.env, "{provider:?} must expose env mode");
-                    assert_eq!(
-                        modes.oauth,
-                        crate::oauth::supports_login(provider),
-                        "{provider:?} oauth mode must follow supports_login"
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn credential_kind_stable_across_all_providers() {
-        // Boundary: every provider in the exhaustive list MUST map to a
-        // kind (no panics, no fallthrough). Catches accidentally
-        // forgetting a provider when a new one is added.
-        for provider in Provider::ALL {
-            let _ = credential_kind(provider);
-            let _ = credential_modes(provider);
-        }
-    }
-
-    #[test]
     fn stored_credential_reads_profile_for_aws() {
         // AWS: stored value lives in params["profile"]; credential_env is
         // always empty for AWS, so the EnvVar path would return empty.
@@ -3210,22 +3150,6 @@ mod tests {
                 "{provider:?}"
             );
         }
-    }
-
-    #[test]
-    fn credential_modes_oauth_only_with_env_kind() {
-        // Boundary: AWS Bedrock supports no OAuth flow (per
-        // supports_login → false), so credential_modes must report both
-        // env=false and oauth=false. The frontend relies on this when
-        // deciding whether to render the "Tab alterna OAuth" hint.
-        let aws_modes = credential_modes(Provider::AwsBedrock);
-        assert!(!aws_modes.env && !aws_modes.oauth);
-        let token_modes = credential_modes(Provider::AlibabaTokenPlan);
-        assert!(!token_modes.env && !token_modes.oauth);
-        let openai_modes = credential_modes(Provider::OpenAiApi);
-        assert!(openai_modes.env && !openai_modes.oauth);
-        let chatgpt_modes = credential_modes(Provider::ChatGpt);
-        assert!(chatgpt_modes.env && chatgpt_modes.oauth);
     }
 
     #[test]
