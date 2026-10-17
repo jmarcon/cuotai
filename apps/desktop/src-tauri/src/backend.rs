@@ -209,12 +209,10 @@ pub struct Backend {
 pub struct MetricView {
     #[serde(flatten)]
     metric: Metric,
-    /// "unmeasured" | "exhausted" | "available" (regra do core).
-    state: &'static str,
-    /// Fração restante em [0,1] quando `available` e com limite utilizável.
-    ratio: Option<f64>,
-    uncapped: bool,
-    no_cap: bool,
+    /// Core classification, flattened: `state` ("unmeasured" | "exhausted" |
+    /// "available") plus `no_cap` or `ratio`/`uncapped`.
+    #[serde(flatten)]
+    state: MetricState,
     /// "quota" (cota do plano) ou "rate_limit" (janela curta de limite de taxa).
     kind: &'static str,
     /// Janela da cota: "5h" (sessão de 5 horas) ou "week" (semanal); `None` para as demais (mensal, créditos…).
@@ -257,7 +255,7 @@ pub struct ReportView {
     /// da CLI/Snapshot idêntico ao pré-RF8 quando não há notas.
     notes_l10n: Vec<cuotai_core::text::Localized>,
     source: String,
-    class: &'static str,
+    class: AccountClass,
     refresh_seconds: u64,
     /// Instante (Unix, ms) da próxima consulta agendada desta conta; `None` enquanto ela está sendo consultada.
     next_refresh_at_ms: Option<u64>,
@@ -362,19 +360,9 @@ fn metric_window(metric: &Metric) -> Option<&'static str> {
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
-    let (state, ratio, uncapped, no_cap) = match classify_metric(metric) {
-        MetricState::Unmeasured => ("unmeasured", None, false, false),
-        MetricState::Exhausted { no_cap } => ("exhausted", Some(0.0), false, no_cap),
-        MetricState::Available { ratio, uncapped } => {
-            ("available", (!uncapped).then_some(ratio), uncapped, false)
-        }
-    };
     MetricView {
         metric: metric.clone(),
-        state,
-        ratio,
-        uncapped,
-        no_cap,
+        state: classify_metric(metric),
         kind: metric_kind(metric),
         window: metric_window(metric),
     }
@@ -450,11 +438,7 @@ fn report_view(
         notes: report.notes.clone(),
         notes_l10n: report.notes_l10n.clone(),
         source: report.source.clone(),
-        class: match classify_report(Some(report)) {
-            AccountClass::Available => "available",
-            AccountClass::Exhausted => "exhausted",
-            AccountClass::Unmeasured => "unmeasured",
-        },
+        class: classify_report(Some(report)),
         refresh_seconds: account.effective_refresh_seconds(config.refresh_seconds),
         next_refresh_at_ms,
         uses_oauth: account.oauth.is_some(),
@@ -1770,7 +1754,7 @@ pub struct ProviderLoginSchema {
 
 #[derive(Serialize)]
 pub struct FormSchema {
-    credential_kind: &'static str,
+    credential_kind: CredentialKind,
     default_env: &'static str,
     credential_help: cuotai_core::text::Localized,
     cost_advisory: Option<cuotai_core::text::Localized>,
@@ -1835,11 +1819,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
         cuotai_core::text::Localized::fixed(format!("oauth.unsupported_reason.{slug}"), fallback)
     });
     FormSchema {
-        credential_kind: match account_edit::credential_kind(provider) {
-            CredentialKind::AwsProfile => "profile",
-            CredentialKind::None => "none",
-            CredentialKind::EnvVar => "env",
-        },
+        credential_kind: account_edit::credential_kind(provider),
         default_env: default_env(provider),
         credential_help: credential_help(provider),
         cost_advisory: account_edit::cost_advisory(provider),

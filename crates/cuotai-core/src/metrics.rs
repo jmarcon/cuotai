@@ -132,7 +132,7 @@ fn has_finite_signal(metric: &Metric) -> bool {
 /// (balance/cost-only metrics). Never invent a "100% free" reading in that
 /// case.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "state", rename_all = "snake_case")]
 pub enum MetricState {
     Unmeasured,
     Exhausted {
@@ -250,8 +250,12 @@ mod tests {
             json!("unmeasured")
         );
         assert_eq!(
+            serde_json::to_value(MetricState::Unmeasured).unwrap(),
+            json!({"state": "unmeasured"})
+        );
+        assert_eq!(
             serde_json::to_value(MetricState::Exhausted { no_cap: true }).unwrap(),
-            json!({"exhausted": {"no_cap": true}})
+            json!({"state": "exhausted", "no_cap": true})
         );
         assert_eq!(
             serde_json::to_value(MetricState::Available {
@@ -259,7 +263,7 @@ mod tests {
                 uncapped: false
             })
             .unwrap(),
-            json!({"available": {"ratio": 0.25, "uncapped": false}})
+            json!({"state": "available", "ratio": 0.25, "uncapped": false})
         );
     }
 

@@ -1509,12 +1509,16 @@ pub fn apply_aws_profile(
 /// empty `default_env` precisely because it does not use one. Frontends
 /// must use this descriptor and never infer the shape from
 /// `default_env` / `default_env(...).is_empty()`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Serialized as `"env"`, `"profile"` or `"none"` for GUI frontends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CredentialKind {
     /// POSIX env-var name (the common case). The TOML persists the name
     /// in `credential_env`; the actual value lives in the environment.
+    #[serde(rename = "env")]
     EnvVar,
     /// AWS CLI v2 profile name. Persisted in `params["profile"]`.
+    #[serde(rename = "profile")]
     AwsProfile,
     /// No credential text on the form (token plan quota relies on the
     /// dedicated `bl` profile in `params["cli_profile"]`).
