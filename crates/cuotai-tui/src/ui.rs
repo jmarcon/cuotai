@@ -1058,10 +1058,14 @@ fn new_monitor(file: &ConfigFile, session: &Arc<OAuthSession>) -> io::Result<Arc
         Arc::clone(session),
     )
     .map_err(io::Error::other)?;
-    Ok(Arc::new(match ModelCache::in_data_dir(file) {
+    let monitor = match ModelCache::in_data_dir(file) {
         Ok(cache) => monitor.with_model_cache(cache),
         Err(_) => monitor,
-    }))
+    };
+    // Just loaded from the TOML: drop catalogs of accounts gone from it.
+    // A cache failure only keeps stale digests; model ops report it.
+    let _ = monitor.prune_models();
+    Ok(Arc::new(monitor))
 }
 
 /// RF4 conflict recovery: re-read the file from disk and rebuild the
@@ -1212,6 +1216,8 @@ fn apply_edit_to_config(
     //    perms) — runtime stays bound to the previous configuration.
     //    The staged cycle and new monitor drop on return.
     file.save(config.clone())?;
+    // Saved: an edited identity (rename, credential, region) loses its entry.
+    let _ = new_monitor.prune_models();
     // 4) Commit: cycle, monitor, per-account refresh table and UI state
     //    all change together. From this point on a panic must not roll
     //    back; callers depend on the cycle and monitor agreeing with the
@@ -1685,6 +1691,7 @@ fn run_remove_account(
             // cycle + new monitor so runtime matches disk.
             *refresh_cycle = staged_cycle;
             *monitor = Arc::clone(&new_monitor);
+            let _ = monitor.prune_models();
             account_refresh.clear_slot(index);
             if account_refresh.len() > file.config.accounts.len() {
                 account_refresh.remove(index);

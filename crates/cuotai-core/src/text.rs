@@ -479,6 +479,9 @@ mod tests {
         ] {
             ids.push(error.l10n().id.to_string());
         }
+        for live in [true, false] {
+            ids.push(crate::models::claim_note(live).id.to_string());
+        }
         for auth_mode in [
             edit::AUTH_MODE_CREDENTIAL,
             "oauth",
