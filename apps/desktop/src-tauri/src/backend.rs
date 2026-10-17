@@ -377,21 +377,26 @@ impl Inner {
                 s
             }
         };
-        let monitor = Arc::new(
-            Monitor::with_oauth(
-                file.config.clone(),
-                Arc::new(EnvironmentCredentials),
-                session,
+        let monitor = Monitor::with_oauth(
+            file.config.clone(),
+            Arc::new(EnvironmentCredentials),
+            session,
+        )
+        .map_err(|e| {
+            serde_json::to_string(&cuotai_core::edit_error::config_error_note(&e)).unwrap_or_else(
+                |_| {
+                    cuotai_core::edit_error::config_error_note(&e)
+                        .fallback
+                        .into_owned()
+                },
             )
-            .map_err(|e| {
-                serde_json::to_string(&cuotai_core::edit_error::config_error_note(&e))
-                    .unwrap_or_else(|_| {
-                        cuotai_core::edit_error::config_error_note(&e)
-                            .fallback
-                            .into_owned()
-                    })
-            })?,
-        );
+        })?;
+        // Keyed by `ConfigFile::identity()` in the OS data dir; no data dir
+        // leaves model operations as `NoCache` while quotas keep working.
+        let monitor = Arc::new(match cuotai_core::models::ModelCache::in_data_dir(&file) {
+            Ok(cache) => monitor.with_model_cache(cache),
+            Err(_) => monitor,
+        });
         self.generation += 1;
         let accounts_len = file.config.accounts.len();
         // `install` replaces the live configuration (initial load or

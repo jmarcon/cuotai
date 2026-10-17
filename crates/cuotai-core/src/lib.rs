@@ -7,6 +7,7 @@ pub mod edit_error;
 pub mod identity;
 pub mod metrics;
 mod model;
+pub mod models;
 pub mod oauth;
 mod providers;
 pub mod refresh;
@@ -129,6 +130,9 @@ pub struct Monitor {
     /// requests a `Monitor` issues against a local `wiremock` server.
     #[cfg(test)]
     groq_url: Option<String>,
+    /// Per-config model catalog store; `None` keeps model operations
+    /// unavailable without affecting quota refresh.
+    models: Option<models::ModelCache>,
 }
 
 impl Monitor {
@@ -169,6 +173,7 @@ impl Monitor {
             query_slots,
             #[cfg(test)]
             groq_url: None,
+            models: None,
         })
     }
 
@@ -208,9 +213,16 @@ impl Monitor {
             query_slots,
             #[cfg(test)]
             groq_url: self.groq_url.clone(),
+            models: self.models.clone(),
         })
     }
 
+    /// Attach the model catalog store for this configuration (see
+    /// [`models::ModelCache::new`]); kept by [`Monitor::with_config`].
+    pub fn with_model_cache(mut self, cache: models::ModelCache) -> Self {
+        self.models = Some(cache);
+        self
+    }
     pub async fn refresh(&self) -> Snapshot {
         let started_at = Utc::now();
         let mut indexed = stream::iter(0..self.config.accounts.len())
@@ -238,15 +250,52 @@ impl Monitor {
             index,
             self.config.accounts.len()
         );
+        let account = &self.config.accounts[index];
+        let result = self
+            .with_access(
+                account,
+                async |account: &Account, ctx: &providers::Context<'_>| {
+                    self.dispatch(account, ctx).await
+                },
+            )
+            .await;
+        let (status, metrics, notes, notes_l10n, source) = match result {
+            Ok(data) => (
+                Status::Ready,
+                data.metrics,
+                data.notes,
+                data.notes_l10n,
+                data.source,
+            ),
+            Err(error) => {
+                let (plain, l10n) = crate::text::Notes::one(error.note).finish();
+                (error.status, Vec::new(), plain, l10n, String::new())
+            }
+        };
+        Report {
+            account: account.name.clone(),
+            provider: account.provider,
+            checked_at: Utc::now(),
+            status,
+            metrics,
+            notes,
+            notes_l10n,
+            source,
+        }
+    }
+
+    /// Run `run` under one query slot and the account deadline, with OAuth
+    /// credentials resolved (and refreshed) through the shared session.
+    async fn with_access<T>(
+        &self,
+        account: &Account,
+        run: impl AsyncFnOnce(&Account, &providers::Context<'_>) -> Result<T, providers::QueryError>,
+    ) -> Result<T, providers::QueryError> {
         let _permit = self
             .query_slots
             .acquire()
             .await
             .expect("monitor query semaphore stays open");
-        self.query(&self.config.accounts[index]).await
-    }
-
-    async fn query(&self, account: &Account) -> Report {
         let timeout = Duration::from_secs(self.config.timeout_seconds);
         let fetch = async {
             let access = match &account.oauth {
@@ -304,104 +353,87 @@ impl Monitor {
                 credentials: &credentials,
                 timeout,
             };
-            #[cfg(test)]
-            if let (Provider::Groq, Some(url)) = (account.provider, self.groq_url.as_deref()) {
-                return providers::router_keys::groq_at(account, &ctx, url).await;
-            }
-            match account.provider {
-                Provider::OpenAiApi | Provider::AnthropicApi => {
-                    providers::api::fetch(account, &ctx).await
-                }
-                Provider::GeminiApi
-                | Provider::VertexAi
-                | Provider::AwsBedrock
-                | Provider::AzureOpenAi => providers::cloud::fetch(account, &ctx).await,
-                Provider::Copilot
-                    if account
-                        .params
-                        .get("query_mode")
-                        .is_some_and(|v| v == "quota") =>
-                {
-                    providers::router_existing::fetch(account, &ctx).await
-                }
-                Provider::GeminiAi if account.params.get("product").is_some_and(|v| v == "cli") => {
-                    providers::router_existing::fetch(account, &ctx).await
-                }
-                Provider::Kimi if account.params.get("product").is_some_and(|v| v == "coding") => {
-                    providers::router_keys::fetch(account, &ctx).await
-                }
-                Provider::Grok if account.params.get("product").is_some_and(|v| v == "cli") => {
-                    providers::router_grok::fetch(account, &ctx).await
-                }
-                Provider::Cursor
-                    if account
-                        .params
-                        .get("query_mode")
-                        .is_some_and(|v| v == "personal") =>
-                {
-                    providers::cursor_personal::fetch(account, &ctx).await
-                }
-                Provider::ChatGpt
-                | Provider::Claude
-                | Provider::Cursor
-                | Provider::Copilot
-                | Provider::Windsurf => providers::subscriptions::fetch(account, &ctx).await,
-                Provider::Qwen if account.oauth.is_some() => Err(providers::QueryError::unsupported(
-                    "query.qwen_oauth_unsupported",
-                    "Qwen Code OAuth: sessão autenticada, mas não há endpoint de quota confirmado. O plano OAuth gratuito foi descontinuado pelo provedor em 15/04/2026; não consultamos DashScope com este token.",
-                )),
-                Provider::MiniMax | Provider::Kimi | Provider::Qwen => {
-                    providers::asia::fetch(account, &ctx).await
-                }
-                Provider::Perplexity
-                | Provider::Mistral
-                | Provider::Grok
-                | Provider::NvidiaNim
-                | Provider::Poolside => providers::inference::fetch(account, &ctx).await,
-                Provider::CloudflareAi | Provider::GeminiAi => {
-                    providers::cloud_keys::fetch(account, &ctx).await
-                }
-                Provider::OpenCodeGo | Provider::Groq | Provider::XiaomiMimo => {
-                    providers::router_keys::fetch(account, &ctx).await
-                }
-                Provider::Qoder | Provider::OllamaCloud => {
-                    providers::router_accounts::fetch(account, &ctx).await
-                }
-                Provider::Kiro | Provider::CodeBuddy | Provider::Zed => {
-                    providers::router_sessions::fetch(account, &ctx).await
-                }
-                Provider::Cline => providers::coding::fetch(account, &ctx).await,
-                Provider::AlibabaModelStudio | Provider::AlibabaCodingPlan | Provider::AlibabaTokenPlan => providers::alibaba_plans::fetch(account, &ctx).await,
-                Provider::AlibabaCloud => providers::alibaba_billing::fetch(account, &ctx).await,
-                Provider::Antigravity => providers::antigravity::fetch(account, &ctx).await,
-                Provider::Kimchi => providers::kimchi::fetch(account, &ctx).await,
-            }
+            run(account, &ctx).await
         };
-        let result = tokio::time::timeout(timeout, fetch)
+        tokio::time::timeout(timeout, fetch)
             .await
-            .unwrap_or_else(|_| Err(providers::QueryError::transport()));
-        let (status, metrics, notes, notes_l10n, source) = match result {
-            Ok(data) => (
-                Status::Ready,
-                data.metrics,
-                data.notes,
-                data.notes_l10n,
-                data.source,
-            ),
-            Err(error) => {
-                let (plain, l10n) = crate::text::Notes::one(error.note).finish();
-                (error.status, Vec::new(), plain, l10n, String::new())
+            .unwrap_or_else(|_| Err(providers::QueryError::transport()))
+    }
+
+    async fn dispatch(
+        &self,
+        account: &Account,
+        ctx: &providers::Context<'_>,
+    ) -> Result<providers::Data, providers::QueryError> {
+        #[cfg(test)]
+        if let (Provider::Groq, Some(url)) = (account.provider, self.groq_url.as_deref()) {
+            return providers::router_keys::groq_at(account, ctx, url).await;
+        }
+        match account.provider {
+            Provider::OpenAiApi | Provider::AnthropicApi => providers::api::fetch(account, ctx).await,
+            Provider::GeminiApi
+            | Provider::VertexAi
+            | Provider::AwsBedrock
+            | Provider::AzureOpenAi => providers::cloud::fetch(account, ctx).await,
+            Provider::Copilot
+                if account
+                    .params
+                    .get("query_mode")
+                    .is_some_and(|v| v == "quota") =>
+            {
+                providers::router_existing::fetch(account, ctx).await
             }
-        };
-        Report {
-            account: account.name.clone(),
-            provider: account.provider,
-            checked_at: Utc::now(),
-            status,
-            metrics,
-            notes,
-            notes_l10n,
-            source,
+            Provider::GeminiAi if account.params.get("product").is_some_and(|v| v == "cli") => {
+                providers::router_existing::fetch(account, ctx).await
+            }
+            Provider::Kimi if account.params.get("product").is_some_and(|v| v == "coding") => {
+                providers::router_keys::fetch(account, ctx).await
+            }
+            Provider::Grok if account.params.get("product").is_some_and(|v| v == "cli") => {
+                providers::router_grok::fetch(account, ctx).await
+            }
+            Provider::Cursor
+                if account
+                    .params
+                    .get("query_mode")
+                    .is_some_and(|v| v == "personal") =>
+            {
+                providers::cursor_personal::fetch(account, ctx).await
+            }
+            Provider::ChatGpt
+            | Provider::Claude
+            | Provider::Cursor
+            | Provider::Copilot
+            | Provider::Windsurf => providers::subscriptions::fetch(account, ctx).await,
+            Provider::Qwen if account.oauth.is_some() => Err(providers::QueryError::unsupported(
+                "query.qwen_oauth_unsupported",
+                "Qwen Code OAuth: sessão autenticada, mas não há endpoint de quota confirmado. O plano OAuth gratuito foi descontinuado pelo provedor em 15/04/2026; não consultamos DashScope com este token.",
+            )),
+            Provider::MiniMax | Provider::Kimi | Provider::Qwen => {
+                providers::asia::fetch(account, ctx).await
+            }
+            Provider::Perplexity
+            | Provider::Mistral
+            | Provider::Grok
+            | Provider::NvidiaNim
+            | Provider::Poolside => providers::inference::fetch(account, ctx).await,
+            Provider::CloudflareAi | Provider::GeminiAi => {
+                providers::cloud_keys::fetch(account, ctx).await
+            }
+            Provider::OpenCodeGo | Provider::Groq | Provider::XiaomiMimo => {
+                providers::router_keys::fetch(account, ctx).await
+            }
+            Provider::Qoder | Provider::OllamaCloud => {
+                providers::router_accounts::fetch(account, ctx).await
+            }
+            Provider::Kiro | Provider::CodeBuddy | Provider::Zed => {
+                providers::router_sessions::fetch(account, ctx).await
+            }
+            Provider::Cline => providers::coding::fetch(account, ctx).await,
+            Provider::AlibabaModelStudio | Provider::AlibabaCodingPlan | Provider::AlibabaTokenPlan => providers::alibaba_plans::fetch(account, ctx).await,
+            Provider::AlibabaCloud => providers::alibaba_billing::fetch(account, ctx).await,
+            Provider::Antigravity => providers::antigravity::fetch(account, ctx).await,
+            Provider::Kimchi => providers::kimchi::fetch(account, ctx).await,
         }
     }
 }
