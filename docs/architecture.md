@@ -31,7 +31,8 @@ async fn consultar(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 - `AccountClass` serializa como `"available"`, `"exhausted"` ou `"unmeasured"`.
-- `MetricState` serializa como `"unmeasured"`, `{"exhausted":{"no_cap":true}}` ou `{"available":{"ratio":0.25,"uncapped":false}}`.
+- `MetricState` serializa com a tag `state`: `{"state":"unmeasured"}`, `{"state":"exhausted","no_cap":true}` ou `{"state":"available","ratio":0.25,"uncapped":false}` (quando `uncapped` é `true`, `ratio` não representa disponibilidade).
+- `account_edit::CredentialKind` serializa como `"env"`, `"profile"` ou `"none"`.
 - `Monitor::with_credentials(config, Arc<dyn Credentials>)` permite injetar busca de segredos customizada (`Credentials::get` deve ser rápido e não interativo). `Monitor::with_oauth` compartilha a `OAuthSession` entre consultas.
 
 ### Internacionalização (`Localized`)
