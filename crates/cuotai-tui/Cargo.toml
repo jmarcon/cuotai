@@ -14,5 +14,5 @@ chrono.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 clap = { version = "4", features = ["derive"] }
-ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
-crossterm = "0.28"
+ratatui = { version = "0.30", features = ["unstable-rendered-line-info"] }
+crossterm = "0.29"
