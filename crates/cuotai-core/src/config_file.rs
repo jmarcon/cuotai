@@ -591,6 +591,9 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
     if account.oauth.is_none() {
         table.remove("oauth");
     }
+    if account.params.is_empty() {
+        table.remove("params");
+    }
     // Override individual de refresh_seconds: só persiste quando setado;
     // limpar o campo no assistente remove a chave (herda o global).
     if account.refresh_seconds.is_none() {
@@ -753,6 +756,18 @@ mod tests {
             toml::to_string(&reloaded.config).unwrap(),
             toml::to_string(&updated).unwrap()
         );
+        assert!(
+            !text.contains("params = {}"),
+            "accounts without params must not gain an empty table"
+        );
+
+        // Clearing every param removes the key instead of writing `{}`.
+        let mut cleared = file.config.clone();
+        cleared.accounts[2].params.clear();
+        file.save(cleared).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("project_ids"));
+        assert!(!text.contains("params"));
     }
 
     #[test]
