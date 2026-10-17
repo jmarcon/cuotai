@@ -1,4 +1,4 @@
-//! PRD 0002 RF2 — per-account model catalog, queried only on explicit
+//! PRD 0002 RF2/RF3 — per-account model catalog, queried only on explicit
 //! request ([`Monitor::load_models`] once, [`Monitor::sync_models`] on demand)
 //! and persisted per configuration in `models.sqlite3`.
 //!
@@ -6,6 +6,10 @@
 //! credential; it proves neither inference permission, price nor current
 //! availability. Quota refresh (`Monitor::refresh`, `RefreshCycle`, `Report`,
 //! `Snapshot`) never reads or writes this store.
+//!
+//! Every query runs under a per-account claim row (owner token + lease)
+//! taken in `BEGIN IMMEDIATE`, so windows and processes sharing the file
+//! coalesce onto one request; only the claim owner may publish its result.
 
 use crate::config_file::{ConfigFile, ConfigIdentity};
 use crate::text::{params, provider_l10n, Localized};
@@ -14,7 +18,8 @@ use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelInfo {
@@ -45,6 +50,21 @@ pub enum ModelState {
     Failed {
         status: Status,
         error: Localized,
+        at: DateTime<Utc>,
+        previous: Option<ModelCatalog>,
+    },
+    /// A live claim (this or another window/process) is querying now;
+    /// `previous` stays searchable.
+    Fetching {
+        note: Localized,
+        since: DateTime<Utc>,
+        previous: Option<ModelCatalog>,
+    },
+    /// The attempt started `at` never finished (cancelled, deadline or a
+    /// crashed process); nothing partial was saved and it is not retried
+    /// automatically, only by [`Monitor::sync_models`].
+    Interrupted {
+        note: Localized,
         at: DateTime<Utc>,
         previous: Option<ModelCatalog>,
     },
@@ -101,19 +121,39 @@ pub(crate) fn unsupported_reason(provider: Provider) -> Localized {
     )
 }
 
+/// Note of a claimed attempt: `live` while it runs, otherwise interrupted.
+pub(crate) fn claim_note(live: bool) -> Localized {
+    if live {
+        Localized::fixed(
+            "models.fetching",
+            "Consulta de modelos em andamento nesta ou em outra janela; o último catálogo continua pesquisável.",
+        )
+    } else {
+        Localized::fixed(
+            "models.interrupted",
+            "A última consulta de modelos foi interrompida antes de concluir; nada parcial foi salvo. Sincronize para tentar de novo.",
+        )
+    }
+}
+
 const SCHEMA_VERSION: i64 = 1;
-/// `status` is free text so RF3 can add `fetching`/`interrupted` and claim
-/// columns without rewriting rows; `catalog` is the last full success.
-const SCHEMA_V1: &str = "CREATE TABLE IF NOT EXISTS model_catalogs (
+/// `catalog` is the last full success; `status` is `ready`, `failed` or
+/// `fetching`, and a `fetching` row past `lease_until` (unix ms) reads as
+/// `Interrupted`. `owner` is the token of the attempt holding the claim.
+const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS model_catalogs (
     config_key TEXT NOT NULL,
     account_key TEXT NOT NULL,
     status TEXT NOT NULL,
     catalog TEXT,
     error TEXT,
     attempted_at TEXT NOT NULL,
+    owner TEXT,
+    lease_until INTEGER,
     PRIMARY KEY (config_key, account_key)
 ) WITHOUT ROWID;
 PRAGMA user_version = 1;";
+/// How often a caller waiting on another claim re-reads the store.
+const POLL: Duration = Duration::from_millis(100);
 
 /// Last failure as stored in `model_catalogs.error`.
 #[derive(Serialize, Deserialize)]
@@ -136,18 +176,55 @@ fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-/// Everything that selects credential, product or region; refresh cadence
-/// is excluded. Any edit or rename yields a new key (conservative).
+/// Params that only filter or date the quota view (usage model filter,
+/// invoice month); they never select the credential or the listed scope.
+const DISPLAY_PARAMS: [&str; 2] = ["models", "billing_cycle"];
+
+/// Provider, name, credential reference (env name or OAuth config) and the
+/// params selecting credential, product, region or profile; refresh cadence
+/// and [`DISPLAY_PARAMS`] are excluded. Any other edit or a rename yields a
+/// new key (conservative); the account index never takes part.
 fn account_key(account: &Account) -> String {
+    let params: std::collections::BTreeMap<_, _> = account
+        .params
+        .iter()
+        .filter(|(key, _)| !DISPLAY_PARAMS.contains(&key.as_str()))
+        .collect();
     let identity = serde_json::to_vec(&(
         account.provider,
         &account.name,
         &account.credential_env,
         &account.oauth,
-        &account.params,
+        params,
     ))
     .expect("account identity serializes");
     digest(&identity)
+}
+
+/// Drop group/other permission bits of our directory or database file.
+#[cfg(unix)]
+fn private(path: &Path, dir: bool) -> Result<(), ModelError> {
+    use std::os::unix::fs::PermissionsExt;
+    let meta = std::fs::metadata(path).map_err(|_| ModelError::Storage)?;
+    if meta.is_dir() != dir {
+        return Err(ModelError::Storage);
+    }
+    let mode = meta.permissions().mode();
+    if mode & 0o077 != 0 {
+        let owner = if dir { 0o700 } else { 0o600 };
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & owner))
+            .map_err(|_| ModelError::Storage)?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn private(_: &Path, _: bool) -> Result<(), ModelError> {
+    Ok(())
+}
+
+fn encode<T: Serialize>(value: &T) -> Result<String, ModelError> {
+    serde_json::to_string(value).map_err(|_| ModelError::Storage)
 }
 
 impl ModelCache {
@@ -165,22 +242,26 @@ impl ModelCache {
         }
     }
 
-    /// `<OS persistent data dir>/cuotai/models.sqlite3` keyed by
+    /// `<OS persistent data dir>/cuotai/models/models.sqlite3` keyed by
     /// [`ConfigFile::identity`]; frontends sharing a TOML share entries.
+    /// The store owns its directory, so making it private touches nothing else.
     pub fn in_data_dir(file: &ConfigFile) -> Result<Self, ModelError> {
         let identity = file.identity().map_err(|_| ModelError::Storage)?;
         let dir = dirs::data_local_dir().ok_or(ModelError::Storage)?;
         Ok(Self::new(
-            dir.join("cuotai").join("models.sqlite3"),
+            dir.join("cuotai").join("models").join("models.sqlite3"),
             &identity,
         ))
     }
 
+    /// Open (creating privately) the store. The parent directory is
+    /// restricted to the owner (0700) and the file to 0600 on Unix, even
+    /// when they already existed; give the store a directory of its own.
     fn open(&self) -> Result<Connection, ModelError> {
         if let Some(parent) = self.path.parent().filter(|p| !p.as_os_str().is_empty()) {
             std::fs::create_dir_all(parent).map_err(|_| ModelError::Storage)?;
+            private(parent, true)?;
         }
-        // Create privately before SQLite opens it; never chmod an existing file.
         let mut options = std::fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
@@ -193,11 +274,12 @@ impl ModelCache {
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(_) => return Err(ModelError::Storage),
         }
+        private(&self.path, false)?;
         let mut db = Connection::open(&self.path)?;
-        db.busy_timeout(std::time::Duration::from_secs(5))?;
+        db.busy_timeout(Duration::from_secs(5))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         match tx.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))? {
-            0 => tx.execute_batch(SCHEMA_V1)?,
+            0 => tx.execute_batch(SCHEMA)?,
             SCHEMA_VERSION => {}
             // Written by a newer Cuotai: never guess its layout.
             _ => return Err(ModelError::Storage),
@@ -207,31 +289,107 @@ impl ModelCache {
     }
 
     fn state(&self, account: &Account) -> Result<Option<ModelState>, ModelError> {
-        let row = self
-            .open()?
-            .query_row(
-                "SELECT status, catalog, error FROM model_catalogs
-                 WHERE config_key = ?1 AND account_key = ?2",
-                [&self.config_key, &account_key(account)],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, Option<String>>(1)?,
-                        row.get::<_, Option<String>>(2)?,
-                    ))
-                },
-            )
-            .optional()?;
-        let Some((status, catalog, error)) = row else {
-            return Ok(None);
-        };
-        let catalog: Option<ModelCatalog> = catalog
-            .map(|json| serde_json::from_str(&json))
-            .transpose()
-            .map_err(|_| ModelError::Storage)?;
-        Ok(Some(match (status.as_str(), catalog, error) {
-            ("ready", Some(catalog), _) => ModelState::Ready(catalog),
-            ("failed", previous, Some(error)) => {
+        read(&self.open()?, &self.config_key, &account_key(account))
+    }
+
+    /// Take the per-account claim inside `BEGIN IMMEDIATE`. A live claim
+    /// of anyone yields `Busy`; with `first`, a recorded attempt (success,
+    /// failure or interruption) is returned as is instead of claiming.
+    fn claim(
+        &self,
+        account: &Account,
+        lease: Duration,
+        first: bool,
+    ) -> Result<Claim<'_>, ModelError> {
+        let key = account_key(account);
+        let mut db = self.open()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        match read(&tx, &self.config_key, &key)? {
+            Some(ModelState::Fetching { .. }) => return Ok(Claim::Busy),
+            Some(state) if first => return Ok(Claim::Settled(state)),
+            _ => {}
+        }
+        let token = uuid::Uuid::new_v4().to_string();
+        let lease_until = Utc::now().timestamp_millis()
+            + i64::try_from(lease.as_millis()).map_err(|_| ModelError::Storage)?;
+        tx.execute(
+            "INSERT INTO model_catalogs (config_key, account_key, status, attempted_at, owner, lease_until)
+             VALUES (?1, ?2, 'fetching', ?3, ?4, ?5)
+             ON CONFLICT (config_key, account_key) DO UPDATE SET
+                status = 'fetching',
+                attempted_at = excluded.attempted_at,
+                owner = excluded.owner,
+                lease_until = excluded.lease_until",
+            rusqlite::params![self.config_key, key, Utc::now().to_rfc3339(), token, lease_until],
+        )?;
+        tx.commit()?;
+        Ok(Claim::Owned(Attempt {
+            cache: self,
+            key,
+            token,
+            done: false,
+        }))
+    }
+
+    /// Re-read until another claim settles; bounded by its lease, after
+    /// which the row reads as `Interrupted`.
+    async fn wait(&self, account: &Account) -> Result<ModelState, ModelError> {
+        loop {
+            tokio::time::sleep(POLL).await;
+            match self.state(account)? {
+                Some(ModelState::Fetching { .. }) => continue,
+                state => return Ok(state.unwrap_or(ModelState::NotFetched)),
+            }
+        }
+    }
+
+    /// Delete entries of this configuration whose account identity is not
+    /// in `saved`. Pass only the configuration just loaded from or saved to
+    /// the TOML: another window's live accounts are in that file too.
+    fn prune(&self, saved: &crate::Config) -> Result<(), ModelError> {
+        // Nothing stored yet: do not create the store just to prune it.
+        if !self.path.try_exists().map_err(|_| ModelError::Storage)? {
+            return Ok(());
+        }
+        let keep = encode(&saved.accounts.iter().map(account_key).collect::<Vec<_>>())?;
+        self.open()?.execute(
+            "DELETE FROM model_catalogs WHERE config_key = ?1
+             AND account_key NOT IN (SELECT value FROM json_each(?2))",
+            [&self.config_key, &keep],
+        )?;
+        Ok(())
+    }
+}
+
+/// Stored state of one account, `None` without any attempt.
+fn read(db: &Connection, config_key: &str, key: &str) -> Result<Option<ModelState>, ModelError> {
+    let row = db
+        .query_row(
+            "SELECT status, catalog, error, attempted_at, lease_until FROM model_catalogs
+             WHERE config_key = ?1 AND account_key = ?2",
+            [config_key, key],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<i64>>(4)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((status, catalog, error, attempted_at, lease_until)) = row else {
+        return Ok(None);
+    };
+    let previous: Option<ModelCatalog> = catalog
+        .map(|json| serde_json::from_str(&json))
+        .transpose()
+        .map_err(|_| ModelError::Storage)?;
+    Ok(Some(
+        match (status.as_str(), previous, error, lease_until) {
+            ("ready", Some(catalog), _, _) => ModelState::Ready(catalog),
+            ("failed", previous, Some(error), _) => {
                 let failure: Failure =
                     serde_json::from_str(&error).map_err(|_| ModelError::Storage)?;
                 ModelState::Failed {
@@ -241,56 +399,92 @@ impl ModelCache {
                     previous,
                 }
             }
-            _ => return Err(ModelError::Storage),
-        }))
-    }
-
-    /// Persist the outcome of one attempt. A failure keeps the stored catalog.
-    fn save(&self, account: &Account, state: &ModelState) -> Result<(), ModelError> {
-        let encode =
-            |value: Result<String, serde_json::Error>| value.map_err(|_| ModelError::Storage);
-        let (status, catalog, error, at) = match state {
-            ModelState::Ready(catalog) => (
-                "ready",
-                Some(encode(serde_json::to_string(catalog))?),
-                None,
-                catalog.fetched_at,
-            ),
-            ModelState::Failed {
-                status, error, at, ..
-            } => {
-                let failure = Failure {
-                    status: *status,
-                    error: error.clone(),
-                    at: *at,
-                };
-                (
-                    "failed",
-                    None,
-                    Some(encode(serde_json::to_string(&failure))?),
-                    *at,
-                )
+            ("fetching", previous, _, Some(lease_until)) => {
+                let at = DateTime::parse_from_rfc3339(&attempted_at)
+                    .map_err(|_| ModelError::Storage)?
+                    .with_timezone(&Utc);
+                if lease_until > Utc::now().timestamp_millis() {
+                    ModelState::Fetching {
+                        note: claim_note(true),
+                        since: at,
+                        previous,
+                    }
+                } else {
+                    ModelState::Interrupted {
+                        note: claim_note(false),
+                        at,
+                        previous,
+                    }
+                }
             }
-            ModelState::NotFetched | ModelState::Unsupported { .. } => return Ok(()),
+            _ => return Err(ModelError::Storage),
+        },
+    ))
+}
+
+enum Claim<'a> {
+    Owned(Attempt<'a>),
+    Settled(ModelState),
+    Busy,
+}
+
+/// A claimed attempt. Only its owner token may publish; dropped unfinished
+/// (cancelled future, panic) it expires its lease so the row reads as
+/// `Interrupted` at once. A crashed process leaves the lease to expire.
+struct Attempt<'a> {
+    cache: &'a ModelCache,
+    key: String,
+    token: String,
+    done: bool,
+}
+
+impl Attempt<'_> {
+    /// Publish a full success or a failure (keeping the stored catalog)
+    /// if this attempt still owns the claim; a stale attempt changes
+    /// nothing. Returns the stored state either way.
+    fn finish(mut self, outcome: Result<ModelCatalog, Failure>) -> Result<ModelState, ModelError> {
+        let (status, catalog, error, at) = match &outcome {
+            Ok(catalog) => ("ready", Some(encode(catalog)?), None, catalog.fetched_at),
+            Err(failure) => ("failed", None, Some(encode(failure)?), failure.at),
         };
-        self.open()?.execute(
-            "INSERT INTO model_catalogs (config_key, account_key, status, catalog, error, attempted_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT (config_key, account_key) DO UPDATE SET
-                status = excluded.status,
-                catalog = COALESCE(excluded.catalog, catalog),
-                error = excluded.error,
-                attempted_at = excluded.attempted_at",
+        let cache = self.cache;
+        let mut db = cache.open()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute(
+            "UPDATE model_catalogs SET status = ?1, catalog = COALESCE(?2, catalog),
+                error = ?3, attempted_at = ?4, owner = NULL, lease_until = NULL
+             WHERE config_key = ?5 AND account_key = ?6 AND owner = ?7 AND status = 'fetching'",
             rusqlite::params![
-                self.config_key,
-                account_key(account),
                 status,
                 catalog,
                 error,
-                at.to_rfc3339()
+                at.to_rfc3339(),
+                cache.config_key,
+                self.key,
+                self.token
             ],
         )?;
-        Ok(())
+        let state = read(&tx, &cache.config_key, &self.key)?;
+        tx.commit()?;
+        // Any earlier error leaves `done` unset: Drop expires the claim.
+        self.done = true;
+        Ok(state.unwrap_or(ModelState::NotFetched))
+    }
+}
+
+impl Drop for Attempt<'_> {
+    fn drop(&mut self) {
+        if self.done {
+            return;
+        }
+        // Best effort: on failure the lease still expires on its own.
+        let _ = self.cache.open().map(|db| {
+            db.execute(
+                "UPDATE model_catalogs SET lease_until = 0
+                 WHERE config_key = ?1 AND account_key = ?2 AND owner = ?3 AND status = 'fetching'",
+                [&self.cache.config_key, &self.key, &self.token],
+            )
+        });
     }
 }
 
@@ -321,39 +515,61 @@ impl Monitor {
         }
     }
 
-    /// First explicit opening: queries once when nothing is recorded;
-    /// a recorded success (even empty) or failure is returned as is.
-    // ponytail: two concurrent first loads may both query; RF3.4 adds the
-    // per-account SQLite claim.
-    pub async fn load_models(&self, index: usize) -> Result<ModelState, ModelError> {
-        match self.model_state(index)? {
-            ModelState::NotFetched => self.sync_models(index).await,
-            state => Ok(state),
+    /// Delete stored catalogs of this configuration whose account identity
+    /// is absent from it (removed, renamed or re-credentialed). Call it only
+    /// on a monitor whose configuration was just loaded from or saved to the
+    /// TOML, so accounts another window still shows are in it too.
+    pub fn prune_models(&self) -> Result<(), ModelError> {
+        match &self.models {
+            Some(cache) => cache.prune(&self.config),
+            None => Ok(()),
         }
     }
 
-    /// Manual sync: always one query. Success replaces the catalog; failure
-    /// records the error and keeps the previous catalog searchable.
+    /// First explicit opening: queries once when nothing is recorded; a
+    /// recorded success (even empty), failure or interruption is returned
+    /// as is. While another window/process holds the claim it waits for
+    /// that result instead of querying.
+    pub async fn load_models(&self, index: usize) -> Result<ModelState, ModelError> {
+        self.run_models(index, true).await
+    }
+
+    /// Manual sync: one query, coalesced with a claim already in flight.
+    /// Success replaces the catalog; failure records the error and keeps
+    /// the previous catalog (and its date) searchable.
     pub async fn sync_models(&self, index: usize) -> Result<ModelState, ModelError> {
+        self.run_models(index, false).await
+    }
+
+    async fn run_models(&self, index: usize, first: bool) -> Result<ModelState, ModelError> {
         let (account, cache, source) = match self.model_target(index)? {
             Ok(target) => target,
             Err(unsupported) => return Ok(unsupported),
         };
-        let state = match self.fetch_models(account).await {
-            Ok(models) => ModelState::Ready(ModelCatalog {
+        // The claim outlives the account deadline plus slot waiting; the
+        // same bound cancels our fetch, so a live lease means a live query.
+        let lease = Duration::from_secs(self.config.timeout_seconds + 30);
+        let attempt = match cache.claim(account, lease, first)? {
+            Claim::Owned(attempt) => attempt,
+            Claim::Settled(state) => return Ok(state),
+            Claim::Busy => return cache.wait(account).await,
+        };
+        let Ok(fetched) = tokio::time::timeout(lease, self.fetch_models(account)).await else {
+            drop(attempt);
+            return Ok(cache.state(account)?.unwrap_or(ModelState::NotFetched));
+        };
+        attempt.finish(match fetched {
+            Ok(models) => Ok(ModelCatalog {
                 models,
                 source,
                 fetched_at: Utc::now(),
             }),
-            Err(error) => ModelState::Failed {
+            Err(error) => Err(Failure {
                 status: error.status,
                 error: error.note,
                 at: Utc::now(),
-                previous: None,
-            },
-        };
-        cache.save(account, &state)?;
-        Ok(cache.state(account)?.unwrap_or(ModelState::NotFetched))
+            }),
+        })
     }
 
     async fn fetch_models(
@@ -422,15 +638,22 @@ credential_env = "OPENAI_ADMIN_KEY"
 
     /// A fresh Monitor (as after a restart) on the same database file.
     fn monitor(server: &MockServer, db: &std::path::Path, config: &str) -> Monitor {
+        monitor_with(server, db, &ConfigIdentity::Explicit(config.into()), CONFIG)
+    }
+
+    /// An independent Monitor (another window or process) for `toml`.
+    fn monitor_with(
+        server: &MockServer,
+        db: &std::path::Path,
+        config: &ConfigIdentity,
+        toml: &str,
+    ) -> Monitor {
         let creds: Arc<dyn Credentials> = Arc::new(Keys);
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::new(NoTokens), Arc::clone(&creds)).unwrap());
-        let mut monitor = Monitor::with_oauth(Config::from_toml(CONFIG).unwrap(), creds, session)
+        let mut monitor = Monitor::with_oauth(Config::from_toml(toml).unwrap(), creds, session)
             .unwrap()
-            .with_model_cache(ModelCache::new(
-                db.to_path_buf(),
-                &ConfigIdentity::Explicit(config.into()),
-            ));
+            .with_model_cache(ModelCache::new(db.to_path_buf(), config));
         monitor.groq_url = Some(server.uri());
         monitor
     }
@@ -612,8 +835,244 @@ credential_env = "OPENAI_ADMIN_KEY"
         assert_eq!(monitor_ok.model_state(3), Err(ModelError::InvalidIndex));
 
         // The database path is a directory: the error surfaces, nothing is queried.
-        let broken = monitor(&server, dir.path(), "one");
+        let db = dir.path().join("models.sqlite3");
+        std::fs::create_dir(&db).unwrap();
+        let broken = monitor(&server, &db, "one");
         assert_eq!(broken.load_models(0).await, Err(ModelError::Storage));
         assert_eq!(requests(&server).await, 0);
+    }
+
+    fn slow(ids: &[&str]) -> ResponseTemplate {
+        list(ids).set_delay(Duration::from_millis(300))
+    }
+
+    #[tokio::test]
+    async fn two_instances_on_one_file_issue_one_request_and_coalesce_syncs() {
+        let server = MockServer::start().await;
+        reply(&server, "ALPHA", slow(&["llama"])).await;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("models.sqlite3");
+        let (tui, desktop) = (monitor(&server, &db, "one"), monitor(&server, &db, "one"));
+
+        let (a, b) = tokio::join!(tui.load_models(0), desktop.load_models(0));
+        assert_eq!(ids(&a.unwrap()), ["llama"]);
+        assert_eq!(
+            ids(&b.unwrap()),
+            ["llama"],
+            "waiter reads the owner's result"
+        );
+        assert_eq!(requests(&server).await, 1);
+
+        let (a, b) = tokio::join!(tui.sync_models(0), desktop.sync_models(0));
+        assert_eq!(a.unwrap(), b.unwrap());
+        assert_eq!(requests(&server).await, 2, "concurrent syncs coalesce");
+    }
+
+    #[tokio::test]
+    async fn crashed_or_cancelled_claims_read_interrupted_until_manual_sync() {
+        let server = MockServer::start().await;
+        reply(&server, "ALPHA", list(&["llama"])).await;
+        reply(&server, "BETA", slow(&["whisper"])).await;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("models.sqlite3");
+        let first = monitor(&server, &db, "one");
+        let ModelState::Ready(catalog) = first.load_models(0).await.unwrap() else {
+            panic!("first load succeeds");
+        };
+
+        // Another process holds a live claim: reads show it, without network.
+        let cache = first.models.as_ref().unwrap();
+        let alpha = &first.config.accounts[0];
+        let Ok(Claim::Owned(live)) = cache.claim(alpha, Duration::from_secs(60), false) else {
+            panic!("claim is free");
+        };
+        assert!(matches!(
+            &first.model_state(0).unwrap(),
+            ModelState::Fetching { previous: Some(p), .. } if *p == catalog
+        ));
+        // That process crashes: no Drop runs and its lease runs out.
+        std::mem::forget(live);
+        cache
+            .open()
+            .unwrap()
+            .execute("UPDATE model_catalogs SET lease_until = 1", [])
+            .unwrap();
+
+        let restarted = monitor(&server, &db, "one");
+        let ModelState::Interrupted { previous, .. } = restarted.load_models(0).await.unwrap()
+        else {
+            panic!("abandoned claim reads as Interrupted");
+        };
+        assert_eq!(previous, Some(catalog), "last catalog and date kept");
+        assert_eq!(requests(&server).await, 1, "no automatic refetch");
+        assert_eq!(ids(&restarted.sync_models(0).await.unwrap()), ["llama"]);
+        assert_eq!(requests(&server).await, 2, "manual sync recovers");
+
+        // A cancelled first load publishes nothing and is not retried.
+        let cancelled =
+            tokio::time::timeout(Duration::from_millis(50), restarted.load_models(1)).await;
+        assert!(cancelled.is_err());
+        assert!(matches!(
+            restarted.load_models(1).await.unwrap(),
+            ModelState::Interrupted { previous: None, .. }
+        ));
+        assert_eq!(requests(&server).await, 3);
+    }
+
+    #[tokio::test]
+    async fn stale_completion_never_overwrites_a_newer_result() {
+        let server = MockServer::start().await;
+        reply(&server, "ALPHA", list(&["new"])).await;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("models.sqlite3");
+        let old = monitor(&server, &db, "one");
+        let cache = old.models.as_ref().unwrap();
+        let Ok(Claim::Owned(stale)) = cache.claim(&old.config.accounts[0], Duration::ZERO, false)
+        else {
+            panic!("claim is free");
+        };
+        assert_eq!(
+            ids(&monitor(&server, &db, "one").sync_models(0).await.unwrap()),
+            ["new"]
+        );
+        let late = ModelCatalog {
+            models: Vec::new(),
+            source: source(Provider::Groq).unwrap(),
+            fetched_at: Utc::now(),
+        };
+        assert_eq!(ids(&stale.finish(Ok(late)).unwrap()), ["new"]);
+        assert_eq!(ids(&old.model_state(0).unwrap()), ["new"]);
+    }
+
+    #[tokio::test]
+    async fn identity_follows_moves_and_drops_edits_renames_and_removals() {
+        let server = MockServer::start().await;
+        reply(&server, "ALPHA", list(&["llama"])).await;
+        reply(&server, "BETA", list(&["whisper"])).await;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("models.sqlite3");
+        let id = ConfigIdentity::Explicit("one".into());
+        let first = monitor(&server, &db, "one");
+        first.load_models(0).await.unwrap();
+        first.load_models(1).await.unwrap();
+        monitor(&server, &db, "two").load_models(0).await.unwrap();
+        let groq = |name: &str, env: &str, extra: &str| {
+            format!("[[accounts]]\nname = \"{name}\"\nprovider = \"groq\"\ncredential_env = \"{env}\"\n{extra}")
+        };
+        let beta = groq("beta", "GROQ_KEY_BETA", "");
+
+        let moved = monitor_with(
+            &server,
+            &db,
+            &id,
+            &(beta.clone() + &groq("alpha", "GROQ_KEY_ALPHA", "")),
+        );
+        assert_eq!(
+            ids(&moved.model_state(1).unwrap()),
+            ["llama"],
+            "moves keep entries"
+        );
+        let filtered = groq("alpha", "GROQ_KEY_ALPHA", "params = { models = \"llama\" }");
+        let filtered = monitor_with(&server, &db, &id, &filtered);
+        assert_eq!(
+            ids(&filtered.model_state(0).unwrap()),
+            ["llama"],
+            "display params ignored"
+        );
+        for edited in [
+            groq("alpha", "GROQ_KEY_BETA", ""),
+            groq("alpha2", "GROQ_KEY_ALPHA", ""),
+            groq("alpha", "GROQ_KEY_ALPHA", "params = { region = \"eu\" }"),
+        ] {
+            let edited = monitor_with(&server, &db, &id, &edited);
+            assert_eq!(edited.model_state(0).unwrap(), ModelState::NotFetched);
+        }
+
+        // Saved config without alpha: only alpha of this config is deleted.
+        monitor_with(&server, &db, &id, &beta)
+            .prune_models()
+            .unwrap();
+        let restarted = monitor(&server, &db, "one");
+        assert_eq!(restarted.model_state(0).unwrap(), ModelState::NotFetched);
+        assert_eq!(ids(&restarted.model_state(1).unwrap()), ["whisper"]);
+        assert_eq!(
+            ids(&monitor(&server, &db, "two").model_state(0).unwrap()),
+            ["llama"]
+        );
+        assert_eq!(requests(&server).await, 3);
+    }
+
+    #[tokio::test]
+    async fn same_toml_through_other_paths_shares_and_other_toml_isolates() {
+        let server = MockServer::start().await;
+        reply(&server, "ALPHA", list(&["llama"])).await;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("models.sqlite3");
+        for sub in ["a", "b"] {
+            std::fs::create_dir(dir.path().join(sub)).unwrap();
+            std::fs::write(dir.path().join(sub).join("cuotai.toml"), CONFIG).unwrap();
+        }
+        let of = |path: PathBuf| ConfigIdentity::of_path(&path).unwrap();
+        let tui = monitor_with(&server, &db, &of(dir.path().join("a/cuotai.toml")), CONFIG);
+        let desktop = of(dir.path().join("b/../a/./cuotai.toml"));
+        let desktop = monitor_with(&server, &db, &desktop, CONFIG);
+        let other = monitor_with(&server, &db, &of(dir.path().join("b/cuotai.toml")), CONFIG);
+
+        tui.load_models(0).await.unwrap();
+        assert_eq!(ids(&desktop.load_models(0).await.unwrap()), ["llama"]);
+        assert_eq!(other.model_state(0).unwrap(), ModelState::NotFetched);
+        assert_eq!(requests(&server).await, 1);
+    }
+
+    #[tokio::test]
+    async fn store_holds_digests_only() {
+        let server = MockServer::start().await;
+        reply(&server, "ALPHA", list(&["llama"])).await;
+        reply(
+            &server,
+            "BETA",
+            ResponseTemplate::new(500).set_body_string("gsk_BETA"),
+        )
+        .await;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("models.sqlite3");
+        let first = monitor(&server, &db, "secret-config-id");
+        first.load_models(0).await.unwrap();
+        first.load_models(1).await.unwrap();
+        let bytes = String::from_utf8_lossy(&std::fs::read(&db).unwrap()).into_owned();
+        for raw in [
+            "gsk_",
+            "GROQ_KEY",
+            "alpha",
+            "beta",
+            "secret-config-id",
+            "127.0.0.1",
+        ] {
+            assert!(!bytes.contains(raw), "{raw} stored in the model cache");
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn store_dir_and_file_are_private_even_when_preexisting() {
+        use std::os::unix::fs::PermissionsExt;
+        let server = MockServer::start().await;
+        let dir = tempfile::tempdir().unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let fresh = dir.path().join("fresh").join("models.sqlite3");
+        monitor(&server, &fresh, "one").model_state(0).unwrap();
+        assert_eq!(
+            (mode(fresh.parent().unwrap()), mode(&fresh)),
+            (0o700, 0o600)
+        );
+
+        let open = dir.path().join("open");
+        std::fs::create_dir(&open).unwrap();
+        std::fs::set_permissions(&open, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let db = open.join("models.sqlite3");
+        std::fs::write(&db, b"").unwrap();
+        std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o644)).unwrap();
+        monitor(&server, &db, "one").model_state(0).unwrap();
+        assert_eq!((mode(&open), mode(&db)), (0o700, 0o600));
     }
 }

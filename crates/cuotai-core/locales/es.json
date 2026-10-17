@@ -310,6 +310,8 @@
   "models.error.invalid_index": "La cuenta no existe en esta configuración.",
   "models.error.no_cache": "Caché de modelos no configurada para esta configuración.",
   "models.error.storage": "No se pudo leer ni escribir la caché de modelos; no se guardó ningún resultado.",
+  "models.fetching": "Consulta de modelos en curso en esta u otra ventana; el último catálogo sigue disponible para búsqueda.",
+  "models.interrupted": "La última consulta de modelos se interrumpió antes de terminar; no se guardó nada parcial. Sincronice para intentarlo de nuevo.",
   "models.source.groq": "Groq GET /openai/v1/models con la clave de la cuenta; no prueba permiso de inferencia, precio ni disponibilidad actual.",
   "models.unsupported": "{provider}: listado de modelos no verificado para esta cuenta; no se hace ninguna consulta.",
   "native.code_buddy.region.help": "cn (por defecto): copilot.tencent.com. intl: www.codebuddy.ai.",

@@ -310,6 +310,8 @@
   "models.error.invalid_index": "Account does not exist in this configuration.",
   "models.error.no_cache": "Model cache not configured for this configuration.",
   "models.error.storage": "Could not read or write the model cache; no result was saved.",
+  "models.fetching": "Model query in progress in this or another window; the last catalog stays searchable.",
+  "models.interrupted": "The last model query was interrupted before finishing; nothing partial was saved. Sync to try again.",
   "models.source.groq": "Groq GET /openai/v1/models with the account key; does not prove inference permission, price or current availability.",
   "models.unsupported": "{provider}: model listing not verified for this account; no query is made.",
   "native.code_buddy.region.help": "cn (default): copilot.tencent.com. intl: www.codebuddy.ai.",

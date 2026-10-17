@@ -397,6 +397,9 @@ impl Inner {
             Ok(cache) => monitor.with_model_cache(cache),
             Err(_) => monitor,
         });
+        // Just loaded from the TOML: drop catalogs of accounts gone from it.
+        // A cache failure only keeps stale digests; model ops report it.
+        let _ = monitor.prune_models();
         self.generation += 1;
         let accounts_len = file.config.accounts.len();
         // `install` replaces the live configuration (initial load or
@@ -885,6 +888,8 @@ impl Backend {
             // propagamos por último (ainda sob o lock).
             l.cycle = staged;
             l.monitor = new_monitor;
+            // Saved: an edited identity (rename, credential, region) loses its entry.
+            let _ = l.monitor.prune_models();
             if l.tokens.len() < l.file.config.accounts.len() {
                 l.tokens
                     .extend((0..l.file.config.accounts.len() - l.tokens.len()).map(|_| None));
@@ -977,6 +982,7 @@ impl Backend {
             let post_save_config = l.file.config.clone();
             l.cycle = staged_cycle;
             l.monitor = Arc::new(new_monitor);
+            let _ = l.monitor.prune_models();
             if index < l.tokens.len() {
                 l.tokens.remove(index);
             }
