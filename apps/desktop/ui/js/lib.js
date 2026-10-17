@@ -107,7 +107,7 @@ export const quitApp = () => isDesktop && T.core.invoke("quit_app");
 /** Percentual restante (0–100) segundo a classificação do core; null = sem medida/limite. */
 export function remainingPct(m) {
   if (m.state === "exhausted") return 0;
-  if (m.state === "available" && !m.uncapped) return m.ratio * 100;
+  if (m.state === "available" && !m.uncapped && m.ratio != null) return m.ratio * 100;
   return null;
 }
 export const usedPct = (m) => {
