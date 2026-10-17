@@ -8,11 +8,12 @@ use cuotai_core::{
         FieldDescriptorKind, FieldVisibility,
     },
     config_file::{ConfigFile, Discovery},
+    identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{classify_metric, classify_report, AccountClass, MetricState},
     oauth::OAuthSession,
     refresh::{Edit, RefreshCycle},
-    Account, Config, EnvironmentCredentials, Metric, Monitor, Provider, Report, Status,
+    Config, EnvironmentCredentials, Metric, Monitor, Provider, Report, Status,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -216,27 +217,6 @@ pub struct MetricView {
 }
 
 #[derive(Serialize, Clone)]
-pub struct Badge {
-    /// "accent" | "info" | "good" (cor definida pela UI).
-    tone: &'static str,
-    text: String,
-}
-
-#[derive(Serialize, Clone)]
-pub struct CopyValue {
-    label: &'static str,
-    value: String,
-}
-
-/// Metadados não secretos já presentes em `Account::params` (projetados pelo core no login).
-#[derive(Serialize, Clone, Default)]
-pub struct IdentityView {
-    email: Option<String>,
-    badges: Vec<Badge>,
-    copy: Option<CopyValue>,
-}
-
-#[derive(Serialize, Clone)]
 pub struct ReportView {
     index: usize,
     account: String,
@@ -256,7 +236,7 @@ pub struct ReportView {
     /// Instante (Unix, ms) da próxima consulta agendada desta conta; `None` enquanto ela está sendo consultada.
     next_refresh_at_ms: Option<u64>,
     uses_oauth: bool,
-    identity: IdentityView,
+    identity: AccountIdentity,
 }
 
 #[derive(Serialize, Clone)]
@@ -282,59 +262,6 @@ fn metric_view(metric: &Metric) -> MetricView {
     }
 }
 
-fn identity_view(account: &Account, status: Status) -> IdentityView {
-    let param = |key: &str| {
-        account
-            .params
-            .get(key)
-            .map(|v| v.trim())
-            .filter(|v| !v.is_empty())
-    };
-    let mut out = IdentityView::default();
-    match account.provider {
-        Provider::Kiro => {
-            if let Some(method) = param("auth_method") {
-                let text = match method {
-                    "builder-id" => "AWS Builder ID",
-                    "idc" => "IAM Identity Center",
-                    other => other,
-                };
-                out.badges.push(Badge {
-                    tone: "accent",
-                    text: text.into(),
-                });
-            }
-            if let Some(region) = param("region") {
-                out.badges.push(Badge {
-                    tone: "info",
-                    text: region.into(),
-                });
-            }
-            if status == Status::Ready {
-                out.badges.push(Badge {
-                    tone: "good",
-                    text: "ativa".into(),
-                });
-            }
-            out.copy = param("profile_arn").map(|v| CopyValue {
-                label: "ARN do perfil",
-                value: v.into(),
-            });
-        }
-        Provider::CodeBuddy | Provider::Qoder | Provider::XiaomiMimo => {
-            if let Some(region) = param("region") {
-                out.badges.push(Badge {
-                    tone: "info",
-                    text: region.into(),
-                });
-            }
-        }
-        Provider::Grok => out.email = param("email").map(str::to_owned),
-        _ => {}
-    }
-    out
-}
-
 fn report_view(
     index: usize,
     report: &Report,
@@ -356,7 +283,7 @@ fn report_view(
         refresh_seconds: account.effective_refresh_seconds(config.refresh_seconds),
         next_refresh_at_ms,
         uses_oauth: account.oauth.is_some(),
-        identity: identity_view(account, report.status),
+        identity: account_identity(account, report.status),
     }
 }
 
@@ -1963,6 +1890,7 @@ pub fn visible_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cuotai_core::Account;
 
     #[test]
     fn global_interval_change_keeps_reports_and_reschedules_deadlines() {
