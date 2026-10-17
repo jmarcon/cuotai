@@ -230,26 +230,30 @@ const brands = {
   antigravity: B("Antigravity", "#7c6cf0", "Ag"), kimchi: B("Kimchi", "#ef4444", "Km"),
 };
 export const brand = (p) => brands[p] ?? B(p, "#888888");
-// Logos de provider (9router, MIT; ver img/providers/NOTICE.md). Sem arquivo/erro: sigla colorida.
-const images = {
-  open_ai_api: "openai.png", anthropic_api: "anthropic.png", chat_gpt: "codex.png", claude: "claude.png",
-  gemini_api: "gemini.png", vertex_ai: "vertex.png", aws_bedrock: "bedrock.png", azure_open_ai: "azure.png",
-  cursor: "cursor.png", copilot: "copilot.png", windsurf: "windsurf.png", mini_max: "minimax.png",
-  kimi: "kimi.png", qwen: "qwen.png", groq: "groq.png", perplexity: "perplexity.png", mistral: "mistral.png",
-  cloudflare_ai: "cloudflare-ai.png", ollama_cloud: "ollama.png", xiaomi_mimo: "xiaomi-mimo.png",
-  open_code_go: "opencode-go.png", qoder: "qoder.png", gemini_ai: "gemini-cli.png", grok: "grok-cli.png",
-  nvidia_nim: "nvidia.png", poolside: "poolside.png", kiro: "kiro.png", cline: "cline.png",
-  code_buddy: "codebuddy-intl.png", zed: "zed.png", alibaba_model_studio: "alims-intl.png",
-  alibaba_coding_plan: "alicode-intl.png", alibaba_token_plan: "alitp-intl.png", alibaba_cloud: "alims-intl.png",
-  antigravity: "antigravity.png", kimchi: "kimchi.svg",
+// Logos de provider: glifos SVG monocromáticos (lobehub/icons, MIT; zed: simple-icons, CC0; ver img/providers/NOTICE.md)
+// pintados por máscara CSS sobre um ladrilho com a cor da marca — nítidos em qualquer tamanho e sem fundo branco.
+// [arquivo, fundo do ladrilho, cor do glifo]; o fundo omitido usa a cor da marca e o glifo, branco.
+const glyphs = {
+  open_ai_api: ["openai"], anthropic_api: ["anthropic"], chat_gpt: ["codex", "#111113"], claude: ["claude"],
+  gemini_api: ["gemini"], vertex_ai: ["vertexai"], aws_bedrock: ["bedrock", "#232f3e", "#ff9900"], azure_open_ai: ["azure"],
+  cursor: ["cursor", "#1c1c1e"], copilot: ["githubcopilot"], windsurf: ["windsurf"], mini_max: ["minimax"],
+  kimi: ["kimi"], qwen: ["qwen"], groq: ["groq"], perplexity: ["perplexity"], mistral: ["mistral"],
+  cloudflare_ai: ["cloudflare"], ollama_cloud: ["ollama", "#f4f4f5", "#111113"], xiaomi_mimo: ["xiaomimimo"],
+  open_code_go: ["opencode", "#111113"], qoder: ["qoder", "#0c0c0e", "#22c55e"], gemini_ai: ["gemini"], grok: ["grok", "#111113"],
+  nvidia_nim: ["nvidia", "#0c0c0e", "#76b900"], poolside: ["poolside"], kiro: ["kiro"], cline: ["cline", "#18181b"],
+  code_buddy: ["codebuddy"], zed: ["zed", "#084ccf"], alibaba_model_studio: ["bailian"],
+  alibaba_coding_plan: ["bailian"], alibaba_token_plan: ["bailian"], alibaba_cloud: ["alibabacloud"],
+  antigravity: ["antigravity"],
 };
 export const logo = (provider, size = 40) => {
   const b = brand(provider);
-  const file = images[provider];
-  const img = file
-    ? `<img src="img/providers/${file}" alt="" draggable="false" onerror="this.parentElement.classList.add('fb');this.remove()" />`
-    : "";
-  return `<span class="logo ${file ? "" : "fb"}" style="width:${size}px;height:${size}px;font-size:${size * 0.4}px;--c:${b.color}" aria-hidden="true">${img}<b>${esc(b.mark)}</b></span>`;
+  const style = `width:${size}px;height:${size}px;font-size:${size * 0.4}px`;
+  if (provider === "kimchi") // arte própria, já colorida e circular: sem ladrilho nem máscara
+    return `<span class="logo art" style="${style}" aria-hidden="true"><img src="img/providers/kimchi.svg" alt="" draggable="false" /></span>`;
+  const g = glyphs[provider];
+  if (!g) return `<span class="logo fb" style="${style};--c:${b.color}" aria-hidden="true"><b>${esc(b.mark)}</b></span>`;
+  const [file, bg = b.color, fg = "#fff"] = g;
+  return `<span class="logo" style="${style};--c:${bg};--fg:${fg}" aria-hidden="true"><i class="glyph" style="-webkit-mask-image:url(img/providers/${file}.svg);mask-image:url(img/providers/${file}.svg)"></i></span>`;
 };
 
 // ---------- tema (compartilhado entre janelas via localStorage + evento storage) ----------
