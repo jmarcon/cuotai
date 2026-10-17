@@ -1,5 +1,5 @@
 // Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, notas, selos e ações.
-import { te } from "./i18n.js";
+import { te, tl } from "./i18n.js";
 import { brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
 import { detailHtml } from "./detail.js";
 
@@ -8,7 +8,7 @@ let currentKey = null;
 let ctx = null; // { reports(), onEdit(index), onRemove(index, label), onChange() }
 
 const badges = (list) =>
-  list.length ? `<div class="badges">${list.map((b) => `<span class="badge ${esc(b.tone)}">${esc(b.text)}</span>`).join("")}</div>` : "";
+  list.length ? `<div class="badges">${list.map((b) => `<span class="badge ${esc(b.tone)}">${esc(tl(b.text))}</span>`).join("")}</div>` : "";
 
 function render() {
   const r = ctx.reports().find((x) => reportKey(x) === currentKey);
@@ -24,7 +24,7 @@ function render() {
         <button class="icon danger" data-remove title="${te("common.remove")}" aria-label="${te("common.remove")}">${icon("trash")}</button>
       </div>
     </div>
-    ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: id.copy.label })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
+    ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
     <div class="det-body">${detailHtml(r, { eye: true })}</div>
     <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;

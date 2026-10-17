@@ -812,5 +812,8 @@
   "status.needs_configuration": "Necesita configuración",
   "status.rate_limited": "Limitado",
   "status.ready": "Al día",
-  "status.unsupported": "No disponible"
+  "status.unsupported": "No disponible",
+  "identity.value": "{value}",
+  "identity.session_active": "sesión activa",
+  "identity.profile_arn": "ARN del perfil"
 }

@@ -812,5 +812,8 @@
   "status.needs_configuration": "Needs setup",
   "status.rate_limited": "Rate limited",
   "status.ready": "Up to date",
-  "status.unsupported": "Unavailable"
+  "status.unsupported": "Unavailable",
+  "identity.value": "{value}",
+  "identity.session_active": "session active",
+  "identity.profile_arn": "Profile ARN"
 }

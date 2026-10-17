@@ -4,6 +4,7 @@
 pub mod account_edit;
 pub mod config_file;
 pub mod edit_error;
+pub mod identity;
 pub mod metrics;
 mod model;
 pub mod oauth;
