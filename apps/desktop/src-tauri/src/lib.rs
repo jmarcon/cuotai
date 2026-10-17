@@ -8,7 +8,7 @@ use backend::{
     AccountForm, AccountInput, Backend, FieldChoiceSchema, FormSchema, LoginStartInput,
     ProviderInfo, View,
 };
-use cuotai_core::Provider;
+use cuotai_core::{models::ModelState, Provider};
 use std::{collections::BTreeMap, sync::Arc};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -148,6 +148,43 @@ async fn reload_config(app: AppHandle, b: Shared<'_>) -> Result<backend::View, S
 #[tauri::command]
 async fn config_changed_on_disk(b: Shared<'_>) -> Result<bool, String> {
     b.config_changed_on_disk().await
+}
+
+/// PRD 0002 RF6.1: model catalog of account `index`, guarded by the
+/// `generation` of the `View` the UI read. A result for another generation
+/// fails with `"stale"` and must be discarded. No secret crosses the IPC.
+#[tauri::command]
+async fn model_state(b: Shared<'_>, index: usize, generation: u64) -> Result<ModelState, String> {
+    b.models(index, generation, |m, i| async move { m.model_state(i) })
+        .await
+}
+
+/// First explicit opening: queries only when nothing is recorded.
+#[tauri::command]
+async fn load_models(b: Shared<'_>, index: usize, generation: u64) -> Result<ModelState, String> {
+    b.models(
+        index,
+        generation,
+        |m, i| async move { m.load_models(i).await },
+    )
+    .await
+}
+
+/// Manual "Sincronizar modelos".
+#[tauri::command]
+async fn sync_models(b: Shared<'_>, index: usize, generation: u64) -> Result<ModelState, String> {
+    b.models(
+        index,
+        generation,
+        |m, i| async move { m.sync_models(i).await },
+    )
+    .await
+}
+
+/// Catalog source or unsupported reason of `provider` for a new account.
+#[tauri::command]
+fn model_support(provider: Provider) -> backend::ModelSupport {
+    backend::model_support(provider)
 }
 
 #[tauri::command]
@@ -370,6 +407,10 @@ pub fn run() {
             login_start,
             login_submit_code,
             login_cancel,
+            model_state,
+            load_models,
+            sync_models,
+            model_support,
             load_user_content,
             core_catalog,
             get_settings,

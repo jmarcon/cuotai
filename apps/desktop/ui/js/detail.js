@@ -1,7 +1,10 @@
 // Detalhe de uma conta: mesmo componente no popover e no diálogo da janela principal.
 // Critério único: percentual DISPONÍVEL, barra = disponível, quantidade = usado / limite; métricas sem limite viram texto.
-import { te } from "./i18n.js";
-import { esc, fmtAmount, fmtReset, icon, isMetricHidden, level, metricKey, noteText, remainingPct, statusLabel, textualMetric } from "./lib.js";
+import { currentLocale, t, te, tl } from "./i18n.js";
+import {
+  STALE, errText, esc, fmtAmount, fmtReset, getView, icon, isMetricHidden, level, loadModels, metricKey, modelState, noteText,
+  remainingPct, reportKey, statusLabel, syncModels, textualMetric,
+} from "./lib.js";
 
 /** `eye`: mostra o botão de ocultar/exibir a quota (só no diálogo). */
 export function metricCardHtml(r, m, { eye = false } = {}) {
@@ -33,4 +36,133 @@ export function detailHtml(r, { eye = false } = {}) {
     return `<div class="detail"><div class="metric"><p class="sub">${esc(notes[0] ?? statusLabel(r.status))}</p></div>${notes.slice(1).map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
   return `<div class="detail">${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+}
+
+// ---------- modelos (PRD 0002 RF6) ----------
+const when = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(currentLocale(), { dateStyle: "short", timeStyle: "short" });
+};
+/** Catálogo exibível: o atual (`ready`) ou o anterior preservado em falha/consulta/interrupção. */
+const catalogOf = (s) => (s?.state === "ready" ? s : s?.previous ?? null);
+const stateText = (s) => {
+  switch (s?.state) {
+    case "not_fetched": return t("models.notFetched");
+    case "ready": return s.models.length ? t("models.count", { count: s.models.length }) : t("models.empty");
+    case "failed": return `${statusLabel(s.status)} · ${tl(s.error)} · ${t("models.attemptAt", { when: when(s.at) })}`;
+    case "fetching": return tl(s.note);
+    case "interrupted": return `${tl(s.note)} · ${t("models.attemptAt", { when: when(s.at) })}`;
+    case "unsupported": return tl(s.reason);
+    default: return "";
+  }
+};
+
+/** Seção pesquisável de modelos da conta `key` (`provider::nome`) no índice `index` da configuração `generation`.
+ *  O cache do core é a fonte (nada em localStorage). A primeira consulta só ocorre ao abrir a seção com o estado
+ *  `not_fetched`; outra, só por "Sincronizar modelos". Resultado de outra identidade (geração/índice antigos) é
+ *  descartado. O host chama `update` a cada view, `focused()` antes de redesenhar e `attach(root, foco)` depois. */
+export function mountModels({ key, index, generation }) {
+  const el = document.createElement("details");
+  el.className = "models";
+  el.innerHTML = `<summary>${te("models.title")}</summary>
+    <div class="models-bar">
+      <label class="models-search"><span>${te("models.search")}</span><input type="search" autocomplete="off" spellcheck="false" /></label>
+      <button type="button" class="models-sync">${icon("refresh")}${te("models.sync")}</button>
+    </div>
+    <p class="models-status" role="status" aria-live="polite"></p>
+    <p class="sub models-meta"></p>
+    <ul class="models-list" aria-label="${te("models.title")}"></ul>`;
+  const [search, sync, status, meta, list] =
+    ["input", ".models-sync", ".models-status", ".models-meta", ".models-list"].map((s) => el.querySelector(s));
+  // `epoch` muda a cada troca de identidade: respostas de uma época anterior são ignoradas.
+  let state = null, error = null, progress = null, busy = false, gone = false, epoch = 0;
+
+  function render() {
+    const cat = gone ? null : catalogOf(state);
+    const models = cat?.models ?? [];
+    const q = search.value.trim().toLowerCase();
+    const shown = models.filter((m) => !q || m.id.toLowerCase().includes(q) || !!m.name?.toLowerCase().includes(q));
+    el.querySelector(".models-bar").hidden = gone || state?.state === "unsupported";
+    search.closest("label").hidden = !models.length;
+    sync.disabled = busy;
+    status.textContent = gone ? t("models.gone") : progress ?? error ?? stateText(state);
+    meta.textContent = cat
+      ? [t("models.source", { source: tl(cat.source) }), t("models.fetchedAt", { when: when(cat.fetched_at) }),
+        q ? t("models.shown", { shown: shown.length, count: models.length }) : ""].filter(Boolean).join(" · ")
+      : "";
+    list.innerHTML = q && models.length && !shown.length
+      ? `<li class="sub">${te("models.noMatch")}</li>`
+      : shown.map((m, i) => `<li tabindex="${i ? -1 : 0}"><code>${esc(m.id)}</code>${m.name && m.name !== m.id ? ` <span class="sub">${esc(m.name)}</span>` : ""}</li>`).join("");
+  }
+
+  /** Uma chamada ao backend; `note` marca operação longa (anunciada, botão desativado). */
+  async function call(fn, note) {
+    const e = epoch;
+    if (note) { busy = true; progress = note; render(); }
+    try {
+      const s = await fn(index, generation);
+      if (e !== epoch) return null;
+      state = s;
+      error = null;
+      return s;
+    } catch (x) {
+      if (e !== epoch) return null;
+      if (x === STALE) resync();
+      else error = errText(x); // o catálogo exibido continua
+      return null;
+    } finally {
+      if (e === epoch) {
+        if (note) { busy = false; progress = null; }
+        render();
+      }
+    }
+  }
+  /** Relê o estado sem consultar; uma consulta já em andamento (outra janela/processo) é aguardada, não repetida. */
+  async function refresh(first) {
+    const s = await call(modelState);
+    if (s?.state === "fetching") await call(loadModels, tl(s.note));
+    else if (first && s?.state === "not_fetched") await call(loadModels, t("models.loading"));
+  }
+  function update(i, g) {
+    if (i === index && g === generation && !gone) return;
+    index = i; generation = g; epoch++;
+    state = error = progress = null; busy = gone = false;
+    if (el.open) refresh(false);
+    else render();
+  }
+  /** A configuração mudou antes de a UI ver a nova view: localiza a mesma conta (ou nota que sumiu). */
+  async function resync() {
+    const v = await getView().catch(() => null);
+    const r = v?.reports.find((x) => reportKey(x) === key);
+    if (r) return update(r.index, v.generation);
+    epoch++;
+    state = progress = null; busy = false; gone = true;
+    render();
+  }
+
+  el.addEventListener("toggle", () => { if (el.open && !busy && !gone) refresh(true); });
+  sync.addEventListener("click", () => { if (!busy) call(syncModels, t("models.syncing")); });
+  search.addEventListener("input", render);
+  search.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") e.preventDefault(); // dentro do formulário de conta, Enter não salva
+    if (e.key === "ArrowDown") { e.preventDefault(); list.querySelector("li[tabindex]")?.focus(); }
+  });
+  list.addEventListener("keydown", (e) => {
+    const items = [...list.querySelectorAll("li[tabindex]")];
+    const i = items.indexOf(document.activeElement);
+    if (i < 0) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); return search.focus(); }
+    const go = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+    if (go === undefined) return;
+    e.preventDefault();
+    if (go < 0) return search.closest("label").hidden ? undefined : search.focus();
+    items[Math.min(go, items.length - 1)].focus();
+  });
+  render();
+  return {
+    key, el, update,
+    focused: () => (el.contains(document.activeElement) ? document.activeElement : null),
+    attach(root, focus) { root.querySelector("[data-models-slot]")?.append(el); focus?.focus(); },
+    dispose() { epoch++; el.remove(); },
+  };
 }

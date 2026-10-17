@@ -2,10 +2,11 @@
 // RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
-  configChangedOnDisk, deleteAccount, esc, fieldChoices, formSchema, getAccount, listProviders,
-  loginCancel, loginStart, loginSubmitCode, onLogin, reloadConfig,
-  saveAccount, visibleFields,
+  configChangedOnDisk, deleteAccount, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
+  loginCancel, loginStart, loginSubmitCode, modelSupport, onLogin, reloadConfig,
+  reportKey, saveAccount, visibleFields,
 } from "./lib.js";
+import { mountModels } from "./detail.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
 
 function open(html) {
@@ -17,25 +18,6 @@ function open(html) {
   dlg.showModal();
   return dlg;
 }
-// RF8: backend errors are delivered as JSON strings that decode to
-// `{ id, params, fallback }`; legacy callers still emit plain strings.
-// `tl` handles both shapes; we keep the diagnostic "Falha inesperada."
-// fallback for the truly unexpected case.
-export const errText = (e) => {
-  if (e && typeof e === "object" && "id" in e) return tl(e);
-  if (typeof e === "string") {
-    try {
-      const parsed = JSON.parse(e);
-      if (parsed && typeof parsed === "object" && "id" in parsed) return tl(parsed);
-    } catch {
-      return e;
-    }
-    return e;
-  }
-  if (e?.message) return errText(e.message);
-  return t("common.unexpected");
-};
-
 
 export async function openAccountDialog(index = null, { onSaved = () => {} } = {}) {
   // RF4: cheap external-change detection. If the file on disk
@@ -104,6 +86,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
+    <div id="models-host"></div>
     <p class="err" id="err" role="alert"></p>
     <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn primary" id="ok">${te("common.save")}</button></div>
   </form>`);
@@ -665,6 +648,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       await resetLogin();
       authMode = schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential";
       await renderDynamic();
+      renderModels();
     } else if (e.target.name === "auth") {
       syncModeChoicesToFields(selectedMode());
       await resetLogin();
@@ -752,7 +736,37 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       dlg.querySelector("[data-cancel]").disabled = false;
     }
   });
+  // PRD 0002 RF6.1: catálogo da conta em edição; numa conta nova, escolha explícita de uma conta configurada do
+  // mesmo provedor (a nova ainda não tem credencial salva) ou a orientação do core quando não há nenhuma.
+  const modelsHost = dlg.querySelector("#models-host");
+  let models = null;
+  let modelsSeq = 0;
+  const mountIn = (key, i, generation) => {
+    models?.dispose();
+    models = key == null ? null : mountModels({ key, index: i, generation });
+    modelsHost.querySelector("[data-models-slot]").replaceChildren(...(models ? [models.el] : []));
+  };
+  async function renderModels() {
+    const seq = ++modelsSeq;
+    const view = await getView().catch(() => null);
+    const generation = view?.generation ?? 0;
+    const same = editing ? [] : (view?.reports ?? []).filter((r) => r.provider === provider);
+    const support = !editing && !same.length ? await modelSupport(provider).catch(() => null) : null;
+    if (seq !== modelsSeq) return; // o provedor mudou durante a leitura
+    models?.dispose();
+    models = null;
+    modelsHost.innerHTML = editing || !same.length
+      ? `<div data-models-slot></div>${support ? `<p class="hint">${te("models.title")}: ${tl(support.text, {}, true)}${support.supported ? ` ${te("models.saveFirst")}` : ""}</p>` : ""}`
+      : `<label class="f"><span>${te("models.pick")}</span><select id="models-pick"><option value="">${te("models.pickNone")}</option>${same.map((r) => `<option value="${esc(reportKey(r))}">${esc(r.account)}</option>`).join("")}</select></label><div data-models-slot></div>`;
+    if (editing) return mountIn(`${existing.provider}::${existing.name}`, index, generation);
+    modelsHost.querySelector("#models-pick")?.addEventListener("change", (e) => {
+      const r = same.find((x) => reportKey(x) === e.target.value);
+      mountIn(r ? reportKey(r) : null, r?.index, generation);
+    });
+  }
+  dlg.addEventListener("close", () => { modelsSeq++; models?.dispose(); });
   await renderDynamic();
+  renderModels();
   dlg.querySelector("[name=name]").focus();
 }
 
