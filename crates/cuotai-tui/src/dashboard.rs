@@ -220,6 +220,7 @@ pub(crate) enum FooterAction {
     Delete,
     ToggleUnmeasured,
     Filter,
+    Models,
     ClearFilter,
     RefreshSelected,
     Refresh,
@@ -423,6 +424,8 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         actions.push(plain("↑↓/[ ] rolar", None));
         actions.push(separator());
         actions.push(plain("Enter/Esc voltar", Some(FooterAction::CloseDetails)));
+        actions.push(separator());
+        actions.push(plain("m modelos", Some(FooterAction::Models)));
     } else {
         actions.push(plain("Enter detalhes", Some(FooterAction::OpenDetails)));
     }

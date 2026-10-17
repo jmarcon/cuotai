@@ -1,6 +1,7 @@
 use crate::{
     auth_ui::{LoginTask, Outcome},
     dashboard::{self, FooterAction},
+    models_view::{ModelsView, Reply},
     wizard::{Action, Wizard},
 };
 use crossterm::{
@@ -235,6 +236,8 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
     let mut dirty = true;
     let mut last_tick = Instant::now();
     let mut deletion: Option<DeletionState> = None;
+    // RF5: Models section over the details screen or the wizard.
+    let mut models: Option<ModelsView> = None;
 
     // Both the keyboard and mouse event paths run the same dashboard
     // transitions through `run_command!` and `dispatch_wizard_action!` so a
@@ -269,6 +272,8 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
         NextDetail,
         /// Retrocede entre contas visíveis no detalhe.
         PrevDetail,
+        /// Abre a seção Modelos da conta em detalhe.
+        Models,
     }
 
     /// Map a keyboard event onto a dashboard command. Returns `None` when the
@@ -287,6 +292,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
         Some(match code {
             KeyCode::Enter => Command::ToggleDetails,
             KeyCode::Esc if details => Command::CloseDetails,
+            KeyCode::Char('m') if details => Command::Models,
             KeyCode::Char('u') => Command::ToggleUnmeasured,
             KeyCode::Down if details => Command::ScrollDetailDown,
             KeyCode::Up if details => Command::ScrollDetailUp,
@@ -448,6 +454,23 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                     // snapshot; the user can edit and retry.
                     if let Some(active) = &mut wizard {
                         active.clear_conflict();
+                    }
+                }
+                Action::Models { index } => {
+                    // Only an account still saved at `index` (the wizard base
+                    // may predate a reload) is ever queried.
+                    let base = wizard.as_ref().and_then(|w| w.base_account(index));
+                    match file.config.accounts.get(index) {
+                        Some(account) if base == Some(account) => {
+                            models = Some(ModelsView::open(&monitor, index, account.clone()));
+                        }
+                        _ => {
+                            if let Some(active) = &mut wizard {
+                                active.set_error(
+                                    "Conta alterada no arquivo; reabra o assistente.".into(),
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -612,6 +635,14 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                 Command::NextDetail => state.move_selection(1, &cycle_slot_reports(&refresh_cycle)),
                 Command::PrevDetail => {
                     state.move_selection(-1, &cycle_slot_reports(&refresh_cycle))
+                }
+                Command::Models => {
+                    if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))
+                    {
+                        if let Some(account) = file.config.accounts.get(index) {
+                            models = Some(ModelsView::open(&monitor, index, account.clone()));
+                        }
+                    }
                 }
             }
         };
@@ -813,11 +844,25 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                 }
             }
         }
+        if let Some(view) = &mut models {
+            dirty |= view.busy();
+            if !view.poll(&file.config.accounts).await {
+                models = None;
+                state.error =
+                    Some("A conta mudou; o resultado de modelos foi descartado.".to_string());
+                dirty = true;
+            }
+        }
         if dirty {
             if let Some(task) = &mut auth_task {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
                     task.draw(frame)
+                })?;
+            } else if let Some(view) = &mut models {
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    view.draw(frame)
                 })?;
             } else if let Some(wizard) = &mut wizard {
                 terminal.draw(|frame| {
@@ -882,6 +927,14 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                     }
                     continue;
                 }
+                if let Some(view) = &mut models {
+                    match view.mouse(mouse.kind, mouse.column, mouse.row) {
+                        Reply::Close => models = None,
+                        Reply::Sync => view.sync(&monitor),
+                        Reply::Stay => {}
+                    }
+                    continue;
+                }
                 if let Some(active) = &mut wizard {
                     let action = active.handle_mouse(mouse, frame_area);
                     dispatch_wizard_action!(action);
@@ -936,6 +989,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                                 FooterAction::Delete => Command::Delete,
                                 FooterAction::ToggleUnmeasured => Command::ToggleUnmeasured,
                                 FooterAction::Filter => Command::Filter,
+                                FooterAction::Models => Command::Models,
                                 FooterAction::ClearFilter => Command::ClearFilter,
                                 FooterAction::Refresh => Command::Refresh,
                                 FooterAction::RefreshSelected => Command::RefreshSelected,
@@ -985,6 +1039,14 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                         KeyCode::Down => task.scroll(true),
                         KeyCode::Up => task.scroll(false),
                         _ => task.input(key),
+                    }
+                    continue;
+                }
+                if let Some(view) = &mut models {
+                    match view.key(key.code, key.modifiers) {
+                        Reply::Close => models = None,
+                        Reply::Sync => view.sync(&monitor),
+                        Reply::Stay => {}
                     }
                     continue;
                 }

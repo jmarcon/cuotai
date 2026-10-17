@@ -177,14 +177,22 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
     response.json().await.map_err(|_| QueryError::schema())
 }
 
+use std::future::Future;
+
 /// Most pages a model listing may follow (RF4.3).
 const MODEL_PAGE_LIMIT: usize = 50;
 
 /// Follow page tokens to completion. A repeated token, the page limit or
 /// any page error fails the whole listing: callers never get a partial list.
-pub(crate) async fn paginate<T>(
-    mut page: impl AsyncFnMut(Option<String>) -> Result<(Vec<T>, Option<String>), QueryError>,
-) -> Result<Vec<T>, QueryError> {
+/// `page` builds each request synchronously and returns an owned future: an
+/// `AsyncFnMut` borrowing the context fails the higher-ranked `Send` check
+/// that spawning model operations (TUI tasks, Tauri commands) needs.
+pub(crate) async fn paginate<T, F>(
+    mut page: impl FnMut(Option<String>) -> F,
+) -> Result<Vec<T>, QueryError>
+where
+    F: Future<Output = Result<(Vec<T>, Option<String>), QueryError>>,
+{
     let mut items = Vec::new();
     let mut seen = std::collections::HashSet::new();
     let mut token = None;
@@ -247,18 +255,18 @@ mod tests {
     #[tokio::test]
     async fn paginate_stops_on_repeated_token_and_page_limit() {
         let mut calls = 0;
-        let looped = paginate(async |_: Option<String>| {
+        let looped = paginate(|_: Option<String>| {
             calls += 1;
-            Ok((vec![calls], Some("same".to_string())))
+            std::future::ready(Ok((vec![calls], Some("same".to_string()))))
         })
         .await
         .unwrap_err();
         assert_eq!((&*looped.note.id, calls), ("query.schema", 2));
 
         calls = 0;
-        let endless = paginate(async |_: Option<String>| {
+        let endless = paginate(|_: Option<String>| {
             calls += 1;
-            Ok((vec![calls], Some(calls.to_string())))
+            std::future::ready(Ok((vec![calls], Some(calls.to_string()))))
         })
         .await
         .unwrap_err();
@@ -268,9 +276,9 @@ mod tests {
         );
 
         let mut pages = vec![(vec![3], None), (vec![1, 2], Some("p2".to_string()))];
-        let full = paginate(async |token: Option<String>| {
+        let full = paginate(|token: Option<String>| {
             assert_eq!(token.is_some(), pages.len() == 1, "token forwarded");
-            Ok(pages.pop().unwrap())
+            std::future::ready(Ok(pages.pop().unwrap()))
         })
         .await
         .unwrap();

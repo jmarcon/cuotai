@@ -101,7 +101,7 @@ impl From<rusqlite::Error> for ModelError {
 
 /// Catalog source of `account`, or why it cannot be listed (no network).
 /// The published matrix lives in `docs/providers.md`.
-pub(crate) fn support(account: &Account) -> Result<Localized, Localized> {
+pub fn support(account: &Account) -> Result<Localized, Localized> {
     let provider = account.provider;
     let product = |value: &str| account.params.get("product").is_some_and(|v| v == value);
     let source = |id: &'static str, text: &'static str| Ok(Localized::fixed(id, text));
@@ -381,12 +381,7 @@ impl ModelCache {
     /// Take the per-account claim inside `BEGIN IMMEDIATE`. A live claim
     /// of anyone yields `Busy`; with `first`, a recorded attempt (success,
     /// failure or interruption) is returned as is instead of claiming.
-    fn claim(
-        &self,
-        account: &Account,
-        lease: Duration,
-        first: bool,
-    ) -> Result<Claim<'_>, ModelError> {
+    fn claim(&self, account: &Account, lease: Duration, first: bool) -> Result<Claim, ModelError> {
         let key = account_key(account);
         let mut db = self.open()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -410,7 +405,7 @@ impl ModelCache {
         )?;
         tx.commit()?;
         Ok(Claim::Owned(Attempt {
-            cache: self,
+            cache: self.clone(),
             key,
             token,
             done: false,
@@ -419,7 +414,8 @@ impl ModelCache {
 
     /// Re-read until another claim settles; bounded by its lease, after
     /// which the row reads as `Interrupted`.
-    async fn wait(&self, account: &Account) -> Result<ModelState, ModelError> {
+    /// Takes `self` by value: see `run_models` on the `Send` bound.
+    async fn wait(self, account: &Account) -> Result<ModelState, ModelError> {
         loop {
             tokio::time::sleep(POLL).await;
             match self.state(account)? {
@@ -508,8 +504,8 @@ fn read(db: &Connection, config_key: &str, key: &str) -> Result<Option<ModelStat
     ))
 }
 
-enum Claim<'a> {
-    Owned(Attempt<'a>),
+enum Claim {
+    Owned(Attempt),
     Settled(ModelState),
     Busy,
 }
@@ -517,14 +513,16 @@ enum Claim<'a> {
 /// A claimed attempt. Only its owner token may publish; dropped unfinished
 /// (cancelled future, panic) it expires its lease so the row reads as
 /// `Interrupted` at once. A crashed process leaves the lease to expire.
-struct Attempt<'a> {
-    cache: &'a ModelCache,
+/// Owns its cache handle: a borrowed one held across the fetch await makes
+/// the model futures fail the higher-ranked `Send` check `tokio::spawn` needs.
+struct Attempt {
+    cache: ModelCache,
     key: String,
     token: String,
     done: bool,
 }
 
-impl Attempt<'_> {
+impl Attempt {
     /// Publish a full success or a failure (keeping the stored catalog)
     /// if this attempt still owns the claim; a stale attempt changes
     /// nothing. Returns the stored state either way.
@@ -533,7 +531,7 @@ impl Attempt<'_> {
             Ok(catalog) => ("ready", Some(encode(catalog)?), None, catalog.fetched_at),
             Err(failure) => ("failed", None, Some(encode(failure)?), failure.at),
         };
-        let cache = self.cache;
+        let cache = &self.cache;
         let mut db = cache.open()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         tx.execute(
@@ -558,7 +556,7 @@ impl Attempt<'_> {
     }
 }
 
-impl Drop for Attempt<'_> {
+impl Drop for Attempt {
     fn drop(&mut self) {
         if self.done {
             return;
@@ -631,6 +629,11 @@ impl Monitor {
             Ok(target) => target,
             Err(unsupported) => return Ok(unsupported),
         };
+        // Owned account and cache handle: borrows returned through
+        // `model_target` and held across the awaits below fail the
+        // higher-ranked `Send` check `tokio::spawn` needs.
+        let (account, cache) = (account.clone(), cache.clone());
+        let account = &account;
         // The claim outlives the account deadline plus slot waiting; the
         // same bound cancels our fetch, so a live lease means a live query.
         let lease = Duration::from_secs(self.config.timeout_seconds + 30);
@@ -639,11 +642,17 @@ impl Monitor {
             Claim::Settled(state) => return Ok(state),
             Claim::Busy => return cache.wait(account).await,
         };
-        let Ok(fetched) = tokio::time::timeout(lease, self.fetch_models(account)).await else {
+        let fetch = self.with_access(
+            account,
+            async |account: &Account, ctx: &providers::Context<'_>| {
+                self.list_models(account, ctx).await
+            },
+        );
+        let Ok(fetched) = tokio::time::timeout(lease, fetch).await else {
             drop(attempt);
             return Ok(cache.state(account)?.unwrap_or(ModelState::NotFetched));
         };
-        attempt.finish(match fetched {
+        attempt.finish(match fetched.and_then(normalize) {
             Ok(models) => Ok(ModelCatalog {
                 models,
                 source,
@@ -657,9 +666,10 @@ impl Monitor {
         })
     }
 
-    async fn fetch_models(
+    async fn list_models(
         &self,
         account: &Account,
+        ctx: &providers::Context<'_>,
     ) -> Result<Vec<ModelInfo>, providers::QueryError> {
         use providers::{openai_models, secret};
         #[cfg(test)]
@@ -669,49 +679,41 @@ impl Monitor {
             .unwrap_or(providers::router_keys::GROQ_MODELS_URL);
         #[cfg(not(test))]
         let groq = providers::router_keys::GROQ_MODELS_URL;
-        let models = self
-            .with_access(
-                account,
-                async |account: &Account, ctx: &providers::Context<'_>| match account.provider {
-                    Provider::Groq => {
-                        openai_models(ctx, groq, &secret(account, ctx, "GROQ_API_KEY")?).await
-                    }
-                    Provider::Kimi => {
-                        let key = secret(account, ctx, "KIMI_API_KEY")?;
-                        openai_models(ctx, providers::asia::KIMI_MODELS_URL, &key).await
-                    }
-                    Provider::Poolside => {
-                        let key = secret(account, ctx, "POOLSIDE_API_KEY")?;
-                        openai_models(ctx, providers::inference::POOLSIDE_MODELS_URL, &key).await
-                    }
-                    Provider::GeminiAi => {
-                        let url = providers::cloud_keys::GEMINI_MODELS_URL;
-                        providers::cloud_keys::gemini_models(account, ctx, url).await
-                    }
-                    Provider::AwsBedrock => {
-                        providers::cloud::bedrock_models(account, ctx, "aws").await
-                    }
-                    Provider::Antigravity => {
-                        use providers::antigravity::{
-                            models, FETCH_AVAILABLE_MODELS_URL, LOAD_CODE_ASSIST_URL,
-                        };
-                        models(
-                            account,
-                            ctx,
-                            LOAD_CODE_ASSIST_URL,
-                            FETCH_AVAILABLE_MODELS_URL,
-                        )
-                        .await
-                    }
-                    Provider::AlibabaModelStudio => {
-                        let url = providers::alibaba_plans::MODEL_STUDIO_MODELS_URL;
-                        providers::alibaba_plans::model_studio_models(account, ctx, url).await
-                    }
-                    other => unreachable!("{other:?} has no model source"),
-                },
-            )
-            .await?;
-        normalize(models)
+        match account.provider {
+            Provider::Groq => {
+                openai_models(ctx, groq, &secret(account, ctx, "GROQ_API_KEY")?).await
+            }
+            Provider::Kimi => {
+                let key = secret(account, ctx, "KIMI_API_KEY")?;
+                openai_models(ctx, providers::asia::KIMI_MODELS_URL, &key).await
+            }
+            Provider::Poolside => {
+                let key = secret(account, ctx, "POOLSIDE_API_KEY")?;
+                openai_models(ctx, providers::inference::POOLSIDE_MODELS_URL, &key).await
+            }
+            Provider::GeminiAi => {
+                let url = providers::cloud_keys::GEMINI_MODELS_URL;
+                providers::cloud_keys::gemini_models(account, ctx, url).await
+            }
+            Provider::AwsBedrock => providers::cloud::bedrock_models(account, ctx, "aws").await,
+            Provider::Antigravity => {
+                use providers::antigravity::{
+                    models, FETCH_AVAILABLE_MODELS_URL, LOAD_CODE_ASSIST_URL,
+                };
+                models(
+                    account,
+                    ctx,
+                    LOAD_CODE_ASSIST_URL,
+                    FETCH_AVAILABLE_MODELS_URL,
+                )
+                .await
+            }
+            Provider::AlibabaModelStudio => {
+                let url = providers::alibaba_plans::MODEL_STUDIO_MODELS_URL;
+                providers::alibaba_plans::model_studio_models(account, ctx, url).await
+            }
+            other => unreachable!("{other:?} has no model source"),
+        }
     }
 }
 
@@ -722,6 +724,16 @@ mod tests {
     use std::sync::Arc;
     use wiremock::matchers::{header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// UIs spawn model operations on the multi-thread runtime (TUI tasks,
+    /// Tauri commands), so their futures must stay `Send`; compile-time only.
+    #[allow(dead_code)]
+    fn model_futures_are_send(monitor: Arc<Monitor>) {
+        fn send<T: Send>(_: T) {}
+        let m = Arc::clone(&monitor);
+        send(async move { m.load_models(0).await });
+        send(async move { monitor.sync_models(0).await });
+    }
 
     struct Keys;
     impl Credentials for Keys {
