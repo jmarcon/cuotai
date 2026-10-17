@@ -3,10 +3,30 @@
 | Campo | Valor |
 |---|---|
 | ID | 0001 |
-| Status | Proposto |
+| Status | Implementado (0.7.x) |
 | Responsável | Backend (`cuotai-core`) |
 | Consumidores | `apps/desktop` (Tauri), `cuotai-tui` |
 | Data | 2026-10-01 |
+
+## Estado da implementação (2026-10-17)
+
+Todos os RFs foram implementados no core, na TUI e no desktop, um por vez, com validação (`cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop, smoke da TUI e da UI desktop) antes de cada versão.
+
+| RF | Versão | Entrega |
+|---|---|---|
+| RF1 | 0.1.1 | Aceite com `wiremock`: salvar 1 de 3 contas gera 1 requisição; remover gera 0. |
+| RF2 | 0.2.0 | Modos de login genéricos descritos pelo core (registro, armazenamento, vínculo, avisos); reautenticação reaproveita o `credential_id` e remove a chave substituída só após gravar o TOML. |
+| RF3 | 0.3.0 | Desktop refaz a purga do cofre por handle opaco, sem depender do índice removido. |
+| RF4 | 0.4.0 | Desktop recarrega a configuração após conflito ou mudança externa e aponta erros por campo. |
+| RF5 | 0.4.1, 0.7.1 | `credential_modes` obsoleto removido; identidade da conta (selos, e-mail, ARN) derivada no core. |
+| RF6 | 0.4.2 | Backoff nunca encurta intervalos configurados acima de 1 h. |
+| RF7 | 0.4.3 | `AccountClass`, `MetricState` (tag `state`) e `CredentialKind` serializados direto do core. |
+| RF8 | 0.5.0 | Catálogos `en-US`/`es` do core para todos os ids emitidos; desktop mescla, TUI resolve via `CUOTAI_LANG`. |
+| RF9 | 0.5.1 | Ordem compartilhada sem `params = {}` espúrio no TOML. |
+| RF10 | 0.6.0 | `Metric.kind` e `Metric.window` preenchidos pelos adaptadores; fim do reconhecimento por texto. |
+| RF11 | 0.7.0 | Aplicabilidade por opção e tipo de autenticação, substituição com aviso e validação em `build_account`. |
+
+As seções 2 e "Avaliação técnica" descrevem a situação de 2026-10-01, antes da implementação.
 
 ## 1. Contexto
 
@@ -150,7 +170,7 @@ Ao integrar, apareceram lacunas que só o core pode resolver. Hoje o desktop con
 - **Independência de UI:** o core não depende de Tauri, Ratatui ou qualquer framework de janela.
 - **Qualidade:** `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings` e `cargo fmt --all -- --check` passam. Testes de provider usam fixtures locais determinísticas.
 
-## Avaliação técnica — core e TUI (2026-10-01)
+## Avaliação técnica — core e TUI (2026-10-01, histórica)
 
 Decisões abaixo avaliam os requisitos, não aprovam automaticamente as assinaturas sugeridas. O core mantém política, estado e persistência; a TUI mantém tarefas Tokio, teclas, renderização, textos e confirmação humana. `Snapshot`/CLI e formato TOML permanecem compatíveis.
 
@@ -170,22 +190,20 @@ Decisões abaixo avaliam os requisitos, não aprovam automaticamente as assinatu
 
 ## 7. Plano em fases
 
-1. **Fase 1 — custo e consistência:** RF1, RF3, RF4.
-2. **Fase 2 — login:** RF2 (maior), com migração da TUI.
-3. **Fase 3 — acabamento:** RF5, RF6, RF7, RF11 (decisões do RF11 registradas na seção correspondente).
+Executado em sequência RF1 → RF11 (ver "Estado da implementação"); as fases originais (1: RF1/RF3/RF4; 2: RF2; 3: RF5–RF7/RF11) foram cobertas.
 
 ## 8. Impacto nos consumidores
 
-- **Desktop:** substituir a recriação completa do ciclo por `apply_edit`; remover o `match` de credencial; adicionar o botão "Entrar" e o acompanhamento do login; exibir erros por campo.
-- **TUI:** trocar `auth_ui.rs` pela API de login do core; usar `remove_account` e os erros tipados.
+- **Desktop:** usa `apply_edit`, descritores de credencial, modos de login e opções do core; exibe erros por campo, recarrega após conflito e refaz a purga do cofre.
+- **TUI:** `auth_ui.rs` apenas renderiza eventos do `LoginDriver`; usa `remove_account`, erros tipados e os mesmos descritores.
 
-## 9. Questões em aberto
+## 9. Questões (decididas)
 
-1. O estado pendente deve ser um `Status` novo ou um `Option<Report>` no ciclo? (afeta o formato JSON da CLI)
-2. Qual o mínimo de intervalo para provedores cobrados, e quais entram na lista inicial além do AWS Cost Explorer?
-3. O login deve poder ser retomado após o app fechar, ou é sempre reiniciado?
-4. A purga de credenciais deve ser o padrão ao remover, ou opcional na UI?
-5. **Decidida — RF11:** Kiro por variável usa `google`, `github`, `import`, `api_key` ou `external_idp`; login usa `builder-id` ou `idc`; ambos compartilham um descritor com aplicabilidade por opção (ver seção RF11).
+1. **Estado pendente:** `Option<Report>` por slot no `RefreshCycle`; `Snapshot` só existe completo, sem novo `Status` nem mudança no JSON da CLI.
+2. **Provedores cobrados:** apenas AWS Bedrock (Cost Explorer), com intervalo efetivo mínimo de 300 s, inclusive pelo fallback global.
+3. **Retomada do login:** não há retomada; o login é cancelado ao fechar e reiniciado. Tokens autorizados ficam só em memória até o commit.
+4. **Purga ao remover:** opcional; TUI e desktop perguntam, e a credencial compartilhada por outra conta nunca é apagada.
+5. **RF11:** Kiro por variável usa `google`, `github`, `import`, `api_key` ou `external_idp`; login usa `builder-id` ou `idc`; ambos compartilham um descritor com aplicabilidade por opção (ver seção RF11).
 
 ## 10. Referências no código
 
@@ -195,5 +213,8 @@ Decisões abaixo avaliam os requisitos, não aprovam automaticamente as assinatu
 - `crates/cuotai-core/src/config_file.rs` — `ConfigFile::load`, `save`
 - `crates/cuotai-core/src/metrics.rs` — `MetricState`, `AccountClass`
 - `crates/cuotai-core/src/oauth/session.rs` — `OAuthSession`
-- `crates/cuotai-tui/src/auth_ui.rs` — orquestração de login a migrar
-- `apps/desktop/src-tauri/src/backend.rs` — contornos temporários no desktop
+- `crates/cuotai-core/src/oauth/login.rs` — `login_modes`, `start_login`, `LoginDriver`, commit estagiado
+- `crates/cuotai-core/src/text.rs` e `crates/cuotai-core/locales/` — `Localized` e catálogos
+- `crates/cuotai-core/src/identity.rs` — identidade não secreta da conta
+- `crates/cuotai-tui/src/auth_ui.rs` — renderização dos eventos de login
+- `apps/desktop/src-tauri/src/backend.rs` — ponte Tauri sem política própria
