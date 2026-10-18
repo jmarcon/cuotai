@@ -86,13 +86,12 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
 /// `minimal_client_version`. Acompanha uma versão pública recente do Codex CLI.
 const CODEX_CLIENT_VERSION: &str = "0.163.0";
 
-/// Modelos do Claude com o mesmo token OAuth da assinatura: `GET /v1/models` com os cabeçalhos do
-/// OAuth, paginado por `after_id`. O contrato público é de chave de API; o uso com o token da
-/// assinatura segue o mesmo caminho do Claude Code e não é documentado, podendo mudar sem aviso.
-pub(crate) async fn claude_models(
-    account: &Account,
+/// `GET {base}/v1/models` da Anthropic, paginado por `after_id` enquanto `has_more`. `auth` aplica a
+/// credencial (chave de API, chave administrativa ou token OAuth) a cada página.
+pub(crate) async fn anthropic_models(
     ctx: &Context<'_>,
     base: &str,
+    auth: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 ) -> Result<Vec<ModelInfo>, QueryError> {
     #[derive(Deserialize)]
     struct Page {
@@ -106,16 +105,11 @@ pub(crate) async fn claude_models(
         id: String,
         display_name: Option<String>,
     }
-    let token = secret(account, ctx, "CLAUDE_OAUTH_TOKEN")?;
     let url = format!("{base}/v1/models");
     paginate(|after: Option<String>| {
         let mut query = vec![("limit", "1000".to_string())];
         query.extend(after.map(|id| ("after_id", id)));
-        let request = ctx
-            .http
-            .get(&url)
-            .bearer_auth(token.trim())
-            .header("anthropic-beta", CLAUDE_OAUTH_BETA)
+        let request = auth(ctx.http.get(&url))
             .header("anthropic-version", "2023-06-01")
             .query(&query)
             .timeout(ctx.timeout);
@@ -134,6 +128,23 @@ pub(crate) async fn claude_models(
             });
             Ok((models.collect(), next))
         }
+    })
+    .await
+}
+
+/// Modelos do Claude com o mesmo token OAuth da assinatura: `GET /v1/models` com os cabeçalhos do
+/// OAuth. O contrato público é de chave de API; o uso com o token da assinatura segue o mesmo
+/// caminho do Claude Code e não é documentado, podendo mudar sem aviso.
+pub(crate) async fn claude_models(
+    account: &Account,
+    ctx: &Context<'_>,
+    base: &str,
+) -> Result<Vec<ModelInfo>, QueryError> {
+    let token = secret(account, ctx, "CLAUDE_OAUTH_TOKEN")?;
+    anthropic_models(ctx, base, move |request| {
+        request
+            .bearer_auth(token.trim())
+            .header("anthropic-beta", CLAUDE_OAUTH_BETA)
     })
     .await
 }

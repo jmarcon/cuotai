@@ -32,7 +32,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     }
 }
 
-fn grok_headers(
+pub(crate) fn grok_headers(
     request: reqwest::RequestBuilder,
     token: &str,
     account: &Account,

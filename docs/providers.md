@@ -142,55 +142,72 @@ Diferenças deliberadas em relação ao 9router: campos ausentes não viram zero
 
 ## Catálogo de modelos por conta
 
-A lista só é consultada sob demanda (`load_models`/`sync_models`), nunca pelo refresh de quota. Habilita-se apenas quando o endpoint aceita **a mesma credencial** que a conta já guarda, em leitura e sem custo de inferência. Quase todos são contratos oficiais; as duas exceções são as assinaturas **Claude** e **Codex**, listadas por interfaces não documentadas para o token OAuth, verificadas contra contas reais e sujeitas a mudar sem aviso (como as consultas de quota delas); caso contrário a conta mostra `Unsupported` com o motivo e nenhuma requisição. Paginação segue tokens até o fim (limite de 50 páginas, token repetido rejeitado); página inválida/incompleta, HTTP 401/403/429 ou cancelamento falham sem sobrescrever o catálogo salvo. IDs são deduplicados e ordenados sem reescrita.
+A lista só é consultada sob demanda (`load_models`/`sync_models`), nunca pelo refresh de quota. **Todo provedor tenta listar**, sempre em leitura e sem custo de inferência, com a mesma credencial que a conta já guarda para a quota:
+
+- **consulta ao vivo:** o endpoint de listagem do provedor. Quando a credencial não é aceita (por exemplo uma chave administrativa onde o endpoint pede chave de inferência), a conta mostra a falha classificada (autenticação, limite, transporte, esquema) e mantém o catálogo anterior; nada é inventado;
+- **lista embutida:** só onde o provedor não publica nenhum endpoint que liste os modelos de uma conta (CodeBuddy, Windsurf, Xiaomi MIMO, Qoder, Alibaba Token Plan). É a lista do registro do 9router (`providers/builtin_models.rs`, MIT, ver `THIRD_PARTY_NOTICES`), e o texto de fonte diz que **não é uma consulta à conta**;
+- **sem lista:** apenas o Alibaba Cloud (AccessKey de faturamento, sem endpoint de modelos), com o motivo e nenhuma requisição.
+
+Paginação segue tokens até o fim (limite de 50 páginas, token repetido rejeitado); página inválida/incompleta, HTTP 401/403/429 ou cancelamento falham sem sobrescrever o catálogo salvo. IDs são deduplicados e ordenados sem reescrita. Corpos de resposta, URLs e tokens nunca aparecem em erros.
+
+Os endpoints marcados como **não documentados** vêm de clientes de código aberto (CLIs dos próprios fornecedores e 9router) e podem mudar sem aviso, como as consultas de quota desses mesmos provedores. A coluna **Verificação** diz o que foi comprovado contra contas reais; o restante tem apenas testes com fixtures HTTP locais.
+
+Detalhes que não cabem na tabela:
 
 - **AWS Bedrock:** `aws bedrock list-foundation-models --profile <params.profile>`, com `--region <params.region>` quando definido; sem `params.region` vale a região padrão do perfil na AWS CLI. Exige `bedrock:ListFoundationModels`; não é Cost Explorer e nunca roda no refresh.
-- **Gemini AI:** só com a chave AI Studio (`product` padrão, sem login nativo); o token Gemini CLI não é usado. O ID é o `name` retornado (`models/...`).
-- **Claude (assinatura):** `GET https://api.anthropic.com/v1/models?limit=1000` com o token OAuth e os cabeçalhos `anthropic-beta: oauth-2025-04-20` e `anthropic-version`, paginado por `after_id` enquanto `has_more`. O contrato público é de chave de API; o uso com o token da assinatura não é documentado. `has_more` sem `last_id` rejeita a listagem.
-- **ChatGPT / Codex (assinatura):** `GET https://chatgpt.com/backend-api/codex/models?client_version=<versão do Codex CLI>` com o token da sessão (e `chatgpt-account-id` se `params.account_id`), a lista lida pelo Codex CLI. Entradas com `visibility` diferente de `list` não aparecem no seletor do Codex e ficam de fora. Interface interna e não documentada.
+- **Gemini AI:** com a chave AI Studio (`product` padrão), `models.list` paginado; o ID é o `name` retornado (`models/...`). Com `product = "cli"` ou login nativo, tenta `GET /v1beta/models` com o token da sessão, que pode ser recusado.
+- **Claude (assinatura):** `GET https://api.anthropic.com/v1/models?limit=1000` com o token OAuth e os cabeçalhos `anthropic-beta: oauth-2025-04-20` e `anthropic-version`, paginado por `after_id` enquanto `has_more`; `has_more` sem `last_id` rejeita a listagem.
+- **ChatGPT / Codex (assinatura):** `GET https://chatgpt.com/backend-api/codex/models?client_version=<versão do Codex CLI>` com o token da sessão (e `chatgpt-account-id` se `params.account_id`). Entradas com `visibility` diferente de `list` ficam de fora, como no seletor do Codex.
 - **Antigravity:** mesma sessão e requisição `fetchAvailableModels` da quota; plano gratuito ou resposta sem `models` é `Unsupported`.
-- **Alibaba Model Studio:** só `region = "intl"` (Singapura); as demais regiões exigem host com `WorkspaceId`, que a conta não guarda.
+- **Alibaba Model Studio:** `region = "intl"` usa a listagem paginada de Singapura; as demais regiões tentam o endpoint compatível com OpenAI da região.
+- **Kimi:** com chave de plataforma, `api.moonshot.ai/v1/models`; com `product = "coding"` ou login nativo, `api.kimi.com/coding/v1/models` (chave em `x-api-key`, ou token OAuth em Bearer com os cabeçalhos de dispositivo da quota).
+- **GitHub Copilot:** troca o token do GitHub por um token do Copilot (`/copilot_internal/v2/token`) e lê `api.githubcopilot.com/models`, mantendo só modelos de chat que o plano não desabilita.
+- **Kiro:** `ListAvailableModels` no host da região do `profile_arn` (padrão `us-east-1`), com os mesmos cabeçalhos por método de autenticação da quota.
+- **Cursor:** RPC `aiserver.v1.AiService/GetUsableModels` em JSON Connect, com o token de sessão; contas só com a chave administrativa (Basic) recebem a recusa do provedor.
+- **Zed:** `users/me` (organização) → `client/llm_tokens` → `cloud.zed.dev/models`; modelos desabilitados ficam de fora. Planos sem modelos hospedados devolvem lista vazia, que é o resultado real.
+- **Azure OpenAI:** `…/accounts/{recurso}/models` do recurso configurado, com o token ARM; links de página fora do host ARM são rejeitados.
+- **Grok:** sessão da CLI (`product = "cli"`) lista por `cli-chat-proxy.grok.com/models` com os cabeçalhos do cliente; com chave de API, `api.x.ai/v1/models`.
 
-Status: `supported`, `unsupported-incompatible-credential` (existe endpoint, mas não para a credencial armazenada) ou `unsupported-no-verified-endpoint`.
+Verificação: `ao vivo` = confirmado contra conta real; `fixture` = só testes locais.
 
-| Identificador | Status | Contrato / motivo | Fonte |
+| Identificador | Fonte da lista | Endpoint | Verificação |
 |---|---|---|---|
-| `open_ai_api` | unsupported-incompatible-credential | Lista exige API key de projeto; conta guarda Admin key | [OpenAI](https://developers.openai.com/api/reference/resources/models/methods/list) |
-| `anthropic_api` | unsupported-incompatible-credential | Lista exige API key; conta guarda Admin key | [Anthropic](https://platform.claude.com/docs/en/api/models/list) |
-| `chat_gpt` | supported (interface interna) | GET `chatgpt.com/backend-api/codex/models` com o token da sessão; não documentada | [Codex CLI](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/endpoint/models.rs) |
-| `claude` | supported (interface não documentada para o token) | GET `api.anthropic.com/v1/models` com o token OAuth da assinatura e `anthropic-beta: oauth-2025-04-20` | [Anthropic](https://platform.claude.com/docs/en/api/models/list) |
-| `gemini_api` | unsupported-incompatible-credential | Token de escopo Cloud Monitoring, não Generative Language | [Gemini](https://ai.google.dev/api/models) |
-| `vertex_ai` | unsupported-incompatible-credential | Token de escopo Cloud Monitoring, não Vertex AI | [Vertex AI](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list) |
-| `aws_bedrock` | supported | `ListFoundationModels` via AWS CLI no perfil/região | [AWS CLI](https://docs.aws.amazon.com/cli/latest/reference/bedrock/list-foundation-models.html), [API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html) |
-| `azure_open_ai` | unsupported-incompatible-credential | Papel Cost Management Reader não comprova leitura do recurso | [Azure](https://learn.microsoft.com/en-us/rest/api/aiservices/accountmanagement/accounts/list-models) |
-| `cursor` | unsupported-no-verified-endpoint | Admin API/sessão sem lista de modelos | [Cursor](https://cursor.com/docs/account/teams/admin-api) |
-| `copilot` | unsupported-no-verified-endpoint | Catálogo GitHub Models é outro produto e escopo | [GitHub](https://docs.github.com/en/rest/models/catalog) |
-| `windsurf` | unsupported-incompatible-credential | Service key Enterprise de analytics | — |
-| `mini_max` | unsupported-incompatible-credential | Chave pode ser Subscription Key do plano, separada da API key | [MiniMax](https://platform.minimax.io/docs/api-reference/models/openai/list-models), [Subscription Key](https://platform.minimax.io/docs/token-plan/faq.md) |
-| `kimi` | supported (padrão por chave) | GET `api.moonshot.ai/v1/models`; `product = "coding"` ou login nativo: incompatível | [Kimi](https://platform.kimi.ai/docs/api/list-models) |
-| `qwen` | unsupported-incompatible-credential | Conta sem região; a lista sem `WorkspaceId` é só de Singapura: use `alibaba_model_studio` com `region = "intl"`. OAuth Qwen Code não lista | [Model Studio](https://www.alibabacloud.com/help/en/model-studio/list-models) |
-| `groq` | supported | GET `/openai/v1/models` com a chave | [Groq](https://console.groq.com/docs/api-reference) |
-| `perplexity` | unsupported-no-verified-endpoint | `/v1/models` é público (sem credencial), não da conta | [Perplexity](https://docs.perplexity.ai/api-reference/models-get) |
-| `mistral` | unsupported-incompatible-credential | Lista exige chave de inferência; conta guarda Admin key | [Mistral](https://docs.mistral.ai/api/endpoint/models) |
-| `cloudflare_ai` | unsupported-incompatible-credential | Lista exige `account_id`, que a conta não guarda | [Cloudflare](https://developers.cloudflare.com/api/resources/ai/subresources/models/methods/list/) |
-| `ollama_cloud` | unsupported-no-verified-endpoint | `/api/tags` da nuvem é público, não da conta | [Ollama](https://docs.ollama.com/cloud) |
-| `xiaomi_mimo` | unsupported-no-verified-endpoint | Sessões do console sem lista oficial | — |
-| `open_code_go` | unsupported-no-verified-endpoint | Sem lista oficial para a chave | [OpenCode Go](https://opencode.ai/go/) |
-| `qoder` | unsupported-no-verified-endpoint | PAT/job token sem lista oficial | — |
-| `gemini_ai` | supported (chave AI Studio) | `models.list` paginado, `x-goog-api-key`; `product = "cli"`/login nativo: incompatível | [Gemini](https://ai.google.dev/api/models) |
-| `grok` | unsupported-incompatible-credential | Lista exige API key de inferência; conta guarda Management key/sessão CLI | [xAI](https://docs.x.ai/developers/rest-api-reference/inference/models) |
-| `nvidia_nim` | unsupported-no-verified-endpoint | `/v1/models` documentado só para NIM auto-hospedado | [NIM](https://docs.nvidia.com/nim/large-language-models/latest/api-reference.html) |
-| `poolside` | supported | GET `inference.poolside.ai/v1/models` com a chave | [Poolside](https://docs.poolside.ai/api/overview.md) |
-| `kiro` | unsupported-no-verified-endpoint | Token interno sem lista oficial | — |
-| `cline` | unsupported-no-verified-endpoint | API documenta só chat completions | [Cline](https://docs.cline.bot/api/models.md) |
-| `code_buddy` | unsupported-no-verified-endpoint | Sessão interna sem lista oficial | — |
-| `zed` | unsupported-no-verified-endpoint | Token de cliente sem lista oficial | — |
-| `alibaba_model_studio` | supported (`region = "intl"`) | GET `dashscope-intl.aliyuncs.com/api/v1/models`, `page_no` até `output.total`; `cn`: incompatível | [Model Studio](https://www.alibabacloud.com/help/en/model-studio/list-models) |
-| `alibaba_coding_plan` | unsupported-incompatible-credential | Chave de assinatura `sk-sp-`, não API key padrão | — |
-| `alibaba_token_plan` | unsupported-no-verified-endpoint | Perfil `bl`/cookie sem lista oficial | — |
-| `alibaba_cloud` | unsupported-incompatible-credential | AccessKey de faturamento, não API key do Model Studio | — |
-| `antigravity` | supported (planos pagos) | `fetchAvailableModels` da sessão (interface interna) | [9router](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage.js) |
-| `kimchi` | unsupported-no-verified-endpoint | Sem lista oficial para a chave | — |
+| `open_ai_api` | consulta, documentada | GET `api.openai.com/v1/models`; chave Admin pode ser recusada | fixture |
+| `anthropic_api` | consulta, documentada | GET `api.anthropic.com/v1/models` (`x-api-key`); chave Admin pode ser recusada | fixture |
+| `chat_gpt` | consulta, não documentada | GET `chatgpt.com/backend-api/codex/models` | ao vivo |
+| `claude` | consulta, não documentada para o token | GET `api.anthropic.com/v1/models` com OAuth | ao vivo |
+| `gemini_api` | consulta, documentada | GET `generativelanguage.googleapis.com/v1beta/models`; token de Cloud Monitoring pode ser recusado | fixture |
+| `vertex_ai` | consulta, documentada | GET `aiplatform.googleapis.com/v1beta1/publishers/google/models`; token de Cloud Monitoring pode ser recusado | fixture |
+| `aws_bedrock` | consulta, documentada | `ListFoundationModels` via AWS CLI | fixture |
+| `azure_open_ai` | consulta, documentada | ARM `…/accounts/{recurso}/models` | fixture |
+| `cursor` | consulta, não documentada | `GetUsableModels` (Connect JSON) | ao vivo |
+| `copilot` | consulta, não documentada | `api.githubcopilot.com/models` | ao vivo |
+| `windsurf` | lista embutida | sem endpoint | — |
+| `mini_max` | consulta, documentada | GET `api.minimax.io/v1/models` | ao vivo |
+| `kimi` | consulta | `api.moonshot.ai/v1/models` (chave) ou `api.kimi.com/coding/v1/models` | ao vivo (coding) |
+| `qwen` | consulta, não documentada | `dashscope-intl…/compatible-mode/v1/models` (chave) ou `portal.qwen.ai/v1/models` (OAuth) | fixture |
+| `groq` | consulta, documentada | GET `/openai/v1/models` | ao vivo |
+| `perplexity` | consulta, documentada | GET `api.perplexity.ai/v1/models` | fixture |
+| `mistral` | consulta, documentada | GET `api.mistral.ai/v1/models`; chave Admin pode ser recusada | fixture |
+| `cloudflare_ai` | consulta, documentada | GET `/client/v4/accounts/{account_id}/ai/models/search`; exige `params.account_id` | fixture |
+| `ollama_cloud` | consulta, documentada | GET `ollama.com/v1/models` | ao vivo |
+| `xiaomi_mimo` | lista embutida | sem endpoint | — |
+| `open_code_go` | consulta, não documentada | GET `opencode.ai/zen/go/v1/models` | ao vivo |
+| `qoder` | lista embutida | o catálogo real exige assinatura Cosy (RSA+AES+MD5), ainda não portada | — |
+| `gemini_ai` | consulta | `models.list` (chave AI Studio) ou `/v1beta/models` com a sessão | fixture |
+| `grok` | consulta | `cli-chat-proxy.grok.com/models` (sessão CLI) ou `api.x.ai/v1/models` (chave) | fixture |
+| `nvidia_nim` | consulta, documentada | GET `integrate.api.nvidia.com/v1/models` | fixture |
+| `poolside` | consulta, documentada | GET `inference.poolside.ai/v1/models` | fixture |
+| `kiro` | consulta, não documentada | `ListAvailableModels` | ao vivo |
+| `cline` | consulta, documentada | GET `api.cline.bot/api/v1/models` | fixture |
+| `code_buddy` | lista embutida | sem endpoint (`/v3/config` não traz modelos da conta) | — |
+| `zed` | consulta, não documentada | `cloud.zed.dev/models` com token LLM | ao vivo (lista vazia no plano da conta) |
+| `alibaba_model_studio` | consulta | `/api/v1/models` paginado (intl) ou `/compatible-mode/v1/models` | fixture |
+| `alibaba_coding_plan` | consulta, documentada | GET `coding(-intl).dashscope.aliyuncs.com/v1/models` | fixture |
+| `alibaba_token_plan` | lista embutida | sem endpoint | — |
+| `alibaba_cloud` | sem lista | AccessKey de faturamento, sem endpoint de modelos | — |
+| `antigravity` | consulta, não documentada | `fetchAvailableModels` da sessão (planos pagos) | ao vivo |
+| `kimchi` | consulta, não documentada | GET `llm.kimchi.dev/v1/models/metadata?include_in_cli=true` | fixture |
 
 ## Referências
 

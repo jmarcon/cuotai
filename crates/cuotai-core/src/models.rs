@@ -12,7 +12,7 @@
 //! coalesce onto one request; only the claim owner may publish its result.
 
 use crate::config_file::{ConfigFile, ConfigIdentity};
-use crate::text::{params, provider_l10n, Localized};
+use crate::text::{params, provider_l10n, Localized, ParamValue};
 use crate::{providers, Account, Monitor, Provider, Status};
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
@@ -101,14 +101,50 @@ impl From<rusqlite::Error> for ModelError {
 
 /// Catalog source of `account`, or why it cannot be listed (no network).
 /// The published matrix lives in `docs/providers.md`.
+///
+/// Every provider tries: either a live query with the credential the account already stores, or
+/// (where the provider publishes no listing endpoint at all) a built-in list whose source text
+/// says it is not a query of the account.
 pub fn support(account: &Account) -> Result<Localized, Localized> {
     let provider = account.provider;
     let product = |value: &str| account.params.get("product").is_some_and(|v| v == value);
     let source = |id: &'static str, text: &'static str| Ok(Localized::fixed(id, text));
+    let provider_param = || params([("provider", provider_l10n(provider).into())]);
+    // Live query; `undocumented` marks interfaces the vendor does not document for this credential.
+    let live = |endpoint: &'static str, undocumented: bool| {
+        let (id, tail) = if undocumented {
+            (
+                "models.source.undocumented",
+                "interface não documentada para essa credencial, pode mudar sem aviso",
+            )
+        } else {
+            ("models.source.live", "não comprova permissão de inferência")
+        };
+        let mut values = provider_param();
+        values.insert("endpoint".into(), ParamValue::from(endpoint));
+        Ok(Localized::with_params(
+            id,
+            values,
+            format!(
+                "{} {endpoint} com a credencial da conta ({tail}); também não comprova preço nem disponibilidade atual.",
+                provider.label()
+            ),
+        ))
+    };
+    let builtin = || {
+        Ok(Localized::with_params(
+            "models.source.builtin",
+            provider_param(),
+            format!(
+                "{}: nenhum endpoint lista os modelos da conta; esta é a lista embutida do 9router, não uma consulta à sua conta.",
+                provider.label()
+            ),
+        ))
+    };
     let reason = |id: &'static str, text: &str| {
         Err(Localized::with_params(
             id,
-            params([("provider", provider_l10n(provider).into())]),
+            provider_param(),
             format!("{}: {text} Nenhuma consulta é feita.", provider.label()),
         ))
     };
@@ -141,64 +177,51 @@ pub fn support(account: &Account) -> Result<Localized, Localized> {
             "models.source.gemini_ai",
             "Gemini API models.list paginado com a chave AI Studio da conta; não comprova quota, preço ou disponibilidade atual.",
         ),
+        Provider::GeminiAi => live("GET /v1beta/models", true),
         Provider::Kimi if account.oauth.is_none() && !product("coding") => source(
             "models.source.kimi",
             "Kimi GET /v1/models (api.moonshot.ai) com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
         ),
+        Provider::Kimi => live("GET /coding/v1/models", true),
         Provider::AlibabaModelStudio if providers::alibaba_plans::model_studio_lists(account) => {
             source(
                 "models.source.alibaba_model_studio",
                 "Model Studio GET /api/v1/models (Singapura) paginado com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
             )
         }
-        Provider::GeminiAi | Provider::Kimi => reason(
-            "models.unsupported.product",
-            "o produto ou login configurado não usa a chave de API que lista modelos.",
-        ),
-        Provider::Qwen if account.oauth.is_some() => reason(
-            "models.unsupported.product",
-            "o produto ou login configurado não usa a chave de API que lista modelos.",
-        ),
-        Provider::Qwen | Provider::AlibabaModelStudio => reason(
-            "models.unsupported.region",
-            "a listagem sem WorkspaceId só existe na região internacional (Singapura) do Model Studio; use Alibaba Model Studio com params.region = intl.",
-        ),
-        Provider::OpenAiApi
-        | Provider::AnthropicApi
-        | Provider::Mistral
-        | Provider::Grok
-        | Provider::Windsurf => reason(
-            "models.unsupported.admin_key",
-            "a conta guarda credencial administrativa ou de faturamento, não a chave de inferência exigida para listar modelos.",
-        ),
-        Provider::GeminiApi
-        | Provider::VertexAi
-        | Provider::AzureOpenAi
-        | Provider::CloudflareAi
-        | Provider::AlibabaCloud => reason(
-            "models.unsupported.cloud_credential",
-            "a credencial da conta (escopo Cloud Monitoring, papel Cost Management Reader, AccessKey de faturamento ou sem account_id) não comprova permissão de listar modelos.",
-        ),
-        Provider::MiniMax | Provider::AlibabaCodingPlan => reason(
-            "models.unsupported.plan_key",
-            "a chave da conta pode ser de assinatura/plano, que o contrato oficial de listagem não aceita.",
-        ),
-        Provider::AlibabaTokenPlan
-        | Provider::Cursor
-        | Provider::Copilot
-        | Provider::Perplexity
-        | Provider::OllamaCloud
+        Provider::AlibabaModelStudio => live("GET /compatible-mode/v1/models", true),
+        Provider::OpenAiApi => live("GET /v1/models", false),
+        Provider::AnthropicApi => live("GET /v1/models", false),
+        Provider::Mistral => live("GET /v1/models", false),
+        Provider::Perplexity => live("GET /v1/models", false),
+        Provider::NvidiaNim => live("GET /v1/models", false),
+        Provider::Grok if product("cli") || account.oauth.is_some() => {
+            live("GET /models (CLI)", true)
+        }
+        Provider::Grok => live("GET /v1/models", false),
+        Provider::Cline => live("GET /api/v1/models", false),
+        Provider::MiniMax => live("GET /v1/models", false),
+        Provider::OpenCodeGo => live("GET /zen/go/v1/models", true),
+        Provider::OllamaCloud => live("GET /v1/models", false),
+        Provider::Kimchi => live("GET /v1/models/metadata", true),
+        Provider::AlibabaCodingPlan => live("GET /v1/models", false),
+        Provider::Qwen => live("GET /v1/models", true),
+        Provider::Cursor => live("GetUsableModels", true),
+        Provider::Copilot => live("GET /models", true),
+        Provider::Kiro => live("ListAvailableModels", true),
+        Provider::Zed => live("GET /models", true),
+        Provider::GeminiApi => live("GET /v1beta/models", false),
+        Provider::VertexAi => live("GET /v1beta1/publishers/google/models", false),
+        Provider::AzureOpenAi => live("GET …/accounts/{recurso}/models", false),
+        Provider::CloudflareAi => live("GET /ai/models/search", false),
+        Provider::CodeBuddy
+        | Provider::Windsurf
         | Provider::XiaomiMimo
-        | Provider::OpenCodeGo
         | Provider::Qoder
-        | Provider::NvidiaNim
-        | Provider::Kiro
-        | Provider::Cline
-        | Provider::CodeBuddy
-        | Provider::Zed
-        | Provider::Kimchi => reason(
+        | Provider::AlibabaTokenPlan => builtin(),
+        Provider::AlibabaCloud => reason(
             "models.unsupported",
-            "nenhum endpoint oficial verificado lista os modelos desta conta com a credencial configurada.",
+            "a credencial é uma AccessKey de faturamento e o Alibaba Cloud não tem endpoint de modelos para ela.",
         ),
     }
 }
@@ -689,6 +712,17 @@ impl Monitor {
             Provider::Groq => {
                 openai_models(ctx, groq, &secret(account, ctx, "GROQ_API_KEY")?).await
             }
+            Provider::Kimi
+                if account.oauth.is_some()
+                    || account.params.get("product").is_some_and(|v| v == "coding") =>
+            {
+                providers::catalog::kimi_coding_models(
+                    account,
+                    ctx,
+                    providers::catalog::KIMI_CODING_BASE,
+                )
+                .await
+            }
             Provider::Kimi => {
                 let key = secret(account, ctx, "KIMI_API_KEY")?;
                 openai_models(ctx, providers::asia::KIMI_MODELS_URL, &key).await
@@ -713,6 +747,21 @@ impl Monitor {
                 let key = secret(account, ctx, "POOLSIDE_API_KEY")?;
                 openai_models(ctx, providers::inference::POOLSIDE_MODELS_URL, &key).await
             }
+            Provider::GeminiAi
+                if account.oauth.is_some()
+                    || account.params.get("product").is_some_and(|v| v == "cli") =>
+            {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!(
+                        "{}/v1beta/models?pageSize=1000",
+                        providers::catalog::GEMINI_BASE
+                    ),
+                    "GEMINI_API_KEY",
+                )
+                .await
+            }
             Provider::GeminiAi => {
                 let url = providers::cloud_keys::GEMINI_MODELS_URL;
                 providers::cloud_keys::gemini_models(account, ctx, url).await
@@ -730,10 +779,178 @@ impl Monitor {
                 )
                 .await
             }
-            Provider::AlibabaModelStudio => {
+            Provider::AlibabaModelStudio
+                if providers::alibaba_plans::model_studio_lists(account) =>
+            {
                 let url = providers::alibaba_plans::MODEL_STUDIO_MODELS_URL;
                 providers::alibaba_plans::model_studio_models(account, ctx, url).await
             }
+            Provider::AlibabaModelStudio => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1/models".into(),
+                    "DASHSCOPE_API_KEY",
+                )
+                .await
+            }
+            Provider::OpenAiApi => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!("{}/v1/models", providers::catalog::OPENAI_BASE),
+                    "OPENAI_ADMIN_KEY",
+                )
+                .await
+            }
+            Provider::AnthropicApi => {
+                providers::catalog::anthropic_key_models(account, ctx, "https://api.anthropic.com")
+                    .await
+            }
+            Provider::Mistral => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!("{}/v1/models", providers::catalog::MISTRAL_BASE),
+                    "MISTRAL_API_KEY",
+                )
+                .await
+            }
+            Provider::Perplexity => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!("{}/v1/models", providers::catalog::PERPLEXITY_BASE),
+                    "PERPLEXITY_API_KEY",
+                )
+                .await
+            }
+            Provider::NvidiaNim => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!("{}/v1/models", providers::catalog::NVIDIA_BASE),
+                    "NVIDIA_NIM_API_KEY",
+                )
+                .await
+            }
+            Provider::Grok => {
+                providers::catalog::grok_models(
+                    account,
+                    ctx,
+                    providers::catalog::GROK_CLI_BASE,
+                    providers::catalog::XAI_BASE,
+                )
+                .await
+            }
+            Provider::Cline => {
+                providers::catalog::cline_models(account, ctx, providers::catalog::CLINE_BASE).await
+            }
+            Provider::MiniMax => {
+                let base = match account.params.get("region").map(String::as_str) {
+                    Some("cn") => providers::catalog::MINIMAX_CN_BASE,
+                    _ => providers::catalog::MINIMAX_BASE,
+                };
+                providers::catalog::minimax_models(account, ctx, base).await
+            }
+            Provider::OpenCodeGo => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!("{}/v1/models", providers::catalog::OPENCODE_GO_BASE),
+                    "OPENCODE_GO_API_KEY",
+                )
+                .await
+            }
+            Provider::OllamaCloud => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!("{}/v1/models", providers::catalog::OLLAMA_BASE),
+                    "OLLAMA_API_KEY",
+                )
+                .await
+            }
+            Provider::Kimchi => {
+                providers::catalog::bearer_models(
+                    account,
+                    ctx,
+                    format!(
+                        "{}/v1/models/metadata?include_in_cli=true",
+                        providers::catalog::KIMCHI_BASE
+                    ),
+                    "KIMCHI_API_KEY",
+                )
+                .await
+            }
+            Provider::AlibabaCodingPlan => {
+                providers::catalog::alibaba_coding_plan_models(
+                    account,
+                    ctx,
+                    providers::catalog::CODING_PLAN_INTL,
+                    providers::catalog::CODING_PLAN_CN,
+                )
+                .await
+            }
+            Provider::Qwen => {
+                let url = if account.oauth.is_some() {
+                    "https://portal.qwen.ai/v1/models"
+                } else {
+                    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models"
+                };
+                providers::catalog::bearer_models(account, ctx, url.into(), "QWEN_API_KEY").await
+            }
+            Provider::Cursor => {
+                providers::catalog::cursor_models(account, ctx, providers::catalog::CURSOR_BASE)
+                    .await
+            }
+            Provider::Copilot => {
+                providers::catalog::copilot_models(
+                    account,
+                    ctx,
+                    providers::catalog::GITHUB_BASE,
+                    providers::catalog::COPILOT_BASE,
+                )
+                .await
+            }
+            Provider::Kiro => providers::catalog::kiro_models(account, ctx, None).await,
+            Provider::Zed => {
+                providers::catalog::zed_models(account, ctx, providers::catalog::ZED_BASE).await
+            }
+            Provider::GeminiApi => {
+                providers::catalog::gemini_api_models(account, ctx, providers::catalog::GEMINI_BASE)
+                    .await
+            }
+            Provider::VertexAi => {
+                providers::catalog::vertex_models(account, ctx, providers::catalog::VERTEX_BASE)
+                    .await
+            }
+            Provider::AzureOpenAi => {
+                providers::catalog::azure_models(account, ctx, providers::catalog::AZURE_BASE).await
+            }
+            Provider::CloudflareAi => {
+                providers::catalog::cloudflare_models(
+                    account,
+                    ctx,
+                    providers::catalog::CLOUDFLARE_BASE,
+                )
+                .await
+            }
+            Provider::CodeBuddy => Ok(providers::catalog::builtin(
+                providers::builtin_models::CODEBUDDY,
+            )),
+            Provider::Windsurf => Ok(providers::catalog::builtin(
+                providers::builtin_models::WINDSURF,
+            )),
+            Provider::XiaomiMimo => Ok(providers::catalog::builtin(
+                providers::builtin_models::XIAOMI_MIMO,
+            )),
+            Provider::Qoder => Ok(providers::catalog::builtin(
+                providers::builtin_models::QODER,
+            )),
+            Provider::AlibabaTokenPlan => Ok(providers::catalog::builtin(
+                providers::builtin_models::ALIBABA_TOKEN_PLAN,
+            )),
             other => unreachable!("{other:?} has no model source"),
         }
     }
@@ -787,8 +1004,8 @@ provider = "groq"
 credential_env = "GROQ_KEY_BETA"
 [[accounts]]
 name = "openai"
-provider = "open_ai_api"
-credential_env = "OPENAI_ADMIN_KEY"
+provider = "alibaba_cloud"
+credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
 "#;
 
     /// A fresh Monitor (as after a restart) on the same database file.
@@ -997,22 +1214,13 @@ credential_env = "OPENAI_ADMIN_KEY"
         assert_eq!(requests(&server).await, 0);
     }
 
-    /// Mirrors the matrix in docs/providers.md: default accounts of every
-    /// provider, plus the product/region/login variants that switch it off.
+    /// Mirrors the matrix in docs/providers.md: every provider lists (live or built-in) except
+    /// the one without any endpoint, and the product/region/login variants pick the right source.
     #[tokio::test]
     async fn support_matches_published_matrix_and_unsupported_never_queries() {
         use Provider::*;
-        let supported = [
-            Groq,
-            AwsBedrock,
-            Antigravity,
-            Poolside,
-            GeminiAi,
-            Kimi,
-            AlibabaModelStudio,
-            Claude,
-            ChatGpt,
-        ];
+        let builtin = [CodeBuddy, Windsurf, XiaomiMimo, Qoder, AlibabaTokenPlan];
+        let unsupported = [AlibabaCloud];
         let server = MockServer::start().await;
         let dir = tempfile::tempdir().unwrap();
         let config = Config::default();
@@ -1023,10 +1231,20 @@ credential_env = "OPENAI_ADMIN_KEY"
             &toml::to_string(&config).unwrap(),
         );
         for (index, account) in config.accounts.iter().enumerate() {
-            let listed = support(account).is_ok();
             let provider = account.provider;
-            assert_eq!(listed, supported.contains(&provider), "{provider:?}");
-            if !listed {
+            let source = support(account);
+            assert_eq!(
+                source.is_err(),
+                unsupported.contains(&provider),
+                "{provider:?}"
+            );
+            if let Ok(source) = &source {
+                assert_eq!(
+                    &*source.id == "models.source.builtin",
+                    builtin.contains(&provider),
+                    "{provider:?}"
+                );
+            } else {
                 for state in [all.load_models(index).await, all.sync_models(index).await] {
                     assert!(matches!(state.unwrap(), ModelState::Unsupported { .. }));
                 }
@@ -1039,20 +1257,29 @@ credential_env = "OPENAI_ADMIN_KEY"
             params: [(key.to_string(), value.to_string())].into(),
             ..Default::default()
         };
-        for off in [
+        let oauth =
+            Some(serde_json::from_value(serde_json::json!({ "credential_id": "c" })).unwrap());
+        for undocumented in [
             variant(GeminiAi, "product", "cli"),
             variant(Kimi, "product", "coding"),
             variant(AlibabaModelStudio, "region", "cn"),
+            variant(Grok, "product", "cli"),
             Account {
                 provider: GeminiAi,
-                oauth: Some(
-                    serde_json::from_value(serde_json::json!({ "credential_id": "c" })).unwrap(),
-                ),
+                oauth: oauth.clone(),
                 ..Default::default()
             },
         ] {
-            assert!(support(&off).is_err(), "{off:?}");
+            let source = support(&undocumented).unwrap();
+            assert_eq!(
+                &*source.id, "models.source.undocumented",
+                "{undocumented:?}"
+            );
         }
+        assert_eq!(
+            &*support(&variant(Grok, "x", "y")).unwrap().id,
+            "models.source.live"
+        );
     }
 
     #[test]
