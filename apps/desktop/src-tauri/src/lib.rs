@@ -1,5 +1,6 @@
 //! Shell Tauri do Cuotai: janela principal, popover na bandeja e comandos.
 //! Somente consome `cuotai-core` (via `backend.rs`); não contém lógica de provider.
+mod about;
 mod backend;
 mod settings;
 mod user_content;
@@ -298,6 +299,17 @@ fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String>
 }
 
 #[tauri::command]
+fn about_info() -> about::AboutView {
+    about::view()
+}
+
+/// Abre no navegador um repositório da lista do "Sobre"; qualquer outro endereço é recusado.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    about::open_external(&url).map_err(str::to_owned)
+}
+
+#[tauri::command]
 fn get_settings() -> settings::SettingsView {
     settings::view()
 }
@@ -403,6 +415,8 @@ pub fn run() {
             move_account,
             reload_config,
             set_config_file,
+            about_info,
+            open_external,
             config_changed_on_disk,
             login_start,
             login_submit_code,

@@ -194,7 +194,10 @@
   "models.search": "Buscar modelo por ID o nombre",
   "models.sync": "Sincronizar modelos",
   "models.notFetched": "Catálogo aún no consultado.",
-  "models.count": { "one": "{count} modelo.", "other": "{count} modelos." },
+  "models.count": {
+    "one": "{count} modelo.",
+    "other": "{count} modelos."
+  },
   "models.empty": "El proveedor no devolvió modelos para esta credencial.",
   "models.attemptAt": "intento el {when}",
   "models.loading": "Consultando el catálogo de modelos…",
@@ -207,5 +210,24 @@
   "models.pick": "Ver modelos de una cuenta configurada de este proveedor",
   "models.pickNone": "Ninguna (elegir)",
   "models.saveFirst": "No hay ninguna cuenta de este proveedor configurada; guarda la cuenta y abre sus detalles para consultar.",
-  "models.demo": "Demostración en el navegador: el catálogo de modelos solo se consulta en la app de escritorio."
+  "models.demo": "Demostración en el navegador: el catálogo de modelos solo se consulta en la app de escritorio.",
+  "about.license": "Licencia {license}",
+  "about.libraries": "Bibliotecas de código abierto",
+  "about.loading": "Cargando…",
+  "about.libraries.help": "Software libre en el que se apoya Cuotai. Solo se listan las dependencias directas; Cargo.lock tiene el inventario completo. Los logotipos son marcas de sus titulares.",
+  "about.open": "Abrir el repositorio en el navegador",
+  "about.openFailed": "No se pudo abrir el navegador.",
+  "about.role.runtime": "Bibliotecas",
+  "about.role.runtime.note": "Compiladas en las aplicaciones.",
+  "about.role.build": "Herramientas de compilación",
+  "about.role.build.note": "Usadas solo al compilar la aplicación.",
+  "about.role.test": "Pruebas",
+  "about.role.test.note": "Usadas solo en las pruebas automatizadas.",
+  "about.role.asset": "Recursos visuales",
+  "about.role.asset.note": "Iconos distribuidos con la aplicación de escritorio.",
+  "about.role.reference": "Proyectos de referencia",
+  "about.role.reference.note": "Lógica y contratos adaptados a Rust; el código original no se ejecuta.",
+  "about.component.core": "núcleo",
+  "about.component.tui": "terminal",
+  "about.component.desktop": "escritorio"
 }

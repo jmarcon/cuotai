@@ -1,3 +1,4 @@
+mod about_view;
 mod auth_ui;
 mod dashboard;
 mod models_view;

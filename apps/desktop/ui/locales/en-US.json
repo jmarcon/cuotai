@@ -194,7 +194,10 @@
   "models.search": "Search model by ID or name",
   "models.sync": "Sync models",
   "models.notFetched": "Catalog not queried yet.",
-  "models.count": { "one": "{count} model.", "other": "{count} models." },
+  "models.count": {
+    "one": "{count} model.",
+    "other": "{count} models."
+  },
   "models.empty": "The provider returned no models for this credential.",
   "models.attemptAt": "attempt at {when}",
   "models.loading": "Querying the model catalog…",
@@ -207,5 +210,24 @@
   "models.pick": "Browse models of a configured account of this provider",
   "models.pickNone": "None (choose)",
   "models.saveFirst": "No account of this provider is configured; save the account and open its details to query.",
-  "models.demo": "Browser demo: the model catalog is only queried in the desktop app."
+  "models.demo": "Browser demo: the model catalog is only queried in the desktop app.",
+  "about.license": "{license} license",
+  "about.libraries": "Open-source libraries",
+  "about.loading": "Loading…",
+  "about.libraries.help": "Free software Cuotai relies on. Only direct dependencies are listed; Cargo.lock has the complete inventory. Logos are trademarks of their owners.",
+  "about.open": "Open repository in the browser",
+  "about.openFailed": "Could not open the browser.",
+  "about.role.runtime": "Libraries",
+  "about.role.runtime.note": "Compiled into the apps.",
+  "about.role.build": "Build tools",
+  "about.role.build.note": "Used only while compiling the app.",
+  "about.role.test": "Tests",
+  "about.role.test.note": "Used only by automated tests.",
+  "about.role.asset": "Visual assets",
+  "about.role.asset.note": "Icons shipped with the desktop app.",
+  "about.role.reference": "Reference projects",
+  "about.role.reference.note": "Logic and contracts adapted to Rust; the original code is not run.",
+  "about.component.core": "core",
+  "about.component.tui": "terminal",
+  "about.component.desktop": "desktop"
 }

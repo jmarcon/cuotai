@@ -221,6 +221,7 @@ pub(crate) enum FooterAction {
     ToggleUnmeasured,
     Filter,
     Models,
+    About,
     ClearFilter,
     RefreshSelected,
     Refresh,
@@ -409,6 +410,8 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         plain("r todas", Some(FooterAction::Refresh)),
         plain(" · ", None),
         plain("R selecionada", Some(FooterAction::RefreshSelected)),
+        plain("  ", None),
+        plain("? sobre", Some(FooterAction::About)),
         plain("  ", None),
         plain("q sair", Some(FooterAction::Quit)),
     ];
