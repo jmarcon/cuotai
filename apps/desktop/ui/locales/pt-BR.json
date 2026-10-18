@@ -221,7 +221,7 @@
   "about.license": "Licença {license}",
   "about.libraries": "Bibliotecas de código aberto",
   "about.loading": "Carregando…",
-  "about.libraries.help": "Software livre usado pelo Cuotai. Só as dependências diretas estão listadas; o Cargo.lock tem o inventário completo. Os logotipos são marcas dos respectivos titulares.",
+  "about.libraries.help": "O Cuotai é construído sobre projetos de código aberto mantidos por suas comunidades. Obrigado a quem os desenvolve. Os logotipos são marcas dos respectivos titulares.",
   "about.open": "Abrir o repositório no navegador",
   "about.openFailed": "Não foi possível abrir o navegador.",
   "about.role.runtime": "Bibliotecas",
