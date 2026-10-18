@@ -4,6 +4,7 @@ import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
 import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
+import { openLibraries } from "./about-dialog.js";
 
 let dlg = null;
 
@@ -57,10 +58,12 @@ export async function openSettings(extra = {}) {
         <p class="err" role="alert">${esc(message)}</p>
       </section>
       <section class="set-sec"><h3>${te("settings.about")}</h3>
-        <p class="hint">Cuotai ${esc(s.version)}</p></section>
+        <p class="hint">Cuotai ${esc(s.version)} · ${te("about.license", { license: "MIT" })}</p>
+        <div class="dlg-actions left"><button class="btn" data-libraries>${te("about.libraries")}</button></div></section>
       <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
     </div>`;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    dlg.querySelector("[data-libraries]").onclick = () => openLibraries();
     const input = dlg.querySelector("#refresh-seconds");
     const msg = dlg.querySelector("#refresh-msg");
     for (const b of dlg.querySelectorAll("[data-preset]")) b.onclick = () => { input.value = b.dataset.preset; msg.textContent = ""; };

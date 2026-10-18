@@ -93,6 +93,10 @@ export const moveAccount = (from, to) => call("move_account", { from, to });
 export const getSettings = () => call("get_settings");
 export const setUserDir = (path) => call("set_user_dir", { path });
 export const openUserDir = () => call("open_user_dir");
+/** "Sobre": identidade do projeto e lista de bibliotecas de código aberto (vem do core). */
+export const aboutInfo = () => call("about_info");
+/** Abre no navegador um repositório da lista do "Sobre" (o shell recusa qualquer outro endereço). */
+export const openExternal = (url) => (isDesktop ? call("open_external", { url }) : Promise.resolve(window.open(url, "_blank", "noopener,noreferrer")));
 export const openSettingsWindow = () => isDesktop && T.core.invoke("open_settings");
 /** Seletor nativo de pasta (plugin de diálogo do Tauri). */
 export async function pickFolder(defaultPath) {
@@ -504,6 +508,18 @@ const demo = {
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
+  // Demonstração: amostra da lista real (no app, a lista completa vem do core).
+  about_info: async () => ({
+    name: "Cuotai", version: "demo", license: "MIT", repository: "https://github.com/jmarcon/cuotai",
+    libraries: [
+      { name: "tokio", license: "MIT", repository: "https://github.com/tokio-rs/tokio", role: "runtime", used_by: ["core", "tui", "desktop"] },
+      { name: "tauri", license: "Apache-2.0 OR MIT", repository: "https://github.com/tauri-apps/tauri", role: "runtime", used_by: ["desktop"] },
+      { name: "ratatui", license: "MIT", repository: "https://github.com/ratatui/ratatui", role: "runtime", used_by: ["tui"] },
+      { name: "wiremock", license: "MIT OR Apache-2.0", repository: "https://github.com/LukeMathWalker/wiremock-rs", role: "test", used_by: ["core"] },
+      { name: "Lobe Icons", license: "MIT", repository: "https://github.com/lobehub/lobe-icons", role: "asset", used_by: ["desktop"] },
+      { name: "9router", license: "MIT", repository: "https://github.com/decolua/9router", role: "reference", used_by: ["core"] },
+    ],
+  }),
 };
 
 // ---------- ordem das contas ----------

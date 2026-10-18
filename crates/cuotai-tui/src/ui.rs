@@ -1,4 +1,5 @@
 use crate::{
+    about_view::{AboutView, Reply as AboutReply},
     auth_ui::{LoginTask, Outcome},
     dashboard::{self, FooterAction},
     models_view::{ModelsView, Reply},
@@ -238,6 +239,8 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
     let mut deletion: Option<DeletionState> = None;
     // RF5: Models section over the details screen or the wizard.
     let mut models: Option<ModelsView> = None;
+    // "Sobre": libraries and repositories; opened from the dashboard only.
+    let mut about: Option<AboutView> = None;
 
     // Both the keyboard and mouse event paths run the same dashboard
     // transitions through `run_command!` and `dispatch_wizard_action!` so a
@@ -274,6 +277,8 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
         PrevDetail,
         /// Abre a seção Modelos da conta em detalhe.
         Models,
+        /// Abre a tela Sobre (bibliotecas de código aberto e repositórios).
+        About,
     }
 
     /// Map a keyboard event onto a dashboard command. Returns `None` when the
@@ -293,6 +298,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
             KeyCode::Enter => Command::ToggleDetails,
             KeyCode::Esc if details => Command::CloseDetails,
             KeyCode::Char('m') if details => Command::Models,
+            KeyCode::Char('?') => Command::About,
             KeyCode::Char('u') => Command::ToggleUnmeasured,
             KeyCode::Down if details => Command::ScrollDetailDown,
             KeyCode::Up if details => Command::ScrollDetailUp,
@@ -636,6 +642,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                 Command::PrevDetail => {
                     state.move_selection(-1, &cycle_slot_reports(&refresh_cycle))
                 }
+                Command::About => about = Some(AboutView::default()),
                 Command::Models => {
                     if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))
                     {
@@ -859,6 +866,11 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                     frame_area = frame.area();
                     task.draw(frame)
                 })?;
+            } else if let Some(view) = &mut about {
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    view.draw(frame)
+                })?;
             } else if let Some(view) = &mut models {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
@@ -927,6 +939,12 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                     }
                     continue;
                 }
+                if let Some(view) = &mut about {
+                    if view.mouse(mouse.kind, mouse.column, mouse.row) == AboutReply::Close {
+                        about = None;
+                    }
+                    continue;
+                }
                 if let Some(view) = &mut models {
                     match view.mouse(mouse.kind, mouse.column, mouse.row) {
                         Reply::Close => models = None,
@@ -990,6 +1008,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                                 FooterAction::ToggleUnmeasured => Command::ToggleUnmeasured,
                                 FooterAction::Filter => Command::Filter,
                                 FooterAction::Models => Command::Models,
+                                FooterAction::About => Command::About,
                                 FooterAction::ClearFilter => Command::ClearFilter,
                                 FooterAction::Refresh => Command::Refresh,
                                 FooterAction::RefreshSelected => Command::RefreshSelected,
@@ -1039,6 +1058,12 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                         KeyCode::Down => task.scroll(true),
                         KeyCode::Up => task.scroll(false),
                         _ => task.input(key),
+                    }
+                    continue;
+                }
+                if let Some(view) = &mut about {
+                    if view.key(key.code) == AboutReply::Close {
+                        about = None;
                     }
                     continue;
                 }

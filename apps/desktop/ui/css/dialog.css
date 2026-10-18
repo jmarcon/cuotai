@@ -260,3 +260,66 @@ dialog.details {
 .err.ok {
   color: var(--good);
 }
+
+/* Sobre › bibliotecas de código aberto */
+dialog.libs {
+  width: min(640px, calc(100vw - 32px));
+}
+.lib-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: clamp(160px, calc(100dvh - 250px), 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.lib-sec h3 {
+  font-size: 13px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lib-sec h3 small {
+  font-weight: 400;
+}
+.lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lib {
+  padding: 8px 10px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+}
+.lib-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lib-lic,
+.lib-sub {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.lib-repo {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  overflow: hidden;
+  font: 12px var(--font-mono);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-repo:hover {
+  text-decoration: underline;
+}

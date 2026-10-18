@@ -201,7 +201,10 @@
   "models.search": "Buscar modelo por ID ou nome",
   "models.sync": "Sincronizar modelos",
   "models.notFetched": "Catálogo ainda não consultado.",
-  "models.count": { "one": "{count} modelo.", "other": "{count} modelos." },
+  "models.count": {
+    "one": "{count} modelo.",
+    "other": "{count} modelos."
+  },
   "models.empty": "O provedor não retornou modelos para esta credencial.",
   "models.attemptAt": "tentativa em {when}",
   "models.loading": "Consultando o catálogo de modelos…",
@@ -214,5 +217,24 @@
   "models.pick": "Ver modelos de uma conta configurada deste provedor",
   "models.pickNone": "Nenhuma (escolher)",
   "models.saveFirst": "Nenhuma conta deste provedor está configurada; salve a conta e abra os detalhes para consultar.",
-  "models.demo": "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop."
+  "models.demo": "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop.",
+  "about.license": "Licença {license}",
+  "about.libraries": "Bibliotecas de código aberto",
+  "about.loading": "Carregando…",
+  "about.libraries.help": "Software livre usado pelo Cuotai. Só as dependências diretas estão listadas; o Cargo.lock tem o inventário completo. Os logotipos são marcas dos respectivos titulares.",
+  "about.open": "Abrir o repositório no navegador",
+  "about.openFailed": "Não foi possível abrir o navegador.",
+  "about.role.runtime": "Bibliotecas",
+  "about.role.runtime.note": "Compiladas nos aplicativos.",
+  "about.role.build": "Ferramentas de compilação",
+  "about.role.build.note": "Usadas só ao compilar o aplicativo.",
+  "about.role.test": "Testes",
+  "about.role.test.note": "Usadas só nos testes automatizados.",
+  "about.role.asset": "Recursos visuais",
+  "about.role.asset.note": "Ícones distribuídos com o app desktop.",
+  "about.role.reference": "Projetos de referência",
+  "about.role.reference.note": "Lógica e contratos adaptados para Rust; o código original não é executado.",
+  "about.component.core": "núcleo",
+  "about.component.tui": "terminal",
+  "about.component.desktop": "desktop"
 }
