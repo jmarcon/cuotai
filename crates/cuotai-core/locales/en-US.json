@@ -457,6 +457,7 @@
   "note.router_accounts.ollama_monthly_reset_estimated": "Monthly renewal estimated by account anniversary, as in 9router; /api/usage does not return a renewal timestamp.",
   "note.router_accounts.ollama_plan": "Plan: {plan}.",
   "note.router_accounts.ollama_plan_unknown": "Plan unknown: account metadata query failed (fail-open).",
+  "note.router_accounts.ollama_usage_report": "Ollama no longer exposes the plan's session, weekly and monthly percentages through the API; this shows usage for the period. The limits are at ollama.com/settings/usage.",
   "note.router_accounts.ollama_usage_ratio": "`usage` is a 0..1 ratio of the limit (1.0 = exhausted), shown as a percentage; there is no absolute request count.",
   "note.router_accounts.qoder_internal_endpoint": "Internal /api/v2/quota/usage endpoint observed in 9router; unofficial and subject to change.",
   "note.router_accounts.qoder_missing_fields_unknown": "Missing fields remain unknown (9router does not always return absolute entitlement numbers).",
