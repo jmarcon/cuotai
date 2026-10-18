@@ -218,6 +218,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
         show_unmeasured: true,
         details: false,
         targets: dashboard::Targets::default(),
+        model_counts: ModelCounts::default(),
     };
     let mut frame_area = Rect::default();
     let mut refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
@@ -853,6 +854,8 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
         }
         if let Some(view) = &mut models {
             dirty |= view.busy();
+            // A sync may change the catalog; recount once the cards show again.
+            state.model_counts.stale = true;
             if !view.poll(&file.config.accounts).await {
                 models = None;
                 state.error =
@@ -913,6 +916,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                     (refresh.0.is_none() && account_refresh.slot(index).is_none())
                         .then(|| refresh_cycle.next_refresh_in(index, Instant::now()))
                 });
+                state.model_counts.refresh(&monitor, state.accounts.len());
                 state.draw(&mut terminal, &refresh_cycle, refreshing, next)?;
                 frame_area = state.targets.area;
             }
@@ -1855,6 +1859,33 @@ struct State {
     show_unmeasured: bool,
     details: bool,
     targets: dashboard::Targets,
+    model_counts: ModelCounts,
+}
+
+/// Per-account synced catalog sizes shown on the cards. Read from the local
+/// cache only when the monitor changes (load, edit, reload) or after the
+/// Models screen was open, never on every frame.
+#[derive(Default)]
+struct ModelCounts {
+    monitor: usize,
+    accounts: usize,
+    counts: Vec<Option<usize>>,
+    stale: bool,
+}
+
+impl ModelCounts {
+    fn refresh(&mut self, monitor: &Arc<Monitor>, accounts: usize) {
+        let id = Arc::as_ptr(monitor) as usize;
+        if !self.stale && self.monitor == id && self.accounts == accounts {
+            return;
+        }
+        self.counts = (0..accounts)
+            .map(|index| monitor.model_count(index))
+            .collect();
+        self.monitor = id;
+        self.accounts = accounts;
+        self.stale = false;
+    }
 }
 
 impl State {
@@ -1927,6 +1958,7 @@ impl State {
                 dashboard::View {
                     accounts: &self.accounts,
                     reports: &slot_reports,
+                    model_counts: &self.model_counts.counts,
                     visible: &visible,
                     selected: self.selection.selected(),
                     details: self.details,
@@ -2033,6 +2065,7 @@ mod tests {
             show_unmeasured: true,
             details: true,
             targets: dashboard::Targets::default(),
+            model_counts: ModelCounts::default(),
         }
     }
 

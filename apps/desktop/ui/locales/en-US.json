@@ -23,6 +23,11 @@
     "one": "{count} quota",
     "other": "{count} quotas"
   },
+  "card.modelCount": {
+    "one": "{count} model",
+    "other": "{count} models"
+  },
+  "card.noModels": "no models",
   "quota.resetsIn": "in {time}",
   "quota.na": "N/A",
   "time.now": "now",

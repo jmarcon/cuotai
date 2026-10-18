@@ -51,6 +51,16 @@ pub(crate) fn class_label(class: AccountClass) -> &'static str {
     }
 }
 
+/// Card text for a synced catalog size; an empty catalog is a real result,
+/// shown as such instead of hidden.
+fn model_count_label(count: usize) -> String {
+    match count {
+        0 => "nenhum modelo".to_string(),
+        1 => "1 modelo".to_string(),
+        n => format!("{n} modelos"),
+    }
+}
+
 fn status_color(status: Status) -> Color {
     match status {
         Status::Ready => GREEN,
@@ -192,6 +202,10 @@ pub(crate) struct View<'a> {
     /// "Aguardando" placeholder for these slots instead of leaking a
     /// stale row from the previous configuration.
     pub(crate) reports: &'a [Option<Report>],
+    /// Models in each account's synced catalog (local cache, no network);
+    /// `None` when never synced or the provider cannot list. Same length
+    /// as `accounts` or empty.
+    pub(crate) model_counts: &'a [Option<usize>],
     pub(crate) visible: &'a [usize],
     pub(crate) selected: Option<usize>,
     pub(crate) details: bool,
@@ -615,35 +629,33 @@ fn render_card(
     let chunks = Layout::vertical(constraints).split(inner);
 
     let mut chunk_index = 0;
-    let provider_status_line = match report {
-        Some(report) => Line::from(vec![
-            Span::styled(account.provider.label(), Style::default().fg(MUTED)),
-            Span::styled("  · ", Style::default().fg(MUTED)),
-            Span::styled(
+    let separator = || Span::styled("  · ", Style::default().fg(MUTED));
+    let mut status_spans = vec![
+        Span::styled(account.provider.label(), Style::default().fg(MUTED)),
+        separator(),
+        match report {
+            Some(report) => Span::styled(
                 report.status.label(),
                 Style::default().fg(status_color(report.status)),
             ),
-            Span::styled("  · ", Style::default().fg(MUTED)),
-            Span::styled(
-                class_label(class),
-                Style::default()
-                    .fg(class_color(class))
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]),
-        None => Line::from(vec![
-            Span::styled(account.provider.label(), Style::default().fg(MUTED)),
-            Span::styled("  · ", Style::default().fg(MUTED)),
-            Span::styled("Aguardando", Style::default().fg(MUTED)),
-            Span::styled("  · ", Style::default().fg(MUTED)),
-            Span::styled(
-                class_label(class),
-                Style::default()
-                    .fg(class_color(class))
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]),
-    };
+            None => Span::styled("Aguardando", Style::default().fg(MUTED)),
+        },
+        separator(),
+        Span::styled(
+            class_label(class),
+            Style::default()
+                .fg(class_color(class))
+                .add_modifier(Modifier::BOLD),
+        ),
+    ];
+    if let Some(count) = view.model_counts.get(account_index).copied().flatten() {
+        status_spans.push(separator());
+        status_spans.push(Span::styled(
+            model_count_label(count),
+            Style::default().fg(MUTED),
+        ));
+    }
+    let provider_status_line = Line::from(status_spans);
     frame.render_widget(Paragraph::new(provider_status_line), chunks[chunk_index]);
     chunk_index += 1;
 
@@ -1553,6 +1565,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
+                        model_counts: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -1606,6 +1619,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
+                        model_counts: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: true,
@@ -1651,6 +1665,7 @@ mod tests {
                         View {
                             accounts: &accounts,
                             reports: &reports_of(&snapshot),
+                            model_counts: &[],
                             visible: &visible,
                             selected: Some(0),
                             details: true,
@@ -1689,6 +1704,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
+                        model_counts: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: true,
@@ -1726,6 +1742,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
+                        model_counts: &[],
                         visible: &visible,
                         selected: Some(1),
                         details: true,
@@ -1770,6 +1787,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
+                        model_counts: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -1805,6 +1823,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
+                        model_counts: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -1839,6 +1858,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
+                        model_counts: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
