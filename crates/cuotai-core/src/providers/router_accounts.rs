@@ -248,6 +248,17 @@ const OLLAMA_WINDOWS: [(&str, &str, &str, MetricWindow); 3] = [
 #[derive(Deserialize)]
 struct OllamaUsage {
     limits: Option<OllamaLimits>,
+    /// Usage report the endpoint returns today: totals over `range` and per-day buckets.
+    totals: Option<OllamaTotals>,
+    range: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct OllamaTotals {
+    request_count: Option<f64>,
+    usage_usd: Option<f64>,
+    input_tokens: Option<f64>,
+    output_tokens: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -339,10 +350,6 @@ async fn ollama(
         "note.router_accounts.ollama_internal_endpoint",
         "Endpoint interno /api/usage observado no 9router; não oficial e sujeito a mudanças.",
     );
-    notes.push(
-        "note.router_accounts.ollama_usage_ratio",
-        "usage é uma razão 0..1 do limite (1.0 = esgotado), exibida como percentual; não há contagem absoluta de requisições.",
-    );
     if plan.is_empty() {
         notes.push(
             "note.router_accounts.ollama_plan_unknown",
@@ -369,12 +376,6 @@ async fn ollama(
     } else {
         None
     };
-    if monthly_reset.is_some() {
-        notes.push(
-            "note.router_accounts.ollama_monthly_reset_estimated",
-            "Renovação mensal estimada pelo aniversário de cadastro, como no 9router; /api/usage não fornece timestamp de renovação.",
-        );
-    }
     let limits = usage.limits.unwrap_or(OllamaLimits {
         session: None,
         weekly: None,
@@ -412,15 +413,83 @@ async fn ollama(
         });
     }
     if metrics.is_empty() {
-        // Connected, but the account reported no known limit window. Avoid
+        // The endpoint no longer reports session/weekly/monthly limit ratios: it returns a usage
+        // report (requests, tokens, spend over `range`). Show that as plain usage and say that
+        // the plan limits are not available, instead of failing or estimating a percentage.
+        if let Some(totals) = &usage.totals {
+            let range = usage.range.as_deref().map(ollama_range_label);
+            let at = |what: &str| match &range {
+                Some(range) => format!("Ollama: {what} ({range})"),
+                None => format!("Ollama: {what}"),
+            };
+            let finite = |value: Option<f64>| value.filter(|v| v.is_finite() && *v >= 0.0);
+            let mut usage_metrics = Vec::new();
+            for (what, value, unit, kind) in [
+                (
+                    "requisições",
+                    totals.request_count,
+                    "requisições",
+                    MetricKind::Usage,
+                ),
+                (
+                    "tokens de entrada",
+                    totals.input_tokens,
+                    "tokens",
+                    MetricKind::Usage,
+                ),
+                (
+                    "tokens de saída",
+                    totals.output_tokens,
+                    "tokens",
+                    MetricKind::Usage,
+                ),
+                ("gasto", totals.usage_usd, "USD", MetricKind::Spend),
+            ] {
+                if let Some(value) = finite(value) {
+                    usage_metrics.push(Metric::usage(at(what), value, unit, kind, None));
+                }
+            }
+            if !usage_metrics.is_empty() {
+                notes.push(
+                    "note.router_accounts.ollama_usage_report",
+                    "O Ollama não expõe mais, pela API, os percentuais de sessão, semana e mês do plano; aqui aparece o uso do período. Os limites estão em ollama.com/settings/usage.",
+                );
+                return Ok(Data::new(
+                    usage_metrics,
+                    notes,
+                    format!("{REF_USAGE} (getOllamaUsage)"),
+                ));
+            }
+        }
+        // Connected, but the account reported no known limit window or usage. Avoid
         // a fake-Ready empty success; surface the schema gap instead.
         return Err(QueryError::schema());
+    }
+    notes.push(
+        "note.router_accounts.ollama_usage_ratio",
+        "usage é uma razão 0..1 do limite (1.0 = esgotado), exibida como percentual; não há contagem absoluta de requisições.",
+    );
+    if monthly_reset.is_some() {
+        notes.push(
+            "note.router_accounts.ollama_monthly_reset_estimated",
+            "Renovação mensal estimada pelo aniversário de cadastro, como no 9router; /api/usage não fornece timestamp de renovação.",
+        );
     }
     Ok(Data::new(
         metrics,
         notes,
         format!("{REF_USAGE} (getOllamaUsage)"),
     ))
+}
+
+/// Human label of a usage `range` ("7d" → "7 dias"); unknown shapes are shown as sent.
+fn ollama_range_label(range: &str) -> String {
+    let range = range.trim();
+    match range.split_at(range.len().saturating_sub(1)) {
+        (n, "d") if n.parse::<u32>().is_ok() => format!("{n} dias"),
+        (n, "h") if n.parse::<u32>().is_ok() => format!("{n} h"),
+        _ => range.to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -605,6 +674,115 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(error.status, crate::Status::Error);
+    }
+
+    /// Real shape returned by the endpoint today (usage report, no `limits`).
+    #[tokio::test]
+    async fn ollama_usage_report_becomes_usage_metrics_and_says_limits_are_unavailable() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/usage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "range": "7d", "scope": "self", "granularity": "day",
+                "from": "2026-10-11T00:00:00Z", "until": "2026-10-18T13:54:35Z",
+                "totals": {
+                    "request_count": 12, "usage_usd": 0.5, "input_tokens": 3400,
+                    "cached_input_tokens": 100, "output_tokens": 900
+                },
+                "buckets": [{"from": "2026-10-11T00:00:00Z", "until": "2026-10-12T00:00:00Z",
+                             "request_count": 12, "usage_usd": 0.5, "input_tokens": 3400,
+                             "cached_input_tokens": 100, "output_tokens": 900}]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/me"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"Plan": "pro"})),
+            )
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let ctx = Context {
+            http: &http,
+            credentials: &Creds("dummy"),
+            timeout: Duration::from_secs(2),
+        };
+        let data = ollama(
+            &account(Provider::OllamaCloud, &[]),
+            &ctx,
+            &server.uri(),
+            now("2026-10-18T15:00:00Z"),
+        )
+        .await
+        .unwrap();
+        let by_label = |label: &str| data.metrics.iter().find(|m| m.label == label).unwrap();
+        assert_eq!(by_label("Ollama: requisições (7 dias)").used, Some(12.0));
+        assert_eq!(
+            by_label("Ollama: tokens de entrada (7 dias)").used,
+            Some(3400.0)
+        );
+        assert_eq!(
+            by_label("Ollama: tokens de saída (7 dias)").used,
+            Some(900.0)
+        );
+        let spend = by_label("Ollama: gasto (7 dias)");
+        assert_eq!(
+            (spend.used, spend.unit.as_str(), spend.kind),
+            (Some(0.5), "USD", MetricKind::Spend)
+        );
+        for metric in &data.metrics {
+            assert_eq!(
+                (metric.limit, metric.remaining, metric.window),
+                (None, None, None)
+            );
+        }
+        assert!(
+            data.notes.iter().any(|n| n.contains("não expõe mais")),
+            "{:?}",
+            data.notes
+        );
+    }
+
+    #[tokio::test]
+    async fn ollama_usage_report_with_zero_totals_is_a_real_zero_and_bad_totals_are_schema() {
+        let run = |body: serde_json::Value| async move {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/api/usage"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(body))
+                .mount(&server)
+                .await;
+            let http = reqwest::Client::new();
+            let ctx = Context {
+                http: &http,
+                credentials: &Creds("dummy"),
+                timeout: Duration::from_secs(2),
+            };
+            ollama(
+                &account(Provider::OllamaCloud, &[]),
+                &ctx,
+                &server.uri(),
+                now("2026-10-18T15:00:00Z"),
+            )
+            .await
+        };
+        let zero = run(
+            serde_json::json!({"range": "24h", "totals": {"request_count": 0, "output_tokens": 0}}),
+        )
+        .await
+        .unwrap();
+        assert_eq!(zero.metrics[0].label, "Ollama: requisições (24 h)");
+        assert_eq!(zero.metrics[0].used, Some(0.0));
+        // Totals without any number never become a fake empty success.
+        let empty = run(serde_json::json!({"totals": {}})).await.unwrap_err();
+        assert_eq!(&*empty.note.id, "query.schema");
+        // A negative or non-numeric total is rejected, not shown.
+        assert!(
+            run(serde_json::json!({"totals": {"request_count": "many"}}))
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
