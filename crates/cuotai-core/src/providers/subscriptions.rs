@@ -43,14 +43,15 @@
 //! - Copilot: `mode` = `user` (padrão) | `org`; `org` = slug da organização (modo org);
 //!   `billing` = `premium_requests` (padrão) | `ai_credits`
 
-use super::{json, param, secret, Context, Data, QueryError};
+use super::{json, paginate, param, secret, Context, Data, QueryError};
+use crate::models::ModelInfo;
 use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, TimeZone, Utc};
 use serde::Deserialize;
 
-const CHATGPT_BASE: &str = "https://chatgpt.com/backend-api";
-const CLAUDE_BASE: &str = "https://api.anthropic.com";
+pub(crate) const CHATGPT_BASE: &str = "https://chatgpt.com/backend-api";
+pub(crate) const CLAUDE_BASE: &str = "https://api.anthropic.com";
 const CURSOR_BASE: &str = "https://api.cursor.com";
 const GITHUB_BASE: &str = "https://api.github.com";
 const WINDSURF_BASE: &str = "https://server.codeium.com/api/v1";
@@ -77,6 +78,110 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
             format!("{} é consultado por outro adaptador.", other.label()),
         )),
     }
+}
+
+// ------------------------------------------------------- catálogo de modelos
+
+/// Versão enviada em `client_version`: o endpoint do Codex exige o parâmetro e filtra modelos por
+/// `minimal_client_version`. Acompanha uma versão pública recente do Codex CLI.
+const CODEX_CLIENT_VERSION: &str = "0.163.0";
+
+/// Modelos do Claude com o mesmo token OAuth da assinatura: `GET /v1/models` com os cabeçalhos do
+/// OAuth, paginado por `after_id`. O contrato público é de chave de API; o uso com o token da
+/// assinatura segue o mesmo caminho do Claude Code e não é documentado, podendo mudar sem aviso.
+pub(crate) async fn claude_models(
+    account: &Account,
+    ctx: &Context<'_>,
+    base: &str,
+) -> Result<Vec<ModelInfo>, QueryError> {
+    #[derive(Deserialize)]
+    struct Page {
+        data: Vec<Entry>,
+        #[serde(default)]
+        has_more: bool,
+        last_id: Option<String>,
+    }
+    #[derive(Deserialize)]
+    struct Entry {
+        id: String,
+        display_name: Option<String>,
+    }
+    let token = secret(account, ctx, "CLAUDE_OAUTH_TOKEN")?;
+    let url = format!("{base}/v1/models");
+    paginate(|after: Option<String>| {
+        let mut query = vec![("limit", "1000".to_string())];
+        query.extend(after.map(|id| ("after_id", id)));
+        let request = ctx
+            .http
+            .get(&url)
+            .bearer_auth(token.trim())
+            .header("anthropic-beta", CLAUDE_OAUTH_BETA)
+            .header("anthropic-version", "2023-06-01")
+            .query(&query)
+            .timeout(ctx.timeout);
+        async move {
+            let page: Page = json(request).await?;
+            // `has_more` sem cursor seria uma página incompleta: rejeita em vez de truncar.
+            let next = match (page.has_more, page.last_id) {
+                (false, _) => None,
+                (true, Some(id)) if !id.is_empty() => Some(id),
+                (true, _) => return Err(QueryError::schema()),
+            };
+            let models = page.data.into_iter().map(|m| ModelInfo {
+                id: m.id,
+                name: m.display_name,
+                description: None,
+            });
+            Ok((models.collect(), next))
+        }
+    })
+    .await
+}
+
+/// Modelos do Codex com o token da sessão ChatGPT: `GET /codex/models?client_version=…`, a lista
+/// que o próprio Codex CLI lê. Interface interna e não documentada. Modelos marcados como
+/// ocultos (`visibility` diferente de `list`) não aparecem no seletor do Codex e ficam de fora.
+pub(crate) async fn chatgpt_models(
+    account: &Account,
+    ctx: &Context<'_>,
+    base: &str,
+) -> Result<Vec<ModelInfo>, QueryError> {
+    #[derive(Deserialize)]
+    struct List {
+        models: Vec<Entry>,
+    }
+    #[derive(Deserialize)]
+    struct Entry {
+        slug: String,
+        display_name: Option<String>,
+        description: Option<String>,
+        visibility: Option<String>,
+    }
+    let token = secret(account, ctx, "CHATGPT_ACCESS_TOKEN")?;
+    let mut request = ctx
+        .http
+        .get(format!("{base}/codex/models"))
+        .query(&[("client_version", CODEX_CLIENT_VERSION)])
+        .bearer_auth(token.trim())
+        .timeout(ctx.timeout);
+    if let Some(id) = account
+        .params
+        .get("account_id")
+        .filter(|s| !s.trim().is_empty())
+    {
+        request = request.header("chatgpt-account-id", id.trim());
+    }
+    let list: List = json(request).await?;
+    Ok(list
+        .models
+        .into_iter()
+        .filter(|m| m.visibility.as_deref().is_none_or(|v| v == "list"))
+        .map(|m| ModelInfo {
+            id: m.slug,
+            name: m.display_name,
+            description: m.description,
+        })
+        .collect())
 }
 
 /// Rejeita valores não finitos: NaN/infinito jamais entram em métricas.
@@ -1425,5 +1530,126 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
         assert!(err.note.fallback.contains("INEXISTENTE"));
+    }
+
+    // ------------------------------------------------ catálogo de modelos
+
+    #[tokio::test]
+    async fn claude_models_follow_after_id_with_oauth_headers() {
+        use wiremock::matchers::header;
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .and(header("authorization", "Bearer test-secret"))
+            .and(header("anthropic-beta", CLAUDE_OAUTH_BETA))
+            .and(header("anthropic-version", "2023-06-01"))
+            .and(query_param("limit", "1000"))
+            .and(query_param("after_id", "claude-b"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [{ "id": "claude-a", "display_name": "Claude A", "type": "model" }],
+                "has_more": false, "first_id": "claude-a", "last_id": "claude-a"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .and(query_param("limit", "1000"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [{ "id": "claude-b", "display_name": "Claude B", "type": "model" }],
+                "has_more": true, "first_id": "claude-b", "last_id": "claude-b"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let models = claude_models(&account(Provider::Claude), &context(&client), &server.uri())
+            .await
+            .unwrap();
+        let ids: Vec<_> = models.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, ["claude-b", "claude-a"]);
+        assert_eq!(models[0].name.as_deref(), Some("Claude B"));
+    }
+
+    #[tokio::test]
+    async fn claude_models_reject_incomplete_pages_and_classify_http_errors() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [{ "id": "claude-a" }], "has_more": true, "last_id": null
+            })))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let err = claude_models(&account(Provider::Claude), &context(&client), &server.uri())
+            .await
+            .unwrap_err();
+        assert_eq!(&*err.note.id, "query.schema");
+
+        for (code, status) in [
+            (401, Status::AuthenticationError),
+            (429, Status::RateLimited),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .respond_with(ResponseTemplate::new(code).set_body_string("segredo-no-corpo"))
+                .mount(&server)
+                .await;
+            let err = claude_models(&account(Provider::Claude), &context(&client), &server.uri())
+                .await
+                .unwrap_err();
+            assert_eq!(err.status, status);
+            assert!(!err.note.fallback.contains("segredo"));
+        }
+    }
+
+    #[tokio::test]
+    async fn chatgpt_models_send_client_version_and_hide_unlisted() {
+        use wiremock::matchers::header;
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/codex/models"))
+            .and(query_param("client_version", CODEX_CLIENT_VERSION))
+            .and(header("authorization", "Bearer test-secret"))
+            .and(header("chatgpt-account-id", "acc-1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": [
+                    { "slug": "gpt-b", "display_name": "GPT B", "description": "d", "visibility": "list" },
+                    { "slug": "gpt-a" },
+                    { "slug": "gpt-hidden", "visibility": "hide" },
+                    { "slug": "gpt-none", "visibility": "none" }
+                ]
+            })))
+            .mount(&server)
+            .await;
+        let mut acc = account(Provider::ChatGpt);
+        acc.params.insert("account_id".into(), "acc-1".into());
+        let client = reqwest::Client::new();
+        let models = chatgpt_models(&acc, &context(&client), &server.uri())
+            .await
+            .unwrap();
+        let ids: Vec<_> = models.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, ["gpt-b", "gpt-a"]);
+        assert_eq!(models[0].description.as_deref(), Some("d"));
+    }
+
+    #[tokio::test]
+    async fn chatgpt_models_reject_entries_without_slug() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": [{ "display_name": "sem slug" }]
+            })))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let err = chatgpt_models(
+            &account(Provider::ChatGpt),
+            &context(&client),
+            &server.uri(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(&*err.note.id, "query.schema");
     }
 }

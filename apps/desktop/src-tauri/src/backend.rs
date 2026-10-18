@@ -2637,7 +2637,7 @@ mod tests {
         .await;
         let b = &backend.inner;
         let state = |m: Arc<Monitor>, i: usize| async move { m.model_state(i) };
-        // Current generation: the core answers (ChatGPT lists nothing, no network).
+        // Current generation: the core answers (Cursor lists nothing, no network).
         assert!(matches!(
             b.models(1, 1, state).await,
             Ok(ModelState::Unsupported { .. })
@@ -2681,7 +2681,7 @@ mod tests {
     fn plain_account(name: &str) -> Account {
         Account {
             name: name.into(),
-            provider: Provider::ChatGpt,
+            provider: Provider::Cursor,
             credential_env: Some(format!("{}_KEY", name.to_uppercase())),
             oauth: None,
             params: BTreeMap::new(),

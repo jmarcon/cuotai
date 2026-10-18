@@ -129,6 +129,14 @@ pub fn support(account: &Account) -> Result<Localized, Localized> {
             "models.source.poolside",
             "Poolside GET /v1/models com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
         ),
+        Provider::Claude => source(
+            "models.source.claude",
+            "Claude GET /v1/models com o token OAuth da assinatura (interface não documentada para esse token); não comprova quota, preço ou disponibilidade atual.",
+        ),
+        Provider::ChatGpt => source(
+            "models.source.chat_gpt",
+            "Codex GET /codex/models com o token da sessão ChatGPT (interface interna do Codex CLI, não documentada); não comprova quota, preço ou disponibilidade atual.",
+        ),
         Provider::GeminiAi if account.oauth.is_none() && !product("cli") => source(
             "models.source.gemini_ai",
             "Gemini API models.list paginado com a chave AI Studio da conta; não comprova quota, preço ou disponibilidade atual.",
@@ -176,8 +184,6 @@ pub fn support(account: &Account) -> Result<Localized, Localized> {
             "a chave da conta pode ser de assinatura/plano, que o contrato oficial de listagem não aceita.",
         ),
         Provider::AlibabaTokenPlan
-        | Provider::ChatGpt
-        | Provider::Claude
         | Provider::Cursor
         | Provider::Copilot
         | Provider::Perplexity
@@ -687,6 +693,22 @@ impl Monitor {
                 let key = secret(account, ctx, "KIMI_API_KEY")?;
                 openai_models(ctx, providers::asia::KIMI_MODELS_URL, &key).await
             }
+            Provider::Claude => {
+                providers::subscriptions::claude_models(
+                    account,
+                    ctx,
+                    providers::subscriptions::CLAUDE_BASE,
+                )
+                .await
+            }
+            Provider::ChatGpt => {
+                providers::subscriptions::chatgpt_models(
+                    account,
+                    ctx,
+                    providers::subscriptions::CHATGPT_BASE,
+                )
+                .await
+            }
             Provider::Poolside => {
                 let key = secret(account, ctx, "POOLSIDE_API_KEY")?;
                 openai_models(ctx, providers::inference::POOLSIDE_MODELS_URL, &key).await
@@ -988,6 +1010,8 @@ credential_env = "OPENAI_ADMIN_KEY"
             GeminiAi,
             Kimi,
             AlibabaModelStudio,
+            Claude,
+            ChatGpt,
         ];
         let server = MockServer::start().await;
         let dir = tempfile::tempdir().unwrap();

@@ -315,6 +315,8 @@
   "models.source.alibaba_model_studio": "Model Studio GET /api/v1/models (Singapore), paginated, with the account key; does not prove inference permission, price or current availability.",
   "models.source.antigravity": "Antigravity fetchAvailableModels with the account session (paid plans); does not prove quota, price or current availability.",
   "models.source.aws_bedrock": "AWS CLI bedrock list-foundation-models on the account profile, in params.region or the profile default region; does not use Cost Explorer nor prove model access.",
+  "models.source.chat_gpt": "Codex GET /codex/models with the ChatGPT session token (internal, undocumented Codex CLI interface); does not prove quota, price or current availability.",
+  "models.source.claude": "Claude GET /v1/models with the subscription OAuth token (interface undocumented for this token); does not prove quota, price or current availability.",
   "models.source.gemini_ai": "Gemini API models.list, paginated, with the account AI Studio key; does not prove quota, price or current availability.",
   "models.source.groq": "Groq GET /openai/v1/models with the account key; does not prove inference permission, price or current availability.",
   "models.source.kimi": "Kimi GET /v1/models (api.moonshot.ai) with the account key; does not prove inference permission, price or current availability.",
