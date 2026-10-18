@@ -24,6 +24,8 @@ pub enum Role {
     Test,
     /// Non-code material that ships with an app (icons).
     Asset,
+    /// Open color scheme whose palette a built-in theme follows.
+    Theme,
     /// Upstream project whose public contract Cuotai reimplements.
     Reference,
 }
@@ -45,6 +47,8 @@ pub struct Library {
     pub repository: &'static str,
     pub role: Role,
     pub used_by: &'static [Component],
+    /// Created by Brazilians; front ends give these a special thanks.
+    pub from_brazil: bool,
 }
 
 use Component::{Core, Desktop, Tui};
@@ -62,6 +66,16 @@ const fn lib(
         repository,
         role,
         used_by,
+        from_brazil: false,
+    }
+}
+
+impl Library {
+    const fn made_in_brazil(self) -> Self {
+        Self {
+            from_brazil: true,
+            ..self
+        }
     }
 }
 
@@ -194,13 +208,15 @@ static LIBRARIES: &[Library] = &[
         Role::Runtime,
         &[Core],
     ),
+    // Cofounded by Lucas Fernandes Nogueira (Brasil).
     lib(
         "tauri",
         "Apache-2.0 OR MIT",
         "https://github.com/tauri-apps/tauri",
         Role::Runtime,
         &[Desktop],
-    ),
+    )
+    .made_in_brazil(),
     lib(
         "tauri-plugin-dialog",
         "Apache-2.0 OR MIT",
@@ -300,6 +316,50 @@ static LIBRARIES: &[Library] = &[
         &[Desktop],
     ),
     lib(
+        "Catppuccin",
+        "MIT",
+        "https://github.com/catppuccin/catppuccin",
+        Role::Theme,
+        &[Desktop],
+    ),
+    // Zeno Rocha (Brasil); default palette of the TUI and the desktop.
+    lib(
+        "Dracula",
+        "MIT",
+        "https://github.com/dracula/dracula-theme",
+        Role::Theme,
+        &[Tui, Desktop],
+    )
+    .made_in_brazil(),
+    lib(
+        "GitHub Primer",
+        "MIT",
+        "https://github.com/primer/primitives",
+        Role::Theme,
+        &[Desktop],
+    ),
+    lib(
+        "One Dark (Atom)",
+        "MIT",
+        "https://github.com/atom/atom",
+        Role::Theme,
+        &[Desktop],
+    ),
+    lib(
+        "Tokyo Night",
+        "MIT",
+        "https://github.com/enkia/tokyo-night-vscode-theme",
+        Role::Theme,
+        &[Desktop],
+    ),
+    lib(
+        "Yaru (Ubuntu)",
+        "GPL-3.0",
+        "https://github.com/ubuntu/yaru",
+        Role::Theme,
+        &[Desktop],
+    ),
+    lib(
         "9router",
         "MIT",
         "https://github.com/decolua/9router",
@@ -323,6 +383,13 @@ pub fn libraries() -> &'static [Library] {
 /// Libraries of one role, in alphabetical order.
 pub fn libraries_with(role: Role) -> Vec<&'static Library> {
     let mut found: Vec<_> = LIBRARIES.iter().filter(|l| l.role == role).collect();
+    found.sort_by_key(|l| l.name.to_ascii_lowercase());
+    found
+}
+
+/// Listed projects created by Brazilians, alphabetical.
+pub fn from_brazil() -> Vec<&'static Library> {
+    let mut found: Vec<_> = LIBRARIES.iter().filter(|l| l.from_brazil).collect();
     found.sort_by_key(|l| l.name.to_ascii_lowercase());
     found
 }
