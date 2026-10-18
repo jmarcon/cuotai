@@ -679,7 +679,13 @@ pub fn account_login_inputs(
         }
         LoginAccountBinding::CliProfile { option } => {
             let mut params = BTreeMap::new();
-            let profile = value(&option);
+            // The profile the completed login actually used (`cli_profile`, including one the core
+            // generated when the optional field was blank) wins over the typed option.
+            let reported = result_params
+                .get("cli_profile")
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+            let profile = reported.unwrap_or_else(|| value(&option));
             let profile = if profile.is_empty() {
                 if login_completed {
                     return Err(OAuthError::Configuration(crate::text::Localized::fixed(
@@ -1426,6 +1432,61 @@ impl CredentialCommit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Bailian flow reports the profile it logged in as `cli_profile`. When the optional
+    /// "dedicated profile" field was left blank (the core generated one), saving must keep that
+    /// generated profile instead of failing with "did not report the dedicated profile".
+    #[test]
+    fn bailian_save_uses_the_profile_reported_by_the_completed_login() {
+        let options = BTreeMap::from([
+            ("console_site".to_string(), "international".to_string()),
+            ("profile".to_string(), String::new()),
+        ]);
+        let reported = BTreeMap::from([("cli_profile".to_string(), "cuotai-abc123".to_string())]);
+        let (credential, params) = account_login_inputs(
+            Provider::AlibabaTokenPlan,
+            MODE_BAILIAN_CONSOLE,
+            "",
+            &options,
+            &reported,
+            true,
+        )
+        .expect("generated profile is kept");
+        assert_eq!(credential, "");
+        assert_eq!(
+            params.unwrap().get("cli_profile").map(String::as_str),
+            Some("cuotai-abc123")
+        );
+
+        // A typed profile still works when the result uses the option key.
+        let typed = BTreeMap::from([("profile".to_string(), "qwen-personal".to_string())]);
+        let (_, params) = account_login_inputs(
+            Provider::AlibabaTokenPlan,
+            MODE_BAILIAN_CONSOLE,
+            "",
+            &options,
+            &typed,
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            params.unwrap().get("cli_profile").map(String::as_str),
+            Some("qwen-personal")
+        );
+
+        // A completed login that reports nothing, with nothing typed, is still an error.
+        let error = account_login_inputs(
+            Provider::AlibabaTokenPlan,
+            MODE_BAILIAN_CONSOLE,
+            "",
+            &options,
+            &BTreeMap::new(),
+            true,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("perfil dedicado"));
+    }
+
     use crate::config_file::ConfigFile;
     use crate::oauth::session::storage_key;
     use crate::oauth::{OAuthToken, TokenStore};
