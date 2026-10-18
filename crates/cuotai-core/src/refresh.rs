@@ -800,11 +800,9 @@ impl RefreshCycle {
             if new_config.accounts[index].name.trim().is_empty() {
                 return Err(EditError::UnexpectedDiff);
             }
-        } else if prev_config.accounts[index] == new_config.accounts[index] {
-            // "Replace" without an actual change still counts as a no-op
-            // refresh; flag it so the caller doesn't keep a stale row.
-            return Err(EditError::UnexpectedDiff);
         }
+        // A replace that leaves the TOML entry identical is valid: re-authenticating an account
+        // renews its vault credential without touching the file, and the slot is queried again.
         Ok(())
     }
 
@@ -1311,6 +1309,55 @@ mod tests {
         assert!(cycle.snapshot().is_none());
         assert!(cycle.account_report(0).is_none());
         assert!(cycle.account_report(1).is_none());
+    }
+
+    /// Re-authenticating an account renews the vault credential but leaves its TOML entry
+    /// byte-for-byte the same. That save is a legitimate edit: it must be accepted and owe a
+    /// fresh query of that account (the new credential), not fail as "no change".
+    #[test]
+    fn apply_edit_upsert_accepts_an_unchanged_account_and_requeries_it() {
+        let prev = config_with(vec![account("alpha", None), account("beta", None)]);
+        let mut cycle = RefreshCycle::new(&prev, Instant::now());
+        prime_with_snapshot(
+            &mut cycle,
+            Snapshot {
+                started_at: Utc.timestamp_opt(1, 0).unwrap(),
+                finished_at: Utc.timestamp_opt(2, 0).unwrap(),
+                reports: vec![report("alpha", 5), report("beta", 6)],
+            },
+            Instant::now(),
+        );
+        let same = prev.clone();
+        let due = cycle
+            .apply_edit(&prev, &same, Edit::Upsert(1), Instant::now())
+            .expect("re-saving an unchanged account is accepted");
+        assert_eq!(due, vec![1]);
+        assert_eq!(
+            cycle.account_report(0).map(|r| r.account.clone()),
+            Some("alpha".into()),
+            "other accounts keep their reports"
+        );
+        assert!(
+            cycle.account_report(1).is_none(),
+            "re-authenticated slot is pending"
+        );
+    }
+
+    /// The frontend sequence of a re-authentication save: `upsert_account` with the account as
+    /// it already is, then `apply_edit` on the result.
+    #[test]
+    fn reauthentication_save_pipeline_accepts_the_same_account() {
+        let prev = config_with(vec![account("alpha", None), account("beta", None)]);
+        let same_beta = prev.accounts[1].clone();
+        let updated = prev
+            .upsert_account(same_beta, Some(1))
+            .expect("same account upserts");
+        assert_eq!(updated.accounts, prev.accounts);
+        let mut cycle = RefreshCycle::new(&prev, Instant::now());
+        assert_eq!(
+            cycle.apply_edit(&prev, &updated, Edit::Upsert(1), Instant::now()),
+            Ok(vec![1])
+        );
     }
 
     #[test]
