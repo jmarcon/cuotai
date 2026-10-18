@@ -142,10 +142,12 @@ Diferenças deliberadas em relação ao 9router: campos ausentes não viram zero
 
 ## Catálogo de modelos por conta
 
-A lista só é consultada sob demanda (`load_models`/`sync_models`), nunca pelo refresh de quota. Habilita-se apenas quando o contrato oficial aceita **a mesma credencial** que a conta já guarda, em leitura e sem custo de inferência; caso contrário a conta mostra `Unsupported` com o motivo e nenhuma requisição. Paginação segue tokens até o fim (limite de 50 páginas, token repetido rejeitado); página inválida/incompleta, HTTP 401/403/429 ou cancelamento falham sem sobrescrever o catálogo salvo. IDs são deduplicados e ordenados sem reescrita.
+A lista só é consultada sob demanda (`load_models`/`sync_models`), nunca pelo refresh de quota. Habilita-se apenas quando o endpoint aceita **a mesma credencial** que a conta já guarda, em leitura e sem custo de inferência. Quase todos são contratos oficiais; as duas exceções são as assinaturas **Claude** e **Codex**, listadas por interfaces não documentadas para o token OAuth, verificadas contra contas reais e sujeitas a mudar sem aviso (como as consultas de quota delas); caso contrário a conta mostra `Unsupported` com o motivo e nenhuma requisição. Paginação segue tokens até o fim (limite de 50 páginas, token repetido rejeitado); página inválida/incompleta, HTTP 401/403/429 ou cancelamento falham sem sobrescrever o catálogo salvo. IDs são deduplicados e ordenados sem reescrita.
 
 - **AWS Bedrock:** `aws bedrock list-foundation-models --profile <params.profile>`, com `--region <params.region>` quando definido; sem `params.region` vale a região padrão do perfil na AWS CLI. Exige `bedrock:ListFoundationModels`; não é Cost Explorer e nunca roda no refresh.
 - **Gemini AI:** só com a chave AI Studio (`product` padrão, sem login nativo); o token Gemini CLI não é usado. O ID é o `name` retornado (`models/...`).
+- **Claude (assinatura):** `GET https://api.anthropic.com/v1/models?limit=1000` com o token OAuth e os cabeçalhos `anthropic-beta: oauth-2025-04-20` e `anthropic-version`, paginado por `after_id` enquanto `has_more`. O contrato público é de chave de API; o uso com o token da assinatura não é documentado. `has_more` sem `last_id` rejeita a listagem.
+- **ChatGPT / Codex (assinatura):** `GET https://chatgpt.com/backend-api/codex/models?client_version=<versão do Codex CLI>` com o token da sessão (e `chatgpt-account-id` se `params.account_id`), a lista lida pelo Codex CLI. Entradas com `visibility` diferente de `list` não aparecem no seletor do Codex e ficam de fora. Interface interna e não documentada.
 - **Antigravity:** mesma sessão e requisição `fetchAvailableModels` da quota; plano gratuito ou resposta sem `models` é `Unsupported`.
 - **Alibaba Model Studio:** só `region = "intl"` (Singapura); as demais regiões exigem host com `WorkspaceId`, que a conta não guarda.
 
@@ -155,8 +157,8 @@ Status: `supported`, `unsupported-incompatible-credential` (existe endpoint, mas
 |---|---|---|---|
 | `open_ai_api` | unsupported-incompatible-credential | Lista exige API key de projeto; conta guarda Admin key | [OpenAI](https://developers.openai.com/api/reference/resources/models/methods/list) |
 | `anthropic_api` | unsupported-incompatible-credential | Lista exige API key; conta guarda Admin key | [Anthropic](https://platform.claude.com/docs/en/api/models/list) |
-| `chat_gpt` | unsupported-no-verified-endpoint | Token de assinatura Codex sem lista oficial | — |
-| `claude` | unsupported-no-verified-endpoint | Token OAuth de assinatura sem lista oficial | — |
+| `chat_gpt` | supported (interface interna) | GET `chatgpt.com/backend-api/codex/models` com o token da sessão; não documentada | [Codex CLI](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/endpoint/models.rs) |
+| `claude` | supported (interface não documentada para o token) | GET `api.anthropic.com/v1/models` com o token OAuth da assinatura e `anthropic-beta: oauth-2025-04-20` | [Anthropic](https://platform.claude.com/docs/en/api/models/list) |
 | `gemini_api` | unsupported-incompatible-credential | Token de escopo Cloud Monitoring, não Generative Language | [Gemini](https://ai.google.dev/api/models) |
 | `vertex_ai` | unsupported-incompatible-credential | Token de escopo Cloud Monitoring, não Vertex AI | [Vertex AI](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list) |
 | `aws_bedrock` | supported | `ListFoundationModels` via AWS CLI no perfil/região | [AWS CLI](https://docs.aws.amazon.com/cli/latest/reference/bedrock/list-foundation-models.html), [API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html) |
