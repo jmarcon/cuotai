@@ -47,6 +47,7 @@ fn section(role: Role) -> (&'static str, &'static str) {
         ),
         Role::Test => ("Testes", "Usadas só nos testes automatizados."),
         Role::Asset => ("Recursos visuais", "Ícones distribuídos com o desktop."),
+        Role::Theme => ("Temas", "Paletas abertas seguidas pelos temas embutidos."),
         Role::Reference => (
             "Projetos de referência",
             "Lógica e contratos adaptados para Rust; o código original não é executado.",
@@ -90,16 +91,33 @@ fn lines() -> Vec<Line<'static>> {
         Line::styled(about::PROJECT_REPOSITORY, Style::default().fg(CYAN)),
         Line::from(""),
         Line::styled(
-            "Software livre usado pelo Cuotai. Só as dependências diretas estão aqui; \
-             o inventário completo está no Cargo.lock. Os logotipos são marcas dos respectivos titulares.",
+            "O Cuotai é construído sobre projetos de código aberto mantidos por suas comunidades. \
+             Obrigado a quem os desenvolve. Os logotipos são marcas dos respectivos titulares.",
             Style::default().fg(MUTED),
         ),
     ];
+    let brazilian = about::from_brazil();
+    if !brazilian.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Agradecimento especial: projetos criados por brasileiros",
+            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+        ));
+        lines.push(Line::styled(
+            brazilian
+                .iter()
+                .map(|l| l.name)
+                .collect::<Vec<_>>()
+                .join(" · "),
+            Style::default().fg(FG),
+        ));
+    }
     for role in [
         Role::Runtime,
         Role::Build,
         Role::Test,
         Role::Asset,
+        Role::Theme,
         Role::Reference,
     ] {
         let libraries = about::libraries_with(role);

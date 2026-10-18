@@ -513,10 +513,12 @@ const demo = {
     name: "Cuotai", version: "demo", license: "MIT", repository: "https://github.com/jmarcon/cuotai",
     libraries: [
       { name: "tokio", license: "MIT", repository: "https://github.com/tokio-rs/tokio", role: "runtime", used_by: ["core", "tui", "desktop"] },
-      { name: "tauri", license: "Apache-2.0 OR MIT", repository: "https://github.com/tauri-apps/tauri", role: "runtime", used_by: ["desktop"] },
+      { name: "tauri", license: "Apache-2.0 OR MIT", repository: "https://github.com/tauri-apps/tauri", role: "runtime", used_by: ["desktop"], from_brazil: true },
       { name: "ratatui", license: "MIT", repository: "https://github.com/ratatui/ratatui", role: "runtime", used_by: ["tui"] },
       { name: "wiremock", license: "MIT OR Apache-2.0", repository: "https://github.com/LukeMathWalker/wiremock-rs", role: "test", used_by: ["core"] },
       { name: "Lobe Icons", license: "MIT", repository: "https://github.com/lobehub/lobe-icons", role: "asset", used_by: ["desktop"] },
+      { name: "Dracula", license: "MIT", repository: "https://github.com/dracula/dracula-theme", role: "theme", used_by: ["tui", "desktop"], from_brazil: true },
+      { name: "Catppuccin", license: "MIT", repository: "https://github.com/catppuccin/catppuccin", role: "theme", used_by: ["desktop"] },
       { name: "9router", license: "MIT", repository: "https://github.com/decolua/9router", role: "reference", used_by: ["core"] },
     ],
   }),
