@@ -214,7 +214,7 @@
   "about.license": "{license} license",
   "about.libraries": "Open-source libraries",
   "about.loading": "Loading…",
-  "about.libraries.help": "Free software Cuotai relies on. Only direct dependencies are listed; Cargo.lock has the complete inventory. Logos are trademarks of their owners.",
+  "about.libraries.help": "Cuotai is built on open source projects maintained by their communities. Thanks to everyone who builds them. Logos are trademarks of their respective owners.",
   "about.open": "Open repository in the browser",
   "about.openFailed": "Could not open the browser.",
   "about.role.runtime": "Libraries",
