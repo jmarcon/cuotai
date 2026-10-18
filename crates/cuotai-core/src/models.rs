@@ -72,6 +72,21 @@ pub enum ModelState {
     Unsupported { reason: Localized },
 }
 
+impl ModelState {
+    /// Catalog still shown for this state: the current one when `Ready`,
+    /// otherwise the last successful one kept across a failure or a query
+    /// in flight. `None` when the account was never synced or cannot list.
+    pub fn catalog(&self) -> Option<&ModelCatalog> {
+        match self {
+            Self::Ready(catalog) => Some(catalog),
+            Self::Failed { previous, .. }
+            | Self::Fetching { previous, .. }
+            | Self::Interrupted { previous, .. } => previous.as_ref(),
+            Self::NotFetched | Self::Unsupported { .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ModelError {
     #[error("Conta inexistente nesta configuração.")]
@@ -627,6 +642,14 @@ impl Monitor {
         }
     }
 
+    /// Number of models in the persisted catalog of account `index`, for
+    /// cards; `None` when nothing was synced (never zero for "unknown").
+    /// Never uses the network.
+    pub fn model_count(&self, index: usize) -> Option<usize> {
+        let state = self.model_state(index).ok()?;
+        state.catalog().map(|catalog| catalog.models.len())
+    }
+
     /// Delete stored catalogs of this configuration whose account identity
     /// is absent from it (removed, renamed or re-credentialed). Call it only
     /// on a monitor whose configuration was just loaded from or saved to the
@@ -1110,6 +1133,11 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("models.sqlite3");
         let first = monitor(&server, &db, "one");
+        assert_eq!(
+            first.model_count(0),
+            None,
+            "never synced is unknown, not zero"
+        );
 
         let empty = first.load_models(0).await.unwrap();
         assert!(matches!(&empty, ModelState::Ready(c) if c.models.is_empty()));
@@ -1125,6 +1153,12 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         assert_eq!(status, Status::AuthenticationError);
         assert!(!error.fallback.contains("gsk_"), "no body echo");
         assert_eq!(requests(&server).await, 2);
+        assert_eq!(
+            first.model_count(0),
+            Some(0),
+            "empty catalog is a real zero"
+        );
+        assert_eq!(first.model_count(1), None, "failure without catalog");
 
         let restarted = monitor(&server, &db, "one");
         assert_eq!(restarted.load_models(0).await.unwrap(), empty);
@@ -1168,6 +1202,11 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             "old catalog and fetched_at kept"
         );
         assert_eq!(requests(&server).await, 2);
+        assert_eq!(
+            first.model_count(0),
+            Some(1),
+            "count survives a failed sync"
+        );
 
         server.reset().await;
         reply(

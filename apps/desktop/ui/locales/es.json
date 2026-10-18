@@ -23,6 +23,11 @@
     "one": "{count} cuota",
     "other": "{count} cuotas"
   },
+  "card.modelCount": {
+    "one": "{count} modelo",
+    "other": "{count} modelos"
+  },
+  "card.noModels": "ningún modelo",
   "quota.resetsIn": "en {time}",
   "quota.na": "N/D",
   "time.now": "ahora",

@@ -394,13 +394,13 @@ const dm = (label, used, limit, resetH, kind, window, unit = "solicitações") =
 };
 const dr = (account, provider, metrics, notes = [], status = "ready") => ({
   account, provider, checked_at: new Date().toISOString(), status, metrics, notes, source: "demo",
-  class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null } });
+  class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null }, model_count: null });
 const demoReports = [
   dr("alex@example.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 26, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
-  dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 24.6, "quota", "weekly", "%")]),
+  { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 24.6, "quota", "weekly", "%")]), model_count: 1 },
   dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]),
   { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("premium_interactions", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
-  dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]),
+  { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
   dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 1, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
   dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),

@@ -98,7 +98,7 @@ function card(r, position, ordered) {
     </div>
     <div class="summary">${summaryHtml(r)}</div>
     <div class="card-foot">
-      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${rateChip}${alertChip}${nextChip}
+      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${nextChip}
       <span class="grow"></span>${reorderButtons}
     </div>
   </section>`;

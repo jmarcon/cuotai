@@ -241,6 +241,9 @@ pub struct ReportView {
     next_refresh_at_ms: Option<u64>,
     uses_oauth: bool,
     identity: AccountIdentity,
+    /// Modelos no catálogo sincronizado desta conta (cache local, sem rede);
+    /// `None` quando nunca sincronizado ou sem listagem.
+    model_count: Option<usize>,
 }
 
 #[derive(Serialize, Clone)]
@@ -279,6 +282,7 @@ fn report_view(
     report: &Report,
     config: &Config,
     next_refresh_at_ms: Option<u64>,
+    model_count: Option<usize>,
 ) -> ReportView {
     let account = &config.accounts[index];
     ReportView {
@@ -296,6 +300,7 @@ fn report_view(
         next_refresh_at_ms,
         uses_oauth: account.oauth.is_some(),
         identity: account_identity(account, report.status),
+        model_count,
     }
 }
 
@@ -347,7 +352,7 @@ impl Inner {
                     // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
                     let next = (!l.cycle.is_busy(i))
                         .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
-                    report_view(i, report, &l.file.config, next)
+                    report_view(i, report, &l.file.config, next, l.monitor.model_count(i))
                 })
             })
             .collect();
