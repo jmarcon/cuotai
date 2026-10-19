@@ -3,11 +3,19 @@
 | Field | Value |
 |---|---|
 | ID | 0009 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (tray, cards, popover), `crates/cuotai-tui` (`dashboard.rs`), PRDs 0007, 0012 and 0014 |
 | Depends on | none |
 | Date | 2026-10-19 |
+
+## Implementation status (2026-10-19)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.22.0 | `cuotai_core::metrics::binding(report) -> Option<Binding>` (`index`, `label`, `window`, `used_ratio`, `remaining`, `resets_at`, `reason` `Exhausted`/`Tightest`, `blocked_until`), eligibility from `classify_metric` with a finite positive cap; `RateLimit` only without an eligible `Quota`; blocked picks the exhausted metric with the latest return (a missing return wins and leaves `blocked_until` unknown); otherwise the smallest remaining fraction, ties to the shortest window then adapter order. `binding_ratio` and `cmp_binding` sort accounts with no value last. Table tests cover every listed case. |
+| RF4 | 0.22.0 | `Binding::summary(format_at) -> Localized` with ids `binding.blocked_until`, `binding.blocked` (unknown return) and `binding.tightest`; known windows travel as nested `metric_window.*`, others as the metric label; `en-US` and `es` catalogs, Portuguese fallback; catalog test over every variant. |
+| RF2, RF3 | — | Not delivered. |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
