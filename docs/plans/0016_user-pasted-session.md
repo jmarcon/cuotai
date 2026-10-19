@@ -1,94 +1,96 @@
-# PRD 0016 — Sessão colada pelo usuário
+# PRD 0016 — User-pasted session
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0016 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, TUI e Desktop |
-| Consumidores | `crates/cuotai-tui` (`wizard.rs`), `apps/desktop` (`account-dialog.js`) |
-| Depende de | PRD 0005 (RF1: nível `UserSession`) |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, TUI and desktop |
+| Consumers | `crates/cuotai-tui` (`wizard.rs`), `apps/desktop` (`account-dialog.js`) |
+| Depends on | PRD 0005 (RF1: the `UserSession` level) |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-`docs/providers.md` estabelece que nenhum cookie, Keychain ou arquivo de credenciais de outro app é extraído automaticamente. Ainda assim, alguns provedores só expõem o consumo atrás de uma sessão web, e o Cuotai já aceita cookies exportados pelo usuário em casos pontuais:
-- Xiaomi MIMO: `platform_session_env` (saldo e Token Plan do console) e `session_env`/`region` (quota semanal do Desktop);
+## 1. Context
+
+`docs/providers.md` establishes that no cookie, Keychain entry or credential file of another app is extracted automatically. Still, some providers only expose usage behind a web session, and Cuotai already accepts cookies exported by the user in specific cases:
+- Xiaomi MIMO: `platform_session_env` (console balance and Token Plan) and `session_env`/`region` (Desktop weekly quota);
 - Alibaba Token Plan: `params.session_env = "QWEN_CLOUD_COOKIE"`;
-- Alibaba Coding Plan: `params.session_env` com cookie explícito quando o gateway exige login;
-- Cursor pessoal: importação **explícita** da sessão SQLite local.
+- Alibaba Coding Plan: `params.session_env` with an explicit cookie when the gateway requires login;
+- personal Cursor: an **explicit** import of the local SQLite session.
 
-Hoje cada caso tem seu próprio campo, texto de ajuda e tratamento de validade. O usuário precisa exportar o cookie por conta própria, colocá-lo numa variável de ambiente e referenciá-la, o que é frágil e deixa o valor em perfis de shell.
+Today each case has its own field, help text and validity handling. The user has to export the cookie on their own, put it in an environment variable and reference it, which is fragile and leaves the value in shell profiles.
 
-Na análise de mercado de 2026-10-19, o CodexBar cobre dezenas de provedores por cookie (cerca de 43 de 106 entradas), com modos `auto` (importa do navegador), `manual` (cabeçalho colado) e `off`; isso exige Acesso Total ao Disco (Safari) e acesso ao Keychain (Chromium). O WhatsMyUsage adota o caminho oposto: o usuário cola os cookies numa janela do app, **só as chaves de sessão** vão ao Keychain e o resto da colagem é descartado; duas sessões do mesmo provedor são duas linhas.
+In the 2026-10-19 market analysis, CodexBar covers dozens of providers by cookie (about 43 of 106 entries), with `auto` (imports from the browser), `manual` (pasted header) and `off` modes; this requires Full Disk Access (Safari) and Keychain access (Chromium). WhatsMyUsage takes the opposite path: the user pastes cookies into an app window, **only the session keys** go to the Keychain and the rest of the paste is discarded; two sessions of the same provider are two rows.
 
-## 2. Problema
+## 2. Problem
 
-- Provedores que só têm consulta web ficam inacessíveis sem importação automática de cookies, que contradiz a política do projeto e abre uma superfície de permissões ampla.
-- O mecanismo manual atual é inconsistente entre provedores e deixa o segredo em variáveis de ambiente.
-- Uma sessão colada é um login completo: guardá-la sem cuidado é risco real.
+- Providers that only have a web query stay out of reach without automatic cookie import, which contradicts the project's policy and opens a broad permission surface.
+- The current manual mechanism is inconsistent across providers and leaves the secret in environment variables.
+- A pasted session is a full login: storing it carelessly is a real risk.
 
-## 3. Objetivos
+## 3. Goals
 
-- Oferecer uma forma única, explícita e opt-in de o usuário fornecer uma sessão web para os provedores que não têm outra via, sem varrer navegadores.
-- Guardar o segredo no cofre do sistema, nunca no TOML, em logs, snapshots ou eventos.
-- Tornar o risco claro (nível `UserSession` do PRD 0005) e detectar expiração.
+- Offer a single, explicit, opt-in way for the user to supply a web session for the providers that have no other route, without scanning browsers.
+- Store the secret in the system vault, never in the TOML, logs, snapshots or events.
+- Make the risk clear (the `UserSession` level of PRD 0005) and detect expiry.
 
-## 4. Não-objetivos
+## 4. Non-goals
 
-- Importar cookies automaticamente de navegadores, ler o Keychain de outros apps ou pedir Acesso Total ao Disco.
-- Automatizar o login web, resolver CAPTCHA ou usar senhas.
-- Cobrir provedores sem evidência de que a consulta por sessão é viável e permitida; cada um entra por PRD ou revisão própria.
+- Automatically importing cookies from browsers, reading other apps' Keychain entries or asking for Full Disk Access.
+- Automating web login, solving CAPTCHAs or using passwords.
+- Covering providers without evidence that a session-based query is viable and permitted; each one enters through its own PRD or review.
 
-## 5. Requisitos funcionais
+## 5. Functional requirements
 
-### RF1 — Tipo de credencial `UserSession` no core (prioridade alta; pré-requisito)
+### RF1 — `UserSession` credential type in the core (high priority; prerequisite)
 
-- **RF1.1** Acrescentar a `account_edit` e a `access` (PRD 0005) a classe de credencial `UserSession`. O descritor do provedor declara quais cookies/cabeçalhos são necessários (lista de nomes aceitos, por exemplo as chaves de sessão), o host de destino e como a sessão é enviada. A interface não contém regras por provedor.
-- **RF1.2** Referência no TOML por **identificador do cofre** (`credential_ref`, a mesma convenção dos tokens OAuth), nunca pelo valor. Contas antigas com `session_env` continuam funcionando; o assistente oferece "migrar para o cofre" com consentimento explícito.
-- **RF1.3** Armazenamento em entrada do cofre pertencente ao Cuotai (Keychain, Credential Manager ou Secret Service), com o mesmo mecanismo de `TokenStore`. No modo de desenvolvimento com SQLite em texto claro, o aviso existente continua valendo; builds de release o recusam.
-- **Critério de aceite:** testes de armazenamento e leitura via `Credentials`, migração de `session_env` para o cofre, ausência do valor em TOML, `Debug`, logs e `Report`.
+- **RF1.1** Add the `UserSession` credential class to `account_edit` and `access` (PRD 0005). The provider descriptor declares which cookies/headers are required (a list of accepted names, for example the session keys), the destination host and how the session is sent. The interface contains no per-provider rules.
+- **RF1.2** A reference in the TOML by **vault identifier** (`credential_ref`, the same convention as OAuth tokens), never by value. Old accounts with `session_env` keep working; the wizard offers "migrate to the vault" with explicit consent.
+- **RF1.3** Storage in a Cuotai-owned vault entry (Keychain, Credential Manager or Secret Service), with the same mechanism as `TokenStore`. In the development mode with plain-text SQLite, the existing warning still holds; release builds refuse it.
+- **Acceptance criterion:** storage and read tests through `Credentials`, migration from `session_env` to the vault, absence of the value in the TOML, `Debug`, logs and `Report`.
 
-### RF2 — Colagem guiada e redução ao mínimo (prioridade alta)
+### RF2 — Guided paste and reduction to the minimum (high priority)
 
-- **RF2.1** Passo "Colar sessão" no assistente de conta: instruções localizadas por provedor ("onde copiar", sempre genéricas e sem capturas de contas reais), campo de colagem com máscara, e botão de teste que faz uma consulta somente-leitura.
-- **RF2.2** O core aceita colagens em formatos comuns (linha `Cookie:`, lista `nome=valor; ...`, tabela copiada do inspetor, `cURL` copiado) e **extrai somente os nomes permitidos** pelo descritor, descartando todo o resto antes de gravar. Cookies cujo nome não está na lista nunca chegam ao cofre. A normalização reconstrói cookies fragmentados em partes numeradas (por exemplo, `.0`, `.1`) na ordem correta, para não gerar sessão silenciosamente inválida.
-- **RF2.3** Nada do conteúdo colado é registrado: o campo é limpo ao fechar, e mensagens de erro descrevem o problema ("faltou o cookie X") sem repetir valores.
-- **Critério de aceite:** testes de tabela para cada formato, fragmentos fora de ordem, nomes ausentes, nomes extras descartados e verificação de que nenhum valor aparece em erros ou logs.
+- **RF2.1** A "Paste session" step in the account wizard: localized instructions per provider ("where to copy", always generic and without captures of real accounts), a masked paste field, and a test button that makes a read-only query.
+- **RF2.2** The core accepts pastes in common formats (a `Cookie:` line, a `name=value; ...` list, a table copied from the inspector, a copied `cURL`) and **extracts only the names allowed** by the descriptor, discarding everything else before writing. Cookies whose name is not on the list never reach the vault. Normalization reassembles cookies fragmented into numbered parts (for example, `.0`, `.1`) in the right order, so as not to silently generate an invalid session.
+- **RF2.3** Nothing of the pasted content is logged: the field is cleared on close, and error messages describe the problem ("cookie X is missing") without repeating values.
+- **Acceptance criterion:** table tests for each format, out-of-order fragments, missing names, extra names discarded, and a check that no value appears in errors or logs.
 
-### RF3 — Validade, expiração e uso (prioridade alta)
+### RF3 — Validity, expiry and use (high priority)
 
-- **RF3.1** Uma consulta com sessão rejeitada (401/403 ou redirecionamento para login) produz `AuthenticationError` com mensagem específica "sessão expirada ou revogada; cole uma nova", sem expor corpo ou URL.
-- **RF3.2** Quando o cookie carrega data de expiração conhecida, o core a lê (apenas a data, nunca o valor) e informa "expira em N dias" no cartão; o aviso de expiração próxima (menos de 3 dias) integra os alertas (PRD 0008) como evento próprio quando existir.
-- **RF3.3** A sessão só é enviada ao host declarado no descritor, por HTTPS, e nunca é reutilizada em outro provedor ou conta. Redirecionamentos para outro host não carregam a sessão.
-- **RF3.4** Atualizar a sessão de uma conta existente substitui o valor na mesma entrada do cofre (reautenticação), sem duplicar contas.
-- **Critério de aceite:** testes com `wiremock`: 401, redirecionamento para host externo (sessão não enviada), expiração conhecida e desconhecida e substituição da sessão.
+- **RF3.1** A query with a rejected session produces an `AuthenticationError` with a specific message "session expired or revoked; paste a new one", without exposing the body or URL.
+- **RF3.2** When the cookie carries a known expiry date, the core reads it (only the date, never the value) and reports "expires in N days" on the card; the near-expiry warning (under 3 days) joins the alerts (PRD 0008) as an event of its own when it exists.
+- **RF3.3** The session is only sent to the host declared in the descriptor, over HTTPS, and is never reused for another provider or account. Redirects to another host do not carry the session.
+- **RF3.4** Updating an existing account's session replaces the value in the same vault entry (reauthentication), without duplicating accounts.
+- **Acceptance criterion:** `wiremock` tests: 401, a redirect to an external host (session not sent), known and unknown expiry, and session replacement.
 
-### RF4 — Transparência e aviso de risco (prioridade média)
+### RF4 — Transparency and risk warning (medium priority)
 
-- **RF4.1** O cartão e o passo de colagem mostram o nível `UserSession` e um aviso curto e localizado: "Esta é uma sessão de login completa. O Cuotai a guarda no cofre do sistema e a usa somente para consultar este serviço."
-- **RF4.2** Opção "Esquecer esta sessão" na conta, que remove a entrada do cofre.
-- **RF4.3** `docs/providers.md` e `docs/oauth.md` descrevem o fluxo, o que é guardado, o que é descartado e os riscos (termos de uso do provedor, revogação, vazamento).
-- **Critério de aceite:** smoke na TUI e no desktop em três idiomas; remoção apaga a entrada do cofre.
+- **RF4.1** The card and the paste step show the `UserSession` level and a short localized warning: "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service."
+- **RF4.2** A "Forget this session" option on the account, which removes the vault entry.
+- **RF4.3** `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored, what is discarded and the risks (the provider's terms of use, revocation, leakage).
+- **Acceptance criterion:** a smoke test in the TUI and the desktop app in three languages; removal deletes the vault entry.
 
-### RF5 — Primeiros provedores (prioridade média)
+### RF5 — First providers (medium priority)
 
-- **RF5.1** Migrar os casos existentes (Xiaomi MIMO, Alibaba Token Plan, Alibaba Coding Plan) para o descritor `UserSession`, mantendo `session_env` como alternativa.
-- **RF5.2** Novos provedores só entram com evidência (documentação do fabricante ou contrato verificado no 9router/cliente comunitário) de que a consulta é somente-leitura e de que a sessão é suficiente, e passam pelo PRD 0005.
-- **Critério de aceite:** os testes atuais dos adaptadores migrados continuam passando; a matriz de `docs/providers.md` reflete a mudança.
+- **RF5.1** Migrate the existing cases (Xiaomi MIMO, Alibaba Token Plan, Alibaba Coding Plan) to the `UserSession` descriptor, keeping `session_env` as an alternative.
+- **RF5.2** New providers only enter with evidence (the vendor's documentation or a contract verified in 9router/a community client) that the query is read-only and that the session is enough, and they go through PRD 0005.
+- **Acceptance criterion:** the migrated adapters' current tests keep passing; the `docs/providers.md` matrix reflects the change.
 
-## 6. Requisitos não funcionais
+## 6. Non-functional requirements
 
-- **Segurança:** sessão é segredo de alto valor. Nunca em TOML, snapshots, eventos, logs, exportações (PRD 0012), hooks (PRD 0013) ou mensagens de erro; zeragem do buffer quando possível; sem telemetria.
-- **Privacidade e termos:** o uso depende dos termos do provedor. A documentação diz isso e o nível de acesso expõe o risco.
-- **Compatibilidade:** contas e TOML atuais não mudam sem consentimento.
+- **Security:** a session is a high-value secret. Never in the TOML, snapshots, events, logs, exports (PRD 0012), hooks (PRD 0013) or error messages; zero the buffer when possible; no telemetry.
+- **Privacy and terms:** use depends on the provider's terms. The documentation says so and the access level exposes the risk.
+- **Compatibility:** existing accounts and TOML do not change without consent.
 
-## 7. Ordem de execução e verificação
+## 7. Order of execution and verification
 
-1. **RF1:** credencial, cofre e migração, com testes.
-2. **RF2 e RF3:** colagem, extração mínima, expiração e redirecionamentos.
-3. **RF4:** avisos e remoção.
-4. **RF5:** migração dos três provedores existentes.
+1. **RF1:** credential, vault and migration, with tests.
+2. **RF2 and RF3:** paste, minimal extraction, expiry and redirects.
+3. **RF4:** warnings and removal.
+4. **RF5:** migration of the three existing providers.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
-O requisito só está entregue quando o usuário cola uma sessão uma única vez, só os cookies permitidos chegam ao cofre, o valor nunca aparece em TOML, logs ou erros, a sessão expirada é identificada com uma mensagem clara, e esquecê-la remove a entrada do cofre.
+The requirement is only delivered when the user pastes a session once, only the allowed cookies reach the vault, the value never appears in the TOML, logs or errors, an expired session is identified with a clear message, and forgetting it removes the vault entry.
