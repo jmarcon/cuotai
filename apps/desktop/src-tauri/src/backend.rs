@@ -10,7 +10,9 @@ use cuotai_core::{
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
     identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
-    metrics::{classify_metric, classify_report, AccountClass, MetricState},
+    metrics::{
+        binding, classify_metric, classify_report, cmp_binding, AccountClass, Binding, MetricState,
+    },
     models::{self, ModelError, ModelState},
     oauth::OAuthSession,
     refresh::{Edit, RefreshCycle},
@@ -244,6 +246,11 @@ pub struct ReportView {
     /// Modelos no catálogo sincronizado desta conta (cache local, sem rede);
     /// `None` quando nunca sincronizado ou sem listagem.
     model_count: Option<usize>,
+    /// PRD 0009 RF2: the core's binding metric (`index` points into `metrics`)
+    /// and the account's position in the core's "most restrictive first" order
+    /// (ties and accounts without a value keep the manual order).
+    binding: Option<Binding>,
+    binding_rank: usize,
 }
 
 #[derive(Serialize, Clone)]
@@ -283,8 +290,10 @@ fn report_view(
     config: &Config,
     next_refresh_at_ms: Option<u64>,
     model_count: Option<usize>,
+    binding_rank: usize,
 ) -> ReportView {
     let account = &config.accounts[index];
+    let binding = binding(report);
     ReportView {
         index,
         account: report.account.clone(),
@@ -301,7 +310,21 @@ fn report_view(
         uses_oauth: account.oauth.is_some(),
         identity: account_identity(account, report.status),
         model_count,
+        binding,
+        binding_rank,
     }
+}
+
+/// Position of each slot in the core's "most restrictive first" order; the
+/// stable sort keeps the manual order for ties and accounts without a value.
+fn binding_ranks(slots: &[Option<Report>]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..slots.len()).collect();
+    order.sort_by(|&a, &b| cmp_binding(slots[a].as_ref(), slots[b].as_ref()));
+    let mut ranks = vec![0; slots.len()];
+    for (rank, slot) in order.into_iter().enumerate() {
+        ranks[slot] = rank;
+    }
+    ranks
 }
 
 impl Inner {
@@ -344,6 +367,7 @@ impl Inner {
             .unwrap_or(0);
         let started_at = l.cycle.snapshot().map(|snapshot| snapshot.started_at);
         let finished_at = l.cycle.snapshot().map(|snapshot| snapshot.finished_at);
+        let ranks = binding_ranks(&slot_reports);
         let reports: Vec<ReportView> = slot_reports
             .iter()
             .enumerate()
@@ -352,7 +376,8 @@ impl Inner {
                     // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
                     let next = (!l.cycle.is_busy(i))
                         .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
-                    report_view(i, report, &l.file.config, next, l.monitor.model_count(i))
+                    let models = l.monitor.model_count(i);
+                    report_view(i, report, &l.file.config, next, models, ranks[i])
                 })
             })
             .collect();
@@ -2065,6 +2090,64 @@ mod tests {
         assert!(
             next > Duration::from_secs(3000),
             "prazo não foi reagendado: {next:?}"
+        );
+    }
+
+    fn quota(label: &str, used: f64, window: cuotai_core::MetricWindow, resets_h: i64) -> Metric {
+        Metric {
+            label: label.into(),
+            used: Some(used),
+            limit: Some(100.0),
+            remaining: Some(100.0 - used),
+            unit: "%".into(),
+            kind: cuotai_core::MetricKind::Quota,
+            window: Some(window),
+            period: None,
+            resets_at: Some(chrono::Utc::now() + chrono::Duration::hours(resets_h)),
+        }
+    }
+
+    fn ready(name: &str, metrics: Vec<Metric>) -> Report {
+        Report {
+            account: name.into(),
+            provider: Provider::AlibabaCloud,
+            checked_at: chrono::Utc::now(),
+            status: Status::Ready,
+            metrics,
+            notes: vec![],
+            notes_l10n: vec![],
+            source: "teste".into(),
+        }
+    }
+
+    #[test]
+    fn view_marks_the_exhausted_week_as_binding_and_ranks_it_first() {
+        use cuotai_core::MetricWindow::{Weekly, Window5h};
+        let config = Config {
+            accounts: vec![plain_account("free"), plain_account("blocked")],
+            ..Config::default()
+        };
+        let free = ready("free", vec![quota("5h", 40.0, Window5h, 2)]);
+        let blocked = ready(
+            "blocked",
+            vec![
+                quota("5h", 0.0, Window5h, 2),
+                quota("week", 100.0, Weekly, 30),
+            ],
+        );
+        let slots = vec![Some(free), Some(blocked), None];
+        // Blocked first, then the 60%-left account; a missing report stays last.
+        assert_eq!(binding_ranks(&slots), vec![1, 0, 2]);
+
+        let report = slots[1].as_ref().unwrap();
+        let view = serde_json::to_value(report_view(1, report, &config, None, None, 0)).unwrap();
+        assert_eq!(view["binding"]["index"], 1);
+        assert_eq!(view["binding"]["window"], "weekly");
+        assert_eq!(view["binding"]["reason"], "exhausted");
+        let until = report.metrics[1].resets_at.unwrap();
+        assert_eq!(
+            view["binding"]["blocked_until"],
+            serde_json::to_value(until).unwrap()
         );
     }
 

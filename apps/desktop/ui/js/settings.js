@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setMotion, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, configLabel, currentSort, getSettings, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setMotion, setRefreshSeconds, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -28,6 +28,9 @@ export async function openSettings(extra = {}) {
           <small>${te("settings.motion.help")}</small></label>
         <p class="err" id="motion-msg" role="alert"></p></section>
       <section class="set-sec"><h3>${te("lang.label")}</h3>${langMenuHtml({ inline: true })}</section>
+      <section class="set-sec"><h3>${te("settings.order.title")}</h3>
+        <label class="check"><input id="order-binding" type="checkbox" ${currentSort() === "binding" ? "checked" : ""} /> ${te("settings.order.binding")}</label>
+        <p class="hint">${te("settings.order.help")}</p></section>
       <section class="set-sec"><h3>${te("settings.refresh.title")}</h3>
         <p class="hint">${te("settings.refresh.help")}</p>
         <label class="f"><span>${te("settings.refresh.label")}</span>
@@ -71,6 +74,8 @@ export async function openSettings(extra = {}) {
     dlg.querySelector("[data-libraries]").onclick = () => openLibraries();
     dlg.querySelector("#motion").onchange = (e) =>
       setMotion(e.target.value).then(() => { dlg.querySelector("#motion-msg").textContent = ""; }, (x) => { dlg.querySelector("#motion-msg").textContent = errorText(x); });
+    // PRD 0009 RF2.3: display-only ordering; the manual order (TOML, shared with the TUI) is never rewritten.
+    dlg.querySelector("#order-binding").onchange = (e) => { setSort(e.target.checked ? "binding" : "custom"); extra.onChange?.(); };
     const input = dlg.querySelector("#refresh-seconds");
     const msg = dlg.querySelector("#refresh-msg");
     for (const b of dlg.querySelectorAll("[data-preset]")) b.onclick = () => { input.value = b.dataset.preset; msg.textContent = ""; };

@@ -6,7 +6,7 @@ import { confirmDelete, offerExternalReload, openAccountDialog } from "./account
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
-  fmtNext, ALERTS, alertOf, bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isDesktop, level, logo,
+  fmtNext, ALERTS, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice,
 } from "./lib.js";
@@ -22,7 +22,7 @@ const store = createStore(() => render());
 const busy = (i) => store.view?.busy.includes(i);
 
 /** Uma janela do card (5h ou semanal). Sem a janela, o espaço continua lá, vazio, para o card manter o tamanho. */
-function windowSlot(name, w) {
+function windowSlot(r, name, w) {
   const label = te(`card.window.${name}`);
   if (!w) {
     return `<div class="win none" aria-label="${label}"><div class="win-top"><span class="win-name">${label}</span></div>
@@ -30,7 +30,8 @@ function windowSlot(name, w) {
   }
   const lv = level(w.pct);
   const reset = fmtCountdown(w.m.resets_at);
-  return `<div class="win" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>
+  const binding = isBindingMetric(r, w.m) ? " binding" : "";
+  return `<div class="win${binding}" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>
       <span class="reset">${reset ? te("quota.resetsIn", { time: reset }) : `<em>${te("quota.na")}</em>`}</span></div>
     <div class="win-pct ${lv}" data-pct="${Math.round(w.pct)}">${Math.round(w.pct)}%</div>
     <div class="bar ${lv}"><span style="width:${w.pct}%"></span></div>
@@ -41,12 +42,12 @@ function windowSlot(name, w) {
  *  (ou o texto de uma métrica sem limite, ou o motivo de não haver). */
 function summaryHtml(r) {
   const win = windowsOf(r);
-  if (win.h5 || win.week) return `<div class="wins">${windowSlot("h5", win.h5)}${windowSlot("week", win.week)}</div>`;
+  if (win.h5 || win.week) return `<div class="wins">${windowSlot(r, "h5", win.h5)}${windowSlot(r, "week", win.week)}</div>`;
   const s = summaryOf(r);
   if (s.kind === "bar") {
     const lv = level(s.pct);
     const reset = fmtCountdown(s.m.resets_at);
-    return `<div class="sum-bar">
+    return `<div class="sum-bar${isBindingMetric(r, s.m) ? " binding" : ""}">
       <b class="big ${lv}" data-pct="${Math.round(s.pct)}">${Math.round(s.pct)}%<small>${te("card.available")}</small></b>
       <div class="sum-meter">
         <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? te("quota.resetsIn", { time: reset }) : `<em>${te("quota.na")}</em>`}</span></div>
@@ -87,6 +88,10 @@ function card(r, position, ordered) {
   const rateChip = rate != null && level(rate) !== "good"
     ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "";
   const alertChip = alert ? `<span class="mini ${alert.tone}" title="${esc(alert.label())}">${icon(alert.icon)}<span class="mini-t">${esc(alert.label())}</span></span>` : "";
+  // PRD 0009 RF2.2: the core's binding window next to the state ("Week · 100%"); an emphasis, the other metrics stay.
+  const bindingTitle = blockedText(r) ?? t("card.binding.title");
+  const bindingChip = r.status === "ready" && r.binding
+    ? `<span class="mini binding ${isBlocked(r) ? "bad" : level(100 - r.binding.used_ratio * 100)}" data-binding-chip title="${esc(bindingTitle)}" aria-label="${esc(`${bindingTitle}: ${bindingChipText(r)}`)}">${esc(bindingChipText(r))}</span>` : "";
   return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""}" data-card="${esc(key)}">
     <div class="card-head">
       ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorder")}" aria-label="${te("account.reorder")}">${icon("grip")}</button>` : ""}
@@ -100,7 +105,7 @@ function card(r, position, ordered) {
     </div>
     <div class="summary">${summaryHtml(r)}</div>
     <div class="card-foot">
-      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${nextChip}
+      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${nextChip}
       <span class="grow"></span>${reorderButtons}
     </div>
   </section>`;

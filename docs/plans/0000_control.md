@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-19 |
-| Cuotai version at that date | 0.25.0 |
+| Cuotai version at that date | 0.26.0 |
 | Plans | 19 (3 implemented, 5 in progress, 11 proposed) |
 
 ## 1. How to maintain it
@@ -30,7 +30,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
 | [0007](0007_pace-until-reset.md) | Pace until the reset | In progress | RF1, RF2 (0.23.0) | — | 0006 | RF1 and RF2 delivered: `pace::assess` and its localized labels in the core; `pace::Point` is the sample 0006 RF3 returns. Without history it uses the average since the start of the window. |
 | [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | Proposed | — | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. |
-| [0009](0009_binding-limit-indicator.md) | Binding limit indicator | In progress | RF1, RF4 (0.22.0) | — | — | RF1 and RF4 delivered: `metrics::binding` and its localized summary in the core. Consumed by 0007, 0012 and 0014. |
+| [0009](0009_binding-limit-indicator.md) | Binding limit indicator | In progress | RF1, RF4 (0.22.0), RF2 (0.26.0) | — | — | RF1 and RF4 delivered: `metrics::binding` and its localized summary in the core. RF2 delivered: desktop ring, list, card chip, highlighted metric and opt-in "most restrictive first" order read the core result. RF3 (TUI and `--once`) pending. Consumed by 0007, 0012 and 0014. |
 | [0010](0010_measurement-age-and-stale-reading.md) | Measurement age and stale reading | In progress | RF1 (0.21.0), RF2 (0.25.0) | — | 0006 | RF1 and RF2 delivered in the core: `freshness::age`/`assess` and the per-account last valid reading (`RefreshCycle::last_good_report`). RF2.3 holds per session only until 0006 RF2 persists the reading and loads it on opening. |
 | [0011](0011_provider-incident-status.md) | Provider incident status | Proposed | — | — | 0005 | Needs verified public sources per provider. |
 | [0012](0012_local-http-server-and-export-contract.md) | Local HTTP server and `export::v1` contract | Proposed | — | — | 0005, 0007, 0009, 0010, 0011 | The `v1` contract is additive: new fields enter as the plans are delivered. |
@@ -68,6 +68,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.23.0 | 0007 | RF1 and RF2 (core pace: expected use at a uniform pace, ±5-point `Reserve`/`OnPace`/`Ahead`/`Exhausted` stages with a tone, linear exhaustion projection from recent samples or the window average, localized labels in `en-US`/`es`). |
 | 0.24.0 | 0003 | RF1 (core reset planner: eligibility, used/exhausted/always filters, lead time, same-minute grouping, 2-minute drift identity, stable account key). |
 | 0.25.0 | 0010 | RF2 (core last valid reading per account: kept on non-auth failures with its original age, replaced on success, discarded on authentication failure or account edit, carried by moves and removals; per session until 0006). |
+| 0.26.0 | 0009 | RF2 (desktop binding limit: tray ring and list "blocked until", card chip and highlighted metric, opt-in "most restrictive first" order from the core's `cmp_binding` that never rewrites the manual order). |
 
 ## 4. Dependency graph
 
@@ -185,3 +186,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | PRD 0007 RF1 and RF2 delivered in 0.23.0; plan 0007 in progress. |
 | 2026-10-19 | PRD 0003 RF1 delivered in 0.24.0; plan 0003 in progress. |
 | 2026-10-19 | PRD 0010 RF2 delivered in 0.25.0 (per session until PRD 0006 RF2 persists the reading); plan 0010 in progress. |
+| 2026-10-19 | PRD 0009 RF2 delivered in 0.26.0; plan 0009 in progress (RF3 pending). |

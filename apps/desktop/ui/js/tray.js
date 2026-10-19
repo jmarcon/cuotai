@@ -4,9 +4,9 @@ import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import { easeOut, motionMs } from "./motion.js";
 import {
-  bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtReset, icon, initTheme, isDesktop, level,
-  logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, remainingPct, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
-  textualMetric, worstRemaining, ALERTS, alertOf, windowsOf, isMetricHidden, onHiddenChange,
+  bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
+  logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
+  bindingPct, bindingChipText, blockedText, ALERTS, alertOf, windowsOf, onHiddenChange,
 } from "./lib.js";
 
 await boot();
@@ -19,15 +19,16 @@ let selected = null;
 let models = null; // seção de modelos da conta aberta no popover; sobrevive aos redesenhos
 
 function row(r) {
-  const worst = worstRemaining(r);
-  const lv = r.status !== "ready" ? "bad" : level(worst);
-  const pct = r.status !== "ready" ? statusLabel(r.status) : worst != null ? `${Math.round(worst)}%` : "—";
+  const pct = bindingPct(r);
+  const blocked = blockedText(r);
+  const lv = r.status !== "ready" || blocked ? "bad" : level(pct);
+  const value = r.status !== "ready" ? statusLabel(r.status) : blocked ?? (pct != null ? `${Math.round(pct)}%` : "—");
   return `<button class="row" data-open="${esc(reportKey(r))}">
     ${logo(r.provider, 32)}
     <div class="row-main">
-      <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${lv}">${esc(pct)}</span></div>
-      <div class="row-sub">${esc(r.account)}</div>
-      <div class="bar thin ${lv}"><span style="width:${worst ?? 0}%"></span></div>
+      <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${lv}">${esc(value)}</span></div>
+      <div class="row-sub">${esc(r.account)}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
+      <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
     </div>${icon("chev", "chev")}</button>`;
 }
 
@@ -62,17 +63,20 @@ function animateRings(prev) {
 
 function tile(r) {
   const alert = alertOf(r);
-  const worst = r.status === "ready" ? worstRemaining(r) : null;
-  const lv = level(worst);
+  // PRD 0009 RF2.1: the ring is the core's binding metric (a blocked week wins over a free 5 h window).
+  const pct = bindingPct(r);
+  const lv = level(pct);
   const w = windowsOf(r);
   const tip = [`${brand(r.provider).label} (${r.account})`,
-    alert ? alert.label() : worst != null ? te2("metric.level." + lv, { pct: Math.round(worst) }) : "",
+    alert ? alert.label() : pct != null ? te2("metric.level." + lv, { pct: Math.round(pct) }) : "",
+    blockedText(r) ?? "",
+    r.binding ? bindingChipText(r) : "",
     ...(w.h5 ? [`${t("card.window.h5")}: ${Math.round(w.h5.pct)}%`] : []),
     ...(w.week ? [`${t("card.window.week")}: ${Math.round(w.week.pct)}%`] : [])].filter(Boolean);
-  const center = alert ? icon(alert.icon) : worst != null ? `${Math.round(worst)}%` : "—";
+  const center = alert ? icon(alert.icon) : pct != null ? `${Math.round(pct)}%` : "—";
   const tone = alert ? alert.tone : lv;
-  return `<button class="tile" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}">
-    ${donutHtml(alert ? 100 : worst, tone, center)}
+  return `<button class="tile" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}" data-binding="${esc(r.binding?.window ?? "")}">
+    ${donutHtml(alert && pct == null ? 100 : pct, tone, center)}
     <span class="tile-name">${logo(r.provider, 14)}<b>${esc(brand(r.provider).label)}</b></span>
     <span class="tile-acct">${esc(r.account)}</span></button>`;
 }

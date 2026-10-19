@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-19
+
+### Added
+
+- The desktop app shows each account's most restrictive limit, chosen by the core: the tray ring uses it (an account blocked by the weekly window and free on the 5-hour one shows the week), the list view, tray menu and ring tooltip say "Blocked until <time>" when the account is blocked, each card shows a "Week · 100%" chip next to its state and highlights that window and that metric in the details while every other metric stays visible, and Settings offers an optional "Most restrictive first" order that never rewrites the manual drag-and-drop order shared with the TUI (PRD 0009 RF2).
+
 ## [0.25.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core`'s `RefreshCycle` keeps each account's last successful reading, with its original `checked_at`, when a later query fails, and exposes it through `last_good_report` only while the current report is not `Ready`; a success replaces it, an authentication failure or an edit to the account discards it, moves and removals carry it with the account, and the current report, `snapshot()` and `--json` stay unchanged. It lasts for the session until local history (PRD 0006) persists it (PRD 0010 RF2).
+- `cuotai-core`'s `RefreshCycle` keeps each account's last successful reading, with its original `checked_at`, when a later query fails, and exposes it through `last_good_report` only while the current report is not `Ready`; a success replaces it, an authentication failure or an edit to the account discards it, moves and removals carry it with the account, and the current report, `snapshot()` and `--json` stay unchanged. It lasts for the session until local history (PRD 0006) persists it (PRD 0010 RF2, c2ebd6d).
 
 ## [0.24.0] - 2026-10-19
 
@@ -282,8 +288,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/6d37344...main
-[0.25.0]: https://github.com/jmarcon/cuotai/compare/6d37344...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/c2ebd6d...main
+[0.26.0]: https://github.com/jmarcon/cuotai/compare/c2ebd6d...main
+[0.25.0]: https://github.com/jmarcon/cuotai/commit/c2ebd6d
 [0.24.0]: https://github.com/jmarcon/cuotai/commit/6d37344
 [0.23.0]: https://github.com/jmarcon/cuotai/commit/51e7f24
 [0.22.0]: https://github.com/jmarcon/cuotai/commit/eddf602

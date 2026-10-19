@@ -52,6 +52,32 @@
 .metric.muted {
   opacity: 0.45;
 }
+/* PRD 0009 RF2.2: the core's binding metric — emphasis only, never a filter */
+.metric.binding {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.mini.binding {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.mini.binding.bad { color: var(--bad); }
+.mini.binding.warn { color: var(--warn); }
+.mini.binding.good { color: var(--good); }
+.win.binding .win-name,
+.sum-bar.binding .lt {
+  color: var(--accent);
+}
+.win.binding .win-name::after {
+  content: " \25CF";
+}
 .metric-right {
   display: flex;
   align-items: center;

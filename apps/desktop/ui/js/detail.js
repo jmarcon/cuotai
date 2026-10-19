@@ -2,7 +2,7 @@
 // Critério único: percentual DISPONÍVEL, barra = disponível, quantidade = usado / limite; métricas sem limite viram texto.
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
-  STALE, errText, esc, fmtAmount, fmtReset, getView, icon, isMetricHidden, level, loadModels, metricKey, modelState, noteText,
+  STALE, bindingChipText, errText, esc, fmtAmount, fmtReset, getView, icon, isBindingMetric, isMetricHidden, level, loadModels, metricKey, modelState, noteText,
   remainingPct, reportKey, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
@@ -16,9 +16,11 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
   const gauge = text != null
     ? `<div class="balance ${m.state === "exhausted" ? "bad" : ""}">${esc(text)}</div>`
     : `<div class="bar ${lv}"><span style="width:${pct ?? 0}%"></span></div>`;
-  return `<div class="metric ${hid ? "muted" : ""}">
+  // PRD 0009 RF2.2: the core's binding metric gets a highlight and a chip; every other metric stays listed.
+  const binding = isBindingMetric(r, m);
+  return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""}">
     <div class="metric-top">
-      <div><h3>${esc(m.label)}</h3><span class="sub">${esc(fmtAmount(m))}</span></div>
+      <div><h3>${esc(m.label)}${binding ? ` <span class="mini binding" data-binding-chip title="${te("card.binding.title")}">${esc(bindingChipText(r))}</span>` : ""}</h3><span class="sub">${esc(fmtAmount(m))}</span></div>
       <div class="metric-right">
         ${text == null && pct != null ? `<span class="pct ${lv}" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${icon(lv === "good" ? "check" : "warn")}${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
         ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "common.show" : "common.hide")}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
