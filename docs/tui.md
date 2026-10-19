@@ -36,6 +36,7 @@ cargo install --path crates/cuotai-tui --locked
 - With no file found in interactive mode, the wizard creates `<OS config dir>/cuotai/config.toml` (the same default as the desktop app). To create a local file, pass it explicitly: `--config ./cuotai.toml`. Existing files are never migrated, merged or overwritten automatically.
 - In `--once`/`--json` mode, with no file the default catalog is still used (the wizard does not open), and a missing or invalid explicit file returns an error. An invalid file is never ignored.
 - HTTP queries use the default variables when present; AWS only queries after `params.profile` is configured explicitly.
+- **Binding limit (`--once` and the dashboard):** `--once` opens with one line per account naming the limit that restricts it the most, chosen by the core (`Claude  bloqueada até 14:30 pela janela semanal`, `Work  mais restritiva: janela semanal em 62%`; an unknown return says so, never "now"), in `CUOTAI_LANG` and local time; accounts without one show their status. Each dashboard card leads with that metric, and the details mark it with `◆ limitante` under a `LIMITE` line while every metric stays listed. `--json` is unchanged.
 - **Exit codes (`--once` and `--json`):**
   - `0`: every account refreshed successfully (`ready`)
   - `2`: results with missing configuration or an account failure

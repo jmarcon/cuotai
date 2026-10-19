@@ -7,9 +7,9 @@
 //! or stored here.
 
 use crate::motion::{eighth_bar, Anim};
-use crate::ui::{metric_text, resolve_l10n, safe};
+use crate::ui::{local_time, metric_text, resolve_l10n, safe};
 use chrono::{DateTime, Utc};
-use cuotai_core::metrics::{classify_metric, classify_report, AccountClass, MetricState};
+use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
 #[cfg(test)]
 use cuotai_core::Snapshot;
 use cuotai_core::{Account, Metric, Report, Status};
@@ -579,9 +579,14 @@ fn render_card(
 ) {
     let account = &view.accounts[account_index];
     let report = view.reports.get(account_index).and_then(Option::as_ref);
-    let rows: Vec<MetricRow> = report
-        .map(|report| report.metrics.iter().map(metric_row).collect())
+    let mut rows: Vec<(usize, MetricRow)> = report
+        .map(|report| report.metrics.iter().map(metric_row).enumerate().collect())
         .unwrap_or_default();
+    // PRD 0009 RF3.1: the core's binding metric leads the card; the others
+    // keep the adapter order.
+    if let Some(limit) = report.and_then(binding) {
+        rows[..=limit.index].rotate_right(1);
+    }
     let class = classification(report);
     let first_note = if rows.is_empty() {
         report.and_then(|report| report.notes.first().cloned())
@@ -669,8 +674,8 @@ fn render_card(
     frame.render_widget(Paragraph::new(provider_status_line), chunks[chunk_index]);
     chunk_index += 1;
 
-    for (index, metric) in rows.iter().take(METRICS_VISIBLE_IN_CARD).enumerate() {
-        let motion = view.anim.map(|anim| (anim, account.name.as_str(), index));
+    for (index, metric) in rows.iter().take(METRICS_VISIBLE_IN_CARD) {
+        let motion = view.anim.map(|anim| (anim, account.name.as_str(), *index));
         render_metric_block(frame, &chunks, &mut chunk_index, metric, now, motion);
     }
     if note_rows > 0 {
@@ -1000,6 +1005,19 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(MUTED),
         ),
     ]));
+    let limit = binding(report);
+    if let Some(limit) = &limit {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "  LIMITE  ",
+                Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                safe(&resolve_l10n(&limit.summary(local_time))).into_owned(),
+                Style::default().fg(PINK).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+    }
     lines.push(Line::default());
     lines.push(Line::styled(
         "  QUOTAS E CONSUMO",
@@ -1029,6 +1047,14 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                         )
                     })
                     .unwrap_or_default(),
+                if limit.as_ref().is_some_and(|limit| limit.index == index) {
+                    Span::styled(
+                        "   ◆ limitante",
+                        Style::default().fg(PINK).add_modifier(Modifier::BOLD),
+                    )
+                } else {
+                    Span::default()
+                },
             ]));
             lines.push(Line::from(format!("  {}", safe(&row.text))));
             let motion = view.anim.map(|anim| (anim, account.name.as_str(), index));
@@ -1189,7 +1215,7 @@ fn format_reset_line(reset: DateTime<Utc>, now: DateTime<Utc>) -> String {
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use cuotai_core::{MetricKind, Provider};
+    use cuotai_core::{MetricKind, MetricWindow, Provider};
 
     fn metric(
         label: &str,
@@ -2008,5 +2034,102 @@ mod tests {
         );
         assert_eq!(percent(&render(&anim, 20.0).1), 20, "final value");
         assert!(!anim.active());
+    }
+
+    /// 5 h free, a daily window and the week exhausted (third, beyond the
+    /// two metrics a card shows).
+    fn blocked_by_week() -> Vec<Option<Report>> {
+        let window = |label: &str, used: f64, window: MetricWindow| Metric {
+            window: Some(window),
+            resets_at: Some(Utc.with_ymd_and_hms(2026, 1, 3, 14, 30, 0).unwrap()),
+            ..metric(label, Some(used), Some(100.0), None)
+        };
+        let mut reports = reports_of(&ready_snapshot());
+        reports[0] = Some(report(
+            Status::Ready,
+            vec![
+                window("Sessao", 0.0, MetricWindow::Window5h),
+                window("Diaria", 10.0, MetricWindow::Daily),
+                window("Semana", 100.0, MetricWindow::Weekly),
+            ],
+        ));
+        reports
+    }
+
+    fn render_rows(reports: &[Option<Report>], details: bool) -> Vec<String> {
+        let accounts = three_accounts();
+        let visible = visible_indices(&accounts, reports, "", true);
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        terminal
+            .draw(|frame| {
+                draw(
+                    frame,
+                    View {
+                        accounts: &accounts,
+                        reports,
+                        model_counts: &[],
+                        visible: &visible,
+                        selected: Some(0),
+                        details,
+                        detail_scroll: 0,
+                        show_unmeasured: true,
+                        refreshing: false,
+                        location: "config.toml",
+                        filter: "",
+                        filtering: false,
+                        next_refresh: None,
+                        error: None,
+                        anim: None,
+                    },
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn card_leads_with_binding_metric_and_keeps_adapter_order_after_it() {
+        let rows = render_rows(&blocked_by_week(), false).join("\n");
+        let week = rows.find("Semana:").expect("binding metric on the card");
+        let session = rows.find("Sessao:").expect("first other metric stays");
+        assert!(week < session);
+        assert!(
+            !rows.contains("Diaria:"),
+            "third metric folds into the hint"
+        );
+        assert!(rows.contains("+1 métrica"));
+    }
+
+    #[test]
+    fn card_without_binding_keeps_adapter_order() {
+        let mut reports = blocked_by_week();
+        if let Some(report) = reports[0].as_mut() {
+            report.status = Status::Error;
+        }
+        let rows = render_rows(&reports, false).join("\n");
+        assert!(rows.find("Sessao:").unwrap() < rows.find("Diaria:").unwrap());
+        assert!(!rows.contains("Semana:"));
+    }
+
+    #[test]
+    fn details_mark_only_the_binding_metric_and_keep_every_metric() {
+        let rows = render_rows(&blocked_by_week(), true);
+        let marked: Vec<_> = rows
+            .iter()
+            .filter(|row| row.contains("◆ limitante"))
+            .collect();
+        assert_eq!(marked.len(), 1);
+        assert!(marked[0].contains("Semana"));
+        let text = rows.join("\n");
+        assert!(text.contains("Sessao") && text.contains("Diaria"));
+        assert!(text.contains("LIMITE  bloqueada até"));
+        assert!(text.contains("pela janela semanal"));
     }
 }
