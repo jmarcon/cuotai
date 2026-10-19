@@ -9,7 +9,7 @@
 use serde::Serialize;
 
 pub const PROJECT_NAME: &str = "Cuotai";
-pub const PROJECT_LICENSE: &str = "MIT";
+pub const PROJECT_LICENSE: &str = "MIT OR Apache-2.0";
 pub const PROJECT_REPOSITORY: &str = "https://github.com/jmarcon/cuotai";
 
 /// Where a library takes part in Cuotai.

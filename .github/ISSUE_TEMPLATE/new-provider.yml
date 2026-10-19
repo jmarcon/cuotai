@@ -1,0 +1,54 @@
+name: New provider request
+description: Suggest an AI provider that Cuotai does not cover yet.
+title: "[New provider] "
+labels: ["new-provider"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cuotai only reads quotas, balances and costs. It does **not** send inference requests or spend credits to measure limits. Without a read-only way to query usage, a provider cannot be supported.
+  - type: input
+    id: name
+    attributes:
+      label: Provider and product
+      description: The provider name and the plan or product (for example, an individual subscription, an API, a coding plan).
+    validations:
+      required: true
+  - type: textarea
+    id: query
+    attributes:
+      label: How usage can be queried
+      description: |
+        A link to the official documentation, or a description of the interface the website or app uses. Say whether it needs an inference key, an admin key, a browser login or a specific plan.
+        **Do not paste tokens, cookies or real responses.**
+    validations:
+      required: true
+  - type: dropdown
+    id: documented
+    attributes:
+      label: Is the interface documented by the vendor?
+      options:
+        - Yes, official documentation
+        - No, it is an internal or observed interface
+        - I don't know
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: What would be useful to show
+      description: Windows (5 hours, week, month), balance, spend, renewal.
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Other open-source projects that already query this provider, with their license.
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmations
+      options:
+        - label: I did not include credentials or real account data.
+          required: true
+        - label: I understand that Cuotai does not make calls that spend credits.
+          required: true

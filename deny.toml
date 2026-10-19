@@ -1,0 +1,53 @@
+# Dependency policy checked with `cargo deny` (PRD 0019, RF1.3).
+#
+# The repository has two workspaces; run both from the repository root:
+#   cargo deny --config deny.toml check
+#   cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml --config deny.toml check
+
+[graph]
+all-features = true
+
+[licenses]
+confidence-threshold = 0.93
+# Permissive licenses only. MPL-2.0 has per-file copyleft, with no effect on the
+# rest of the project (cssparser, selectors and option-ext, pulled in by Tauri).
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unlicense",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CDLA-Permissive-2.0",
+    "MPL-2.0",
+    "WTFPL",
+]
+
+[advisories]
+# Unmaintained-crate advisories only count for the project's direct dependencies.
+unmaintained = "workspace"
+yanked = "deny"
+ignore = [
+    { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack (timing side channel); no fixed release exists. The only use is decrypting the Zed login token with an ephemeral key generated for that single login (oauth/reference_native.rs), so an attacker cannot observe repeated private-key operations. Revisit when a fixed rsa is released." },
+]
+
+[bans]
+multiple-versions = "warn"
+# The workspace crates depend on each other by `path` and are not yet marked
+# `publish = false`, so cargo-deny treats those paths as wildcards. Switch to
+# "deny" if the crates are marked as not publishable.
+wildcards = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

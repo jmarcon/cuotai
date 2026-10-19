@@ -1,0 +1,100 @@
+name: Broken provider or wrong data
+description: A provider query fails, shows a generic error or displays values that do not match.
+title: "[Provider] "
+labels: ["provider"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not include credentials.** No tokens, cookies, API keys, e-mails, organization names or the contents of your `cuotai.toml`. If you need to show a response, keep only its shape and replace values with placeholders.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      description: A value from `cuotai --list-providers`.
+      options:
+        - open_ai_api
+        - anthropic_api
+        - chat_gpt
+        - claude
+        - gemini_api
+        - vertex_ai
+        - aws_bedrock
+        - azure_open_ai
+        - cursor
+        - copilot
+        - windsurf
+        - mini_max
+        - kimi
+        - qwen
+        - groq
+        - perplexity
+        - mistral
+        - cloudflare_ai
+        - ollama_cloud
+        - xiaomi_mimo
+        - open_code_go
+        - qoder
+        - gemini_ai
+        - grok
+        - nvidia_nim
+        - poolside
+        - kiro
+        - cline
+        - code_buddy
+        - zed
+        - alibaba_model_studio
+        - alibaba_coding_plan
+        - alibaba_token_plan
+        - alibaba_cloud
+        - antigravity
+        - kimchi
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Cuotai version
+      description: Output of `cuotai --version`, or the version shown in About.
+    validations:
+      required: true
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Interface
+      options:
+        - Desktop
+        - TUI
+        - CLI (--once or --json)
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: How the account authenticates
+      options:
+        - Native login (OAuth, Device Code or SSO)
+        - Environment variable (key, token or cookie)
+        - Local session import (Cursor)
+        - I don't know
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happens
+      description: The message shown (copy the text, without personal data) and what you expected to see.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: The account's plan or product, when it started, whether it worked before, and whether the provider's website shows the same value.
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmations
+      options:
+        - label: I did not include credentials, e-mails or real account data.
+          required: true

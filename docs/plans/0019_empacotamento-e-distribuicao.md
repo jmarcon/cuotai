@@ -9,6 +9,19 @@
 | Depende de | nenhum; é pré-requisito dos PRDs 0014 e 0018 |
 | Data | 2026-10-19 |
 
+## Estado da implementação (2026-10-19)
+
+| RF | Versão | Entrega |
+|---|---|---|
+| RF1.1 | 0.17.2 | Licença `MIT OR Apache-2.0`: `LICENSE-MIT`, `LICENSE-APACHE`, manifestos, `about.rs` e seção no README. |
+| RF1.2 | 0.17.2 | `CONTRIBUTING.md`, `SECURITY.md` (relato privado pelo GitHub) e modelos de *issue* em `.github/ISSUE_TEMPLATE/`. |
+| RF1.3 | 0.17.2 | `deny.toml` validado com `cargo deny` 0.20 nos dois workspaces (licenças, fontes e bans sem erros). A verificação no CI depende do RF2. |
+| RF1.4 | 0.17.2 (parcial) | Regra no `AGENTS.md`; README, `CONTRIBUTING.md`, `SECURITY.md` e modelos de *issue* em inglês. A migração de `docs/` e dos PRDs continua pendente. |
+
+O primeiro `cargo deny` também encontrou quatro avisos do `rustls` e um pacote retirado, corrigidos em 0.17.1 (`chore(security)`). Continua ignorado o aviso `RUSTSEC-2023-0071` do `rsa`, sem versão corrigida, com a justificativa registrada no `deny.toml`.
+
+As seções 1 e 2 descrevem a situação antes da implementação.
+
 ## 1. Contexto
 
 O Cuotai hoje só pode ser usado a partir do código-fonte: o README manda executar `cargo run` em `apps/desktop/src-tauri` e `cargo run -p cuotai-tui` na raiz, e gerar o pacote instalável localmente. Faltam:
@@ -42,9 +55,10 @@ Sem binários, sem licença formal e sem releases, o Cuotai não tem como ser ad
 
 ### RF1 — Licença e governança (prioridade alta; pré-requisito)
 
-- **RF1.1** Adicionar `LICENSE` na raiz com o texto da licença que o responsável do projeto decidir. Os manifestos já declaram MIT; a decisão é do dono do projeto e deve ser registrada antes de qualquer release. O `apps/desktop/ui/img/providers/NOTICE.md` e o `THIRD_PARTY_NOTICES` permanecem coerentes com a escolha.
+- **RF1.1** Adicionar o texto da licença que o responsável do projeto decidir. **Decisão de 2026-10-19: `MIT OR Apache-2.0`** (convenção do ecossistema Rust, com concessão expressa de patentes), com titular "Cuotai contributors" e ano 2026, em `LICENSE-MIT` e `LICENSE-APACHE` na raiz, `license = "MIT OR Apache-2.0"` nos manifestos e `PROJECT_LICENSE` em `about.rs`. O `apps/desktop/ui/img/providers/NOTICE.md` e o `THIRD_PARTY_NOTICES` permanecem coerentes com a escolha (o código adaptado do 9router é MIT e exige manter o aviso).
 - **RF1.2** Adicionar `CONTRIBUTING.md` (como compilar, testar, política de commits semânticos em português sem acentos no assunto, regras de segurança do projeto), `SECURITY.md` (canal privado de reporte, escopo, prazos de resposta, política de divulgação) e modelos de *issue* (relatório de provedor quebrado sem credenciais, pedido de provedor novo).
 - **RF1.3** Verificar a conformidade das licenças das dependências (`cargo deny` ou equivalente, via Cargo) no CI, e manter a tela Sobre e o `THIRD_PARTY_NOTICES` em dia (o teste de divergência de `about.rs` já protege os manifestos).
+- **RF1.4** Idioma da documentação: o README e toda a documentação do repositório são escritos em **inglês**, como é comum em repositórios abertos (regra registrada no `AGENTS.md`). A interface do produto continua multilíngue (catálogos pt-BR, en-US e es). Documentos novos nascem em inglês; os documentos existentes em português (`docs/*.md`, `apps/desktop/README.md`, `docs/plans/*`) são migrados em uma tarefa própria, e nenhum arquivo mistura idiomas.
 - **Critério de aceite:** o GitHub reconhece a licença; o CI falha com dependência de licença incompatível; os documentos existem e são linkados no README.
 
 ### RF2 — Integração contínua (prioridade alta)
@@ -90,10 +104,10 @@ Sem binários, sem licença formal e sem releases, o Cuotai não tem como ser ad
 
 ### RF7 — Changelog e controle de entregas por versão (prioridade alta)
 
-- **RF7.1** Arquivo `CHANGELOG.md` na raiz, em português, no formato Keep a Changelog e com versionamento semântico. Seção `## [Não lançado]` no topo e, abaixo, uma seção por versão em ordem decrescente (`## [0.17.0] - 2026-10-18`, data em UTC), com links de comparação entre tags no rodapé. Categorias fixas: **Adicionado**, **Alterado**, **Corrigido**, **Segurança**, **Descontinuado** e **Removido**. Categoria vazia não aparece.
+- **RF7.1** Arquivo `CHANGELOG.md` na raiz, **em inglês** (regra de idioma do RF1.4), no formato Keep a Changelog e com versionamento semântico. Seção `## [Unreleased]` no topo e, abaixo, uma seção por versão em ordem decrescente (`## [0.17.0] - 2026-10-18`, data em UTC), com links de comparação entre tags no rodapé. Categorias fixas: **Added**, **Changed**, **Fixed**, **Security**, **Deprecated** e **Removed**. Categoria vazia não aparece.
 - **RF7.2** Cada entrada tem uma frase do ponto de vista do usuário (o que mudou, não como foi feito), mais as referências de rastreio entre parênteses: o requisito de plano atendido (`PRD 0006 RF2`) e o hash curto do commit. Mudança que quebra compatibilidade (TOML, `--json`, contrato `export::v1`, preferências do desktop) recebe o marcador **Incompatível** e a instrução de migração. Mudanças sem efeito para o usuário (`refactor`, `test`, `style`, `chore`) não entram, exceto correções de segurança em dependências, que entram em **Segurança**.
 - **RF7.3** Fluxo de manutenção:
-  - toda entrega visível ao usuário atualiza `[Não lançado]` no mesmo commit ou *pull request*;
+  - toda entrega visível ao usuário atualiza `[Unreleased]` no mesmo commit ou *pull request*;
   - os commits semânticos que atendem um requisito de plano trazem o rodapé `Refs: PRD 0006 RF2` (uma linha por requisito) e, quando incompatíveis, `BREAKING CHANGE:` com a migração;
   - para apoio, avaliar `git-cliff` (ferramenta Rust, instalada por Cargo) ou um `xtask` próprio que gera o **rascunho** da seção a partir dos commits desde a última tag, agrupando por tipo e por `Refs:`. O texto final é revisado por uma pessoa. Nenhuma ferramenta de JavaScript.
 - **RF7.4** Verificações no CI:
@@ -107,7 +121,7 @@ Sem binários, sem licença formal e sem releases, o Cuotai não tem como ser ad
   - o core embute o `CHANGELOG.md` (`include_str!`) e expõe `changelog::entries()` já interpretado (versão, data, categorias, entradas, referências), para as interfaces não interpretarem Markdown;
   - desktop: **Sobre → Novidades** com a versão atual e o histórico; após uma atualização, abre uma vez automaticamente, com opção de desligar em **Configurações**;
   - TUI e CLI: tela de novidades a partir de Sobre e `cuotai --changelog [VERSÃO]`;
-  - os rótulos das categorias saem nos três idiomas; o texto das entradas permanece em português nesta versão, o que é informado na própria tela.
+  - os rótulos das categorias saem nos três idiomas; o texto das entradas permanece em inglês (idioma do changelog), o que é informado na própria tela.
 - **RF7.8** Vínculo com o controle de planos: toda vez que um requisito é marcado como entregue em um PRD ou no `0000_controle.md`, a versão citada precisa existir no `CHANGELOG.md`. Uma verificação do CI compara as duas fontes e falha quando divergem.
 - **Critério de aceite:**
   - testes do *parser* (formato válido, versão sem data, categoria inválida, ordem errada);

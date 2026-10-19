@@ -5,8 +5,8 @@ Este arquivo é o índice vivo de `docs/plans`: mostra o que já foi implementad
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-10-19 |
-| Versão do Cuotai na data | 0.17.0 |
-| Planos | 19 (2 implementados, 1 em andamento, 16 propostos) |
+| Versão do Cuotai na data | 0.17.2 |
+| Planos | 19 (2 implementados, 2 em andamento, 15 propostos) |
 
 ## 1. Como manter
 
@@ -38,7 +38,7 @@ Este arquivo é o índice vivo de `docs/plans`: mostra o que já foi implementad
 | [0016](0016_sessao-colada-pelo-usuario.md) | Sessão colada pelo usuário | Proposto | — | 0005 | — | Alternativa à importação automática de cookies, que o projeto não adota. |
 | [0017](0017_extensoes-por-manifesto-e-script.md) | Extensões por manifesto e script | Proposto | — | 0005 | — | Extensão nunca recebe credenciais do Cuotai. |
 | [0018](0018_atualizacao-automatica.md) | Atualização automática do desktop | Proposto | — | 0019 (RF2 e RF3) | 0019 (RF7) | Exige par de chaves de assinatura do atualizador do Tauri. As notas da versão vêm do `CHANGELOG.md`. |
-| [0019](0019_empacotamento-e-distribuicao.md) | Licença, empacotamento, changelog e distribuição | Proposto | — | — | — | Pré-requisito dos 0014 e 0018. O RF7 cria o `CHANGELOG.md` e o vínculo versão ↔ requisito. A licença é decisão do dono do projeto. |
+| [0019](0019_empacotamento-e-distribuicao.md) | Licença, empacotamento, changelog e distribuição | Em andamento | RF1 (0.17.2) | — | — | Pré-requisito dos 0014 e 0018. RF1 entregue: licença `MIT OR Apache-2.0`, `CONTRIBUTING.md`, `SECURITY.md`, modelos de *issue* e `deny.toml`. O RF7 cria o `CHANGELOG.md` e o vínculo versão ↔ requisito. |
 
 ## 3. Entregas por versão
 
@@ -55,6 +55,8 @@ Enquanto o `CHANGELOG.md` não existe (PRD 0019, RF7), esta tabela é o controle
 | 0.13.0 | 0002 | RF6 (seção Modelos no desktop). |
 | 0.14.0 | 0002 | RF1 (conclusão: escolha do TOML no desktop e aviso de arquivos diferentes). |
 | 0.17.0 | 0004 | RF1 (base de movimento: tokens, movimento reduzido e atualização incremental do painel). |
+| 0.17.1 | — | Sem requisito de plano: atualização de segurança (`rustls` 0.23.46 e `yoke-derive` 0.8.4). |
+| 0.17.2 | 0019 | RF1 (licença, `CONTRIBUTING.md`, `SECURITY.md`, modelos de *issue*, `deny.toml`; RF1.4 parcial). |
 
 ## 4. Grafo de dependências
 
@@ -147,7 +149,8 @@ Caminho crítico de distribuição: **0019 → 0018**. Caminho crítico de integ
 
 | Decisão | Afeta | Observação |
 |---|---|---|
-| Licença do repositório | 0019 (RF1), todos os releases | Os manifestos declaram MIT, mas não existe arquivo `LICENSE`. |
+| ~~Licença do repositório~~ | 0019 (RF1) | **Decidida em 2026-10-19: `MIT OR Apache-2.0`**, titular "Cuotai contributors". |
+| Migração da documentação para inglês | 0019 (RF1.4), `docs/` e `docs/plans/` | Regra no `AGENTS.md`. Falta traduzir `docs/*.md`, `apps/desktop/README.md` e os PRDs. |
 | Conta de desenvolvedor Apple e certificado Developer ID | 0014, 0018, 0019 | Necessária para notarização e para widgets (*app group*). |
 | Certificado Authenticode do Windows | 0019 | Sem ele, o instalador sai sem assinatura, declarado nas notas da versão. |
 | Política de cookies | 0016 | Recomendação: manter a colagem manual e não importar cookies de navegadores. |
@@ -159,3 +162,4 @@ Caminho crítico de distribuição: **0019 → 0018**. Caminho crítico de integ
 |---|---|
 | 2026-10-19 | Criação do controle com os PRDs 0001 a 0019. |
 | 2026-10-19 | Changelog incluído como requisito (PRD 0019, RF7); nova seção "Entregas por versão" e rodapé `Refs:` nos commits. |
+| 2026-10-19 | PRD 0019 RF1 entregue em 0.17.2 (licença `MIT OR Apache-2.0`); decisão de idioma da documentação (inglês) registrada. |
