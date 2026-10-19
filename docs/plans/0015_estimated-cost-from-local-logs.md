@@ -1,84 +1,86 @@
-# PRD 0015 — Custo estimado a partir de logs locais
+# PRD 0015 — Estimated cost from local logs
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0015 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, Desktop e TUI |
-| Consumidores | `apps/desktop`, `crates/cuotai-tui`, PRD 0012 (campo no contrato) |
-| Depende de | PRD 0005 (rótulo de acesso `LocalCli`/estimativa); aproveita o PRD 0006 |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, desktop and TUI |
+| Consumers | `apps/desktop`, `crates/cuotai-tui`, PRD 0012 (contract field) |
+| Depends on | PRD 0005 (`LocalCli`/estimate access label); it uses PRD 0006 |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-Todas as consultas do Cuotai são **remotas**: quotas, saldos e faturas informados pelo provedor. Nada mede o que as ferramentas de linha de comando do próprio usuário (Claude Code, Codex CLI e similares) gastaram localmente. Essas ferramentas gravam transcrições de sessões em arquivos do usuário, de onde projetos como o ccusage derivam tokens e custo estimado por modelo.
+## 1. Context
 
-Na análise de mercado de 2026-10-19, o CodexBar tem varredura de custo em logs locais do Codex e do Claude (`codexbar cost`), com período configurável, base SQLite com teto de entradas e de tamanho, e preço por modelo atualizado dinamicamente; o ClaudeBar mostra custo e tokens de hoje ao lado de ontem; o OpenUsage calcula Hoje, Ontem e 30 dias a partir de logs de CLI com tabela de preços atualizável; o OpenQuota registra histórico de tokens e gasto estimado.
+All of Cuotai's queries are **remote**: quotas, balances and bills reported by the provider. Nothing measures what the user's own command-line tools (Claude Code, Codex CLI and similar) spent locally. Those tools write session transcripts to user files, from which projects like ccusage derive tokens and estimated cost per model.
 
-## 2. Problema
+In the 2026-10-19 market analysis, CodexBar has a cost scan of local Codex and Claude logs (`codexbar cost`), with a configurable period, a SQLite store with caps on entries and size, and dynamically refreshed per-model pricing; ClaudeBar shows today's cost and tokens next to yesterday's; OpenUsage computes Today, Yesterday and 30 Days from CLI logs with an updatable price table; OpenQuota records a token history and estimated spend.
 
-Assinaturas com janela (Claude, Codex) não informam quanto uma sessão custaria em preço de API. Quem quer comparar o valor da assinatura com o custo equivalente, ou entender quais projetos e modelos consomem mais, não tem como no Cuotai. Ao mesmo tempo, ler logs locais é sensível: transcrições contêm código e prompts.
+## 2. Problem
 
-## 3. Objetivos
+Window-based subscriptions (Claude, Codex) do not report how much a session would cost at API prices. Someone who wants to compare the subscription's value with the equivalent cost, or understand which projects and models consume the most, cannot do so in Cuotai. At the same time, reading local logs is sensitive: transcripts contain code and prompts.
 
-- Calcular, localmente e de forma opcional, tokens e custo estimado por dia, por modelo e por ferramenta a partir de logs de CLI, **sem nunca ler nem guardar o conteúdo das conversas**.
-- Rotular o resultado como estimativa em preço de API, separado do faturamento real dos provedores.
-- Funcionar offline, sem credenciais e sem rede (exceto atualização opcional da tabela de preços).
+## 3. Goals
 
-## 4. Não-objetivos
+- Compute, locally and optionally, tokens and estimated cost per day, per model and per tool from CLI logs, **without ever reading or storing the content of conversations**.
+- Label the result as an estimate at API prices, separate from the providers' real billing.
+- Work offline, with no credentials and no network (except an optional price-table update).
 
-- Mostrar, indexar ou exportar prompts, respostas, caminhos de projeto ou nomes de arquivos de código.
-- Custo de ferramentas que não gravam logs locais legíveis.
-- Misturar a estimativa com `Spend` de provedores ou somar valores de moedas diferentes.
-- Varredura contínua do disco: só os diretórios conhecidos, quando o recurso está ligado.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Showing, indexing or exporting prompts, responses, project paths or code file names.
+- The cost of tools that do not write readable local logs.
+- Mixing the estimate with providers' `Spend` or summing different currencies.
+- Continuous disk scanning: only the known directories, when the feature is on.
 
-### RF1 — Fontes e consentimento (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Recurso desligado por padrão. Ao ligar, a interface mostra exatamente quais diretórios serão lidos, para que serve e que só números (modelo, contagens de tokens, horário) são extraídos. O consentimento é por fonte.
-- **RF1.2** Fontes iniciais, com caminhos padrão **a confirmar na implementação** contra a versão atual de cada ferramenta e sobrescrevíveis em configuração: logs de sessão do Claude Code e do Codex CLI. Uma fonte é um adaptador com `id`, caminhos, padrão de arquivos e parser, atrás de um trait, para acrescentar outras depois.
-- **RF1.3** Nenhum adaptador lê campos de conteúdo: o parser extrai apenas `timestamp`, `model`, contagens de tokens (entrada, saída, cache de leitura e de escrita) e um identificador de sessão **anônimo** (digest). Linhas inválidas são ignoradas e contadas.
-- **RF1.4** Permissões do sistema: ler somente arquivos do próprio usuário; nunca elevar privilégios; erros de acesso (`EACCES`, volume ausente) viram estado "sem acesso", sem tentar contornar.
-- **Critério de aceite:** testes com logs sintéticos que contêm "conteúdo sensível" de marcação; nenhum valor desses campos aparece no banco, no JSON, nos logs de depuração nem na interface.
+### RF1 — Sources and consent (high priority; prerequisite)
 
-### RF2 — Indexação incremental (prioridade alta)
+- **RF1.1** The feature is off by default. When turning it on, the interface shows exactly which directories will be read, what it is for and that only numbers (model, token counts, time) are extracted. Consent is per source.
+- **RF1.2** Initial sources, with default paths **to be confirmed at implementation** against the current version of each tool and overridable in configuration: the session logs of Claude Code and Codex CLI. A source is an adapter with an `id`, paths, a file pattern and a parser, behind a trait, so others can be added later.
+- **RF1.3** No adapter reads content fields: the parser extracts only `timestamp`, `model`, token counts (input, output, cache read and write) and an **anonymous** session identifier (a digest). Invalid lines are ignored and counted.
+- **RF1.4** System permissions: read only the user's own files; never elevate privileges; access errors (`EACCES`, a missing volume) become a "no access" state, without trying to work around them.
+- **Acceptance criterion:** tests with synthetic logs that contain marked "sensitive content"; no value from those fields appears in the database, the JSON, the debug logs or the interface.
 
-- **RF2.1** Índice em SQLite próprio (`cost.sqlite3`, no diretório de dados com permissão `0600`), com tabela de uso agregado por `(fonte, dia local, modelo)` e uma tabela de controle por arquivo (digest do caminho, tamanho e posição já lidos). Reler só o que cresceu; arquivo reduzido ou trocado reinicia aquele arquivo.
-- **RF2.2** Limites: teto de arquivos por varredura, teto de linhas por arquivo, tempo máximo por ciclo, prioridade baixa de CPU e de E/S, e pausa em modo de economia de energia, para não competir com o trabalho do usuário. A varredura roda em tarefa separada e nunca atrasa o refresh de quotas.
-- **RF2.3** Período configurável (hoje, 7 dias, 30 dias, mês corrente, tudo o que está disponível) e retenção do índice (padrão 120 dias).
-- **RF2.4** Apagar índice e desligar a fonte removem tudo o que foi derivado.
-- **Critério de aceite:** testes de leitura incremental (crescimento, truncamento, rotação), idempotência, limites de tempo e de tamanho, e remoção completa.
+### RF2 — Incremental indexing (high priority)
 
-### RF3 — Preços e cálculo (prioridade alta)
+- **RF2.1** A SQLite index of its own (`cost.sqlite3`, in the data directory with `0600` permission), with a table of aggregated usage by `(source, local day, model)` and a per-file control table (a digest of the path, size and position already read). Re-read only what grew; a shrunk or replaced file restarts that file.
+- **RF2.2** Limits: a cap on files per scan, a cap on lines per file, a maximum time per cycle, low CPU and I/O priority, and a pause in energy-saving mode, so as not to compete with the user's work. The scan runs in a separate task and never delays the quota refresh.
+- **RF2.3** Configurable period (today, 7 days, 30 days, current month, everything available) and index retention (default 120 days).
+- **RF2.4** Erasing the index and turning the source off remove everything derived.
+- **Acceptance criterion:** incremental read tests (growth, truncation, rotation), idempotence, time and size limits, and complete removal.
 
-- **RF3.1** Tabela de preços por modelo embutida no binário (USD por milhão de tokens: entrada, saída, cache), com data de vigência e fonte. Modelo sem preço conhecido aparece como "custo desconhecido", nunca como zero.
-- **RF3.2** Atualização opcional da tabela por download de um arquivo assinado ou por revisão manual do usuário em `pricing.json` (preferência do usuário vence a embutida). Sem atualização automática por padrão.
-- **RF3.3** Cálculo em `cost::estimate(usage, prices) -> Estimate` no core, função pura. O resultado traz total, custo por modelo, tokens, parcela com preço desconhecido e a data da tabela usada.
-- **RF3.4** O texto sempre diz "estimativa a preço de API, não é cobrança". Valores nunca somam moedas diferentes; tudo em USD.
-- **Critério de aceite:** testes de tabela com tokens e preços conhecidos, modelo desconhecido, cache, arredondamento e tabela do usuário sobrescrevendo a embutida.
+### RF3 — Prices and computation (high priority)
 
-### RF4 — Exibição (prioridade média)
+- **RF3.1** A per-model price table embedded in the binary (USD per million tokens: input, output, cache), with an effective date and a source. A model with no known price appears as "cost unknown", never as zero.
+- **RF3.2** An optional table update through a signed file download, or manual review by the user in `pricing.json` (the user's preference wins over the embedded one). No automatic update by default.
+- **RF3.3** The computation is `cost::estimate(usage, prices) -> Estimate` in the core, a pure function. The result carries the total, the cost per model, tokens, the share with an unknown price and the date of the table used.
+- **RF3.4** The text always says "estimate at API prices, not a charge". Values never sum different currencies; everything is in USD.
+- **Acceptance criterion:** table tests with known tokens and prices, an unknown model, cache, rounding and the user's table overriding the embedded one.
 
-- **RF4.1** Desktop: cartão "Uso local" por fonte (hoje, ontem, período), no mesmo lugar para todas as contas daquela ferramenta; nos detalhes, detalhamento por dia e por modelo (gráfico de barras acessível com tabela equivalente). **Configurações → Custo local** controla fontes, caminhos, período, tabela de preços e apagar dados.
-- **RF4.2** TUI: seção nos detalhes da conta e `cuotai --cost [--days N] [--json]`, com a mesma estimativa; códigos de saída como as demais saídas não interativas.
-- **RF4.3** O resultado entra no contrato de exportação (PRD 0012) como `local_cost`, separado dos relatórios de provedores.
-- **Critério de aceite:** smoke em três idiomas com fonte ligada, desligada e sem acesso; estado vazio explicado.
+### RF4 — Display (medium priority)
 
-## 6. Requisitos não funcionais
+- **RF4.1** Desktop: a "Local usage" card per source (today, yesterday, period), in the same place for every account of that tool; in the details, a breakdown by day and by model (an accessible bar chart with an equivalent table). **Settings → Local cost** controls sources, paths, period, the price table and erasing data.
+- **RF4.2** TUI: a section in the account details and `cuotai --cost [--days N] [--json]`, with the same estimate; exit codes like the other non-interactive outputs.
+- **RF4.3** The result enters the export contract (PRD 0012) as `local_cost`, separate from the providers' reports.
+- **Acceptance criterion:** a smoke test in three languages with the source on, off and without access; an explained empty state.
 
-- **Privacidade:** nenhum conteúdo é lido, guardado ou transmitido; o índice contém só agregados. O arquivo e a configuração ficam no computador do usuário, e a exportação é explícita.
-- **Honestidade:** custo é estimativa em preço de API; assinaturas de preço fixo podem custar menos ou mais. Janelas incompletas são rotuladas.
-- **Desempenho e energia:** varredura incremental, com limites e pausa; não degradar o sistema.
-- **Riscos:** formatos de log mudam entre versões das ferramentas; cada adaptador tem testes de fixtures versionados e falha de forma isolada.
+## 6. Non-functional requirements
 
-## 7. Ordem de execução e verificação
+- **Privacy:** no content is read, stored or transmitted; the index contains only aggregates. The file and the configuration stay on the user's computer, and export is explicit.
+- **Honesty:** cost is an estimate at API prices; fixed-price subscriptions may cost less or more. Incomplete windows are labelled.
+- **Performance and energy:** an incremental scan, with limits and a pause; do not degrade the system.
+- **Risks:** log formats change between versions of the tools; each adapter has versioned fixture tests and fails in isolation.
 
-1. **RF1 e RF2:** adaptador de uma fonte, índice e limites, com logs sintéticos.
-2. **RF3:** preços e cálculo.
-3. **RF4:** desktop, TUI e CLI.
-4. Segunda fonte, quando a primeira estiver estável.
+## 7. Order of execution and verification
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+1. **RF1 and RF2:** an adapter for one source, the index and limits, with synthetic logs.
+2. **RF3:** prices and computation.
+3. **RF4:** desktop, TUI and CLI.
+4. A second source, when the first is stable.
 
-O requisito só está entregue quando, com o recurso ligado, o app mostra tokens e custo estimado de hoje e do período sem ler conteúdo de conversas, modelos sem preço aparecem como desconhecidos, apagar os dados os remove, e desligar a fonte interrompe qualquer leitura de disco.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
+
+The requirement is only delivered when, with the feature on, the app shows today's and the period's tokens and estimated cost without reading conversation content, models without a price appear as unknown, erasing the data removes it, and turning the source off stops any disk read.

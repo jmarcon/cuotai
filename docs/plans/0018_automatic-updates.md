@@ -1,84 +1,86 @@
-# PRD 0018 — Atualização automática do desktop
+# PRD 0018 — Automatic updates for the desktop app
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | Proposto |
-| Responsável | Desktop (`apps/desktop`) e pipeline de release |
-| Consumidores | `apps/desktop/src-tauri`, `apps/desktop/ui` (Configurações → Atualizações e Sobre) |
-| Depende de | PRD 0019 (RF2 e RF3: pacotes assinados e hospedagem dos artefatos) |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | Desktop (`apps/desktop`) and the release pipeline |
+| Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
+| Depends on | PRD 0019 (RF2 and RF3: signed packages and artifact hosting) |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-O desktop é um app Tauri 2 (`cuotai-desktop` 0.17.0, identificador `dev.cuotai.desktop`) que depende apenas de `tauri-plugin-dialog`. Não há plugin de atualização, não há `pubkey` em `tauri.conf.json` e não há local de onde buscar versões novas. O app fica residente na bandeja, então o usuário raramente o reinicia por conta própria e pode ficar meses numa versão antiga, que talvez dependa de interfaces de provedores que já mudaram.
+## 1. Context
 
-Na análise de mercado de 2026-10-19: o CodexBar usa Sparkle e o Homebrew para atualização; o Quotio atualiza versões estáveis e beta pelo Sparkle, com apps separados para o canal beta; o OpenUsage usa Sparkle assinado e notarizado com canal beta opcional; o OpenQuota atualiza por pacotes assinados com chave do projeto, independente da assinatura do sistema; o WhatsMyUsage avisa que não consegue se atualizar quando roda do disco de instalação.
+The desktop app is a Tauri 2 application (`cuotai-desktop` 0.17.2, identifier `dev.cuotai.desktop`) that depends only on `tauri-plugin-dialog`. There is no updater plugin, no `pubkey` in `tauri.conf.json` and no place to fetch new versions from. The app stays resident in the tray, so the user rarely restarts it on their own and can stay for months on an old version, which may depend on provider interfaces that have already changed.
 
-## 2. Problema
+In the 2026-10-19 market analysis: CodexBar uses Sparkle and Homebrew for updates; Quotio updates stable and beta versions through Sparkle, with separate apps for the beta channel; OpenUsage uses signed, notarized Sparkle with an optional beta channel; OpenQuota updates through packages signed with the project's key, independent of the system signature; WhatsMyUsage warns that it cannot update itself when it runs from the install disk image.
 
-- Corrigir um adaptador quebrado por mudança de provedor só ajuda quem consegue atualizar o app.
-- Sem canal confiável, o usuário instala manualmente e perde a continuidade.
-- Atualização automática mal feita é um vetor clássico de comprometimento: precisa de assinatura, de verificação e de consentimento.
+## 2. Problem
 
-## 3. Objetivos
+- Fixing an adapter broken by a provider change only helps those who can update the app.
+- Without a trusted channel, the user installs manually and loses continuity.
+- A badly done automatic update is a classic compromise vector: it needs a signature, verification and consent.
 
-- Verificar versões novas e instalá-las com consentimento do usuário, pelo mecanismo oficial do Tauri 2.
-- Garantir que só artefatos assinados com a chave do projeto sejam aceitos.
-- Manter a privacidade: a verificação não envia dados do usuário, e o recurso pode ser desligado.
+## 3. Goals
 
-## 4. Não-objetivos
+- Check for new versions and install them with the user's consent, through Tauri 2's official mechanism.
+- Guarantee that only artifacts signed with the project's key are accepted.
+- Keep privacy: the check sends no user data, and the feature can be turned off.
 
-- Atualizar a TUI/CLI: ela chega por gerenciadores de pacote ou download (PRD 0019).
-- Atualização silenciosa sem aviso, telemetria de uso ou coleta de identificadores.
-- Reverter versões automaticamente (a documentação orienta a reinstalar uma versão anterior).
-- Canal beta nesta versão (pode ser um PRD futuro).
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Updating the TUI/CLI: it arrives through package managers or download (PRD 0019).
+- Silent updating without a notice, usage telemetry or collecting identifiers.
+- Automatically rolling back versions (the documentation tells the user to reinstall an earlier version).
+- A beta channel in this version (may be a future PRD).
 
-### RF1 — Mecanismo e chaves (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Adotar `tauri-plugin-updater` 2.x, com a permissão correspondente em `capabilities/default.json`, e `bundle.createUpdaterArtifacts` habilitado.
-- **RF1.2** Gerar um par de chaves de assinatura de atualização do Tauri. A chave **pública** vai em `tauri.conf.json` (`plugins.updater.pubkey`); a **privada** nunca entra no repositório e fica em um segredo do pipeline de release (PRD 0019), com procedimento documentado de rotação e de perda.
-- **RF1.3** Endpoint de atualização estático (um `latest.json` por plataforma e arquitetura, hospedado junto dos artefatos de release), acessível por HTTPS. O plugin só aceita artefatos cuja assinatura confere com a chave pública embutida.
-- **RF1.4** Versionamento: `latest.json` traz versão semântica, notas da versão em texto simples, data, URL e assinatura. Só se atualiza para versão **maior**; a mesma versão ou menor é ignorada.
-- **Critério de aceite:** teste de integração com um servidor local simulando `latest.json`: versão maior com assinatura válida (aceita), assinatura inválida (rejeitada), versão igual ou menor (ignorada), manifesto malformado (erro tratado).
+### RF1 — Mechanism and keys (high priority; prerequisite)
 
-### RF2 — Fluxo no app (prioridade alta)
+- **RF1.1** Adopt `tauri-plugin-updater` 2.x, with the matching permission in `capabilities/default.json`, and `bundle.createUpdaterArtifacts` enabled.
+- **RF1.2** Generate a Tauri update-signing key pair. The **public** key goes in `tauri.conf.json` (`plugins.updater.pubkey`); the **private** one never enters the repository and lives in a release-pipeline secret (PRD 0019), with a documented rotation and loss procedure.
+- **RF1.3** A static update endpoint (one `latest.json` per platform and architecture, hosted alongside the release artifacts), reachable over HTTPS. The plugin only accepts artifacts whose signature matches the embedded public key.
+- **RF1.4** Versioning: `latest.json` carries a semantic version, release notes in plain text, a date, a URL and a signature. It only updates to a **greater** version; the same or a lower version is ignored.
+- **Acceptance criterion:** an integration test with a local server simulating `latest.json`: a greater version with a valid signature (accepted), an invalid signature (rejected), an equal or lower version (ignored), a malformed manifest (handled error).
 
-- **RF2.1** Verificação automática ao abrir e depois uma vez a cada 24 horas, apenas se o usuário não desligou (padrão: ligado, com explicação clara na primeira execução do que é enviado). A requisição leva apenas a versão atual, o sistema operacional e a arquitetura exigidos pelo endpoint, sem identificador de usuário ou de máquina.
-- **RF2.2** Ao encontrar versão nova, exibir um aviso na janela principal e no menu da bandeja ("Atualização 0.18.0 disponível"), com as notas da versão (a seção correspondente do `CHANGELOG.md`, PRD 0019 RF7.5) e os botões **Atualizar agora** e **Lembrar depois**. Nada baixa ou instala sem clique.
-- **RF2.3** Instalação: baixar, verificar a assinatura, aplicar e pedir reinício, mostrando progresso e permitindo cancelar o download. Em caso de falha (rede, assinatura, espaço, permissão), mostrar uma mensagem localizada, manter a versão atual intacta e oferecer o link manual de download.
-- **RF2.4** Antes de reiniciar, salvar o estado necessário (configuração, preferências). O ciclo de refresh e os logins em andamento são interrompidos de forma limpa; um login nativo em curso bloqueia a atualização com aviso.
-- **RF2.5** Quando o app roda de um local que não permite se atualizar (imagem de disco montada, pasta somente leitura, instalação gerenciada por pacote), explicar e orientar o usuário em vez de falhar.
-- **Critério de aceite:** smoke no macOS, Windows e Linux (quando houver pacote) atualizando de uma versão antiga para a nova, com falha simulada de rede e de assinatura; a configuração e as contas persistem.
+### RF2 — Flow in the app (high priority)
 
-### RF3 — Configurações e Sobre (prioridade média)
+- **RF2.1** Automatic check on opening and then once every 24 hours, only if the user has not turned it off (default: on, with a clear explanation on first run of what is sent). The request carries only the current version, the operating system and the architecture that the endpoint requires, with no user or machine identifier.
+- **RF2.2** On finding a new version, show a notice in the main window and in the tray menu ("Update 0.18.0 available"), with the release notes (the matching section of `CHANGELOG.md`, PRD 0019 RF7.5) and the **Update now** and **Remind me later** buttons. Nothing downloads or installs without a click.
+- **RF2.3** Installation: download, verify the signature, apply and ask for a restart, showing progress and allowing the download to be cancelled. On failure (network, signature, space, permission), show a localized message, keep the current version intact and offer the manual download link.
+- **RF2.4** Before restarting, save the necessary state (configuration, preferences). The refresh cycle and logins in progress are interrupted cleanly; a native login in progress blocks the update with a notice.
+- **RF2.5** When the app runs from a location that does not allow self-update (a mounted disk image, a read-only folder, an installation managed by a package manager), explain and guide the user instead of failing.
+- **Acceptance criterion:** a smoke test on macOS, Windows and Linux (when there is a package) updating from an old version to the new one, with a simulated network and signature failure; the configuration and accounts persist.
 
-- **RF3.1** **Configurações → Atualizações**: chave para verificar automaticamente, botão **Verificar agora**, data da última verificação, versão atual e canal (estável). A tela Sobre mostra a versão e o estado.
-- **RF3.2** Quando o recurso está desligado, o app não faz nenhuma requisição de atualização. A instalação gerenciada por Homebrew, winget ou AUR deve poder desligar o atualizador interno (variável de ambiente ou chave de build), para não competir com o gerenciador.
-- **RF3.3** Preferências em `desktop.json`, textos nos três idiomas.
-- **Critério de aceite:** smoke em três idiomas; com o recurso desligado, captura de rede mostra zero requisições do atualizador.
+### RF3 — Settings and About (medium priority)
 
-### RF4 — Segurança operacional (prioridade alta)
+- **RF3.1** **Settings → Updates**: a switch to check automatically, a **Check now** button, the date of the last check, the current version and the channel (stable). The About screen shows the version and the state.
+- **RF3.2** When the feature is off, the app makes no update request. An installation managed by Homebrew, winget or AUR must be able to turn the internal updater off (an environment variable or a build key), so it does not compete with the manager.
+- **RF3.3** Preferences in `desktop.json`, texts in the three languages.
+- **Acceptance criterion:** a smoke test in three languages; with the feature off, a network capture shows zero updater requests.
 
-- **RF4.1** A chave privada de assinatura é usada apenas no pipeline de release, em ambiente protegido, com acesso restrito e registro de uso; o repositório e os logs de CI nunca a exibem.
-- **RF4.2** Documento de resposta a incidentes: o que fazer se a chave vazar (nova chave, versão de transição assinada com a chave antiga que embute a nova, comunicação aos usuários).
-- **RF4.3** O endpoint de atualização é servido apenas por HTTPS; falha de certificado é erro, nunca é ignorada.
-- **Critério de aceite:** revisão do pipeline (PRD 0019) confirmando que a chave privada só existe como segredo; teste de recusa de endpoint HTTP e de certificado inválido.
+### RF4 — Operational security (high priority)
 
-## 6. Requisitos não funcionais
+- **RF4.1** The private signing key is used only in the release pipeline, in a protected environment, with restricted access and use logging; the repository and the CI logs never show it.
+- **RF4.2** An incident-response document: what to do if the key leaks (a new key, a transition version signed with the old key that embeds the new one, communication to users).
+- **RF4.3** The update endpoint is served only over HTTPS; a certificate failure is an error, never ignored.
+- **Acceptance criterion:** a review of the pipeline (PRD 0019) confirming that the private key exists only as a secret; a test that refuses an HTTP endpoint and an invalid certificate.
 
-- **Privacidade:** nenhum identificador persistente, nenhum dado de contas ou de uso é enviado ao verificar atualizações. A documentação lista exatamente o que a requisição contém.
-- **Confiança:** assinatura obrigatória; atualização por consentimento.
-- **Compatibilidade:** contas, TOML, histórico e preferências sobrevivem à atualização; migrações de esquema são para frente.
+## 6. Non-functional requirements
 
-## 7. Ordem de execução e verificação
+- **Privacy:** no persistent identifier, no account or usage data is sent when checking for updates. The documentation lists exactly what the request contains.
+- **Trust:** a mandatory signature; update by consent.
+- **Compatibility:** accounts, TOML, history and preferences survive the update; schema migrations go forward only.
 
-1. **RF1:** plugin, chaves e teste com servidor simulado.
-2. **RF2 e RF3:** fluxo no app e configurações.
-3. **RF4:** procedimentos e verificação do pipeline, junto do PRD 0019.
+## 7. Order of execution and verification
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+1. **RF1:** plugin, keys and a test with a simulated server.
+2. **RF2 and RF3:** the flow in the app and settings.
+3. **RF4:** procedures and verification of the pipeline, together with PRD 0019.
 
-O requisito só está entregue quando um app instalado numa versão anterior atualiza para a seguinte com consentimento, rejeita qualquer pacote com assinatura inválida, preserva todos os dados do usuário, e com o recurso desligado não faz nenhuma requisição de atualização.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
+
+The requirement is only delivered when an app installed on an earlier version updates to the next one with consent, rejects any package with an invalid signature, preserves all the user's data, and with the feature off makes no update request.
