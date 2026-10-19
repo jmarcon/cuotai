@@ -1,13 +1,13 @@
-# Logos de providers
+# Provider logos
 
-Glifos SVG monocromáticos, pintados por máscara CSS sobre um ladrilho com a cor da marca (ver `logo()` em `js/lib.js`).
+Monochrome SVG glyphs, painted through a CSS mask over a tile in the brand color (see `logo()` in `js/lib.js`).
 
-- Todos, exceto `zed.svg` e `kimchi.svg`: https://github.com/lobehub/lobe-icons
-  (pacote `@lobehub/icons-static-svg` 1.95.1), licença MIT (`LICENSE-lobe-icons`). Os atributos de tamanho/estilo e o
-  `<title>` foram removidos para o glifo escalar pelo CSS; os traçados não foram alterados.
-- `zed.svg`: https://github.com/simple-icons/simple-icons (13.0.0), licença CC0 (`LICENSE-simple-icons`).
-- `kimchi.svg`: arte colorida do provider Kimchi, usada como veio.
-- `LICENSE-9router`: os PNG anteriores vinham de https://github.com/decolua/9router (MIT) e foram substituídos;
-  a licença fica registrada por histórico.
+- All of them, except `zed.svg` and `kimchi.svg`: https://github.com/lobehub/lobe-icons
+  (package `@lobehub/icons-static-svg` 1.95.1), MIT license (`LICENSE-lobe-icons`). The size/style attributes and the
+  `<title>` were removed so the glyph scales through CSS; the paths were not changed.
+- `zed.svg`: https://github.com/simple-icons/simple-icons (13.0.0), CC0 license (`LICENSE-simple-icons`).
+- `kimchi.svg`: the Kimchi provider's colored artwork, used as supplied.
+- `LICENSE-9router`: the earlier PNG files came from https://github.com/decolua/9router (MIT) and were replaced;
+  the license is kept for the record.
 
-Os logotipos são marcas dos respectivos titulares, usados apenas para identificar o provider.
+The logos are trademarks of their respective owners, used only to identify the provider.
