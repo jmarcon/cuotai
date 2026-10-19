@@ -18,6 +18,7 @@ apps/desktop/             Tauri 2 app: main window, tray popover and native menu
 - **`transport`**: a guard every credential-bearing request goes through (`providers::send`, `oauth::send_secure`): HTTPS is always allowed, plain HTTP only to loopback hosts (local OAuth callbacks and the contract tests' `wiremock` servers). Anything else fails closed with `query.insecure_transport` / `oauth_error.insecure_endpoint` before a byte is sent, and the URL is never reported.
 - **`metrics`**: `classify_report` and `classify_metric` derive availability and consumption (`AccountClass` and `MetricState`). `binding(report)` picks the account's binding metric: among `Quota` metrics with a finite positive cap (`RateLimit` only when none qualifies), the exhausted one with the latest `resets_at` when the account is blocked (`blocked_until`; unknown when a return is missing), otherwise the smallest remaining fraction, ties to the shortest window then adapter order; non-`Ready` or unmeasured reports return `None`. `binding_ratio`/`cmp_binding` sort accounts with no value last, and `Binding::summary` emits the localized line (`binding.*`, nested `metric_window.*`).
 - **`freshness`**: `age(checked_at, now)` and `assess(checked_at, interval, now)` classify a measurement as `Fresh` (up to 1.5× the account's effective interval), `Aging` (up to 3×) or `Stale`, with an injected clock; a measurement newer than `now` (clock went backwards) reads as age zero and `clock_adjusted` reports it.
+- **`pace`**: `assess(metric, now, recent)` compares a `Quota` metric in a `window_5h`/`daily`/`weekly`/`monthly` window with a uniform pace until `resets_at` (calendar month for `monthly`; an RFC 3339 start in `period` wins when coherent): elapsed and expected fractions, `delta_points`, stage `Reserve`/`OnPace`/`Ahead`/`Exhausted` (±5-point band) with a `good`/`neutral`/`warn`/`bad` tone, and a linear projection (`source` `Average` since the start, or `Recent` slope over ≥ 3 `Point { taken_at, used }` samples in the last 2 hours or 10% of the window). Missing or non-finite data, a past reset and a window under 5% (or 10 minutes) old return `None`. `stage_label`/`outlook_label` emit `pace.*` texts.
 - **`oauth` and `login`**: `OAuthSession`, `OAuthConfig`, `OAuthLogin` and `TokenStore` manage credentials and renewal; `cuotai_core::login` exposes a cancellable, UI-independent driver with prompt/progress events and a staged commit between the vault and the TOML.
 
 ### Using it as a Rust library
@@ -48,7 +49,7 @@ Structured texts emitted by the core carry `Localized { id, params, fallback }`:
   `include_str!` and `serde_json` behind a `LazyLock`). Every core id
   (field.*, native.*, login.*, credential_help.*, oauth.*,
   cost_advisory.*, edit_error.*, query.*, note.*, remove_error.*,
-  remove.kept.*, status.*, provider.*, binding.*, metric_window.*) lives in `en-US.json` and `es.json`
+  remove.kept.*, status.*, provider.*, binding.*, metric_window.*, pace.*) lives in `en-US.json` and `es.json`
   with the same set of keys; `pt-BR` does not consult a catalog and uses
   the Portuguese `fallback` embedded in each `Localized`. Resolution
   (`Localized::resolve`, `cuotai_core::text::core_catalog`) follows the order

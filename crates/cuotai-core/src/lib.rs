@@ -12,6 +12,7 @@ pub mod metrics;
 mod model;
 pub mod models;
 pub mod oauth;
+pub mod pace;
 mod providers;
 pub mod refresh;
 pub mod text;
