@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0009 |
-| Status | In progress |
+| Status | Implemented |
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (tray, cards, popover), `crates/cuotai-tui` (`dashboard.rs`), PRDs 0007, 0012 and 0014 |
 | Depends on | none |
@@ -16,7 +16,7 @@
 | RF1 | 0.22.0 | `cuotai_core::metrics::binding(report) -> Option<Binding>` (`index`, `label`, `window`, `used_ratio`, `remaining`, `resets_at`, `reason` `Exhausted`/`Tightest`, `blocked_until`), eligibility from `classify_metric` with a finite positive cap; `RateLimit` only without an eligible `Quota`; blocked picks the exhausted metric with the latest return (a missing return wins and leaves `blocked_until` unknown); otherwise the smallest remaining fraction, ties to the shortest window then adapter order. `binding_ratio` and `cmp_binding` sort accounts with no value last. Table tests cover every listed case. |
 | RF4 | 0.22.0 | `Binding::summary(format_at) -> Localized` with ids `binding.blocked_until`, `binding.blocked` (unknown return) and `binding.tightest`; known windows travel as nested `metric_window.*`, others as the metric label; `en-US` and `es` catalogs, Portuguese fallback; catalog test over every variant. |
 | RF2 | 0.26.0 | The desktop `get_view`/`snapshot` `ReportView` carries the core `binding` (`metrics::binding`) and `binding_rank` (stable sort by `cmp_binding`, so ties and accounts without a value keep the manual order). The tray ring, list row, ring tooltip and native tray menu read `binding`; blocked accounts show "Blocked until {time}" (unknown return: "return time unknown", never "now"). The card shows a `Week · 100%` chip next to the state and marks the binding 5 h/week window or summary bar; the details list highlights the binding metric with the same chip and keeps every metric. Settings has an opt-in "Most restrictive first" order (also in the sort menu) stored as the local sort mode only; the TOML order is never rewritten. Strings in `pt-BR`, `en-US` and `es`. A backend test covers a 5 h free / week exhausted account (binding week, blocked until the week's return, ranked first); browser smoke in the three languages confirmed the ring and the chip show the week. |
-| RF3 | — | Not delivered. |
+| RF3 | 0.27.0 | The TUI card leads with the core `binding` metric (the others follow in adapter order; the card still shows two plus the "+N métricas" hint); without a binding the adapter order stays. The details add a `LIMITE` line with `Binding::summary` (local `HH:MM`, date when not today; `CUOTAI_LANG`) and mark the binding metric with "◆ limitante" while listing every metric. `--once` opens with one line per account: `Claude  bloqueada até 14:30 pela janela semanal` / `Work  mais restritiva: janela semanal em 62%` (unknown return: "horário de retorno desconhecido"); accounts without a binding print their status or class. `--json` and the exit codes are unchanged; the binding enters the versioned contract through PRD 0012 RF1.1 (`AccountExport.binding`) when `export::v1` exists. `TestBackend` tests cover the card order, the unchanged order without a binding and the single marker; a text snapshot covers `--once`. |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 

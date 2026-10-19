@@ -6,10 +6,11 @@ mod motion;
 mod ui;
 mod wizard;
 
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use cuotai_core::{
-    config_file::ConfigFile, oauth::OAuthSession, EnvironmentCredentials, Monitor, Provider,
-    Snapshot, Status,
+    config_file::ConfigFile, metrics, oauth::OAuthSession, EnvironmentCredentials, Monitor,
+    Provider, Snapshot, Status,
 };
 use std::{
     io::{self, IsTerminal, Write},
@@ -105,6 +106,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
 
 fn print_snapshot(snapshot: &Snapshot) {
     println!("CUOTAI • {}", snapshot.finished_at.to_rfc3339());
+    print!(
+        "\n{}",
+        summary_lines(snapshot, ui::tui_locale(), ui::local_time)
+    );
     for report in &snapshot.reports {
         println!(
             "\n{} / {} — {}",
@@ -132,5 +137,113 @@ fn print_snapshot(snapshot: &Snapshot) {
         if !report.source.is_empty() {
             println!("  Fonte: {}", ui::safe(&report.source));
         }
+    }
+}
+
+/// PRD 0009 RF3.2: one line per account with the core's binding summary;
+/// accounts without one show their status (or class when ready).
+fn summary_lines(
+    snapshot: &Snapshot,
+    locale: &str,
+    at: impl Fn(DateTime<Utc>) -> String,
+) -> String {
+    let mut out = String::new();
+    for report in &snapshot.reports {
+        let state = match metrics::binding(report) {
+            Some(limit) => limit.summary(&at).resolve(locale),
+            None if report.status == Status::Ready => {
+                dashboard::class_label(dashboard::classification(Some(report))).to_string()
+            }
+            None => report.status.label().to_string(),
+        };
+        out.push_str(&format!(
+            "{}  {}\n",
+            ui::safe(&report.account),
+            ui::safe(&state)
+        ));
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use cuotai_core::{Metric, MetricKind, MetricWindow, Report};
+
+    fn quota(window: MetricWindow, used: f64, resets_at: Option<DateTime<Utc>>) -> Metric {
+        Metric {
+            label: format!("{window:?}"),
+            used: Some(used),
+            limit: Some(100.0),
+            remaining: None,
+            unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(window),
+            period: None,
+            resets_at,
+        }
+    }
+
+    fn report(account: &str, status: Status, metrics: Vec<Metric>) -> Report {
+        Report {
+            account: account.into(),
+            provider: Provider::Claude,
+            checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            status,
+            metrics,
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+        }
+    }
+
+    #[test]
+    fn once_summary_shows_binding_limit_per_account() {
+        let week_reset = Utc.with_ymd_and_hms(2026, 1, 3, 14, 30, 0).unwrap();
+        let snapshot = Snapshot {
+            started_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            finished_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 1).unwrap(),
+            reports: vec![
+                // 5 h free, week exhausted: blocked by the week.
+                report(
+                    "Claude",
+                    Status::Ready,
+                    vec![
+                        quota(MetricWindow::Window5h, 0.0, None),
+                        quota(MetricWindow::Weekly, 100.0, Some(week_reset)),
+                    ],
+                ),
+                report(
+                    "Work",
+                    Status::Ready,
+                    vec![
+                        quota(MetricWindow::Window5h, 10.0, None),
+                        quota(MetricWindow::Weekly, 62.0, None),
+                    ],
+                ),
+                // Exhausted without a known return: never "now".
+                report(
+                    "Night",
+                    Status::Ready,
+                    vec![quota(MetricWindow::Monthly, 100.0, None)],
+                ),
+                report("Ops", Status::AuthenticationError, Vec::new()),
+                report("Empty", Status::Ready, Vec::new()),
+            ],
+        };
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        assert_eq!(
+            summary_lines(&snapshot, "en-US", at),
+            "Claude  blocked until 14:30 by the weekly window\n\
+             Work  most restrictive: weekly window at 62%\n\
+             Night  blocked by the monthly window; return time unknown\n\
+             Ops  Autenticação\n\
+             Empty  Sem dados\n"
+        );
+        assert_eq!(
+            summary_lines(&snapshot, "pt-BR", at).lines().next(),
+            Some("Claude  bloqueada até 14:30 pela janela semanal")
+        );
     }
 }

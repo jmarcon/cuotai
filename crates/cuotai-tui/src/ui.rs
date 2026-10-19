@@ -2048,6 +2048,16 @@ pub(crate) fn resolve_l10n(note: &cuotai_core::text::Localized) -> String {
     note.resolve(tui_locale())
 }
 
+/// Local `HH:MM` for an instant today, `YYYY-MM-DD HH:MM` otherwise.
+pub(crate) fn local_time(at: chrono::DateTime<chrono::Utc>) -> String {
+    let local = at.with_timezone(&chrono::Local);
+    if local.date_naive() == chrono::Local::now().date_naive() {
+        local.format("%H:%M").to_string()
+    } else {
+        local.format("%Y-%m-%d %H:%M").to_string()
+    }
+}
+
 pub(crate) fn metric_text(metric: &Metric) -> String {
     let number = |value: Option<f64>| {
         value

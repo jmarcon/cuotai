@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-19
+
+### Added
+
+- The TUI and `--once` show each account's most restrictive limit, chosen by the core: a dashboard card leads with that metric instead of the first one (an account blocked by the weekly window and free on the 5-hour one shows the week first), the details mark it with "◆ limitante" and a "LIMITE" summary line while every metric stays listed, and `--once` opens with one summary line per account such as `Claude  bloqueada até 14:30 pela janela semanal` (in `CUOTAI_LANG`, local time); `--json` and the exit codes are unchanged (PRD 0009 RF3).
+
 ## [0.26.0] - 2026-10-19
 
 ### Added
 
-- The desktop app shows each account's most restrictive limit, chosen by the core: the tray ring uses it (an account blocked by the weekly window and free on the 5-hour one shows the week), the list view, tray menu and ring tooltip say "Blocked until <time>" when the account is blocked, each card shows a "Week · 100%" chip next to its state and highlights that window and that metric in the details while every other metric stays visible, and Settings offers an optional "Most restrictive first" order that never rewrites the manual drag-and-drop order shared with the TUI (PRD 0009 RF2).
+- The desktop app shows each account's most restrictive limit, chosen by the core: the tray ring uses it (an account blocked by the weekly window and free on the 5-hour one shows the week), the list view, tray menu and ring tooltip say "Blocked until <time>" when the account is blocked, each card shows a "Week · 100%" chip next to its state and highlights that window and that metric in the details while every other metric stays visible, and Settings offers an optional "Most restrictive first" order that never rewrites the manual drag-and-drop order shared with the TUI (PRD 0009 RF2, ff3429f).
 
 ## [0.25.0] - 2026-10-19
 
@@ -288,8 +294,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/c2ebd6d...main
-[0.26.0]: https://github.com/jmarcon/cuotai/compare/c2ebd6d...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/ff3429f...main
+[0.27.0]: https://github.com/jmarcon/cuotai/compare/ff3429f...main
+[0.26.0]: https://github.com/jmarcon/cuotai/commit/ff3429f
 [0.25.0]: https://github.com/jmarcon/cuotai/commit/c2ebd6d
 [0.24.0]: https://github.com/jmarcon/cuotai/commit/6d37344
 [0.23.0]: https://github.com/jmarcon/cuotai/commit/51e7f24
