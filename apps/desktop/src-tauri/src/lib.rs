@@ -331,6 +331,12 @@ fn open_user_dir() -> Result<(), String> {
     settings::open_user_dir().map_err(str::to_owned)
 }
 
+/// PRD 0004 RF1.2: `system`, `always`, `reduced` ou `off`. Erros: `invalid_motion`, `unwritable`.
+#[tauri::command]
+fn set_motion(motion: String) -> Result<(), String> {
+    settings::save_motion(&motion).map_err(str::to_owned)
+}
+
 /// RF1.2: `path = None` volta ao `cuotai.toml` padrão do SO. Recarrega pelo core e só então
 /// grava a escolha em `desktop.json`. Erros: códigos de `settings` ou o JSON tipado do core.
 #[tauri::command]
@@ -431,6 +437,7 @@ pub fn run() {
             set_tray_menu,
             set_user_dir,
             open_user_dir,
+            set_motion,
             open_settings,
             show_main_window,
             quit_app

@@ -14,6 +14,20 @@ struct Stored {
     user_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     config_file: Option<String>,
+    /// Animações (PRD 0004 RF1.2); ausente = `system`. Texto livre na leitura: um valor
+    /// desconhecido vira `system` sem invalidar os demais campos do arquivo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    motion: Option<String>,
+}
+
+/// Valores aceitos para `motion`, na ordem exibida pela UI.
+pub const MOTIONS: [&str; 4] = ["system", "always", "reduced", "off"];
+
+fn motion_of(stored: &Stored) -> &'static str {
+    MOTIONS
+        .into_iter()
+        .find(|m| stored.motion.as_deref() == Some(m))
+        .unwrap_or("system")
 }
 
 /// Pasta padrão de configuração do Cuotai (`<config do SO>/cuotai`).
@@ -117,6 +131,17 @@ pub fn save_config_file(path: Option<&Path>) -> Result<(), &'static str> {
     })
 }
 
+/// Grava a preferência de animações. Erro com código estável: `invalid_motion`.
+pub fn save_motion(motion: &str) -> Result<(), &'static str> {
+    if !MOTIONS.contains(&motion) {
+        return Err("invalid_motion");
+    }
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        s.motion = (motion != "system").then(|| motion.to_owned())
+    })
+}
+
 #[derive(Serialize)]
 pub struct SettingsView {
     /// Pasta em uso agora.
@@ -130,6 +155,8 @@ pub struct SettingsView {
     config_file: Option<String>,
     /// `CUOTAI_CONFIG` definida: tem prioridade sobre o arquivo escolhido.
     config_env_locked: bool,
+    /// Animações: `system`, `always`, `reduced` ou `off`.
+    motion: &'static str,
     version: &'static str,
 }
 
@@ -143,6 +170,7 @@ pub fn view() -> SettingsView {
         config_env_locked: cuotai_core::config_file::Locations::from_process()
             .env
             .is_some(),
+        motion: motion_of(&load()),
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -198,5 +226,23 @@ mod tests {
         let stored = read(&file);
         assert_eq!(stored.user_dir.as_deref(), Some("/u"));
         assert_eq!(stored.config_file, None);
+    }
+
+    #[test]
+    fn motion_defaults_to_system_and_round_trips_without_touching_other_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(motion_of(&read(&file)), "system");
+        update(&file, |s| s.user_dir = Some("/u".into())).unwrap();
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let stored = read(&file);
+        assert_eq!(motion_of(&stored), "off");
+        assert_eq!(stored.user_dir.as_deref(), Some("/u"));
+        // Valor desconhecido (edição manual) cai no padrão e não apaga o resto.
+        fs::write(&file, r#"{"user_dir":"/u","motion":"fast"}"#).unwrap();
+        let stored = read(&file);
+        assert_eq!(motion_of(&stored), "system");
+        assert_eq!(stored.user_dir.as_deref(), Some("/u"));
+        assert_eq!(save_motion("fast"), Err("invalid_motion"));
     }
 }

@@ -10,6 +10,7 @@ import {
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice,
 } from "./lib.js";
+import { patch } from "./util.js";
 
 await boot();
 
@@ -178,11 +179,9 @@ function render() {
   const { view, error } = store;
   const reports = view?.reports ?? [];
   const ordered = sortReports(reports).filter(matchesFilter);
-  const filterBox = document.getElementById("filter");
-  const keepFocus = !!filterBox && document.activeElement === filterBox;
-  const caret = filterBox?.selectionStart ?? null;
   const loading = !!view && view.busy.length > 0;
-  root.innerHTML = `<div class="shell">
+  // Reconciliação por cartão (`data-card`): foco, cursor do filtro, rolagem e barras sobrevivem ao redesenho.
+  patch(root, `<div class="shell">
     <header class="topbar" data-tauri-drag-region>
       <img class="brand" src="img/logo.svg" alt="" width="22" height="22" data-tauri-drag-region /><h1 data-tauri-drag-region>Cuotai</h1><div class="spacer" data-tauri-drag-region></div>
       <div class="filter"><span class="filter-ico">${icon("search")}</span>
@@ -200,12 +199,7 @@ function render() {
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
-    <main class="grid">${ordered.map((report, position) => card(report, position, ordered)).join("")}</main></div>`;
-  if (keepFocus) {
-    const input = document.getElementById("filter");
-    input?.focus();
-    if (input && caret != null) input.setSelectionRange(caret, caret);
-  }
+    <main class="grid">${ordered.map((report, position) => card(report, position, ordered)).join("")}</main></div>`);
 }
 
 root.addEventListener("click", (e) => {

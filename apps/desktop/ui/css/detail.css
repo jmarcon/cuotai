@@ -119,7 +119,7 @@
   color: var(--btn-fg);
 }
 .models-sync:disabled svg.i {
-  animation: spin 1s linear infinite;
+  animation: spin var(--motion-spin) linear infinite;
 }
 .models-status,
 .models-meta {

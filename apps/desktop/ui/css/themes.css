@@ -36,6 +36,35 @@
   --input-bg: var(--bg);
   --switch-knob: #ffffff;
   --body-bg: var(--bg);
+  /* movimento (PRD 0004 RF1.1) */
+  --motion-fast: 150ms;
+  --motion-base: 250ms;
+  --motion-slow: 400ms;
+  --motion-spin: 900ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* fallback sem linear() */
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.25 7%, 0.69 17%, 1.04 29%, 1.12 37%, 1.09 46%, 1 61%, 0.98 75%, 1);
+  }
+}
+/* Movimento reduzido (RF1.2): a opção do app ("Reduzidas"/"Desligadas") ou o sistema, salvo "Sempre".
+   `!important` de propósito: a acessibilidade vence qualquer tema (temas não podem usar `!important`). */
+:root[data-motion="reduced"],
+:root[data-motion="off"] {
+  --motion-fast: 0ms !important;
+  --motion-base: 0ms !important;
+  --motion-slow: 0ms !important;
+  --motion-spin: 0ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="always"]) {
+    --motion-fast: 0ms !important;
+    --motion-base: 0ms !important;
+    --motion-slow: 0ms !important;
+    --motion-spin: 0ms !important;
+  }
 }
 
 * {
@@ -126,7 +155,7 @@ p {
   color: var(--bad);
 }
 .spin {
-  animation: spin 0.9s linear infinite;
+  animation: spin var(--motion-spin) linear infinite;
 }
 @keyframes spin {
   to {
@@ -146,7 +175,7 @@ p {
   height: 100%;
   border-radius: inherit;
   background: currentColor;
-  transition: width 0.4s ease;
+  transition: width var(--motion-slow) var(--ease-out);
 }
 .bar.thin {
   height: 3px;
@@ -200,9 +229,6 @@ p {
   color: var(--fg);
 }
 
-.spin {
-  animation: spin 0.9s linear infinite;
-}
 svg.i {
   width: 1em;
   height: 1em;

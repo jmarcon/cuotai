@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setMotion, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 
@@ -21,7 +21,11 @@ export async function openSettings(extra = {}) {
     const nLocales = LOCALES.filter((x) => x.user).length;
     dlg.innerHTML = `<div class="dlg-body">
       <h2>${te("settings.title")}</h2>
-      <section class="set-sec"><h3>${te("settings.appearance")}</h3>${themeSwitchHtml({ themeSelect: true })}</section>
+      <section class="set-sec"><h3>${te("settings.appearance")}</h3>${themeSwitchHtml({ themeSelect: true })}
+        <label class="f"><span>${te("settings.motion.label")}</span>
+          <select id="motion">${MOTIONS.map((m) => `<option value="${m}" ${s.motion === m ? "selected" : ""}>${te(`settings.motion.${m}`)}</option>`).join("")}</select>
+          <small>${te("settings.motion.help")}</small></label>
+        <p class="err" id="motion-msg" role="alert"></p></section>
       <section class="set-sec"><h3>${te("lang.label")}</h3>${langMenuHtml({ inline: true })}</section>
       <section class="set-sec"><h3>${te("settings.refresh.title")}</h3>
         <p class="hint">${te("settings.refresh.help")}</p>
@@ -64,6 +68,8 @@ export async function openSettings(extra = {}) {
     </div>`;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelector("[data-libraries]").onclick = () => openLibraries();
+    dlg.querySelector("#motion").onchange = (e) =>
+      setMotion(e.target.value).then(() => { dlg.querySelector("#motion-msg").textContent = ""; }, (x) => { dlg.querySelector("#motion-msg").textContent = errorText(x); });
     const input = dlg.querySelector("#refresh-seconds");
     const msg = dlg.querySelector("#refresh-msg");
     for (const b of dlg.querySelectorAll("[data-preset]")) b.onclick = () => { input.value = b.dataset.preset; msg.textContent = ""; };

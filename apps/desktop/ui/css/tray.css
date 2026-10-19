@@ -227,7 +227,7 @@ body {
 .donut .arc {
   stroke: currentColor;
   stroke-linecap: round;
-  transition: stroke-dasharray 0.4s ease;
+  transition: stroke-dasharray var(--motion-slow) var(--ease-out);
 }
 .donut .center {
   position: absolute;

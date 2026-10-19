@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
-      /* Evita o "flash" de tema antes do módulo carregar; a lógica oficial está em js/lib.js. */
+      /* Evita o "flash" de tema antes do módulo carregar; a lógica oficial está em js/lib.js.
+         Animações: espelho do desktop.json (ressincronizado no boot). */
       try {
         var m = localStorage.getItem("cuotai.themeMode") || "system";
         var d = m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.dataset.theme = localStorage.getItem("cuotai.theme") || "dracula";
         document.documentElement.dataset.mode = d ? "dark" : "light";
+        document.documentElement.dataset.motion = localStorage.getItem("cuotai.motion") || "system";
       } catch (e) {}
     </script>
     <link rel="icon" type="image/svg+xml" href="img/logo.svg" />

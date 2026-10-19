@@ -42,6 +42,22 @@ Superfícies e efeitos (opcionais):
 `--shadow`, `--shadow-dialog`, `--card-bg` (aceita gradiente), `--head-bg` (cabeçalho do card, aceita gradiente),
 `--topbar-bg`, `--btn-bg`, `--btn-fg`, `--input-bg`, `--switch-knob`, `--body-bg` (aceita gradiente/imagem).
 
+Movimento (opcionais; padrão em `themes.css`, temas do usuário herdam):
+
+| Token | Padrão | Uso |
+|---|---|---|
+| `--motion-fast` | `150ms` | hover, foco, mudanças de cor |
+| `--motion-base` | `250ms` | interruptor, entradas, diálogos |
+| `--motion-slow` | `400ms` | barras de quota e anel da bandeja |
+| `--motion-spin` | `900ms` | uma volta do ícone de atualização em andamento |
+| `--ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | curva padrão de saída |
+| `--ease-spring` | `linear(…)` (fallback `cubic-bezier(0.34, 1.56, 0.64, 1)`) | mola curta (interruptor) |
+
+Temas retrô podem sobrescrever (o Win98 usa `steps()`; o CRT usa `0ms`). Use sempre os tokens, nunca durações fixas.
+Com `data-motion="reduced"`/`"off"` no `<html>` (Configurações → Aparência → Animações) ou com
+`prefers-reduced-motion: reduce` (exceto `data-motion="always"`), `themes.css` força as durações a `0ms`
+com `!important`, vencendo o tema.
+
 ## Regras de qualidade
 
 * Rode `python3 tools/contrast.py ui/css/themes/<id>.css` (contraste WCAG) e `python3 tools/lint_theme.py ui/css/themes/<id>.css` (escopo/regras) — ambos devem passar. São ferramentas opcionais de desenvolvimento; o app não depende de Python.

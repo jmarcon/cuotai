@@ -92,6 +92,12 @@ export const setRefreshSeconds = (seconds) => call("set_refresh_seconds", { seco
 export const moveAccount = (from, to) => call("move_account", { from, to });
 export const getSettings = () => call("get_settings");
 export const setUserDir = (path) => call("set_user_dir", { path });
+// Animações (PRD 0004 RF1.2): `desktop.json` é a fonte; o localStorage só espelha para a leitura síncrona do <head>.
+export const MOTIONS = ["system", "always", "reduced", "off"];
+const applyMotion = (m) => { m = MOTIONS.includes(m) ? m : "system"; document.documentElement.dataset.motion = m; put("cuotai.motion", m); };
+export const setMotion = async (motion) => { await call("set_motion", { motion }); applyMotion(motion); };
+/** Ressincroniza o espelho com `desktop.json` (boot de cada janela); falha mantém o valor espelhado. */
+export const syncMotion = () => getSettings().then((s) => applyMotion(s.motion), () => {});
 export const openUserDir = () => call("open_user_dir");
 /** "Sobre": identidade do projeto e lista de bibliotecas de código aberto (vem do core). */
 export const aboutInfo = () => call("about_info");
@@ -282,6 +288,7 @@ export function initTheme(onChange = () => {}) {
     if (e.key === "cuotai.themeMode" && e.newValue) theme.mode = e.newValue;
     else if (e.key === "cuotai.theme" && e.newValue) theme.id = e.newValue;
     else if (e.key === "cuotai.locale" && e.newValue) { setLocale(e.newValue).then(onChange); return; }
+    else if (e.key === "cuotai.motion" && e.newValue) { document.documentElement.dataset.motion = e.newValue; return; }
     else return;
     applyTheme(); onChange();
   });
@@ -504,8 +511,9 @@ const demo = {
   sync_models: demoModels,
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
-  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, version: "demo" }),
+  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
+  set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
   // Demonstração: amostra da lista real (no app, a lista completa vem do core).

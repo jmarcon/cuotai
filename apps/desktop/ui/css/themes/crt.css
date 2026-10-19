@@ -67,6 +67,13 @@
   box-shadow: 0 0 8px rgba(255, 176, 0, 0.4);
 }
 
+/* Terminal de fósforo: o valor troca na hora, sem interpolação (o spinner continua girando) */
+:root[data-theme="crt"] {
+  --motion-fast: 0ms;
+  --motion-base: 0ms;
+  --motion-slow: 0ms;
+}
+
 /* Scanlines */
 :root[data-theme="crt"] body::before {
   content: "";
