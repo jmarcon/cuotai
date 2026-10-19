@@ -16,7 +16,8 @@
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | 0.21.0 | `cuotai_core::freshness`: `age(checked_at, now)`, `assess(checked_at, interval, now) -> Freshness` (`Fresh` ≤ 1.5× the effective interval, `Aging` ≤ 3×, `Stale` above, compared in whole durations) and `clock_adjusted(checked_at, now)` for a clock that went backwards (age reads zero, never an error). Pure, injected clock; table tests at 30 s, 300 s and 3600 s. Core only: front ends consume it from RF3 and RF5. |
-| RF2 to RF5 | — | Not delivered. |
+| RF2 | 0.25.0 | `RefreshCycle` keeps `last_good` per account beside the current report; `last_good_report(index)` returns it only while the current report is missing or not `Ready`. `Ready` replaces it, `AuthenticationError` discards it, `RateLimited`/`Error`/others keep it; `Edit::Upsert` discards the touched account's reading, `Remove`/`Move` carry the rest; `keep_last_good_from` carries it across the desktop's cycle rebuild for a global interval change. `slots`, `snapshot()` and `--json` are unchanged, so alerts and history never see it. RF2.3 holds per session only: surviving a restart waits for PRD 0006 RF2/RF3 (`latest`). Front ends display it from RF3 and RF5. |
+| RF3 to RF5 | — | Not delivered. |
 
 ## 1. Context
 

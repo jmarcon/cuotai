@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-19
+
+### Added
+
+- `cuotai-core`'s `RefreshCycle` keeps each account's last successful reading, with its original `checked_at`, when a later query fails, and exposes it through `last_good_report` only while the current report is not `Ready`; a success replaces it, an authentication failure or an edit to the account discards it, moves and removals carry it with the account, and the current report, `snapshot()` and `--json` stay unchanged. It lasts for the session until local history (PRD 0006) persists it (PRD 0010 RF2).
+
 ## [0.24.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core` exposes `resets::upcoming`, which plans quota reset notices from the readings already taken (no extra query): 5-hour, daily, weekly and monthly quotas (`other` windows on request) with a future reset, filtered by "only if used", "only if exhausted" or "always", with an optional lead time, grouping one account's metrics that reset in the same minute, skipping accounts with notices off, and treating resets that drift by up to 2 minutes as the same one; `Account::key` gives the stable provider-plus-name account key it uses (PRD 0003 RF1).
+- `cuotai-core` exposes `resets::upcoming`, which plans quota reset notices from the readings already taken (no extra query): 5-hour, daily, weekly and monthly quotas (`other` windows on request) with a future reset, filtered by "only if used", "only if exhausted" or "always", with an optional lead time, grouping one account's metrics that reset in the same minute, skipping accounts with notices off, and treating resets that drift by up to 2 minutes as the same one; `Account::key` gives the stable provider-plus-name account key it uses (PRD 0003 RF1, 6d37344).
 
 ## [0.23.0] - 2026-10-19
 
@@ -276,8 +282,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/51e7f24...main
-[0.24.0]: https://github.com/jmarcon/cuotai/compare/51e7f24...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/6d37344...main
+[0.25.0]: https://github.com/jmarcon/cuotai/compare/6d37344...main
+[0.24.0]: https://github.com/jmarcon/cuotai/commit/6d37344
 [0.23.0]: https://github.com/jmarcon/cuotai/commit/51e7f24
 [0.22.0]: https://github.com/jmarcon/cuotai/commit/eddf602
 [0.21.0]: https://github.com/jmarcon/cuotai/commit/5fc1e40

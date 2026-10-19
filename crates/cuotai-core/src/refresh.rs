@@ -26,6 +26,10 @@ pub struct RefreshCycle {
     /// refresh is still in flight. Frontends must not display stale data for
     /// a `None` slot.
     slots: Vec<Option<Report>>,
+    /// Last `Ready` report per account, kept apart from `slots` so a failed
+    /// query never erases the last useful reading (PRD 0010 RF2). It never
+    /// enters `slots` or `snapshot`, so alerts, history and `--json` ignore it.
+    last_good: Vec<Option<Report>>,
     /// `Some` only when every slot holds a report. Kept separate from
     /// `slots` so a single edit cannot leak stale rows into the public
     /// snapshot that drives `cuotai --json` output.
@@ -138,6 +142,7 @@ impl RefreshCycle {
         let len = intervals.len();
         Self {
             slots: vec![None; len],
+            last_good: vec![None; len],
             snapshot: None,
             intervals,
             deadlines,
@@ -166,6 +171,40 @@ impl RefreshCycle {
         self.slots.get(index).and_then(Option::as_ref)
     }
 
+    /// The last `Ready` reading of `index`, offered only while the current
+    /// report is missing or not `Ready`. It keeps its original `checked_at`;
+    /// frontends must label it stale and never treat it as current.
+    pub fn last_good_report(&self, index: usize) -> Option<&Report> {
+        match self.slots.get(index)? {
+            Some(report) if report.status == Status::Ready => None,
+            _ => self.last_good[index].as_ref(),
+        }
+    }
+
+    /// Keep or drop the preserved reading after a new report: `Ready`
+    /// replaces it, an authentication failure invalidates it (the data
+    /// belongs to a credential that no longer works), anything else keeps it.
+    fn remember(&mut self, index: usize, report: &Report) {
+        match report.status {
+            Status::Ready => self.last_good[index] = Some(report.clone()),
+            Status::AuthenticationError => self.last_good[index] = None,
+            Status::RateLimited
+            | Status::NeedsConfiguration
+            | Status::Unsupported
+            | Status::Error => {}
+        }
+    }
+
+    /// Carry `old`'s preserved readings into a cycle rebuilt for the same
+    /// accounts (a global setting such as `refresh_seconds` changed). Does
+    /// nothing when the account count differs; never call it across account
+    /// edits, which go through [`Self::apply_edit`].
+    pub fn keep_last_good_from(&mut self, old: &Self) {
+        if old.last_good.len() == self.last_good.len() {
+            self.last_good.clone_from(&old.last_good);
+        }
+    }
+
     /// Clone the cycle's mutable bookkeeping so the caller can stage an edit
     /// on the copy before committing it. The cached snapshot is cloned
     /// because both edit paths need its `started_at` field (Upsert
@@ -178,6 +217,7 @@ impl RefreshCycle {
     pub fn clone_state_for_edit(&self) -> Self {
         Self {
             slots: self.slots.clone(),
+            last_good: self.last_good.clone(),
             snapshot: self.snapshot.clone(),
             intervals: self.intervals.clone(),
             deadlines: self.deadlines.clone(),
@@ -428,6 +468,7 @@ impl RefreshCycle {
                 };
                 let backoff = Self::backoff_for(self.intervals[index], next_failures);
                 self.deadlines[index] = now + backoff;
+                self.remember(index, report);
             }
             self.slots = snapshot.reports.iter().cloned().map(Some).collect();
             self.snapshot = Some(snapshot);
@@ -495,6 +536,7 @@ impl RefreshCycle {
                     }
                 };
                 let backoff = Self::backoff_for(self.intervals[index], next_failures);
+                self.remember(index, &report);
                 self.slots[index] = Some(report);
                 if let Some(snapshot) = self.snapshot.as_mut() {
                     snapshot.reports[index] = self.slots[index]
@@ -612,6 +654,17 @@ impl RefreshCycle {
                 // interval before its next refresh); every other deadline
                 // is preserved so we don't artificially postpone an account
                 // that was about to fire.
+                // The touched slot's reading belongs to the previous
+                // identity or credential: discard it; others keep theirs.
+                self.last_good = (0..new_config.accounts.len())
+                    .map(|i| {
+                        if i == index {
+                            None
+                        } else {
+                            self.last_good.get(i).cloned().flatten()
+                        }
+                    })
+                    .collect();
                 self.slots = next_slots;
                 self.snapshot = None;
                 self.intervals = new_intervals.clone();
@@ -667,6 +720,7 @@ impl RefreshCycle {
                 // should not look like a half-fresh state to the JSON
                 // pipeline.
                 self.slots.remove(index);
+                self.last_good.remove(index);
                 self.intervals.remove(index);
                 self.deadlines.remove(index);
                 if self.slots.iter().all(Option::is_some) {
@@ -720,6 +774,7 @@ impl RefreshCycle {
                 // follows the same mapping, including the cached snapshot,
                 // so no slot becomes pending and no provider query is owed.
                 move_item(&mut self.slots, from, to);
+                move_item(&mut self.last_good, from, to);
                 move_item(&mut self.intervals, from, to);
                 move_item(&mut self.deadlines, from, to);
                 move_item(&mut self.failures, from, to);
@@ -2158,5 +2213,130 @@ mod tests {
         assert_eq!(cycle.failures[1], 1);
         assert_eq!(cycle.deadlines[0], now + Duration::from_secs(120));
         assert_eq!(cycle.deadlines[1], now + Duration::from_secs(120));
+    }
+
+    fn failed(account: &str, second: i64, status: Status) -> Report {
+        Report {
+            status,
+            ..report(account, second)
+        }
+    }
+
+    fn finish(cycle: &mut RefreshCycle, index: usize, report: Report) {
+        let token = cycle.begin(index).expect("slot free");
+        cycle.finish_account(index, Some(report), token, Instant::now());
+    }
+
+    /// `Report` has no `PartialEq`; compare what RF2 cares about.
+    fn key(report: Option<&Report>) -> Option<(&str, i64, Status)> {
+        report.map(|r| (r.account.as_str(), r.checked_at.timestamp(), r.status))
+    }
+
+    const READY: Status = Status::Ready;
+
+    #[test]
+    fn last_good_survives_failures_until_success_or_authentication_error() {
+        let config = config_with(vec![account("a", None), account("b", None)]);
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        prime_with_snapshot(
+            &mut cycle,
+            Snapshot {
+                started_at: Utc.timestamp_opt(1, 0).unwrap(),
+                finished_at: Utc.timestamp_opt(2, 0).unwrap(),
+                reports: vec![report("a", 10), report("b", 10)],
+            },
+            Instant::now(),
+        );
+        // A current `Ready` report is never doubled by a preserved one.
+        assert!(cycle.last_good_report(0).is_none());
+
+        // Network error after a success: the reading stays with its age,
+        // the current report and snapshot carry the failure untouched.
+        let error = failed("a", 50, Status::Error);
+        finish(&mut cycle, 0, error.clone());
+        assert_eq!(key(cycle.last_good_report(0)), Some(("a", 10, READY)));
+        assert_eq!(key(cycle.account_report(0)), key(Some(&error)));
+        assert_eq!(
+            key(cycle.snapshot().unwrap().reports.first()),
+            key(Some(&error))
+        );
+        assert!(cycle.last_good_report(1).is_none());
+
+        finish(&mut cycle, 0, failed("a", 60, Status::RateLimited));
+        assert_eq!(key(cycle.last_good_report(0)), Some(("a", 10, READY)));
+
+        // The next success replaces it and hides it.
+        finish(&mut cycle, 0, report("a", 70));
+        assert!(cycle.last_good_report(0).is_none());
+        finish(&mut cycle, 0, failed("a", 80, Status::Error));
+        assert_eq!(key(cycle.last_good_report(0)), Some(("a", 70, READY)));
+
+        // An authentication failure invalidates it.
+        finish(&mut cycle, 0, failed("a", 90, Status::AuthenticationError));
+        assert!(cycle.last_good_report(0).is_none());
+        finish(&mut cycle, 0, failed("a", 95, Status::Error));
+        assert!(cycle.last_good_report(0).is_none());
+    }
+
+    #[test]
+    fn last_good_follows_moves_and_removals_and_drops_on_edit() {
+        let prev = config_with(vec![
+            account("a", None),
+            account("b", None),
+            account("c", None),
+        ]);
+        let mut cycle = RefreshCycle::new(&prev, Instant::now());
+        prime_with_snapshot(
+            &mut cycle,
+            Snapshot {
+                started_at: Utc.timestamp_opt(1, 0).unwrap(),
+                finished_at: Utc.timestamp_opt(2, 0).unwrap(),
+                reports: vec![report("a", 10), report("b", 11), report("c", 12)],
+            },
+            Instant::now(),
+        );
+        // A full sweep that fails keeps the readings too.
+        let token = cycle.begin_full().unwrap();
+        cycle.finish_full(
+            Some(Snapshot {
+                started_at: Utc.timestamp_opt(20, 0).unwrap(),
+                finished_at: Utc.timestamp_opt(21, 0).unwrap(),
+                reports: vec![
+                    failed("a", 20, Status::Error),
+                    failed("b", 20, Status::RateLimited),
+                    failed("c", 20, Status::Error),
+                ],
+            }),
+            token,
+            Instant::now(),
+        );
+
+        let moved = prev.move_account(0, 2).unwrap();
+        cycle
+            .apply_edit(&prev, &moved, Edit::Move { from: 0, to: 2 }, Instant::now())
+            .unwrap();
+        assert_eq!(key(cycle.last_good_report(2)), Some(("a", 10, READY)));
+        assert_eq!(key(cycle.last_good_report(0)), Some(("b", 11, READY)));
+
+        let mut removed = moved.clone();
+        removed.accounts.remove(0);
+        cycle
+            .apply_edit(&moved, &removed, Edit::Remove(0), Instant::now())
+            .unwrap();
+        assert_eq!(key(cycle.last_good_report(0)), Some(("c", 12, READY)));
+        assert_eq!(key(cycle.last_good_report(1)), Some(("a", 10, READY)));
+
+        let mut edited = removed.clone();
+        edited.accounts[1].credential_env = Some("OTHER_KEY".into());
+        cycle
+            .apply_edit(&removed, &edited, Edit::Upsert(1), Instant::now())
+            .unwrap();
+        assert!(cycle.last_good_report(1).is_none());
+        assert_eq!(key(cycle.last_good_report(0)), Some(("c", 12, READY)));
+
+        // A rebuild for a global setting carries the readings over.
+        let mut rebuilt = RefreshCycle::new(&edited, Instant::now());
+        rebuilt.keep_last_good_from(&cycle);
+        assert_eq!(key(rebuilt.last_good_report(0)), Some(("c", 12, READY)));
     }
 }
