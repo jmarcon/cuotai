@@ -3,13 +3,20 @@
 | Field | Value |
 |---|---|
 | ID | 0010 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray), `crates/cuotai-tui`, PRDs 0012 and 0014 |
 | Depends on | PRD 0006 (RF3: `latest`) to survive a restart; the rest works without it |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-19)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.21.0 | `cuotai_core::freshness`: `age(checked_at, now)`, `assess(checked_at, interval, now) -> Freshness` (`Fresh` ≤ 1.5× the effective interval, `Aging` ≤ 3×, `Stale` above, compared in whole durations) and `clock_adjusted(checked_at, now)` for a clock that went backwards (age reads zero, never an error). Pure, injected clock; table tests at 30 s, 300 s and 3600 s. Core only: front ends consume it from RF3 and RF5. |
+| RF2 to RF5 | — | Not delivered. |
 
 ## 1. Context
 
