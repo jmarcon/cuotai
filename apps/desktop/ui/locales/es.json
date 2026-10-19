@@ -182,6 +182,7 @@
   "tray.view.list": "Ver en lista",
   "card.nextRefresh": "Próxima consulta en {time}",
   "card.refreshing": "Consultando…",
+  "card.waiting": "Esperando",
   "filter.placeholder": "Filtrar cuentas",
   "filter.clear": "Borrar filtro",
   "filter.none": "Ninguna cuenta coincide con el filtro.",

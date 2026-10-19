@@ -182,6 +182,7 @@
   "tray.view.list": "Show as list",
   "card.nextRefresh": "Next refresh in {time}",
   "card.refreshing": "Refreshing…",
+  "card.waiting": "Waiting",
   "filter.placeholder": "Filter accounts",
   "filter.clear": "Clear filter",
   "filter.none": "No account matches the filter.",

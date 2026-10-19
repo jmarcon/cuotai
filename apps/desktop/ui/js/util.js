@@ -25,7 +25,14 @@ function patchChildren(old, next) {
   let cur = old.firstChild;
   for (const n of [...next.childNodes]) {
     const k = keyOf(n);
-    const match = k != null ? keyed.get(k) : cur && keyOf(cur) == null && cur.nodeName === n.nodeName ? cur : null;
+    let match = k != null ? keyed.get(k) : cur && keyOf(cur) == null && cur.nodeName === n.nodeName ? cur : null;
+    if (!match && k == null && n.nodeType === 1) {
+      // Um elemento sumiu antes deste (ex.: um aviso fechado): descarta os nós sem chave até o par, em vez de
+      // recriar o resto (recriar o `<main>` perderia foco, barras e os cartões).
+      let c = cur;
+      while (c && keyOf(c) == null && c.nodeName !== n.nodeName) c = c.nextSibling;
+      if (c && keyOf(c) == null) { while (cur !== c) { const nx = cur.nextSibling; cur.remove(); cur = nx; } match = c; }
+    }
     if (k != null) keyed.delete(k); // chave repetida: o segundo cartão ganha um nó novo
     if (!match) { old.insertBefore(n, cur); continue; }
     patchNode(match, n);
