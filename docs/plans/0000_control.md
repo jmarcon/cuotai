@@ -5,8 +5,8 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-19 |
-| Cuotai version at that date | 0.22.0 |
-| Plans | 19 (3 implemented, 3 in progress, 13 proposed) |
+| Cuotai version at that date | 0.23.0 |
+| Plans | 19 (3 implemented, 4 in progress, 12 proposed) |
 
 ## 1. How to maintain it
 
@@ -28,7 +28,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | Implemented | RF1 (0.17.0, `6725548`), RF2 (0.18.0, `d89c1b1`), RF3 (0.19.0, `59f9f22`), RF4 (0.20.0) | — | — | Motion tokens, dashboard effects, dialogs, tray and the TUI animation engine. |
 | [0005](0005_usage-access-level.md) | Usage access level | Proposed | — | — | — | Prerequisite of 0015, 0016 and 0017. |
 | [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
-| [0007](0007_pace-until-reset.md) | Pace until the reset | Proposed | — | — | 0006 | Without history it uses the average since the start of the window. |
+| [0007](0007_pace-until-reset.md) | Pace until the reset | In progress | RF1, RF2 (0.23.0) | — | 0006 | RF1 and RF2 delivered: `pace::assess` and its localized labels in the core; `pace::Point` is the sample 0006 RF3 returns. Without history it uses the average since the start of the window. |
 | [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | Proposed | — | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. |
 | [0009](0009_binding-limit-indicator.md) | Binding limit indicator | In progress | RF1, RF4 (0.22.0) | — | — | RF1 and RF4 delivered: `metrics::binding` and its localized summary in the core. Consumed by 0007, 0012 and 0014. |
 | [0010](0010_measurement-age-and-stale-reading.md) | Measurement age and stale reading | In progress | RF1 (0.21.0) | — | 0006 | RF1 delivered: `freshness::age`/`assess` in the core. Without 0006 the preserved reading holds only during the session. |
@@ -65,6 +65,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.20.0 | 0004 | RF4 (TUI effects: animated bars with 1/8 cells, class blink, braille spinner, screen wipe, `--no-animations` and SSH/`TERM=dumb` opt-out). |
 | 0.21.0 | 0010 | RF1 (core measurement age and `Fresh`/`Aging`/`Stale` freshness, clock-adjusted age reads zero). |
 | 0.22.0 | 0009 | RF1 and RF4 (core binding metric: exhausted with the latest return or tightest remaining fraction, `binding_ratio`/`cmp_binding`, localized summary in `en-US`/`es`). |
+| 0.23.0 | 0007 | RF1 and RF2 (core pace: expected use at a uniform pace, ±5-point `Reserve`/`OnPace`/`Ahead`/`Exhausted` stages with a tone, linear exhaustion projection from recent samples or the window average, localized labels in `en-US`/`es`). |
 
 ## 4. Dependency graph
 
@@ -82,7 +83,7 @@ graph LR
   P4["0004 Animations"]:::done
   P5["0005 Access level"]:::todo
   P6["0006 History"]:::todo
-  P7["0007 Pace"]:::todo
+  P7["0007 Pace"]:::wip
   P8["0008 Threshold alerts"]:::todo
   P9["0009 Binding limit"]:::wip
   P10["0010 Measurement age"]:::wip
@@ -179,3 +180,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | `CHANGELOG.md` created with the reconstructed history from 0.1.0 to 0.20.0 (PRD 0019 RF7.1 to RF7.3 and RF7.6). |
 | 2026-10-19 | PRD 0010 RF1 delivered in 0.21.0; plan 0010 in progress. |
 | 2026-10-19 | PRD 0009 RF1 and RF4 delivered in 0.22.0; plan 0009 in progress. |
+| 2026-10-19 | PRD 0007 RF1 and RF2 delivered in 0.23.0; plan 0007 in progress. |

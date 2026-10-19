@@ -3,11 +3,19 @@
 | Field | Value |
 |---|---|
 | ID | 0007 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray), `crates/cuotai-tui`, PRDs 0008, 0012 and 0014 |
 | Depends on | none; PRD 0006 improves the projection but is not required |
 | Date | 2026-10-19 |
+
+## Implementation status (2026-10-19)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.23.0 | `cuotai_core::pace::assess(metric, now, recent: Option<&[Point]>) -> Option<Pace>`, pure; `Point { taken_at, used }` is the minimal sample PRD 0006 RF3 `series` will return. `Pace` (`Serialize`) carries `elapsed_fraction`, `expected_used_fraction`, `used_fraction`, `delta_points`, `stage`, `tone`, `source` (`average`/`recent`), `resets_at`, `projected_exhaustion_at` and `lasts_until_reset`. Eligibility, window lengths (calendar month for `monthly`; an RFC 3339 start in `period` wins when it is not before the nominal start and not after `now`), the ±5-point stages, the projection (least-squares slope of ≥ 3 samples in the last 2 h or 10% of the window, else the average since the start) and the 5%/10-minute fresh-window rule are table-tested with a fixed clock. An exhausted metric has no projection and `lasts_until_reset = false`. |
+| RF2 | 0.23.0 | `Pace::stage_label()` (`pace.reserve`, `pace.on_pace`, `pace.ahead`, `pace.exhausted`; param `delta`) and `Pace::outlook_label(at, margin)` (`pace.lasts_until_reset`, `pace.runs_out_at` with `at`/`margin` formatted by the caller; `None` when exhausted); front ends join them as "stage · outlook". `tone` is `good`/`neutral`/`warn`/`bad`. `en-US` and `es` catalogs, Portuguese fallback; catalog and stable-serialization tests. |
+| RF3, RF4 | — | Not delivered. |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 

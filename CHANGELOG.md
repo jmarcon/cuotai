@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-19
+
+### Added
+
+- `cuotai-core` exposes `pace::assess`, which compares a 5-hour, daily, weekly or monthly quota with a uniform pace until its reset: how far ahead or in reserve the real use is, a stage with a semantic tone, and whether the current pace lasts until the reset or when it runs out, as a linear estimate from recent samples or the window average; it returns nothing for missing data or a window that has just opened, and its labels come in Portuguese, English and Spanish (PRD 0007 RF1, RF2).
+
 ## [0.22.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core` exposes `metrics::binding`, which picks the metric that restricts each account the most right now (the exhausted one with the latest return when the account is blocked, otherwise the one with the least left), plus `binding_ratio`/`cmp_binding` to sort accounts by it and a localized one-line summary in Portuguese, English and Spanish (PRD 0009 RF1, RF4).
+- `cuotai-core` exposes `metrics::binding`, which picks the metric that restricts each account the most right now (the exhausted one with the latest return when the account is blocked, otherwise the one with the least left), plus `binding_ratio`/`cmp_binding` to sort accounts by it and a localized one-line summary in Portuguese, English and Spanish (PRD 0009 RF1, RF4, eddf602).
 
 ## [0.21.0] - 2026-10-19
 
@@ -264,8 +270,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/5fc1e40...main
-[0.22.0]: https://github.com/jmarcon/cuotai/compare/5fc1e40...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/eddf602...main
+[0.23.0]: https://github.com/jmarcon/cuotai/compare/eddf602...main
+[0.22.0]: https://github.com/jmarcon/cuotai/commit/eddf602
 [0.21.0]: https://github.com/jmarcon/cuotai/commit/5fc1e40
 [0.20.0]: https://github.com/jmarcon/cuotai/commit/fd1e299
 [0.19.0]: https://github.com/jmarcon/cuotai/commit/59f9f22
