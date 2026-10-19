@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0019 |
-| Status | In progress (RF1) |
+| Status | In progress (RF1, RF7.1 to RF7.3 and RF7.6) |
 | Owner | Repository, CI and release (`.github/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRDs 0014 and 0018 |
 | Depends on | none; it is a prerequisite of PRDs 0014 and 0018 |
@@ -18,7 +18,11 @@
 | RF1.1 | 0.17.2 | License `MIT OR Apache-2.0`: `LICENSE-MIT`, `LICENSE-APACHE`, the manifests, `about.rs` and a README section. |
 | RF1.2 | 0.17.2 | `CONTRIBUTING.md`, `SECURITY.md` (private reporting through GitHub) and issue templates in `.github/ISSUE_TEMPLATE/`. |
 | RF1.3 | 0.17.2 | `deny.toml` validated with `cargo deny` 0.20 on both workspaces (licenses, sources and bans without errors). The CI check depends on RF2. |
-| RF1.4 | 0.17.2 (partial) | Rule in `AGENTS.md`; the README, `CONTRIBUTING.md`, `SECURITY.md`, the issue templates, `docs/*.md`, `apps/desktop/README.md`, `cuotai.example.toml` and the PRDs (except 0004, which another agent is editing) are in English. Semantic commits are in English from now on. |
+| RF1.4 | 0.17.2 to 0.20.0 | Rule in `AGENTS.md`; the README, `CONTRIBUTING.md`, `SECURITY.md`, the issue templates, `docs/*.md`, `apps/desktop/README.md`, `cuotai.example.toml` and every PRD (0004 included, translated after 0.20.0) are in English. Semantic commits are in English. |
+| RF7.1 | 0.20.0 (no bump) | `CHANGELOG.md` at the root, in English, Keep a Changelog format, `[Unreleased]` on top and one section per version. No tags exist yet, so the footer links compare commits instead of tags. |
+| RF7.2 | 0.20.0 (no bump) | Entries are one sentence from the user's point of view, with the `PRD NNNN RFx` reference and the short commit hash; versions with no user-visible change say so. |
+| RF7.3 | 0.20.0 (no bump) | Maintenance flow in `AGENTS.md` (the `[Unreleased]` update and the `Changelog: skip` footer). The `git-cliff`/`xtask` draft generator is still open. |
+| RF7.6 | 0.20.0 (no bump) | Every version from 0.1.0 to 0.20.0 reconstructed from the commits that change the version and from the PRDs' status tables, each entry citing its commit. |
 
 The first `cargo deny` also found four `rustls` advisories and a yanked package, fixed in 0.17.1 (`chore(security)`). The `rsa` advisory `RUSTSEC-2023-0071` remains ignored, as no fixed version exists, with the justification recorded in `deny.toml`.
 

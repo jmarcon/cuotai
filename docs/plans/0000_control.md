@@ -40,11 +40,11 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0016](0016_user-pasted-session.md) | User-pasted session | Proposed | — | 0005 | — | Alternative to automatic cookie import, which the project does not adopt. |
 | [0017](0017_manifest-and-script-extensions.md) | Manifest and script extensions | Proposed | — | 0005 | — | An extension never receives Cuotai's credentials. |
 | [0018](0018_automatic-updates.md) | Automatic updates for the desktop app | Proposed | — | 0019 (RF2 and RF3) | 0019 (RF7) | Needs a Tauri updater signing key pair. Release notes come from `CHANGELOG.md`. |
-| [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2) | — | — | Prerequisite of 0014 and 0018. RF1 delivered: `MIT OR Apache-2.0` license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and `deny.toml`. RF7 creates `CHANGELOG.md` and the version ↔ requirement link. |
+| [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2), RF7.1 to RF7.3 and RF7.6 (`CHANGELOG.md`, no bump) | — | — | Prerequisite of 0014 and 0018. RF1 delivered: `MIT OR Apache-2.0` license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and `deny.toml`. `CHANGELOG.md` exists with the history up to 0.20.0; RF7.4, RF7.5, RF7.7 and RF7.8 (CI checks, release extraction, in-product display, link with this file) are still open. |
 
 ## 3. Delivered by version
 
-While `CHANGELOG.md` does not exist (PRD 0019, RF7), this table is the record of what each version delivered in terms of plan requirements. Only versions with evidence in the repository enter (the PRDs' status tables and the commits that raise the version). Versions with no plan requirement (fixes, dependencies, adjustments) will be covered by the retroactive changelog (RF7.6).
+[`CHANGELOG.md`](../../CHANGELOG.md) is the full record of every version (PRD 0019, RF7). This table stays as the plan-requirement view of it until the RF7.8 CI check compares the two sources. Only versions with evidence in the repository enter (the PRDs' status tables and the commits that raise the version).
 
 | Version | Plan | Requirements delivered |
 |---|---|---|
@@ -174,3 +174,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | PRD 0004 RF3 delivered in 0.19.0. |
 | 2026-10-19 | PRD 0004 RF4 delivered in 0.20.0; plan 0004 implemented. |
 | 2026-10-19 | PRD 0004 translated to English; every plan is now in English. |
+| 2026-10-19 | `CHANGELOG.md` created with the reconstructed history from 0.1.0 to 0.20.0 (PRD 0019 RF7.1 to RF7.3 and RF7.6). |
