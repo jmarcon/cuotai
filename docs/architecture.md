@@ -1,29 +1,29 @@
-# Arquitetura, Biblioteca Rust e Verificação
+# Architecture, Rust Library and Verification
 
-## Separação Core / TUI / Desktop
+## Core / TUI / Desktop split
 
 ```text
-crates/cuotai-core/       biblioteca Rust: contas e persistência, credenciais, provedores, métricas, consultas
-crates/cuotai-tui/        binário cuotai: CLI, wizard de entrada, Ratatui, teclado/mouse
-apps/desktop/             aplicativo Tauri 2: janela principal, popover de bandeja e menu nativo
+crates/cuotai-core/       Rust library: accounts and persistence, credentials, providers, metrics, queries
+crates/cuotai-tui/        cuotai binary: CLI, sign-in wizard, Ratatui, keyboard/mouse
+apps/desktop/             Tauri 2 app: main window, tray popover and native menu
 ```
 
-`cuotai-core` é independente de UI (não depende de Ratatui, Crossterm nem de um loop gráfico):
+`cuotai-core` is independent of any UI (it depends on neither Ratatui, Crossterm nor a graphical loop):
 
-- **`account_edit`**: `field_descriptors` e `native_option_descriptors` definem campos, opções e obrigatoriedade por provedor; `visible_field_indices` decide quais campos se aplicam conforme produto, modo e login; `build_account` valida o rascunho contra esse esquema; `Config::upsert_account`/`without_account` criam, editam ou removem contas.
-- **`config_file::ConfigFile`**: descobre, carrega e grava o TOML atomicamente preservando comentários e recusando edições externas concorrentes.
-- **`Monitor`**: `refresh` e `refresh_account` consultam provedores e normalizam relatórios; o semáforo interno limita em conjunto consultas completas e individuais (1–32), aplica prazo por conta (1–300 s), preserva a ordem configurada e isola falhas por conta.
-- **`models`**: catálogo de modelos por conta, fora do refresh de quota. `Monitor::with_model_cache(ModelCache::in_data_dir(&file))` grava em `<dados persistentes do SO>/cuotai/models/models.sqlite3` (fora de cache, separado do TOML, cofre e SQLite de credenciais debug; diretório `0700` e arquivo `0600` no Unix, inclusive se já existiam). Cada linha guarda só digests: SHA-256 de `ConfigFile::identity()` e da identidade da conta (provedor, nome, `credential_env`/`oauth` e `params`, exceto `models` e `billing_cycle`, que só filtram/datam a quota); nunca segredos, corpos HTTP ou URLs. Mover conta preserva a entrada; renomear ou mudar credencial/produto/região cria outra. `Monitor::prune_models` apaga entradas da configuração ausentes do TOML recém-carregado ou salvo (TUI e desktop chamam ao abrir, salvar edição e remover), sem tocar contas vivas de outra janela. Estados: `not_fetched`, `fetching`, `ready`, `failed`, `interrupted`, `unsupported`. `model_state` só lê; `load_models` consulta só sem tentativa registrada (sucesso, lista vazia, falha ou interrupção ficam gravados e não se repetem); `sync_models` consulta e, se falhar, mantém o catálogo anterior com a data dele. Toda consulta exige uma reivindicação por conta (token do dono + lease = prazo da conta + 30 s) tomada em `BEGIN IMMEDIATE`: outra janela/processo com reivindicação viva não consulta, espera o resultado gravado (polling de 100 ms, limitado pelo lease), então syncs simultâneos viram uma requisição; só o dono publica, então conclusão antiga não sobrescreve resultado novo. Cancelamento expira o lease na hora e processo encerrado deixa o lease vencer: em ambos a linha vira `interrupted`, sem lista parcial nem nova consulta automática, até um `sync_models` manual. Erro de persistência é `ModelError::Storage`. Hoje só Groq (`GET /openai/v1/models`); os demais provedores retornam `Unsupported` sem rede.
-- **`refresh::RefreshCycle`**: calcula os prazos efetivos de cada conta (incluindo piso de 300 s para provedores cobrados por consulta, como AWS Bedrock) e monta incrementalmente o `Snapshot`. Após `RateLimited`, `AuthenticationError` ou falha da tarefa, o intervalo da conta dobra a cada falha consecutiva até 1 h (intervalos configurados acima de 1 h são mantidos, nunca encurtados); um resultado de outro status restaura o intervalo configurado. Atualizações manuais continuam disponíveis.
-- **`metrics`**: `classify_report` e `classify_metric` derivam disponibilidade e consumo (`AccountClass` e `MetricState`).
-- **`oauth` e `login`**: `OAuthSession`, `OAuthConfig`, `OAuthLogin` e `TokenStore` gerenciam credenciais e renovação; `cuotai_core::login` expõe um driver cancelável independente de UI com eventos de prompt/progresso e commit estagiado entre cofre e TOML.
+- **`account_edit`**: `field_descriptors` and `native_option_descriptors` define fields, options and which of them are required per provider; `visible_field_indices` decides which fields apply for a given product, mode and login; `build_account` validates a draft against that schema; `Config::upsert_account`/`without_account` create, edit or remove accounts.
+- **`config_file::ConfigFile`**: discovers, loads and atomically writes the TOML, preserving comments and rejecting concurrent external edits.
+- **`Monitor`**: `refresh` and `refresh_account` query providers and normalize reports; the internal semaphore limits full and single-account queries together (1–32), applies a per-account deadline (1–300 s), preserves the configured order and isolates failures per account.
+- **`models`**: per-account model catalog, outside the quota refresh. `Monitor::with_model_cache(ModelCache::in_data_dir(&file))` writes to `<OS persistent data dir>/cuotai/models/models.sqlite3` (outside any cache folder, separate from the TOML, the vault and the debug credential SQLite; directory `0700` and file `0600` on Unix, even if they already existed). Each row stores digests only: SHA-256 of `ConfigFile::identity()` and of the account identity (provider, name, `credential_env`/`oauth` and `params`, except `models` and `billing_cycle`, which only filter or date the quota); never secrets, HTTP bodies or URLs. Moving an account keeps its entry; renaming it or changing its credential, product or region creates another one. `Monitor::prune_models` deletes configuration entries that are absent from the freshly loaded or saved TOML (the TUI and the desktop app call it on open, on saving an edit and on removal), without touching live accounts of another window. States: `not_fetched`, `fetching`, `ready`, `failed`, `interrupted`, `unsupported`. `model_state` only reads; `load_models` queries only when no attempt is recorded (success, empty list, failure or interruption are stored and not repeated); `sync_models` queries and, if it fails, keeps the previous catalog with its date. Every query needs a per-account claim (owner token + lease = account deadline + 30 s) taken in `BEGIN IMMEDIATE`: another window or process with a live claim does not query and instead waits for the stored result (100 ms polling, bounded by the lease), so simultaneous syncs become a single request; only the owner publishes, so a stale completion never overwrites a newer result. Cancellation expires the lease immediately and a killed process lets the lease run out: in both cases the row becomes `interrupted`, with no partial list and no automatic retry, until a manual `sync_models`. A persistence error is `ModelError::Storage`. Today every provider except Alibaba Cloud tries to list models, either live with the account's credential or from a built-in list that is labelled as not being a query of the account; see the matrix in [`providers.md`](providers.md). `Unsupported` makes no network request.
+- **`refresh::RefreshCycle`**: computes the effective deadline of each account (including a 300 s floor for providers billed per query, such as AWS Bedrock) and assembles the `Snapshot` incrementally. After `RateLimited`, `AuthenticationError` or a task failure, the account's interval doubles on each consecutive failure up to 1 h (configured intervals above 1 h are kept, never shortened); a result with any other status restores the configured interval. Manual refreshes remain available.
+- **`metrics`**: `classify_report` and `classify_metric` derive availability and consumption (`AccountClass` and `MetricState`).
+- **`oauth` and `login`**: `OAuthSession`, `OAuthConfig`, `OAuthLogin` and `TokenStore` manage credentials and renewal; `cuotai_core::login` exposes a cancellable, UI-independent driver with prompt/progress events and a staged commit between the vault and the TOML.
 
-### Uso como biblioteca Rust
+### Using it as a Rust library
 
 ```rust
 use cuotai_core::{Config, Monitor};
 
-async fn consultar(config: Config) -> Result<(), Box<dyn std::error::Error>> {
+async fn query(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let monitor = Monitor::new(config)?;
     let snapshot = monitor.refresh().await;
     println!("{}", serde_json::to_string(&snapshot)?);
@@ -31,44 +31,43 @@ async fn consultar(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-- `AccountClass` serializa como `"available"`, `"exhausted"` ou `"unmeasured"`.
-- `MetricState` serializa com a tag `state`: `{"state":"unmeasured"}`, `{"state":"exhausted","no_cap":true}` ou `{"state":"available","ratio":0.25,"uncapped":false}` (quando `uncapped` é `true`, `ratio` não representa disponibilidade).
-- Cada `Metric` traz `kind` (`"quota"`, `"rate_limit"`, `"balance"`, `"credits"`, `"spend"` ou `"usage"`) e `window` (`"window_5h"`, `"daily"`, `"weekly"`, `"monthly"`, `"other"` ou `null`). Os adaptadores atribuem esses campos pelo contrato do provedor; frontends não devem inferi-los de `label` ou `period`. Os campos são aditivos ao `Snapshot` e ao JSON da CLI.
-- `account_edit::CredentialKind` serializa como `"env"`, `"profile"` ou `"none"`.
-- `Monitor::with_credentials(config, Arc<dyn Credentials>)` permite injetar busca de segredos customizada (`Credentials::get` deve ser rápido e não interativo). `Monitor::with_oauth` compartilha a `OAuthSession` entre consultas.
+- `AccountClass` serializes as `"available"`, `"exhausted"` or `"unmeasured"`.
+- `MetricState` serializes with the `state` tag: `{"state":"unmeasured"}`, `{"state":"exhausted","no_cap":true}` or `{"state":"available","ratio":0.25,"uncapped":false}` (when `uncapped` is `true`, `ratio` does not represent availability).
+- Each `Metric` carries `kind` (`"quota"`, `"rate_limit"`, `"balance"`, `"credits"`, `"spend"` or `"usage"`) and `window` (`"window_5h"`, `"daily"`, `"weekly"`, `"monthly"`, `"other"` or `null`). The adapters assign these fields from the provider's contract; front ends must not infer them from `label` or `period`. The fields are additive to the `Snapshot` and to the CLI JSON.
+- `account_edit::CredentialKind` serializes as `"env"`, `"profile"` or `"none"`.
+- `Monitor::with_credentials(config, Arc<dyn Credentials>)` lets you inject a custom secret lookup (`Credentials::get` must be fast and non-interactive). `Monitor::with_oauth` shares the `OAuthSession` across queries.
 
-### Internacionalização (`Localized`)
+### Internationalization (`Localized`)
 
-Textos estruturados emitidos pelo core carregam `Localized { id, params, fallback }`:
+Structured texts emitted by the core carry `Localized { id, params, fallback }`:
 
-- O **core é dono do catálogo dos ids que ele mesmo emite**:
-  `crates/cuotai-core/locales/{en-US,es}.json` (carregados por
-  `include_str!` e `serde_json` atrás de `LazyLock`). Cada id do core
+- The **core owns the catalog of the ids it emits**:
+  `crates/cuotai-core/locales/{en-US,es}.json` (loaded through
+  `include_str!` and `serde_json` behind a `LazyLock`). Every core id
   (field.*, native.*, login.*, credential_help.*, oauth.*,
   cost_advisory.*, edit_error.*, query.*, note.*, remove_error.*,
-  remove.kept.*, status.*, provider.*) vive em `en-US.json` e `es.json`
-  com o mesmo conjunto de chaves; `pt-BR` não consulta catálogo e usa
-  o `fallback` em português embutido em cada `Localized`. A resolução
-  (`Localized::resolve`, `cuotai_core::text::core_catalog`) segue a ordem
-  idioma exato → mesma língua → `en-US` → `fallback`.
-- O aplicativo Desktop recebe o catálogo do core via o comando Tauri
-  `core_catalog(locale)` e o `js/i18n.js` mescla esse catálogo sob o da
-  UI (`apps/desktop/ui/locales/*.json`); pacotes do usuário (em
-  `<user dir>/locales/<code>.json`) cobrem ambos. Frontends **não fazem
-  correspondência por texto** — `t()` e `tl()` consultam o catálogo.
-- A TUI resolve os `Localized` do core via `Localized::resolve` na
-  locale ativa (`CUOTAI_LANG`, padrão `pt-BR`); as próprias legendas do
-  Ratatui (atalhos, molduras, ...) ficam fora do escopo do RF8 e
-  permanecem em português.
-- `Report.notes` mantém texto em português para compatibilidade com
-  consumidores CLI/JSON; `Report.notes_l10n` acompanha as notas na
-  mesma ordem com IDs e parâmetros estruturados (nunca contendo
-  tokens). Acrescentar um idioma significa apenas acrescentar um
-  catálogo.
+  remove.kept.*, status.*, provider.*) lives in `en-US.json` and `es.json`
+  with the same set of keys; `pt-BR` does not consult a catalog and uses
+  the Portuguese `fallback` embedded in each `Localized`. Resolution
+  (`Localized::resolve`, `cuotai_core::text::core_catalog`) follows the order
+  exact locale → same language → `en-US` → `fallback`.
+- The desktop app receives the core catalog through the Tauri command
+  `core_catalog(locale)`, and `js/i18n.js` merges it under the UI catalog
+  (`apps/desktop/ui/locales/*.json`); user packs (in
+  `<user dir>/locales/<code>.json`) override both. Front ends **never match
+  on text**: `t()` and `tl()` look the id up in the catalog.
+- The TUI resolves the core's `Localized` values through `Localized::resolve` in the
+  active locale (`CUOTAI_LANG`, default `pt-BR`); Ratatui's own captions
+  (shortcuts, frames, ...) are outside the scope of RF8 and remain in
+  Portuguese.
+- `Report.notes` keeps Portuguese text for compatibility with CLI/JSON
+  consumers; `Report.notes_l10n` accompanies the notes in the same order
+  with structured ids and parameters (never containing tokens). Adding a
+  language only means adding a catalog.
 
-## Comandos de desenvolvimento e verificação
+## Development and verification commands
 
-Execute na raiz do workspace:
+Run from the workspace root:
 
 ```sh
 cargo test --workspace
@@ -77,16 +76,18 @@ cargo build --workspace
 cargo fmt --all -- --check
 ```
 
-Para o aplicativo Desktop (Tauri):
+For the desktop app (Tauri):
 
 ```sh
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-### Escopo dos testes e verificação
+Dependency licenses, advisories and sources are checked with `cargo deny` (see [`CONTRIBUTING.md`](../CONTRIBUTING.md)).
 
-- **Testes de contrato (`wiremock`):** Exercitam paginação, centavos/moeda, overflow, schemas incompletos, filtros de cobrança, consumo bruto versus líquido, saldo versus gasto e credenciais ausentes/inválidas sem depender de rede externa.
-- **Testes de OAuth e cofre:** Cobrem callback/CSRF, negação, polling/`slow_down`/expiração, criptografia RSA/X25519/AES-GCM, rotação de refresh token, isolamento por conta/provedor (ex.: múltiplas contas Kiro) e commit estagiado.
-- **Testes de persistência e TUI:** Validam edição e reordenação em `ConfigFile` preservando comentários, permissões `0600`, recusa de symlinks/edições concorrentes, e renderização do painel/wizard.
-- Respostas HTTP simuladas validam contratos e tratamento de erros, mas não substituem autorização e consulta em contas reais de produção.
+### Test and verification scope
+
+- **Contract tests (`wiremock`):** exercise pagination, cents/currency, overflow, incomplete schemas, billing filters, gross versus net consumption, balance versus spend, and missing or invalid credentials, without depending on an external network.
+- **OAuth and vault tests:** cover callback/CSRF, denial, polling/`slow_down`/expiry, RSA/X25519/AES-GCM encryption, refresh-token rotation, per-account/provider isolation (for example, multiple Kiro accounts) and the staged commit.
+- **Persistence and TUI tests:** validate editing and reordering in `ConfigFile` while preserving comments, `0600` permissions, rejection of symlinks and concurrent edits, and rendering of the dashboard and wizard.
+- Simulated HTTP responses validate contracts and error handling, but they do not replace authorization and querying against real production accounts.

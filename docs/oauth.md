@@ -1,113 +1,113 @@
-# Login OAuth Integrado, Sessões e Cofre de Credenciais
+# Built-in OAuth Login, Sessions and the Credential Vault
 
-O Cuotai suporta fluxos de autenticação nativa (OAuth no navegador, Device Code, AWS SSO e importação assistida) tanto na TUI quanto no aplicativo Desktop, armazenando tokens no cofre nativo do sistema operacional (`cuotai.oauth`) e mantendo o `cuotai.toml` livre de segredos.
+Cuotai supports native authentication flows (browser OAuth, Device Code, AWS SSO and assisted import) in both the TUI and the desktop app. Tokens are stored in the operating system's native vault (`cuotai.oauth`), and `cuotai.toml` stays free of secrets.
 
-## Visão geral por provedor
+## Overview by provider
 
-| Provedor | Login oferecido | Pré-requisito |
+| Provider | Login offered | Prerequisite |
 |---|---|---|
-| Gemini API / Vertex AI | Navegador do sistema, authorization code + PKCE, callback em `127.0.0.1` | Seu client ID OAuth do tipo **Desktop**, API Monitoring habilitada e permissão de leitura no projeto |
-| Azure OpenAI | Código de dispositivo, navegador Microsoft | Seu aplicativo Entra **public client**, tenant e permissões delegadas/RBAC de custos |
-| AWS Bedrock | **F2** na TUI ou **AWS SSO** no desktop executa o login SSO oficial da AWS CLI; URL e código aparecem no diálogo | AWS CLI v2.22+ e perfil SSO previamente configurado |
-| GitHub Copilot, Kimi Coding, Grok CLI | Código de dispositivo no navegador | Login nativo compatível com o 9router; não exige cadastrar aplicativo próprio |
-| Kiro | AWS SSO OIDC com registro dinâmico de cliente e código de dispositivo | Builder ID (padrão) ou Identity Center; região e start URL configuráveis, sem perfil da AWS CLI obrigatório |
-| ChatGPT/Codex, Claude, Gemini CLI | Navegador com callback local e PKCE | Login nativo experimental; Codex requer porta local 1455 livre. Não equivale a suporte oficial do provedor |
-| Cline | Navegador com callback local | Sessão Cline recebida no callback ou trocada por token; não exige copiar access token |
-| Qoder, CodeBuddy | Navegador com polling do estado/dispositivo | Região internacional/CN selecionável antes do login |
-| Zed | Navegador com chave RSA efêmera | Protocolo nativo, não OAuth padrão; `user_id` e `system_id` preenchidos automaticamente |
-| Xiaomi MiMo | Navegador com callback X25519/AES-GCM **ou código para colar** | Cole o código da tentativa atual no campo oculto da TUI ou no campo do desktop. Obtém chave de inferência; quota semanal pode exigir cookie separado |
-| Cursor | Importação explícita da sessão local em SQLite | Faça login no Cursor, escolha Tab → importação e confirme. Nenhuma leitura do token acontece só por abrir o wizard |
-| Qwen Code | Device OAuth com PKCE + renovação | Fluxo legado descontinuado pelo provedor; a TUI mostra o aviso. O endpoint ainda emitiu desafio no smoke, mas isso não comprova concessão de acesso ou quota |
-| Antigravity | OAuth Google no navegador + renovação | Sessão do IDE/Code Assist, distinta de uma API key Gemini; tokens no cofre, sem provisionar projeto |
-| OpenAI/Anthropic API, Windsurf, Ollama e OpenCode Go | Mantidos os métodos por chave/variável | Não há botão que simule um login inexistente |
+| Gemini API / Vertex AI | System browser, authorization code + PKCE, callback on `127.0.0.1` | Your own **Desktop**-type OAuth client ID, API Monitoring enabled and read permission on the project |
+| Azure OpenAI | Device code, Microsoft browser | Your own Entra **public client** application, tenant and delegated/RBAC cost permissions |
+| AWS Bedrock | **F2** in the TUI or **AWS SSO** on the desktop runs the official AWS CLI SSO login; the URL and code appear in the dialog | AWS CLI v2.22+ and a previously configured SSO profile |
+| GitHub Copilot, Kimi Coding, Grok CLI | Device code in the browser | Native login compatible with 9router; no need to register your own application |
+| Kiro | AWS SSO OIDC with dynamic client registration and device code | Builder ID (default) or Identity Center; region and start URL are configurable, no AWS CLI profile required |
+| ChatGPT/Codex, Claude, Gemini CLI | Browser with local callback and PKCE | Experimental native login; Codex requires local port 1455 to be free. It is not official provider support |
+| Cline | Browser with local callback | Cline session received in the callback or exchanged for a token; no need to copy an access token |
+| Qoder, CodeBuddy | Browser with state/device polling | International/CN region selectable before login |
+| Zed | Browser with an ephemeral RSA key | Native protocol, not standard OAuth; `user_id` and `system_id` are filled in automatically |
+| Xiaomi MiMo | Browser with an X25519/AES-GCM callback **or a code to paste** | Paste the current attempt's code into the hidden TUI field or the desktop field. It obtains an inference key; the weekly quota may need a separate cookie |
+| Cursor | Explicit import of the local SQLite session | Sign in to Cursor, choose Tab → import and confirm. Nothing reads the token merely because the wizard was opened |
+| Qwen Code | Device OAuth with PKCE + renewal | Legacy flow discontinued by the provider; the TUI shows the warning. The endpoint still issued a challenge in the smoke test, but that does not prove access or quota is granted |
+| Antigravity | Google OAuth in the browser + renewal | IDE/Code Assist session, distinct from a Gemini API key; tokens in the vault, no project provisioning |
+| OpenAI/Anthropic API, Windsurf, Ollama and OpenCode Go | Key/variable methods kept | There is no button that simulates a login that does not exist |
 
-## Executar login nativo (9router) pela TUI ou Desktop
+## Running a native login (9router) from the TUI or the desktop app
 
-1. **Na TUI:** Inicie `cargo run -p cuotai-tui`, pressione **a** para adicionar ou **e** para editar uma conta. Escolha o provedor e o nome da conta e, na etapa **Credencial**, pressione **Tab**.
-   **No Desktop:** Clique em **Adicionar conta** ou **Editar**, escolha **Login no navegador** e clique em **Entrar**.
-2. Para login nativo, a interface não pede `client_id`. Modos que exigem registro de aplicativo próprio (Gemini API, Vertex AI, Azure OpenAI) descrevem, no próprio descritor do modo (`cuotai_core::login`), quais campos de registro se aplicam (`client_id`, `tenant` ou a variável do `client_secret`) — TUI e Desktop apenas renderizam essa lista, sem saber de antemão quais provedores pedem o quê. Kiro oferece `auth_method` (`builder-id` ou `idc`), região e start URL; Qoder, CodeBuddy e Xiaomi oferecem região.
-3. Ao iniciar, o Cuotai abre o navegador e, quando necessário, exibe a URL e o código de dispositivo para copiar. Autorize na página do provedor.
-4. Ao receber a autorização, os parâmetros de quota são preenchidos automaticamente. Salve para gravar os tokens no cofre do SO e a configuração no arquivo TOML.
-5. Para renovar uma autorização revogada ou expirada, edite a conta e use **F2** (TUI) ou **Refazer login / Reautenticar** (Desktop). A reautenticação reaproveita o mesmo `credential_id` da conta (decisão do core, não do frontend): o token é sobrescrito no cofre e nenhuma credencial fica órfã.
+1. **In the TUI:** run `cargo run -p cuotai-tui`, press **a** to add or **e** to edit an account. Choose the provider and the account name and, at the **Credential** step, press **Tab**.
+   **On the desktop:** click **Add account** or **Edit**, choose **Browser login** and click **Sign in**.
+2. For a native login the interface does not ask for a `client_id`. Modes that require your own application registration (Gemini API, Vertex AI, Azure OpenAI) describe, in the mode's own descriptor (`cuotai_core::login`), which registration fields apply (`client_id`, `tenant` or the `client_secret` variable). The TUI and the desktop app only render that list, without knowing in advance which providers ask for what. Kiro offers `auth_method` (`builder-id` or `idc`), region and start URL; Qoder, CodeBuddy and Xiaomi offer a region.
+3. On start, Cuotai opens the browser and, when needed, shows the URL and the device code to copy. Authorize on the provider's page.
+4. When the authorization arrives, the quota parameters are filled in automatically. Save to write the tokens to the OS vault and the configuration to the TOML file.
+5. To renew a revoked or expired authorization, edit the account and use **F2** (TUI) or **Redo login / Reauthenticate** (desktop). Reauthentication reuses the account's existing `credential_id` (a core decision, not a front-end one): the token is overwritten in the vault and no credential is left orphaned.
 
-O login nativo seleciona automaticamente o produto correto (Copilot quota pessoal, Kimi Coding, Gemini CLI, Grok CLI e Qoder bearer), sem substituir essas sessões por chaves comerciais de geração. IDs Zed, perfil Kiro, device ID Kimi e account ID Codex são derivados do retorno quando disponíveis; metadados de quota não secretos são preenchidos e credenciais de refresh ficam somente no cofre.
+The native login automatically selects the right product (personal Copilot quota, Kimi Coding, Gemini CLI, Grok CLI and Qoder bearer), without replacing those sessions with commercial generation keys. Zed IDs, the Kiro profile, the Kimi device ID and the Codex account ID are derived from the response when available; non-secret quota metadata is filled in and refresh credentials stay only in the vault.
 
-Os fluxos compatíveis usam os identificadores de clientes nativos e protocolos presentes na revisão de referência do 9router. Podem ser recusados, alterados ou restringidos pelo provedor. Em particular, a política publicada da Anthropic restringe login Claude.ai em aplicativos terceiros; implementar o protocolo **não constitui autorização ou garantia de aceitação**. Senhas e consentimento são tratados no navegador do provedor, nunca pelo Cuotai.
+The compatible flows use the native client identifiers and protocols found in the 9router reference revision. The provider may refuse, change or restrict them. In particular, Anthropic's published policy restricts Claude.ai login in third-party applications; implementing the protocol **is not authorization or a guarantee of acceptance**. Passwords and consent are handled in the provider's browser, never by Cuotai.
 
-**Separação importante:** `gemini_api` e `vertex_ai` (Cloud Monitoring), além de Azure, conservam os fluxos com aplicativo próprio descritos abaixo. `gemini_ai` em login nativo acompanha Gemini CLI/Code Assist.
+**Important distinction:** `gemini_api` and `vertex_ai` (Cloud Monitoring), as well as Azure, keep the bring-your-own-application flows described below. `gemini_ai` with native login follows Gemini CLI/Code Assist.
 
-### Kiro: método por tipo de autenticação
+### Kiro: method per authentication type
 
-`auth_method` tem um único descritor no core e cada opção declara sua aplicabilidade. O login nativo oferece **exatamente** `builder-id` (padrão) e `idc`, os dois métodos aceitos pelo fluxo AWS SSO OIDC. A credencial `KIRO_ACCESS_TOKEN` oferece `google` (padrão explícito para contas novas), `github`, `import`, `api_key` e `external_idp`; ela não oferece `builder-id` nem `idc`.
+`auth_method` has a single descriptor in the core and each option declares where it applies. The native login offers **exactly** `builder-id` (default) and `idc`, the two methods accepted by the AWS SSO OIDC flow. The `KIRO_ACCESS_TOKEN` credential offers `google` (the explicit default for new accounts), `github`, `import`, `api_key` and `external_idp`; it does not offer `builder-id` or `idc`.
 
-Ao alternar entre credencial e login, o core filtra a lista. Se o valor anterior não servir no novo tipo, seleciona o primeiro valor aplicável e retorna um aviso localizado; TUI e Desktop apenas exibem esse contrato. Um envio direto ou obsoleto com combinação inválida é recusado por `edit_error.option_not_valid_for_auth_mode`.
+When you switch between credential and login, the core filters the list. If the previous value does not fit the new type, it selects the first applicable value and returns a localized warning; the TUI and the desktop app only display that contract. A direct or stale submission with an invalid combination is rejected with `edit_error.option_not_valid_for_auth_mode`.
 
-A restrição ocorre somente ao editar/salvar. Configurações antigas sem `auth_method` (padrão histórico implícito `builder-id`) ou com `credential_env` + `builder-id` continuam carregando e consultando sem migração automática.
+The restriction applies only when editing and saving. Old configurations without `auth_method` (the implicit historical default `builder-id`) or with `credential_env` + `builder-id` keep loading and querying with no automatic migration.
 
-## Fluxos específicos por provedor
+## Provider-specific flows
 
-### Cursor pessoal: importar pelo wizard
+### Personal Cursor: import through the wizard
 
-1. Faça login normalmente no aplicativo **Cursor**.
-2. No Cuotai, adicione/edite Cursor e selecione a importação local (Tab na TUI ou modo de autenticação no Desktop).
-3. Deixe o caminho vazio para a instalação padrão ou informe um `state.vscdb` específico (aceita espaços no caminho, por exemplo Cursor Insiders).
-4. Confirme a leitura e importação da sessão Cursor. A leitura é somente leitura, em uma transação SQLite, das chaves `cursorAuth/accessToken`/`cursorAuth/token` e machine ID; não modifica o banco e não lê todas as preferências/segredos.
-5. Salve a conta. O token fica no Keychain; o TOML guarda apenas a referência da sessão, caminho opcional e metadados públicos. A importação não autentica de novo nem renova o token do Cursor; token expirado requer login no editor e reimportação.
+1. Sign in normally to the **Cursor** application.
+2. In Cuotai, add or edit Cursor and select the local import (Tab in the TUI, or the authentication mode on the desktop).
+3. Leave the path empty for the default installation, or provide a specific `state.vscdb` (spaces in the path are accepted, for example Cursor Insiders).
+4. Confirm reading and importing the Cursor session. The read is read-only, in a single SQLite transaction, of the `cursorAuth/accessToken`/`cursorAuth/token` keys and the machine ID; it does not modify the database and does not read every preference or secret.
+5. Save the account. The token goes into the Keychain; the TOML stores only the session reference, an optional path and public metadata. The import does not authenticate again and does not renew the Cursor token; an expired token requires signing in to the editor and importing again.
 
-Sessão pessoal usa `/api/usage-summary` em `cursor.com`, com cookie derivado do token da conta. **Nunca é enviada ao Admin API `/teams/spend`**. O modo por variável `CURSOR_ADMIN_API_KEY` permanece para Teams/Enterprise.
+A personal session uses `/api/usage-summary` on `cursor.com`, with a cookie derived from the account token. **It is never sent to the Admin API `/teams/spend`**. The `CURSOR_ADMIN_API_KEY` variable mode remains for Teams/Enterprise.
 
-### Xiaomi MiMo: código manual
+### Xiaomi MiMo: manual code
 
-Quando a página exibir **Authentication Code / Paste this into MiMo Code**, volte à tela de login pendente do Cuotai, cole o código no campo correspondente e envie. A colagem aceita Base64URL sem padding e quebras de linha. Código inválido ou de outra sessão mostra erro sem encerrar a tentativa; a expiração original não é estendida.
+When the page shows **Authentication Code / Paste this into MiMo Code**, go back to Cuotai's pending login screen, paste the code into the matching field and submit. The paste accepts unpadded Base64URL and line breaks. An invalid code, or one from another session, shows an error without ending the attempt; the original expiry is not extended.
 
-O código é criptografado para a chave efêmera dessa tentativa. O callback automático continua aceito em paralelo. O código digitado nunca é persistido; só o token decodificado é gravado no cofre após a confirmação final.
+The code is encrypted to that attempt's ephemeral key. The automatic callback is still accepted in parallel. The typed code is never persisted; only the decoded token is written to the vault after the final confirmation.
 
-**Autorização por código não é sessão de quota:** O código entrega uma chave `sk-` de inferência, não cookies do console. Para saldo e Token Plan mensal, configure `params.platform_session_env` com o **nome** da variável contendo o Cookie de `platform.xiaomimimo.com` (`api-platform_serviceToken` e `userId`). A quota semanal do MiMo Desktop permanece separada em `session_env`/`region`; se ambos os campos forem preenchidos, o modo Desktop tem precedência.
+**Authorization by code is not a quota session:** the code delivers an inference key (`sk-`), not console cookies. For the balance and the monthly Token Plan, set `params.platform_session_env` to the **name** of the variable holding the `platform.xiaomimimo.com` Cookie (`api-platform_serviceToken` and `userId`). The MiMo Desktop weekly quota stays separate in `session_env`/`region`; if both fields are filled in, the Desktop mode takes precedence.
 
 ### Qwen Code OAuth
 
-Selecione **Qwen → Login OAuth**. O fluxo usa o device grant com PKCE do cliente oficial Qwen Code (`chat.qwen.ai/api/v1/oauth2/device/code` e `/token`, escopo `openid profile email model.completion`). Access/refresh tokens ficam no cofre, separados de `QWEN_API_KEY` do DashScope.
+Select **Qwen → OAuth login**. The flow uses the device grant with PKCE of the official Qwen Code client (`chat.qwen.ai/api/v1/oauth2/device/code` and `/token`, scope `openid profile email model.completion`). Access and refresh tokens go into the vault, separate from DashScope's `QWEN_API_KEY`.
 
-**Limitação do provedor:** a [documentação oficial](https://github.com/QwenLM/qwen-code/blob/81582ca19d0772afdd06ace9cad4845c207001f8/docs/users/configuration/auth.md) informa que o OAuth gratuito foi descontinuado em 15/04/2026. A interface disponibiliza a tentativa com aviso; não foi encontrado endpoint de quota Qwen Code e login bem-sucedido não é convertido em falsa medição de consumo.
+**Provider limitation:** the [official documentation](https://github.com/QwenLM/qwen-code/blob/81582ca19d0772afdd06ace9cad4845c207001f8/docs/users/configuration/auth.md) states that the free OAuth was discontinued on 2026-04-15. The interface offers the attempt with a warning; no Qwen Code quota endpoint was found, and a successful login is not turned into a false consumption measurement.
 
 ### Antigravity
 
-Autorize a sessão Google no navegador pelo modo OAuth. O cadastro não usa a API key Gemini. As consultas são somente leitura, sem geração nem `onboardUser`. Percentuais e renovação aparecem nos cartões e nos detalhes; a escala 1.000 usada pelo 9router não é apresentada como quantidade de requisições. Quotas ausentes continuam desconhecidas e falhas parciais ficam nas observações.
+Authorize the Google session in the browser through the OAuth mode. The registration does not use the Gemini API key. Queries are read-only, with no generation and no `onboardUser`. Percentages and renewal appear on the cards and in the details; the 1,000 scale used by 9router is not presented as a request count. Missing quotas stay unknown and partial failures appear in the notes.
 
-### Google Cloud Monitoring (Gemini API / Vertex AI): preparação única
+### Google Cloud Monitoring (Gemini API / Vertex AI): one-time setup
 
-1. Em [Google Cloud](https://console.cloud.google.com/apis/credentials), habilite **Cloud Monitoring API** no projeto consultado e configure a tela de consentimento OAuth. Em aplicativo externo em teste, inclua sua conta entre os usuários de teste.
-2. Crie um **OAuth client ID → Desktop app** para o Cuotai. Não use client ID de outro produto.
-3. No Cuotai, escolha Gemini API ou Vertex AI, selecione o modo OAuth e informe o `client_id`.
-4. Se o registro Google exigir `client_secret`, exporte-o em uma variável e informe **o nome dessa variável** no campo seguinte. Segredos não entram no TOML.
-5. Inicie o login. O navegador solicita `https://www.googleapis.com/auth/monitoring.read`; o retorno usa uma porta local livre.
-6. Preencha `project_id`, revise e grave. A identidade Google precisa de `monitoring.timeSeries.list` (ex.: Monitoring Viewer no projeto).
+1. In [Google Cloud](https://console.cloud.google.com/apis/credentials), enable the **Cloud Monitoring API** on the queried project and configure the OAuth consent screen. For an external app in testing, add your account to the test users.
+2. Create an **OAuth client ID → Desktop app** for Cuotai. Do not use another product's client ID.
+3. In Cuotai, choose Gemini API or Vertex AI, select the OAuth mode and enter the `client_id`.
+4. If your Google registration requires a `client_secret`, export it in a variable and enter **the name of that variable** in the next field. Secrets never enter the TOML.
+5. Start the login. The browser requests `https://www.googleapis.com/auth/monitoring.read`; the return uses a free local port.
+6. Fill in `project_id`, review and save. The Google identity needs `monitoring.timeSeries.list` (for example, Monitoring Viewer on the project).
 
-### Azure OpenAI: preparação única
+### Azure OpenAI: one-time setup
 
-1. Em [Microsoft Entra](https://portal.azure.com), registre seu aplicativo. Em **Authentication → Advanced settings**, habilite **Allow public client flows**.
-2. Configure a permissão delegada **Azure Service Management → user_impersonation** e conceda o consentimento exigido pelo tenant. A conta autorizadora precisa de **Cost Management Reader** no recurso/assinatura consultado.
-3. No Cuotai, escolha Azure OpenAI no modo OAuth e informe o **Application (client) ID** e o tenant (GUID/domínio; vazio usa `organizations`). Não é necessário client secret para esse public client.
-4. Confirme o login e digite o código exibido na página Microsoft aberta pelo Cuotai (`https://management.azure.com/user_impersonation` e `offline_access`).
-5. Informe `subscription_id` e `resource_id`, revise e grave.
+1. In [Microsoft Entra](https://portal.azure.com), register your application. Under **Authentication → Advanced settings**, enable **Allow public client flows**.
+2. Configure the delegated permission **Azure Service Management → user_impersonation** and grant the consent the tenant requires. The authorizing account needs **Cost Management Reader** on the queried resource or subscription.
+3. In Cuotai, choose Azure OpenAI in OAuth mode and enter the **Application (client) ID** and the tenant (GUID/domain; empty uses `organizations`). No client secret is needed for this public client.
+4. Confirm the login and type the code shown on the Microsoft page that Cuotai opened (`https://management.azure.com/user_impersonation` and `offline_access`).
+5. Enter `subscription_id` and `resource_id`, review and save.
 
-### AWS Bedrock: perfil SSO
+### AWS Bedrock: SSO profile
 
-Prepare uma vez com `aws configure sso`. Ao configurar AWS Bedrock, informe o perfil e acione o login SSO (`F2` na TUI ou modo **AWS SSO** no Desktop). O Cuotai mostra a URL e o código fornecidos por `aws sso login --profile ... --use-device-code --no-browser`. A própria AWS CLI mantém e usa seu cache SSO; o Cuotai não copia esses tokens para o Keychain. Login SSO não dispensa `ce:GetCostAndUsage` e não elimina a cobrança das consultas de Cost Explorer.
+Prepare once with `aws configure sso`. When configuring AWS Bedrock, enter the profile and trigger the SSO login (`F2` in the TUI, or the **AWS SSO** mode on the desktop). Cuotai shows the URL and code provided by `aws sso login --profile ... --use-device-code --no-browser`. The AWS CLI itself maintains and uses its SSO cache; Cuotai does not copy those tokens to the Keychain. SSO login does not replace `ce:GetCostAndUsage` and does not remove the charge for Cost Explorer queries.
 
-## Persistência, cancelamento e renovação
+## Persistence, cancellation and renewal
 
-- **Cofre do sistema:** Por padrão, os logins integrados armazenam access token, refresh token e contexto secreto no cofre nativo, serviço **`cuotai.oauth`** (Keychain no macOS, Windows Credential Manager e Linux Secret Service). Sem acesso autorizado, há erro explícito; nunca há fallback automático para SQLite.
-- **Formato no TOML:** O TOML guarda `accounts.oauth.credential_id`, client ID/tenant/referência de client secret quando aplicável, e `options` não secretas (`region`, `auth_method`, `start_url`). `oauth` e `credential_env` não podem coexistir na mesma conta.
-- **Commit estagiado:** Tokens de login novo ficam em memória até o salvamento final da conta. O core grava primeiro no cofre e depois no TOML; se o arquivo falhar, restaura a credencial anterior ou remove a nova. Se o salvamento do TOML tiver sucesso e a chave do cofre tiver mudado (por exemplo, ao alterar método/região do Kiro, `client_id` ou tenant mantendo o mesmo `credential_id`), a chave antiga é removida **somente depois** do salvamento, a menos que outra conta do arquivo salvo ainda a referencie. Uma falha nessa limpeza é reportada como resultado tipado não fatal (configuração e nova credencial salvas; credencial anterior mantida no cofre), exibido de forma verdadeira na TUI e no Desktop — nunca como um rollback fictício.
-- **Renovação automática:** Antes de consultar, tokens com menos de 60 segundos de validade são renovados quando existe refresh token e o protocolo o suporta (Claude, Codex, Google, Kimi, Kiro, Grok, CodeBuddy, Cline e GitHub quando aplicável). Uma rotação já iniciada termina sua persistência mesmo que a consulta seja cancelada, evitando perder o refresh token novo.
+- **System vault:** by default, the built-in logins store the access token, the refresh token and the secret context in the native vault, service **`cuotai.oauth`** (Keychain on macOS, Windows Credential Manager and Linux Secret Service). Without authorized access there is an explicit error; there is never an automatic fallback to SQLite.
+- **Format in the TOML:** the TOML stores `accounts.oauth.credential_id`, client ID/tenant/client-secret reference when applicable, and non-secret `options` (`region`, `auth_method`, `start_url`). `oauth` and `credential_env` cannot coexist in the same account.
+- **Staged commit:** tokens from a new login stay in memory until the account is finally saved. The core writes to the vault first and to the TOML afterwards; if the file write fails, it restores the previous credential or removes the new one. If saving the TOML succeeds and the vault key changed (for example, when changing the Kiro method or region, the `client_id` or the tenant while keeping the same `credential_id`), the old key is removed **only after** the save, unless another account in the saved file still references it. A failure in that cleanup is reported as a typed non-fatal result (configuration and new credential saved; previous credential kept in the vault), shown truthfully in the TUI and the desktop app, never as a fictitious rollback.
+- **Automatic renewal:** before querying, tokens with less than 60 seconds of validity are renewed when a refresh token exists and the protocol supports it (Claude, Codex, Google, Kimi, Kiro, Grok, CodeBuddy, Cline and GitHub where applicable). A rotation that has already started finishes persisting even if the query is cancelled, so the new refresh token is never lost.
 
-## Credenciais SQLite — somente desenvolvimento
+## SQLite credentials: development only
 
-Para evitar os prompts do Keychain a cada recompilação durante o desenvolvimento local:
+To avoid Keychain prompts on every rebuild during local development:
 
 ```sh
 cargo run -p cuotai-tui -- --dev-credentials-sqlite ./cuotai-dev.sqlite3
 ```
 
-O banco guarda **tokens sem criptografia**, incluindo refresh tokens e contexto secreto. Use apenas em ambiente local confiável. No Unix, arquivos novos têm modo `0600`; arquivos existentes acessíveis a grupo/outros e links simbólicos são recusados. Builds `release` recusam a opção antes de criar ou abrir o banco (a implementação SQLite nem é compilada sem `debug_assertions`).
+The database stores **unencrypted tokens**, including refresh tokens and the secret context. Use it only in a trusted local environment. On Unix, new files get mode `0600`; existing files accessible to group/others and symbolic links are refused. `release` builds refuse the option before creating or opening the database (the SQLite implementation is not even compiled without `debug_assertions`).
