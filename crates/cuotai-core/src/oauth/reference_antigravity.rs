@@ -6,6 +6,7 @@
 //! production endpoints stay fixed, token payloads never reach diagnostics,
 //! and the project lookup cannot accidentally trigger Code Assist onboarding.
 
+use super::send_secure;
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -451,16 +452,15 @@ async fn fetch_project_id(
         }
     });
     let request = async {
-        let response = http
-            .post(url)
-            .header(ACCEPT, "application/json")
-            .header("User-Agent", LOAD_CODE_ASSIST_USER_AGENT)
-            .header("x-request-source", "local")
-            .bearer_auth(access_token)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|_| OAuthError::Network)?;
+        let response = send_secure(
+            http.post(url)
+                .header(ACCEPT, "application/json")
+                .header("User-Agent", LOAD_CODE_ASSIST_USER_AGENT)
+                .header("x-request-source", "local")
+                .bearer_auth(access_token)
+                .json(&body),
+        )
+        .await?;
         read_bounded(response).await
     };
     let (status, response) = timeout_at(deadline, request).await.ok()?.ok()?;
@@ -559,13 +559,8 @@ async fn post_form(
     url: &str,
     form: &[(&str, String)],
 ) -> Result<(StatusCode, Value), OAuthError> {
-    let response = http
-        .post(url)
-        .header(ACCEPT, "application/json")
-        .form(form)
-        .send()
-        .await
-        .map_err(|_| OAuthError::Network)?;
+    let response =
+        send_secure(http.post(url).header(ACCEPT, "application/json").form(form)).await?;
     read_bounded(response).await
 }
 

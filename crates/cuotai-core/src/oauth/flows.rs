@@ -12,6 +12,7 @@
 //! No borrowed client IDs, no browser-cookie or CLI-token extraction, and no
 //! server error bodies or token material ever appear in error text.
 
+use super::send_secure;
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::model::Provider;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -250,13 +251,8 @@ async fn post_form(
     url: &str,
     form: &[(String, String)],
 ) -> Result<(reqwest::StatusCode, Value), OAuthError> {
-    let response = http
-        .post(url)
-        .header(ACCEPT, "application/json")
-        .form(form)
-        .send()
-        .await
-        .map_err(|_| OAuthError::Network)?;
+    let response =
+        send_secure(http.post(url).header(ACCEPT, "application/json").form(form)).await?;
     let status = response.status();
     let mut response = response;
     let mut bytes = Vec::new();

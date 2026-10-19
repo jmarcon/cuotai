@@ -3,7 +3,7 @@
 //! Ollama Cloud: GET /api/usage (limits are 0..1 ratios) + POST /api/me (plan, fail-open).
 //! Unofficial endpoints, subject to change. See THIRD_PARTY_NOTICES for MIT attribution.
 //! No token generation/reset/purchase calls; credentials come only from explicit env refs.
-use super::{json, secret, Context, Data, QueryError};
+use super::{json, secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
@@ -328,15 +328,15 @@ async fn ollama(
     .await?;
     // Plan label + signup date are best-effort (fail-open, as in 9router).
     // Body is bounded to 1 MiB; the endpoint returns small JSON metadata.
-    let me: Option<OllamaMe> = match ctx
-        .http
-        .post(format!("{base}/api/me"))
-        .bearer_auth(&key)
-        .header("Accept", "application/json")
-        .header("Content-Length", "0")
-        .body("")
-        .send()
-        .await
+    let me: Option<OllamaMe> = match secure_send(
+        ctx.http
+            .post(format!("{base}/api/me"))
+            .bearer_auth(&key)
+            .header("Accept", "application/json")
+            .header("Content-Length", "0")
+            .body(""),
+    )
+    .await
     {
         Ok(response) if response.status().is_success() => match response.bytes().await {
             Ok(bytes) if bytes.len() <= 1024 * 1024 => serde_json::from_slice(&bytes).ok(),

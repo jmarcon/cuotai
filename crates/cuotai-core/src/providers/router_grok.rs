@@ -5,7 +5,7 @@
 //! OAuth access token (device code login), never the Management API key, and are
 //! subject to change by the provider. No inference is generated and no
 //! quota-reset or credit-consume operation is performed.
-use super::{json, Context, Data, QueryError};
+use super::{json, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Utc};
@@ -617,19 +617,19 @@ async fn fetch_grpc_credits(
     grpc_base: &str,
     token: &str,
 ) -> Option<GrpcCredits> {
-    let response = ctx
-        .http
-        .post(format!(
-            "{grpc_base}/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"
-        ))
-        .bearer_auth(token)
-        .header("Content-Type", "application/grpc-web+proto")
-        .header("X-Grpc-Web", "1")
-        .header("Accept", "application/grpc-web+proto")
-        .body(&GRPC_WEB_EMPTY_REQUEST_FRAME[..])
-        .send()
-        .await
-        .ok()?;
+    let response = secure_send(
+        ctx.http
+            .post(format!(
+                "{grpc_base}/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"
+            ))
+            .bearer_auth(token)
+            .header("Content-Type", "application/grpc-web+proto")
+            .header("X-Grpc-Web", "1")
+            .header("Accept", "application/grpc-web+proto")
+            .body(&GRPC_WEB_EMPTY_REQUEST_FRAME[..]),
+    )
+    .await
+    .ok()?;
     if !response.status().is_success() {
         return None;
     }

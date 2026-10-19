@@ -20,6 +20,7 @@
 //! only. No passwords, cookies or CLI tokens are ever read. Server error
 //! bodies and token material never appear in error text.
 
+use super::send_secure;
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::engine::general_purpose::{
@@ -96,7 +97,7 @@ async fn poll_attempt(
 async fn send_json(
     request: reqwest::RequestBuilder,
 ) -> Result<(reqwest::StatusCode, Value), OAuthError> {
-    let mut response = request.send().await.map_err(|_| OAuthError::Network)?;
+    let mut response = send_secure(request).await?;
     let status = response.status();
     // Qoder uses empty 202/404 responses while waiting for browser consent.
     if status.as_u16() == 202 || status.as_u16() == 404 {

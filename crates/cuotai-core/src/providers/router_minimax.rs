@@ -19,7 +19,7 @@
 //! inferência. A região China (`minimaxi.com`) nunca é contactada com esta
 //! credencial — aqui só existem as URLs internacionais do registro.
 
-use super::{secret, Context, Data, QueryError};
+use super::{secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, Duration, Utc};
@@ -312,16 +312,16 @@ async fn read_bounded(response: &mut reqwest::Response) -> Result<String, Failur
 }
 
 async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data, Failure> {
-    let mut response = ctx
-        .http
-        .get(url)
-        .bearer_auth(key)
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/json")
-        .timeout(ctx.timeout)
-        .send()
-        .await
-        .map_err(|_| Failure::transient(QueryError::transport()))?;
+    let mut response = secure_send(
+        ctx.http
+            .get(url)
+            .bearer_auth(key)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .timeout(ctx.timeout),
+    )
+    .await
+    .map_err(Failure::transient)?;
     let status = response.status();
     let body = read_bounded(&mut response).await?;
     // O 9router tolera corpo não-JSON (payload vazio) e `base_resp`

@@ -35,6 +35,7 @@
 //!   the inference adapter (Qwen Code portal), but never used as a base
 //!   for arbitrary quota queries here.
 
+use super::send_secure;
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -284,13 +285,12 @@ async fn post_form(
     url: &str,
     form: &[(String, String)],
 ) -> Result<(reqwest::StatusCode, Value), OAuthError> {
-    let response = http
-        .post(url)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .form(form)
-        .send()
-        .await
-        .map_err(|_| OAuthError::Network)?;
+    let response = send_secure(
+        http.post(url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .form(form),
+    )
+    .await?;
     read_json(response).await
 }
 

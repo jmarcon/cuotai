@@ -14,6 +14,7 @@ pub mod oauth;
 mod providers;
 pub mod refresh;
 pub mod text;
+mod transport;
 
 /// RF2 shared login driver, re-exported for convenience.
 pub use oauth::login;

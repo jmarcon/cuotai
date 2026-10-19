@@ -23,7 +23,7 @@
 //! - `region`: `intl` (padrão) ou `cn`;
 //! - `session_env`: nome da variável que contém o header Cookie completo.
 
-use super::{json as fetch_json, paginate, secret, Context, Data, QueryError};
+use super::{json as fetch_json, paginate, secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
@@ -349,7 +349,7 @@ async fn response_json(
     request: reqwest::RequestBuilder,
     session: bool,
 ) -> Result<Value, QueryError> {
-    let response = request.send().await.map_err(|_| QueryError::transport())?;
+    let response = secure_send(request).await?;
     let status = response.status();
     let payload = response.json::<Value>().await;
     if !status.is_success() {
@@ -848,18 +848,18 @@ async fn resolve_sec_token(
     region: Region,
     endpoints: CodingPlanEndpoints<'_>,
 ) -> Result<String, QueryError> {
-    if let Ok(response) = ctx
-        .http
-        .get(endpoints.dashboard)
-        .header("Cookie", cookie)
-        .header("User-Agent", BROWSER_USER_AGENT)
-        .header(
-            "Accept",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        )
-        .timeout(ctx.timeout)
-        .send()
-        .await
+    if let Ok(response) = secure_send(
+        ctx.http
+            .get(endpoints.dashboard)
+            .header("Cookie", cookie)
+            .header("User-Agent", BROWSER_USER_AGENT)
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            )
+            .timeout(ctx.timeout),
+    )
+    .await
     {
         if response.status().is_success() {
             if let Ok(html) = response.text().await {
@@ -870,16 +870,16 @@ async fn resolve_sec_token(
         }
     }
 
-    if let Ok(response) = ctx
-        .http
-        .get(endpoints.user_info)
-        .header("Cookie", cookie)
-        .header("User-Agent", BROWSER_USER_AGENT)
-        .header("Accept", "application/json, text/plain, */*")
-        .header("Referer", console_origin(region))
-        .timeout(ctx.timeout)
-        .send()
-        .await
+    if let Ok(response) = secure_send(
+        ctx.http
+            .get(endpoints.user_info)
+            .header("Cookie", cookie)
+            .header("User-Agent", BROWSER_USER_AGENT)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Referer", console_origin(region))
+            .timeout(ctx.timeout),
+    )
+    .await
     {
         if response.status().is_success() {
             if let Ok(payload) = response.json::<Value>().await {
@@ -1261,7 +1261,7 @@ async fn token_plan_send(
     data_params: Value,
 ) -> Result<reqwest::Response, QueryError> {
     let request = build_token_plan_request(ctx, endpoint, session, api, data_params);
-    let response = request.send().await.map_err(|_| QueryError::transport())?;
+    let response = secure_send(request).await?;
     if !response.status().is_success() {
         let code = response.status();
         return Err(QueryError {
@@ -1363,15 +1363,14 @@ async fn token_plan_at(
             )
         })?;
     let dashboard = TOKEN_PLAN_DASHBOARD;
-    let info = ctx
-        .http
-        .get(user_info)
-        .header("Cookie", &cookie)
-        .header("Referer", dashboard)
-        .timeout(ctx.timeout)
-        .send()
-        .await
-        .map_err(|_| QueryError::transport())?;
+    let info = secure_send(
+        ctx.http
+            .get(user_info)
+            .header("Cookie", &cookie)
+            .header("Referer", dashboard)
+            .timeout(ctx.timeout),
+    )
+    .await?;
     if !info.status().is_success() {
         return Err(QueryError {
             status: Status::AuthenticationError,
