@@ -18,7 +18,7 @@
 //! A criação manual da chave está documentada em
 //! <https://docs.kimchi.dev/docs/inference-quickstart.md>.
 
-use super::{json, secret, Context, Data, QueryError};
+use super::{json, secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Status};
 use chrono::{DateTime, Utc};
@@ -161,15 +161,14 @@ async fn fetch_budget(
     key: &str,
     url: &str,
 ) -> Result<Option<Value>, QueryError> {
-    let response = ctx
-        .http
-        .get(url)
-        .bearer_auth(key.trim())
-        .header("Accept", "application/json")
-        .timeout(ctx.timeout)
-        .send()
-        .await
-        .map_err(|_| QueryError::transport())?;
+    let response = secure_send(
+        ctx.http
+            .get(url)
+            .bearer_auth(key.trim())
+            .header("Accept", "application/json")
+            .timeout(ctx.timeout),
+    )
+    .await?;
     let code = response.status();
     if code.as_u16() == 404 {
         return Ok(None);

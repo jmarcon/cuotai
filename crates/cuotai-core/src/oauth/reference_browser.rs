@@ -14,6 +14,7 @@
 //! usable; this is a compatibility client, not an official integration.
 //! Token material and provider payloads never appear in error text or logs.
 
+use super::send_secure;
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::engine::general_purpose::{STANDARD as B64_STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
@@ -1081,14 +1082,14 @@ async fn gemini_fetch_project_id(
         },
         "mode": 1,
     });
-    let response = http
-        .post(url)
-        .header(ACCEPT, "application/json")
-        .bearer_auth(access_token)
-        .json(&body)
-        .send()
-        .await
-        .ok()?;
+    let response = send_secure(
+        http.post(url)
+            .header(ACCEPT, "application/json")
+            .bearer_auth(access_token)
+            .json(&body),
+    )
+    .await
+    .ok()?;
     let (status, body) = read_bounded(response).await.ok()?;
     if !status.is_success() {
         return None;
@@ -1201,13 +1202,8 @@ async fn post_form(
     url: &str,
     form: &[(&str, String)],
 ) -> Result<(StatusCode, Value), OAuthError> {
-    let response = http
-        .post(url)
-        .header(ACCEPT, "application/json")
-        .form(form)
-        .send()
-        .await
-        .map_err(|_| OAuthError::Network)?;
+    let response =
+        send_secure(http.post(url).header(ACCEPT, "application/json").form(form)).await?;
     read_bounded(response).await
 }
 
@@ -1217,21 +1213,14 @@ async fn post_json(
     url: &str,
     body: &Value,
 ) -> Result<(StatusCode, Value), OAuthError> {
-    let response = http
-        .post(url)
-        .header(ACCEPT, "application/json")
-        .json(body)
-        .send()
-        .await
-        .map_err(|_| OAuthError::Network)?;
+    let response =
+        send_secure(http.post(url).header(ACCEPT, "application/json").json(body)).await?;
     read_bounded(response).await
 }
 
 /// Bounded GET returning parsed JSON (identity lookups only).
 async fn get_json(request: reqwest::RequestBuilder) -> Option<Value> {
-    let response = request
-        .header(ACCEPT, "application/json")
-        .send()
+    let response = send_secure(request.header(ACCEPT, "application/json"))
         .await
         .ok()?;
     let (status, body) = read_bounded(response).await.ok()?;

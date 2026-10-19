@@ -57,6 +57,27 @@ pub enum OAuthError {
     Storage(crate::text::Localized),
 }
 
+/// Send an OAuth request after checking that its URL may carry secrets
+/// ([`crate::transport::is_secure`]): HTTPS, or HTTP to a loopback host.
+/// A refused URL fails closed before anything leaves the machine and is never
+/// reported in the error.
+pub(crate) async fn send_secure(
+    request: reqwest::RequestBuilder,
+) -> Result<reqwest::Response, OAuthError> {
+    let (client, request) = request.build_split();
+    let request = request.map_err(|_| OAuthError::Network)?;
+    if !crate::transport::is_secure(request.url()) {
+        return Err(OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.insecure_endpoint",
+            "Endpoint OAuth recusado: segredos só trafegam por HTTPS. Nada foi enviado.",
+        )));
+    }
+    client
+        .execute(request)
+        .await
+        .map_err(|_| OAuthError::Network)
+}
+
 /// Backwards-compat: callers that still have a plain message build
 /// `OAuthError::Configuration` from a `String`/`&str`. The message becomes
 /// the `{detail}` parameter of the canonical `query.oauth.configuration`
@@ -405,4 +426,43 @@ pub fn account_params(
         _ => {}
     }
     out
+}
+
+#[cfg(test)]
+mod send_secure_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn refuses_plain_http_to_a_remote_host_before_sending() {
+        let client = reqwest::Client::new();
+        for url in [
+            "http://oauth.example.invalid/token",
+            "http://192.168.1.10/token",
+        ] {
+            let request = client.post(url).form(&[
+                ("client_secret", "never-sent"),
+                ("grant_type", "refresh_token"),
+            ]);
+            match send_secure(request).await {
+                Err(OAuthError::Configuration(text)) => {
+                    assert_eq!(&*text.id, "oauth_error.insecure_endpoint", "{url}");
+                }
+                other => panic!("expected the insecure-endpoint refusal for {url}, got {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn allows_plain_http_to_loopback_servers() {
+        use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let response = send_secure(reqwest::Client::new().post(server.uri()))
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+    }
 }

@@ -6,7 +6,7 @@
 //! Kiro overage/bonus semantics additionally follow CodexBar
 //! (steipete/CodexBar KiroUsageLimitsAPI.swift), which mirrors the official
 //! Kiro CLI's GetUsageLimits handling.
-use super::{json, param, secret, Context, Data, QueryError};
+use super::{json, param, secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
@@ -333,7 +333,7 @@ async fn kiro(
     let mut saw_transport = false;
     let mut last_status = None;
     for (index, attempt) in attempts.into_iter().enumerate() {
-        let response = match attempt.send().await {
+        let response = match secure_send(attempt).await {
             Ok(response) => response,
             Err(_) => {
                 saw_transport = true;

@@ -120,6 +120,31 @@ impl QueryError {
             ),
         }
     }
+    /// The request would carry credentials over plain HTTP to a non-loopback
+    /// host; nothing was sent.
+    pub fn insecure() -> Self {
+        Self {
+            status: Status::Error,
+            note: Localized::fixed(
+                "query.insecure_transport",
+                "Endpoint recusado: credenciais só trafegam por HTTPS. Nada foi enviado.",
+            ),
+        }
+    }
+}
+
+/// Send a request after checking that its URL may carry credentials
+/// ([`crate::transport::is_secure`]). Never reports the URL or the body.
+pub(crate) async fn send(request: RequestBuilder) -> Result<reqwest::Response, QueryError> {
+    let (client, request) = request.build_split();
+    let request = request.map_err(|_| QueryError::transport())?;
+    if !crate::transport::is_secure(request.url()) {
+        return Err(QueryError::insecure());
+    }
+    client
+        .execute(request)
+        .await
+        .map_err(|_| QueryError::transport())
 }
 
 pub(crate) fn secret(
@@ -157,7 +182,7 @@ pub(crate) fn param<'a>(account: &'a Account, key: &str) -> Result<&'a str, Quer
 
 /// Never return response bodies or request URLs: both can contain credentials.
 pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result<T, QueryError> {
-    let response = request.send().await.map_err(|_| QueryError::transport())?;
+    let response = send(request).await?;
     let code = response.status();
     if !code.is_success() {
         return Err(QueryError {
@@ -285,5 +310,34 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(full, [1, 2, 3]);
+    }
+    #[tokio::test]
+    async fn send_refuses_plain_http_to_a_remote_host_before_sending() {
+        let client = reqwest::Client::new();
+        for url in [
+            "http://api.example.invalid/v1/usage",
+            "http://10.0.0.5/v1/usage",
+            "ftp://api.example.invalid/x",
+        ] {
+            let error = send(client.get(url).bearer_auth("secret-token"))
+                .await
+                .unwrap_err();
+            assert_eq!(&*error.note.id, "query.insecure_transport", "{url}");
+            assert_eq!(error.status, Status::Error);
+        }
+    }
+
+    #[tokio::test]
+    async fn send_allows_plain_http_to_loopback_servers() {
+        use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&server)
+            .await;
+        let value: serde_json::Value = json(reqwest::Client::new().get(server.uri()))
+            .await
+            .unwrap();
+        assert_eq!(value["ok"], true);
     }
 }

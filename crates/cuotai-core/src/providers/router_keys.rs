@@ -14,7 +14,7 @@
 //! nota de estabilidade. Nenhum endpoint de geração, compra, reset ou consumo
 //! de créditos é chamado — apenas leituras GET idempotentes.
 
-use super::{secret, Context, Data, QueryError};
+use super::{secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, Utc};
@@ -116,7 +116,7 @@ fn epoch_to_utc(ts: i64) -> Option<DateTime<Utc>> {
 
 /// Envia GET e mapeia status para QueryError sem expor corpo ou URL.
 async fn send(req: reqwest::RequestBuilder) -> Result<reqwest::Response, QueryError> {
-    let response = req.send().await.map_err(|_| QueryError::transport())?;
+    let response = secure_send(req).await?;
     let code = response.status();
     if !code.is_success() {
         return Err(QueryError {
@@ -155,7 +155,7 @@ async fn opencode_go_at(
         .header("Accept", "application/json")
         .timeout(ctx.timeout);
 
-    let response = request.send().await.map_err(|_| QueryError::transport())?;
+    let response = secure_send(request).await?;
     let code = response.status();
     if !code.is_success() {
         // 403 com error.type == "EntitlementError" distingue "sem assinatura"
@@ -461,7 +461,7 @@ async fn kimi_coding_at(
         .header("Content-Type", "application/json")
         .header("Accept", "application/json");
 
-    let response = request.send().await.map_err(|_| QueryError::transport())?;
+    let response = secure_send(request).await?;
     let code = response.status();
     let body: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
 
@@ -731,7 +731,7 @@ async fn mimo_session_at(
         .header("Cookie", cookie.trim())
         .header("Accept", "application/json")
         .timeout(ctx.timeout);
-    let response = request.send().await.map_err(|_| QueryError::transport())?;
+    let response = secure_send(request).await?;
     if response.status().as_u16() == 401 {
         return Err(QueryError {
             status: Status::AuthenticationError,
@@ -774,7 +774,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
         .header("X-Mimo-Source", "mimocode-cli")
         .header("Accept", "application/json")
         .timeout(ctx.timeout);
-    let response = request.send().await.map_err(|_| QueryError::transport())?;
+    let response = secure_send(request).await?;
     if response.status().as_u16() == 401 {
         return Err(QueryError {
             status: Status::AuthenticationError,

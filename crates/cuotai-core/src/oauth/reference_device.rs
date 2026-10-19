@@ -22,6 +22,7 @@
 //!
 //! Error text never contains response bodies, request URLs, or token material.
 
+use super::send_secure;
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::{engine::general_purpose::URL_SAFE, Engine as _};
@@ -291,7 +292,7 @@ async fn post_form(
     for (name, value) in extra_headers {
         request = request.header(name, value);
     }
-    let response = request.send().await.map_err(|_| OAuthError::Network)?;
+    let response = send_secure(request).await?;
     read_json(response).await
 }
 
@@ -308,7 +309,7 @@ async fn post_json(
     for (name, value) in extra_headers {
         request = request.header(name, value);
     }
-    let response = request.send().await.map_err(|_| OAuthError::Network)?;
+    let response = send_secure(request).await?;
     read_json(response).await
 }
 
@@ -635,15 +636,15 @@ async fn finish_copilot(poll: DevicePoll) -> Result<OAuthToken, OAuthError> {
     let mut metadata = BTreeMap::new();
     // Best-effort GitHub profile for display/quota context. The Copilot
     // inference token endpoint is deliberately not called.
-    if let Ok(response) = poll
-        .http
-        .get(GITHUB_USER_INFO_URL)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .header("X-GitHub-Api-Version", GITHUB_API_VERSION)
-        .header(reqwest::header::USER_AGENT, GITHUB_USER_AGENT)
-        .bearer_auth(&grant.access_token)
-        .send()
-        .await
+    if let Ok(response) = send_secure(
+        poll.http
+            .get(GITHUB_USER_INFO_URL)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header("X-GitHub-Api-Version", GITHUB_API_VERSION)
+            .header(reqwest::header::USER_AGENT, GITHUB_USER_AGENT)
+            .bearer_auth(&grant.access_token),
+    )
+    .await
     {
         if response.status().is_success() {
             if let Ok((_status, body)) = read_json(response).await {
@@ -969,14 +970,14 @@ impl KiroPoll {
 /// failure here never fails the login and no ARN is fabricated.
 async fn fetch_kiro_profile_arn(http: &reqwest::Client, access_token: &str) -> Option<String> {
     let body = serde_json::json!({ "maxResults": 10 });
-    let response = http
-        .post(KIRO_PROFILES_URL)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .bearer_auth(access_token)
-        .json(&body)
-        .send()
-        .await
-        .ok()?;
+    let response = send_secure(
+        http.post(KIRO_PROFILES_URL)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .bearer_auth(access_token)
+            .json(&body),
+    )
+    .await
+    .ok()?;
     if !response.status().is_success() {
         return None;
     }
@@ -1159,16 +1160,16 @@ async fn begin_grok(
 /// Best-effort Grok CLI user profile (`postExchange` in grok-cli.js).
 /// Failures are ignored; identity is then decoded from the JWTs alone.
 async fn fetch_grok_user(http: &reqwest::Client, access_token: &str) -> Option<Value> {
-    let response = http
-        .get(GROK_USER_URL)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .header(reqwest::header::USER_AGENT, GROK_USER_AGENT)
-        .header("x-xai-token-auth", GROK_TOKEN_AUTH)
-        .header("x-grok-client-version", GROK_CLIENT_VERSION)
-        .bearer_auth(access_token)
-        .send()
-        .await
-        .ok()?;
+    let response = send_secure(
+        http.get(GROK_USER_URL)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::USER_AGENT, GROK_USER_AGENT)
+            .header("x-xai-token-auth", GROK_TOKEN_AUTH)
+            .header("x-grok-client-version", GROK_CLIENT_VERSION)
+            .bearer_auth(access_token),
+    )
+    .await
+    .ok()?;
     if !response.status().is_success() {
         return None;
     }
