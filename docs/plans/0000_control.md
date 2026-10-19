@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-19 |
-| Cuotai version at that date | 0.27.0 |
+| Cuotai version at that date | 0.27.1 |
 | Plans | 19 (4 implemented, 4 in progress, 11 proposed) |
 
 ## 1. How to maintain it
@@ -40,7 +40,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0016](0016_user-pasted-session.md) | User-pasted session | Proposed | — | 0005 | — | Alternative to automatic cookie import, which the project does not adopt. |
 | [0017](0017_manifest-and-script-extensions.md) | Manifest and script extensions | Proposed | — | 0005 | — | An extension never receives Cuotai's credentials. |
 | [0018](0018_automatic-updates.md) | Automatic updates for the desktop app | Proposed | — | 0019 (RF2 and RF3) | 0019 (RF7) | Needs a Tauri updater signing key pair. Release notes come from `CHANGELOG.md`. |
-| [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2), RF7.1 to RF7.3 and RF7.6 (`CHANGELOG.md`, no bump) | — | — | Prerequisite of 0014 and 0018. RF1 delivered: `MIT OR Apache-2.0` license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and `deny.toml`. `CHANGELOG.md` exists with the history up to 0.20.0; RF7.4, RF7.5, RF7.7 and RF7.8 (CI checks, release extraction, in-product display, link with this file) are still open. |
+| [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2), RF7.1 to RF7.3 and RF7.6 (`CHANGELOG.md`, no bump), RF2 partial (0.27.1) | — | — | Prerequisite of 0014 and 0018. RF1 delivered: `MIT OR Apache-2.0` license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and `deny.toml`. `CHANGELOG.md` exists with the history up to 0.20.0. RF2: `.github/workflows/ci.yml` (fmt, Clippy, tests of both workspaces on Linux, macOS and Windows, plus `cargo deny`) verified locally; **owner-blocked:** a green GitHub Actions run on the three runners and a failing pull request with broken Clippy need the workflow pushed to GitHub. RF7.4, RF7.5, RF7.7 and RF7.8 (CI checks, release extraction, in-product display, link with this file) are still open. |
 
 ## 3. Delivered by version
 
@@ -70,6 +70,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.25.0 | 0010 | RF2 (core last valid reading per account: kept on non-auth failures with its original age, replaced on success, discarded on authentication failure or account edit, carried by moves and removals; per session until 0006). |
 | 0.26.0 | 0009 | RF2 (desktop binding limit: tray ring and list "blocked until", card chip and highlighted metric, opt-in "most restrictive first" order from the core's `cmp_binding` that never rewrites the manual order). |
 | 0.27.0 | 0009 | RF3 (TUI card leads with the binding metric, details marker and summary line, `--once` per-account summary line; `--json` and exit codes unchanged). |
+| 0.27.1 | 0019 | RF2 partial (CI workflow on push and pull request for Linux, macOS and Windows with fmt, Clippy and the tests of both workspaces, `cargo deny`, pinned actions and read-only token; Windows icon and test manifest for the desktop build; per-OS coverage in `docs/architecture.md`; green hosted run pending on the owner). |
 
 ## 4. Dependency graph
 
@@ -189,3 +190,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | PRD 0010 RF2 delivered in 0.25.0 (per session until PRD 0006 RF2 persists the reading); plan 0010 in progress. |
 | 2026-10-19 | PRD 0009 RF2 delivered in 0.26.0; plan 0009 in progress (RF3 pending). |
 | 2026-10-19 | PRD 0009 RF3 delivered in 0.27.0; plan 0009 implemented. |
+| 2026-10-19 | PRD 0019 RF2 delivered as partial in 0.27.1 (CI workflow; the green GitHub run on three systems and the failing Clippy pull request wait for the owner to push); plan 0019 stays in progress. |

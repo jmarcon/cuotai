@@ -89,6 +89,22 @@ cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- 
 
 Dependency licenses, advisories and sources are checked with `cargo deny` (see [`CONTRIBUTING.md`](../CONTRIBUTING.md)).
 
+### Continuous integration
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push and pull request (PRD 0019, RF2). On Linux, macOS and Windows it runs the commands above for both workspaces: `cargo fmt --check`, `cargo clippy --all-targets -D warnings` and `cargo test`, with `--locked`. A separate Linux job runs `cargo deny` on both workspaces. Each job has a timeout, the token is read-only (`contents: read`), every action is pinned by commit hash, the workflow uses no secrets, and pull requests (forks included) run with `pull_request`, never `pull_request_target`. The `target/` cache is only written from `main`.
+
+Platform coverage of the test suite:
+
+| Area | Linux | macOS | Windows |
+|---|---|---|---|
+| Contract, OAuth, persistence, TUI and desktop logic tests | yes | yes | yes |
+| Owner-only permissions (`0600`/`0700`) and symlink handling in `ConfigFile`, `last_config`, the model cache and the dev SQLite store | yes | yes | no (`#[cfg(unix)]`: Unix permission bits and symlinks) |
+| Fake `aws` and `bl` command-line tools (`#!/bin/sh` scripts) | yes | yes | no (`#[cfg(unix)]`) |
+| OS credential vault (Keychain, Credential Manager, Secret Service) | not tested | not tested | not tested |
+| Tray, notifications and opening the system browser | not tested | not tested | not tested |
+
+Tests never touch the real vault, tray, notifications or browser: OAuth and account tests use an in-memory `TokenStore`, and the desktop tests exercise the backend without starting Tauri. Those surfaces need a packaged app and a manual check (PRD 0019, RF5.2). On Linux the desktop build needs WebKitGTK (`libwebkit2gtk-4.1-dev`). On Windows, `build.rs` embeds Tauri's Common Controls v6 manifest into every artifact so the test executables can load (tauri-apps/tauri#13419), and the bundle lists `icons/icon.ico`, which the Windows resource step requires.
+
 ### Test and verification scope
 
 - **Contract tests (`wiremock`):** exercise pagination, cents/currency, overflow, incomplete schemas, billing filters, gross versus net consumption, balance versus spend, and missing or invalid credentials, without depending on an external network.

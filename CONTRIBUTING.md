@@ -24,7 +24,7 @@ The desktop app is a separate workspace (`apps/desktop/src-tauri`). `dev.sh` use
 
 ## Checks before submitting
 
-From the repository root:
+From the repository root (CI runs the same checks on Linux, macOS and Windows for every push and pull request; see [`docs/architecture.md`](docs/architecture.md#continuous-integration)):
 
 ```sh
 cargo fmt --all -- --check

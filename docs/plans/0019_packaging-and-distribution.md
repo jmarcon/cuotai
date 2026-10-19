@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0019 |
-| Status | In progress (RF1, RF7.1 to RF7.3 and RF7.6) |
+| Status | In progress (RF1, RF2 partial, RF7.1 to RF7.3 and RF7.6) |
 | Owner | Repository, CI and release (`.github/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRDs 0014 and 0018 |
 | Depends on | none; it is a prerequisite of PRDs 0014 and 0018 |
@@ -17,8 +17,12 @@
 |---|---|---|
 | RF1.1 | 0.17.2 | License `MIT OR Apache-2.0`: `LICENSE-MIT`, `LICENSE-APACHE`, the manifests, `about.rs` and a README section. |
 | RF1.2 | 0.17.2 | `CONTRIBUTING.md`, `SECURITY.md` (private reporting through GitHub) and issue templates in `.github/ISSUE_TEMPLATE/`. |
-| RF1.3 | 0.17.2 | `deny.toml` validated with `cargo deny` 0.20 on both workspaces (licenses, sources and bans without errors). The CI check depends on RF2. |
+| RF1.3 | 0.17.2, CI in 0.27.1 | `deny.toml` validated with `cargo deny` 0.20 on both workspaces (licenses, sources and bans without errors). Since 0.27.1 the CI `deny` job runs it on both workspaces. |
 | RF1.4 | 0.17.2 to 0.20.0 | Rule in `AGENTS.md`; the README, `CONTRIBUTING.md`, `SECURITY.md`, the issue templates, `docs/*.md`, `apps/desktop/README.md`, `cuotai.example.toml` and every PRD (0004 included, translated after 0.20.0) are in English. Semantic commits are in English. |
+| RF2.1 | 0.27.1 (partial) | `.github/workflows/ci.yml` runs on every push and pull request, on `ubuntu-latest`, `macos-latest` and `windows-latest`: `cargo fmt --check`, `cargo clippy --all-targets -D warnings` and `cargo test` for the root workspace and the desktop workspace, all `--locked`. To build on Windows the desktop gained `icons/icon.ico` (required by tauri-build's resource step) and a `build.rs` that embeds Tauri's Common Controls v6 manifest into every artifact, so the test executables load (tauri-apps/tauri#13419). |
+| RF2.2 | 0.27.1 | `Swatinem/rust-cache` for both `target/` directories (written only from `main`), a timeout per job, `permissions: contents: read`, `persist-credentials: false`, every action pinned by commit hash with its tag in a comment, no secrets, `pull_request` only (never `pull_request_target`), so fork pull requests get no secrets. |
+| RF2.3 | 0.27.1 | Tests that need Unix permissions, symlinks or `#!/bin/sh` fakes of `aws`/`bl` are `#[cfg(unix)]`; no test touches the real vault, tray, notifications or browser (in-memory `TokenStore`, desktop backend without Tauri). The per-system coverage table is in `docs/architecture.md` ("Continuous integration"). |
+| RF2 acceptance | partial | Verified locally: workspace and desktop fmt, Clippy and tests pass on macOS (arm64) and Linux (Debian bookworm container, WebKitGTK 4.1); Clippy and the test build pass for `x86_64-pc-windows-gnu` on both workspaces; `actionlint` 1.7.12 accepts the workflow; `cargo deny` passes on both manifests; a planted `clippy::ptr_arg` violation makes the CI Clippy command exit 101. **Missing (owner):** pushing the workflow to GitHub to get a green run on the three hosted runners, including the first native Windows MSVC test run, and a pull request with broken Clippy that fails. |
 | RF7.1 | 0.20.0 (no bump) | `CHANGELOG.md` at the root, in English, Keep a Changelog format, `[Unreleased]` on top and one section per version. No tags exist yet, so the footer links compare commits instead of tags. |
 | RF7.2 | 0.20.0 (no bump) | Entries are one sentence from the user's point of view, with the `PRD NNNN RFx` reference and the short commit hash; versions with no user-visible change say so. |
 | RF7.3 | 0.20.0 (no bump) | Maintenance flow in `AGENTS.md` (the `[Unreleased]` update and the `Changelog: skip` footer). The `git-cliff`/`xtask` draft generator is still open. |
