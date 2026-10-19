@@ -245,17 +245,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A read-only monitor for AI-provider usage, quotas and costs, with a Ratatui terminal dashboard, an account wizard with native sign-in flows and an OS credential vault, and text or JSON snapshots with `--once` and `--json` (1ca290f).
 - 36 providers, with a documented example configuration (`cuotai.example.toml`) and provider notes (1ca290f, 57e2510).
-- A Tauri 2 desktop app with a main window and a tray popover (e0a6a60).
-- Stable classification of metrics and accounts (available, exhausted, unmeasured) in the core (08c640d).
-- A localization contract for provider texts and notes (9407631).
-- Configuration persistence in the core: atomic writes that keep comments and reject outside edits, with typed errors (dbe40d6).
-- Central account editing, credential policy and coordinated removal (4696a04).
-- Incremental refresh scheduling with a longer floor for providers billed per query, such as AWS Bedrock (f61651a).
-- A UI-independent sign-in driver with a staged commit between the vault and the configuration (ad929ec).
-- Desktop icons, provider logos and a theme catalog (6813ecb), a user folder with language packs (cdc08a2), account management with OAuth sign-in, incremental refresh and reordering (b01044c), and a donut view in the popover with a native tray menu (6cc54bd).
-- Desktop provider filter (`/` focuses it, `Esc` clears it), a per-card next-query countdown, removal that offers to delete the stored credential, and a global refresh interval in Settings (a3bc0d7).
-- The tray popover header opens the main window (5c52723).
-- Isolation between several Kiro accounts is covered by tests (f0de7be).
+- A Tauri 2 desktop app with a main window and a tray popover. It manages accounts with OAuth sign-in and reordering, refreshes them incrementally, has a donut view in the popover and a native tray menu, provider logos and a theme catalog, a user folder with language packs, a provider filter (`/` focuses it, `Esc` clears it), a per-card next-query countdown, removal that offers to delete the stored credential, and a global refresh interval in Settings (e0a6a60, 6813ecb, cdc08a2, b01044c, 6cc54bd, a3bc0d7, 5c52723).
+- Providers billed per query, such as AWS Bedrock, are refreshed on a longer floor interval, and configuration writes are atomic, keep comments and reject outside edits (dbe40d6, f61651a).
 
 ### Fixed
 
