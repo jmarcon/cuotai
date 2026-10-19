@@ -1,90 +1,92 @@
-# PRD 0014 — Widgets do sistema
+# PRD 0014 — System widgets
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0014 |
-| Status | Proposto |
-| Responsável | Desktop (macOS) e `cuotai-core` (arquivo de snapshot) |
-| Consumidores | `apps/desktop`, extensão de widget (Swift), integrações de terceiros (Waybar, GNOME, KDE) que leem o mesmo arquivo |
-| Depende de | PRD 0012 (RF1: contrato `export::v1`); PRD 0019 (assinatura e perfil do desenvolvedor); aproveita os PRDs 0006, 0007, 0009 e 0010 |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | Desktop (macOS) and `cuotai-core` (snapshot file) |
+| Consumers | `apps/desktop`, widget extension (Swift), third-party integrations (Waybar, GNOME, KDE) that read the same file |
+| Depends on | PRD 0012 (RF1: the `export::v1` contract); PRD 0019 (signing and developer profile); it uses PRDs 0006, 0007, 0009 and 0010 |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-O desktop do Cuotai é um aplicativo Tauri 2 (`apps/desktop`, identificador `dev.cuotai.desktop`) com janela principal e popover de bandeja. Não existe widget do sistema. O backend mantém o `RefreshCycle` e o estado de todas as contas em memória; a webview pode ser suspensa quando a janela está escondida.
+## 1. Context
 
-Na análise de mercado de 2026-10-19, o CodexBar publica 8 tipos de widget do macOS (WidgetKit): Switcher, Usage, Account Usage, Accounts, History, Metric, Burn Down e Burn Down combinado, em pequeno, médio e grande. Eles funcionam assim: o app grava um snapshot JSON compacto no container do *app group* e a extensão apenas lê e desenha. Há cuidados explícitos: nunca mostrar outra conta quando a escolhida falha, manter a idade original da medição em dados antigos e não inventar percentual quando a capacidade é desconhecida. O AIQuota e o Quotio (iOS) também têm widgets.
+The Cuotai desktop app is a Tauri 2 application (`apps/desktop`, identifier `dev.cuotai.desktop`) with a main window and a tray popover. There is no system widget. The backend keeps the `RefreshCycle` and the state of every account in memory; the webview may be suspended when the window is hidden.
 
-## 2. Problema
+In the 2026-10-19 market analysis, CodexBar publishes 8 types of macOS widgets (WidgetKit): Switcher, Usage, Account Usage, Accounts, History, Metric, Burn Down and combined Burn Down, in small, medium and large. They work like this: the app writes a compact JSON snapshot in the *app group* container and the extension only reads and draws. There are explicit safeguards: never show another account when the chosen one fails, keep the original measurement age on old data and do not invent a percentage when the capacity is unknown. AIQuota and Quotio (iOS) also have widgets.
 
-Ver a quota exige abrir o app ou o popover. Quem mantém o painel de widgets do macOS à vista não encontra o Cuotai ali, embora o dado já exista no backend.
+## 2. Problem
 
-## 3. Objetivos
+Seeing the quota requires opening the app or the popover. Anyone who keeps the macOS widget panel in view does not find Cuotai there, even though the data already exists in the backend.
 
-- Publicar o estado do Cuotai em um arquivo de snapshot estável e pequeno, legível por extensões de widget e por integrações de terceiros.
-- Entregar widgets do macOS (WidgetKit) que apenas leem esse arquivo.
-- Manter a regra do projeto: nenhuma lógica de negócio na extensão; ela desenha o que o core já calculou.
+## 3. Goals
 
-## 4. Não-objetivos
+- Publish Cuotai's state in a stable, small snapshot file, readable by widget extensions and by third-party integrations.
+- Deliver macOS widgets (WidgetKit) that only read that file.
+- Keep the project's rule: no business logic in the extension; it draws what the core has already computed.
 
-- Widgets para iOS/iPadOS, Windows e Linux nesta versão. Para esses sistemas, o arquivo de snapshot e o servidor do PRD 0012 permitem integrações de terceiros.
-- Consultar provedores a partir da extensão: a extensão nunca faz rede nem lê credenciais.
-- Widgets interativos que alterem contas ou configuração.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Widgets for iOS/iPadOS, Windows and Linux in this version. For those systems, the snapshot file and the PRD 0012 server allow third-party integrations.
+- Querying providers from the extension: the extension never touches the network or reads credentials.
+- Interactive widgets that change accounts or configuration.
 
-### RF1 — Arquivo de snapshot para widgets (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Em `cuotai-core`, `widget_snapshot::write(export: &Export, path)` grava um subconjunto compacto do contrato `export::v1` do PRD 0012: por conta, `key`, `name`, `provider`, a vinculante (PRD 0009), até N métricas elegíveis com fração, `unit`, `window`, `resets_at`, `checked_at`, `freshness` e o ritmo (PRD 0007, quando existir). Sem credenciais, sem notas livres, sem e-mail por padrão.
-- **RF1.2** Escrita atômica (arquivo temporário e `rename`), permissão `0600`, tamanho máximo de 256 KiB com truncamento determinístico (contas ordenadas pela vinculante), campo `schema` próprio e versionado.
-- **RF1.3** Dados desatualizados mantêm o `checked_at` original; contas em falha sem leitura anterior ficam como `unavailable`, nunca com valores de outra conta.
-- **RF1.4** A escrita acontece depois de cada mudança relevante do `RefreshCycle` (ciclo completo ou conta) e é limitada a uma gravação a cada 15 segundos, em tarefa separada, para não atrasar o refresh.
-- **Critério de aceite:** testes de gravação atômica, limite de tamanho, ausência de segredos, conta indisponível sem dados emprestados e limitação de frequência.
+### RF1 — Snapshot file for widgets (high priority; prerequisite)
 
-### RF2 — Localização e acesso ao arquivo no macOS (prioridade alta)
+- **RF1.1** In `cuotai-core`, `widget_snapshot::write(export: &Export, path)` writes a compact subset of the `export::v1` contract of PRD 0012: per account, `key`, `name`, `provider`, the binding metric (PRD 0009), up to N eligible metrics with fraction, `unit`, `window`, `resets_at`, `checked_at`, `freshness` and the pace (PRD 0007, when it exists). No credentials, no free-form notes, no e-mail by default.
+- **RF1.2** Atomic write (a temporary file and `rename`), `0600` permission, a maximum size of 256 KiB with deterministic truncation (accounts sorted by the binding metric), a versioned `schema` field of its own.
+- **RF1.3** Stale data keeps the original `checked_at`; accounts failing with no earlier reading stay as `unavailable`, never with another account's values.
+- **RF1.4** The write happens after each relevant change in the `RefreshCycle` (a cycle or an account) and is limited to one write every 15 seconds, in a separate task, so as not to delay the refresh.
+- **Acceptance criterion:** tests for atomic writing, the size limit, no secrets, an unavailable account with no borrowed data and rate limiting.
 
-- **RF2.1** O arquivo fica no container do *app group* (`group.dev.cuotai.desktop`, nome a confirmar), compartilhado entre o app e a extensão. O app (não sandboxed) escreve; a extensão (sandboxed, como o WidgetKit exige) lê.
-- **RF2.2** Esse caminho só é usado quando os widgets estão ligados em **Configurações → Widgets**; com o recurso desligado, nenhum arquivo é escrito e o existente é apagado.
-- **RF2.3** Documentar a necessidade de conta de desenvolvedor Apple, *entitlements* de *app group* e *provisioning profile* (dependência do PRD 0019). Sem eles, o recurso aparece desabilitado com explicação.
-- **Critério de aceite:** teste do caminho e do ciclo ligar/desligar; verificação manual dos *entitlements* no app assinado.
+### RF2 — File location and access on macOS (high priority)
 
-### RF3 — Extensão WidgetKit (prioridade alta)
+- **RF2.1** The file lives in the *app group* container (`group.dev.cuotai.desktop`, name to be confirmed), shared between the app and the extension. The app (not sandboxed) writes; the extension (sandboxed, as WidgetKit requires) reads.
+- **RF2.2** That path is only used when widgets are turned on in **Settings → Widgets**; with the feature off, no file is written and any existing one is deleted.
+- **RF2.3** Document the need for an Apple developer account, *app group* entitlements and a *provisioning profile* (a PRD 0019 dependency). Without them, the feature appears disabled with an explanation.
+- **Acceptance criterion:** a test of the path and of the on/off cycle; manual verification of the entitlements on the signed app.
 
-- **RF3.1** Projeto Swift mínimo em `apps/desktop/widgets/macos`, com a extensão de widget empacotada no bundle (`PlugIns/`). A forma de embutir o `.appex` no pacote do Tauri (por exemplo, a configuração `bundle.macOS.files`) deve ser validada na implementação; se não for suportada, descrever o passo de pós-processamento no pipeline do PRD 0019.
-- **RF3.2** Conjunto inicial de widgets:
-  - **Resumo**: a vinculante de cada conta (pequeno, médio, grande);
-  - **Conta**: uma conta fixada por escolha do usuário (*App Intent*), sem cair para outra conta se ela desaparecer;
-  - **Histórico**: gráfico de área com os dados do PRD 0006, apenas se o histórico estiver ligado (médio).
-- **RF3.3** Cada widget mostra a idade da medição (texto relativo nativo, que o sistema avança sozinho) e o estado `Desatualizado` quando aplicável; barras atenuadas para dados velhos; nenhuma animação.
-- **RF3.4** Textos nos três idiomas, vindos do próprio arquivo de snapshot (já localizados pelo core) ou de catálogo Swift mínimo para rótulos fixos. Acessibilidade: rótulos legíveis por VoiceOver e contraste em tema claro e escuro.
-- **RF3.5** Estado vazio claro ("Abra o Cuotai para começar") quando não há arquivo; nunca dados de exemplo disfarçados de reais.
-- **Critério de aceite:** verificação em Mac limpo: adicionar os três widgets, mudar uma conta no app, observar a atualização, fechar o app (widgets mantêm o último dado com a idade), remover uma conta fixada (widget mostra indisponível), desligar o recurso (widgets mostram o estado vazio).
+### RF3 — WidgetKit extension (high priority)
 
-### RF4 — Configurações (prioridade média)
+- **RF3.1** A minimal Swift project in `apps/desktop/widgets/macos`, with the widget extension packaged in the bundle (`PlugIns/`). The way to embed the `.appex` in the Tauri package (for example, the `bundle.macOS.files` setting) must be validated at implementation; if unsupported, describe the post-processing step in PRD 0019's pipeline.
+- **RF3.2** Initial set of widgets:
+  - **Summary**: each account's binding metric (small, medium, large);
+  - **Account**: one account pinned by the user's choice (*App Intent*), without falling back to another account if it disappears;
+  - **History**: an area chart with PRD 0006's data, only if history is on (medium).
+- **RF3.3** Each widget shows the measurement age (native relative text, which the system advances by itself) and the `Stale` state when applicable; dimmed bars for old data; no animation.
+- **RF3.4** Texts in the three languages, coming from the snapshot file itself (already localized by the core) or from a minimal Swift catalog for fixed labels. Accessibility: labels readable by VoiceOver and contrast in the light and dark themes.
+- **RF3.5** A clear empty state ("Open Cuotai to get started") when there is no file; never sample data disguised as real.
+- **Acceptance criterion:** verification on a clean Mac: add the three widgets, change an account in the app, observe the update, close the app (widgets keep the last data with the right age), remove a pinned account (the widget shows unavailable), turn the feature off (widgets show the empty state).
 
-- **RF4.1** **Configurações → Widgets**: chave global, "incluir identidade (e-mail)" (desligada por padrão), "máximo de contas publicadas" (padrão 6), local do arquivo e botão "Apagar dados dos widgets".
-- **RF4.2** Atualização dos widgets depende do sistema; o texto explica que o macOS decide quando redesenhar e que o dado exibido pode atrasar.
-- **Critério de aceite:** smoke em três idiomas; preferências persistem em `desktop.json`.
+### RF4 — Settings (medium priority)
 
-### RF5 — Compatibilidade fora do macOS (prioridade baixa)
+- **RF4.1** **Settings → Widgets**: a global switch, "include identity (e-mail)" (off by default), "maximum published accounts" (default 6), the file location and a "Delete widget data" button.
+- **RF4.2** Updating the widgets depends on the system; the text explains that macOS decides when to redraw and that the displayed data may lag.
+- **Acceptance criterion:** a smoke test in three languages; preferences persist in `desktop.json`.
 
-- **RF5.1** Em Windows e Linux, o mesmo `widget_snapshot` pode ser escrito em `<dados locais>/cuotai/widget.json` com `0600`, para integrações de terceiros (Waybar, painéis GNOME e KDE, barras de status), documentado em `docs/export-v1.md`. Nenhum widget nativo é entregue nessas plataformas por este PRD.
-- **Critério de aceite:** teste do arquivo nos três sistemas; documentação do formato.
+### RF5 — Compatibility outside macOS (low priority)
 
-## 6. Requisitos não funcionais
+- **RF5.1** On Windows and Linux, the same `widget_snapshot` can be written to `<local data>/cuotai/widget.json` with `0600`, for third-party integrations (Waybar, GNOME and KDE panels, status bars), documented in `docs/export-v1.md`. No native widget is delivered on those platforms by this PRD.
+- **Acceptance criterion:** a test of the file on the three systems; documentation of the format.
 
-- **Privacidade:** o arquivo pode ser lido por qualquer processo do mesmo usuário (e pela extensão); por isso não contém credenciais, e-mails por padrão nem notas livres.
-- **Honestidade:** dados antigos mantêm a idade original e nunca são apresentados como atuais.
-- **Energia:** gravação limitada em frequência; nenhum polling na extensão.
-- **Risco principal:** a combinação Tauri + extensão Swift + *app group* exige conta paga da Apple e ajustes de assinatura; validar em um protótipo antes de comprometer o escopo.
+## 6. Non-functional requirements
 
-## 7. Ordem de execução e verificação
+- **Privacy:** the file can be read by any process of the same user (and by the extension); for that reason it contains no credentials, no e-mails by default and no free-form notes.
+- **Honesty:** old data keeps its original age and is never presented as current.
+- **Energy:** rate-limited writing; no polling in the extension.
+- **Main risk:** the combination of Tauri + a Swift extension + *app group* requires a paid Apple account and signing adjustments; validate it in a prototype before committing to the scope.
 
-1. **RF1:** arquivo de snapshot, testes de contrato e de segredos.
-2. **Protótipo de empacotamento** (parte do RF3.1): provar que o `.appex` sobrevive à geração do bundle e à assinatura.
-3. **RF2 e RF3:** local do arquivo e widgets.
-4. **RF4 e RF5:** configurações e arquivo para outros sistemas.
+## 7. Order of execution and verification
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+1. **RF1:** the snapshot file, contract and secrets tests.
+2. **Packaging prototype** (part of RF3.1): prove that the `.appex` survives bundle generation and signing.
+3. **RF2 and RF3:** file location and widgets.
+4. **RF4 and RF5:** settings and the file for other systems.
 
-O requisito só está entregue quando, em um macOS limpo com o app assinado, o widget de resumo mostra a conta vinculante com a idade da medição, continua exibindo o último dado com idade correta com o app fechado, nunca exibe os dados de outra conta, e desligar o recurso apaga o arquivo e esvazia os widgets.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
+
+The requirement is only delivered when, on a clean macOS with the signed app, the summary widget shows the binding account with the measurement age, keeps showing the last data with the right age with the app closed, never shows another account's data, and turning the feature off deletes the file and empties the widgets.
