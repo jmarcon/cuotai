@@ -214,6 +214,23 @@ export const worstRemaining = (r) => {
   const v = planMetrics(r).map(remainingPct).filter((x) => x != null);
   return v.length ? Math.min(...v) : null;
 };
+/** PRD 0009 RF2: % still available on the core's binding metric (`r.binding`); null without one. */
+export const bindingPct = (r) => (r.status === "ready" && r.binding ? (1 - r.binding.used_ratio) * 100 : null);
+/** Short name of the binding window ("Week"); windows the UI does not name use the metric label. */
+export const bindingLabel = (r) => {
+  const w = r.binding?.window;
+  return w && w !== "other" ? t(`card.binding.${w}`) : r.binding?.label ?? "";
+};
+export const isBlocked = (r) => r.status === "ready" && r.binding?.reason === "exhausted";
+/** "Blocked until Today 14:30" (unknown return stays unknown, never "now"); null when not blocked. */
+export const blockedText = (r) => {
+  if (!isBlocked(r)) return null;
+  const at = fmtReset(r.binding.blocked_until);
+  return at ? t("card.blockedUntil", { time: at }) : t("card.blocked");
+};
+/** Chip text "Week · 100%" (consumed share of the binding window). */
+export const bindingChipText = (r) => `${bindingLabel(r)} · ${Math.round(r.binding.used_ratio * 100)}%`;
+export const isBindingMetric = (r, m) => r.binding != null && r.metrics[r.binding.index] === m;
 export const reportKey = (r) => `${r.provider}::${r.account}`;
 /** Resolve the structured note sidecar by the same index as the legacy fallback. */
 export const noteText = (report, index) =>
@@ -343,7 +360,7 @@ export function bindThemeSwitch(root, rerender) {
   root.addEventListener("click", async (e) => {
     if (e.target.closest("[data-sort-toggle]")) { sortOpen = !sortOpen; langOpen = false; return rerender(); }
     const sortItem = e.target.closest("[data-sort]");
-    if (sortItem) { sortMode = sortItem.dataset.sort; put(SORT_KEY, sortMode); sortOpen = false; return rerender(); }
+    if (sortItem) { setSort(sortItem.dataset.sort); sortOpen = false; return rerender(); }
     if (e.target.closest("[data-lang-toggle]")) { langOpen = !langOpen; sortOpen = false; return rerender(); }
     const item = e.target.closest("[data-locale]");
     if (item) { langOpen = false; await setLocale(item.dataset.locale); return crossFade(rerender); } // carrega antes: a transição não congela a tela
@@ -405,7 +422,7 @@ const dr = (account, provider, metrics, notes = [], status = "ready") => ({
   class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null }, model_count: null });
 const demoReports = [
   dr("juliano.marcon@gmail.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 26, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
-  { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 24.6, "quota", "weekly", "%")]), model_count: 1 },
+  { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 24.6, "quota", "weekly", "%")]), class: "exhausted", model_count: 1 },
   dr("juliano.marcon@gmail.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]),
   { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("premium_interactions", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
@@ -423,10 +440,28 @@ const demoReports = [
   { ...dr("juliano.marcon@gmail.com", "grok", [dm("On-demand", 1, 1, 100, "quota", "monthly")]), identity: { email: "juliano.marcon@gmail.com", badges: [], copy: null } },
   dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false }]),
 ];
+// ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
+// the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
+const DEMO_BINDINGS = new Map([
+  [0, [2, 7]], [1, [1, 0]], [2, [0, 4]], [3, [1, 1]], [4, [null, 10]], [5, [0, 5]], [6, [0, 8]], [7, [0, 2]],
+  [8, [0, 9]], [9, [null, 11]], [10, [null, 12]], [11, [null, 13]], [12, [null, 14]], [13, [0, 6]], [14, [0, 3]], [15, [null, 15]],
+].map(([index, binding]) => [demoReports[index], binding]));
+const demoBinding = (r) => {
+  const [metricIndex] = DEMO_BINDINGS.get(r) ?? [];
+  if (metricIndex == null) return null;
+  const m = r.metrics[metricIndex];
+  const exhausted = m.state === "exhausted";
+  const usedRatio = exhausted ? 1 : 1 - m.ratio;
+  return { index: metricIndex, label: m.label, window: m.window, used_ratio: usedRatio, remaining: m.limit * (1 - usedRatio),
+    resets_at: m.resets_at, reason: exhausted ? "exhausted" : "tightest", blocked_until: exhausted ? m.resets_at : null };
+};
 const demoView = () => {
   const now = new Date().toISOString();
+  const reports = demoReports.map((r, index) => ({ ...r, index, binding: demoBinding(r),
+    binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
+    next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth }));
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
-    started_at: now, finished_at: now, reports: demoReports.map((r, index) => ({ ...r, index, next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth })), busy: [], error: null, generation: demoSettings.generation };
+    started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation };
 };
 const demoSettings = { custom: null, config: null, generation: 1 };
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
@@ -537,9 +572,12 @@ const demo = {
 // O modo personalizado segue `report.index`, a ordem persistida no TOML pelo
 // core e compartilhada com a TUI. Só o modo de ordenação é preferência local.
 const SORT_KEY = "cuotai.sort";
-export const SORT_MODES = ["custom", "reset-asc", "reset-desc", "pct-asc", "pct-desc"];
+// "binding" (PRD 0009 RF2.3): the core's "most restrictive first" order (`binding_rank`); it only changes the
+// display, so the manual order in the TOML stays the default and is never rewritten.
+export const SORT_MODES = ["custom", "binding", "reset-asc", "reset-desc", "pct-asc", "pct-desc"];
 let sortMode = SORT_MODES.includes(get(SORT_KEY, "custom")) ? get(SORT_KEY, "custom") : "custom";
 export const currentSort = () => sortMode;
+export const setSort = (mode) => { if (SORT_MODES.includes(mode)) { sortMode = mode; put(SORT_KEY, mode); } };
 export function initOrderSync(onChange) {
   addEventListener("storage", (e) => {
     if (e.key === SORT_KEY && SORT_MODES.includes(e.newValue)) sortMode = e.newValue;
@@ -586,6 +624,7 @@ function soonestReset(r) {
 /** Lista na ordem escolhida. A personalizada é a ordem do arquivo; fora dela, contas sem o dado vão para o fim. */
 export function sortReports(reports) {
   if (sortMode === "custom") return [...reports].sort((a, b) => a.index - b.index);
+  if (sortMode === "binding") return [...reports].sort((a, b) => a.binding_rank - b.binding_rank);
   const [field, dir] = sortMode.split("-");
   const value = (r) => (field === "reset" ? soonestReset(r) : r.status === "ready" ? worstRemaining(r) : null);
   const sign = dir === "asc" ? 1 : -1;
