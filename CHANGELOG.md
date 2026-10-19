@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-19
+
+### Added
+
+- `cuotai-core` exposes `freshness::age` and `freshness::assess`, which tell how old a measurement is and classify it as fresh, aging or stale against the account's effective refresh interval; a system clock that went backwards reads as age zero instead of an error (PRD 0010 RF1).
+
 ## [0.20.0] - 2026-10-19
 
 ### Added
@@ -252,8 +258,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/8f5ccbb...main
-[0.20.0]: https://github.com/jmarcon/cuotai/compare/a7f9e26...8f5ccbb
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/fd1e299...main
+[0.21.0]: https://github.com/jmarcon/cuotai/compare/fd1e299...main
+[0.20.0]: https://github.com/jmarcon/cuotai/commit/fd1e299
 [0.19.0]: https://github.com/jmarcon/cuotai/commit/59f9f22
 [0.18.1]: https://github.com/jmarcon/cuotai/commit/3855c72
 [0.18.0]: https://github.com/jmarcon/cuotai/compare/a40c90a...a7f9e26

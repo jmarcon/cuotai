@@ -5,8 +5,8 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-19 |
-| Cuotai version at that date | 0.20.0 |
-| Plans | 19 (3 implemented, 1 in progress, 15 proposed) |
+| Cuotai version at that date | 0.21.0 |
+| Plans | 19 (3 implemented, 2 in progress, 14 proposed) |
 
 ## 1. How to maintain it
 
@@ -31,7 +31,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0007](0007_pace-until-reset.md) | Pace until the reset | Proposed | — | — | 0006 | Without history it uses the average since the start of the window. |
 | [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | Proposed | — | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. |
 | [0009](0009_binding-limit-indicator.md) | Binding limit indicator | Proposed | — | — | — | Consumed by 0007, 0012 and 0014. |
-| [0010](0010_measurement-age-and-stale-reading.md) | Measurement age and stale reading | Proposed | — | — | 0006 | Without 0006 the preserved reading holds only during the session. |
+| [0010](0010_measurement-age-and-stale-reading.md) | Measurement age and stale reading | In progress | RF1 (0.21.0) | — | 0006 | RF1 delivered: `freshness::age`/`assess` in the core. Without 0006 the preserved reading holds only during the session. |
 | [0011](0011_provider-incident-status.md) | Provider incident status | Proposed | — | — | 0005 | Needs verified public sources per provider. |
 | [0012](0012_local-http-server-and-export-contract.md) | Local HTTP server and `export::v1` contract | Proposed | — | — | 0005, 0007, 0009, 0010, 0011 | The `v1` contract is additive: new fields enter as the plans are delivered. |
 | [0013](0013_watch-and-event-hooks.md) | `watch` and event hooks | Proposed | — | 0012 (RF1) | 0003, 0008, 0009, 0011 | Hooks run user commands; consent is mandatory. |
@@ -63,6 +63,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.18.1 | — | No plan requirement: HTTPS-only transport guard for every credential-bearing request (providers and OAuth), prompted by the CodeQL code-scanning alerts. |
 | 0.19.0 | 0004 | RF3 (dialog open/close motion with focus return, tray entrance and ring continuity, theme and language cross-fade). |
 | 0.20.0 | 0004 | RF4 (TUI effects: animated bars with 1/8 cells, class blink, braille spinner, screen wipe, `--no-animations` and SSH/`TERM=dumb` opt-out). |
+| 0.21.0 | 0010 | RF1 (core measurement age and `Fresh`/`Aging`/`Stale` freshness, clock-adjusted age reads zero). |
 
 ## 4. Dependency graph
 
@@ -83,7 +84,7 @@ graph LR
   P7["0007 Pace"]:::todo
   P8["0008 Threshold alerts"]:::todo
   P9["0009 Binding limit"]:::todo
-  P10["0010 Measurement age"]:::todo
+  P10["0010 Measurement age"]:::wip
   P11["0011 Incident status"]:::todo
   P12["0012 Server and export v1"]:::todo
   P13["0013 Watch and hooks"]:::todo
@@ -175,3 +176,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | PRD 0004 RF4 delivered in 0.20.0; plan 0004 implemented. |
 | 2026-10-19 | PRD 0004 translated to English; every plan is now in English. |
 | 2026-10-19 | `CHANGELOG.md` created with the reconstructed history from 0.1.0 to 0.20.0 (PRD 0019 RF7.1 to RF7.3 and RF7.6). |
+| 2026-10-19 | PRD 0010 RF1 delivered in 0.21.0; plan 0010 in progress. |
