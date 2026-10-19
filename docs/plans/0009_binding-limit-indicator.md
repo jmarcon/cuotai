@@ -1,83 +1,85 @@
-# PRD 0009 — Indicador do limite mais restritivo
+# PRD 0009 — Binding limit indicator
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0009 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, Desktop e TUI |
-| Consumidores | `apps/desktop` (bandeja, cartões, popover), `crates/cuotai-tui` (`dashboard.rs`), PRDs 0007, 0012 e 0014 |
-| Depende de | nenhum |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, desktop and TUI |
+| Consumers | `apps/desktop` (tray, cards, popover), `crates/cuotai-tui` (`dashboard.rs`), PRDs 0007, 0012 and 0014 |
+| Depends on | none |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-Uma conta pode ter várias métricas de quota ao mesmo tempo (janela de 5 horas, semana, mês, limites por modelo). `metrics::classify_report` já devolve `AccountClass::Exhausted` quando **qualquer** métrica mensurável está consumida, e `classify_metric` calcula o estado de cada barra (`MetricState`). Porém não existe uma noção única de "qual limite está me travando agora". Cada interface escolhe sozinha o que destacar: a bandeja do desktop mostra anéis (donuts) e a TUI mostra a lista de métricas na ordem do adaptador.
+## 1. Context
 
-O README do WhatsMyUsage descreve o problema de forma concreta: barras que exibem só a janela de 5 horas marcavam 0% enquanto a conta estava bloqueada pelo limite semanal em 100%. O app exibe sempre o pior limite. O CodexBar também prioriza a "quota geral mais restritiva" nos widgets.
+An account can have several quota metrics at the same time (a 5-hour window, a week, a month, per-model limits). `metrics::classify_report` already returns `AccountClass::Exhausted` when **any** measurable metric is consumed, and `classify_metric` computes the state of each bar (`MetricState`). But there is no single notion of "which limit is blocking me right now". Each interface chooses what to highlight on its own: the desktop tray shows rings (donuts) and the TUI shows the metric list in the adapter's order.
 
-## 2. Problema
+WhatsMyUsage's README describes the problem concretely: bars that show only the 5-hour window read 0% while the account was blocked by the weekly limit at 100%. The app always shows the worst limit. CodexBar also prioritizes the "most restrictive general quota" in its widgets.
 
-- O resumo de uma conta pode mostrar "livre" enquanto a conta está bloqueada por outra janela.
-- Cada interface teria que reimplementar a regra de escolha (proibido pelas diretrizes do projeto: regras de negócio ficam no core).
-- Sem um valor único por conta, bandeja, ordenação e widgets não têm o que exibir de forma compacta.
+## 2. Problem
 
-## 3. Objetivos
+- An account's summary can show "free" while the account is blocked by another window.
+- Each interface would have to reimplement the choice rule (forbidden by the project guidelines: business rules live in the core).
+- Without a single value per account, the tray, ordering and widgets have nothing compact to display.
 
-- Definir no core, por conta, a métrica **vinculante** (a que mais restringe o uso agora) e o instante em que a conta volta a ser utilizável.
-- Usar o mesmo resultado na bandeja, nos cartões, na TUI, na CLI e nas exportações.
-- Nunca esconder uma métrica bloqueante nem inventar folga quando faltam dados.
+## 3. Goals
 
-## 4. Não-objetivos
+- Define in the core, per account, the **binding** metric (the one that restricts use the most right now) and the instant the account becomes usable again.
+- Use the same result in the tray, the cards, the TUI, the CLI and the exports.
+- Never hide a blocking metric nor invent slack when data is missing.
 
-- Mudar a classificação existente (`AccountClass`, `MetricState`) ou o que cada adaptador reporta.
-- Somar ou fazer média de métricas de natureza diferente.
-- Ritmo (PRD 0007) e alertas (PRD 0008), que consomem este resultado, mas não fazem parte dele.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Changing the existing classification (`AccountClass`, `MetricState`) or what each adapter reports.
+- Summing or averaging metrics of different natures.
+- Pace (PRD 0007) and alerts (PRD 0008), which consume this result but are not part of it.
 
-### RF1 — Seleção da métrica vinculante no core (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar `metrics::binding(report: &Report) -> Option<Binding>`, função pura, usando a mesma elegibilidade de `classify_metric`. `Binding` é `Serialize` e traz: índice e rótulo da métrica, `window`, fração consumida, `remaining`, `resets_at` e o motivo (`Exhausted` ou `Tightest`).
-- **RF1.2** Elegibilidade: `kind = Quota` com teto finito e positivo e sinal finito (`used` ou `remaining`). `RateLimit` entra somente se nenhuma `Quota` for elegível na conta. `Balance`, `Credits`, `Spend` e `Usage` nunca entram.
-- **RF1.3** Escolha:
-  - se alguma métrica elegível está esgotada, a conta está **bloqueada**: o resultado é a métrica esgotada cujo retorno (`resets_at`) é o mais tardio, porque a conta só volta a ser utilizável quando todas as esgotadas reiniciarem; `blocked_until` recebe esse instante;
-  - caso contrário, vence a métrica com menor fração restante (maior consumo); empate vai para a janela mais curta e, depois, para a ordem do adaptador;
-  - `resets_at` ausente numa métrica esgotada deixa `blocked_until` como desconhecido, nunca como "agora".
-- **RF1.4** Contas `Unmeasured` ou com `Status` diferente de `Ready` devolvem `None`; o estado da conta (erro, autenticação) continua sendo a informação principal.
-- **RF1.5** Ao ordenar ou resumir várias contas, `binding_ratio(report)` fornece a fração restante da vinculante; contas sem valor ficam por último.
-- **Critério de aceite:** testes de tabela: 5 h livre e semana esgotada (resultado: semana, bloqueada, retorno da semana); duas esgotadas com retornos diferentes; nenhuma esgotada com três janelas; empate; rate limit só; métricas sem teto; valores ausentes e não finitos; `used = 0, limit = 0` como sentinela desconhecida.
+### RF1 — Choosing the binding metric in the core (high priority; prerequisite)
 
-### RF2 — Desktop (prioridade alta)
+- **RF1.1** Create `metrics::binding(report: &Report) -> Option<Binding>`, a pure function, using the same eligibility as `classify_metric`. `Binding` is `Serialize` and carries: the metric's index and label, `window`, consumed fraction, `remaining`, `resets_at` and the reason (`Exhausted` or `Tightest`).
+- **RF1.2** Eligibility: `kind = Quota` with a finite and positive cap and a finite signal (`used` or `remaining`). `RateLimit` enters only if no `Quota` is eligible in the account. `Balance`, `Credits`, `Spend` and `Usage` never enter.
+- **RF1.3** Choice:
+  - if some eligible metric is exhausted, the account is **blocked**: the result is the exhausted metric whose return (`resets_at`) is the latest, because the account is only usable again when every exhausted one resets; `blocked_until` receives that instant;
+  - otherwise, the metric with the smallest remaining fraction (highest consumption) wins; a tie goes to the shortest window and then to the adapter's order;
+  - a missing `resets_at` on an exhausted metric leaves `blocked_until` unknown, never "now".
+- **RF1.4** `Unmeasured` accounts, or those with a `Status` other than `Ready`, return `None`; the account's state (error, authentication) remains the main information.
+- **RF1.5** When sorting or summarizing several accounts, `binding_ratio(report)` provides the remaining fraction of the binding one; accounts with no value come last.
+- **Acceptance criterion:** table tests: 5 h free and week exhausted (result: week, blocked, the week's return); two exhausted with different returns; none exhausted with three windows; a tie; rate limit only; metrics with no cap; missing and non-finite values; `used = 0, limit = 0` as an unknown sentinel.
 
-- **RF2.1** Comando Tauri que devolve a vinculante de cada conta junto do estado atual. A bandeja, no modo anéis, usa a vinculante como valor principal do anel de cada conta; o modo lista mostra "bloqueada até HH:MM" quando aplicável.
-- **RF2.2** O cartão exibe um chip com o rótulo da janela vinculante ("Semana · 100%") ao lado do estado, e destaca esse item na lista de métricas. As demais métricas continuam visíveis.
-- **RF2.3** Ordenação opcional "mais restritivas primeiro" nas Configurações; a ordem manual (arrastar e soltar, sincronizada com a TUI) continua sendo o padrão e nunca é sobrescrita.
-- **Critério de aceite:** smoke em três idiomas com conta bloqueada por janela semanal e livre na de 5 h; o anel e o chip mostram a semana.
+### RF2 — Desktop (high priority)
 
-### RF3 — TUI e CLI (prioridade média)
+- **RF2.1** A Tauri command that returns each account's binding metric together with the current state. The tray, in ring mode, uses the binding metric as each account's main ring value; the list mode shows "blocked until HH:MM" when applicable.
+- **RF2.2** The card shows a chip with the label of the binding window ("Week · 100%") next to the state, and highlights that item in the metric list. The other metrics stay visible.
+- **RF2.3** An optional "most restrictive first" ordering in Settings; the manual order (drag and drop, synced with the TUI) remains the default and is never overwritten.
+- **Acceptance criterion:** a smoke test in three languages with an account blocked by the weekly window and free on the 5 h one; the ring and the chip show the week.
 
-- **RF3.1** A linha da conta no painel mostra a vinculante em vez da primeira métrica; nos detalhes, a vinculante recebe marcador.
-- **RF3.2** `--once` imprime uma linha de resumo por conta: `Claude  BLOQUEADA até 14:30 (semana 100%)` ou `Claude  semana 62%`. `--json` permanece igual; a vinculante entra no contrato versionado do PRD 0012.
-- **RF3.3** Códigos de saída não mudam.
-- **Critério de aceite:** testes de renderização em `TestBackend` e snapshot textual de `--once`.
+### RF3 — TUI and CLI (medium priority)
 
-### RF4 — Textos (prioridade média)
+- **RF3.1** The account row on the dashboard shows the binding metric instead of the first metric; in the details, the binding one gets a marker.
+- **RF3.2** `--once` prints a summary line per account: `Claude  BLOCKED until 14:30 (week 100%)` or `Claude  week 62%`. `--json` stays the same; the binding metric enters the versioned contract of PRD 0012.
+- **RF3.3** Exit codes do not change.
+- **Acceptance criterion:** `TestBackend` rendering tests and a text snapshot of `--once`.
 
-- **RF4.1** O core emite `Localized` para o resumo ("bloqueada até {at} pela janela {window}", "mais restritiva: {window} {used}%"), com ids estáveis e catálogos `en-US` e `es`.
-- **Critério de aceite:** teste de catálogo completo.
+### RF4 — Texts (medium priority)
 
-## 6. Requisitos não funcionais
+- **RF4.1** The core emits `Localized` for the summary ("blocked until {at} by the {window} window", "most restrictive: {window} {used}%"), with stable ids and `en-US` and `es` catalogs.
+- **Acceptance criterion:** a complete-catalog test.
 
-- **Honestidade:** a vinculante nunca esconde dados; é uma ênfase, não um filtro. Ausência de dado não vira zero nem "100% livre".
-- **Consistência:** todas as superfícies leem o mesmo resultado do core.
-- **Custo:** nenhuma consulta nova.
+## 6. Non-functional requirements
 
-## 7. Ordem de execução e verificação
+- **Honesty:** the binding metric never hides data; it is an emphasis, not a filter. A missing value does not become zero or "100% free".
+- **Consistency:** every surface reads the same result from the core.
+- **Cost:** no new query.
 
-1. **RF1 e RF4:** função e textos com testes de tabela.
+## 7. Order of execution and verification
+
+1. **RF1 and RF4:** the function and the texts with table tests.
 2. **RF2:** desktop.
-3. **RF3:** TUI e CLI.
+3. **RF3:** TUI and CLI.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
-O requisito só está entregue quando uma conta com a janela de 5 horas livre e a semanal esgotada aparece como bloqueada, com o horário de retorno correto, na bandeja, no cartão, na TUI e em `--once`, e nenhuma interface contém regra própria de escolha.
+The requirement is only delivered when an account with the 5-hour window free and the weekly one exhausted appears as blocked, with the correct return time, in the tray, the card, the TUI and `--once`, and no interface contains a choice rule of its own.

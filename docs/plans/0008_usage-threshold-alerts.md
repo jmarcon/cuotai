@@ -1,87 +1,89 @@
-# PRD 0008 — Alertas de consumo por limiar
+# PRD 0008 — Usage threshold alerts
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0008 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, Desktop (TUI opcional) |
-| Consumidores | `apps/desktop`, `crates/cuotai-tui`, PRD 0013 (eventos) |
-| Depende de | PRD 0003 (RF2 e RF3: entregador `Notifier`, permissão, `notified.json` e preferências); o PRD 0006 é opcional |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, desktop (TUI optional) |
+| Consumers | `apps/desktop`, `crates/cuotai-tui`, PRD 0013 (events) |
+| Depends on | PRD 0003 (RF2 and RF3: `Notifier` deliverer, permission, `notified.json` and preferences); PRD 0006 is optional |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-O PRD 0003 trata do aviso de **reinício** de quota e deixa explicitamente para um PRD próprio os "avisos de consumo (abaixo de 20%)". Hoje a única indicação de aproximação do limite é visual: `metrics::classify_report` marca uma conta como `Exhausted` e os cartões ganham a classe `exhausted` no desktop. Nada avisa antes de a quota acabar, nem enquanto o app está escondido na bandeja.
+## 1. Context
 
-O PRD 0003 prepara a infraestrutura reaproveitável: `Notifier` atrás de um trait, plugin de notificação com permissão, agendador no backend Tauri, persistência anti-duplicação em `notified.json` e a seção **Configurações → Notificações**. Na análise de mercado de 2026-10-19, vários concorrentes avisam por limiar: o Usagebar em 50/75/90% e o QuoPeek com limiares e repetição configuráveis.
+PRD 0003 deals with the **reset** notice of a quota and explicitly leaves "consumption notices (below 20%)" to their own PRD. Today the only indication of approaching the limit is visual: `metrics::classify_report` marks an account as `Exhausted` and the cards get the `exhausted` class on the desktop. Nothing warns before the quota runs out, nor while the app is hidden in the tray.
 
-## 2. Problema
+PRD 0003 prepares the reusable infrastructure: `Notifier` behind a trait, a notification plugin with permission, a scheduler in the Tauri backend, anti-duplication persistence in `notified.json` and the **Settings → Notifications** section. In the 2026-10-19 market analysis, several competitors notify by threshold: Usagebar at 50/75/90% and QuoPeek with configurable thresholds and repetition.
 
-Quem trabalha com janelas de 5 horas e semanais descobre que a quota acabou quando o trabalho para. Alertar ingenuamente gera ruído:
-- uma métrica oscila ao redor do limiar a cada consulta;
-- várias métricas da mesma conta cruzam limiares juntas;
-- reiniciar o app reenviaria avisos antigos;
-- métricas sem teto (saldo, gasto) não têm "percentual" e não podem disparar.
+## 2. Problem
 
-## 3. Objetivos
+People working with 5-hour and weekly windows find out the quota ran out when the work stops. Alerting naively creates noise:
+- a metric oscillates around the threshold on every query;
+- several metrics of the same account cross thresholds together;
+- restarting the app would resend old notices;
+- metrics without a cap (balance, spend) have no "percentage" and cannot fire.
 
-- Avisar, uma vez por janela e por limiar, quando o consumo de uma métrica com teto cruza um limiar escolhido pelo usuário.
-- Avisar quando a quota se esgota e quando volta a ter folga na janela seguinte, sem repetir após reinício do app.
-- Reaproveitar o entregador, a permissão e o armazenamento do PRD 0003, sem nova consulta ao provedor.
+## 3. Goals
 
-## 4. Não-objetivos
+- Notify, once per window and per threshold, when the consumption of a metric with a cap crosses a threshold chosen by the user.
+- Notify when the quota is exhausted and when it has slack again in the next window, without repeating after an app restart.
+- Reuse the deliverer, the permission and the storage of PRD 0003, with no new provider query.
 
-- Aviso de reinício (PRD 0003) e aviso baseado em ritmo (PRD 0007), que podem virar uma opção futura.
-- E-mail, push remoto, webhooks (PRD 0013) e avisos com o aplicativo encerrado.
-- Alertar sobre saldo, gasto acumulado ou rate limit curto.
-- Modo "não perturbe" por horário nesta versão.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- The reset notice (PRD 0003) and a pace-based notice (PRD 0007), which may become a future option.
+- E-mail, remote push, webhooks (PRD 0013) and notices with the app closed.
+- Alerting about balance, accumulated spend or short rate limits.
+- A "do not disturb" schedule mode in this version.
 
-### RF1 — Avaliador de limiares no core (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar `alerts::evaluate(prev: Option<&Report>, next: &Report, prefs: &AlertPrefs, state: &AlertState, now) -> Vec<AlertEvent>`, função pura e sem relógio interno. `AlertEvent` traz a chave da conta, o rótulo e a janela da métrica, o limiar cruzado, a fração consumida, `resets_at` e o tipo (`Threshold`, `Exhausted`, `Recovered`).
-- **RF1.2** Elegibilidade: `kind = Quota` com `MetricState::Available { uncapped: false }` ou `Exhausted` com teto positivo. Métricas sem teto, `Balance`, `Credits`, `Spend`, `Usage` e `RateLimit` nunca disparam. Valores ausentes ou não finitos são ignorados, nunca tratados como zero.
-- **RF1.3** Limiares configuráveis entre 10 e 99% de consumo (padrão 75 e 90). O aviso de esgotamento (100%) é sempre avaliado quando os alertas estão ligados.
-- **RF1.4** Identidade e deduplicação: a chave é conta + métrica + instância da janela + limiar, com a mesma tolerância de 2 minutos para `resets_at` do PRD 0003, RF1.3. Um limiar dispara uma vez por instância de janela. Cruzar vários limiares numa única consulta emite só o mais alto.
-- **RF1.5** Histerese: um limiar só rearma quando o consumo cai 5 pontos abaixo dele ou quando começa uma nova instância de janela. Oscilar em torno do limiar não gera avisos repetidos.
-- **RF1.6** `Recovered`: quando uma métrica esgotada ganha folga numa nova janela, emite um único aviso, desde que o usuário tenha recebido o de esgotamento daquela métrica.
-- **RF1.7** Primeira leitura: sem `prev`, o avaliador não emite aviso de limiar já ultrapassado no passado (evita rajada ao abrir o app). Emite apenas se a leitura é nova e dentro de 10 minutos do cruzamento conhecido (usando o histórico do PRD 0006, quando existir).
-- **Critério de aceite:** testes de tabela com relógio fixo cobrem métrica sem teto, valor ausente, cruzar um e vários limiares, oscilação, rearme por queda e por nova janela, deriva de `resets_at`, `Recovered`, primeira leitura e conta removida.
+### RF1 — Threshold evaluator in the core (high priority; prerequisite)
 
-### RF2 — Persistência e entrega (prioridade alta)
+- **RF1.1** Create `alerts::evaluate(prev: Option<&Report>, next: &Report, prefs: &AlertPrefs, state: &AlertState, now) -> Vec<AlertEvent>`, a pure function with no internal clock. `AlertEvent` carries the account key, the label and window of the metric, the crossed threshold, the consumed fraction, `resets_at` and the kind (`Threshold`, `Exhausted`, `Recovered`).
+- **RF1.2** Eligibility: `kind = Quota` with `MetricState::Available { uncapped: false }` or `Exhausted` with a positive cap. Metrics with no cap, `Balance`, `Credits`, `Spend`, `Usage` and `RateLimit` never fire. Missing or non-finite values are ignored, never treated as zero.
+- **RF1.3** Thresholds configurable between 10 and 99% consumption (default 75 and 90). The exhaustion notice (100%) is always evaluated when alerts are on.
+- **RF1.4** Identity and deduplication: the key is account + metric + window instance + threshold, with the same 2-minute `resets_at` tolerance as PRD 0003, RF1.3. A threshold fires once per window instance. Crossing several thresholds in a single query emits only the highest one.
+- **RF1.5** Hysteresis: a threshold only re-arms when consumption falls 5 points below it or when a new window instance starts. Oscillating around the threshold does not produce repeated notices.
+- **RF1.6** `Recovered`: when an exhausted metric gets slack in a new window, it emits a single notice, provided the user received that metric's exhaustion notice.
+- **RF1.7** First reading: without `prev`, the evaluator does not emit a notice for a threshold already crossed in the past (avoids a burst when opening the app). It emits only if the reading is new and within 10 minutes of the known crossing (using PRD 0006's history, when present).
+- **Acceptance criterion:** table tests with a fixed clock cover a metric with no cap, a missing value, crossing one and several thresholds, oscillation, re-arming by a fall and by a new window, `resets_at` drift, `Recovered`, the first reading and a removed account.
 
-- **RF2.1** O estado dos avisos já emitidos (chaves e datas) é gravado no mesmo `notified.json` do PRD 0003, com poda após 8 dias; só digests, nunca valores de uso, e-mails ou nomes de conta.
-- **RF2.2** O backend Tauri chama o avaliador depois de cada `Report` aplicado ao `RefreshCycle`, não o JavaScript. A entrega usa o `Notifier` do PRD 0003 e agrupa em uma única notificação os eventos da mesma conta no mesmo ciclo.
-- **RF2.3** Conteúdo: "Claude: 90% da janela de 5 h usada · reinicia 14:30". Nunca inclui e-mail, token, URL ou notas do provedor. Textos em `pt-BR`, `en-US` e `es`.
-- **Critério de aceite:** testes do agendador com relógio e entregador falsos: um aviso por limiar e janela, nenhum aviso repetido após reiniciar o app, agrupamento por conta, alertas desligados no meio da espera e permissão negada.
+### RF2 — Persistence and delivery (high priority)
 
-### RF3 — Preferências no desktop (prioridade alta)
+- **RF2.1** The state of the notices already emitted (keys and dates) is written to the same `notified.json` as PRD 0003, pruned after 8 days; digests only, never usage values, e-mails or account names.
+- **RF2.2** The Tauri backend calls the evaluator after each `Report` applied to the `RefreshCycle`, not JavaScript. Delivery uses the PRD 0003 `Notifier` and groups into a single notification the events of the same account in the same cycle.
+- **RF2.3** Content: "Claude: 90% of the 5 h window used · resets 14:30". It never includes e-mail, token, URL or provider notes. Texts in `pt-BR`, `en-US` and `es`.
+- **Acceptance criterion:** scheduler tests with a fake clock and a fake deliverer: one notice per threshold and window, no repeated notice after restarting the app, grouping by account, alerts turned off midway and permission denied.
 
-- **RF3.1** Em **Configurações → Notificações**: chave **Alertas de consumo** (desligada por padrão), lista de limiares (chips editáveis de 10 a 99), **Avisar esgotamento** e **Avisar retorno**. Preferências em `desktop.json`, nunca no `cuotai.toml`.
-- **RF3.2** Por conta e por métrica: silenciar uma conta (sino do PRD 0003, RF3.2) e silenciar uma métrica específica nos detalhes. Chaves pela identidade estável da conta, podadas ao remover.
-- **RF3.3** Reaproveitar o pedido de permissão e o botão de teste do PRD 0003; este PRD não duplica o fluxo.
-- **RF3.4** A bandeja e o cartão destacam a conta com alerta ativo, mantendo o estado visual atual de `exhausted`.
-- **Critério de aceite:** smoke no app empacotado (macOS e, quando disponível, Windows e Linux) com permissão concedida e negada, limiares personalizados e preferências persistentes após reiniciar.
+### RF3 — Preferences on the desktop (high priority)
 
-### RF4 — Aviso na TUI (prioridade baixa; opcional)
+- **RF3.1** In **Settings → Notifications**: a **Usage alerts** switch (off by default), a list of thresholds (editable chips from 10 to 99), **Notify exhaustion** and **Notify recovery**. Preferences in `desktop.json`, never in `cuotai.toml`.
+- **RF3.2** Per account and per metric: mute an account (the bell of PRD 0003, RF3.2) and mute a specific metric in the details. Keys by the account's stable identity, pruned on removal.
+- **RF3.3** Reuse PRD 0003's permission request and test button; this PRD does not duplicate the flow.
+- **RF3.4** The tray and the card highlight the account with an active alert, keeping the current visual `exhausted` state.
+- **Acceptance criterion:** a smoke test on the packaged app (macOS and, when available, Windows and Linux) with permission granted and denied, custom thresholds and preferences persisting after a restart.
 
-- **RF4.1** Com `--notify` (o mesmo flag do PRD 0003, RF4), a TUI mostra a faixa de aviso e toca `BEL` para eventos do avaliador, sem persistência entre sessões.
-- **Critério de aceite:** smoke em tmux com métrica de teste cruzando um limiar; `--once` e `--json` não mudam.
+### RF4 — Notice in the TUI (low priority; optional)
 
-## 6. Requisitos não funcionais
+- **RF4.1** With `--notify` (the same flag as PRD 0003, RF4), the TUI shows the notice banner and rings `BEL` for evaluator events, with no persistence between sessions.
+- **Acceptance criterion:** a tmux smoke test with a test metric crossing a threshold; `--once` and `--json` do not change.
 
-- **Privacidade:** o texto da notificação aparece na tela bloqueada. Só nome do provedor, da conta e da métrica, nunca dados sensíveis.
-- **Custo:** nenhum alerta dispara consulta; os avisos só reagem a relatórios já obtidos.
-- **Ruído:** limite de no máximo uma notificação por conta por ciclo e uma por minuto no total, com excedente agrupado.
+## 6. Non-functional requirements
 
-## 7. Ordem de execução e verificação
+- **Privacy:** the notification text shows on the lock screen. Only the provider, account and metric names, never sensitive data.
+- **Cost:** no alert triggers a query; notices only react to reports already obtained.
+- **Noise:** at most one notification per account per cycle and one per minute in total, with the excess grouped.
 
-1. **RF1:** avaliador puro com testes de tabela; sem mudança visível.
-2. **RF2:** integração ao backend, persistência compartilhada e agrupamento.
-3. **RF3:** preferências, silenciamento e smoke no app empacotado.
-4. **RF4 (opcional):** TUI.
+## 7. Order of execution and verification
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+1. **RF1:** a pure evaluator with table tests; no visible change.
+2. **RF2:** integration into the backend, shared persistence and grouping.
+3. **RF3:** preferences, muting and a smoke test on the packaged app.
+4. **RF4 (optional):** TUI.
 
-O requisito só está entregue quando, com o app escondido na bandeja, uma métrica que cruza 90% gera **um** aviso por janela, oscilar em torno do limiar não repete, reiniciar o app não reenvia avisos antigos, desligar os alertas cancela os pendentes e nenhuma consulta extra é feita ao provedor.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
+
+The requirement is only delivered when, with the app hidden in the tray, a metric that crosses 90% produces **one** notice per window, oscillating around the threshold does not repeat, restarting the app does not resend old notices, turning the alerts off cancels the pending ones, and no extra query is made to the provider.

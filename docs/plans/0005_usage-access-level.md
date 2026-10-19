@@ -1,104 +1,106 @@
-# PRD 0005 — Nível de acesso ao consumo por provedor
+# PRD 0005 — Usage access level per provider
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0005 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, TUI e Desktop |
-| Consumidores | `crates/cuotai-tui` (`wizard.rs`, `dashboard.rs`), `apps/desktop` (`account-dialog.js`, cartões) |
-| Depende de | nenhum (é pré-requisito dos PRDs 0016 e 0017) |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, TUI and desktop |
+| Consumers | `crates/cuotai-tui` (`wizard.rs`, `dashboard.rs`), `apps/desktop` (`account-dialog.js`, cards) |
+| Depends on | none (it is a prerequisite of PRDs 0016 and 0017) |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-O catálogo tem 36 provedores (`Provider::ALL` em `crates/cuotai-core/src/model.rs`). Cada adaptador consulta uma interface diferente, e a confiabilidade delas varia muito: APIs administrativas documentadas (OpenAI, Anthropic, AWS Cost Explorer), endpoints próprios acessíveis com a chave da conta (Kimi, Kimchi, OpenCode Go, Ollama Cloud), interfaces internas deduzidas de clientes comunitários e do 9router (ChatGPT/Codex, Claude, Kiro, Antigravity, Zed) e provedores sem nenhuma consulta pública (Qwen, NVIDIA NIM, Poolside, Alibaba Model Studio, Cloudflare AI, Gemini AI com chave de API).
+## 1. Context
 
-Essa informação existe hoje só em texto livre: `docs/providers.md`, notas dos adaptadores e `Provider::cost_advisory()` (que cobre apenas o custo por consulta do AWS Bedrock). O catálogo de modelos já resolveu um problema parecido: `models::support(account)` devolve, por conta, uma fonte localizada (`models.source.live`, `models.source.undocumented`, `models.source.builtin`) ou um motivo de indisponibilidade, e as interfaces só exibem.
+The catalog has 36 providers (`Provider::ALL` in `crates/cuotai-core/src/model.rs`). Each adapter queries a different interface, and their reliability varies a lot: documented admin APIs (OpenAI, Anthropic, AWS Cost Explorer), own endpoints reachable with the account's key (Kimi, Kimchi, OpenCode Go, Ollama Cloud), internal interfaces inferred from community clients and 9router (ChatGPT/Codex, Claude, Kiro, Antigravity, Zed) and providers with no public query at all (Qwen, NVIDIA NIM, Poolside, Alibaba Model Studio, Cloudflare AI, Gemini AI with an API key).
 
-A análise de mercado de 2026-10-19 mostrou que nenhum concorrente descreve de forma estruturada a origem e a confiabilidade de cada número. O Quotum explica o risco de ler quotas não publicadas, mas só em texto de página.
+Today this information exists only as free text: `docs/providers.md`, adapter notes and `Provider::cost_advisory()` (which covers only AWS Bedrock's per-query cost). The model catalog already solved a similar problem: `models::support(account)` returns, per account, a localized source (`models.source.live`, `models.source.undocumented`, `models.source.builtin`) or a reason for being unavailable, and the interfaces only display it.
 
-## 2. Problema
+The 2026-10-19 market analysis showed that no competitor describes the origin and reliability of each number in a structured way. Quotum explains the risk of reading unpublished quotas, but only as page text.
 
-- Quem adiciona uma conta não sabe se a consulta é oficial, se depende de uma interface interna que pode quebrar, se exige uma chave administrativa em vez da chave de inferência, se exige plano Enterprise ou se cobra por consulta.
-- Escolher a classe errada de credencial é a falha mais comum e produz erros genéricos (caso real: Ollama Cloud, "Resposta incompatível com a interface de consulta").
-- Provedores sem consulta pública aparecem como contas normais e terminam em erro ou em cartão vazio, sem explicação.
-- Ao incluir um provedor novo, nada obriga o autor a declarar esse contexto.
+## 2. Problem
 
-## 3. Objetivos
+- Someone adding an account does not know whether the query is official, whether it depends on an internal interface that may break, whether it needs an admin key instead of the inference key, whether it needs an Enterprise plan or whether it bills per query.
+- Picking the wrong credential class is the most common failure and produces generic errors (a real case: Ollama Cloud, "Response incompatible with the query interface").
+- Providers without a public query show up as normal accounts and end in an error or an empty card, with no explanation.
+- When a new provider is added, nothing forces the author to declare this context.
 
-- Descrever, no core e por conta, **como** o consumo é obtido: nível de confiabilidade, classe de credencial, requisito de plano, escopo, custo por consulta e evidência.
-- Exibir isso no seletor de provedor, no passo de credencial e nos cartões, sem regras por provedor nas interfaces.
-- Obrigar, por compilação e por teste, que todo provedor novo declare o descritor.
-- Gerar a matriz de `docs/providers.md` a partir da mesma fonte.
+## 3. Goals
 
-## 4. Não-objetivos
+- Describe, in the core and per account, **how** usage is obtained: reliability level, credential class, plan requirement, scope, per-query cost and evidence.
+- Show it in the provider picker, in the credential step and on the cards, with no per-provider rules in the interfaces.
+- Require, by compilation and by test, that every new provider declares the descriptor.
+- Generate the `docs/providers.md` matrix from the same source.
 
-- Mudar o que cada adaptador consulta, ou bloquear a criação de contas em provedores sem consulta (o aviso é obrigatório; o bloqueio não faz parte deste PRD).
-- Verificar disponibilidade em tempo real (isso é o PRD 0011) ou idade do dado (PRD 0010).
-- Alterar `Report`, `Snapshot` ou a saída `--json` atual.
-- Provar a documentação do fabricante: o nível `Oficial` exige URL de documentação citada, mas o PRD não garante que a interface seja estável.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Changing what each adapter queries, or blocking account creation for providers without a query (the warning is mandatory; blocking is not part of this PRD).
+- Checking availability in real time (that is PRD 0011) or the age of the data (PRD 0010).
+- Changing `Report`, `Snapshot` or the current `--json` output.
+- Proving the vendor's documentation: the `Official` level requires a cited documentation URL, but the PRD does not guarantee the interface is stable.
 
-### RF1 — Descritor de acesso no core (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar o módulo `access` em `cuotai-core` com a função pura `describe(account: &Account) -> UsageAccess`, sem rede. O resultado varia por provedor, tipo de autenticação (credencial ou OAuth) e `params.product`/`params.mode` quando mudam a interface usada (Cursor pessoal x Teams, Copilot `quota` x `billing`, Kimi `default` x `coding`, Grok `management` x `cli`, Gemini AI `default` x `cli`).
-- **RF1.2** `UsageAccess` contém:
-  - `level`: `Official` (interface documentada pelo fabricante para essa credencial), `Undocumented` (interface interna ou deduzida), `Derived` (o consumo é inferido de outra fonte, como métricas de Cloud Monitoring ou cabeçalhos de rate limit), `Unavailable` (não há consulta; motivo obrigatório). Os PRDs 0016 e 0017 acrescentam `UserSession` e `Extension`.
+### RF1 — Access descriptor in the core (high priority; prerequisite)
+
+- **RF1.1** Create the `access` module in `cuotai-core` with the pure function `describe(account: &Account) -> UsageAccess`, with no network. The result varies by provider, authentication type (credential or OAuth) and by `params.product`/`params.mode` when they change the interface used (personal Cursor vs Teams, Copilot `quota` vs `billing`, Kimi `default` vs `coding`, Grok `management` vs `cli`, Gemini AI `default` vs `cli`).
+- **RF1.2** `UsageAccess` contains:
+  - `level`: `Official` (an interface documented by the vendor for that credential), `Undocumented` (an internal or inferred interface), `Derived` (usage is inferred from another source, such as Cloud Monitoring metrics or rate-limit headers), `Unavailable` (there is no query; a reason is mandatory). PRDs 0016 and 0017 add `UserSession` and `Extension`.
   - `credential`: `InferenceKey`, `AdminKey`, `SubscriptionSession`, `CloudIdentity`, `LocalCli`, `UserSession`.
-  - `plan_requirement`: texto opcional localizado ("Enterprise", "Teams ou Enterprise").
-  - `scope`: `Account`, `Organization`, `WholeCloud` (fatura de todos os produtos, como Alibaba Cloud) ou `Product`.
-  - `metered`: reutiliza `Provider::is_metered()`; não duplica a lista.
-  - `evidence`: URL de documentação oficial **ou** referência ao contrato do 9router/cliente comunitário, mais a data (`verified_on`) da última verificação real.
-  - `summary`, `credential_hint` e `risk` como `text::Localized` com fallback em português.
-- **RF1.3** A função usa `match` exaustivo sobre `Provider`, sem braço curinga, de modo que um provedor novo não compila sem classificação.
-- **RF1.4** Classificação inicial, a confirmar contra a documentação de cada fabricante antes de marcar `Official`:
-  - `Official`: OpenAI e Anthropic (chave administrativa), AWS Bedrock (Cost Explorer, `metered`), Azure OpenAI, Alibaba Cloud (`WholeCloud`), Cursor Teams, Windsurf (Enterprise), Mistral (chave administrativa), Perplexity Computer (Analytics), Kimi por chave (saldo), Grok `management`.
-  - `Derived`: Gemini API e Vertex AI (Cloud Monitoring), Groq (cabeçalhos `x-ratelimit-*`).
-  - `Undocumented`: ChatGPT/Codex, Claude, Antigravity, Gemini CLI, Grok CLI, Kiro, CodeBuddy, Zed, Cursor pessoal, Copilot `quota`, Alibaba Coding Plan e Token Plan, Xiaomi MIMO, Qoder, MiniMax, OpenCode Go, Ollama Cloud, Kimchi, Cline.
-  - `Unavailable`: Qwen (chave), Alibaba Model Studio, NVIDIA NIM, Cloudflare AI, Gemini AI com chave de API, Poolside (o endpoint conhecido exige token de plataforma, não a chave de inferência).
-- **Critério de aceite:** testes de tabela cobrem os 36 provedores e os modos que alteram a interface; `Unavailable` sempre traz motivo; `Official` sempre traz URL; todo `id` emitido existe no catálogo `en-US` (o teste `every_descriptor_id_is_translated_in_every_catalog` já cobre o padrão).
+  - `plan_requirement`: an optional localized text ("Enterprise", "Teams or Enterprise").
+  - `scope`: `Account`, `Organization`, `WholeCloud` (a bill for all products, like Alibaba Cloud) or `Product`.
+  - `metered`: reuses `Provider::is_metered()`; it does not duplicate the list.
+  - `evidence`: a public documentation URL **or** a reference to the 9router/community-client contract, plus the date (`verified_on`) of the last real verification.
+  - `summary`, `credential_hint` and `risk` as `text::Localized` with a Portuguese fallback.
+- **RF1.3** The function uses an exhaustive `match` on `Provider`, with no wildcard arm, so a new provider does not compile without a classification.
+- **RF1.4** Initial classification, to be confirmed against each vendor's documentation before marking `Official`:
+  - `Official`: OpenAI and Anthropic (admin key), AWS Bedrock (Cost Explorer, `metered`), Azure OpenAI, Alibaba Cloud (`WholeCloud`), Cursor Teams, Windsurf (Enterprise), Mistral (admin key), Perplexity Computer (Analytics), Kimi by key (balance), Grok `management`.
+  - `Derived`: Gemini API and Vertex AI (Cloud Monitoring), Groq (`x-ratelimit-*` headers).
+  - `Undocumented`: ChatGPT/Codex, Claude, Antigravity, Gemini CLI, Grok CLI, Kiro, CodeBuddy, Zed, personal Cursor, Copilot `quota`, Alibaba Coding Plan and Token Plan, Xiaomi MIMO, Qoder, MiniMax, OpenCode Go, Ollama Cloud, Kimchi, Cline.
+  - `Unavailable`: Qwen (key), Alibaba Model Studio, NVIDIA NIM, Cloudflare AI, Gemini AI with an API key, Poolside (the known endpoint needs a platform token, not the inference key).
+- **Acceptance criterion:** table tests cover the 36 providers and the modes that change the interface; `Unavailable` always carries a reason; `Official` always carries a URL; every emitted `id` exists in the `en-US` catalog (the `every_descriptor_id_is_translated_in_every_catalog` test already covers the pattern).
 
-### RF2 — Textos e catálogos (prioridade alta)
+### RF2 — Texts and catalogs (high priority)
 
-- **RF2.1** Criar ids estáveis `access.level.*`, `access.credential.*`, `access.scope.*` e `access.summary.<slug>` (um por provedor/modo) em `locales/en-US.json` e `es.json`; o português fica no `fallback`.
-- **RF2.2** Nenhum texto cita URL autenticada, token ou corpo de resposta. A evidência é uma URL pública de documentação ou o nome do arquivo de referência.
-- **Critério de aceite:** teste de catálogo completo nos três idiomas; nenhuma string de acesso aparece em `ui/locales` do desktop (o core é dono).
+- **RF2.1** Create stable ids `access.level.*`, `access.credential.*`, `access.scope.*` and `access.summary.<slug>` (one per provider/mode) in `locales/en-US.json` and `es.json`; Portuguese stays in the `fallback`.
+- **RF2.2** No text cites an authenticated URL, a token or a response body. The evidence is a public documentation URL or the name of the reference file.
+- **Acceptance criterion:** a complete-catalog test in the three languages; no access string appears in the desktop `ui/locales` (the core owns them).
 
-### RF3 — Exibição no seletor e no passo de credencial (prioridade alta)
+### RF3 — Display in the picker and the credential step (high priority)
 
-- **RF3.1** TUI (`wizard.rs`) e desktop (`account-dialog.js`) mostram, ao lado de cada provedor, uma etiqueta curta do nível (`Oficial`, `Não documentado`, `Derivado`, `Indisponível`), vinda de `describe`.
-- **RF3.2** No passo de credencial, mostrar `credential_hint`: "Precisa de chave administrativa, não a de inferência", "Interface interna, pode mudar sem aviso", "Exige plano Enterprise". Reusa a área onde `credential_help.<slug>` já aparece, sem criar um segundo bloco para o mesmo assunto.
-- **RF3.3** Provedores `metered` mantêm o aviso de custo atual (`cost_advisory`), agora derivado do mesmo descritor.
-- **RF3.4** Provedores `Unavailable` continuam selecionáveis. Ao escolher um, a interface exibe o motivo antes de salvar e pede confirmação explícita ("Salvar mesmo assim").
-- **Critério de aceite:** smoke na TUI e no desktop (três idiomas) mostrando um provedor de cada nível; a escolha de `Unavailable` exige confirmação; nenhuma ramificação por `Provider` nas interfaces.
+- **RF3.1** The TUI (`wizard.rs`) and the desktop app (`account-dialog.js`) show, next to each provider, a short level label (`Official`, `Undocumented`, `Derived`, `Unavailable`), coming from `describe`.
+- **RF3.2** In the credential step, show `credential_hint`: "Needs an admin key, not the inference key", "Internal interface, may change without notice", "Requires the Enterprise plan". It reuses the area where `credential_help.<slug>` already appears, without creating a second block for the same subject.
+- **RF3.3** `metered` providers keep the current cost warning (`cost_advisory`), now derived from the same descriptor.
+- **RF3.4** `Unavailable` providers remain selectable. Choosing one makes the interface show the reason before saving and ask for explicit confirmation ("Save anyway").
+- **Acceptance criterion:** a TUI and desktop smoke test (three languages) showing a provider of each level; choosing `Unavailable` requires confirmation; no branching on `Provider` in the interfaces.
 
-### RF4 — Exibição no cartão e nos detalhes (prioridade média)
+### RF4 — Display on the card and details (medium priority)
 
-- **RF4.1** O cartão e os detalhes da conta exibem o nível e o resumo, de forma discreta, sem competir com a quota.
-- **RF4.2** Uma conta `Unavailable` mostra o resumo e o motivo no lugar de "Erro" ou de um cartão vazio. Uma conta `Undocumented` com `Status::Error` por esquema incompatível mostra que a interface pode ter mudado e aponta para a documentação do provedor.
-- **RF4.3** O JSON de exportação (PRD 0012) inclui `access` por conta; `--json` atual não muda.
-- **Critério de aceite:** teste de apresentação com um relatório `Error` de esquema em provedor `Undocumented` e um `Unsupported` em provedor `Unavailable`.
+- **RF4.1** The card and the account details show the level and the summary, discreetly, without competing with the quota.
+- **RF4.2** An `Unavailable` account shows the summary and the reason in place of "Error" or an empty card. An `Undocumented` account with `Status::Error` due to an incompatible schema shows that the interface may have changed and points to the provider's documentation.
+- **RF4.3** The export JSON (PRD 0012) includes `access` per account; the current `--json` does not change.
+- **Acceptance criterion:** a presentation test with an `Error` report from a schema mismatch on an `Undocumented` provider and an `Unsupported` one on an `Unavailable` provider.
 
-### RF5 — Documentação gerada e teste de divergência (prioridade média)
+### RF5 — Generated documentation and a drift test (medium priority)
 
-- **RF5.1** `docs/providers.md` ganha as colunas Nível, Credencial, Plano, Escopo e Evidência, geradas por um teste que compara o arquivo com `access::describe` (mesmo padrão dos testes de divergência de `about.rs`). O teste falha com instrução para regenerar.
-- **RF5.2** O guia de novo provedor em `AGENTS.md` e `docs/architecture.md` passa a listar o descritor de acesso como etapa obrigatória.
-- **Critério de aceite:** alterar um nível sem atualizar o documento quebra o teste.
+- **RF5.1** `docs/providers.md` gets the Level, Credential, Plan, Scope and Evidence columns, generated by a test that compares the file with `access::describe` (the same pattern as `about.rs`'s drift tests). The test fails with instructions to regenerate.
+- **RF5.2** The new-provider guide in `AGENTS.md` and `docs/architecture.md` starts listing the access descriptor as a mandatory step.
+- **Acceptance criterion:** changing a level without updating the document breaks the test.
 
-## 6. Requisitos não funcionais
+## 6. Non-functional requirements
 
-- **Honestidade:** `Undocumented` nunca é apresentado como garantia; o texto diz "pode mudar sem aviso". `Official` não promete permissão na conta do usuário.
-- **Sem rede e sem segredos:** `describe` é pura e não lê credenciais.
-- **Compatibilidade:** TOML, `Report`, `Snapshot` e `--json` atuais não mudam.
+- **Honesty:** `Undocumented` is never presented as a guarantee; the text says "may change without notice". `Official` does not promise permission on the user's account.
+- **No network and no secrets:** `describe` is pure and does not read credentials.
+- **Compatibility:** the TOML, `Report`, `Snapshot` and the current `--json` do not change.
 
-## 7. Ordem de execução e verificação
+## 7. Order of execution and verification
 
-1. **RF1:** módulo, classificação inicial e testes de tabela.
-2. **RF2:** ids e catálogos.
-3. **RF3 e RF4:** TUI e desktop, um de cada vez, com smoke.
-4. **RF5:** matriz gerada e guia de novo provedor.
+1. **RF1:** the module, the initial classification and table tests.
+2. **RF2:** ids and catalogs.
+3. **RF3 and RF4:** TUI and desktop, one at a time, with a smoke test.
+4. **RF5:** the generated matrix and the new-provider guide.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
-O requisito só está entregue quando um provedor novo não compila sem declarar seu acesso, o wizard exibe nível e dica de credencial nos três idiomas, uma conta `Unavailable` explica o motivo em vez de mostrar erro genérico, e a matriz de `docs/providers.md` é verificada por teste.
+The requirement is only delivered when a new provider does not compile without declaring its access, the wizard shows the level and the credential hint in the three languages, an `Unavailable` account explains the reason instead of showing a generic error, and the `docs/providers.md` matrix is verified by a test.

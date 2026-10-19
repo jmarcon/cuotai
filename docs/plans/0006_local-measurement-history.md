@@ -1,105 +1,107 @@
-# PRD 0006 — Histórico local de medições
+# PRD 0006 — Local measurement history
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0006 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, Desktop e TUI |
-| Consumidores | `apps/desktop` (detalhes), `crates/cuotai-tui` (detalhes e `--history`), PRDs 0007, 0008, 0012 e 0014 |
-| Depende de | nenhum |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, desktop and TUI |
+| Consumers | `apps/desktop` (details), `crates/cuotai-tui` (details and `--history`), PRDs 0007, 0008, 0012 and 0014 |
+| Depends on | none |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-`RefreshCycle` (`crates/cuotai-core/src/refresh.rs`) guarda só o último `Report` de cada conta em memória (`slots[index] = Some(report)`) e o `Snapshot` montado a partir deles. Ao fechar o aplicativo, nada sobrevive: na próxima abertura todos os cartões ficam vazios até a primeira consulta terminar. Não há série temporal, gráfico de tendência nem como saber quanto de uma quota foi consumido ontem.
+## 1. Context
 
-O core já persiste dados locais em SQLite (`rusqlite` com `bundled`): o catálogo de modelos vive em `<dados locais do SO>/cuotai/models/models.sqlite3`, com permissões restritas, isolamento por digest da configuração e da conta, e erro de persistência exposto (PRD 0002, RF3).
+`RefreshCycle` (`crates/cuotai-core/src/refresh.rs`) keeps only the last `Report` of each account in memory (`slots[index] = Some(report)`) and the `Snapshot` assembled from them. When the app closes nothing survives: on the next opening every card stays empty until the first query finishes. There is no time series, no trend chart and no way to know how much of a quota was consumed yesterday.
 
-A análise de mercado de 2026-10-19 mostrou histórico e tendência no CodexBar (gráficos e burn-down a partir de snapshots gravados), no OpenQuota (hoje, ontem e 30 dias) e no OpenUsage (blocos de gasto de 30 dias).
+The core already persists local data in SQLite (`rusqlite` with `bundled`): the model catalog lives in `<OS local data dir>/cuotai/models/models.sqlite3`, with restricted permissions, isolation by configuration and account digest, and persistence errors exposed (PRD 0002, RF3).
 
-## 2. Problema
+The 2026-10-19 market analysis showed history and trend in CodexBar (charts and burn-down from recorded snapshots), OpenQuota (today, yesterday and 30 days) and OpenUsage (30-day spend blocks).
 
-- Não dá para ver a tendência de uma quota, nem se o consumo desta semana está acima do normal.
-- O cartão fica vazio a cada abertura do app, mesmo que a última leitura tenha sido feita minutos antes.
-- Funcionalidades futuras dependem de dados gravados: ritmo com inclinação recente (PRD 0007), alertas que reconhecem a mesma janela entre reinícios (PRD 0008) e widgets com gráfico (PRD 0014).
+## 2. Problem
 
-## 3. Objetivos
+- You cannot see the trend of a quota, nor whether this week's consumption is above normal.
+- The card is empty on every opening of the app, even if the last reading was taken minutes before.
+- Future features depend on recorded data: pace with a recent slope (PRD 0007), alerts that recognize the same window across restarts (PRD 0008) and widgets with a chart (PRD 0014).
 
-- Gravar, por conta e por métrica, as leituras bem-sucedidas em um banco local compartilhado entre TUI, desktop e CLI que apontam para o mesmo TOML.
-- Expor no core consultas de série, de última leitura e de janelas, sem lógica de negócio nas telas.
-- Mostrar tendência nos detalhes da conta e permitir exportar e apagar os dados.
-- Manter retenção e tamanho limitados e previsíveis.
+## 3. Goals
 
-## 4. Não-objetivos
+- Record, per account and per metric, the successful readings in a local database shared between the TUI, the desktop app and the CLI pointing at the same TOML.
+- Expose series, last-reading and window queries in the core, with no business logic in the screens.
+- Show a trend in the account details and allow exporting and erasing the data.
+- Keep retention and size bounded and predictable.
 
-- Histórico de erros, de notas livres ou de qualquer texto do provedor: só valores numéricos e metadados da janela.
-- Sincronização entre máquinas, nuvem ou contas de usuário.
-- Faturamento retroativo: o histórico começa na primeira leitura gravada; nunca se reconstrói o passado.
-- Alterar `Report`, `Snapshot`, o agendamento ou a saída `--json` atual.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- History of errors, free-form notes or any provider text: only numeric values and window metadata.
+- Synchronization between machines, the cloud or user accounts.
+- Retroactive billing: history starts at the first recorded reading; the past is never reconstructed.
+- Changing `Report`, `Snapshot`, scheduling or the current `--json` output.
 
-### RF1 — Armazenamento (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar `history::HistoryStore` em `cuotai-core`, em SQLite separado dos demais, em `<dados locais do SO>/cuotai/history/history.sqlite3`, com permissões `0700` na pasta e `0600` no arquivo em Unix. Erro de abertura ou de escrita é exposto, nunca tratado como sucesso. Nenhum segredo, corpo HTTP, URL ou nota entra no banco.
-- **RF1.2** Isolar por digest do caminho normalizado do TOML e por digest da identidade da conta, com a mesma derivação do catálogo de modelos (PRD 0002, RF3.2). Mover uma conta de posição preserva a série; renomear ou trocar credencial, produto ou região abre uma série nova; remover a conta marca a série para poda.
-- **RF1.3** Esquema versionado (`PRAGMA user_version`) com migração para frente. Tabela `samples`: `account_digest`, `metric_key`, `taken_at` (UTC), `used`, `limit`, `remaining`, `unit`, `kind`, `window`, `resets_at`. `metric_key` é o digest de `kind + window + label + unit`. Valores ausentes ficam `NULL`, nunca zero.
-- **RF1.4** O banco usa `WAL` e `busy_timeout`; duas instâncias (TUI e desktop) gravam sem corromper. Escritas são idempotentes por `(account_digest, metric_key, taken_at)`.
-- **Critério de aceite:** testes com banco temporário cobrem criação, migração, permissões, duas instâncias gravando, valores ausentes, conta movida, renomeada e removida, e falha de disco simulada (erro exposto).
+### RF1 — Storage (high priority; prerequisite)
 
-### RF2 — Gravação a partir do refresh (prioridade alta)
+- **RF1.1** Create `history::HistoryStore` in `cuotai-core`, in a SQLite file separate from the others, at `<OS local data dir>/cuotai/history/history.sqlite3`, with `0700` permissions on the folder and `0600` on the file on Unix. An open or write error is exposed, never treated as success. No secret, HTTP body, URL or note enters the database.
+- **RF1.2** Isolate by the digest of the normalized TOML path and by the digest of the account identity, with the same derivation as the model catalog (PRD 0002, RF3.2). Moving an account preserves its series; renaming it or changing credential, product or region opens a new series; removing the account marks the series for pruning.
+- **RF1.3** Versioned schema (`PRAGMA user_version`) with forward migration. `samples` table: `account_digest`, `metric_key`, `taken_at` (UTC), `used`, `limit`, `remaining`, `unit`, `kind`, `window`, `resets_at`. `metric_key` is the digest of `kind + window + label + unit`. Missing values are `NULL`, never zero.
+- **RF1.4** The database uses `WAL` and `busy_timeout`; two instances (TUI and desktop) write without corruption. Writes are idempotent by `(account_digest, metric_key, taken_at)`.
+- **Acceptance criterion:** tests with a temporary database cover creation, migration, permissions, two instances writing, missing values, a moved, renamed and removed account, and a simulated disk failure (error exposed).
 
-- **RF2.1** `Monitor::with_history(HistoryStore)` segue o padrão de `with_model_cache`: sem armazenamento configurado, nada muda no comportamento atual.
-- **RF2.2** Depois de cada `Report` com `Status::Ready`, gravar uma amostra por métrica elegível. Relatórios de erro, autenticação, rate limit e `NeedsConfiguration` não gravam nada.
-- **RF2.3** Compactação na entrada: não gravar uma amostra idêntica à anterior da mesma métrica a menos de 15 minutos dela, salvo mudança de `resets_at` além da tolerância de 2 minutos (nova janela). Isso limita o crescimento quando o intervalo de consulta é curto.
-- **RF2.4** A gravação roda fora do caminho crítico do refresh (tarefa separada com fila limitada); lentidão do disco não atrasa o ciclo nem o prazo da conta.
-- **Critério de aceite:** testes com `wiremock` e relógio fixo: uma consulta `Ready` grava N amostras; consulta com erro não grava; amostra repetida dentro de 15 minutos é omitida; mudança de janela grava; fila cheia descarta sem travar.
+### RF2 — Recording from the refresh (high priority)
 
-### RF3 — Consultas no core (prioridade alta)
+- **RF2.1** `Monitor::with_history(HistoryStore)` follows the `with_model_cache` pattern: with no store configured, nothing changes in current behavior.
+- **RF2.2** After each `Report` with `Status::Ready`, record one sample per eligible metric. Error, authentication, rate-limit and `NeedsConfiguration` reports record nothing.
+- **RF2.3** Compaction on input: do not record a sample identical to the previous one of the same metric less than 15 minutes after it, unless `resets_at` changed beyond the 2-minute tolerance (a new window). This limits growth when the query interval is short.
+- **RF2.4** Recording runs off the refresh's critical path (a separate task with a bounded queue); a slow disk does not delay the cycle or the account's deadline.
+- **Acceptance criterion:** `wiremock` tests with a fixed clock: a `Ready` query records N samples; a query with an error records nothing; a repeated sample within 15 minutes is omitted; a window change records; a full queue drops without blocking.
 
-- **RF3.1** API pura e sem rede:
-  - `latest(account) -> Option<StoredReport>`: última leitura por métrica, com a idade original (insumo do PRD 0010);
+### RF3 — Queries in the core (high priority)
+
+- **RF3.1** A pure API with no network:
+  - `latest(account) -> Option<StoredReport>`: the last reading per metric, with the original age (input for PRD 0010);
   - `series(account, metric_key, range) -> Vec<Point>`;
-  - `windows(account, metric_key, range) -> Vec<WindowUsage>`: agrupa amostras por instância de janela (mesma `resets_at` dentro da tolerância de 2 minutos) e informa uso inicial, final e pico;
-  - `bounds()` com a primeira e a última data gravadas.
-- **RF3.2** Detecção de reinício: queda de `used` maior que 20% do `limit` ou avanço de `resets_at` além da tolerância encerra a janela atual. Valores não finitos são ignorados.
-- **Critério de aceite:** testes de tabela com séries sintéticas (crescente, reinício, deriva de `resets_at`, buracos de dias, métrica sem limite).
+  - `windows(account, metric_key, range) -> Vec<WindowUsage>`: groups samples by window instance (same `resets_at` within the 2-minute tolerance) and reports initial use, final use and peak;
+  - `bounds()` with the first and last recorded dates.
+- **RF3.2** Reset detection: a drop in `used` greater than 20% of `limit`, or an advance in `resets_at` beyond the tolerance, ends the current window. Non-finite values are ignored.
+- **Acceptance criterion:** table tests with synthetic series (increasing, reset, `resets_at` drift, gaps of days, a metric with no limit).
 
-### RF4 — Retenção, exportação e limpeza (prioridade alta)
+### RF4 — Retention, export and cleanup (high priority)
 
-- **RF4.1** Retenção padrão de 90 dias, configurável de 7 a 365 dias em `desktop.json` (preferência do dispositivo) e por `--history-days` na CLI. Poda ao abrir e depois a cada 24 horas, em lote, sem bloquear leituras.
-- **RF4.2** Redução de resolução: amostras com mais de 7 dias são reduzidas a uma por hora (a de maior `used`), preservando o pico de cada janela.
-- **RF4.3** Teto de tamanho (padrão 64 MiB). Ao ultrapassar, poda as amostras mais antigas primeiro e registra um aviso visível, nunca silencioso.
-- **RF4.4** Exportar em CSV e JSON (conta, métrica, intervalo) e apagar o histórico de uma conta ou de tudo, com confirmação na interface. O apagamento remove também as séries órfãs.
-- **Critério de aceite:** testes de poda por idade e por tamanho, redução de resolução preservando o pico, exportação com valores ausentes e apagamento parcial e total.
+- **RF4.1** Default retention of 90 days, configurable from 7 to 365 days in `desktop.json` (a per-device preference) and through `--history-days` on the CLI. Pruning on open and then every 24 hours, in batches, without blocking reads.
+- **RF4.2** Resolution reduction: samples older than 7 days are reduced to one per hour (the one with the highest `used`), preserving each window's peak.
+- **RF4.3** Size ceiling (default 64 MiB). When exceeded, prune the oldest samples first and record a visible warning, never silently.
+- **RF4.4** Export to CSV and JSON (account, metric, range) and erase one account's history or everything, with confirmation in the interface. Erasing also removes orphaned series.
+- **Acceptance criterion:** tests for pruning by age and by size, resolution reduction preserving the peak, export with missing values, and partial and total erasure.
 
-### RF5 — Exibição no desktop (prioridade média)
+### RF5 — Display on the desktop (medium priority)
 
-- **RF5.1** Comando Tauri `account_history(index, metric_key, range)` devolve a série calculada pelo core, sem segredo no IPC; o descarte de respostas de identidade antiga segue o padrão do catálogo de modelos.
-- **RF5.2** Nos detalhes da conta, cada métrica com histórico exibe um gráfico compacto de área (24 h, 7 dias, 30 dias) com ponto final destacado e marcadores de reinício. Acessível: tabela equivalente oculta para leitores de tela e `prefers-reduced-motion` respeitado (PRD 0004).
-- **RF5.3** Em **Configurações → Histórico**: ligar e desligar a gravação (ligado por padrão), retenção, tamanho em disco, exportar e apagar. Desligar para de gravar e mantém os dados até o usuário apagar.
-- **Critério de aceite:** smoke em três idiomas com histórico de vários dias, conta nova sem histórico (estado vazio explicado), gravação desligada e apagamento.
+- **RF5.1** The Tauri command `account_history(index, metric_key, range)` returns the series computed by the core, with no secret in the IPC; discarding responses for an old identity follows the model catalog's pattern.
+- **RF5.2** In the account details, each metric with history shows a compact area chart (24 h, 7 days, 30 days) with a highlighted end point and reset markers. Accessible: an equivalent table hidden for screen readers, and `prefers-reduced-motion` respected (PRD 0004).
+- **RF5.3** In **Settings → History**: turn recording on and off (on by default), retention, size on disk, export and erase. Turning it off stops recording and keeps the data until the user erases it.
+- **Acceptance criterion:** a smoke test in three languages with several days of history, a new account with no history (an explained empty state), recording turned off and erasure.
 
-### RF6 — Exibição na TUI e na CLI (prioridade média)
+### RF6 — Display in the TUI and CLI (medium priority)
 
-- **RF6.1** Nos detalhes da conta da TUI, linha com sparkline em blocos Unicode (`▁▂▃▄▅▆▇█`) por métrica no intervalo escolhido (teclas para 24 h, 7 d e 30 d). Largura reduzida degrada para texto com mínimo, máximo e último valor.
-- **RF6.2** `cuotai --history [CONTA] [--history-days N] [--json]` imprime a série e sai com 0, 2 ou 1 como as demais saídas não interativas. Sem histórico, informa que não há dados em vez de falhar.
-- **Critério de aceite:** testes de renderização em `TestBackend` e smoke da CLI com banco de exemplo.
+- **RF6.1** In the TUI account details, a line with a Unicode-block sparkline (`▁▂▃▄▅▆▇█`) per metric over the chosen range (keys for 24 h, 7 d and 30 d). A narrow width degrades to text with minimum, maximum and last value.
+- **RF6.2** `cuotai --history [ACCOUNT] [--history-days N] [--json]` prints the series and exits with 0, 2 or 1 like the other non-interactive outputs. With no history, it says there is no data instead of failing.
+- **Acceptance criterion:** `TestBackend` rendering tests and a CLI smoke test with a sample database.
 
-## 6. Requisitos não funcionais
+## 6. Non-functional requirements
 
-- **Privacidade:** os dados são numéricos e ficam no computador do usuário. O arquivo de histórico nunca entra no TOML nem em logs; a exportação é explícita.
-- **Desempenho:** gravação em lote, com índice em `(account_digest, metric_key, taken_at)`; leitura de 30 dias de uma métrica abaixo de 50 ms em hardware comum.
-- **Compatibilidade:** sem alterar `Report`, `Snapshot` ou `--json`; contas sem histórico continuam funcionando.
-- **Riscos:** o `label` das métricas pode mudar entre versões de um adaptador e quebrar a continuidade da série; isso é documentado e a série nova começa limpa.
+- **Privacy:** the data is numeric and stays on the user's computer. The history file never enters the TOML or logs; export is explicit.
+- **Performance:** batched writes, with an index on `(account_digest, metric_key, taken_at)`; reading 30 days of one metric under 50 ms on ordinary hardware.
+- **Compatibility:** without changing `Report`, `Snapshot` or `--json`; accounts without history keep working.
+- **Risks:** the `label` of the metrics may change between adapter versions and break series continuity; this is documented and the new series starts clean.
 
-## 7. Ordem de execução e verificação
+## 7. Order of execution and verification
 
-1. **RF1 e RF3:** armazenamento e consultas com testes de tabela; nenhuma mudança visível.
-2. **RF2:** gravação ligada ao `Monitor`; teste de que o ciclo não atrasa.
-3. **RF4:** retenção, exportação e limpeza.
-4. **RF5 e RF6:** desktop, TUI e CLI, um de cada vez, com smoke.
+1. **RF1 and RF3:** storage and queries with table tests; no visible change.
+2. **RF2:** recording wired into the `Monitor`; a test that the cycle is not delayed.
+3. **RF4:** retention, export and cleanup.
+4. **RF5 and RF6:** desktop, TUI and CLI, one at a time, with a smoke test.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
-O requisito só está entregue quando, após fechar e reabrir o aplicativo, a série dos últimos dias está disponível nas três superfícies, o crescimento do arquivo respeita a retenção e o teto, apagar o histórico o remove por completo, e nenhum relatório de erro ou segredo é gravado.
+The requirement is only delivered when, after closing and reopening the app, the series of the last days is available on the three surfaces, the file's growth respects the retention and the ceiling, erasing the history removes it entirely, and no error report or secret is recorded.
