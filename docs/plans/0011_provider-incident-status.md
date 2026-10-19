@@ -1,88 +1,90 @@
-# PRD 0011 — Status de incidentes dos provedores
+# PRD 0011 — Provider incident status
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0011 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, Desktop e TUI |
-| Consumidores | `apps/desktop` (cartões, bandeja), `crates/cuotai-tui`, PRDs 0012 e 0013 |
-| Depende de | PRD 0005 (RF1) para distinguir "provedor com incidente" de "interface mudou"; não é exigido |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, desktop and TUI |
+| Consumers | `apps/desktop` (cards, tray), `crates/cuotai-tui`, PRDs 0012 and 0013 |
+| Depends on | PRD 0005 (RF1) to tell "provider incident" from "interface changed"; not required |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-Quando uma consulta falha, o `Report` só informa `Status` (`AuthenticationError`, `RateLimited`, `Error`…) e uma nota. O usuário não sabe se o problema é a credencial dele, a interface do provedor ou uma indisponibilidade pública. Isso gera suporte inútil, como a troca desnecessária de credenciais durante uma queda do serviço.
+## 1. Context
 
-O CodexBar consulta as páginas de status dos provedores e mostra selos de incidente no menu e uma sobreposição no ícone. Essas páginas são públicas e não exigem credencial, o que combina com a regra do projeto de ser somente-leitura e sem gasto de tokens.
+When a query fails, the `Report` only gives a `Status` (`AuthenticationError`, `RateLimited`, `Error`…) and a note. The user does not know whether the problem is their credential, the provider's interface or a public outage. This generates useless support work, such as needlessly swapping credentials during a service outage.
 
-## 2. Problema
+CodexBar polls the providers' status pages and shows incident badges in the menu and an overlay on the icon. Those pages are public and need no credential, which fits the project's rule of being read-only and spending no tokens.
 
-- Falhas de consulta provocadas por incidentes do provedor parecem falhas do Cuotai ou da conta.
-- Não há contexto para decidir entre reautenticar, esperar ou ignorar.
+## 2. Problem
 
-## 3. Objetivos
+- Query failures caused by provider incidents look like failures of Cuotai or of the account.
+- There is no context to decide between reauthenticating, waiting or ignoring.
 
-- Consultar fontes públicas de status por provedor, de forma leve e cacheada, e exibir o estado atual junto da conta.
-- Relacionar uma falha de consulta com um incidente em andamento, sem afirmar causa.
-- Funcionar sem credenciais e sem custo.
+## 3. Goals
 
-## 4. Não-objetivos
+- Query public status sources per provider, lightly and cached, and show the current state next to the account.
+- Relate a query failure to an ongoing incident, without asserting a cause.
+- Work without credentials and at no cost.
 
-- Monitorar a saúde de provedores que não publicam status em formato legível por máquina.
-- Raspar páginas HTML ou usar endpoints que exijam login.
-- Alertas por e-mail ou push (o PRD 0013 permite um evento `provider_incident` para quem quiser integrar).
-- Mudar o `Status` do relatório: o incidente é informação adicional, não substitui o estado da consulta.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Monitoring the health of providers that do not publish status in a machine-readable format.
+- Scraping HTML pages or using endpoints that require login.
+- E-mail or push alerts (PRD 0013 allows a `provider_incident` event for anyone who wants to integrate).
+- Changing the report's `Status`: the incident is additional information, not a replacement for the query state.
 
-### RF1 — Fontes e mapeamento verificado (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar `incidents::source(provider) -> Option<StatusSource>` com `match` exaustivo sobre `Provider`. `StatusSource` traz: formato (`StatuspageV2`, `AtomRss`, `JsonCustom`), URL pública, escopo (componentes relevantes para a API ou para o produto) e a data da última verificação.
-- **RF1.2** Só entram fontes com URL pública **verificada na implementação** (formato, estabilidade e termos de uso). Provedores sem fonte confiável devolvem `None` e não aparecem como "sem incidentes". O mapeamento inicial deve cobrir os provedores com página de status no formato Statuspage v2 (`/api/v2/summary.json`), como é comum entre fornecedores de IA, mais os formatos nativos de AWS e Google Cloud, quando verificados.
-- **RF1.3** Provedores que compartilham uma plataforma (por exemplo, vários produtos da mesma empresa) compartilham a mesma fonte, com filtro por componente para não alarmar por serviços sem relação.
-- **Critério de aceite:** teste de tabela garante que todo `Provider` tem fonte verificada ou `None` explícito; fixtures com respostas reais anonimizadas de cada formato; documento `docs/providers.md` lista as fontes.
+### RF1 — Verified sources and mapping (high priority; prerequisite)
 
-### RF2 — Cliente de status no core (prioridade alta)
+- **RF1.1** Create `incidents::source(provider) -> Option<StatusSource>` with an exhaustive `match` on `Provider`. `StatusSource` carries: the format (`StatuspageV2`, `AtomRss`, `JsonCustom`), a public URL, the scope (components relevant to the API or to the product) and the date of the last verification.
+- **RF1.2** Only sources with a public URL **verified at implementation** (format, stability and terms of use) enter. Providers without a reliable source return `None` and do not appear as "no incidents". The initial mapping must cover the providers with a status page in the Statuspage v2 format (`/api/v2/summary.json`), as is common among AI vendors, plus the native AWS and Google Cloud formats, when verified.
+- **RF1.3** Providers that share a platform (for example, several products of the same company) share the same source, with a component filter so as not to alarm for unrelated services.
+- **Acceptance criterion:** a table test guarantees every `Provider` has a verified source or an explicit `None`; fixtures with anonymized real responses of each format; the `docs/providers.md` document lists the sources.
 
-- **RF2.1** `IncidentMonitor` em `cuotai-core` reaproveita o cliente HTTP e o semáforo do `Monitor`, com timeout curto, tamanho máximo de resposta e `User-Agent` identificado. Não envia credenciais, cookies nem dados da conta; o log nunca grava a URL com parâmetros sensíveis.
-- **RF2.2** Cache por fonte com TTL de 5 minutos e uma única consulta por fonte por ciclo, mesmo com várias contas do mesmo provedor. Falha de status não afeta a consulta de quota nem o `Status` da conta e usa o último resultado conhecido, marcado como antigo.
-- **RF2.3** Estados normalizados: `Operational`, `Degraded`, `PartialOutage`, `MajorOutage`, `Maintenance`, `Unknown`. O incidente ativo traz título, início e link público para a página de status. Texto livre do provedor passa por truncamento e remoção de marcação antes de chegar às interfaces.
-- **RF2.4** Consulta somente quando há contas do provedor configuradas e o recurso está ligado.
-- **Critério de aceite:** testes com `wiremock` para cada formato, resposta inválida, limite de tamanho, timeout, cache e coalescência por fonte, e falha sem efeito na consulta de quota.
+### RF2 — Status client in the core (high priority)
 
-### RF3 — Correlação com falhas (prioridade média)
+- **RF2.1** `IncidentMonitor` in `cuotai-core` reuses the `Monitor`'s HTTP client and semaphore, with a short timeout, a maximum response size and an identified `User-Agent`. It sends no credentials, cookies or account data; the log never records the URL with sensitive parameters.
+- **RF2.2** Cache per source with a 5-minute TTL and a single query per source per cycle, even with several accounts of the same provider. A status failure does not affect the quota query nor the account's `Status` and uses the last known result, marked as old.
+- **RF2.3** Normalized states: `Operational`, `Degraded`, `PartialOutage`, `MajorOutage`, `Maintenance`, `Unknown`. The active incident carries a title, a start and a public link to the status page. Free text from the provider goes through truncation and markup removal before reaching the interfaces.
+- **RF2.4** Query only when there are accounts of the provider configured and the feature is on.
+- **Acceptance criterion:** `wiremock` tests for each format, an invalid response, the size limit, a timeout, cache and per-source coalescing, and a failure with no effect on the quota query.
 
-- **RF3.1** Se a consulta de uma conta falha (`Error`, `RateLimited` ou `AuthenticationError`) e o provedor tem incidente `Degraded` ou pior, o core anexa uma nota localizada: "O provedor informa um incidente em andamento; a falha pode não ser da sua conta." A mensagem não altera o `Status` e não diz que o incidente é a causa.
-- **RF3.2** `AuthenticationError` com incidente ativo sugere esperar antes de reautenticar, sem impedir a ação.
-- **Critério de aceite:** testes de tabela por status e estado do incidente.
+### RF3 — Correlation with failures (medium priority)
 
-### RF4 — Exibição no desktop (prioridade média)
+- **RF3.1** If an account's query fails (`Error`, `RateLimited` or `AuthenticationError`) and the provider has a `Degraded` or worse incident, the core attaches a localized note: "The provider reports an ongoing incident; the failure may not be from your account." The message does not change the `Status` and does not say the incident is the cause.
+- **RF3.2** An `AuthenticationError` with an active incident suggests waiting before reauthenticating, without preventing the action.
+- **Acceptance criterion:** table tests by status and incident state.
 
-- **RF4.1** Selo de incidente no cartão (cor, ícone e texto) com link "Abrir página de status", aberto pelo `open_external` com lista de permissões já existente.
-- **RF4.2** O ícone da bandeja ganha indicador quando qualquer provedor configurado tem incidente de nível `PartialOutage` ou pior.
-- **RF4.3** Em **Configurações → Privacidade**: ligar e desligar a consulta de status (desligada por padrão no primeiro uso, com explicação de que o app fará pedidos públicos a esses domínios) e lista dos domínios consultados.
-- **Critério de aceite:** smoke em três idiomas com incidente simulado, desligado e sem rede.
+### RF4 — Display on the desktop (medium priority)
 
-### RF5 — TUI e CLI (prioridade média)
+- **RF4.1** An incident badge on the card (color, icon and text) with an "Open status page" link, opened through the existing allow-listed `open_external`.
+- **RF4.2** The tray icon gets an indicator when any configured provider has an incident of `PartialOutage` level or worse.
+- **RF4.3** In **Settings → Privacy**: turn the status query on and off (off by default on first use, with an explanation that the app will make public requests to those domains) and the list of domains queried.
+- **Acceptance criterion:** a smoke test in three languages with a simulated incident, turned off and with no network.
 
-- **RF5.1** A linha da conta mostra o selo; os detalhes listam o incidente. `--once` imprime a nota de incidente; `--json` permanece igual, e o estado do provedor entra no contrato do PRD 0012.
-- **RF5.2** Flag `--no-status` desliga a consulta de status no modo não interativo.
-- **Critério de aceite:** testes de renderização e snapshot textual.
+### RF5 — TUI and CLI (medium priority)
 
-## 6. Requisitos não funcionais
+- **RF5.1** The account row shows the badge; the details list the incident. `--once` prints the incident note; `--json` stays the same, and the provider's state enters PRD 0012's contract.
+- **RF5.2** The `--no-status` flag turns the status query off in non-interactive mode.
+- **Acceptance criterion:** rendering tests and a text snapshot.
 
-- **Privacidade:** pedidos públicos a domínios dos provedores revelam o IP do usuário e o fato de que ele usa aquele provedor; por isso o recurso é opt-in e documentado.
-- **Robustez:** estado `Unknown` é a resposta correta para qualquer dúvida; nunca se afirma "operacional" sem leitura válida.
-- **Custo:** pedidos leves, cacheados e sem credencial; nenhum efeito no agendamento de quotas.
-- **Direitos:** respeitar termos de uso das páginas e `robots`/limites de taxa; sem raspagem de HTML.
+## 6. Non-functional requirements
 
-## 7. Ordem de execução e verificação
+- **Privacy:** public requests to providers' domains reveal the user's IP and the fact that they use that provider; for that reason the feature is opt-in and documented.
+- **Robustness:** the `Unknown` state is the right answer to any doubt; "operational" is never asserted without a valid reading.
+- **Cost:** light, cached requests with no credential; no effect on quota scheduling.
+- **Rights:** respect the pages' terms of use and `robots`/rate limits; no HTML scraping.
 
-1. **RF1:** mapeamento verificado e testes de tabela.
-2. **RF2 e RF3:** cliente, cache e correlação.
+## 7. Order of execution and verification
+
+1. **RF1:** verified mapping and table tests.
+2. **RF2 and RF3:** client, cache and correlation.
 3. **RF4:** desktop.
-4. **RF5:** TUI e CLI.
+4. **RF5:** TUI and CLI.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
-O requisito só está entregue quando uma queda simulada do provedor aparece como selo no cartão e na bandeja, a falha de consulta correspondente ganha a nota explicativa sem mudar seu `Status`, provedores sem fonte verificada nunca aparecem como "operacionais", e o recurso desligado não faz nenhum pedido de rede.
+The requirement is only delivered when a simulated provider outage appears as a badge on the card and in the tray, the matching query failure gets the explanatory note without changing its `Status`, providers without a verified source never appear as "operational", and the feature turned off makes no network request.

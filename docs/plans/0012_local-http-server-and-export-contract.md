@@ -1,93 +1,95 @@
-# PRD 0012 — Servidor HTTP local e contrato de exportação
+# PRD 0012 — Local HTTP server and export contract
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0012 |
-| Status | Proposto |
-| Responsável | `cuotai-core` (contrato e servidor), TUI/CLI e Desktop |
-| Consumidores | `crates/cuotai-tui` (`--serve`), `apps/desktop` (servidor embutido), integrações de terceiros, PRDs 0013 e 0014 |
-| Depende de | nenhum; incorpora o resultado dos PRDs 0005, 0007, 0009, 0010 e 0011 conforme forem entregues |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core` (contract and server), TUI/CLI and desktop |
+| Consumers | `crates/cuotai-tui` (`--serve`), `apps/desktop` (embedded server), third-party integrations, PRDs 0013 and 0014 |
+| Depends on | none; it incorporates the results of PRDs 0005, 0007, 0009, 0010 and 0011 as they are delivered |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-Hoje a única saída para máquinas é `cuotai --json`, que serializa o `Snapshot` (`started_at`, `finished_at`, `reports`) e exige uma nova consulta completa a cada execução (`crates/cuotai-tui/src/main.rs`). Barras de status e scripts que chamam isso a cada poucos segundos repetiriam consultas aos provedores, com custo e risco de rate limit. Não há esquema versionado: qualquer campo novo é aditivo e silencioso.
+## 1. Context
 
-Na análise de mercado de 2026-10-19: o CodexBar tem `codexbar serve` (rotas `/usage`, `/health`, painel web e snapshot protegido por token), o OpenUsage expõe `127.0.0.1:6736/v1/limits` e o Quotio tem API REST em loopback. O ecossistema do CodexBar (Waybar, KDE Plasma, GNOME, SketchyBar, tmux, Stream Deck, displays físicos) nasceu em cima dessa superfície estável.
+Today the only output for machines is `cuotai --json`, which serializes the `Snapshot` (`started_at`, `finished_at`, `reports`) and requires a new full query on every run (`crates/cuotai-tui/src/main.rs`). Status bars and scripts that call it every few seconds would repeat provider queries, with cost and rate-limit risk. There is no versioned schema: any new field is additive and silent.
 
-## 2. Problema
+In the 2026-10-19 market analysis: CodexBar has `codexbar serve` (routes `/usage`, `/health`, a web panel and a token-protected snapshot), OpenUsage exposes `127.0.0.1:6736/v1/limits` and Quotio has a REST API on loopback. CodexBar's ecosystem (Waybar, KDE Plasma, GNOME, SketchyBar, tmux, Stream Deck, physical displays) was born on top of that stable surface.
 
-- Integrações precisam de dados frescos sem disparar consultas a cada leitura.
-- Sem contrato versionado, qualquer mudança no JSON pode quebrar scripts de terceiros.
-- Um servidor mal desenhado vira vetor de vazamento: o OpenUsage documenta que páginas web também conseguem ler o endpoint local, o que precisa de decisão consciente.
+## 2. Problem
 
-## 3. Objetivos
+- Integrations need fresh data without triggering queries on every read.
+- Without a versioned contract, any change to the JSON can break third-party scripts.
+- A badly designed server becomes a leak vector: OpenUsage documents that web pages can also read the local endpoint, which needs a conscious decision.
 
-- Definir um contrato de exportação versionado (`v1`), independente de transporte, sem segredos.
-- Oferecer um servidor HTTP somente-leitura em loopback que serve o último estado conhecido, sem disparar consultas por requisição.
-- Disponibilizar o mesmo servidor na TUI/CLI e no desktop, com a lógica no core.
+## 3. Goals
 
-## 4. Não-objetivos
+- Define a versioned export contract (`v1`), independent of transport, without secrets.
+- Offer a read-only HTTP server on loopback that serves the last known state, without triggering queries per request.
+- Provide the same server in the TUI/CLI and in the desktop app, with the logic in the core.
 
-- Escrita: nenhuma rota altera contas, credenciais ou configuração. Não há login nem edição por HTTP.
-- Exposição na rede local ou na internet (fora do escopo; ver RF3.5).
-- Substituir `--json`, que permanece igual e compatível.
-- Painel web completo (pode virar PRD futuro).
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Writing: no route changes accounts, credentials or configuration. There is no login nor editing over HTTP.
+- Exposure on the local network or the internet (out of scope; see RF3.5).
+- Replacing `--json`, which stays the same and compatible.
+- A full web panel (may become a future PRD).
 
-### RF1 — Contrato de exportação v1 (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar `export::v1` em `cuotai-core` com `Export { schema: 1, generated_at, config_identity, accounts: Vec<AccountExport> }`. `AccountExport` traz: `index`, `key` (identidade estável, igual à do PRD 0003, RF1.3), `name`, `provider`, `class` (`AccountClass`), `report` (o `Report` atual, sem credenciais), `age_seconds`, `freshness`, `stale: bool` e, quando os PRDs correspondentes existirem, `binding` (0009), `pace` por métrica (0007), `access` (0005) e `incident` (0011).
-- **RF1.2** O esquema é aditivo dentro da versão 1 e documentado em `docs/export-v1.md`, com JSON Schema gerado ou mantido junto do código. Remover ou mudar o significado de um campo exige `schema: 2`. Um teste compara a saída com um arquivo de referência para impedir quebra acidental.
-- **RF1.3** Sem segredos: nenhuma credencial, nenhum nome de variável de ambiente de credencial, nenhuma URL autenticada e nenhuma nota que contenha corpo de resposta. E-mails de conta só aparecem se o usuário habilitar "incluir identidade" (padrão: omitidos).
-- **RF1.4** Valores ausentes permanecem `null`; nunca viram zero.
-- **Critério de aceite:** testes de contrato (arquivo de referência), de ausência de segredos (varredura por padrões de token em uma conta de fixtures) e de `null` em campos ausentes.
+### RF1 — Export contract v1 (high priority; prerequisite)
 
-### RF2 — Servidor no core (prioridade alta)
+- **RF1.1** Create `export::v1` in `cuotai-core` with `Export { schema: 1, generated_at, config_identity, accounts: Vec<AccountExport> }`. `AccountExport` carries: `index`, `key` (stable identity, the same as in PRD 0003, RF1.3), `name`, `provider`, `class` (`AccountClass`), `report` (the current `Report`, without credentials), `age_seconds`, `freshness`, `stale: bool` and, when the corresponding PRDs exist, `binding` (0009), `pace` per metric (0007), `access` (0005) and `incident` (0011).
+- **RF1.2** The schema is additive within version 1 and documented in `docs/export-v1.md`, with a JSON Schema generated or maintained alongside the code. Removing a field or changing its meaning requires `schema: 2`. A test compares the output with a reference file to prevent accidental breakage.
+- **RF1.3** No secrets: no credentials, no names of credential environment variables, no authenticated URLs and no notes containing a response body. Account e-mails only appear if the user enables "include identity" (default: omitted).
+- **RF1.4** Missing values stay `null`; they never become zero.
+- **Acceptance criterion:** contract tests (reference file), a no-secrets test (a scan for token patterns on a fixture account) and `null` in missing fields.
 
-- **RF2.1** `serve::LocalServer` em `cuotai-core`, atrás de feature `serve` (desligada por padrão no core e ligada nos binários que a usam), sobre `tokio` e uma biblioteca HTTP mínima escolhida na implementação (via Cargo, sem dependências de JavaScript). Escuta em `127.0.0.1` por padrão, porta configurável (padrão 6738 como sugestão, sujeita a conferência de conflitos), com escolha de porta alternativa em caso de ocupação.
-- **RF2.2** Rotas somente `GET`: `/health` (`{"status":"ok","version":"...","schema":1}`), `/v1/snapshot` (o `Export` completo), `/v1/accounts/{key}` e `/v1/limits` (versão resumida: por conta, a vinculante e a idade). Qualquer outro método responde `405`; rotas desconhecidas, `404`.
-- **RF2.3** O servidor lê do estado já mantido pelo `RefreshCycle`; **nunca** dispara consulta ao provedor por requisição. Se ainda não há dados, responde `503` com `Retry-After`. Um parâmetro opcional `?refresh=1` não existe nesta versão.
-- **RF2.4** Limites defensivos: tamanho de cabeçalho e de URL, número de conexões simultâneas, tempo por requisição, e resposta sempre com `Content-Type: application/json` e `Cache-Control: no-store`.
-- **Critério de aceite:** testes de integração com `reqwest` contra uma porta efêmera: rotas, métodos proibidos, `503` sem dados, ausência de consultas ao provedor durante 100 requisições, respeito ao limite de conexões.
+### RF2 — Server in the core (high priority)
 
-### RF3 — Segurança do servidor (prioridade alta)
+- **RF2.1** `serve::LocalServer` in `cuotai-core`, behind a `serve` feature (off by default in the core and on in the binaries that use it), on `tokio` and a minimal HTTP library chosen at implementation (through Cargo, with no JavaScript dependencies). It listens on `127.0.0.1` by default, with a configurable port (suggested default 6738, subject to checking for conflicts), and picks an alternative port if it is taken.
+- **RF2.2** `GET`-only routes: `/health` (`{"status":"ok","version":"...","schema":1}`), `/v1/snapshot` (the full `Export`), `/v1/accounts/{key}` and `/v1/limits` (a summary version: per account, the binding metric and the age). Any other method answers `405`; unknown routes, `404`.
+- **RF2.3** The server reads from the state already maintained by the `RefreshCycle`; it **never** triggers a provider query per request. If there is no data yet, it answers `503` with `Retry-After`. An optional `?refresh=1` parameter does not exist in this version.
+- **RF2.4** Defensive limits: header and URL size, number of simultaneous connections, time per request, and the response is always `Content-Type: application/json` and `Cache-Control: no-store`.
+- **Acceptance criterion:** integration tests with `reqwest` against an ephemeral port: routes, forbidden methods, `503` with no data, no provider queries during 100 requests, respect for the connection limit.
 
-- **RF3.1** Ligado somente em loopback (`127.0.0.1` e `::1`). Pedir outro endereço de vínculo exige uma flag explícita e resulta em erro de configuração, não em exposição silenciosa.
-- **RF3.2** Token opcional (`Authorization: Bearer`) gerado pelo Cuotai e guardado no cofre do SO, não no TOML. Sem token, o servidor só aceita requisições cuja origem seja loopback e que **não** tenham cabeçalho `Origin` de navegador.
-- **RF3.3** Proteção contra leitura por páginas web: sem `Access-Control-Allow-Origin` por padrão (bloqueia leituras de outras origens) e verificação do cabeçalho `Host` contra `127.0.0.1`/`localhost` para mitigar *DNS rebinding*. Um modo "permitir navegadores" pode ser ligado explicitamente, com aviso do que isso significa.
-- **RF3.4** Nenhuma rota devolve credenciais, e o log de acesso não grava cabeçalhos de autorização nem parâmetros.
-- **RF3.5** Acesso pela rede local fica fora do escopo. Quem precisar deve fazê-lo por túnel próprio.
-- **Critério de aceite:** testes de *DNS rebinding* (`Host` estranho recusado), `Origin` de navegador recusado, token inválido (`401`), vínculo não loopback recusado sem a flag e ausência de segredos nas respostas e nos logs.
+### RF3 — Server security (high priority)
 
-### RF4 — TUI/CLI (prioridade alta)
+- **RF3.1** Bound only to loopback (`127.0.0.1` and `::1`). Requesting another bind address requires an explicit flag and results in a configuration error, not in silent exposure.
+- **RF3.2** An optional token (`Authorization: Bearer`) generated by Cuotai and stored in the OS vault, not in the TOML. Without a token, the server only accepts requests whose origin is loopback and that **do not** carry a browser `Origin` header.
+- **RF3.3** Protection against reads by web pages: no `Access-Control-Allow-Origin` by default (blocks reads from other origins) and a check of the `Host` header against `127.0.0.1`/`localhost` to mitigate *DNS rebinding*. An "allow browsers" mode can be turned on explicitly, with a warning of what that means.
+- **RF3.4** No route returns credentials, and the access log does not record authorization headers or parameters.
+- **RF3.5** Access over the local network is out of scope. Whoever needs it must do so through their own tunnel.
+- **Acceptance criterion:** *DNS rebinding* tests (a strange `Host` refused), a browser `Origin` refused, an invalid token (`401`), a non-loopback bind refused without the flag and no secrets in responses and logs.
 
-- **RF4.1** `cuotai --serve [--port N] [--token-file ARQ]` roda em primeiro plano sem abrir a TUI, mantém o ciclo de refresh do core e serve os dados. Encerra de forma limpa em `SIGINT`/`SIGTERM`. Sem terminal interativo é permitido.
-- **RF4.2** Códigos de saída: 0 encerramento normal; 1 erro local (porta, configuração, token); 2 se o ciclo ficou sem nenhuma conta saudável até o encerramento.
-- **RF4.3** `--once`/`--json` permanecem idênticos aos atuais; um novo `--json-v1` emite o `Export` completo.
-- **Critério de aceite:** smoke com `curl` contra `--serve`, encerramento limpo e códigos de saída.
+### RF4 — TUI/CLI (high priority)
 
-### RF5 — Desktop (prioridade média)
+- **RF4.1** `cuotai --serve [--port N] [--token-file FILE]` runs in the foreground without opening the TUI, keeps the core's refresh cycle and serves the data. It shuts down cleanly on `SIGINT`/`SIGTERM`. Running without an interactive terminal is allowed.
+- **RF4.2** Exit codes: 0 normal shutdown; 1 local error (port, configuration, token); 2 if the cycle ended up with no healthy account until shutdown.
+- **RF4.3** `--once`/`--json` stay identical to the current ones; a new `--json-v1` emits the full `Export`.
+- **Acceptance criterion:** a smoke test with `curl` against `--serve`, clean shutdown and exit codes.
 
-- **RF5.1** Em **Configurações → Integração**: ligar e desligar o servidor (desligado por padrão), porta, token (gerar, copiar, revogar), "permitir navegadores", e o endereço efetivo. O servidor usa o mesmo ciclo de refresh do app; não cria um segundo.
-- **RF5.2** Estado do servidor (ligado, porta, erro de bind) exibido de forma clara, incluindo conflito de porta com uma instância `cuotai --serve`.
-- **Critério de aceite:** smoke no app empacotado: ligar, consultar por `curl`, revogar o token, desligar e confirmar que a porta fecha.
+### RF5 — Desktop (medium priority)
 
-## 6. Requisitos não funcionais
+- **RF5.1** In **Settings → Integration**: turn the server on and off (off by default), port, token (generate, copy, revoke), "allow browsers", and the effective address. The server uses the app's same refresh cycle; it does not create a second one.
+- **RF5.2** Server state (on, port, bind error) shown clearly, including a port conflict with a `cuotai --serve` instance.
+- **Acceptance criterion:** a smoke test on the packaged app: turn it on, query with `curl`, revoke the token, turn it off and confirm that the port closes.
 
-- **Privacidade:** o servidor serve só o que o `--json` já expõe, acrescido de campos derivados, e nenhuma credencial. Fica claro na documentação que qualquer processo local do mesmo usuário pode ler os dados.
-- **Estabilidade:** contrato versionado, testes de referência e política de depreciação documentada.
-- **Custo:** nenhuma requisição ao servidor causa consulta a provedores.
-- **Dependências:** a biblioteca HTTP entra via Cargo, atrás da feature `serve`, e fica registrada em `THIRD_PARTY_NOTICES` e na tela Sobre.
+## 6. Non-functional requirements
 
-## 7. Ordem de execução e verificação
+- **Privacy:** the server serves only what `--json` already exposes, plus derived fields, and no credentials. The documentation makes clear that any local process of the same user can read the data.
+- **Stability:** a versioned contract, reference tests and a documented deprecation policy.
+- **Cost:** no request to the server causes a provider query.
+- **Dependencies:** the HTTP library comes in through Cargo, behind the `serve` feature, and is recorded in `THIRD_PARTY_NOTICES` and in the About screen.
 
-1. **RF1:** contrato e testes de referência, sem servidor.
-2. **RF2 e RF3:** servidor com segurança e testes de integração.
-3. **RF4:** `--serve` e `--json-v1`.
+## 7. Order of execution and verification
+
+1. **RF1:** the contract and reference tests, without a server.
+2. **RF2 and RF3:** the server with security and integration tests.
+3. **RF4:** `--serve` and `--json-v1`.
 4. **RF5:** desktop.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
-O requisito só está entregue quando um script lê `/v1/snapshot` repetidamente sem causar nenhuma consulta adicional ao provedor, uma página web hostil não consegue ler os dados, o esquema `v1` é protegido por teste de referência e nenhuma resposta ou log contém credenciais.
+The requirement is only delivered when a script reads `/v1/snapshot` repeatedly without causing any additional provider query, a hostile web page cannot read the data, the `v1` schema is protected by a reference test and no response or log contains credentials.
