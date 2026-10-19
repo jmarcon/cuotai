@@ -1,125 +1,141 @@
 <div align="center">
-  <img src="apps/desktop/ui/img/logo.svg" alt="Cuotai Logo" width="84" height="84" />
+  <img src="apps/desktop/ui/img/logo.svg" alt="Cuotai logo" width="84" height="84" />
   <h1>Cuotai</h1>
-  <p><strong>Todas as suas quotas, limites de uso e custos de IA em um único lugar.</strong></p>
+  <p><strong>All your AI quotas, usage limits and costs in one place.</strong></p>
   <p>
-    Monitor multi-conta somente-leitura escrito em Rust, com aplicativo <strong>Desktop (Tauri 2)</strong>, <strong>TUI interativa (Ratatui)</strong> e <strong>CLI JSON</strong>.
+    A read-only, multi-account monitor written in Rust, with a <strong>desktop app (Tauri 2)</strong>, an <strong>interactive TUI (Ratatui)</strong> and a <strong>JSON CLI</strong>.
   </p>
   <p>
-    <a href="#aplicativo-desktop">Desktop</a> •
+    <a href="#desktop-app">Desktop</a> •
     <a href="#terminal-tui--cli">TUI &amp; CLI</a> •
-    <a href="#provedores-suportados">36 Provedores</a> •
-    <a href="#como-começar">Como Começar</a> •
-    <a href="#documentação">Documentação</a>
+    <a href="#supported-providers">36 providers</a> •
+    <a href="#getting-started">Getting started</a> •
+    <a href="#documentation">Documentation</a> •
+    <a href="#license">License</a>
   </p>
 </div>
 
 ---
 
-## Por que o Cuotai?
+## Why Cuotai?
 
-Quem trabalha com múltiplos assistentes e APIs de IA precisa alternar entre dezenas de painéis web para descobrir quanto resta da janela de 5 horas, da cota semanal ou do orçamento mensal. O **Cuotai** centraliza tudo em tempo real:
+Anyone working with several AI assistants and APIs ends up switching between dozens of web dashboards to find out how much is left of the 5-hour window, the weekly quota or the monthly budget. **Cuotai** brings it all together:
 
-- **100% Somente-Leitura e Zero Gasto de Tokens:** Consulta apenas endpoints de quota, billing e cabeçalhos — **nunca** dispara chamadas de inferência que consumam seus créditos para medir limites.
-- **Segurança por Padrão:** O arquivo `cuotai.toml` guarda apenas referências. Tokens OAuth ficam no cofre nativo do sistema operacional (**macOS Keychain**, **Windows Credential Manager**, **Linux Secret Service**) com renovação automática, ou em variáveis de ambiente.
-- **Login Nativo Integrado:** Autentique contas direto pelo navegador, Device Code ou AWS SSO sem copiar tokens manualmente (Claude, ChatGPT/Codex, GitHub Copilot, Gemini CLI, Kiro, Antigravity, Cursor, Kimi, Zed, CodeBuddy e mais).
-- **Três Interfaces, Um Único Core (`cuotai-core`):**
-  - **Desktop & Bandeja do Sistema (Tauri 2):** Janela principal detalhada + popover rápido na barra de menus (visão em donuts ou lista) + menu nativo no clique direito.
-  - **Terminal TUI (Ratatui):** Painel rápido com suporte a teclado e mouse, filtro instantâneo e wizard completo de contas.
-  - **CLI (`--once` / `--json`):** Ideal para scripts, barras de status (Waybar, SketchyBar, tmux) e automações.
-- **Temas e Internacionalização:** 14 temas integrados (Dracula, Catppuccin, Tokyo Night, One Dark, GitHub, macOS, Windows 11, Ubuntu, Synthwave, CRT, Win98/XP, Tron), suporte a temas/idiomas customizados e interface em **Português**, **Inglês** e **Espanhol**.
-
----
-
-## Aplicativo Desktop
-
-O aplicativo Desktop acompanha suas contas em segundo plano com agendamento incremental por conta, reordenação via *drag-and-drop* (sincronizada com a TUI) e alertas visuais imediatos quando uma cota entra em atenção ou se esgota.
-
-<div align="center">
-  <img src="docs/assets/desktop-main.png" alt="Painel Principal do Cuotai Desktop" width="100%" />
-  <p><em>Janela principal do Cuotai Desktop exibindo janelas de 5h, semanal, rate limits e estado das contas.</em></p>
-</div>
-
-<div align="center">
-  <img src="docs/assets/desktop-tray.png" alt="Popover da Bandeja do Cuotai Desktop" width="420" />
-  <p><em>Popover da bandeja do sistema na visão compacta em anéis (donuts) com resumo de alertas no rodapé.</em></p>
-</div>
+- **100% read-only, zero tokens spent:** it only queries quota, billing and header endpoints. It **never** sends inference requests that would burn your credits to measure a limit.
+- **Secure by default:** `cuotai.toml` holds references only. OAuth tokens live in the operating system's native vault (**macOS Keychain**, **Windows Credential Manager**, **Linux Secret Service**) with automatic renewal, or in environment variables.
+- **Built-in native login:** sign in through the browser, Device Code or AWS SSO without copying tokens by hand (Claude, ChatGPT/Codex, GitHub Copilot, Gemini CLI, Kiro, Antigravity, Cursor, Kimi, Zed, CodeBuddy and more).
+- **Three interfaces, one core (`cuotai-core`):**
+  - **Desktop and system tray (Tauri 2):** a detailed main window, a quick menu-bar popover (donut or list view) and a native right-click menu.
+  - **Terminal TUI (Ratatui):** a fast dashboard with keyboard and mouse support, instant filtering and a full account wizard.
+  - **CLI (`--once` / `--json`):** built for scripts, status bars (Waybar, SketchyBar, tmux) and automation.
+- **Themes and internationalization:** 14 built-in themes (Dracula, Catppuccin, Tokyo Night, One Dark, GitHub, macOS, Windows 11, Ubuntu, Synthwave, CRT, Win98/XP, Tron), custom themes and languages, and a UI in **Portuguese**, **English** and **Spanish**.
 
 ---
 
-## Provedores Suportados
+## Desktop app
 
-O Cuotai possui **36 integrações** no catálogo. Para detalhes de parâmetros, variáveis padrão e limitações de cada provedor, consulte **[`docs/providers.md`](docs/providers.md)**.
+The desktop app watches your accounts in the background with incremental per-account scheduling, drag-and-drop reordering (synced with the TUI) and immediate visual alerts when a quota needs attention or runs out.
 
-| Categoria | Provedores |
+<div align="center">
+  <img src="docs/assets/desktop-main.png" alt="Cuotai desktop main window" width="100%" />
+  <p><em>The Cuotai desktop main window showing 5-hour and weekly windows, rate limits and account status.</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/assets/desktop-tray.png" alt="Cuotai desktop tray popover" width="420" />
+  <p><em>The tray popover in the compact donut view, with an alert summary in the footer.</em></p>
+</div>
+
+---
+
+## Supported providers
+
+Cuotai ships **36 integrations**. For parameters, default variables and limitations of each provider, see **[`docs/providers.md`](docs/providers.md)**.
+
+| Category | Providers |
 |---|---|
-| **Assistentes & Assinaturas** | **Claude** (`claude`), **OpenAI Codex / ChatGPT** (`chat_gpt`), **GitHub Copilot** (`copilot`), **Cursor** (`cursor` — pessoal e Teams), **Windsurf** (`windsurf`), **Kiro / AWS** (`kiro`), **Antigravity** (`antigravity`), **Cline** (`cline`), **Zed** (`zed`), **CodeBuddy** (`code_buddy`), **Qoder** (`qoder`), **OpenCode Go** (`open_code_go`) |
-| **CLIs & Planos de Coding** | **Gemini CLI** (`gemini_ai`), **Grok CLI / xAI** (`grok`), **Kimi Coding & API** (`kimi`), **MiniMax Token/Coding Plan** (`mini_max`), **Alibaba Coding Plan** (`alibaba_coding_plan`), **Alibaba Token Plan / Qwen Cloud** (`alibaba_token_plan`), **Xiaomi MiMo** (`xiaomi_mimo`), **Ollama Cloud** (`ollama_cloud`), **Qwen Code** (`qwen`) |
-| **Cloud Billing & Admin APIs** | **OpenAI Admin API** (`open_ai_api`), **Anthropic Admin API** (`anthropic_api`), **Google Gemini API Monitoring** (`gemini_api`), **Google Vertex AI** (`vertex_ai`), **AWS Bedrock Cost Explorer** (`aws_bedrock`), **Azure OpenAI Cost Management** (`azure_open_ai`), **Alibaba Cloud BSS** (`alibaba_cloud`), **Mistral Admin** (`mistral`), **Perplexity Computer Analytics** (`perplexity`), **Kimchi** (`kimchi`), **Groq** (`groq`) |
-| **Catálogo Adicional** | **Alibaba Model Studio** (`alibaba_model_studio`), **Cloudflare AI** (`cloudflare_ai`), **NVIDIA NIM** (`nvidia_nim`), **Poolside** (`poolside`) |
+| **Assistants and subscriptions** | **Claude** (`claude`), **OpenAI Codex / ChatGPT** (`chat_gpt`), **GitHub Copilot** (`copilot`), **Cursor** (`cursor` — personal and Teams), **Windsurf** (`windsurf`), **Kiro / AWS** (`kiro`), **Antigravity** (`antigravity`), **Cline** (`cline`), **Zed** (`zed`), **CodeBuddy** (`code_buddy`), **Qoder** (`qoder`), **OpenCode Go** (`open_code_go`) |
+| **CLIs and coding plans** | **Gemini CLI** (`gemini_ai`), **Grok CLI / xAI** (`grok`), **Kimi Coding & API** (`kimi`), **MiniMax Token/Coding Plan** (`mini_max`), **Alibaba Coding Plan** (`alibaba_coding_plan`), **Alibaba Token Plan / Qwen Cloud** (`alibaba_token_plan`), **Xiaomi MiMo** (`xiaomi_mimo`), **Ollama Cloud** (`ollama_cloud`), **Qwen Code** (`qwen`) |
+| **Cloud billing and admin APIs** | **OpenAI Admin API** (`open_ai_api`), **Anthropic Admin API** (`anthropic_api`), **Google Gemini API Monitoring** (`gemini_api`), **Google Vertex AI** (`vertex_ai`), **AWS Bedrock Cost Explorer** (`aws_bedrock`), **Azure OpenAI Cost Management** (`azure_open_ai`), **Alibaba Cloud BSS** (`alibaba_cloud`), **Mistral Admin** (`mistral`), **Perplexity Computer Analytics** (`perplexity`), **Kimchi** (`kimchi`), **Groq** (`groq`) |
+| **Additional catalog** | **Alibaba Model Studio** (`alibaba_model_studio`), **Cloudflare AI** (`cloudflare_ai`), **NVIDIA NIM** (`nvidia_nim`), **Poolside** (`poolside`) |
 
 ---
 
-## Como Começar
+## Getting started
 
-### Pré-requisitos
+### Prerequisites
 
-- **Rust / Cargo** (edição 2021)
-- *(Opcional)* **AWS CLI v2** no `PATH` caso utilize contas `aws_bedrock`
-- *(Opcional)* **Bailian CLI (`bl`)** caso utilize login de console para `alibaba_token_plan`
+- **Rust / Cargo** (2021 edition)
+- *(Optional)* **AWS CLI v2** on your `PATH` for `aws_bedrock` accounts
+- *(Optional)* **Bailian CLI (`bl`)** for the console login of `alibaba_token_plan`
 
-### 1. Aplicativo Desktop (Tauri)
+### 1. Desktop app (Tauri)
 
 ```sh
 cd apps/desktop/src-tauri
 cargo run
 ```
 
-Para gerar o pacote instalável para o seu sistema operacional:
+To build an installable package for your operating system:
 
 ```sh
 cargo install tauri-cli
 cd apps/desktop/src-tauri && cargo tauri build
 ```
 
-### 2. Terminal TUI & CLI
+### 2. Terminal TUI and CLI
 
-Execute o painel interativo no terminal (abre automaticamente o wizard na primeira execução):
+Run the interactive dashboard in your terminal (it opens the wizard automatically on first run):
 
 ```sh
 cargo run -p cuotai-tui
 ```
 
-Ou instale o binário `cuotai` localmente:
+Or install the `cuotai` binary locally:
 
 ```sh
 cargo install --path crates/cuotai-tui --locked
 ```
 
-Consultas rápidas via linha de comando (sem abrir a interface interativa):
+Quick command-line queries (without opening the interactive interface):
 
 ```sh
-# Listar os 36 provedores disponíveis
+# List the 36 available providers
 cargo run -p cuotai-tui -- --list-providers
 
-# Resumo legível no terminal (execução única)
+# Human-readable summary in the terminal (single run)
 cargo run -p cuotai-tui -- --config cuotai.toml --once
 
-# Snapshot estruturado em JSON para scripts e barras de status
+# Structured JSON snapshot for scripts and status bars
 cargo run -p cuotai-tui -- --config cuotai.toml --json
 ```
 
-No JSON, cada métrica inclui `kind` (`quota`, `rate_limit`, `balance`, `credits`, `spend` ou `usage`) e `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` ou `null`), classificados pelo adaptador do provedor. Consumidores não precisam interpretar `label` ou `period` para distinguir cotas, rate limits e janelas.
+In the JSON output, each metric carries a `kind` (`quota`, `rate_limit`, `balance`, `credits`, `spend` or `usage`) and a `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`), classified by the provider adapter. Consumers do not need to parse `label` or `period` to tell quotas, rate limits and windows apart.
 
 ---
 
-## Documentação
+## Documentation
 
-Toda a documentação técnica detalhada está organizada na pasta **[`docs/`](docs/)**:
+The detailed technical documentation lives in **[`docs/`](docs/)**. Some documents are still being translated from Portuguese to English.
 
-- **[Guia da TUI, CLI e Wizard de Contas (`docs/tui.md`)](docs/tui.md)** — Atalhos de teclado e mouse (incluindo a seção Modelos, `m`, com busca local e `s` Sincronizar modelos), fluxo passo a passo do wizard, precedência de arquivos de configuração e códigos de saída da CLI.
-- **[Login OAuth, Sessões e Cofre (`docs/oauth.md`)](docs/oauth.md)** — Como funcionam os logins nativos no navegador/Device Code, importação assistida do Cursor, preparação OAuth para Google/Azure/AWS SSO e armazenamento seguro no Keychain.
-- **[Catálogo de Provedores e Limitações (`docs/providers.md`)](docs/providers.md)** — Tabela completa dos 36 provedores, variáveis de ambiente padrão, compatibilidade com o `9router`, semântica das métricas e avisos de custos por consulta (como AWS Cost Explorer).
-- **[Arquitetura, Biblioteca Rust e Verificação (`docs/architecture.md`)](docs/architecture.md)** — Separação entre `cuotai-core`, `cuotai-tui` e `apps/desktop`, uso do `cuotai-core` como biblioteca Rust, contrato de internacionalização e suíte de testes.
-- **[Guia do App Desktop (`apps/desktop/README.md`)](apps/desktop/README.md)** — Detalhes específicos do shell Tauri 2, temas e pasta de personalização do usuário.
-- **[Exemplo de Configuração (`cuotai.example.toml`)](cuotai.example.toml)** — Referência comentada de todas as entradas `[[accounts]]` e parâmetros TOML.
+- **[TUI, CLI and account wizard guide (`docs/tui.md`)](docs/tui.md)** — Keyboard and mouse shortcuts (including the Models section, `m`, with local search and `s` to sync models), the step-by-step wizard flow, configuration file precedence and CLI exit codes.
+- **[OAuth login, sessions and vault (`docs/oauth.md`)](docs/oauth.md)** — How native browser and Device Code logins work, the assisted Cursor import, OAuth preparation for Google/Azure/AWS SSO and secure storage in the Keychain.
+- **[Provider catalog and limitations (`docs/providers.md`)](docs/providers.md)** — The full table of the 36 providers, default environment variables, `9router` compatibility, metric semantics and per-query cost warnings (such as AWS Cost Explorer).
+- **[Architecture, Rust library and verification (`docs/architecture.md`)](docs/architecture.md)** — The split between `cuotai-core`, `cuotai-tui` and `apps/desktop`, using `cuotai-core` as a Rust library, the internationalization contract and the test suite.
+- **[Desktop app guide (`apps/desktop/README.md`)](apps/desktop/README.md)** — Details specific to the Tauri 2 shell, themes and the user customization folder.
+- **[Configuration example (`cuotai.example.toml`)](cuotai.example.toml)** — A commented reference of every `[[accounts]]` entry and TOML parameter.
+- **[Roadmap (`docs/plans/`)](docs/plans/0000_controle.md)** — Product requirement documents (PRDs) with their implementation status and dependencies.
+
+---
+
+## Contributing
+
+Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first, and report security issues privately as described in [`SECURITY.md`](SECURITY.md).
+
+---
+
+## License
+
+Cuotai is distributed under the terms of either the [MIT license](LICENSE-MIT) or the [Apache License, Version 2.0](LICENSE-APACHE), at your option. Third-party notices are in [`THIRD_PARTY_NOTICES`](THIRD_PARTY_NOTICES).
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in Cuotai, as defined in the Apache-2.0 license, is dual licensed as above, without any additional terms or conditions.
