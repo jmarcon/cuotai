@@ -1,25 +1,27 @@
-# Guia da TUI, CLI e Wizard de Contas
+# TUI, CLI and Account Wizard Guide
 
-O binário `cuotai-tui` oferece tanto o painel interativo no terminal (Ratatui) quanto modos de execução única (`--once` e `--json`) para scripts e automação.
+The `cuotai-tui` binary provides both the interactive terminal dashboard (Ratatui) and single-run modes (`--once` and `--json`) for scripts and automation.
 
-## Executar
+The TUI's own captions (shortcuts, frames, buttons) are shown in Portuguese. This guide quotes them as they appear on screen, with an English gloss where it helps.
 
-Requer Rust/Cargo. AWS Bedrock também requer AWS CLI v2 no `PATH`.
+## Running
+
+Requires Rust/Cargo. AWS Bedrock also requires AWS CLI v2 on your `PATH`.
 
 ```sh
 cargo run -p cuotai-tui -- --list-providers
 cargo run -p cuotai-tui
 ```
 
-A TUI resolve os textos entregues pelo core (rótulos de login,
-campos, ajuda, erros de edição, notas de relatório, avisos de custo)
-contra o catálogo do core usando a locale definida em `CUOTAI_LANG`
-(códigos RFC 5646: `en-US`, `es`, `pt-BR`...). Sem `CUOTAI_LANG`,
-mantém o padrão `pt-BR` para preservar o chrome em português. A
-própria moldura da TUI (atalhos, menus, mensagens próprias do
-Ratatui) permanece em português — fora do escopo do RF8.
+The TUI resolves the texts delivered by the core (login labels,
+fields, help, edit errors, report notes, cost warnings) against the
+core catalog, using the locale set in `CUOTAI_LANG`
+(RFC 5646 codes: `en-US`, `es`, `pt-BR`...). Without `CUOTAI_LANG`,
+it keeps the `pt-BR` default so the chrome stays in Portuguese. The
+TUI frame itself (shortcuts, menus, Ratatui's own messages) remains in
+Portuguese, outside the scope of RF8.
 
-Para execução única ou instalação local:
+For a single run or a local install:
 
 ```sh
 cargo run -p cuotai-tui -- --config cuotai.toml --once
@@ -27,64 +29,64 @@ cargo run -p cuotai-tui -- --config cuotai.toml --json
 cargo install --path crates/cuotai-tui --locked
 ```
 
-### Precedência de configuração e códigos de saída
+### Configuration precedence and exit codes
 
-- **Precedência:** `--config`, `CUOTAI_CONFIG`, `./cuotai.toml` **existente**, diretório de configuração do sistema (`<config do SO>/cuotai/config.toml`; `~/Library/Application Support/cuotai/config.toml` no macOS). O cabeçalho mostra o caminho efetivo e a origem (`--config`, `CUOTAI_CONFIG`, `local` ou `padrão do SO`).
-- **Aviso de arquivos diferentes:** TUI e desktop registram o último arquivo aberto em `<dados do SO>/cuotai/last-config-*.json` (só o caminho normalizado e a data). Se o desktop usou outro arquivo, o cabeçalho mostra os dois caminhos e lembra que contas e caches de modelos são separados; alinhe com `--config` ou `CUOTAI_CONFIG`.
-- Sem arquivo encontrado em modo interativo, o wizard cria `<config do SO>/cuotai/config.toml` (o mesmo padrão do desktop). Para criar um arquivo local, passe-o explicitamente: `--config ./cuotai.toml`. Arquivos existentes nunca são migrados, mesclados nem sobrescritos automaticamente.
-- Em modo `--once`/`--json`, sem arquivo continuam usando o catálogo padrão (não abrem o wizard), e um arquivo explícito ausente ou inválido retorna erro. Arquivo inválido nunca é ignorado.
-- Consultas HTTP usam as variáveis padrão quando presentes; AWS só consulta após configurar explicitamente `params.profile`.
-- **Códigos de saída (`--once` e `--json`):**
-  - `0`: todas as contas atualizaram com sucesso (`ready`)
-  - `2`: resultados com configuração ausente ou falha em conta
-  - `1`: erro local (argumentos ou arquivo inválido)
+- **Precedence:** `--config`, `CUOTAI_CONFIG`, an **existing** `./cuotai.toml`, the system configuration directory (`<OS config dir>/cuotai/config.toml`; `~/Library/Application Support/cuotai/config.toml` on macOS). The header shows the effective path and its origin (`--config`, `CUOTAI_CONFIG`, `local` or `OS default`).
+- **Different-files warning:** the TUI and the desktop app record the last opened file in `<OS data dir>/cuotai/last-config-*.json` (only the normalized path and the date). If the desktop app used another file, the header shows both paths and reminds you that accounts and model caches are separate; align them with `--config` or `CUOTAI_CONFIG`.
+- With no file found in interactive mode, the wizard creates `<OS config dir>/cuotai/config.toml` (the same default as the desktop app). To create a local file, pass it explicitly: `--config ./cuotai.toml`. Existing files are never migrated, merged or overwritten automatically.
+- In `--once`/`--json` mode, with no file the default catalog is still used (the wizard does not open), and a missing or invalid explicit file returns an error. An invalid file is never ignored.
+- HTTP queries use the default variables when present; AWS only queries after `params.profile` is configured explicitly.
+- **Exit codes (`--once` and `--json`):**
+  - `0`: every account refreshed successfully (`ready`)
+  - `2`: results with missing configuration or an account failure
+  - `1`: local error (invalid arguments or file)
 
-## Atalhos de teclado e mouse na TUI
+## TUI keyboard and mouse shortcuts
 
-- **Contas:** `a` adiciona conta, `e` edita a selecionada, `d` ou `Delete` exclui a conta selecionada (com confirmação `s` para gravar ou `n`/`Esc` para cancelar).
-- **Navegação:** `↑↓`/`j k` selecionam, `PgUp/PgDn` paginam, `Home/End` vão às extremidades, `Enter` abre detalhes da conta (`←→` alternam entre contas visíveis nos detalhes; `↑↓` ou `[`/`]` rolam detalhes; `Enter`/`Esc` voltam).
-- **Filtro e visualização:** `/` filtra, `Enter/Esc` encerram edição do filtro, `c` limpa o filtro, `u` mostra/oculta contas sem dados (visíveis por padrão).
-- **Atualização:** `r` atualiza todas as contas e `R` atualiza somente a conta selecionada.
-- **Modelos:** nos detalhes, `m` abre Modelos da conta; no passo Provedor do wizard, `m` lista as contas **já configuradas** do provedor destacado e `Enter` abre a escolhida (sem conta, mostra só suporte/orientação). A primeira abertura consulta somente se suportada e nunca consultada; depois lê o cache. `/` busca por ID/nome localmente (separado do filtro de contas), `c` limpa, `s` **Sincronizar modelos**, `↑↓`/`PgUp/PgDn`/`Home/End`/roda rolam, `Esc` (ou botão direito) volta. A consulta roda em segundo plano, não atualiza quotas e é descartada se a conta mudar (editar, excluir, mover, recarregar). `r`, `R`, `--once` e `--json` nunca sincronizam modelos.
-- **Reordenação:** `K`/`J` movem a conta selecionada para cima/baixo na ordem persistida em `cuotai.toml` (compartilhada com o app Desktop, preservando comentários de cada conta), sem disparar consultas aos provedores.
-- **Sobre:** `?` (ou o `? sobre` do rodapé) abre a versão, a licença e o repositório do Cuotai e a lista de bibliotecas de código aberto usadas, com licença, componente que as usa e repositório. A lista vem de `cuotai_core::about`, compartilhada com o Desktop; só as dependências diretas aparecem (o inventário completo está no `Cargo.lock`). `↑↓`/`PgUp/PgDn`/`Home/End`/roda rolam; `Esc`, `q`, `?`, `Enter` ou o botão direito voltam.
-- **Saída:** `q` ou `Ctrl-C`.
-- **Dimensões mínimas do terminal:** painel `45 × 18`; wizard `60 × 20`. Tema Dracula.
+- **Accounts:** `a` adds an account, `e` edits the selected one, `d` or `Delete` deletes the selected account (confirm with `s` to write or `n`/`Esc` to cancel).
+- **Navigation:** `↑↓`/`j k` select, `PgUp/PgDn` page, `Home/End` jump to the ends, `Enter` opens the account details (`←→` switch between visible accounts in the details; `↑↓` or `[`/`]` scroll the details; `Enter`/`Esc` go back).
+- **Filter and view:** `/` filters, `Enter/Esc` end filter editing, `c` clears the filter, `u` shows or hides accounts without data (visible by default).
+- **Refresh:** `r` refreshes all accounts and `R` refreshes only the selected one.
+- **Models:** in the details, `m` opens the account's Models; in the wizard's Provider step, `m` lists the provider's **already configured** accounts and `Enter` opens the chosen one (with no account, it shows only the support status and guidance). The first open queries only if the provider is supported and has never been queried; afterwards it reads the cache. `/` searches locally by ID/name (separate from the account filter), `c` clears, `s` is **Sync models**, `↑↓`/`PgUp/PgDn`/`Home/End`/wheel scroll, `Esc` (or right click) goes back. The query runs in the background, does not refresh quotas, and is discarded if the account changes (edit, delete, move, reload). `r`, `R`, `--once` and `--json` never sync models.
+- **Reordering:** `K`/`J` move the selected account up/down in the order persisted in `cuotai.toml` (shared with the desktop app, preserving each account's comments), without triggering any provider query.
+- **About:** `?` (or the `? sobre` footer entry) opens Cuotai's version, license and repository, plus the list of open-source libraries in use, with license, the component that uses each and its repository. The list comes from `cuotai_core::about`, shared with the desktop app; only direct dependencies appear (the full inventory is in `Cargo.lock`). `↑↓`/`PgUp/PgDn`/`Home/End`/wheel scroll; `Esc`, `q`, `?`, `Enter` or right click go back.
+- **Quit:** `q` or `Ctrl-C`.
+- **Minimum terminal size:** dashboard `45 × 18`; wizard `60 × 20`. Dracula theme.
 
-### Suporte a mouse
+### Mouse support
 
-- Clique seleciona um cartão; clique no cartão já selecionado abre detalhes.
-- Nos detalhes, clique na parte visível de uma fonte HTTPS única para abri-la no navegador; fontes compostas permanecem texto rolável. Botão direito volta dos detalhes.
-- A roda do mouse navega pelas linhas de cartões e rola detalhes, listas do wizard e instruções de login.
-- O rodapé possui ações clicáveis; o wizard oferece `[Voltar]`, `[Próximo]`, `[Gravar]` e `[Cancelar]`. A roda nunca confirma login, salvamento ou exclusão. A captura de mouse é liberada ao sair ou em caso de panic.
+- A click selects a card; clicking the already selected card opens its details.
+- In the details, click the visible part of a single HTTPS source to open it in the browser; composite sources stay scrollable text. Right click goes back from the details.
+- The mouse wheel moves through the card rows and scrolls the details, the wizard lists and the login instructions.
+- The footer has clickable actions; the wizard offers `[Voltar]` (Back), `[Próximo]` (Next), `[Gravar]` (Save) and `[Cancelar]` (Cancel). The wheel never confirms a login, a save or a deletion. Mouse capture is released on exit or on panic.
 
-## Painel de quotas
+## Quota dashboard
 
-- Os cartões (duas colunas em terminais largos) mantêm a ordem do arquivo de configuração, mesmo quando o resultado de uma consulta muda.
-- Consultas independentes rodam em paralelo até `concurrency`; durante a atualização os dados anteriores permanecem visíveis. O cabeçalho mostra a contagem regressiva da próxima consulta da conta selecionada.
-- Barras representam percentual **restante**; valores usados acima de 100% são preservados e apenas o desenho é limitado à largura da barra.
-- Custos/saldos sem limite conhecido mostram valores em texto, sem inventar percentual ou "ilimitado". Saldo extra zero não torna esgotada uma assinatura que ainda tem quota limitada disponível.
-- Excluir uma conta remove apenas a entrada da configuração: não apaga variáveis de ambiente, entradas do Keychain nem revoga acesso no provedor.
+- The cards (two columns on wide terminals) keep the order of the configuration file, even when a query result changes.
+- Independent queries run in parallel up to `concurrency`; during a refresh the previous data stays visible. The header shows the countdown to the next query of the selected account.
+- Bars represent the **remaining** percentage; used values above 100% are preserved and only the drawing is clamped to the bar width.
+- Costs and balances with no known limit show plain text values, without inventing a percentage or "unlimited". An extra balance of zero does not make a subscription that still has limited quota available count as exhausted.
+- Deleting an account removes only the configuration entry: it does not delete environment variables or Keychain entries, and it does not revoke access at the provider.
 
-## Configurar uma conta pelo wizard
+## Configuring an account with the wizard
 
-Na primeira execução interativa sem arquivo de configuração (ou com lista de contas vazia), a TUI abre o **wizard de contas**. Não é necessário editar TOML manualmente (para configuração manual, consulte [`cuotai.example.toml`](../cuotai.example.toml)).
+On the first interactive run with no configuration file (or with an empty account list), the TUI opens the **account wizard**. You do not need to edit the TOML by hand (for manual configuration, see [`cuotai.example.toml`](../cuotai.example.toml)).
 
-1. **Ambiente (opcional):** Para credencial por ambiente, exporte o access token no terminal que executará o Cuotai (`export MEU_TOKEN`). O Cuotai não carrega `.env` automaticamente. Para login OAuth integrado, veja [Autenticação OAuth e Cofre](oauth.md).
-2. **Abrir o wizard:** Execute `cargo run -p cuotai-tui`. Se já houver configuração, pressione `a` para adicionar ou selecione uma conta e pressione `e` para editar.
-3. **Provedor:** Selecione com as setas e confirme com `Enter`.
-4. **Nome da conta:** Informe um nome único, como `Codex pessoal`.
-5. **Credencial:** O passo lista **Credencial manual** (nome da variável de ambiente, ou perfil AWS conforme o provedor) e cada **modo de login** que o core oferece para o provedor (`Login no navegador`, `AWS SSO`, `Console Bailian`, `Importar sessão Cursor`, etc. — a lista e os rótulos/ajudas vêm de `cuotai_core::login`, nunca decididos pela TUI). Pressione **Tab** para alternar entre eles; `Enter` navega pelos campos do modo selecionado e `F2` inicia ou refaz o login do modo atual (sem atalho específico por provedor). O wizard indica `PRESENTE`/`AUSENTE` para variáveis, sem revelar valores.
-   - Reautenticar (F2 ou **Refazer login** no Desktop) reaproveita o mesmo `credential_id` da conta em edição: o token é sobrescrito no cofre, sem deixar credencial órfã. Se alguma opção que compõe a chave do cofre mudar (método/região do Kiro, `client_id`, tenant, etc.), a credencial antiga é removida automaticamente **depois** de o TOML ser salvo, a menos que outra conta ainda a referencie; se essa limpeza falhar, o estado é reportado como não fatal (configuração e nova credencial salvas, credencial anterior mantida no cofre).
-   - Modos cujo login fica fora do cofre do Cuotai (AWS SSO, `bl` do Bailian) gravam apenas parâmetros públicos na conta (`params.profile`, `params.cli_profile`); cancelar a etapa de login não desfaz o que o CLI externo já gravou.
-6. **Parâmetros:** Preencha os campos específicos do provedor; `Enter` avança entre eles. Opcionais podem ficar vazios. Copilot oferece escolhas com `←→`, mostrando organização apenas no modo `org`.
-7. **Intervalo:** Informe de `30` a `86400` segundos para **esta conta** (mínimo de `300` s para AWS Bedrock); vazio herda o `refresh_seconds` global do TOML (padrão: `300`). Contas com intervalos próprios são agendadas separadamente. AWS exibe um aviso de cobrança por consulta; considere `3600` segundos ou mais.
-8. **Revisão:** Confira conta, parâmetros e arquivo de destino; `↑↓` rolam o resumo. Só o `Enter` nesta etapa grava e aplica a configuração, iniciando a consulta no painel.
+1. **Environment (optional):** for an environment credential, export the access token in the terminal that will run Cuotai (`export MY_TOKEN`). Cuotai does not load `.env` automatically. For the built-in OAuth login, see [OAuth and the vault](oauth.md).
+2. **Open the wizard:** run `cargo run -p cuotai-tui`. If a configuration already exists, press `a` to add, or select an account and press `e` to edit.
+3. **Provider:** select with the arrow keys and confirm with `Enter`.
+4. **Account name:** enter a unique name, such as `Personal Codex`.
+5. **Credential:** this step lists **Manual credential** (the name of the environment variable, or the AWS profile, depending on the provider) and each **login mode** the core offers for the provider (`Login no navegador` (browser login), `AWS SSO`, `Console Bailian`, `Importar sessão Cursor` (import Cursor session), etc. The list, labels and help come from `cuotai_core::login`, never decided by the TUI). Press **Tab** to switch between them; `Enter` moves through the selected mode's fields and `F2` starts or redoes the login of the current mode (with no provider-specific shortcut). The wizard shows `PRESENTE`/`AUSENTE` (present/absent) for variables, without revealing values.
+   - Reauthenticating (F2, or **Refazer login** on the desktop) reuses the `credential_id` of the account being edited: the token is overwritten in the vault, leaving no orphaned credential. If an option that makes up the vault key changes (Kiro method/region, `client_id`, tenant, etc.), the old credential is removed automatically **after** the TOML is saved, unless another account still references it; if that cleanup fails, the state is reported as non-fatal (configuration and new credential saved, previous credential kept in the vault).
+   - Modes whose login lives outside Cuotai's vault (AWS SSO, Bailian's `bl`) write only public parameters to the account (`params.profile`, `params.cli_profile`); cancelling the login step does not undo what the external CLI already wrote.
+6. **Parameters:** fill in the provider-specific fields; `Enter` advances between them. Optional ones may stay empty. Copilot offers choices with `←→`, showing the organization only in `org` mode.
+7. **Interval:** enter `30` to `86400` seconds for **this account** (minimum `300` s for AWS Bedrock); empty inherits the global `refresh_seconds` of the TOML (default: `300`). Accounts with their own intervals are scheduled separately. AWS shows a per-query billing warning; consider `3600` seconds or more.
+8. **Review:** check the account, parameters and target file; `↑↓` scroll the summary. Only `Enter` on this step writes and applies the configuration, starting the query on the dashboard.
 
-`Shift+Tab` volta mantendo o rascunho; `Ctrl+U` limpa o campo; `Backspace` apaga; `Esc` cancela sem salvar. A mudança de provedor redefine os campos e a referência de credencial para evitar reutilizar o token do provedor anterior.
+`Shift+Tab` goes back while keeping the draft; `Ctrl+U` clears the field; `Backspace` deletes; `Esc` cancels without saving. Changing the provider resets the fields and the credential reference, to avoid reusing the previous provider's token.
 
-### Persistência atômica do TOML
+### Atomic TOML persistence
 
-A gravação usa arquivo temporário e substituição atômica, com permissão `0600` para arquivos novos no Unix. Edições em tabelas `[[accounts]]` preservam ordem, comentários da conta e demais parâmetros/configurações. Se o arquivo mudar externamente, o wizard recusa sobrescrevê-lo e orienta fechar/reabrir o Cuotai. Em falha de gravação, o rascunho permanece na revisão para tentar novamente.
+Writing uses a temporary file and an atomic replace, with `0600` permission for new files on Unix. Edits to `[[accounts]]` tables preserve the order, the account's comments and the other parameters and settings. If the file changes externally, the wizard refuses to overwrite it and tells you to close and reopen Cuotai. On a write failure, the draft stays on the review step so you can try again.
 
-Tokens fornecidos por variável continuam sendo gerenciados externamente: se atualizar uma variável no shell, reinicie o Cuotai. Credenciais obtidas pelo login integrado são recuperadas do cofre e renovadas automaticamente antes da consulta quando próximas de expirar.
+Tokens supplied through variables remain managed externally: if you update a variable in the shell, restart Cuotai. Credentials obtained through the built-in login are recovered from the vault and renewed automatically before the query when close to expiring.
