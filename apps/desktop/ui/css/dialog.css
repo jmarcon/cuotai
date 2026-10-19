@@ -11,6 +11,12 @@ dialog.dlg {
 }
 dialog.dlg::backdrop {
   background: rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(3px); /* sem suporte: fica só o véu escuro */
+  backdrop-filter: blur(3px);
+}
+/* Saída (motion.js `showDialog`): o diálogo já fechado volta à camada superior como popover inerte. */
+dialog.dlg:popover-open {
+  display: block;
 }
 .dlg-body {
   display: flex;

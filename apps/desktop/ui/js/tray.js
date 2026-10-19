@@ -2,6 +2,7 @@ import { boot } from "./boot.js";
 import { te, t, currentLocale } from "./i18n.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu } from "./tray-menu.js";
+import { easeOut, motionMs } from "./motion.js";
 import {
   bindThemeSwitch, brand, createStore, esc, fmtAmount, fmtReset, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, remainingPct, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
@@ -43,6 +44,20 @@ function donutHtml(pct, tone, center) {
     <circle class="trk" cx="32" cy="32" r="${R}"/>
     ${dash >= 1 ? `<circle class="arc" cx="32" cy="32" r="${R}" stroke-dasharray="${dash.toFixed(1)} ${CIRC.toFixed(1)}"/>` : ""}</svg>
     <span class="center">${center}</span></div>`;
+}
+// RF3.2: o anel anima do último valor exibido (no redesenho e entre fechar e reabrir o popover), nunca do zero.
+const dashOf = (tile) => parseFloat(tile.querySelector(".arc")?.getAttribute("stroke-dasharray")) || 0;
+const rings = () => new Map([...root.querySelectorAll(".tile[data-open]")].map((el) => [el.dataset.open, dashOf(el)]));
+function animateRings(prev) {
+  const ms = motionMs("--motion-slow");
+  if (!ms || !prev) return;
+  for (const el of root.querySelectorAll(".tile[data-open]")) {
+    const from = prev.get(el.dataset.open), to = dashOf(el), arc = el.querySelector(".arc");
+    // ponytail: anel que vai a vazio (sem `.arc`) troca na hora; animar exigiria manter o arco com traço 0.
+    if (arc && from != null && Math.abs(from - to) >= 0.1) {
+      arc.animate([{ strokeDasharray: `${from} ${CIRC}` }, { strokeDasharray: `${to} ${CIRC}` }], { duration: ms, easing: easeOut() });
+    }
+  }
 }
 
 function tile(r) {
@@ -100,6 +115,7 @@ function render() {
   const body = cur ? `${detailHtml(cur)}<div data-models-slot></div>`
     : trayView === "donut" ? `<div class="tiles">${reports.map(tile).join("")}</div>` : reports.map(row).join("");
   syncTrayMenu(view);
+  const prev = rings();
   root.innerHTML = `<div class="pop">
     <header class="pop-head">
       ${cur ? `<button class="icon back" data-back title="${te("common.back")}">${icon("back")}</button>` : ""}
@@ -119,6 +135,7 @@ function render() {
       </div>
     </footer></div>`;
   models?.attach(root, focus);
+  animateRings(prev);
 }
 
 root.addEventListener("click", (e) => {
@@ -133,6 +150,18 @@ root.addEventListener("click", (e) => {
   if (t.closest("[data-quit]")) return quitApp();
 });
 onHiddenChange(render);
+// RF3.2: o shell mostra o popover com `show()` + `set_focus()` e o esconde ao perder o foco. A cada abertura ele
+// entra com fade + 6 px vindo do lado do ícone (no topo da tela no macOS, na base no Windows/Linux).
+let seen = null; // anéis no último fechar
+addEventListener("blur", () => { seen = rings(); });
+addEventListener("focus", () => {
+  const ms = motionMs("--motion-base"), pop = root.querySelector(".pop");
+  if (ms && pop) {
+    pop.animate([{ opacity: 0, transform: `translateY(${screenY < screen.height / 2 ? -6 : 6}px)` }, { opacity: 1, transform: "none" }],
+      { duration: ms, easing: easeOut() });
+  }
+  animateRings(seen);
+});
 initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);

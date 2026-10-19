@@ -5,6 +5,7 @@ import { userContent, skippedMessage } from "./usercontent.js";
 import { bindThemeSwitch, configLabel, getSettings, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setMotion, setRefreshSeconds, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
+import { showDialog } from "./motion.js";
 
 let dlg = null;
 
@@ -13,7 +14,7 @@ export async function openSettings(extra = {}) {
   dlg = document.createElement("dialog");
   dlg.className = "dlg settings";
   document.body.append(dlg);
-  dlg.addEventListener("close", () => { dlg.remove(); dlg = null; });
+  dlg.addEventListener("close", () => { dlg = null; });
   let view = extra.view?.();
   const render = async (message = "", configMessage = "") => {
     const s = await getSettings();
@@ -101,15 +102,9 @@ export async function openSettings(extra = {}) {
     };
     dlg.querySelector("[data-reset-config]").onclick = () => applyConfig(null);
   };
-  bindThemeSwitch(dlg, () => { extra.onChange?.(); render(); });
-  dlg.addEventListener("click", async (e) => {
-    const item = e.target.closest("[data-locale]");
-    if (!item) return;
-    const { setLocale } = await import("./i18n.js");
-    await setLocale(item.dataset.locale);
-    extra.onChange?.(); render();
-  });
-  dlg.showModal();
+  // Tema e idioma (lista inline) passam pelo seletor compartilhado, com cross-fade; espera o redesenho assíncrono.
+  bindThemeSwitch(dlg, () => { extra.onChange?.(); return render(); });
+  showDialog(dlg);
   await render();
 }
 

@@ -66,6 +66,11 @@
     --motion-spin: 0ms !important;
   }
 }
+/* RF3.3: troca de tema/idioma (motion.js `crossFade`) dura `--motion-base`. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--motion-base);
+}
 
 * {
   box-sizing: border-box;

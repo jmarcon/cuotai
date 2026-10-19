@@ -236,7 +236,7 @@ root.addEventListener("click", (e) => {
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
   if (t.closest("[data-settings]")) return openSettings({ onChange: render, view: () => store.view });
   const det = t.closest("[data-details]");
-  if (det) return openDetails(det.dataset.details, detailsContext);
+  if (det) return openDetails(det.dataset.details, detailsContext, det.closest("[data-card]"));
   const tog = t.closest("[data-toggle]");
   if (tog) { disabled.toggle(tog.dataset.toggle); return render(); }
 });

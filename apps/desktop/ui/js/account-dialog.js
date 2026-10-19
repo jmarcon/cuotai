@@ -8,14 +8,14 @@ import {
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
+import { showDialog } from "./motion.js";
 
 function open(html) {
   const dlg = document.createElement("dialog");
   dlg.className = "dlg";
   dlg.innerHTML = html;
   document.body.append(dlg);
-  dlg.addEventListener("close", () => dlg.remove());
-  dlg.showModal();
+  showDialog(dlg);
   return dlg;
 }
 
@@ -818,8 +818,7 @@ export function offerExternalReload() {
       </div>
     </form>`;
     document.body.append(dlg);
-    dlg.addEventListener("close", () => dlg.remove());
-    dlg.showModal();
+    showDialog(dlg);
     for (const btn of dlg.querySelectorAll("[data-choice]")) {
       btn.addEventListener("click", () => {
         const choice = btn.dataset.choice;
