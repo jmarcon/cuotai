@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-19 |
-| Cuotai version at that date | 0.18.0 |
+| Cuotai version at that date | 0.19.0 |
 | Plans | 19 (2 implemented, 2 in progress, 15 proposed) |
 
 ## 1. How to maintain it
@@ -25,7 +25,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0001](0001_core-support-for-graphical-frontends.md) | Core support for graphical front ends | Implemented | 0.7.x | — | — | Foundation of the desktop app and the descriptor contract. |
 | [0002](0002_on-demand-model-catalog.md) | On-demand model catalog | Implemented | RF1 to RF6, 0.8.0 to 0.14.0 | — | — | After delivery, every provider except Alibaba Cloud started trying to list models (commit `2ae1e79`). |
 | [0003](0003_quota-reset-notifications.md) | Quota reset notifications | Proposed | — | — | — | Defines `Notifier`, permission and `notified.json`, reused by 0008. |
-| [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | In progress | RF1 (0.17.0, `6725548`), RF2 (0.18.0) | — | — | RF3 (dialogs, tray, theme transitions) and RF4 (TUI) pending. Text still in Portuguese (see section 1). |
+| [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | In progress | RF1 (0.17.0, `6725548`), RF2 (0.18.0, `d89c1b1`), RF3 (0.19.0) | — | — | RF4 (TUI) pending. Text still in Portuguese (see section 1). |
 | [0005](0005_usage-access-level.md) | Usage access level | Proposed | — | — | — | Prerequisite of 0015, 0016 and 0017. |
 | [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
 | [0007](0007_pace-until-reset.md) | Pace until the reset | Proposed | — | — | 0006 | Without history it uses the average since the start of the window. |
@@ -61,6 +61,7 @@ While `CHANGELOG.md` does not exist (PRD 0019, RF7), this table is the record of
 | 0.17.2 | 0019 | RF1 (license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates, `deny.toml`; RF1.4 partial). |
 | 0.18.0 | 0004 | RF2 (desktop dashboard effects: counting, level highlight, FLIP, exit, skeleton and micro-interactions). |
 | 0.18.1 | — | No plan requirement: HTTPS-only transport guard for every credential-bearing request (providers and OAuth), prompted by the CodeQL code-scanning alerts. |
+| 0.19.0 | 0004 | RF3 (dialog open/close motion with focus return, tray entrance and ring continuity, theme and language cross-fade). |
 
 ## 4. Dependency graph
 
@@ -169,3 +170,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | PRD 0019 RF1 delivered in 0.17.2 (`MIT OR Apache-2.0` license); documentation-language decision (English) recorded. |
 | 2026-10-19 | PRD 0004 RF2 delivered in 0.18.0. |
 | 2026-10-19 | Documentation and plans translated to English (except PRD 0004); plan files renamed to English slugs; commits are written in English from now on. |
+| 2026-10-19 | PRD 0004 RF3 delivered in 0.19.0. |

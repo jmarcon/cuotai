@@ -2,6 +2,7 @@ import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./
 import { LOCALES, currentLocale, setLocale, t, te, tl } from "./i18n.js";
 import { esc } from "./util.js";
 import { flagCountry, flagSvg } from "./flags.js";
+import { crossFade } from "./motion.js";
 export { esc };
 // Camada compartilhada (sem framework, sem bundler). Espelha cuotai_core::model.
 
@@ -327,16 +328,16 @@ export function langMenuHtml({ inline = false } = {}) {
   </div>`;
 }
 
-/** Delegação de eventos do seletor; `rerender` é chamado após a troca. */
+/** Delegação de eventos do seletor; `rerender` é chamado após a troca (tema e idioma com cross-fade, RF3.3). */
 export function bindThemeSwitch(root, rerender) {
   root.addEventListener("click", (e) => {
     const b = e.target.closest("[data-theme-mode]");
     if (!b || b.disabled) return;
-    theme.mode = b.dataset.themeMode; put("cuotai.themeMode", theme.mode); applyTheme(); rerender();
+    theme.mode = b.dataset.themeMode; put("cuotai.themeMode", theme.mode); crossFade(() => { applyTheme(); return rerender(); });
   });
   root.addEventListener("change", async (e) => {
     if (e.target.matches("[data-theme-id]")) {
-      theme.id = themeById(e.target.value).id; put("cuotai.theme", theme.id); applyTheme(); rerender();
+      theme.id = themeById(e.target.value).id; put("cuotai.theme", theme.id); crossFade(() => { applyTheme(); return rerender(); });
     }
   });
   root.addEventListener("click", async (e) => {
@@ -345,7 +346,7 @@ export function bindThemeSwitch(root, rerender) {
     if (sortItem) { sortMode = sortItem.dataset.sort; put(SORT_KEY, sortMode); sortOpen = false; return rerender(); }
     if (e.target.closest("[data-lang-toggle]")) { langOpen = !langOpen; sortOpen = false; return rerender(); }
     const item = e.target.closest("[data-locale]");
-    if (item) { langOpen = false; await setLocale(item.dataset.locale); return rerender(); }
+    if (item) { langOpen = false; await setLocale(item.dataset.locale); return crossFade(rerender); } // carrega antes: a transição não congela a tela
     if ((langOpen || sortOpen) && !e.target.closest(".lang")) { langOpen = false; sortOpen = false; rerender(); }
   });
   addEventListener("keydown", (e) => { if (e.key === "Escape" && (langOpen || sortOpen)) { langOpen = false; sortOpen = false; rerender(); } });

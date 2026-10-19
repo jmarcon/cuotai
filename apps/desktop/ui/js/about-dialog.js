@@ -2,6 +2,7 @@
 import { te, t } from "./i18n.js";
 import { aboutInfo, openExternal } from "./lib.js";
 import { esc } from "./util.js";
+import { showDialog } from "./motion.js";
 
 const ROLES = ["runtime", "build", "test", "asset", "theme", "reference"];
 let dlg = null;
@@ -17,9 +18,9 @@ export async function openLibraries() {
   dlg = document.createElement("dialog");
   dlg.className = "dlg libs";
   document.body.append(dlg);
-  dlg.addEventListener("close", () => { dlg.remove(); dlg = null; });
+  dlg.addEventListener("close", () => { dlg = null; });
   dlg.innerHTML = `<div class="dlg-body"><h2>${te("about.libraries")}</h2><p class="hint">${te("about.loading")}</p></div>`;
-  dlg.showModal();
+  showDialog(dlg);
   let info;
   try { info = await aboutInfo(); } catch { info = null; }
   if (!dlg) return;

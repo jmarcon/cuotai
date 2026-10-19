@@ -12,7 +12,7 @@ export function motionMs(token) {
   return parseFloat(v) * (v.endsWith("ms") ? 1 : v.endsWith("s") ? 1000 : 0) || 0;
 }
 // Temas do usuário podem trazer uma curva inválida; `animate()` lançaria, então cai para o padrão.
-const easeOut = (v = rootStyle().getPropertyValue("--ease-out").trim()) => (CSS.supports("transition-timing-function", v) ? v : "ease-out");
+export const easeOut = (v = rootStyle().getPropertyValue("--ease-out").trim()) => (CSS.supports("transition-timing-function", v) ? v : "ease-out");
 
 // O shimmer (CSS) para com a janela escondida: `:root[data-hidden]` desliga a animação.
 const markHidden = () => document.documentElement.toggleAttribute("data-hidden", document.hidden);
@@ -125,4 +125,54 @@ export function pulseIfDue(chip, at) {
   pulsed.set(chip, at);
   const ms = motionMs("--motion-base");
   if (ms) chip.animate([{ transform: "scale(1)" }, { transform: "scale(1.15)" }, { transform: "scale(1)" }], { duration: ms * 2, easing: easeOut() });
+}
+
+/** RF3.1: abre `dlg` (já no DOM) como modal com fade + escala 0,96 → 1 e o backdrop esmaecendo; `from` (o cartão
+ *  de origem) faz o diálogo crescer a partir dele. Qualquer fechamento (`close()`, `Esc`, `form method=dialog`)
+ *  devolve o foco ao elemento que o abriu na hora (o WebKit do sistema não o restaura sozinho); a saída inversa toca
+ *  no mesmo elemento, inerte, de volta à camada superior como popover manual. No fim (ou na hora, sem movimento)
+ *  ele sai do DOM. */
+export function showDialog(dlg, from = null) {
+  const opener = document.activeElement;
+  dlg.showModal();
+  const frames = () => {
+    if (!from?.isConnected) return [{ opacity: 0, transform: "scale(0.96)" }, { opacity: 1, transform: "none" }];
+    const r = from.getBoundingClientRect(), d = dlg.getBoundingClientRect();
+    const dx = r.left + r.width / 2 - (d.left + d.width / 2), dy = r.top + r.height / 2 - (d.top + d.height / 2);
+    return [{ opacity: 0, transform: `translate(${dx}px, ${dy}px) scale(${Math.min(0.96, r.width / d.width)})` }, { opacity: 1, transform: "none" }];
+  };
+  const play = (duration, direction, fill) => {
+    const o = { duration, direction, fill, easing: easeOut() };
+    try { dlg.animate([{ opacity: 0 }, { opacity: 1 }], { ...o, pseudoElement: "::backdrop" }); } catch {} // WebKit antigo: só o diálogo anima
+    return dlg.animate(frames(), o);
+  };
+  const ms = motionMs("--motion-base");
+  if (ms) play(ms, "normal", "none");
+  // Microtarefa: roda depois de todo caminho que tira `open`, antes do próximo quadro (sem piscar).
+  new MutationObserver((_, mo) => {
+    if (dlg.open) return;
+    mo.disconnect();
+    // Foco certo: o que já estiver fora do diálogo (WebKit às vezes já devolve, ou um handler abriu outro diálogo);
+    // senão, quem abriu.
+    const a0 = document.activeElement;
+    const target = !a0 || a0 === document.body || dlg.contains(a0) ? opener : a0;
+    const out = motionMs("--motion-fast");
+    let exiting = false;
+    if (out && dlg.isConnected) {
+      dlg.inert = true;
+      try { dlg.popover = "manual"; dlg.showPopover(); exiting = true; } catch {}
+    }
+    // Depois do `showPopover`: no WebKit ele tira o foco da página.
+    if (target?.isConnected && target !== document.body && document.activeElement !== target) target.focus({ preventScroll: true });
+    if (!exiting) return dlg.remove();
+    const a = play(out, "reverse", "forwards");
+    a.onfinish = a.oncancel = () => dlg.remove();
+  }).observe(dlg, { attributeFilter: ["open"] });
+}
+
+/** RF3.3: troca de tema/idioma com cross-fade (View Transitions, `--motion-base`) quando há suporte e movimento;
+ *  senão, na hora. Devolve o fim da atualização. */
+export function crossFade(update) {
+  if (!document.startViewTransition || !motionMs("--motion-base")) return Promise.resolve(update());
+  return document.startViewTransition(update).updateCallbackDone;
 }

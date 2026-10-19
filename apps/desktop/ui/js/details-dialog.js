@@ -2,6 +2,7 @@
 import { te, tl } from "./i18n.js";
 import { brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
+import { showDialog } from "./motion.js";
 
 let dlg = null;
 let currentKey = null;
@@ -35,14 +36,15 @@ function render() {
   models.attach(dlg, focus);
 }
 
-export function openDetails(key, context) {
+/** `from`: o cartão de origem; o diálogo cresce a partir dele (RF3.1). */
+export function openDetails(key, context, from = null) {
   ctx = context;
   currentKey = key;
   if (!dlg) {
     dlg = document.createElement("dialog");
     dlg.className = "dlg details";
     document.body.append(dlg);
-    dlg.addEventListener("close", () => { models?.dispose(); models = null; dlg.remove(); dlg = null; });
+    dlg.addEventListener("close", () => { models?.dispose(); models = null; dlg = null; });
     dlg.addEventListener("click", (e) => {
       const t = e.target;
       const r = () => ctx.reports().find((x) => reportKey(x) === currentKey);
@@ -63,7 +65,7 @@ export function openDetails(key, context) {
         if (rep) ctx.onRemove(rep.index, `${brand(rep.provider).label} — ${rep.account}`);
       }
     });
-    dlg.showModal();
+    showDialog(dlg, from);
   }
   render();
 }

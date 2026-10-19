@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | ID | 0004 |
-| Status | Em andamento (RF1–RF2) |
+| Status | Em andamento (RF1–RF3) |
 | Responsável | Desktop (principal) e TUI |
 | Consumidores | `apps/desktop/ui`, `crates/cuotai-tui` |
 | Data | 2026-10-19 |
@@ -16,6 +16,7 @@ Cada RF é entregue em uma versão própria, com `cargo fmt`, `clippy -D warning
 |---|---|---|
 | RF1 | 0.17.0 (`6725548`) | Tokens `--motion-*`/`--ease-*` no contrato de temas (win98 em `steps()`, CRT sem interpolação), `prefers-reduced-motion` e a opção **Aparência → Animações** em `desktop.json`, aplicada como `data-motion` antes do JS; o painel reconcilia cartões por `data-card` (`patch()` em `util.js`), preservando foco, rolagem e as barras. |
 | RF2 | 0.18.0 | `js/motion.js`: contagem das porcentagens, destaque único na mudança de nível, tremida só ao esgotar, entrada em cascata, FLIP na reordenação, saída encolhendo, skeleton com shimmer (parado com a janela escondida), spinner só na conta em refresh, elevação no hover/foco, pulso do chip ao zerar e giro único do refresh. Painel parado sem animações. |
+| RF3 | 0.19.0 | `showDialog()` em `motion.js` para todos os diálogos: fade + escala 0,96 → 1, backdrop com desfoque, fechamento animado depois do `close()` nativo (foco volta na hora ao botão de origem, inclusive no WKWebView) e detalhes crescendo a partir do cartão. A bandeja entra com fade + 6 px e o anel anima do valor anterior. Troca de tema e idioma com `startViewTransition` (250 ms) quando há suporte e movimento ligado. Smoke no app Tauri no macOS para diálogos, foco e tema; a entrada da bandeja foi provada só no navegador (a automação não abre a janela da bandeja). |
 
 ## 1. Contexto
 
