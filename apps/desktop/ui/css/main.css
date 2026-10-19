@@ -76,6 +76,58 @@
 .card.off {
   opacity: 0.55;
 }
+/* PRD 0004 RF2.4: elevação sutil no hover/foco (os temas com sombra própria, como Win98 e Tron, mantêm a deles) */
+.card {
+  transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
+}
+.card:hover,
+.card:focus-within {
+  transform: scale(1.01);
+  box-shadow: var(--shadow), 0 6px 18px color-mix(in srgb, var(--fg) 12%, transparent);
+}
+/* RF2.1: a cor do nível transita junto com a barra (`.bar > span` usa currentColor) */
+.bar,
+.win-pct,
+.sum-bar .big {
+  transition: color var(--motion-fast) var(--ease-out);
+}
+/* RF2.3: conta "Aguardando" — esqueleto com shimmer (só transform; para com a janela escondida e com
+   movimento reduzido/desligado, onde --motion-spin é 0) */
+.skeleton .sk {
+  position: relative;
+  display: block;
+  height: 10px;
+  margin: 8px 0;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--track);
+}
+.skeleton .sk-logo {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border-radius: var(--logo-radius);
+}
+.skeleton .sk-short {
+  width: 60%;
+}
+.skeleton .sk::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fg) 14%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: shimmer calc(var(--motion-spin) * 2) linear infinite;
+  content: "";
+}
+:root[data-hidden] .skeleton .sk::after {
+  animation: none;
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
 .card-head {
   display: flex;
   align-items: center;

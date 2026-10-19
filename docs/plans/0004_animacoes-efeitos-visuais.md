@@ -3,10 +3,19 @@
 | Campo | Valor |
 |---|---|
 | ID | 0004 |
-| Status | Proposto |
+| Status | Em andamento (RF1–RF2) |
 | Responsável | Desktop (principal) e TUI |
 | Consumidores | `apps/desktop/ui`, `crates/cuotai-tui` |
 | Data | 2026-10-19 |
+
+## Estado da implementação (2026-10-19)
+
+Cada RF é entregue em uma versão própria, com `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface antes do commit.
+
+| RF | Versão | Entrega |
+|---|---|---|
+| RF1 | 0.17.0 (`6725548`) | Tokens `--motion-*`/`--ease-*` no contrato de temas (win98 em `steps()`, CRT sem interpolação), `prefers-reduced-motion` e a opção **Aparência → Animações** em `desktop.json`, aplicada como `data-motion` antes do JS; o painel reconcilia cartões por `data-card` (`patch()` em `util.js`), preservando foco, rolagem e as barras. |
+| RF2 | 0.18.0 | `js/motion.js`: contagem das porcentagens, destaque único na mudança de nível, tremida só ao esgotar, entrada em cascata, FLIP na reordenação, saída encolhendo, skeleton com shimmer (parado com a janela escondida), spinner só na conta em refresh, elevação no hover/foco, pulso do chip ao zerar e giro único do refresh. Painel parado sem animações. |
 
 ## 1. Contexto
 

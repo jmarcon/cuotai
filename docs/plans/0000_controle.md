@@ -5,7 +5,7 @@ Este arquivo é o índice vivo de `docs/plans`: mostra o que já foi implementad
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-10-19 |
-| Versão do Cuotai na data | 0.17.2 |
+| Versão do Cuotai na data | 0.18.0 |
 | Planos | 19 (2 implementados, 2 em andamento, 15 propostos) |
 
 ## 1. Como manter
@@ -23,7 +23,7 @@ Este arquivo é o índice vivo de `docs/plans`: mostra o que já foi implementad
 | [0001](0001_core-suporte-frontends-graficos.md) | Core com suporte a frontends gráficos | Implementado | 0.7.x | — | — | Base do desktop e do contrato de descritores. |
 | [0002](0002_catalogo-modelos-sob-demanda.md) | Catálogo de modelos sob demanda | Implementado | RF1 a RF6, 0.8.0 a 0.14.0 | — | — | Depois da entrega, todos os provedores exceto Alibaba Cloud passaram a tentar listar modelos (commit `2ae1e79`). |
 | [0003](0003_notificacoes-reinicio-quota.md) | Notificações de reinício de quota | Proposto | — | — | — | Define `Notifier`, permissão e `notified.json`, reaproveitados pelo 0008. |
-| [0004](0004_animacoes-efeitos-visuais.md) | Animações e efeitos visuais | Em andamento | RF1 (0.17.0, commit `6725548`) | — | — | RF2 a RF4 pendentes; há trabalho local não commitado em `apps/desktop/ui/js/motion.js`. |
+| [0004](0004_animacoes-efeitos-visuais.md) | Animações e efeitos visuais | Em andamento | RF1 (0.17.0, `6725548`), RF2 (0.18.0) | — | — | RF3 (diálogos, bandeja, transições de tema) e RF4 (TUI) pendentes. |
 | [0005](0005_nivel-de-acesso-ao-consumo.md) | Nível de acesso ao consumo | Proposto | — | — | — | Pré-requisito dos 0015, 0016 e 0017. |
 | [0006](0006_historico-local-de-medicoes.md) | Histórico local de medições | Proposto | — | — | — | Base de 0007 (projeção), 0008, 0010 e 0014. |
 | [0007](0007_ritmo-ate-o-reset.md) | Ritmo até o reset | Proposto | — | — | 0006 | Sem histórico usa a média desde o início da janela. |
@@ -57,6 +57,7 @@ Enquanto o `CHANGELOG.md` não existe (PRD 0019, RF7), esta tabela é o controle
 | 0.17.0 | 0004 | RF1 (base de movimento: tokens, movimento reduzido e atualização incremental do painel). |
 | 0.17.1 | — | Sem requisito de plano: atualização de segurança (`rustls` 0.23.46 e `yoke-derive` 0.8.4). |
 | 0.17.2 | 0019 | RF1 (licença, `CONTRIBUTING.md`, `SECURITY.md`, modelos de *issue*, `deny.toml`; RF1.4 parcial). |
+| 0.18.0 | 0004 | RF2 (efeitos do painel desktop: contagem, destaque de nível, FLIP, saída, skeleton e micro-interações). |
 
 ## 4. Grafo de dependências
 
@@ -163,3 +164,4 @@ Caminho crítico de distribuição: **0019 → 0018**. Caminho crítico de integ
 | 2026-10-19 | Criação do controle com os PRDs 0001 a 0019. |
 | 2026-10-19 | Changelog incluído como requisito (PRD 0019, RF7); nova seção "Entregas por versão" e rodapé `Refs:` nos commits. |
 | 2026-10-19 | PRD 0019 RF1 entregue em 0.17.2 (licença `MIT OR Apache-2.0`); decisão de idioma da documentação (inglês) registrada. |
+| 2026-10-19 | PRD 0004 RF2 entregue em 0.18.0. |

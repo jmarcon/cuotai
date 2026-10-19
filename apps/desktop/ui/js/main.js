@@ -11,6 +11,7 @@ import {
   currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice,
 } from "./lib.js";
 import { patch } from "./util.js";
+import * as motion from "./motion.js";
 
 await boot();
 
@@ -31,7 +32,7 @@ function windowSlot(name, w) {
   const reset = fmtCountdown(w.m.resets_at);
   return `<div class="win" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>
       <span class="reset">${reset ? te("quota.resetsIn", { time: reset }) : `<em>${te("quota.na")}</em>`}</span></div>
-    <div class="win-pct ${lv}">${Math.round(w.pct)}%</div>
+    <div class="win-pct ${lv}" data-pct="${Math.round(w.pct)}">${Math.round(w.pct)}%</div>
     <div class="bar ${lv}"><span style="width:${w.pct}%"></span></div>
     <div class="sum-amount">${esc(fmtAmount(w.m))}</div></div>`;
 }
@@ -46,7 +47,7 @@ function summaryHtml(r) {
     const lv = level(s.pct);
     const reset = fmtCountdown(s.m.resets_at);
     return `<div class="sum-bar">
-      <b class="big ${lv}">${Math.round(s.pct)}%<small>${te("card.available")}</small></b>
+      <b class="big ${lv}" data-pct="${Math.round(s.pct)}">${Math.round(s.pct)}%<small>${te("card.available")}</small></b>
       <div class="sum-meter">
         <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? te("quota.resetsIn", { time: reset }) : `<em>${te("quota.na")}</em>`}</span></div>
         <div class="bar ${lv}"><span style="width:${s.pct}%"></span></div>
@@ -77,7 +78,7 @@ function card(r, position, ordered) {
   }).join("") : "";
   // Próxima consulta desta conta (contagem regressiva atualizada a cada segundo, sem redesenhar a tela).
   const nextChip = isBusy
-    ? `<span class="next" title="${te("card.refreshing")}">${icon("refresh", "spin")}</span>`
+    ? `<span class="next"><span class="nt">${te("card.refreshing")}</span></span>`
     : r.next_refresh_at_ms
       ? `<span class="next" data-next-at="${r.next_refresh_at_ms}" title="${te("card.nextRefresh", { time: fmtNext(r.next_refresh_at_ms) })}">${icon("clock")}<span class="nt">${esc(fmtNext(r.next_refresh_at_ms))}</span></span>`
       : "";
@@ -86,7 +87,7 @@ function card(r, position, ordered) {
   const rateChip = rate != null && level(rate) !== "good"
     ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "";
   const alertChip = alert ? `<span class="mini ${alert.tone}" title="${esc(alert.label())}">${icon(alert.icon)}<span class="mini-t">${esc(alert.label())}</span></span>` : "";
-  return `<section class="card ${on ? "" : "off"}" data-card="${esc(key)}">
+  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""}" data-card="${esc(key)}">
     <div class="card-head">
       ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorder")}" aria-label="${te("account.reorder")}">${icon("grip")}</button>` : ""}
       ${logo(r.provider)}
@@ -104,6 +105,12 @@ function card(r, position, ordered) {
     </div>
   </section>`;
 }
+
+/** Conta ainda sem relatório ("Aguardando"): esqueleto com shimmer até os dados chegarem (RF2.3). */
+const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:${index}" aria-busy="true">
+    <div class="card-head"><span class="sk sk-logo"></span><div class="who"><h2>${te("card.waiting")}</h2><span class="sk"></span></div></div>
+    <div class="summary"><span class="sk"></span><span class="sk sk-short"></span></div>
+  </section>`;
 
 // Filtro por texto (nome do provedor, da conta, e-mail): sem acentos e sem diferenciar maiúsculas.
 let filterText = "";
@@ -180,6 +187,10 @@ function render() {
   const reports = view?.reports ?? [];
   const ordered = sortReports(reports).filter(matchesFilter);
   const loading = !!view && view.busy.length > 0;
+  // "Aguardando": contas da configuração que ainda não têm relatório (só antes da primeira resposta de cada uma).
+  const have = new Set(reports.map((r) => r.index));
+  const waiting = view && !filterText.trim() ? [...Array(view.account_count).keys()].filter((i) => !have.has(i)) : [];
+  const prev = motion.before(root);
   // Reconciliação por cartão (`data-card`): foco, cursor do filtro, rolagem e barras sobrevivem ao redesenho.
   patch(root, `<div class="shell">
     <header class="topbar" data-tauri-drag-region>
@@ -190,16 +201,17 @@ function render() {
       ${themeSwitchHtml()}${sortMenuHtml()}${langMenuHtml()}
       <button class="icon" data-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>
       <button class="icon" data-add title="${te("common.add")}" aria-label="${te("common.add")}">${icon("plus")}</button>
-      <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
+      <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh")}</button>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
     ${otherConfigNotice(view) ? `<div class="banner" role="status">${esc(otherConfigNotice(view))}</div>` : ""}
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
-    ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error ? `<div class="empty">${te("common.querying")}</div>` : ""}
+    ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
-    <main class="grid">${ordered.map((report, position) => card(report, position, ordered)).join("")}</main></div>`);
+    <main class="grid">${ordered.map((report, position) => card(report, position, ordered)).join("")}${waiting.map(skeleton).join("")}</main></div>`);
+  motion.after(root, prev);
 }
 
 root.addEventListener("click", (e) => {
@@ -218,8 +230,9 @@ root.addEventListener("click", (e) => {
   const move = t.closest("[data-move-from]");
   if (move) return reorderAccounts(Number(move.dataset.moveFrom), Number(move.dataset.moveTo));
   const one = t.closest("[data-refresh]");
-  if (one) return store.refreshOne(Number(one.dataset.refresh));
-  if (t.closest("[data-refresh-all]")) return store.refresh();
+  if (one) { motion.spinOnce(one.querySelector("svg")); return store.refreshOne(Number(one.dataset.refresh)); }
+  const all = t.closest("[data-refresh-all]");
+  if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
   if (t.closest("[data-settings]")) return openSettings({ onChange: render, view: () => store.view });
   const det = t.closest("[data-details]");
@@ -317,6 +330,7 @@ setInterval(() => {
     const nt = el.querySelector(".nt");
     if (nt && nt.textContent !== text) nt.textContent = text;
     el.title = te("card.nextRefresh", { time: text });
+    motion.pulseIfDue(el, Number(el.dataset.nextAt));
   }
 }, 1000);
 initOrderSync(render);

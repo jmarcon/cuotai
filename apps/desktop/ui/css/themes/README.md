@@ -54,6 +54,9 @@ Movimento (opcionais; padrão em `themes.css`, temas do usuário herdam):
 | `--ease-spring` | `linear(…)` (fallback `cubic-bezier(0.34, 1.56, 0.64, 1)`) | mola curta (interruptor) |
 
 Temas retrô podem sobrescrever (o Win98 usa `steps()`; o CRT usa `0ms`). Use sempre os tokens, nunca durações fixas.
+Os efeitos do painel (`js/motion.js`) derivam desses tokens: entrada, FLIP, saída e pulso do chip usam `--motion-base`;
+contagem das porcentagens, "shake" ao esgotar e destaque de nível (1,5 × `--motion-slow`) usam `--motion-slow`; o giro
+do botão e o shimmer de "Aguardando" (2 × `--motion-spin`) usam `--motion-spin`. Token em `0ms` = efeito desligado.
 Com `data-motion="reduced"`/`"off"` no `<html>` (Configurações → Aparência → Animações) ou com
 `prefers-reduced-motion: reduce` (exceto `data-motion="always"`), `themes.css` força as durações a `0ms`
 com `!important`, vencendo o tema.
