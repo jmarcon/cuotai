@@ -6,6 +6,7 @@
 //! colors, labels, layout, and the unmeasured toggle. No credentials are read
 //! or stored here.
 
+use crate::motion::{eighth_bar, Anim};
 use crate::ui::{metric_text, resolve_l10n, safe};
 use chrono::{DateTime, Utc};
 use cuotai_core::metrics::{classify_metric, classify_report, AccountClass, MetricState};
@@ -217,6 +218,8 @@ pub(crate) struct View<'a> {
     pub(crate) filtering: bool,
     pub(crate) next_refresh: Option<Duration>,
     pub(crate) error: Option<&'a str>,
+    /// RF4 effects; `None` (animations off) renders exactly as before.
+    pub(crate) anim: Option<&'a Anim>,
 }
 
 /// Clickable action exposed by the footer hint line. Values mirror the
@@ -599,7 +602,10 @@ fn render_card(
     } else {
         Style::default().fg(FG).add_modifier(Modifier::BOLD)
     };
-    let title = format!(" {} ", safe(&account.name));
+    let title = match view.anim.and_then(|anim| anim.spinner(account_index)) {
+        Some(spinner) => format!(" {spinner} {} ", safe(&account.name)),
+        None => format!(" {} ", safe(&account.name)),
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
@@ -643,9 +649,13 @@ fn render_card(
         separator(),
         Span::styled(
             class_label(class),
-            Style::default()
-                .fg(class_color(class))
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(class_color(class)).add_modifier(
+                if view.anim.is_some_and(|anim| anim.blinking(&account.name)) {
+                    Modifier::BOLD | Modifier::REVERSED
+                } else {
+                    Modifier::BOLD
+                },
+            ),
         ),
     ];
     if let Some(count) = view.model_counts.get(account_index).copied().flatten() {
@@ -659,8 +669,9 @@ fn render_card(
     frame.render_widget(Paragraph::new(provider_status_line), chunks[chunk_index]);
     chunk_index += 1;
 
-    for metric in rows.iter().take(METRICS_VISIBLE_IN_CARD) {
-        render_metric_block(frame, &chunks, &mut chunk_index, metric, now);
+    for (index, metric) in rows.iter().take(METRICS_VISIBLE_IN_CARD).enumerate() {
+        let motion = view.anim.map(|anim| (anim, account.name.as_str(), index));
+        render_metric_block(frame, &chunks, &mut chunk_index, metric, now, motion);
     }
     if note_rows > 0 {
         if let Some(note) = first_note.as_deref() {
@@ -770,7 +781,10 @@ fn render_metric_block(
     chunk_index: &mut usize,
     metric: &MetricRow,
     now: DateTime<Utc>,
+    motion: Option<(&Anim, &str, usize)>,
 ) {
+    let fill = |ratio: f64| motion.map_or(ratio, |(anim, name, i)| anim.bar(name, i, ratio));
+    let unicode = motion.is_some();
     let text_area = chunks[*chunk_index];
     let gauge_area = chunks[*chunk_index + 1];
     *chunk_index += 2;
@@ -807,7 +821,15 @@ fn render_metric_block(
                 ));
                 frame.render_widget(Paragraph::new(line), gauge_area);
             } else {
-                render_gauge(frame, gauge_area, 0.0, Some(RED), metric, now);
+                render_gauge(
+                    frame,
+                    gauge_area,
+                    fill(0.0),
+                    Some(RED),
+                    metric,
+                    now,
+                    unicode,
+                );
             }
         }
         MetricState::Available { ratio, uncapped } => {
@@ -818,13 +840,16 @@ fn render_metric_block(
                 ));
                 frame.render_widget(Paragraph::new(line), gauge_area);
             } else {
+                let ratio = fill(ratio);
                 let color = metric_state_color(metric.state).unwrap_or(YELLOW);
-                render_gauge(frame, gauge_area, ratio, Some(color), metric, now);
+                let color = motion.map_or(color, |(anim, ..)| anim.color(ratio, color));
+                render_gauge(frame, gauge_area, ratio, Some(color), metric, now, unicode);
             }
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_gauge(
     frame: &mut Frame,
     area: Rect,
@@ -832,6 +857,7 @@ fn render_gauge(
     color: Option<Color>,
     metric: &MetricRow,
     now: DateTime<Utc>,
+    unicode: bool,
 ) {
     if area.height == 0 || area.width == 0 {
         return;
@@ -849,13 +875,14 @@ fn render_gauge(
         MetricState::Unmeasured => "—".to_string(),
         MetricState::Exhausted { .. } => "esgotado".to_string(),
         MetricState::Available { uncapped: true, .. } => "limite não informado".to_string(),
-        MetricState::Available { ratio, .. } => {
+        MetricState::Available { .. } => {
             format!("{:>3.0}%", (ratio * 100.0).round())
         }
     };
     let style = Style::default().fg(bar_color).add_modifier(Modifier::BOLD);
     let gauge = Gauge::default()
         .ratio(ratio.clamp(0.0, 1.0))
+        .use_unicode(unicode)
         .gauge_style(style)
         .label(Span::styled(
             label_text,
@@ -985,7 +1012,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(MUTED),
         )));
     } else {
-        for metric in &report.metrics {
+        for (index, metric) in report.metrics.iter().enumerate() {
             let row = metric_row(metric);
             lines.push(Line::default());
             lines.push(Line::from(vec![
@@ -1004,7 +1031,8 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                     .unwrap_or_default(),
             ]));
             lines.push(Line::from(format!("  {}", safe(&row.text))));
-            lines.push(line_bar(&row, body.width.max(20), now));
+            let motion = view.anim.map(|anim| (anim, account.name.as_str(), index));
+            lines.push(line_bar(&row, body.width.max(20), now, motion));
         }
     }
 
@@ -1084,8 +1112,14 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     }
 }
 
-fn line_bar(metric: &MetricRow, width: u16, now: DateTime<Utc>) -> Line<'static> {
+fn line_bar(
+    metric: &MetricRow,
+    width: u16,
+    now: DateTime<Utc>,
+    motion: Option<(&Anim, &str, usize)>,
+) -> Line<'static> {
     let ratio_color = metric_state_color(metric.state);
+    let fill = |ratio: f64| motion.map_or(ratio, |(anim, name, i)| anim.bar(name, i, ratio));
     let reset_label = metric
         .resets_at
         .map(|reset| format!("  {}", format_reset_line(reset, now)))
@@ -1093,13 +1127,20 @@ fn line_bar(metric: &MetricRow, width: u16, now: DateTime<Utc>) -> Line<'static>
     let width = usize::from(width)
         .saturating_sub(2 + reset_label.chars().count() + 16)
         .max(1);
+    let bar_of = |ratio: f64| match motion {
+        Some(_) => eighth_bar(ratio, width),
+        None => {
+            let filled = ((ratio * width as f64).round() as usize).min(width);
+            "█".repeat(filled) + &"░".repeat(width - filled)
+        }
+    };
     let (bar, suffix) = match metric.state {
         MetricState::Unmeasured => ("—".to_string(), " sem dados".to_string()),
         MetricState::Exhausted { no_cap } => (
             if no_cap {
                 String::new()
             } else {
-                "░".repeat(width)
+                bar_of(fill(0.0))
             },
             if no_cap {
                 " saldo esgotado".to_string()
@@ -1111,14 +1152,23 @@ fn line_bar(metric: &MetricRow, width: u16, now: DateTime<Utc>) -> Line<'static>
             if uncapped {
                 (String::new(), " limite não informado".to_string())
             } else {
-                let filled = ((ratio * width as f64).round() as usize).min(width);
-                let bar = "█".repeat(filled) + &"░".repeat(width - filled);
+                let ratio = fill(ratio);
                 let suffix = format!(" {:>3.0}% restante", (ratio * 100.0).round());
-                (bar, suffix)
+                (bar_of(ratio), suffix)
             }
         }
     };
-    let color = ratio_color.unwrap_or(MUTED);
+    let mut color = ratio_color.unwrap_or(MUTED);
+    if let (
+        Some((anim, ..)),
+        MetricState::Available {
+            ratio,
+            uncapped: false,
+        },
+    ) = (motion, metric.state)
+    {
+        color = anim.color(fill(ratio), color);
+    }
     let mut spans = vec![Span::styled("  ", Style::default().fg(color))];
     spans.push(Span::styled(bar, Style::default().fg(color)));
     if !reset_label.is_empty() {
@@ -1577,6 +1627,7 @@ mod tests {
                         filtering: false,
                         next_refresh: Some(Duration::from_secs(60)),
                         error: None,
+                        anim: None,
                     },
                 );
             })
@@ -1631,6 +1682,7 @@ mod tests {
                         filtering: false,
                         next_refresh: Some(Duration::from_secs(60)),
                         error: None,
+                        anim: None,
                     },
                 );
             })
@@ -1677,6 +1729,7 @@ mod tests {
                             filtering: false,
                             next_refresh: None,
                             error: None,
+                            anim: None,
                         },
                     );
                 })
@@ -1716,6 +1769,7 @@ mod tests {
                         filtering: false,
                         next_refresh: None,
                         error: None,
+                        anim: None,
                     },
                 );
             })
@@ -1754,6 +1808,7 @@ mod tests {
                         filtering: false,
                         next_refresh: None,
                         error: None,
+                        anim: None,
                     },
                 );
             })
@@ -1799,6 +1854,7 @@ mod tests {
                         filtering: false,
                         next_refresh: Some(Duration::from_secs(42)),
                         error: None,
+                        anim: None,
                     },
                 );
             })
@@ -1835,6 +1891,7 @@ mod tests {
                         filtering: false,
                         next_refresh: Some(Duration::from_secs(0)),
                         error: None,
+                        anim: None,
                     },
                 );
             })
@@ -1870,6 +1927,7 @@ mod tests {
                         filtering: false,
                         next_refresh: None,
                         error: None,
+                        anim: None,
                     },
                 );
             })
@@ -1882,5 +1940,73 @@ mod tests {
             header_text.contains("Consultando"),
             "expected querying hint in header, got: {header_text:?}"
         );
+    }
+
+    #[test]
+    fn card_gauge_renders_intermediate_then_final_value_after_refresh() {
+        let accounts = three_accounts();
+        let mut anim = Anim::new(false);
+        let start = anim.now;
+        let render = |anim: &Anim, remaining: f64| {
+            let reports: Vec<Option<Report>> = (0..3)
+                .map(|_| {
+                    Some(report(
+                        Status::Ready,
+                        vec![metric("m", None, Some(100.0), Some(remaining))],
+                    ))
+                })
+                .collect();
+            let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+            terminal
+                .draw(|frame| {
+                    draw(
+                        frame,
+                        View {
+                            accounts: &accounts,
+                            reports: &reports,
+                            model_counts: &[],
+                            visible: &[0, 1, 2],
+                            selected: Some(0),
+                            details: false,
+                            detail_scroll: 0,
+                            show_unmeasured: true,
+                            refreshing: false,
+                            location: "config.toml",
+                            filter: "",
+                            filtering: false,
+                            next_refresh: None,
+                            error: None,
+                            anim: Some(anim),
+                        },
+                    );
+                })
+                .unwrap();
+            (reports, terminal.backend().buffer().clone())
+        };
+        let percent = |buffer: &ratatui::buffer::Buffer| {
+            let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+            let at = text.find('%').expect("gauge label");
+            text[at - 3..at].trim().parse::<u32>().unwrap()
+        };
+        let (old, _) = render(&anim, 80.0);
+        anim.observe(&accounts, &old);
+        let (new, _) = render(&anim, 20.0);
+        anim.observe(&accounts, &new);
+        anim.track([false; 3].into_iter(), (false, false, false), start);
+        assert_eq!(percent(&render(&anim, 20.0).1), 80, "t=0 still shows old");
+        anim.track(
+            [false; 3].into_iter(),
+            (false, false, false),
+            start + Duration::from_millis(100),
+        );
+        let mid = percent(&render(&anim, 20.0).1);
+        assert!(mid > 20 && mid < 80, "intermediate frame: {mid}%");
+        anim.track(
+            [false; 3].into_iter(),
+            (false, false, false),
+            start + Duration::from_millis(300),
+        );
+        assert_eq!(percent(&render(&anim, 20.0).1), 20, "final value");
+        assert!(!anim.active());
     }
 }

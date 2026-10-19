@@ -2,6 +2,7 @@ mod about_view;
 mod auth_ui;
 mod dashboard;
 mod models_view;
+mod motion;
 mod ui;
 mod wizard;
 
@@ -38,6 +39,9 @@ struct Args {
     /// SOMENTE desenvolvimento: tokens sem criptografia em SQLite (release recusa).
     #[arg(long, value_name = "ARQUIVO")]
     dev_credentials_sqlite: Option<PathBuf>,
+    /// Desliga as animações da TUI (também: CUOTAI_NO_ANIMATIONS=1).
+    #[arg(long)]
+    no_animations: bool,
 }
 
 #[tokio::main]
@@ -94,7 +98,8 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             },
         );
     }
-    ui::run(file, session).await?;
+    let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
+    ui::run(file, session, animations).await?;
     Ok(0)
 }
 
