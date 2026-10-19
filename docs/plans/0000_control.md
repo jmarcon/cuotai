@@ -5,8 +5,8 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-19 |
-| Cuotai version at that date | 0.23.0 |
-| Plans | 19 (3 implemented, 4 in progress, 12 proposed) |
+| Cuotai version at that date | 0.24.0 |
+| Plans | 19 (3 implemented, 5 in progress, 11 proposed) |
 
 ## 1. How to maintain it
 
@@ -24,7 +24,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 |---|---|---|---|---|---|---|
 | [0001](0001_core-support-for-graphical-frontends.md) | Core support for graphical front ends | Implemented | 0.7.x | — | — | Foundation of the desktop app and the descriptor contract. |
 | [0002](0002_on-demand-model-catalog.md) | On-demand model catalog | Implemented | RF1 to RF6, 0.8.0 to 0.14.0 | — | — | After delivery, every provider except Alibaba Cloud started trying to list models (commit `2ae1e79`). |
-| [0003](0003_quota-reset-notifications.md) | Quota reset notifications | Proposed | — | — | — | Defines `Notifier`, permission and `notified.json`, reused by 0008. |
+| [0003](0003_quota-reset-notifications.md) | Quota reset notifications | In progress | RF1 (0.24.0) | — | — | RF1 delivered: the pure `resets::upcoming` planner and `Account::key` (provider slug + name, reused by 0012 RF1.1) in the core. Defines `Notifier`, permission and `notified.json`, reused by 0008. |
 | [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | Implemented | RF1 (0.17.0, `6725548`), RF2 (0.18.0, `d89c1b1`), RF3 (0.19.0, `59f9f22`), RF4 (0.20.0) | — | — | Motion tokens, dashboard effects, dialogs, tray and the TUI animation engine. |
 | [0005](0005_usage-access-level.md) | Usage access level | Proposed | — | — | — | Prerequisite of 0015, 0016 and 0017. |
 | [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
@@ -66,6 +66,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.21.0 | 0010 | RF1 (core measurement age and `Fresh`/`Aging`/`Stale` freshness, clock-adjusted age reads zero). |
 | 0.22.0 | 0009 | RF1 and RF4 (core binding metric: exhausted with the latest return or tightest remaining fraction, `binding_ratio`/`cmp_binding`, localized summary in `en-US`/`es`). |
 | 0.23.0 | 0007 | RF1 and RF2 (core pace: expected use at a uniform pace, ±5-point `Reserve`/`OnPace`/`Ahead`/`Exhausted` stages with a tone, linear exhaustion projection from recent samples or the window average, localized labels in `en-US`/`es`). |
+| 0.24.0 | 0003 | RF1 (core reset planner: eligibility, used/exhausted/always filters, lead time, same-minute grouping, 2-minute drift identity, stable account key). |
 
 ## 4. Dependency graph
 
@@ -79,7 +80,7 @@ graph LR
 
   P1["0001 Core and front ends"]:::done
   P2["0002 Model catalog"]:::done
-  P3["0003 Reset notifications"]:::todo
+  P3["0003 Reset notifications"]:::wip
   P4["0004 Animations"]:::done
   P5["0005 Access level"]:::todo
   P6["0006 History"]:::todo
@@ -181,3 +182,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | PRD 0010 RF1 delivered in 0.21.0; plan 0010 in progress. |
 | 2026-10-19 | PRD 0009 RF1 and RF4 delivered in 0.22.0; plan 0009 in progress. |
 | 2026-10-19 | PRD 0007 RF1 and RF2 delivered in 0.23.0; plan 0007 in progress. |
+| 2026-10-19 | PRD 0003 RF1 delivered in 0.24.0; plan 0003 in progress. |

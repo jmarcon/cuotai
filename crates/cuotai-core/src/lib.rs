@@ -15,6 +15,7 @@ pub mod oauth;
 pub mod pace;
 mod providers;
 pub mod refresh;
+pub mod resets;
 pub mod text;
 mod transport;
 
