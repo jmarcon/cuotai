@@ -124,7 +124,7 @@ The detailed technical documentation lives in **[`docs/`](docs/)**. Some documen
 - **[Architecture, Rust library and verification (`docs/architecture.md`)](docs/architecture.md)** — The split between `cuotai-core`, `cuotai-tui` and `apps/desktop`, using `cuotai-core` as a Rust library, the internationalization contract and the test suite.
 - **[Desktop app guide (`apps/desktop/README.md`)](apps/desktop/README.md)** — Details specific to the Tauri 2 shell, themes and the user customization folder.
 - **[Configuration example (`cuotai.example.toml`)](cuotai.example.toml)** — A commented reference of every `[[accounts]]` entry and TOML parameter.
-- **[Roadmap (`docs/plans/`)](docs/plans/0000_controle.md)** — Product requirement documents (PRDs) with their implementation status and dependencies.
+- **[Roadmap (`docs/plans/`)](docs/plans/0000_control.md)** — Product requirement documents (PRDs) with their implementation status and dependencies.
 
 ---
 

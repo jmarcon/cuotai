@@ -5,7 +5,7 @@ Thank you for wanting to help. Cuotai is a **read-only** monitor for AI-provider
 ## Before you start
 
 - For small fixes, open a pull request directly.
-- For anything larger (a new provider, a feature, a behavior change), open an issue first. The project roadmap is in [`docs/plans/`](docs/plans/), indexed by [`0000_controle.md`](docs/plans/0000_controle.md). If your idea already has a plan, cite the PRD number and requirements (for example, `PRD 0006 RF2`).
+- For anything larger (a new provider, a feature, a behavior change), open an issue first. The project roadmap is in [`docs/plans/`](docs/plans/), indexed by [`0000_control.md`](docs/plans/0000_control.md). If your idea already has a plan, cite the PRD number and requirements (for example, `PRD 0006 RF2`).
 - Do not report vulnerabilities in public issues: see [`SECURITY.md`](SECURITY.md).
 
 ## Setup
@@ -73,7 +73,7 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 
 ## Commits and versions
 
-- Semantic commits: `type(scope): subject`. By project convention the commit subject is written in Portuguese **without accents**.
+- Semantic commits: `type(scope): subject`, with the subject and the body written in **English**.
 - Every user-visible delivery raises the version in the same commit. The full rules (which bump, which files, the `Refs:` footer and the changelog) are in the "Versioning, Commits & Changelog" section of [`AGENTS.md`](AGENTS.md).
 - Keep pull requests focused and small enough to review.
 
