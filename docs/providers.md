@@ -1,30 +1,30 @@
-# Catálogo de Provedores, Credenciais e Limitações
+# Provider Catalog, Credentials and Limitations
 
-O catálogo do Cuotai contém **36 provedores**, combinando APIs administrativas de faturamento, Cloud Monitoring, assinaturas de assistentes de código e integrações compatíveis com o `9router`.
+The Cuotai catalog contains **36 providers**, combining billing admin APIs, Cloud Monitoring, coding-assistant subscriptions and integrations compatible with `9router`.
 
-## Integrações principais e credenciais
+## Main integrations and credentials
 
-| Identificador | Dados consultados | Configuração / restrições |
+| Identifier | Data queried | Configuration / restrictions |
 |---|---|---|
-| `open_ai_api` | Custo por moeda; tokens e requisições de completions, mês UTC | `OPENAI_ADMIN_KEY`, **Admin API key**. `params.project_ids` e `params.models` opcionais, separados por vírgula |
-| `anthropic_api` | Custo USD e tokens de mensagens incluindo cache, mês UTC | `ANTHROPIC_ADMIN_KEY`, chave de administração. `params.workspace_ids` e `params.models` opcionais. Priority Tier não incluído no relatório de custos |
-| `chat_gpt` | Percentual das janelas **Codex** e saldo de créditos quando retornado | Login OAuth nativo ou `CHATGPT_ACCESS_TOKEN`; `params.account_id` opcional. Interface interna, não documentada. **Não consulta quota de mensagens do ChatGPT web** |
-| `claude` | Janelas de utilização e renovação; uso extra quando retornado | Login OAuth nativo ou `CLAUDE_OAUTH_TOKEN`. Interface não documentada, contrato evidenciado por clientes comunitários. Unidades de uso extra não documentadas são preservadas como unidades do provedor |
-| `gemini_api` | Limites e consumo recente via Cloud Monitoring | Login OAuth integrado ou `GOOGLE_CLOUD_ACCESS_TOKEN`, `params.project_id`; `monitoring.timeSeries.list`. Serviço `generativelanguage.googleapis.com` |
-| `vertex_ai` | Limites e consumo recente via Cloud Monitoring | Mesmos requisitos; serviço `aiplatform.googleapis.com` |
-| `aws_bedrock` | UnblendedCost do mês, filtro de serviço Amazon Bedrock | `params.profile` obrigatório, AWS CLI autenticada, `ce:GetCostAndUsage`. Não mede todas as quotas de inferência |
-| `azure_open_ai` | Custo mensal do recurso explicitamente escolhido | Login OAuth integrado ou `AZURE_ACCESS_TOKEN`, `params.subscription_id`, `params.resource_id` ARM completo de `Microsoft.CognitiveServices/accounts`; Cost Management Reader. Recurso Foundry compartilhado inclui outros modelos |
-| `cursor` | Gasto sob demanda/total da equipe ou resumo da assinatura pessoal | `CURSOR_ADMIN_API_KEY` para Admin API **Teams/Enterprise**, ou importação explícita da sessão SQLite local para conta pessoal |
-| `copilot` | Quota pessoal de interações ou uso bruto/custo líquido de billing | Login OAuth nativo ou `GITHUB_TOKEN`. `params.mode=user` (padrão) ou `org` + `params.org`. `params.billing=premium_requests` (padrão) ou `ai_credits`. Conta pessoal não inclui licenças faturadas pela organização |
-| `windsurf` | Uso de créditos, alocação e créditos adicionais no ciclo | `WINDSURF_SERVICE_KEY`. **Enterprise**, permissões Billing Read e Teams Read-Only. Alocação por assento não é saldo compartilhado; restante não inferido |
+| `open_ai_api` | Cost per currency; completions tokens and requests, UTC month | `OPENAI_ADMIN_KEY`, **Admin API key**. Optional `params.project_ids` and `params.models`, comma-separated |
+| `anthropic_api` | USD cost and message tokens including cache, UTC month | `ANTHROPIC_ADMIN_KEY`, admin key. Optional `params.workspace_ids` and `params.models`. Priority Tier is not included in the cost report |
+| `chat_gpt` | Percentage of the **Codex** windows and credit balance when returned | Native OAuth login or `CHATGPT_ACCESS_TOKEN`; optional `params.account_id`. Internal, undocumented interface. **Does not query the ChatGPT web message quota** |
+| `claude` | Usage windows and renewal; extra usage when returned | Native OAuth login or `CLAUDE_OAUTH_TOKEN`. Undocumented interface, contract evidenced by community clients. Undocumented extra-usage units are preserved as provider units |
+| `gemini_api` | Limits and recent consumption through Cloud Monitoring | Built-in OAuth login or `GOOGLE_CLOUD_ACCESS_TOKEN`, `params.project_id`; `monitoring.timeSeries.list`. Service `generativelanguage.googleapis.com` |
+| `vertex_ai` | Limits and recent consumption through Cloud Monitoring | Same requirements; service `aiplatform.googleapis.com` |
+| `aws_bedrock` | The month's UnblendedCost, filtered by the Amazon Bedrock service | `params.profile` required, authenticated AWS CLI, `ce:GetCostAndUsage`. Does not measure every inference quota |
+| `azure_open_ai` | Monthly cost of the explicitly chosen resource | Built-in OAuth login or `AZURE_ACCESS_TOKEN`, `params.subscription_id`, `params.resource_id` (full ARM ID of `Microsoft.CognitiveServices/accounts`); Cost Management Reader. A shared Foundry resource includes other models |
+| `cursor` | Team on-demand/total spend, or the personal subscription summary | `CURSOR_ADMIN_API_KEY` for the **Teams/Enterprise** Admin API, or an explicit import of the local SQLite session for a personal account |
+| `copilot` | Personal interaction quota, or gross usage/net billing cost | Native OAuth login or `GITHUB_TOKEN`. `params.mode=user` (default) or `org` + `params.org`. `params.billing=premium_requests` (default) or `ai_credits`. A personal account does not include licenses billed by the organization |
+| `windsurf` | Credit usage, allocation and additional credits in the cycle | `WINDSURF_SERVICE_KEY`. **Enterprise**, Billing Read and Teams Read-Only permissions. Per-seat allocation is not a shared balance; the remainder is not inferred |
 
-Chave de geração não substitui chave administrativa ou token de assinatura. Nenhum cookie, Keychain ou arquivo de credenciais de outro app é extraído automaticamente; só entradas do próprio Cuotai são lidas no cofre.
+A generation key does not replace an admin key or a subscription token. No cookie, Keychain entry or credential file of another app is extracted automatically; only Cuotai's own entries are read from the vault.
 
-## Aplicabilidade das opções por autenticação
+## Option applicability by authentication
 
-Os identificadores abaixo são valores de máquina. `credential` significa a credencial manual/variável do provedor; `oauth` significa login nativo. Uma opção sem restrição comprovada pelo adaptador permanece disponível em todos os tipos oferecidos pelo provedor. O core é a fonte desta tabela: TUI e Desktop recebem a lista filtrada e o índice completo da opção, sem regras específicas por provedor.
+The identifiers below are machine values. `credential` means the provider's manual/variable credential; `oauth` means native login. An option with no restriction proven by the adapter stays available for every type the provider offers. The core is the source of this table: the TUI and the desktop app receive the filtered list and the option's full index, with no provider-specific rules.
 
-| Provedor | Campo | Opção | Tipos de autenticação |
+| Provider | Field | Option | Authentication types |
 |---|---|---|---|
 | Copilot | `query_mode` | `billing` | `credential`, `oauth` |
 | Copilot | `query_mode` | `quota` | `credential`, `oauth` |
@@ -65,182 +65,182 @@ Os identificadores abaixo são valores de máquina. `credential` significa a cre
 | Alibaba Cloud | `region` | `cn` | `credential` |
 | Alibaba Token Plan | `login.console_site` | `international` | `bailian_console` |
 
-No Kiro, `auth_method` é um único descritor compartilhado. O login nativo recebe exatamente `builder-id` e `idc`; a credencial de ambiente recebe `google` (padrão explícito para contas novas), `github`, `import`, `api_key` e `external_idp`. Ao trocar de tipo, um valor incompatível é substituído pelo primeiro valor aplicável e a interface exibe o aviso localizado retornado pelo core.
+In Kiro, `auth_method` is a single shared descriptor. The native login receives exactly `builder-id` and `idc`; the environment credential receives `google` (the explicit default for new accounts), `github`, `import`, `api_key` and `external_idp`. When you switch type, an incompatible value is replaced by the first applicable value and the interface shows the localized warning returned by the core.
 
-Arquivos antigos não são reescritos ao carregar: a ausência de `auth_method` e combinações antigas como `credential` + `builder-id` continuam sendo lidas e consultadas com a semântica histórica do adaptador. Ao editar e salvar, porém, a combinação precisa obedecer à tabela.
+Old files are not rewritten on load: a missing `auth_method` and old combinations such as `credential` + `builder-id` keep being read and queried with the adapter's historical semantics. When you edit and save, however, the combination has to follow the table.
 
-## Catálogo de API keys, PATs e sessões
+## Catalog of API keys, PATs and sessions
 
-Os nomes abaixo são os defaults configurados no wizard. `credential_env` pode apontar para outra variável, sem copiar a chave para o TOML. Estar no catálogo **não significa** que o provedor disponibiliza quota por API key de inferência.
+The names below are the defaults configured in the wizard. `credential_env` can point to another variable, without copying the key into the TOML. Being in the catalog **does not mean** the provider offers a quota through an inference API key.
 
-| Provedor / identificador | Variável / credencial padrão | Consulta implementada / limitação |
+| Provider / identifier | Default variable / credential | Implemented query / limitation |
 |---|---|---|
-| Minimax.io / `mini_max` | `MINIMAX_IO_API_KEY` | Token/Coding Plan: janelas por contagem ou percentual, incluindo M-series. Fallback entre endpoints usados pelo 9router; chave `sk-api-` mantém consulta de saldo |
-| Kimi / `kimi` | `KIMI_API_KEY` | Saldo Moonshot internacional por padrão. `params.product=coding` (ou login nativo) consulta quota semanal e rate limit do Kimi Coding |
-| Qwen / `qwen` | `QWEN_API_KEY` | DashScope por chave continua sem quota compatível. OAuth Qwen Code disponível com aviso de descontinuação; nenhum endpoint de quota confirmado para essa sessão |
-| Alibaba Model Studio / `alibaba_model_studio` | `DASHSCOPE_API_KEY` | Cadastro separado, região `intl` ou `cn`. API key de inferência não concede consulta pública de saldo/quota |
-| Alibaba Coding Plan / `alibaba_coding_plan` | `BAILIAN_CODING_PLAN_API_KEY` ou variável configurada | RPC regional `queryCodingPlanInstanceInfoV2`: uso/limite de 5h, semana e mês. Se o gateway exigir login, `params.session_env` referencia cookie explícito; não extrai sessão do navegador nem tenta outra região |
-| Alibaba Token Plan (Qwen Cloud) / `alibaba_token_plan` | `params.cli_profile = "cuotai-qwen"` (login `bl` internacional) **ou** `params.session_env = "QWEN_CLOUD_COOKIE"` (Cookie) | Quota 5h/semana via `bl usage token-plan --output json` no perfil indicado; `session_env` usa HTTP direto do console Qwen Cloud e tem precedência quando presente. A chave `QWEN_API_KEY` só autentica inferência |
-| Alibaba Cloud / `alibaba_cloud` | `ALIBABA_CLOUD_ACCESS_KEY_ID` | Saldo BSS via AccessKey Secret referenciada em `params.secret_env`; STS opcional em `security_token_env`. `billing_cycle=YYYY-MM` consulta fatura de **todos os produtos**, não apenas AI |
-| Antigravity / `antigravity` | OAuth Google ou `ANTIGRAVITY_ACCESS_TOKEN` | Projeto/plano via `loadCodeAssist`; quotas por modelo via `fetchAvailableModels` nos planos pagos; sessão/semana via `retrieveUserQuotaSummary`. Modelo sem fração de quota mantém valores desconhecidos e não força a sessão a 0%. `project_id` opcional |
-| Groq / `groq` | `GROQ_API_KEY` | GET `/openai/v1/models`, lendo `x-ratelimit-*` como o 9router. Sem geração. Se a resposta não trouxer cabeçalhos, indica conectado sem quota reportada, nunca zero inventado |
-| Perplexity / `perplexity` | `PERPLEXITY_API_KEY` | Sonar: indisponível. **Computer Enterprise Analytics** é opt-in separado (`params.product=computer`), com chave Analytics; soma créditos dos dias UTC completos |
-| Mistral / `mistral` | `MISTRAL_API_KEY` | `/v1/admin/spend-limit` com **Admin API Key**, cabeçalho `x-api-key`. Valores ausentes continuam desconhecidos; estado de limite mensal aparece nas observações |
-| Cloudflare AI / `cloudflare_ai` | `CLOUDFLARE_AI_API_KEY` | Sem consulta de Neurons/quota Workers AI confirmada nesta integração. Invocações genéricas de Workers e AI Gateway não são substitutos |
-| Ollama Cloud / `ollama_cloud` | `OLLAMA_CLOUD_API_KEY` | GET `/api/usage`. Hoje devolve um relatório de uso (`totals`: requisições, tokens, gasto em USD no `range`, 7d por padrão), mostrado como uso sem percentual, porque a API não expõe mais os limites de sessão/semana/mês (só em ollama.com/settings/usage). Se o endpoint voltar a trazer `limits.session/weekly/monthly`, eles viram janelas em %, com renovação gratuita estimada pelo aniversário de cadastro. POST `/api/me` complementa plano/cadastro; não exige cookie |
-| Xiaomi MiMo / `xiaomi_mimo` | Sessão explícita por variável | `platform_session_env`: saldo e Token Plan mensal do console; `session_env`/`region`: quota semanal do Desktop. Código nativo gera chave de inferência e não substitui essas sessões |
-| OpenCode Go / `open_code_go` | `OPENCODE_GO_API_KEY` | GET `https://opencode.ai/zen/go/v1/usage`: percentual rolling, semanal e mensal, com renovação |
-| Qoder / `qoder` | `QODER_API_KEY` | PAT `pt-` trocado por job token e GET `/api/v2/quota/usage`; `params.region=intl\|cn`, `params.credential_type=auto\|pat\|bearer` |
-| Gemini AI / `gemini_ai` | `GEMINI_API_KEY` | API key AI Studio continua sem quota nesta interface. `params.product=cli` (ou login nativo) usa sessão Gemini CLI e `retrieveUserQuota`; não confunde produtos |
-| Grok (xAI) / `grok` | `X_GROK_API_KEY` | Management API por padrão. `params.product=cli` (ou login nativo) usa sessão Grok CLI para créditos sob demanda, pré-pagos e pool SuperGrok via REST/gRPC |
-| NVIDIA NIM / `nvidia_nim` | `NVIDIA_NIM_API_KEY` | Sem consulta pública de saldo por chave confirmada; não usa inferência para extrair rate-limit headers |
-| Poolside / `poolside` | `POOLSIDE_API_KEY` | Sem consulta pública de saldo/quota da conta confirmada; métricas de infraestrutura não são saldo |
-| Kimchi / `kimchi` | `KIMCHI_API_KEY` | GET `/v1/credits` e `/v1/budget`: saldo USD, orçamento por escopo/provedor e renovação. Falha no orçamento preserva créditos válidos com observação |
+| Minimax.io / `mini_max` | `MINIMAX_IO_API_KEY` | Token/Coding Plan: windows by count or percentage, including M-series. Fallback between the endpoints 9router uses; an `sk-api-` key keeps the balance query |
+| Kimi / `kimi` | `KIMI_API_KEY` | International Moonshot balance by default. `params.product=coding` (or native login) queries the Kimi Coding weekly quota and rate limit |
+| Qwen / `qwen` | `QWEN_API_KEY` | DashScope by key still has no compatible quota. Qwen Code OAuth is available with a deprecation warning; no quota endpoint has been confirmed for that session |
+| Alibaba Model Studio / `alibaba_model_studio` | `DASHSCOPE_API_KEY` | Separate registration, region `intl` or `cn`. An inference API key does not grant a public balance/quota query |
+| Alibaba Coding Plan / `alibaba_coding_plan` | `BAILIAN_CODING_PLAN_API_KEY` or a configured variable | Regional RPC `queryCodingPlanInstanceInfoV2`: usage/limit for 5h, week and month. If the gateway requires login, `params.session_env` references an explicit cookie; it does not extract a browser session or try another region |
+| Alibaba Token Plan (Qwen Cloud) / `alibaba_token_plan` | `params.cli_profile = "cuotai-qwen"` (international `bl` login) **or** `params.session_env = "QWEN_CLOUD_COOKIE"` (Cookie) | 5h/week quota through `bl usage token-plan --output json` on the given profile; `session_env` uses direct HTTP to the Qwen Cloud console and takes precedence when present. The `QWEN_API_KEY` key only authenticates inference |
+| Alibaba Cloud / `alibaba_cloud` | `ALIBABA_CLOUD_ACCESS_KEY_ID` | BSS balance through the AccessKey Secret referenced in `params.secret_env`; optional STS in `security_token_env`. `billing_cycle=YYYY-MM` queries the bill for **all products**, not only AI |
+| Antigravity / `antigravity` | Google OAuth or `ANTIGRAVITY_ACCESS_TOKEN` | Project/plan through `loadCodeAssist`; per-model quotas through `fetchAvailableModels` on paid plans; session/week through `retrieveUserQuotaSummary`. A model without a quota fraction keeps unknown values and does not force the session to 0%. Optional `project_id` |
+| Groq / `groq` | `GROQ_API_KEY` | GET `/openai/v1/models`, reading `x-ratelimit-*` as 9router does. No generation. If the response carries no headers, it reports connected with no quota reported, never an invented zero |
+| Perplexity / `perplexity` | `PERPLEXITY_API_KEY` | Sonar: unavailable. **Computer Enterprise Analytics** is a separate opt-in (`params.product=computer`), with an Analytics key; sums the credits of complete UTC days |
+| Mistral / `mistral` | `MISTRAL_API_KEY` | `/v1/admin/spend-limit` with an **Admin API Key**, `x-api-key` header. Missing values stay unknown; the monthly-limit state appears in the notes |
+| Cloudflare AI / `cloudflare_ai` | `CLOUDFLARE_AI_API_KEY` | No Neurons/Workers AI quota query is confirmed in this integration. Generic Workers invocations and AI Gateway are not substitutes |
+| Ollama Cloud / `ollama_cloud` | `OLLAMA_CLOUD_API_KEY` | GET `/api/usage`. Today it returns a usage report (`totals`: requests, tokens, USD spend over the `range`, 7d by default), shown as usage without a percentage because the API no longer exposes the session/week/month limits (only at ollama.com/settings/usage). If the endpoint returns `limits.session/weekly/monthly` again, they become windows in %, with the free renewal estimated from the sign-up anniversary. POST `/api/me` complements plan/sign-up; no cookie required |
+| Xiaomi MiMo / `xiaomi_mimo` | Explicit session through a variable | `platform_session_env`: console balance and monthly Token Plan; `session_env`/`region`: Desktop weekly quota. The native code generates an inference key and does not replace those sessions |
+| OpenCode Go / `open_code_go` | `OPENCODE_GO_API_KEY` | GET `https://opencode.ai/zen/go/v1/usage`: rolling, weekly and monthly percentage, with renewal |
+| Qoder / `qoder` | `QODER_API_KEY` | `pt-` PAT exchanged for a job token and GET `/api/v2/quota/usage`; `params.region=intl\|cn`, `params.credential_type=auto\|pat\|bearer` |
+| Gemini AI / `gemini_ai` | `GEMINI_API_KEY` | An AI Studio API key still has no quota in this interface. `params.product=cli` (or native login) uses the Gemini CLI session and `retrieveUserQuota`; it does not confuse products |
+| Grok (xAI) / `grok` | `X_GROK_API_KEY` | Management API by default. `params.product=cli` (or native login) uses the Grok CLI session for on-demand credits, prepaid credits and the SuperGrok pool through REST/gRPC |
+| NVIDIA NIM / `nvidia_nim` | `NVIDIA_NIM_API_KEY` | No public per-key balance query confirmed; it does not use inference to extract rate-limit headers |
+| Poolside / `poolside` | `POOLSIDE_API_KEY` | No public account balance/quota query confirmed; infrastructure metrics are not a balance |
+| Kimchi / `kimchi` | `KIMCHI_API_KEY` | GET `/v1/credits` and `/v1/budget`: USD balance, budget per scope/provider and renewal. A budget failure keeps the valid credits with a note |
 
-Para Mistral, Perplexity Computer e Grok, a variável da etapa Credencial deve conter a **classe correta** de chave. Se guardar a chave administrativa em outra variável, configure `params.admin_key_env`, `params.analytics_key_env` ou `params.management_key_env`, respectivamente. A referência alternativa tem precedência; apenas a chave efetivamente usada é lida.
+For Mistral, Perplexity Computer and Grok, the variable in the Credential step must hold the **right class** of key. If you keep the admin key in another variable, set `params.admin_key_env`, `params.analytics_key_env` or `params.management_key_env`, respectively. The alternative reference takes precedence; only the key actually used is read.
 
-## Outros assistentes
+## Other assistants
 
-- **Cline (`cline`)**: consulta saldo pessoal com `CLINE_API_KEY` (API key ou account auth token Cline) ou login nativo; `/users/me` descobre o ID antes da consulta de saldo. `params.organization_id` seleciona saldo da organização. Não agrega histórico incompleto nem quotas dos provedores BYOK.
-- **Kiro (`kiro`)**: login nativo recomendado (**AWS Builder ID** ou **IAM Identity Center**) ou `KIRO_ACCESS_TOKEN`, consulta interna `getUsageLimits` em CodeWhisperer/Q. No login, `params.auth_method=builder-id|idc`; por variável, `google` (padrão), `github`, `import`, `api_key` ou `external_idp`. `params.profile_arn` permite indicar seu perfil. Quota de Kiro é distinta do faturamento Bedrock.
-  - Com `profile_arn` da própria conta (descoberto pelo login ou informado no campo opcional), consulta créditos com POST `{profileArn}` no host regional conhecido (`us-east-1` ou `eu-central-1`) antes das três tentativas legadas do 9router. Mostra plano, teste gratuito, excedente habilitado e renovação; bônus não separáveis são sinalizados.
-  - **Várias contas:** adicione uma entrada Kiro por identidade, com nomes distintos. Faça o login nativo separadamente em cada entrada; cada uma recebe seu próprio `credential_id` e consulta sua própria quota.
-- **CodeBuddy (`code_buddy`)**: login nativo ou `CODEBUDDY_ACCESS_TOKEN`, POST interno `/v2/billing/meter/get-user-resource`. `params.region=cn|intl`; pacotes de renovação e bônus aparecem separados.
-- **Zed (`zed`)**: login nativo ou `ZED_ACCESS_TOKEN` + `params.user_id` obrigatório; GET `cloud.zed.dev/client/users/me`, `Authorization: <user_id> <token>`. `params.system_id` opcional. Não extrai tokens do editor automaticamente.
-- **Cursor pessoal**: a montagem do cookie preserva maiúsculas/minúsculas do identificador do JWT. A importação recusa tokens com menos de 60 segundos de validade.
-- **Poolside**: permanece bloqueado (o cliente oficial revela `GET /admin/account/{account_id}/usage` para consumo de rate limit autenticado por token administrativo da plataforma, não pela chave de inferência).
+- **Cline (`cline`)**: queries the personal balance with `CLINE_API_KEY` (a Cline API key or account auth token) or native login; `/users/me` discovers the ID before the balance query. `params.organization_id` selects the organization balance. It does not aggregate incomplete history or the quotas of BYOK providers.
+- **Kiro (`kiro`)**: native login recommended (**AWS Builder ID** or **IAM Identity Center**) or `KIRO_ACCESS_TOKEN`, internal `getUsageLimits` query on CodeWhisperer/Q. With the login, `params.auth_method=builder-id|idc`; with a variable, `google` (default), `github`, `import`, `api_key` or `external_idp`. `params.profile_arn` lets you indicate your profile. Kiro quota is distinct from Bedrock billing.
+  - With the account's own `profile_arn` (discovered by the login or entered in the optional field), it queries credits with a POST `{profileArn}` on the known regional host (`us-east-1` or `eu-central-1`) before 9router's three legacy attempts. It shows plan, free trial, overage enabled and renewal; bonuses that cannot be separated are flagged.
+  - **Multiple accounts:** add one Kiro entry per identity, with distinct names. Do the native login separately in each entry; each one gets its own `credential_id` and queries its own quota.
+- **CodeBuddy (`code_buddy`)**: native login or `CODEBUDDY_ACCESS_TOKEN`, internal POST `/v2/billing/meter/get-user-resource`. `params.region=cn|intl`; renewal packages and bonuses appear separately.
+- **Zed (`zed`)**: native login or `ZED_ACCESS_TOKEN` + required `params.user_id`; GET `cloud.zed.dev/client/users/me`, `Authorization: <user_id> <token>`. Optional `params.system_id`. It does not extract tokens from the editor automatically.
+- **Personal Cursor**: building the cookie preserves the letter case of the JWT identifier. The import refuses tokens with less than 60 seconds of validity.
+- **Poolside**: remains blocked (the official client reveals `GET /admin/account/{account_id}/usage` for rate-limit consumption authenticated by a platform admin token, not by the inference key).
 
-## Compatibilidade com o 9router
+## Compatibility with 9router
 
-Referência de código: [9router, revisão `f01fb909e37189008080632ddaf404f096345cde`](https://github.com/decolua/9router/tree/f01fb909e37189008080632ddaf404f096345cde). Os módulos Rust `providers/router_*.rs` reproduzem consultas e `oauth/reference*.rs` implementam os fluxos de login/renovação a partir de `src/lib/oauth/providers/` e helpers nativos. A licença MIT e atribuição estão em [`THIRD_PARTY_NOTICES`](../THIRD_PARTY_NOTICES).
+Code reference: [9router, revision `f01fb909e37189008080632ddaf404f096345cde`](https://github.com/decolua/9router/tree/f01fb909e37189008080632ddaf404f096345cde). The Rust modules `providers/router_*.rs` reproduce queries and `oauth/reference*.rs` implement the login/renewal flows from `src/lib/oauth/providers/` and native helpers. The MIT license and attribution are in [`THIRD_PARTY_NOTICES`](../THIRD_PARTY_NOTICES).
 
-Essas consultas incluem **interfaces internas/não oficiais**. Podem mudar, expirar ou exigir sessão específica. Não é necessário executar o 9router junto com o Cuotai. O Cuotai não importa seus bancos de credenciais, cookies do navegador ou arquivos de sessão de outros apps, não gera respostas de IA para medir limites e não chama operações que gastam créditos para renovar quota.
+These queries include **internal/unofficial interfaces**. They can change, expire or require a specific session. You do not need to run 9router alongside Cuotai. Cuotai does not import its credential databases, browser cookies or other apps' session files, does not generate AI responses to measure limits and does not call operations that spend credits to renew a quota.
 
-No modo **variável de ambiente**, selecione o produto em **Parâmetros** conforme a tabela:
+In **environment variable** mode, select the product under **Parameters** according to the table:
 
-| Caminho | Configuração |
+| Path | Configuration |
 |---|---|
-| Kimi Coding | `product = "coding"`; `KIMI_API_KEY`. OAuth alternativo: `token_env` (nome de variável); a API key tem precedência quando ambas existem |
-| Copilot pessoal | `query_mode = "quota"`; `GITHUB_TOKEN` da conta, não copilotToken. Campos de billing são ocultados nesse modo |
-| Gemini CLI | `product = "cli"`; `session_env` opcional (default `GEMINI_CLI_ACCESS_TOKEN`), `project_id` opcional (resolvido por `loadCodeAssist`). O token Cloud Monitoring de escopo restrito não substitui essa sessão |
-| Grok CLI | `product = "cli"`; `session_env` opcional (default `GROK_CLI_ACCESS_TOKEN`), `email`/`user_id` opcionais. Não utiliza a Management Key nesse modo |
-| Xiaomi MiMo | `session_env = "XIAOMI_MIMO_COOKIE"`, cookie de conta exportado pelo usuário; `region = "sgp"` (ou cn/ams/ru/in) |
-| Qoder | PAT/job token em `QODER_API_KEY`; `region = "intl"` (ou cn), `credential_type = "auto"` (ou pat/bearer). Troca PAT→job token sem fazer inferência |
-| Kiro/CodeBuddy/Zed | Preferencialmente login nativo no wizard/diálogo; tokens e metadados são preenchidos automaticamente. O método manual por variável permanece disponível; no Kiro ele usa `google` por padrão e não oferece `builder-id`/`idc` |
+| Kimi Coding | `product = "coding"`; `KIMI_API_KEY`. Alternative OAuth: `token_env` (variable name); the API key takes precedence when both exist |
+| Personal Copilot | `query_mode = "quota"`; the account's `GITHUB_TOKEN`, not a copilotToken. Billing fields are hidden in this mode |
+| Gemini CLI | `product = "cli"`; optional `session_env` (default `GEMINI_CLI_ACCESS_TOKEN`), optional `project_id` (resolved by `loadCodeAssist`). A narrowly scoped Cloud Monitoring token does not replace this session |
+| Grok CLI | `product = "cli"`; optional `session_env` (default `GROK_CLI_ACCESS_TOKEN`), optional `email`/`user_id`. It does not use the Management Key in this mode |
+| Xiaomi MiMo | `session_env = "XIAOMI_MIMO_COOKIE"`, an account cookie exported by the user; `region = "sgp"` (or cn/ams/ru/in) |
+| Qoder | PAT/job token in `QODER_API_KEY`; `region = "intl"` (or cn), `credential_type = "auto"` (or pat/bearer). Exchanges PAT→job token without running inference |
+| Kiro/CodeBuddy/Zed | Native login in the wizard/dialog is preferred; tokens and metadata are filled in automatically. The manual variable method remains available; for Kiro it defaults to `google` and does not offer `builder-id`/`idc` |
 
-Diferenças deliberadas em relação ao 9router: campos ausentes não viram zero ou ilimitado; Gemini CLI mostra `remainingFraction` em **%**, não como 1000 requisições reais; Ollama identifica a renovação calculada a partir do cadastro como estimativa; respostas de erro não expõem corpo bruto; datas sem timezone de pacotes CodeBuddy são interpretadas como UTC.
+Deliberate differences from 9router: missing fields do not become zero or unlimited; Gemini CLI shows `remainingFraction` in **%**, not as 1000 real requests; Ollama flags a renewal computed from the sign-up date as an estimate; error responses do not expose the raw body; timezone-less dates of CodeBuddy packages are interpreted as UTC.
 
-## Semântica e custos das consultas
+## Query semantics and costs
 
-- `used`, `limit` e `remaining` são opcionais. Ausência **não** significa zero. Não se calcula saldo de API a partir de gasto, nem mistura moedas.
-- `status` descreve a **consulta**, não a saúde global do provedor. `ready` significa que a consulta terminou, não que existe quota disponível. HTTP 401/403, 429, rede, timeout e resposta incompatível são distinguidos.
-- Custos mensais são acumulados; `resets_at` nesses relatórios indica início do próximo período de acompanhamento, não concessão garantida de créditos.
-- **OpenAI e Anthropic:** tokens limitados a completions/mensagens; custos têm escopo mais amplo. Filtrar `models` altera tokens, **não** o escopo dos custos.
-- **Google Cloud Monitoring:** limites amostrados diariamente; consumo é soma dos últimos 10 minutos com atraso. Séries de limite e uso são separadas, não percentuais comparáveis. Também pode cobrar leituras (duas consultas iniciais por atualização, mais páginas).
-- **AWS Bedrock:** custos com atraso, possivelmente estimados. **Cost Explorer cobra por requisição** (consulte preço vigente; referência de US$ 0,01). Atualização a cada 300 s, rodando 24 h, pode gerar cerca de US$ 2,88/dia por conta. O Cuotai exige intervalo mínimo de 300 s para AWS Bedrock e avisa sobre o custo na edição da conta (TUI e Desktop). Defina `accounts.refresh_seconds = 3600` ou mais para contas AWS.
-- **Windsurf:** analytics em buckets horários; alocação e consumo podem ter escopos distintos. O app não inventa saldo restante a partir dessa comparação.
+- `used`, `limit` and `remaining` are optional. A missing value does **not** mean zero. An API balance is not computed from spend, and currencies are not mixed.
+- `status` describes the **query**, not the provider's overall health. `ready` means the query finished, not that quota is available. HTTP 401/403, 429, network, timeout and incompatible response are told apart.
+- Monthly costs are cumulative; `resets_at` in those reports indicates the start of the next tracking period, not a guaranteed credit grant.
+- **OpenAI and Anthropic:** tokens are limited to completions/messages; costs have a broader scope. Filtering `models` changes tokens, **not** the cost scope.
+- **Google Cloud Monitoring:** limits are sampled daily; consumption is the sum of the last 10 minutes with a delay. Limit and usage series are separate, not comparable percentages. It can also bill for reads (two initial queries per refresh, plus pages).
+- **AWS Bedrock:** costs are delayed and possibly estimated. **Cost Explorer charges per request** (check the current price; reference US$ 0.01). Refreshing every 300 s, running 24 h, can generate about US$ 2.88/day per account. Cuotai requires a minimum interval of 300 s for AWS Bedrock and warns about the cost when editing the account (TUI and desktop). Set `accounts.refresh_seconds = 3600` or more for AWS accounts.
+- **Windsurf:** analytics in hourly buckets; allocation and consumption can have distinct scopes. The app does not invent a remaining balance from that comparison.
 
-## Catálogo de modelos por conta
+## Model catalog per account
 
-A lista só é consultada sob demanda (`load_models`/`sync_models`), nunca pelo refresh de quota. **Todo provedor tenta listar**, sempre em leitura e sem custo de inferência, com a mesma credencial que a conta já guarda para a quota:
+The list is only queried on demand (`load_models`/`sync_models`), never by the quota refresh. **Every provider tries to list**, always read-only and with no inference cost, using the same credential the account already stores for the quota:
 
-- **consulta ao vivo:** o endpoint de listagem do provedor. Quando a credencial não é aceita (por exemplo uma chave administrativa onde o endpoint pede chave de inferência), a conta mostra a falha classificada (autenticação, limite, transporte, esquema) e mantém o catálogo anterior; nada é inventado;
-- **lista embutida:** só onde o provedor não publica nenhum endpoint que liste os modelos de uma conta (CodeBuddy, Windsurf, Xiaomi MIMO, Qoder, Alibaba Token Plan). É a lista do registro do 9router (`providers/builtin_models.rs`, MIT, ver `THIRD_PARTY_NOTICES`), e o texto de fonte diz que **não é uma consulta à conta**;
-- **sem lista:** apenas o Alibaba Cloud (AccessKey de faturamento, sem endpoint de modelos), com o motivo e nenhuma requisição.
+- **live query:** the provider's listing endpoint. When the credential is not accepted (for example, an admin key where the endpoint asks for an inference key), the account shows the classified failure (authentication, limit, transport, schema) and keeps the previous catalog; nothing is invented;
+- **built-in list:** only where the provider publishes no endpoint that lists an account's models (CodeBuddy, Windsurf, Xiaomi MIMO, Qoder, Alibaba Token Plan). It is the list from 9router's registry (`providers/builtin_models.rs`, MIT, see `THIRD_PARTY_NOTICES`), and the source text says it is **not a query of the account**;
+- **no list:** only Alibaba Cloud (billing AccessKey, no models endpoint), with the reason and no request.
 
-Paginação segue tokens até o fim (limite de 50 páginas, token repetido rejeitado); página inválida/incompleta, HTTP 401/403/429 ou cancelamento falham sem sobrescrever o catálogo salvo. IDs são deduplicados e ordenados sem reescrita. Corpos de resposta, URLs e tokens nunca aparecem em erros.
+Pagination follows tokens to the end (limit of 50 pages, a repeated token is rejected); an invalid/incomplete page, HTTP 401/403/429 or cancellation fail without overwriting the saved catalog. IDs are deduplicated and sorted without rewriting. Response bodies, URLs and tokens never appear in errors.
 
-Os endpoints marcados como **não documentados** vêm de clientes de código aberto (CLIs dos próprios fornecedores e 9router) e podem mudar sem aviso, como as consultas de quota desses mesmos provedores. A coluna **Verificação** diz o que foi comprovado contra contas reais; o restante tem apenas testes com fixtures HTTP locais.
+Endpoints marked **undocumented** come from open-source clients (the vendors' own CLIs and 9router) and may change without notice, like the quota queries of those same providers. The **Verification** column says what was proven against real accounts; the rest has only local HTTP fixture tests.
 
-Detalhes que não cabem na tabela:
+Details that do not fit in the table:
 
-- **AWS Bedrock:** `aws bedrock list-foundation-models --profile <params.profile>`, com `--region <params.region>` quando definido; sem `params.region` vale a região padrão do perfil na AWS CLI. Exige `bedrock:ListFoundationModels`; não é Cost Explorer e nunca roda no refresh.
-- **Gemini AI:** com a chave AI Studio (`product` padrão), `models.list` paginado; o ID é o `name` retornado (`models/...`). Com `product = "cli"` ou login nativo, tenta `GET /v1beta/models` com o token da sessão, que pode ser recusado.
-- **Claude (assinatura):** `GET https://api.anthropic.com/v1/models?limit=1000` com o token OAuth e os cabeçalhos `anthropic-beta: oauth-2025-04-20` e `anthropic-version`, paginado por `after_id` enquanto `has_more`; `has_more` sem `last_id` rejeita a listagem.
-- **ChatGPT / Codex (assinatura):** `GET https://chatgpt.com/backend-api/codex/models?client_version=<versão do Codex CLI>` com o token da sessão (e `chatgpt-account-id` se `params.account_id`). Entradas com `visibility` diferente de `list` ficam de fora, como no seletor do Codex.
-- **Antigravity:** mesma sessão e requisição `fetchAvailableModels` da quota; plano gratuito ou resposta sem `models` é `Unsupported`.
-- **Alibaba Model Studio:** `region = "intl"` usa a listagem paginada de Singapura; as demais regiões tentam o endpoint compatível com OpenAI da região.
-- **Kimi:** com chave de plataforma, `api.moonshot.ai/v1/models`; com `product = "coding"` ou login nativo, `api.kimi.com/coding/v1/models` (chave em `x-api-key`, ou token OAuth em Bearer com os cabeçalhos de dispositivo da quota).
-- **GitHub Copilot:** troca o token do GitHub por um token do Copilot (`/copilot_internal/v2/token`) e lê `api.githubcopilot.com/models`, mantendo só modelos de chat que o plano não desabilita.
-- **Kiro:** `ListAvailableModels` no host da região do `profile_arn` (padrão `us-east-1`), com os mesmos cabeçalhos por método de autenticação da quota.
-- **Cursor:** RPC `aiserver.v1.AiService/GetUsableModels` em JSON Connect, com o token de sessão; contas só com a chave administrativa (Basic) recebem a recusa do provedor.
-- **Zed:** `users/me` (organização) → `client/llm_tokens` → `cloud.zed.dev/models`; modelos desabilitados ficam de fora. Planos sem modelos hospedados devolvem lista vazia, que é o resultado real.
-- **Azure OpenAI:** `…/accounts/{recurso}/models` do recurso configurado, com o token ARM; links de página fora do host ARM são rejeitados.
-- **Grok:** sessão da CLI (`product = "cli"`) lista por `cli-chat-proxy.grok.com/models` com os cabeçalhos do cliente; com chave de API, `api.x.ai/v1/models`.
+- **AWS Bedrock:** `aws bedrock list-foundation-models --profile <params.profile>`, with `--region <params.region>` when set; without `params.region`, the profile's default region in the AWS CLI applies. Requires `bedrock:ListFoundationModels`; it is not Cost Explorer and never runs on refresh.
+- **Gemini AI:** with the AI Studio key (default `product`), paginated `models.list`; the ID is the returned `name` (`models/...`). With `product = "cli"` or native login, it tries `GET /v1beta/models` with the session token, which may be refused.
+- **Claude (subscription):** `GET https://api.anthropic.com/v1/models?limit=1000` with the OAuth token and the `anthropic-beta: oauth-2025-04-20` and `anthropic-version` headers, paginated by `after_id` while `has_more`; `has_more` without `last_id` rejects the listing.
+- **ChatGPT / Codex (subscription):** `GET https://chatgpt.com/backend-api/codex/models?client_version=<Codex CLI version>` with the session token (and `chatgpt-account-id` if `params.account_id`). Entries whose `visibility` is not `list` are left out, as in Codex's selector.
+- **Antigravity:** same session and `fetchAvailableModels` request as the quota; a free plan or a response without `models` is `Unsupported`.
+- **Alibaba Model Studio:** `region = "intl"` uses Singapore's paginated listing; the other regions try the region's OpenAI-compatible endpoint.
+- **Kimi:** with a platform key, `api.moonshot.ai/v1/models`; with `product = "coding"` or native login, `api.kimi.com/coding/v1/models` (key in `x-api-key`, or OAuth token as Bearer with the quota's device headers).
+- **GitHub Copilot:** exchanges the GitHub token for a Copilot token (`/copilot_internal/v2/token`) and reads `api.githubcopilot.com/models`, keeping only chat models the plan does not disable.
+- **Kiro:** `ListAvailableModels` on the host of the `profile_arn`'s region (default `us-east-1`), with the same per-authentication-method headers as the quota.
+- **Cursor:** RPC `aiserver.v1.AiService/GetUsableModels` in Connect JSON, with the session token; accounts with only the admin key (Basic) get the provider's refusal.
+- **Zed:** `users/me` (organization) → `client/llm_tokens` → `cloud.zed.dev/models`; disabled models are left out. Plans without hosted models return an empty list, which is the real result.
+- **Azure OpenAI:** `…/accounts/{resource}/models` of the configured resource, with the ARM token; page links outside the ARM host are rejected.
+- **Grok:** a CLI session (`product = "cli"`) lists through `cli-chat-proxy.grok.com/models` with the client headers; with an API key, `api.x.ai/v1/models`.
 
-Verificação: `ao vivo` = confirmado contra conta real; `fixture` = só testes locais.
+Verification: `live` = confirmed against a real account; `fixture` = local tests only.
 
-| Identificador | Fonte da lista | Endpoint | Verificação |
+| Identifier | List source | Endpoint | Verification |
 |---|---|---|---|
-| `open_ai_api` | consulta, documentada | GET `api.openai.com/v1/models`; chave Admin pode ser recusada | fixture |
-| `anthropic_api` | consulta, documentada | GET `api.anthropic.com/v1/models` (`x-api-key`); chave Admin pode ser recusada | fixture |
-| `chat_gpt` | consulta, não documentada | GET `chatgpt.com/backend-api/codex/models` | ao vivo |
-| `claude` | consulta, não documentada para o token | GET `api.anthropic.com/v1/models` com OAuth | ao vivo |
-| `gemini_api` | consulta, documentada | GET `generativelanguage.googleapis.com/v1beta/models`; token de Cloud Monitoring pode ser recusado | fixture |
-| `vertex_ai` | consulta, documentada | GET `aiplatform.googleapis.com/v1beta1/publishers/google/models`; token de Cloud Monitoring pode ser recusado | fixture |
-| `aws_bedrock` | consulta, documentada | `ListFoundationModels` via AWS CLI | fixture |
-| `azure_open_ai` | consulta, documentada | ARM `…/accounts/{recurso}/models` | fixture |
-| `cursor` | consulta, não documentada | `GetUsableModels` (Connect JSON) | ao vivo |
-| `copilot` | consulta, não documentada | `api.githubcopilot.com/models` | ao vivo |
-| `windsurf` | lista embutida | sem endpoint | — |
-| `mini_max` | consulta, documentada | GET `api.minimax.io/v1/models` | ao vivo |
-| `kimi` | consulta | `api.moonshot.ai/v1/models` (chave) ou `api.kimi.com/coding/v1/models` | ao vivo (coding) |
-| `qwen` | consulta, não documentada | `dashscope-intl…/compatible-mode/v1/models` (chave) ou `portal.qwen.ai/v1/models` (OAuth) | fixture |
-| `groq` | consulta, documentada | GET `/openai/v1/models` | ao vivo |
-| `perplexity` | consulta, documentada | GET `api.perplexity.ai/v1/models` | fixture |
-| `mistral` | consulta, documentada | GET `api.mistral.ai/v1/models`; chave Admin pode ser recusada | fixture |
-| `cloudflare_ai` | consulta, documentada | GET `/client/v4/accounts/{account_id}/ai/models/search`; exige `params.account_id` | fixture |
-| `ollama_cloud` | consulta, documentada | GET `ollama.com/v1/models` | ao vivo |
-| `xiaomi_mimo` | lista embutida | sem endpoint | — |
-| `open_code_go` | consulta, não documentada | GET `opencode.ai/zen/go/v1/models` | ao vivo |
-| `qoder` | lista embutida | o catálogo real exige assinatura Cosy (RSA+AES+MD5), ainda não portada | — |
-| `gemini_ai` | consulta | `models.list` (chave AI Studio) ou `/v1beta/models` com a sessão | fixture |
-| `grok` | consulta | `cli-chat-proxy.grok.com/models` (sessão CLI) ou `api.x.ai/v1/models` (chave) | fixture |
-| `nvidia_nim` | consulta, documentada | GET `integrate.api.nvidia.com/v1/models` | fixture |
-| `poolside` | consulta, documentada | GET `inference.poolside.ai/v1/models` | fixture |
-| `kiro` | consulta, não documentada | `ListAvailableModels` | ao vivo |
-| `cline` | consulta, documentada | GET `api.cline.bot/api/v1/models` | fixture |
-| `code_buddy` | lista embutida | sem endpoint (`/v3/config` não traz modelos da conta) | — |
-| `zed` | consulta, não documentada | `cloud.zed.dev/models` com token LLM | ao vivo (lista vazia no plano da conta) |
-| `alibaba_model_studio` | consulta | `/api/v1/models` paginado (intl) ou `/compatible-mode/v1/models` | fixture |
-| `alibaba_coding_plan` | consulta, documentada | GET `coding(-intl).dashscope.aliyuncs.com/v1/models` | fixture |
-| `alibaba_token_plan` | lista embutida | sem endpoint | — |
-| `alibaba_cloud` | sem lista | AccessKey de faturamento, sem endpoint de modelos | — |
-| `antigravity` | consulta, não documentada | `fetchAvailableModels` da sessão (planos pagos) | ao vivo |
-| `kimchi` | consulta, não documentada | GET `llm.kimchi.dev/v1/models/metadata?include_in_cli=true` | fixture |
+| `open_ai_api` | live query, documented | GET `api.openai.com/v1/models`; an Admin key may be refused | fixture |
+| `anthropic_api` | live query, documented | GET `api.anthropic.com/v1/models` (`x-api-key`); an Admin key may be refused | fixture |
+| `chat_gpt` | live query, undocumented | GET `chatgpt.com/backend-api/codex/models` | live |
+| `claude` | live query, undocumented for the token | GET `api.anthropic.com/v1/models` with OAuth | live |
+| `gemini_api` | live query, documented | GET `generativelanguage.googleapis.com/v1beta/models`; a Cloud Monitoring token may be refused | fixture |
+| `vertex_ai` | live query, documented | GET `aiplatform.googleapis.com/v1beta1/publishers/google/models`; a Cloud Monitoring token may be refused | fixture |
+| `aws_bedrock` | live query, documented | `ListFoundationModels` through the AWS CLI | fixture |
+| `azure_open_ai` | live query, documented | ARM `…/accounts/{resource}/models` | fixture |
+| `cursor` | live query, undocumented | `GetUsableModels` (Connect JSON) | live |
+| `copilot` | live query, undocumented | `api.githubcopilot.com/models` | live |
+| `windsurf` | built-in list | no endpoint | — |
+| `mini_max` | live query, documented | GET `api.minimax.io/v1/models` | live |
+| `kimi` | live query | `api.moonshot.ai/v1/models` (key) or `api.kimi.com/coding/v1/models` | live (coding) |
+| `qwen` | live query, undocumented | `dashscope-intl…/compatible-mode/v1/models` (key) or `portal.qwen.ai/v1/models` (OAuth) | fixture |
+| `groq` | live query, documented | GET `/openai/v1/models` | live |
+| `perplexity` | live query, documented | GET `api.perplexity.ai/v1/models` | fixture |
+| `mistral` | live query, documented | GET `api.mistral.ai/v1/models`; an Admin key may be refused | fixture |
+| `cloudflare_ai` | live query, documented | GET `/client/v4/accounts/{account_id}/ai/models/search`; requires `params.account_id` | fixture |
+| `ollama_cloud` | live query, documented | GET `ollama.com/v1/models` | live |
+| `xiaomi_mimo` | built-in list | no endpoint | — |
+| `open_code_go` | live query, undocumented | GET `opencode.ai/zen/go/v1/models` | live |
+| `qoder` | built-in list | the real catalog needs Cosy signing (RSA+AES+MD5), not ported yet | — |
+| `gemini_ai` | live query | `models.list` (AI Studio key) or `/v1beta/models` with the session | fixture |
+| `grok` | live query | `cli-chat-proxy.grok.com/models` (CLI session) or `api.x.ai/v1/models` (key) | fixture |
+| `nvidia_nim` | live query, documented | GET `integrate.api.nvidia.com/v1/models` | fixture |
+| `poolside` | live query, documented | GET `inference.poolside.ai/v1/models` | fixture |
+| `kiro` | live query, undocumented | `ListAvailableModels` | live |
+| `cline` | live query, documented | GET `api.cline.bot/api/v1/models` | fixture |
+| `code_buddy` | built-in list | no endpoint (`/v3/config` does not carry the account's models) | — |
+| `zed` | live query, undocumented | `cloud.zed.dev/models` with an LLM token | live (empty list on the account's plan) |
+| `alibaba_model_studio` | live query | paginated `/api/v1/models` (intl) or `/compatible-mode/v1/models` | fixture |
+| `alibaba_coding_plan` | live query, documented | GET `coding(-intl).dashscope.aliyuncs.com/v1/models` | fixture |
+| `alibaba_token_plan` | built-in list | no endpoint | — |
+| `alibaba_cloud` | no list | billing AccessKey, no models endpoint | — |
+| `antigravity` | live query, undocumented | the session's `fetchAvailableModels` (paid plans) | live |
+| `kimchi` | live query, undocumented | GET `llm.kimchi.dev/v1/models/metadata?include_in_cli=true` | fixture |
 
-## Referências
+## References
 
-- [OpenAI: custos e uso da organização](https://developers.openai.com/api/reference/resources/admin/subresources/organization)
+- [OpenAI: organization costs and usage](https://developers.openai.com/api/reference/resources/admin/subresources/organization)
 - [Anthropic: Usage and Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api)
-- [Codex: cliente de consulta de limites](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs)
-- [Claude: evidência comunitária do contrato](https://github.com/loocor/codmate/blob/main/services/ClaudeUsageAPIClient.swift)
-- [Google: métricas de quota Service Runtime](https://cloud.google.com/monitoring/api/metrics_gcp_p_z)
+- [Codex: rate-limit query client](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs)
+- [Claude: community evidence of the contract](https://github.com/loocor/codmate/blob/main/services/ClaudeUsageAPIClient.swift)
+- [Google: Service Runtime quota metrics](https://cloud.google.com/monitoring/api/metrics_gcp_p_z)
 - [AWS: get-cost-and-usage](https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html)
-- [Azure: Cost Management Query](https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage?view=rest-cost-management-2025-03-01) e [atribuição de custos por recurso](https://learn.microsoft.com/en-us/azure/foundry/concepts/manage-costs)
-- [Cursor: Admin API](https://cursor.com/docs/account/teams/admin-api), [contrato pessoal no CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift) e [identidade da sessão importada](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift)
-- [GitHub: billing usage](https://docs.github.com/en/rest/billing/usage) e [autenticação para relatórios de consumo](https://docs.github.com/en/billing/tutorials/automate-usage-reporting)
-- [Windsurf: créditos da equipe](https://docs.windsurf.com/windsurf/accounts/api-reference/get-team-credit-balance) e [analytics e unidades](https://docs.windsurf.com/windsurf/accounts/api-reference/user-page-analytics)
-- [Google OAuth para apps Desktop](https://developers.google.com/identity/protocols/oauth2/native-app)
+- [Azure: Cost Management Query](https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage?view=rest-cost-management-2025-03-01) and [cost attribution by resource](https://learn.microsoft.com/en-us/azure/foundry/concepts/manage-costs)
+- [Cursor: Admin API](https://cursor.com/docs/account/teams/admin-api), [personal contract in CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift) and [imported session identity](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift)
+- [GitHub: billing usage](https://docs.github.com/en/rest/billing/usage) and [authentication for usage reports](https://docs.github.com/en/billing/tutorials/automate-usage-reporting)
+- [Windsurf: team credits](https://docs.windsurf.com/windsurf/accounts/api-reference/get-team-credit-balance) and [analytics and units](https://docs.windsurf.com/windsurf/accounts/api-reference/user-page-analytics)
+- [Google OAuth for desktop apps](https://developers.google.com/identity/protocols/oauth2/native-app)
 - [Microsoft OAuth device code](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code)
 - [AWS CLI SSO login](https://docs.aws.amazon.com/cli/latest/reference/sso/login.html)
-- [Anthropic: restrições de autenticação](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
-- [MiniMax Token Plan](https://platform.minimax.io/docs/token-plan/faq.md) e [interpretação de quota no CLI oficial](https://github.com/MiniMax-AI/cli/blob/main/src/utils/quota.ts)
-- [Kimi: saldo da conta internacional](https://platform.kimi.ai/docs/api/balance.md)
-- [Mistral: autenticação Admin API](https://docs.mistral.ai/admin/admin-api/authentication.md) e [uso e limites](https://docs.mistral.ai/admin/admin-api/usage-metrics.md)
+- [Anthropic: authentication restrictions](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
+- [MiniMax Token Plan](https://platform.minimax.io/docs/token-plan/faq.md) and [quota interpretation in the official CLI](https://github.com/MiniMax-AI/cli/blob/main/src/utils/quota.ts)
+- [Kimi: international account balance](https://platform.kimi.ai/docs/api/balance.md)
+- [Mistral: Admin API authentication](https://docs.mistral.ai/admin/admin-api/authentication.md) and [usage and limits](https://docs.mistral.ai/admin/admin-api/usage-metrics.md)
 - [Perplexity Computer Analytics](https://docs.perplexity.ai/docs/admin/computer-analytics-api.md)
 - [xAI Management Billing](https://docs.x.ai/developers/rest-api-reference/management/billing.md)
-- [Cline: API de conta e saldo](https://docs.cline.bot/enterprise-solutions/api-reference.md)
-- [Groq: limites de gasto](https://console.groq.com/docs/spend-limits)
-- [Cloudflare Workers AI: preços e acompanhamento](https://developers.cloudflare.com/workers-ai/platform/pricing/)
-- [Ollama: autenticação](https://docs.ollama.com/api/authentication)
-- [Gemini: limites](https://ai.google.dev/gemini-api/docs/rate-limits)
-- [Qwen via DashScope](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope) e [Qwen Code device OAuth](https://github.com/QwenLM/qwen-code/blob/81582ca19d0772afdd06ace9cad4845c207001f8/packages/core/src/qwen/qwenOAuth2.ts)
-- [Alibaba Token Plan CLI oficial](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts), [Token Plan no CodexBar](https://github.com/steipete/CodexBar/pull/2361) e [Coding Plan RPC no CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift)
-- [Xiaomi MiMo: documentação](https://mimo.mi.com/llms-full.txt) e [saldo/Token Plan no CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/MiMo/MiMoUsageFetcher.swift)
-- [OpenCode Go](https://opencode.ai/go/) e [Qoder: uso](https://docs.qoder.com/cli/usage.md)
-- [NVIDIA NIM](https://docs.api.nvidia.com/nim/reference/llm-apis) e [Poolside API](https://docs.poolside.ai/api/overview.md)
-- [Kiro: faturamento](https://kiro.dev/docs/billing.md), [contrato getUsageLimits no 9router](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kiro.js) e [créditos no CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Kiro/KiroUsageLimitsAPI.swift)
-- [CodeBuddy: uso](https://www.codebuddy.cn/docs/ide/Account/usage.md) e [Zed: planos](https://zed.dev/docs/account/plans-and-pricing.md)
-- [Kimchi: contrato oficial de créditos e orçamentos](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts)
-- [9router: despacho de consultas](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage.js) e [fluxos de autenticação](https://github.com/decolua/9router/tree/f01fb909e37189008080632ddaf404f096345cde/src/lib/oauth/providers)
+- [Cline: account and balance API](https://docs.cline.bot/enterprise-solutions/api-reference.md)
+- [Groq: spend limits](https://console.groq.com/docs/spend-limits)
+- [Cloudflare Workers AI: pricing and tracking](https://developers.cloudflare.com/workers-ai/platform/pricing/)
+- [Ollama: authentication](https://docs.ollama.com/api/authentication)
+- [Gemini: limits](https://ai.google.dev/gemini-api/docs/rate-limits)
+- [Qwen via DashScope](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope) and [Qwen Code device OAuth](https://github.com/QwenLM/qwen-code/blob/81582ca19d0772afdd06ace9cad4845c207001f8/packages/core/src/qwen/qwenOAuth2.ts)
+- [Alibaba Token Plan official CLI](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts), [Token Plan in CodexBar](https://github.com/steipete/CodexBar/pull/2361) and [Coding Plan RPC in CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift)
+- [Xiaomi MiMo: documentation](https://mimo.mi.com/llms-full.txt) and [balance/Token Plan in CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/MiMo/MiMoUsageFetcher.swift)
+- [OpenCode Go](https://opencode.ai/go/) and [Qoder: usage](https://docs.qoder.com/cli/usage.md)
+- [NVIDIA NIM](https://docs.api.nvidia.com/nim/reference/llm-apis) and [Poolside API](https://docs.poolside.ai/api/overview.md)
+- [Kiro: billing](https://kiro.dev/docs/billing.md), [getUsageLimits contract in 9router](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kiro.js) and [credits in CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Kiro/KiroUsageLimitsAPI.swift)
+- [CodeBuddy: usage](https://www.codebuddy.cn/docs/ide/Account/usage.md) and [Zed: plans](https://zed.dev/docs/account/plans-and-pricing.md)
+- [Kimchi: official credits and budgets contract](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts)
+- [9router: query dispatch](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage.js) and [authentication flows](https://github.com/decolua/9router/tree/f01fb909e37189008080632ddaf404f096345cde/src/lib/oauth/providers)
