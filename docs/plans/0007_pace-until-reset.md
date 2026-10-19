@@ -1,85 +1,87 @@
-# PRD 0007 — Ritmo de consumo até o reset
+# PRD 0007 — Consumption pace until the reset
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0007 |
-| Status | Proposto |
-| Responsável | `cuotai-core`, Desktop e TUI |
-| Consumidores | `apps/desktop` (cartões, detalhes, bandeja), `crates/cuotai-tui`, PRDs 0008, 0012 e 0014 |
-| Depende de | nenhum; o PRD 0006 melhora a projeção, mas não é exigido |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core`, desktop and TUI |
+| Consumers | `apps/desktop` (cards, details, tray), `crates/cuotai-tui`, PRDs 0008, 0012 and 0014 |
+| Depends on | none; PRD 0006 improves the projection but is not required |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-Cada `Metric` traz `used`, `limit`, `remaining`, `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other`) e `resets_at` (`crates/cuotai-core/src/model.rs`). `metrics::classify_metric` produz um `MetricState` (`Available { ratio, uncapped }`, `Exhausted`, `Unmeasured`) que só diz quanto resta, não se o ritmo atual vai durar até o reset. Os cartões mostram "em 4h 10m" para o reinício e a barra de consumo, mas nada compara os dois.
+## 1. Context
 
-O CodexBar publica o conceito de ritmo ("6% in reserve · Expected 47% used · Lasts until reset"), o OpenUsage e o OpenQuota exibem indicadores de ritmo, e o QuotaTempo faz do ritmo o produto inteiro (saldo semanal W, alvo P e diferença ±).
+Each `Metric` carries `used`, `limit`, `remaining`, `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other`) and `resets_at` (`crates/cuotai-core/src/model.rs`). `metrics::classify_metric` produces a `MetricState` (`Available { ratio, uncapped }`, `Exhausted`, `Unmeasured`) that only says how much is left, not whether the current pace will last until the reset. The cards show "in 4h 10m" for the reset and the consumption bar, but nothing compares the two.
 
-## 2. Problema
+CodexBar publishes the pace concept ("6% in reserve · Expected 47% used · Lasts until reset"), OpenUsage and OpenQuota show pace indicators, and QuotaTempo makes pace the whole product (weekly balance W, target P and difference ±).
 
-Saber que restam 40% não diz se isso é folga ou perigo: depende de quanto da janela já passou. Quem usa Claude (5 h e semana), Codex, Copilot ou Kimi precisa decidir se começa uma tarefa longa agora. Sem ritmo, o usuário faz a conta de cabeça a cada consulta.
+## 2. Problem
 
-## 3. Objetivos
+Knowing that 40% is left does not say whether that is slack or danger: it depends on how much of the window has already passed. People using Claude (5 h and week), Codex, Copilot or Kimi need to decide whether to start a long task now. Without pace, the user does the math in their head on every query.
 
-- Calcular no core, por métrica elegível, o consumo esperado em ritmo uniforme, a diferença para o consumo real e se o ritmo atual esgota a janela antes do reset.
-- Exibir isso de forma curta nos cartões, nos detalhes, na bandeja e na CLI.
-- Nunca inventar ritmo quando faltar dado: omitir é preferível a estimar mal.
+## 3. Goals
 
-## 4. Não-objetivos
+- Compute in the core, per eligible metric, the expected consumption at a uniform pace, the difference from the real consumption and whether the current pace exhausts the window before the reset.
+- Show it briefly on the cards, in the details, in the tray and on the CLI.
+- Never invent a pace when data is missing: omitting is better than estimating badly.
 
-- Prever consumo futuro por aprendizado, sazonalidade ou horário de trabalho.
-- Alertar (PRD 0008) ou recomendar troca de provedor.
-- Métricas de saldo, gasto acumulado ou rate limit curto, que não têm janela de consumo uniforme.
-- Mudar `Report`, `Snapshot` ou a saída `--json` atual; o ritmo é derivado na leitura.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Predicting future consumption by learning, seasonality or working hours.
+- Alerting (PRD 0008) or recommending a switch of provider.
+- Balance metrics, accumulated spend or short rate limits, which have no uniform consumption window.
+- Changing `Report`, `Snapshot` or the current `--json` output; pace is derived on read.
 
-### RF1 — Cálculo puro no core (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar `pace::assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> Option<Pace>`, função pura, sem rede e sem relógio interno. `Pace` é `Serialize` e traz: `elapsed_fraction`, `expected_used_fraction`, `used_fraction`, `delta_points` (real menos esperado, em pontos percentuais), `stage`, `projected_exhaustion_at: Option<DateTime<Utc>>` e `lasts_until_reset: bool`.
-- **RF1.2** Elegibilidade: `kind = Quota`, `window` em `window_5h`, `daily`, `weekly` ou `monthly`, `limit` finito e positivo, `used` finito, `resets_at` futuro. `RateLimit`, `Balance`, `Credits`, `Spend`, `Usage` e `other` ficam de fora. Ausência de qualquer dado devolve `None`, nunca um valor padrão.
-- **RF1.3** Duração da janela: `window_5h` = 5 h, `daily` = 24 h, `weekly` = 7 dias. `monthly` = intervalo do mês civil que termina em `resets_at` (28 a 31 dias). O início é `resets_at − duração`. Se o provedor devolver um início conhecido em `period`, ele tem precedência quando coerente.
-- **RF1.4** Consumo esperado = `elapsed / duração`. Estágios, com histerese de 5 pontos percentuais:
-  - `Reserve` (`delta_points ≤ −5`): abaixo do ritmo;
-  - `OnPace` (entre −5 e +5);
-  - `Ahead` (`delta_points ≥ +5`): acima do ritmo;
+### RF1 — Pure computation in the core (high priority; prerequisite)
+
+- **RF1.1** Create `pace::assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> Option<Pace>`, a pure function with no network and no internal clock. `Pace` is `Serialize` and carries: `elapsed_fraction`, `expected_used_fraction`, `used_fraction`, `delta_points` (real minus expected, in percentage points), `stage`, `projected_exhaustion_at: Option<DateTime<Utc>>` and `lasts_until_reset: bool`.
+- **RF1.2** Eligibility: `kind = Quota`, `window` in `window_5h`, `daily`, `weekly` or `monthly`, a finite and positive `limit`, a finite `used`, a future `resets_at`. `RateLimit`, `Balance`, `Credits`, `Spend`, `Usage` and `other` are left out. A missing piece of data returns `None`, never a default value.
+- **RF1.3** Window length: `window_5h` = 5 h, `daily` = 24 h, `weekly` = 7 days. `monthly` = the calendar-month interval ending at `resets_at` (28 to 31 days). The start is `resets_at − length`. If the provider returns a known start in `period`, it takes precedence when coherent.
+- **RF1.4** Expected consumption = `elapsed / length`. Stages, with a 5-percentage-point hysteresis:
+  - `Reserve` (`delta_points ≤ −5`): below the pace;
+  - `OnPace` (between −5 and +5);
+  - `Ahead` (`delta_points ≥ +5`): above the pace;
   - `Exhausted` (`used ≥ limit`).
-- **RF1.5** Projeção: `projected_exhaustion_at = início + elapsed × limit / used` quando `used > 0`. Se `used` é zero, ou a projeção cai depois de `resets_at`, `lasts_until_reset = true` e não há data de esgotamento. Com `recent` (PRD 0006), usar a inclinação das últimas 2 horas (ou 10% da janela, o que for maior) quando houver pelo menos 3 amostras; caso contrário, a média desde o início da janela. A fonte usada é registrada em `Pace`.
-- **RF1.6** Janela recém-iniciada: se passou menos de 5% da duração ou menos de 10 minutos, não há avaliação (`None`), para evitar projeções absurdas de um único prompt.
-- **Critério de aceite:** testes de tabela com relógio fixo cobrem janelas de 5 h, diária, semanal e mensal (fevereiro e mês de 31 dias), `used = 0`, `used ≥ limit`, `limit` zero ou ausente, `resets_at` passado, valores não finitos, janela recém-iniciada, projeção antes e depois do reset, histerese nos limiares e inclinação recente versus média.
+- **RF1.5** Projection: `projected_exhaustion_at = start + elapsed × limit / used` when `used > 0`. If `used` is zero, or the projection falls after `resets_at`, `lasts_until_reset = true` and there is no exhaustion date. With `recent` (PRD 0006), use the slope of the last 2 hours (or 10% of the window, whichever is greater) when there are at least 3 samples; otherwise, the average since the start of the window. The source used is recorded in `Pace`.
+- **RF1.6** Freshly started window: if less than 5% of the length or less than 10 minutes has passed, there is no assessment (`None`), to avoid absurd projections from a single prompt.
+- **Acceptance criterion:** table tests with a fixed clock cover 5 h, daily, weekly and monthly windows (February and a 31-day month), `used = 0`, `used ≥ limit`, a zero or missing `limit`, a past `resets_at`, non-finite values, a freshly started window, a projection before and after the reset, hysteresis at the thresholds, and recent slope versus average.
 
-### RF2 — Rótulos localizados e contrato de exibição (prioridade alta)
+### RF2 — Localized labels and display contract (high priority)
 
-- **RF2.1** O core emite `Localized` com ids estáveis (`pace.reserve`, `pace.on_pace`, `pace.ahead`, `pace.exhausted`, `pace.lasts_until_reset`, `pace.runs_out_at`) e parâmetros (`delta`, `at`, `margin`). Textos de exemplo: "No ritmo · dura até o reset", "8 pontos de reserva", "Esgota às 16:40, 2 h antes do reset". Catálogos `en-US` e `es` completos; português no `fallback`.
-- **RF2.2** O estágio tem tom semântico (`good`, `neutral`, `warn`, `bad`) em `Pace`, para a interface não decidir cor por texto. Tom e texto nunca dependem só da cor.
-- **Critério de aceite:** teste de catálogo e teste de que `Pace` serializa de forma estável.
+- **RF2.1** The core emits `Localized` with stable ids (`pace.reserve`, `pace.on_pace`, `pace.ahead`, `pace.exhausted`, `pace.lasts_until_reset`, `pace.runs_out_at`) and parameters (`delta`, `at`, `margin`). Example texts: "On pace · lasts until the reset", "8 points in reserve", "Runs out at 16:40, 2 h before the reset". Complete `en-US` and `es` catalogs; Portuguese in the `fallback`.
+- **RF2.2** The stage has a semantic tone (`good`, `neutral`, `warn`, `bad`) in `Pace`, so the interface does not pick a color from text. Tone and text never depend on color alone.
+- **Acceptance criterion:** a catalog test and a test that `Pace` serializes stably.
 
-### RF3 — Desktop (prioridade média)
+### RF3 — Desktop (medium priority)
 
-- **RF3.1** Comando Tauri que devolve o ritmo de cada métrica elegível de uma conta (ou de todas), calculado pelo core com o relógio do backend.
-- **RF3.2** Cartão: uma linha curta sob a barra da métrica mais restritiva elegível (ver PRD 0009). Detalhes: ritmo de cada métrica, com a marca do consumo esperado desenhada sobre a barra e o horário projetado de esgotamento.
-- **RF3.3** Bandeja: o tooltip e a visão em lista incluem "dura até o reset" ou "esgota às HH:MM".
-- **RF3.4** Em **Configurações → Aparência**, opção de mostrar ou ocultar o ritmo (ligado por padrão). Preferência em `desktop.json`.
-- **Critério de aceite:** smoke em três idiomas e nos temas claro e escuro, com uma métrica em cada estágio; a marca esperada não se sobrepõe ao texto em larguras estreitas.
+- **RF3.1** A Tauri command that returns the pace of each eligible metric of an account (or of all), computed by the core with the backend's clock.
+- **RF3.2** Card: a short line under the bar of the most restrictive eligible metric (see PRD 0009). Details: the pace of each metric, with the expected-consumption mark drawn over the bar and the projected exhaustion time.
+- **RF3.3** Tray: the tooltip and the list view include "lasts until the reset" or "runs out at HH:MM".
+- **RF3.4** In **Settings → Appearance**, an option to show or hide pace (on by default). Preference in `desktop.json`.
+- **Acceptance criterion:** a smoke test in three languages and in the light and dark themes, with one metric at each stage; the expected mark does not overlap the text at narrow widths.
 
-### RF4 — TUI e CLI (prioridade média)
+### RF4 — TUI and CLI (medium priority)
 
-- **RF4.1** Detalhes da conta na TUI: coluna ou linha de ritmo por métrica; no painel, ícone de estágio discreto. Respeita larguras pequenas.
-- **RF4.2** `--once` imprime a linha de ritmo sob cada métrica elegível. `--json` permanece igual; o ritmo entra no contrato de exportação versionado do PRD 0012.
-- **Critério de aceite:** testes de renderização com `TestBackend` e snapshot textual de `--once`.
+- **RF4.1** TUI account details: a pace column or line per metric; on the dashboard, a discreet stage icon. Respects small widths.
+- **RF4.2** `--once` prints the pace line under each eligible metric. `--json` stays the same; pace enters the versioned export contract of PRD 0012.
+- **Acceptance criterion:** `TestBackend` rendering tests and a text snapshot of `--once`.
 
-## 6. Requisitos não funcionais
+## 6. Non-functional requirements
 
-- **Honestidade:** ritmo é uma estimativa linear. O texto e a documentação dizem isso; não prometem esgotamento exato. Janelas de rate limit rolantes e métricas sem início conhecido ficam fora.
-- **Determinismo:** `assess` depende só de seus argumentos.
-- **Custo:** nenhuma consulta nova ao provedor.
+- **Honesty:** pace is a linear estimate. The text and the documentation say so; they do not promise exact exhaustion. Rolling rate-limit windows and metrics with an unknown start are left out.
+- **Determinism:** `assess` depends only on its arguments.
+- **Cost:** no new provider query.
 
-## 7. Ordem de execução e verificação
+## 7. Order of execution and verification
 
-1. **RF1 e RF2:** cálculo e textos no core, com testes de tabela.
-2. **RF3:** desktop com smoke.
-3. **RF4:** TUI e CLI.
+1. **RF1 and RF2:** computation and texts in the core, with table tests.
+2. **RF3:** desktop with a smoke test.
+3. **RF4:** TUI and CLI.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
-O requisito só está entregue quando uma métrica semanal consumida acima do ritmo mostra a diferença e o horário de esgotamento nos três idiomas, uma janela recém-aberta não mostra nada, métricas sem janela ou sem `resets_at` não mostram ritmo inventado, e nenhuma consulta extra é feita.
+The requirement is only delivered when a weekly metric consumed above the pace shows the difference and the exhaustion time in the three languages, a freshly opened window shows nothing, metrics with no window or no `resets_at` show no invented pace, and no extra query is made.
