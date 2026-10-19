@@ -124,7 +124,7 @@
   border: 0;
   border-radius: var(--radius-pill);
   background: var(--track);
-  transition: background 0.2s;
+  transition: background var(--motion-base) var(--ease-out);
 }
 .switch span {
   position: absolute;
@@ -134,7 +134,7 @@
   height: 20px;
   border-radius: 50%;
   background: var(--switch-knob);
-  transition: transform 0.2s;
+  transition: transform var(--motion-base) var(--ease-spring);
 }
 .switch.on {
   background: var(--accent);

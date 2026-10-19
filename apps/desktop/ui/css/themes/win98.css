@@ -69,6 +69,12 @@
   --body-bg: #000000;
 }
 
+/* Movimento em degraus, como no Windows 98 (sem interpolação suave) */
+:root[data-theme="win98"] {
+  --ease-out: steps(4, end);
+  --ease-spring: steps(2, end);
+}
+
 /* Bisel elevado (claro) */
 :root[data-theme="win98"][data-mode="light"] .card,
 :root[data-theme="win98"][data-mode="light"] .btn,
