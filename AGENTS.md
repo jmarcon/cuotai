@@ -62,7 +62,7 @@ The README and all repository documentation are written in **English**, the norm
 
 - The product stays multilingual: UI strings live in the Portuguese, English and Spanish catalogs, and core `Localized` fallbacks stay in Portuguese by design.
 - Semantic commits (subject and body), pull request titles and descriptions, and issue text are also written in **English** from now on; see "Versioning, Commits & Changelog" below.
-- Write every new document in English. The only remaining Portuguese document is `docs/plans/0004_animations-and-visual-effects.md` (another agent was editing it), still to be migrated; when a change touches one, either translate the whole file in that change or leave its language alone for the migration task. Never mix languages inside one file.
+- Write every new document in English; every existing document has already been migrated. Never mix languages inside one file.
 
 ## Versioning, Commits & Changelog
 

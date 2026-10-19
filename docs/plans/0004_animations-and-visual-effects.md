@@ -1,142 +1,144 @@
-# PRD 0004 — Animações e efeitos visuais
+# PRD 0004 — Animations and visual effects
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0004 |
-| Status | Implementado (0.17.0 a 0.20.0) |
-| Responsável | Desktop (principal) e TUI |
-| Consumidores | `apps/desktop/ui`, `crates/cuotai-tui` |
-| Data | 2026-10-19 |
+| Status | Implemented (0.17.0 to 0.20.0) |
+| Owner | Desktop (primary) and TUI |
+| Consumers | `apps/desktop/ui`, `crates/cuotai-tui` |
+| Date | 2026-10-19 |
 
-## Estado da implementação (2026-10-19)
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-Cada RF é entregue em uma versão própria, com `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface antes do commit.
+## Implementation status (2026-10-19)
 
-| RF | Versão | Entrega |
+Each RF ships in its own version, with `cargo fmt`, `clippy -D warnings`, the workspace and desktop tests, and an interface smoke test before the commit.
+
+| RF | Version | Delivery |
 |---|---|---|
-| RF1 | 0.17.0 (`6725548`) | Tokens `--motion-*`/`--ease-*` no contrato de temas (win98 em `steps()`, CRT sem interpolação), `prefers-reduced-motion` e a opção **Aparência → Animações** em `desktop.json`, aplicada como `data-motion` antes do JS; o painel reconcilia cartões por `data-card` (`patch()` em `util.js`), preservando foco, rolagem e as barras. |
-| RF2 | 0.18.0 | `js/motion.js`: contagem das porcentagens, destaque único na mudança de nível, tremida só ao esgotar, entrada em cascata, FLIP na reordenação, saída encolhendo, skeleton com shimmer (parado com a janela escondida), spinner só na conta em refresh, elevação no hover/foco, pulso do chip ao zerar e giro único do refresh. Painel parado sem animações. |
-| RF3 | 0.19.0 | `showDialog()` em `motion.js` para todos os diálogos: fade + escala 0,96 → 1, backdrop com desfoque, fechamento animado depois do `close()` nativo (foco volta na hora ao botão de origem, inclusive no WKWebView) e detalhes crescendo a partir do cartão. A bandeja entra com fade + 6 px e o anel anima do valor anterior. Troca de tema e idioma com `startViewTransition` (250 ms) quando há suporte e movimento ligado. Smoke no app Tauri no macOS para diálogos, foco e tema; a entrada da bandeja foi provada só no navegador (a automação não abre a janela da bandeja). |
-| RF4 | 0.20.0 | `crates/cuotai-tui/src/motion.rs`: com animação ativa o loop desenha a ~30 fps (poll de 33 ms), parado mantém o desenho só quando `dirty`. Gauge e barras do detalhe interpolam em 300 ms com resolução de 1/8 de célula, gradiente por nível com truecolor, rótulo da classe pisca duas vezes na mudança, spinner braille no título da conta em refresh e wipe de 120 ms em detalhes, Sobre e Modelos. `--no-animations`, `CUOTAI_NO_ANIMATIONS`, desligado em `TERM=dumb` e por padrão sob SSH (`CUOTAI_ANIMATIONS=1` reativa). Com animações desligadas a saída é idêntica à anterior; parada, a TUI não redesenha além do tique de 1 s já existente. |
+| RF1 | 0.17.0 (`6725548`) | `--motion-*`/`--ease-*` tokens in the theme contract (Win98 in `steps()`, CRT without interpolation), `prefers-reduced-motion` and the **Appearance → Animations** option in `desktop.json`, applied as `data-motion` before the JS runs; the dashboard reconciles cards by `data-card` (`patch()` in `util.js`), preserving focus, scroll and the bars. |
+| RF2 | 0.18.0 | `js/motion.js`: percentage counting, a single highlight on a level change, a shake only on exhaustion, staggered entrance, FLIP on reordering, shrinking exit, skeleton with shimmer (paused while the window is hidden), spinner only on the account being refreshed, elevation on hover/focus, chip pulse when it reaches zero and a single refresh spin. An idle dashboard runs no animations. |
+| RF3 | 0.19.0 | `showDialog()` in `motion.js` for every dialog: fade + scale 0.96 → 1, blurred backdrop, closing animated after the native `close()` (focus returns to the opener at once, including in WKWebView) and details growing from the card. The tray fades in with 6 px of slide and the ring animates from the previous value. Theme and language switches use `startViewTransition` (250 ms) when supported and motion is on. Smoke test in the Tauri app on macOS for dialogs, focus and theme; the tray entrance was proven only in the browser (the automation cannot open the tray window). |
+| RF4 | 0.20.0 | `crates/cuotai-tui/src/motion.rs`: with an animation active the loop draws at ~30 fps (33 ms poll), and when idle it draws only when `dirty`. The gauge and the detail bars interpolate over 300 ms with 1/8-cell resolution, a level gradient with truecolor, the class label blinks twice on a change, a braille spinner in the title of the account being refreshed and a 120 ms wipe on details, About and Models. `--no-animations`, `CUOTAI_NO_ANIMATIONS`, off on `TERM=dumb` and by default over SSH (`CUOTAI_ANIMATIONS=1` re-enables). With animations off the output is identical to the previous one; when idle, the TUI does not redraw beyond the existing 1 s tick. |
 
-## 1. Contexto
+## 1. Context
 
-O desktop quase não tem movimento: um `@keyframes spin` (`themes.css`, `detail.css`), `transition: width 0.4s` nas barras (`themes.css`), o anel da bandeja (`tray.css`: `stroke-dasharray`) e duas transições de 0,2 s em `main.css`. Nenhum CSS trata `prefers-reduced-motion`. Além disso, `main.js` redesenha o painel com `root.innerHTML = …`, e isso recria os elementos a cada atualização. Na prática, a transição das barras quase nunca roda: o valor novo aparece de uma vez. Os 14 temas seguem o contrato de tokens de `css/themes/README.md`.
+The desktop had almost no motion: a `@keyframes spin` (`themes.css`, `detail.css`), `transition: width 0.4s` on the bars (`themes.css`), the tray ring (`tray.css`: `stroke-dasharray`) and two 0.2 s transitions in `main.css`. No CSS handled `prefers-reduced-motion`. In addition, `main.js` redrew the dashboard with `root.innerHTML = …`, which recreated the elements on every update. In practice, the bar transition almost never ran: the new value appeared at once. The 14 themes follow the token contract in `css/themes/README.md`.
 
-A TUI redesenha só quando `dirty`, com `event::poll` de 100 ms (`ui.rs`). Os cartões usam `Gauge` do Ratatui (`dashboard.rs`), e o detalhe usa barras de texto `█`/`░`. Não há nenhum efeito temporal.
+The TUI redraws only when `dirty`, with a 100 ms `event::poll` (`ui.rs`). The cards use Ratatui's `Gauge` (`dashboard.rs`), and the detail view uses `█`/`░` text bars. There was no temporal effect.
 
-## 2. Problema
+## 2. Problem
 
-Atualizações de quota, mudança de estado (disponível → esgotado), abertura de diálogos e reordenação de cartões acontecem sem continuidade visual: é difícil perceber o que mudou depois de um refresh. Por outro lado, animação em excesso:
-- custa CPU e bateria num app que fica aberto na bandeja;
-- atrapalha quem tem sensibilidade a movimento;
-- num terminal, pode gerar flicker e tráfego em SSH/tmux.
+Quota updates, state changes (available → exhausted), dialogs opening and card reordering happen with no visual continuity: it is hard to see what changed after a refresh. On the other hand, too much animation:
+- costs CPU and battery in an app that stays open in the tray;
+- bothers people who are sensitive to motion;
+- in a terminal, it can cause flicker and traffic over SSH/tmux.
 
-## 3. Objetivos
+## 3. Goals
 
-- Deixar perceptível **o que mudou** (valor, estado, ordem) com movimento curto, de 150 a 400 ms.
-- Dar ao desktop uma sensação moderna e coesa (entradas, diálogos, hover, carregamento) sem quebrar nenhum dos 14 temas.
-- Na TUI, ter efeitos discretos e opcionais que não aumentem o custo quando o terminal está parado.
-- Respeitar `prefers-reduced-motion` e oferecer um interruptor próprio nos dois frontends.
+- Make **what changed** (value, state, order) noticeable with short motion, 150 to 400 ms.
+- Give the desktop a modern, cohesive feel (entrances, dialogs, hover, loading) without breaking any of the 14 themes.
+- In the TUI, have discreet, optional effects that do not raise the cost while the terminal is idle.
+- Respect `prefers-reduced-motion` and offer a dedicated switch in both front ends.
 
-## 4. Não-objetivos
+## 4. Non-goals
 
-- Bibliotecas de animação (GSAP, Framer, Lottie) ou frameworks de UI. Só CSS, a Web Animations API e o que o Ratatui já oferece.
-- Efeitos contínuos e decorativos com o painel parado (partículas, fundos animados, brilho pulsando sem motivo).
-- Mudar dados, contratos do core ou a saída `--once`/`--json`.
+- Animation libraries (GSAP, Framer, Lottie) or UI frameworks. Only CSS, the Web Animations API and what Ratatui already offers.
+- Continuous, decorative effects while the dashboard is idle (particles, animated backgrounds, glow pulsing for no reason).
+- Changing data, core contracts or the `--once`/`--json` output.
 
-## 5. Requisitos funcionais
+## 5. Functional requirements
 
-### RF1 — Base de movimento no desktop (prioridade alta; pré-requisito)
+### RF1 — Motion foundation on the desktop (high priority; prerequisite)
 
-- **RF1.1** Tokens de movimento no contrato de temas (`themes.css` e `css/themes/README.md`):
-  - durações `--motion-fast` (150 ms), `--motion-base` (250 ms) e `--motion-slow` (400 ms);
-  - curvas `--ease-out` e `--ease-spring`, esta via `linear()` com fallback.
-  
-  Temas retrô podem sobrescrever (o Win98 usa `steps()`, o CRT pode usar 0 ms). Temas de usuário herdam os padrões.
-- **RF1.2** Movimento reduzido:
-  - `@media (prefers-reduced-motion: reduce)` zera durações e remove deslocamentos, mantendo só mudanças de opacidade de até 150 ms;
-  - a opção **Configurações → Aparência → Animações: Sistema / Sempre / Reduzidas / Desligadas** fica em `desktop.json` e é aplicada como `data-motion` no `<html>`, sem esperar o JS principal (como hoje no `index.html` para o tema).
-- **RF1.3** Atualização incremental do painel:
-  - trocar o `innerHTML` total por reconciliação por cartão, com chave `data-card` (já existe): criar, remover e atualizar só o que mudou;
-  - preservar foco, posição de rolagem e elementos de barra, para que as transições rodem de verdade;
-  - sem framework novo: uma função pequena que compara por chave e substitui os nós internos que mudaram.
-- **Critério de aceite:**
-  - refresh com valor alterado anima a largura da barra (verificado com `getAnimations()` ou captura intermediária);
-  - foco no botão de um cartão sobrevive ao refresh;
-  - com `prefers-reduced-motion` emulado e com "Desligadas", nenhuma transição passa de 150 ms;
-  - os 14 temas continuam passando no smoke visual.
+- **RF1.1** Motion tokens in the theme contract (`themes.css` and `css/themes/README.md`):
+  - durations `--motion-fast` (150 ms), `--motion-base` (250 ms) and `--motion-slow` (400 ms);
+  - curves `--ease-out` and `--ease-spring`, the latter through `linear()` with a fallback.
 
-### RF2 — Efeitos do painel desktop (prioridade alta)
+  Retro themes may override them (Win98 uses `steps()`, the CRT may use 0 ms). User themes inherit the defaults.
+- **RF1.2** Reduced motion:
+  - `@media (prefers-reduced-motion: reduce)` zeroes durations and removes displacements, keeping only opacity changes of up to 150 ms;
+  - the option **Settings → Appearance → Animations: System / Always / Reduced / Off** lives in `desktop.json` and is applied as `data-motion` on `<html>`, without waiting for the main JS (as is done today in `index.html` for the theme).
+- **RF1.3** Incremental dashboard update:
+  - replace the full `innerHTML` with per-card reconciliation, keyed by `data-card` (already present): create, remove and update only what changed;
+  - preserve focus, scroll position and the bar elements, so the transitions really run;
+  - no new framework: a small function that compares by key and replaces the inner nodes that changed.
+- **Acceptance criterion:**
+  - a refresh with a changed value animates the bar width (checked with `getAnimations()` or an intermediate capture);
+  - focus on a card's button survives the refresh;
+  - with `prefers-reduced-motion` emulated and with "Off", no transition lasts longer than 150 ms;
+  - the 14 themes still pass the visual smoke test.
 
-- **RF2.1** Dados:
-  - barras e porcentagens interpolam entre o valor antigo e o novo (contagem numérica com `requestAnimationFrame`, só durante a transição);
-  - mudança de nível (`good` → `warn` → `bad`) faz a cor transitar e dá um destaque único de 600 ms no cartão;
-  - esgotar a quota aplica um "shake" curto de 1 ciclo só quando o estado muda, nunca a cada refresh.
-- **RF2.2** Entrada e ordem:
-  - cartões entram com fade + deslocamento de 8 px, em cascata de 30 ms (com teto de 300 ms no total);
-  - reordenar (arrastar, setas ou ordenação) usa FLIP (medir → inverter → animar `transform`), de modo que os cartões deslizam até a nova posição;
-  - remover a conta encolhe e some antes de sair do DOM.
-- **RF2.3** Carregamento: skeleton com "shimmer" nos cartões em "Aguardando", e o spinner atual só no botão da conta em refresh. O shimmer para quando os dados chegam e não roda com a janela escondida (`document.hidden`).
-- **RF2.4** Micro-interações:
-  - hover e foco com elevação sutil (sombra/escala de 1,01);
-  - o interruptor desliza com mola;
-  - o chip da próxima consulta pulsa uma vez quando zera;
-  - o ícone de refresh gira uma vez ao clicar.
-  
-  O foco visível (`:focus-visible`) nunca é removido nem animado de forma a sumir.
-- **Critério de aceite:** gravação curta ou sequência de capturas de cada efeito em pelo menos Dracula, GitHub claro, Win98 e CRT; painel parado com 15 cartões sem animação ativa (`document.getAnimations().length === 0`); sem queda de quadros perceptível no perfil do WebKit ao atualizar 15 cartões.
+### RF2 — Desktop dashboard effects (high priority)
 
-### RF3 — Diálogos, bandeja e transições de tela (prioridade média)
+- **RF2.1** Data:
+  - bars and percentages interpolate between the old and the new value (numeric counting with `requestAnimationFrame`, only during the transition);
+  - a level change (`good` → `warn` → `bad`) makes the color transition and gives the card a single 600 ms highlight;
+  - exhausting the quota applies a short, 1-cycle "shake" only when the state changes, never on every refresh.
+- **RF2.2** Entrance and order:
+  - cards enter with a fade + 8 px shift, staggered by 30 ms (capped at 300 ms in total);
+  - reordering (drag, arrows or sorting) uses FLIP (measure → invert → animate `transform`), so the cards slide to the new position;
+  - removing the account shrinks and fades it before it leaves the DOM.
+- **RF2.3** Loading: a skeleton with a "shimmer" on the cards in "Waiting", and the current spinner only on the button of the account being refreshed. The shimmer stops when the data arrives and does not run while the window is hidden (`document.hidden`).
+- **RF2.4** Micro-interactions:
+  - hover and focus with a subtle elevation (shadow/1.01 scale);
+  - the switch slides with a spring;
+  - the next-query chip pulses once when it reaches zero;
+  - the refresh icon spins once on click.
 
-- **RF3.1** Diálogos (`<dialog>`: conta, detalhes, sobre, configurações):
-  - abrem com fade + escala de 0,96 → 1 e backdrop com desfoque leve onde houver suporte;
-  - fecham com animação inversa antes de `close()`, sem atrasar o retorno do foco;
-  - o popover de detalhes cresce a partir do cartão de origem.
-- **RF3.2** A janela da bandeja (`tray.html`) aparece com fade + deslize de 6 px a partir do ícone. O anel de uso anima do valor anterior, e não do zero, a cada abertura.
-- **RF3.3** Usar a View Transitions API, onde o WebKit do sistema a suportar, para trocar tema e idioma (cross-fade de 250 ms); sem suporte, troca imediata.
-- **Critério de aceite:** smoke no app Tauri (não só no navegador) no macOS: abrir e fechar cada diálogo pelo teclado (`Esc`, `Tab`) mantém foco e leitura por leitor de tela; trocar de tema sem flash branco.
+  The visible focus (`:focus-visible`) is never removed nor animated in a way that makes it disappear.
+- **Acceptance criterion:** a short recording or a sequence of captures of each effect in at least Dracula, GitHub light, Win98 and CRT; an idle dashboard with 15 cards has no active animation (`document.getAnimations().length === 0`); no noticeable frame drop in the WebKit profile when refreshing 15 cards.
 
-### RF4 — Efeitos na TUI (prioridade média)
+### RF3 — Dialogs, tray and screen transitions (medium priority)
 
-- **RF4.1** Motor mínimo de animação em `ui.rs`:
-  - com uma animação ativa, o loop passa a desenhar a cerca de 30 fps (`poll` de 33 ms);
-  - sem animação, volta ao comportamento atual (desenho só quando `dirty`);
-  - o estado da animação (valor de origem, de destino e início) fica por cartão, sem threads novas.
-- **RF4.2** Efeitos:
-  - `Gauge` e barras do detalhe interpolam do valor antigo ao novo em cerca de 300 ms após o refresh;
-  - mudança de estado pisca o rótulo da classe (Disponível/Esgotado) duas vezes;
-  - spinner braille (`⠋⠙⠹…`) no título do cartão em refresh, no lugar do texto estático;
-  - transição de abertura e fechamento de detalhes, Sobre e Modelos com "wipe" vertical de 120 ms;
-  - barras com meio-bloco (`▏▎▍▌▋▊▉█`) para resolução de 1/8 de célula, e gradiente de cor por nível em terminais com truecolor (com fallback para 16 cores quando `COLORTERM` não indicar truecolor).
-- **RF4.3** Controle: `--no-animations` e a variável `CUOTAI_NO_ANIMATIONS`. As animações também ficam desligadas automaticamente em `TERM=dumb` e, por padrão, sob SSH (`SSH_CONNECTION`), onde cada quadro custa banda. `--once`/`--json` não mudam.
-- **Critério de aceite:**
-  - smoke em tmux: captura durante a animação mostra valor intermediário, e depois o final;
-  - com animações desligadas, a saída é idêntica à de hoje;
-  - parada, a TUI não redesenha (medido contando chamadas a `draw`);
-  - sem flicker visível no Terminal.app, iTerm2 e tmux.
+- **RF3.1** Dialogs (`<dialog>`: account, details, about, settings):
+  - open with a fade + 0.96 → 1 scale and a lightly blurred backdrop where supported;
+  - close with the reverse animation before `close()`, without delaying the return of focus;
+  - the details popover grows from the originating card.
+- **RF3.2** The tray window (`tray.html`) appears with a fade + 6 px slide from the icon. The usage ring animates from the previous value, not from zero, on every opening.
+- **RF3.3** Use the View Transitions API, where the system WebKit supports it, to switch theme and language (250 ms cross-fade); without support, switch at once.
+- **Acceptance criterion:** a smoke test in the Tauri app (not only in the browser) on macOS: opening and closing each dialog from the keyboard (`Esc`, `Tab`) keeps focus and screen-reader reading; switching theme without a white flash.
 
-## 6. Requisitos não funcionais
+### RF4 — TUI effects (medium priority)
 
-- **Acessibilidade:**
-  - nenhum efeito carrega informação sozinho: cor, texto e `aria-live` continuam sendo a fonte;
-  - nada pisca mais de 3 vezes por segundo (WCAG 2.3.1);
-  - movimento reduzido é respeitado por padrão.
-  
-  Validação completa exige teste manual com tecnologias assistivas.
-- **Desempenho:**
-  - animar apenas `transform`, `opacity` e cor; largura só nas barras (até 15 elementos);
-  - nenhuma animação contínua com a janela escondida ou o painel parado;
-  - a TUI parada mantém o custo de hoje.
-- **Temas:** todo efeito usa tokens. Os temas de sistema (macOS, Windows 11, Ubuntu) seguem a duração e a curva nativas da plataforma, e os retrô podem desligar a interpolação.
+- **RF4.1** A minimal animation engine in `ui.rs`:
+  - with an active animation, the loop draws at about 30 fps (33 ms `poll`);
+  - without animation, it returns to the current behavior (draw only when `dirty`);
+  - the animation state (source value, target value and start) is kept per card, with no new threads.
+- **RF4.2** Effects:
+  - the `Gauge` and the detail bars interpolate from the old to the new value in about 300 ms after the refresh;
+  - a state change blinks the class label (Available/Exhausted) twice;
+  - a braille spinner (`⠋⠙⠹…`) in the title of the card being refreshed, in place of the static text;
+  - an opening and closing transition for details, About and Models with a 120 ms vertical "wipe";
+  - bars with partial blocks (`▏▎▍▌▋▊▉█`) for 1/8-cell resolution, and a color gradient per level on truecolor terminals (falling back to 16 colors when `COLORTERM` does not indicate truecolor).
+- **RF4.3** Control: `--no-animations` and the `CUOTAI_NO_ANIMATIONS` variable. Animations are also turned off automatically on `TERM=dumb` and, by default, over SSH (`SSH_CONNECTION`), where each frame costs bandwidth. `--once`/`--json` do not change.
+- **Acceptance criterion:**
+  - a tmux smoke test: a capture during the animation shows an intermediate value, and then the final one;
+  - with animations off, the output is identical to today's;
+  - when idle, the TUI does not redraw (measured by counting calls to `draw`);
+  - no visible flicker in Terminal.app, iTerm2 and tmux.
 
-## 7. Ordem de execução e verificação
+## 6. Non-functional requirements
 
-1. **RF1:** tokens, movimento reduzido, opção de Aparência e reconciliação incremental (pré-requisito para qualquer transição funcionar).
-2. **RF2:** efeitos do painel, um por versão, com captura em quatro temas.
-3. **RF3:** diálogos, bandeja e View Transitions, com smoke no app Tauri.
-4. **RF4:** motor e efeitos da TUI, com smoke em tmux e medição de redesenho parado.
+- **Accessibility:**
+  - no effect carries information on its own: color, text and `aria-live` remain the source;
+  - nothing flashes more than 3 times per second (WCAG 2.3.1);
+  - reduced motion is respected by default.
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop, `node --check`, e smoke visual no desktop e na TUI antes da versão.
+  Full validation requires manual testing with assistive technologies.
+- **Performance:**
+  - animate only `transform`, `opacity` and color; width only on the bars (up to 15 elements);
+  - no continuous animation while the window is hidden or the dashboard is idle;
+  - an idle TUI keeps today's cost.
+- **Themes:** every effect uses tokens. The system themes (macOS, Windows 11, Ubuntu) follow the platform's native duration and curve, and the retro ones may turn interpolation off.
 
-O requisito só está entregue quando um refresh que muda valores mostra a transição nos dois frontends, a reordenação desliza os cartões, os diálogos abrem e fecham com movimento sem perder foco, e com movimento reduzido ou desligado tudo continua funcionando de forma instantânea e sem nenhuma animação ociosa.
+## 7. Order of execution and verification
+
+1. **RF1:** tokens, reduced motion, the Appearance option and incremental reconciliation (a prerequisite for any transition to work).
+2. **RF2:** dashboard effects, one per version, with captures in four themes.
+3. **RF3:** dialogs, tray and View Transitions, with a smoke test in the Tauri app.
+4. **RF4:** the TUI engine and effects, with a tmux smoke test and a measurement of idle redraws.
+
+At each step: `cargo fmt`, `clippy -D warnings`, the workspace and desktop tests, `node --check`, and a visual smoke test on the desktop and the TUI before the version.
+
+The requirement is only delivered when a refresh that changes values shows the transition in both front ends, reordering slides the cards, dialogs open and close with motion without losing focus, and with reduced or disabled motion everything still works instantly and with no idle animation.

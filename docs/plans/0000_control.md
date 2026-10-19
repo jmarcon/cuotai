@@ -16,7 +16,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 - **Commit traceability:** the commit that delivers an RF carries the footer `Refs: PRD 0006 RF2` (one line per requirement). When PRD 0019 RF7 is implemented, `CHANGELOG.md` becomes the source of these deliveries and section 3 of this file points to it.
 - **Strong dependency** means the plan cannot be delivered without the other (the cited RF must exist). **Weak dependency** means it works without the other, but is better with it.
 - New plans get the next free number and enter here in the same change.
-- **Language:** plans are written in English (see `AGENTS.md`). PRD 0004 is still in Portuguese until its migration, because another agent was editing it when the others were translated.
+- **Language:** plans are written in English (see `AGENTS.md`).
 
 ## 2. Current situation
 
@@ -25,7 +25,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0001](0001_core-support-for-graphical-frontends.md) | Core support for graphical front ends | Implemented | 0.7.x | — | — | Foundation of the desktop app and the descriptor contract. |
 | [0002](0002_on-demand-model-catalog.md) | On-demand model catalog | Implemented | RF1 to RF6, 0.8.0 to 0.14.0 | — | — | After delivery, every provider except Alibaba Cloud started trying to list models (commit `2ae1e79`). |
 | [0003](0003_quota-reset-notifications.md) | Quota reset notifications | Proposed | — | — | — | Defines `Notifier`, permission and `notified.json`, reused by 0008. |
-| [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | Implemented | RF1 (0.17.0, `6725548`), RF2 (0.18.0, `d89c1b1`), RF3 (0.19.0, `59f9f22`), RF4 (0.20.0) | — | — | Text still in Portuguese (see section 1). |
+| [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | Implemented | RF1 (0.17.0, `6725548`), RF2 (0.18.0, `d89c1b1`), RF3 (0.19.0, `59f9f22`), RF4 (0.20.0) | — | — | Motion tokens, dashboard effects, dialogs, tray and the TUI animation engine. |
 | [0005](0005_usage-access-level.md) | Usage access level | Proposed | — | — | — | Prerequisite of 0015, 0016 and 0017. |
 | [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
 | [0007](0007_pace-until-reset.md) | Pace until the reset | Proposed | — | — | 0006 | Without history it uses the average since the start of the window. |
@@ -144,7 +144,7 @@ The waves respect the strong dependencies; within each wave the order is by prio
 
 | Wave | Plans | Why |
 |---|---|---|
-| 0 (under way) | 0003, 0004 | Already started or with infrastructure reused by the others. |
+| 0 (under way) | 0003 | Infrastructure reused by the others (0004 is done). |
 | 1 (no dependencies) | 0019 (RF1: license, done), 0006, 0007, 0009, 0005, 0012, 0011 | They unblock almost everything; 0006 and 0007 close the biggest gap against competitors (history and pace). |
 | 2 | 0008, 0010, 0018, 0013, 0016, 0015, 0017 | They depend on items from wave 0 or 1. |
 | 3 | 0014 | Depends on 0012's contract and 0019's pipeline, plus an Apple developer account. |
@@ -156,7 +156,7 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | Decision | Affects | Notes |
 |---|---|---|
 | ~~Repository license~~ | 0019 (RF1) | **Decided on 2026-10-19: `MIT OR Apache-2.0`**, holder "Cuotai contributors". |
-| ~~Documentation language~~ | 0019 (RF1.4) | **Decided on 2026-10-19: English** for the README, `docs/`, plans, commits, pull requests and issues. Pending: translating PRD 0004. |
+| ~~Documentation language~~ | 0019 (RF1.4) | **Decided on 2026-10-19: English** for the README, `docs/`, plans, commits, pull requests and issues. Done: every plan, PRD 0004 included, is in English. |
 | Apple developer account and Developer ID certificate | 0014, 0018, 0019 | Needed for notarization and for widgets (*app group*). |
 | Windows Authenticode certificate | 0019 | Without it, the installer ships unsigned, declared in the release notes. |
 | Cookie policy | 0016 | Recommendation: keep manual pasting and do not import cookies from browsers. |
@@ -173,3 +173,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-19 | Documentation and plans translated to English (except PRD 0004); plan files renamed to English slugs; commits are written in English from now on. |
 | 2026-10-19 | PRD 0004 RF3 delivered in 0.19.0. |
 | 2026-10-19 | PRD 0004 RF4 delivered in 0.20.0; plan 0004 implemented. |
+| 2026-10-19 | PRD 0004 translated to English; every plan is now in English. |
