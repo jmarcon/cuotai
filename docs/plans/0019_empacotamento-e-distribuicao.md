@@ -1,4 +1,4 @@
-# PRD 0019 — Empacotamento, licença e distribuição
+# PRD 0019 — Empacotamento, licença, changelog e distribuição
 
 | Campo | Valor |
 |---|---|
@@ -16,6 +16,7 @@ O Cuotai hoje só pode ser usado a partir do código-fonte: o README manda execu
 - **CI e releases:** não existe `.github/workflows`, tags ou releases publicadas; a versão está duplicada em `Cargo.toml` e `tauri.conf.json` (0.17.0).
 - **Pacotes:** `tauri.conf.json` tem `bundle.targets = "all"`, mas nada gera, assina ou publica artefatos; a TUI não tem binários distribuídos.
 - **Plataformas:** o README cita cofres do Keychain, Credential Manager e Secret Service, mas não há pacotes nem testes automáticos para Windows e Linux.
+- **Changelog:** não existe `CHANGELOG.md`. A versão sobe a cada entrega (de 0.14.x a 0.17.0 em poucos dias, cada alteração em `Cargo.toml` junto de um commit `feat` ou `fix`), mas o que mudou em cada versão só pode ser reconstruído lendo 62 commits e as tabelas de estado de alguns PRDs (como a do PRD 0002). Não há como o dono do projeto ver, em um só lugar, o que foi entregue em cada versão e a qual requisito de plano isso corresponde.
 
 Na análise de mercado de 2026-10-19, todo concorrente aberto com tração distribui binários: CodexBar (DMG, cask do Homebrew, AUR, tarballs de CLI para macOS e Linux, app Qt para Linux), ClaudeBar (DMG assinado e notarizado, cask), Quotio (DMG, cask, npm e Homebrew para a CLI), OpenUsage (DMG universal, cask), OpenQuota (instaladores Windows x64/ARM64, DMG universal, AppImage e deb), QuotaTempo (ZIP assinado e notarizado com `SHA256SUMS`). O OpenQuota informa abertamente quando a assinatura nativa está desligada.
 
@@ -28,6 +29,7 @@ Sem binários, sem licença formal e sem releases, o Cuotai não tem como ser ad
 - Formalizar licença, política de contribuição e de segurança.
 - Automatizar build, teste, empacotamento, assinatura e publicação de releases para macOS, Windows e Linux.
 - Distribuir também a TUI/CLI, e definir os canais de instalação suportados.
+- Registrar, versão a versão, o que foi entregue, ligado aos PRDs e aos requisitos funcionais correspondentes, e mostrar isso ao usuário.
 - Fornecer verificação de integridade (somas e assinaturas) e os artefatos que o atualizador do PRD 0018 usa.
 
 ## 4. Não-objetivos
@@ -61,7 +63,7 @@ Sem binários, sem licença formal e sem releases, o Cuotai não tem como ser ad
   - Windows: Authenticode, se houver certificado, ou aviso explícito nas notas da versão de que o instalador não está assinado (como o OpenQuota faz);
   - todas as plataformas: soma `SHA256SUMS` e assinatura dos artefatos de atualização do Tauri (PRD 0018).
   Os certificados e chaves ficam em segredos de CI, nunca no repositório ou em logs.
-- **RF3.4** Notas da versão geradas dos commits semânticos, com seção de mudanças de comportamento e de compatibilidade de configuração, e o estado de assinatura de cada artefato.
+- **RF3.4** Notas da versão = a seção da versão em `CHANGELOG.md` (RF7), acrescidas do estado de assinatura de cada artefato. O release falha se a seção estiver ausente ou vazia.
 - **RF3.5** Publicação no GitHub Releases, com `latest.json` do atualizador e as somas. O processo deve ser repetível em um fork para testes (sem os segredos de produção).
 - **Critério de aceite:** uma tag de teste gera os artefatos de todas as plataformas; instalação limpa em cada sistema abre o app, carrega a configuração e cria uma conta de exemplo; `shasum -c` confere as somas; o pacote macOS passa na verificação do Gatekeeper.
 
@@ -82,9 +84,37 @@ Sem binários, sem licença formal e sem releases, o Cuotai não tem como ser ad
 
 ### RF6 — Políticas de release (prioridade baixa)
 
-- **RF6.1** Política de versão (semântica, o que é mudança incompatível: TOML, `--json`, contrato `export::v1`), de *changelog* e de suporte (apenas a última versão estável).
+- **RF6.1** Política de versão (semântica, o que é mudança incompatível: TOML, `--json`, contrato `export::v1`) e de suporte (apenas a última versão estável). O changelog tem requisito próprio (RF7).
 - **RF6.2** Reprodutibilidade: `Cargo.lock` versionado, versões de toolchain fixadas no CI e SBOM gerado por release.
 - **Critério de aceite:** documento publicado; o SBOM é anexado ao release.
+
+### RF7 — Changelog e controle de entregas por versão (prioridade alta)
+
+- **RF7.1** Arquivo `CHANGELOG.md` na raiz, em português, no formato Keep a Changelog e com versionamento semântico. Seção `## [Não lançado]` no topo e, abaixo, uma seção por versão em ordem decrescente (`## [0.17.0] - 2026-10-18`, data em UTC), com links de comparação entre tags no rodapé. Categorias fixas: **Adicionado**, **Alterado**, **Corrigido**, **Segurança**, **Descontinuado** e **Removido**. Categoria vazia não aparece.
+- **RF7.2** Cada entrada tem uma frase do ponto de vista do usuário (o que mudou, não como foi feito), mais as referências de rastreio entre parênteses: o requisito de plano atendido (`PRD 0006 RF2`) e o hash curto do commit. Mudança que quebra compatibilidade (TOML, `--json`, contrato `export::v1`, preferências do desktop) recebe o marcador **Incompatível** e a instrução de migração. Mudanças sem efeito para o usuário (`refactor`, `test`, `style`, `chore`) não entram, exceto correções de segurança em dependências, que entram em **Segurança**.
+- **RF7.3** Fluxo de manutenção:
+  - toda entrega visível ao usuário atualiza `[Não lançado]` no mesmo commit ou *pull request*;
+  - os commits semânticos que atendem um requisito de plano trazem o rodapé `Refs: PRD 0006 RF2` (uma linha por requisito) e, quando incompatíveis, `BREAKING CHANGE:` com a migração;
+  - para apoio, avaliar `git-cliff` (ferramenta Rust, instalada por Cargo) ou um `xtask` próprio que gera o **rascunho** da seção a partir dos commits desde a última tag, agrupando por tipo e por `Refs:`. O texto final é revisado por uma pessoa. Nenhuma ferramenta de JavaScript.
+- **RF7.4** Verificações no CI:
+  - um *pull request* que altera `crates/` ou `apps/` com commit `feat` ou `fix` precisa alterar o `CHANGELOG.md`, salvo o rodapé `Changelog: skip` com o motivo;
+  - o arquivo obedece ao formato (teste de *parser*): versões em ordem decrescente, toda versão com data, categorias válidas;
+  - no release, a versão do topo coincide com a de `Cargo.toml` e de `tauri.conf.json`;
+  - toda referência `PRD NNNN RFx` aponta para um requisito existente no plano correspondente.
+- **RF7.5** O pipeline de release (RF3) extrai a seção da versão e a usa como corpo do GitHub Release, nas notas do `latest.json` do atualizador (PRD 0018, RF2.2) e na tela de novidades (RF7.7). Falha se a seção estiver ausente ou vazia.
+- **RF7.6** Histórico retroativo: reconstruir as versões já publicadas (0.x até 0.17.0) a partir dos commits que alteram a versão em `Cargo.toml` e das tabelas "Estado da implementação" dos PRDs, com a mesma estrutura. Entradas reconstruídas citam o commit de origem; versão ou data sem evidência é marcada `(reconstruído)` e nunca é inventada.
+- **RF7.7** Exibição no produto, sem rede:
+  - o core embute o `CHANGELOG.md` (`include_str!`) e expõe `changelog::entries()` já interpretado (versão, data, categorias, entradas, referências), para as interfaces não interpretarem Markdown;
+  - desktop: **Sobre → Novidades** com a versão atual e o histórico; após uma atualização, abre uma vez automaticamente, com opção de desligar em **Configurações**;
+  - TUI e CLI: tela de novidades a partir de Sobre e `cuotai --changelog [VERSÃO]`;
+  - os rótulos das categorias saem nos três idiomas; o texto das entradas permanece em português nesta versão, o que é informado na própria tela.
+- **RF7.8** Vínculo com o controle de planos: toda vez que um requisito é marcado como entregue em um PRD ou no `0000_controle.md`, a versão citada precisa existir no `CHANGELOG.md`. Uma verificação do CI compara as duas fontes e falha quando divergem.
+- **Critério de aceite:**
+  - testes do *parser* (formato válido, versão sem data, categoria inválida, ordem errada);
+  - uma tag de teste produz um GitHub Release cujo corpo é a seção do `CHANGELOG.md`, e um release sem seção falha;
+  - uma referência a um requisito inexistente quebra o CI;
+  - o histórico retroativo cobre todas as versões desde a primeira com entradas rastreáveis a commits;
+  - smoke em três idiomas: **Sobre → Novidades** no desktop e `--changelog` na CLI mostram a mesma versão e as mesmas entradas, sem acesso à rede.
 
 ## 6. Requisitos não funcionais
 
@@ -96,11 +126,13 @@ Sem binários, sem licença formal e sem releases, o Cuotai não tem como ser ad
 ## 7. Ordem de execução e verificação
 
 1. **RF1:** licença e governança (rápido e desbloqueia o resto).
-2. **RF2:** CI nos três sistemas.
-3. **RF3:** build, assinatura e publicação, com uma tag de teste em fork.
-4. **RF4 e RF5:** canais, matriz de suporte e testes de fumaça.
-5. **RF6:** políticas.
+2. **RF7.1 a RF7.3 e RF7.6:** `CHANGELOG.md`, convenção de rodapé e histórico retroativo. Não depende do pipeline e passa a valer imediatamente, de modo que as próximas entregas já sejam registradas.
+3. **RF2:** CI nos três sistemas, já com as verificações do RF7.4.
+4. **RF3:** build, assinatura e publicação, com uma tag de teste em fork e o RF7.5.
+5. **RF7.7 e RF7.8:** exibição no produto e vínculo com o controle de planos.
+6. **RF4 e RF5:** canais, matriz de suporte e testes de fumaça.
+7. **RF6:** políticas.
 
 Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop e smoke da interface alterada.
 
-O requisito só está entregue quando um usuário sem Rust instalado baixa um pacote da página de releases, verifica a soma, instala em macOS, Windows ou Linux, abre o app com a configuração preservada, a licença do repositório é reconhecida, e o pipeline publica o `latest.json` que o atualizador do PRD 0018 consome.
+O requisito só está entregue quando um usuário sem Rust instalado baixa um pacote da página de releases, verifica a soma, instala em macOS, Windows ou Linux, abre o app com a configuração preservada, a licença do repositório é reconhecida, o pipeline publica o `latest.json` que o atualizador do PRD 0018 consome, e o `CHANGELOG.md` mostra, para cada versão, o que foi entregue e a quais requisitos de plano isso corresponde.

@@ -11,7 +11,8 @@ Este arquivo é o índice vivo de `docs/plans`: mostra o que já foi implementad
 ## 1. Como manter
 
 - **Status possíveis:** `Proposto` (escrito, sem código), `Em andamento` (parte dos RFs entregue), `Implementado` (todos os RFs entregues e verificados), `Substituído` ou `Cancelado` (com o motivo na coluna Observações).
-- **Ao entregar um RF:** registre no próprio plano, na seção "Estado da implementação" (como no PRD 0002), a versão e o commit; depois atualize a linha deste arquivo.
+- **Ao entregar um RF:** registre no próprio plano, na seção "Estado da implementação" (como no PRD 0002), a versão e o commit; depois atualize a linha deste arquivo e a tabela "Entregas por versão" (seção 3).
+- **Rastreio por commit:** o commit que entrega um RF traz o rodapé `Refs: PRD 0006 RF2` (uma linha por requisito). Quando o PRD 0019 RF7 estiver implementado, o `CHANGELOG.md` passa a ser a fonte dessas entregas e a seção 3 deste arquivo aponta para ele.
 - **Dependência forte** significa que o plano não pode ser entregue sem o outro (o RF citado precisa existir). **Dependência fraca** significa que funciona sem o outro, mas fica melhor com ele.
 - Planos novos recebem o próximo número livre e entram aqui na mesma alteração.
 
@@ -36,10 +37,26 @@ Este arquivo é o índice vivo de `docs/plans`: mostra o que já foi implementad
 | [0015](0015_custo-estimado-por-logs-locais.md) | Custo estimado por logs locais | Proposto | — | 0005 | 0006 | Nunca lê conteúdo das conversas. |
 | [0016](0016_sessao-colada-pelo-usuario.md) | Sessão colada pelo usuário | Proposto | — | 0005 | — | Alternativa à importação automática de cookies, que o projeto não adota. |
 | [0017](0017_extensoes-por-manifesto-e-script.md) | Extensões por manifesto e script | Proposto | — | 0005 | — | Extensão nunca recebe credenciais do Cuotai. |
-| [0018](0018_atualizacao-automatica.md) | Atualização automática do desktop | Proposto | — | 0019 (RF2 e RF3) | — | Exige par de chaves de assinatura do atualizador do Tauri. |
-| [0019](0019_empacotamento-e-distribuicao.md) | Licença, empacotamento e distribuição | Proposto | — | — | — | Pré-requisito dos 0014 e 0018. A licença é decisão do dono do projeto. |
+| [0018](0018_atualizacao-automatica.md) | Atualização automática do desktop | Proposto | — | 0019 (RF2 e RF3) | 0019 (RF7) | Exige par de chaves de assinatura do atualizador do Tauri. As notas da versão vêm do `CHANGELOG.md`. |
+| [0019](0019_empacotamento-e-distribuicao.md) | Licença, empacotamento, changelog e distribuição | Proposto | — | — | — | Pré-requisito dos 0014 e 0018. O RF7 cria o `CHANGELOG.md` e o vínculo versão ↔ requisito. A licença é decisão do dono do projeto. |
 
-## 3. Grafo de dependências
+## 3. Entregas por versão
+
+Enquanto o `CHANGELOG.md` não existe (PRD 0019, RF7), esta tabela é o controle do que cada versão entregou em termos de requisitos de plano. Só entram versões com evidência no repositório (tabelas de estado dos PRDs e commits que elevam a versão). Versões sem requisito de plano (correções, dependências, ajustes) serão cobertas pelo changelog retroativo (RF7.6).
+
+| Versão | Plano | Requisitos entregues |
+|---|---|---|
+| 0.7.x | 0001 | Todos os RFs (core com suporte a frontends gráficos). |
+| 0.8.0 | 0002 | RF1 (caminho de configuração compartilhável), primeira parte. |
+| 0.9.0 | 0002 | RF2 (contrato de modelos por conta no core). |
+| 0.10.0 | 0002 | RF3 (persistência SQLite e sincronização manual). |
+| 0.11.0 | 0002 | RF4 (adaptadores verificados e matriz dos provedores). |
+| 0.12.0 | 0002 | RF5 (seção Modelos na TUI). |
+| 0.13.0 | 0002 | RF6 (seção Modelos no desktop). |
+| 0.14.0 | 0002 | RF1 (conclusão: escolha do TOML no desktop e aviso de arquivos diferentes). |
+| 0.17.0 | 0004 | RF1 (base de movimento: tokens, movimento reduzido e atualização incremental do painel). |
+
+## 4. Grafo de dependências
 
 Setas sólidas são dependências fortes; tracejadas, fracas. A seta aponta do plano para aquilo de que ele depende.
 
@@ -113,7 +130,7 @@ graph LR
 | 0012 | 0013, 0014 | — |
 | 0019 | 0014, 0018 | — |
 
-## 4. Ordem sugerida de entrega
+## 5. Ordem sugerida de entrega
 
 As ondas respeitam as dependências fortes; dentro de cada onda a ordem é de prioridade (impacto frente aos concorrentes, segundo a análise de mercado de 2026-10-19).
 
@@ -126,7 +143,7 @@ As ondas respeitam as dependências fortes; dentro de cada onda a ordem é de pr
 
 Caminho crítico de distribuição: **0019 → 0018**. Caminho crítico de integrações: **0012 → 0013 e 0014**. Caminho crítico de alertas: **0003 → 0008**.
 
-## 5. Decisões pendentes do dono do projeto
+## 6. Decisões pendentes do dono do projeto
 
 | Decisão | Afeta | Observação |
 |---|---|---|
@@ -136,8 +153,9 @@ Caminho crítico de distribuição: **0019 → 0018**. Caminho crítico de integ
 | Política de cookies | 0016 | Recomendação: manter a colagem manual e não importar cookies de navegadores. |
 | Servidor local ligado por padrão ou não | 0012 | Recomendação: desligado por padrão, somente em loopback. |
 
-## 6. Histórico deste arquivo
+## 7. Histórico deste arquivo
 
 | Data | Alteração |
 |---|---|
 | 2026-10-19 | Criação do controle com os PRDs 0001 a 0019. |
+| 2026-10-19 | Changelog incluído como requisito (PRD 0019, RF7); nova seção "Entregas por versão" e rodapé `Refs:` nos commits. |

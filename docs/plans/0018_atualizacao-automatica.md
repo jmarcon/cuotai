@@ -47,7 +47,7 @@ Na análise de mercado de 2026-10-19: o CodexBar usa Sparkle e o Homebrew para a
 ### RF2 — Fluxo no app (prioridade alta)
 
 - **RF2.1** Verificação automática ao abrir e depois uma vez a cada 24 horas, apenas se o usuário não desligou (padrão: ligado, com explicação clara na primeira execução do que é enviado). A requisição leva apenas a versão atual, o sistema operacional e a arquitetura exigidos pelo endpoint, sem identificador de usuário ou de máquina.
-- **RF2.2** Ao encontrar versão nova, exibir um aviso na janela principal e no menu da bandeja ("Atualização 0.18.0 disponível"), com as notas da versão e os botões **Atualizar agora** e **Lembrar depois**. Nada baixa ou instala sem clique.
+- **RF2.2** Ao encontrar versão nova, exibir um aviso na janela principal e no menu da bandeja ("Atualização 0.18.0 disponível"), com as notas da versão (a seção correspondente do `CHANGELOG.md`, PRD 0019 RF7.5) e os botões **Atualizar agora** e **Lembrar depois**. Nada baixa ou instala sem clique.
 - **RF2.3** Instalação: baixar, verificar a assinatura, aplicar e pedir reinício, mostrando progresso e permitindo cancelar o download. Em caso de falha (rede, assinatura, espaço, permissão), mostrar uma mensagem localizada, manter a versão atual intacta e oferecer o link manual de download.
 - **RF2.4** Antes de reiniciar, salvar o estado necessário (configuração, preferências). O ciclo de refresh e os logins em andamento são interrompidos de forma limpa; um login nativo em curso bloqueia a atualização com aviso.
 - **RF2.5** Quando o app roda de um local que não permite se atualizar (imagem de disco montada, pasta somente leitura, instalação gerenciada por pacote), explicar e orientar o usuário em vez de falhar.
