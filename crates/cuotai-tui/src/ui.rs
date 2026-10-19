@@ -3,6 +3,7 @@ use crate::{
     auth_ui::{LoginTask, Outcome},
     dashboard::{self, FooterAction},
     models_view::{ModelsView, Reply},
+    motion::{self, Anim},
     wizard::{Action, Wizard},
 };
 use crossterm::{
@@ -184,7 +185,11 @@ enum DeletionState {
     },
 }
 
-pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result<()> {
+pub async fn run(
+    mut file: ConfigFile,
+    session: Arc<OAuthSession>,
+    animations: bool,
+) -> io::Result<()> {
     let mut monitor = new_monitor(&file, &session)?;
     let mut auth_task: Option<LoginTask> = None;
     let mut authorized: Option<CompletedLogin> = None;
@@ -219,6 +224,7 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
         details: false,
         targets: dashboard::Targets::default(),
         model_counts: ModelCounts::default(),
+        anim: animations.then(|| Anim::new(motion::truecolor(|key| std::env::var(key).ok()))),
     };
     let mut frame_area = Rect::default();
     let mut refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
@@ -863,6 +869,15 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
                 dirty = true;
             }
         }
+        if let Some(anim) = &mut state.anim {
+            let full = refresh.0.is_some();
+            anim.track(
+                (0..account_refresh.len()).map(|i| full || account_refresh.slot(i).is_some()),
+                (state.details, about.is_some(), models.is_some()),
+                Instant::now(),
+            );
+            dirty |= anim.active();
+        }
         if dirty {
             if let Some(task) = &mut auth_task {
                 terminal.draw(|frame| {
@@ -872,12 +887,18 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
             } else if let Some(view) = &mut about {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    view.draw(frame)
+                    view.draw(frame);
+                    if let Some(anim) = &state.anim {
+                        anim.wipe(frame.buffer_mut());
+                    }
                 })?;
             } else if let Some(view) = &mut models {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    view.draw(frame)
+                    view.draw(frame);
+                    if let Some(anim) = &state.anim {
+                        anim.wipe(frame.buffer_mut());
+                    }
                 })?;
             } else if let Some(wizard) = &mut wizard {
                 terminal.draw(|frame| {
@@ -922,7 +943,13 @@ pub async fn run(mut file: ConfigFile, session: Arc<OAuthSession>) -> io::Result
             }
             dirty = false;
         }
-        if event::poll(Duration::from_millis(100))? {
+        // RF4.1: ~30 fps only while an effect runs; otherwise today's 100 ms.
+        let frame = if state.anim.as_ref().is_some_and(Anim::active) {
+            33
+        } else {
+            100
+        };
+        if event::poll(Duration::from_millis(frame))? {
             dirty = true;
             let event = event::read()?;
             if let Event::Paste(text) = &event {
@@ -1860,6 +1887,8 @@ struct State {
     details: bool,
     targets: dashboard::Targets,
     model_counts: ModelCounts,
+    /// RF4 effects; `None` when animations are off.
+    anim: Option<Anim>,
 }
 
 /// Per-account synced catalog sizes shown on the cards. Read from the local
@@ -1951,6 +1980,9 @@ impl State {
                     .min(visible.len() - 1),
             ));
         }
+        if let Some(anim) = &mut self.anim {
+            anim.observe(&self.accounts, &slot_reports);
+        }
         let mut targets = dashboard::Targets::default();
         terminal.draw(|frame| {
             targets = dashboard::draw(
@@ -1970,8 +2002,12 @@ impl State {
                     filtering: self.filtering,
                     next_refresh,
                     error: self.error.as_deref(),
+                    anim: self.anim.as_ref(),
                 },
             );
+            if let Some(anim) = &self.anim {
+                anim.wipe(frame.buffer_mut());
+            }
         })?;
         self.targets = targets;
         Ok(())
@@ -2066,6 +2102,7 @@ mod tests {
             details: true,
             targets: dashboard::Targets::default(),
             model_counts: ModelCounts::default(),
+            anim: None,
         }
     }
 

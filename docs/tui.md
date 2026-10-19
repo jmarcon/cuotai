@@ -68,6 +68,13 @@ cargo install --path crates/cuotai-tui --locked
 - Costs and balances with no known limit show plain text values, without inventing a percentage or "unlimited". An extra balance of zero does not make a subscription that still has limited quota available count as exhausted.
 - Deleting an account removes only the configuration entry: it does not delete environment variables or Keychain entries, and it does not revoke access at the provider.
 
+### Animations
+
+- After a refresh, card gauges and detail bars slide from the old value to the new one (~300 ms) at 1/8-cell resolution. A class change (`Disponível`/`Esgotado`/`Sem dados`) flashes the label twice (2 flashes/s). A braille spinner (`⠋⠙⠹…`) precedes the card title while that account refreshes. Opening or closing the details, `Sobre` and `Modelos` uses a 120 ms top-down wipe.
+- With `COLORTERM=truecolor` (or `24bit`) bar colours follow a red → yellow → green gradient by level; otherwise the usual red/yellow/green steps are used.
+- The loop draws at ~30 fps only while an effect runs; when idle it keeps the usual pace (redraw on events and the 1 s countdown tick).
+- **Off:** `--no-animations`, `CUOTAI_NO_ANIMATIONS=1` (any non-empty value except `0`), or `TERM=dumb` (always). Under SSH (`SSH_CONNECTION` or `SSH_TTY`) they are off by default; `CUOTAI_ANIMATIONS=1` turns them back on, but never overrides the opt-outs above. With animations off the screen renders exactly as before. `--once`/`--json` never animate.
+
 ## Configuring an account with the wizard
 
 On the first interactive run with no configuration file (or with an empty account list), the TUI opens the **account wizard**. You do not need to edit the TOML by hand (for manual configuration, see [`cuotai.example.toml`](../cuotai.example.toml)).
