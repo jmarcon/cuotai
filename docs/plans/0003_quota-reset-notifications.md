@@ -1,110 +1,112 @@
-# PRD 0003 — Notificações de reinício de quota
+# PRD 0003 — Quota reset notifications
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
 | ID | 0003 |
-| Status | Proposto |
-| Responsável | `cuotai-core` e Desktop (TUI opcional) |
-| Consumidores | `apps/desktop`, `crates/cuotai-tui` |
-| Data | 2026-10-19 |
+| Status | Proposed |
+| Owner | `cuotai-core` and desktop (TUI optional) |
+| Consumers | `apps/desktop`, `crates/cuotai-tui` |
+| Date | 2026-10-19 |
 
-## 1. Contexto
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-Cada `Metric` pode trazer `resets_at: Option<DateTime<Utc>>` e `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other`) em `crates/cuotai-core/src/model.rs`. Os cartões já mostram "em 4h 10m", mas nada avisa quando o momento chega. No desktop, fechar a janela só a esconde (`lib.rs`: `CloseRequested` → `prevent_close` + `hide`) e `Backend::run_scheduler` continua rodando com o ícone na bandeja. Ou seja, o processo fica vivo para disparar avisos. Hoje o desktop depende só de `tauri-plugin-dialog`, não tem permissão nem plugin de notificação (`capabilities/default.json`), e as preferências dele ficam em `desktop.json` (`settings.rs`: `user_dir`, `config_file`).
+## 1. Context
 
-## 2. Problema
+Each `Metric` can carry `resets_at: Option<DateTime<Utc>>` and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other`) in `crates/cuotai-core/src/model.rs`. The cards already show "in 4h 10m", but nothing warns when the moment arrives. On the desktop, closing the window only hides it (`lib.rs`: `CloseRequested` → `prevent_close` + `hide`) and `Backend::run_scheduler` keeps running with the tray icon. In other words, the process stays alive to fire notices. Today the desktop app depends only on `tauri-plugin-dialog`, has no notification permission or plugin (`capabilities/default.json`), and its preferences live in `desktop.json` (`settings.rs`: `user_dir`, `config_file`).
 
-Quem usa assinaturas com janela (Claude 5h/semana, Codex, Copilot, Kimi…) precisa voltar ao app para saber se a quota já reiniciou. Avisar ingenuamente gera ruído e falsos alarmes:
-- janelas de rate limit reiniciam a cada minuto;
-- `resets_at` de janelas móveis muda alguns segundos ou minutos entre consultas;
-- reiniciar o app pode reenviar avisos antigos;
-- muitas contas podem reiniciar no mesmo minuto.
+## 2. Problem
 
-## 3. Objetivos
+People with window-based subscriptions (Claude 5h/week, Codex, Copilot, Kimi…) have to go back to the app to find out whether the quota has already reset. Notifying naively creates noise and false alarms:
+- rate-limit windows reset every minute;
+- the `resets_at` of rolling windows changes a few seconds or minutes between queries;
+- restarting the app could resend old notices;
+- many accounts may reset in the same minute.
 
-- Ligar e desligar notificações do sistema operacional sobre o reinício de quota, globalmente e por conta, no desktop.
-- Avisar no horário do reinício ou com antecedência escolhida, uma única vez por reinício, mesmo após reiniciar o app.
-- Usar só dados já consultados: nenhuma chamada extra ao provedor por causa de uma notificação.
+## 3. Goals
 
-## 4. Não-objetivos
+- Turn operating-system notifications about quota resets on and off, globally and per account, on the desktop.
+- Notify at the reset time or with a chosen lead time, once per reset, even after restarting the app.
+- Use only data that has already been queried: no extra provider call because of a notification.
 
-- Consultar o provedor no momento do reinício para confirmar o novo saldo. Há custo por consulta (AWS Cost Explorer) e rate limits; o ciclo normal de refresh continua o mesmo.
-- Notificar com o app encerrado, iniciar com o sistema, push remoto ou e-mail.
-- Avisos de consumo ("abaixo de 20%"), que ficam para um PRD próprio, e mudanças em `Report`, `Snapshot` ou na saída `--json`.
-- Inventar horário de reinício quando o provedor não informa `resets_at`.
+## 4. Non-goals
 
-## 5. Requisitos funcionais
+- Querying the provider at the reset moment to confirm the new balance. There is a cost per query (AWS Cost Explorer) and there are rate limits; the normal refresh cycle stays the same.
+- Notifying with the app closed, starting with the system, remote push or e-mail.
+- Consumption notices ("below 20%"), which are left to their own PRD, and changes to `Report`, `Snapshot` or the `--json` output.
+- Inventing a reset time when the provider does not report `resets_at`.
 
-### RF1 — Planejador de reinícios no core (prioridade alta; pré-requisito)
+## 5. Functional requirements
 
-- **RF1.1** Criar em `cuotai-core` uma função pura, sem rede e sem relógio interno, do tipo `resets::upcoming(config, reports, now, &Prefs) -> Vec<ResetEvent>`. Cada `ResetEvent` traz índice da conta, chave estável da conta, rótulo e janela da métrica, `resets_at` e o horário do aviso (`resets_at − antecedência`). TUI e desktop usam a mesma lógica.
-- **RF1.2** Elegibilidade:
-  - a métrica tem `resets_at` futuro, `kind = quota` e janela `window_5h`, `daily`, `weekly` ou `monthly`;
-  - `other` só entra se o usuário habilitar;
-  - `rate_limit` e `balance` nunca entram;
-  - filtro "quando avisar": **Só se usada** (padrão: `used > 0` ou `remaining < limit`), **Só se esgotada** ou **Sempre**;
-  - valor ausente não conta como usado nem como esgotado.
-- **RF1.3** Identidade e deduplicação:
-  - a chave do reinício é a chave da conta + rótulo da métrica + `resets_at`;
-  - dois `resets_at` da mesma métrica com até 2 minutos de diferença são o mesmo reinício (deriva das janelas móveis);
-  - se uma consulta posterior adiar o `resets_at` além da tolerância, o aviso antigo é cancelado e o novo é agendado;
-  - métricas da mesma conta que reiniciam no mesmo minuto viram um único evento agrupado.
-- **Critério de aceite:** testes de tabela com relógio fixo cobrem sem `resets_at`, `resets_at` passado, rate limit, janela `other` desligada e ligada, os três filtros, valores ausentes, deriva menor e maior que a tolerância, agrupamento e conta desligada.
+### RF1 — Reset planner in the core (high priority; prerequisite)
 
-### RF2 — Agendamento e entrega no desktop (prioridade alta)
+- **RF1.1** Create in `cuotai-core` a pure function, with no network and no internal clock, of the form `resets::upcoming(config, reports, now, &Prefs) -> Vec<ResetEvent>`. Each `ResetEvent` carries the account index, the account's stable key, the label and window of the metric, `resets_at` and the notice time (`resets_at − lead`). The TUI and the desktop app use the same logic.
+- **RF1.2** Eligibility:
+  - the metric has a future `resets_at`, `kind = quota` and a `window_5h`, `daily`, `weekly` or `monthly` window;
+  - `other` only enters if the user enables it;
+  - `rate_limit` and `balance` never enter;
+  - "when to notify" filter: **Only if used** (default: `used > 0` or `remaining < limit`), **Only if exhausted** or **Always**;
+  - a missing value counts as neither used nor exhausted.
+- **RF1.3** Identity and deduplication:
+  - the reset key is the account key + metric label + `resets_at`;
+  - two `resets_at` of the same metric within 2 minutes of each other are the same reset (rolling-window drift);
+  - if a later query postpones `resets_at` beyond the tolerance, the old notice is cancelled and the new one is scheduled;
+  - metrics of the same account that reset in the same minute become a single grouped event.
+- **Acceptance criterion:** table tests with a fixed clock cover no `resets_at`, a past `resets_at`, a rate limit, the `other` window off and on, the three filters, missing values, drift below and above the tolerance, grouping and a disabled account.
 
-- **RF2.1** O backend Tauri agenda os avisos, não o JavaScript: a webview escondida pode ser suspensa. Depois de cada refresh (conta ou ciclo), de mudanças de configuração e das preferências, o backend recalcula a próxima ocorrência e dorme até ela com `tokio::time::sleep_until`, junto do `run_scheduler` existente. A entrega fica atrás de um trait `Notifier` para testes com relógio e entregador falsos.
-- **RF2.2** Entrega pelo `tauri-plugin-notification` da linha 2.x (compatível com Tauri 2.12; a 3.x ainda é alpha) e permissão correspondente em `capabilities/default.json`.
-  - Título: "Claude Code: quota de 5h reiniciada" (ou "reinicia em 15 min").
-  - Corpo: nome da conta e, quando houver, as métricas agrupadas.
-  - Nunca incluir e-mail, tokens, URLs ou notas do provedor.
-  - Textos em `pt-BR`, `en-US` e `es`, no idioma escolhido no app.
-- **RF2.3** Persistência anti-duplicação:
-  - guardar em `<dados do SO>/cuotai/notified.json` as chaves já avisadas (só digests e datas, poda após 8 dias);
-  - ao abrir o app, um reinício passado há mais de 10 minutos não é avisado ("perdido enquanto fechado"); dentro da janela, é avisado uma vez;
-  - mudar o relógio do sistema ou acordar de suspensão não gera avisos em rajada: no máximo um evento agrupado por conta.
-- **Critério de aceite:** testes do agendador com relógio falso cobrem aviso no horário, antecedência, cancelamento ao adiar, reinício do app antes e depois do horário, suspensão longa, conta removida e notificações desligadas no meio da espera.
+### RF2 — Scheduling and delivery on the desktop (high priority)
 
-### RF3 — Preferências e permissão no desktop (prioridade alta)
+- **RF2.1** The Tauri backend schedules the notices, not JavaScript: the hidden webview may be suspended. After each refresh (account or cycle), configuration change and preference change, the backend recomputes the next occurrence and sleeps until it with `tokio::time::sleep_until`, alongside the existing `run_scheduler`. Delivery sits behind a `Notifier` trait for tests with a fake clock and a fake deliverer.
+- **RF2.2** Delivery through the 2.x line of `tauri-plugin-notification` (compatible with Tauri 2.12; 3.x is still alpha) and the matching permission in `capabilities/default.json`.
+  - Title: "Claude Code: 5h quota reset" (or "resets in 15 min").
+  - Body: the account name and, when present, the grouped metrics.
+  - Never include e-mail, tokens, URLs or provider notes.
+  - Texts in `pt-BR`, `en-US` and `es`, in the language chosen in the app.
+- **RF2.3** Anti-duplication persistence:
+  - store the already notified keys in `<OS data dir>/cuotai/notified.json` (only digests and dates, pruned after 8 days);
+  - on opening the app, a reset that passed more than 10 minutes ago is not notified ("missed while closed"); within the window, it is notified once;
+  - changing the system clock or waking from suspension does not generate a burst of notices: at most one grouped event per account.
+- **Acceptance criterion:** scheduler tests with a fake clock cover a notice at the time, the lead time, cancellation on postponement, restarting the app before and after the time, a long suspension, a removed account and notifications turned off midway.
 
-- **RF3.1** Criar a seção **Configurações → Notificações** com:
-  - **Notificar reinício de quota** (desligado por padrão);
-  - antecedência **No horário / 5 / 15 / 60 min**;
-  - filtro **Só se usada / Só se esgotada / Sempre**;
-  - **Incluir janelas "outras"**.
-  
-  Tudo fica em `desktop.json` (preferência do dispositivo, nunca no `cuotai.toml`), com escrita atômica como os demais campos de `settings.rs`.
-- **RF3.2** Ligar e desligar por conta com um ícone de sino no cartão e nos detalhes. O estado fica em `desktop.json`, pela chave estável da conta (provedor + nome). Renomear a conta perde a preferência, e isso vai documentado. Contas removidas têm a preferência podada ao salvar a configuração. Ícone com `aria-pressed` e rótulo acessível.
-- **RF3.3** Pedir a permissão do sistema operacional só quando o usuário liga a opção global. Se ela for negada, mostrar o estado, uma orientação para abrir os ajustes do sistema e manter a opção desligada. O botão **Enviar notificação de teste** valida o fluxo.
-- **RF3.4** A bandeja e o tooltip mostram o próximo reinício avisado ("Próximo aviso: Claude 5h às 14:30") quando houver.
-- **Critério de aceite:** smoke no app empacotado no macOS (permissão concedida e negada, aviso real chegando com a janela escondida), Windows e Linux quando disponíveis; preferências sobrevivem ao reinício; nos três idiomas.
+### RF3 — Preferences and permission on the desktop (high priority)
 
-### RF4 — Aviso na TUI (prioridade baixa; opcional)
+- **RF3.1** Create the **Settings → Notifications** section with:
+  - **Notify quota reset** (off by default);
+  - lead time **At the time / 5 / 15 / 60 min**;
+  - filter **Only if used / Only if exhausted / Always**;
+  - **Include "other" windows**.
 
-- **RF4.1** Com `--notify` (desligado por padrão), enquanto a TUI estiver aberta, reusar o planejador do RF1:
-  - faixa no cabeçalho ("Claude Code: 5h reiniciou");
-  - sino do terminal (`BEL`);
-  - opcionalmente, notificação por OSC 9 nos terminais que a suportam (iTerm2, WezTerm, Ghostty).
-  
-  Sequências desconhecidas não podem sujar a tela. Sem persistência: o aviso vale só para a sessão aberta.
-- **Critério de aceite:** smoke em tmux com métrica de teste reiniciando em 1 minuto; `--once`/`--json` não mudam.
+  Everything is stored in `desktop.json` (a per-device preference, never in `cuotai.toml`), with atomic writes like the other `settings.rs` fields.
+- **RF3.2** Per-account on/off with a bell icon on the card and in the details. The state lives in `desktop.json`, keyed by the account's stable key (provider + name). Renaming the account loses the preference, and this is documented. Removed accounts have their preference pruned when the configuration is saved. The icon has `aria-pressed` and an accessible label.
+- **RF3.3** Ask for the operating-system permission only when the user turns the global option on. If it is denied, show the state, guidance on opening the system settings and keep the option off. The **Send test notification** button validates the flow.
+- **RF3.4** The tray and the tooltip show the next notified reset ("Next notice: Claude 5h at 14:30") when there is one.
+- **Acceptance criterion:** a smoke test on the packaged macOS app (permission granted and denied, a real notice arriving with the window hidden), Windows and Linux when available; preferences survive a restart; in the three languages.
 
-## 6. Requisitos não funcionais
+### RF4 — Notice in the TUI (low priority; optional)
 
-- **Privacidade:** o conteúdo das notificações aparece na central do sistema e na tela bloqueada. Só nome do provedor, nome da conta e rótulo da métrica, nunca credenciais, e-mails ou respostas.
-- **Custo e honestidade:** notificação não dispara consulta. O texto diz "reiniciada pelo horário informado pelo provedor"; o novo saldo só aparece no próximo refresh.
-- **Energia:** um único temporizador até o próximo evento, sem polling por segundo no backend.
-- **Riscos a verificar antes do RF2:**
-  - no macOS, a notificação só tem nome e ícone corretos no app empacotado (`dev.cuotai.desktop`); em `tauri dev` ela pode não aparecer;
-  - clique na notificação para abrir o cartão tem suporte limitado no desktop pelo plugin; se não for confiável, fica fora do escopo.
+- **RF4.1** With `--notify` (off by default), while the TUI is open, reuse the RF1 planner:
+  - a header banner ("Claude Code: 5h reset");
+  - the terminal bell (`BEL`);
+  - optionally, an OSC 9 notification on terminals that support it (iTerm2, WezTerm, Ghostty).
 
-## 7. Ordem de execução e verificação
+  Unknown sequences must not dirty the screen. No persistence: the notice only holds for the open session.
+- **Acceptance criterion:** a tmux smoke test with a test metric resetting in 1 minute; `--once`/`--json` do not change.
 
-1. **RF1:** planejador puro no core com testes de tabela; nenhuma mudança visível.
-2. **RF2:** agendador e entregador atrás do trait, persistência anti-duplicação, plugin e permissão; testes com relógio falso.
-3. **RF3:** preferências, sino por conta, permissão, teste e bandeja; smoke no app empacotado.
-4. **RF4 (opcional):** `--notify` na TUI.
+## 6. Non-functional requirements
 
-Em cada etapa: `cargo fmt`, `clippy -D warnings`, testes do workspace e do desktop, e smoke da interface alterada antes da versão.
+- **Privacy:** the notification content shows in the system's notification center and on the lock screen. Only the provider name, account name and metric label, never credentials, e-mails or responses.
+- **Cost and honesty:** a notification does not trigger a query. The text says "reset according to the time reported by the provider"; the new balance only appears on the next refresh.
+- **Energy:** a single timer until the next event, with no per-second polling in the backend.
+- **Risks to verify before RF2:**
+  - on macOS, a notification only has the right name and icon in the packaged app (`dev.cuotai.desktop`); in `tauri dev` it may not appear;
+  - clicking the notification to open the card has limited desktop support in the plugin; if it is not reliable, it is out of scope.
 
-O requisito só está entregue quando, com o app escondido na bandeja, uma conta com quota usada gera **um** aviso no horário (ou na antecedência) escolhido, nenhum aviso se repete após reiniciar o app, e desligar a opção global ou o sino da conta cancela os pendentes, sem nenhuma consulta extra ao provedor.
+## 7. Order of execution and verification
+
+1. **RF1:** a pure planner in the core with table tests; no visible change.
+2. **RF2:** the scheduler and deliverer behind the trait, anti-duplication persistence, plugin and permission; tests with a fake clock.
+3. **RF3:** preferences, per-account bell, permission, test and tray; a smoke test on the packaged app.
+4. **RF4 (optional):** `--notify` in the TUI.
+
+At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface before the version.
+
+The requirement is only delivered when, with the app hidden in the tray, an account with used quota produces **one** notice at the chosen time (or lead time), no notice repeats after restarting the app, and turning off the global option or the account bell cancels the pending ones, with no extra query to the provider.
