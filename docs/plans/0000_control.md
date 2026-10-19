@@ -1,67 +1,69 @@
-# Controle dos planos (PRDs)
+# Plan control (PRDs)
 
-Este arquivo é o índice vivo de `docs/plans`: mostra o que já foi implementado, o que está em andamento e como os planos dependem uns dos outros. Atualize-o **no mesmo commit** que muda o status de um plano.
+This file is the living index of `docs/plans`: it shows what has been implemented, what is in progress and how the plans depend on one another. Update it **in the same commit** that changes a plan's status.
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Última atualização | 2026-10-19 |
-| Versão do Cuotai na data | 0.18.0 |
-| Planos | 19 (2 implementados, 2 em andamento, 15 propostos) |
+| Last updated | 2026-10-19 |
+| Cuotai version at that date | 0.18.0 |
+| Plans | 19 (2 implemented, 2 in progress, 15 proposed) |
 
-## 1. Como manter
+## 1. How to maintain it
 
-- **Status possíveis:** `Proposto` (escrito, sem código), `Em andamento` (parte dos RFs entregue), `Implementado` (todos os RFs entregues e verificados), `Substituído` ou `Cancelado` (com o motivo na coluna Observações).
-- **Ao entregar um RF:** registre no próprio plano, na seção "Estado da implementação" (como no PRD 0002), a versão e o commit; depois atualize a linha deste arquivo e a tabela "Entregas por versão" (seção 3).
-- **Rastreio por commit:** o commit que entrega um RF traz o rodapé `Refs: PRD 0006 RF2` (uma linha por requisito). Quando o PRD 0019 RF7 estiver implementado, o `CHANGELOG.md` passa a ser a fonte dessas entregas e a seção 3 deste arquivo aponta para ele.
-- **Dependência forte** significa que o plano não pode ser entregue sem o outro (o RF citado precisa existir). **Dependência fraca** significa que funciona sem o outro, mas fica melhor com ele.
-- Planos novos recebem o próximo número livre e entram aqui na mesma alteração.
+- **Possible statuses:** `Proposed` (written, no code), `In progress` (part of the RFs delivered), `Implemented` (all RFs delivered and verified), `Superseded` or `Cancelled` (with the reason in the Notes column).
+- **Terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. The acronym is kept so references in code, commits and plans stay stable.
+- **When delivering an RF:** record the version and the commit in the plan itself, in the "Implementation status" section (as in PRD 0002); then update this file's row and the "Delivered by version" table (section 3).
+- **Commit traceability:** the commit that delivers an RF carries the footer `Refs: PRD 0006 RF2` (one line per requirement). When PRD 0019 RF7 is implemented, `CHANGELOG.md` becomes the source of these deliveries and section 3 of this file points to it.
+- **Strong dependency** means the plan cannot be delivered without the other (the cited RF must exist). **Weak dependency** means it works without the other, but is better with it.
+- New plans get the next free number and enter here in the same change.
+- **Language:** plans are written in English (see `AGENTS.md`). PRD 0004 is still in Portuguese until its migration, because another agent was editing it when the others were translated.
 
-## 2. Situação atual
+## 2. Current situation
 
-| ID | Plano | Status | Entregue | Depende de (forte) | Depende de (fraca) | Observações |
+| ID | Plan | Status | Delivered | Depends on (strong) | Depends on (weak) | Notes |
 |---|---|---|---|---|---|---|
-| [0001](0001_core-suporte-frontends-graficos.md) | Core com suporte a frontends gráficos | Implementado | 0.7.x | — | — | Base do desktop e do contrato de descritores. |
-| [0002](0002_catalogo-modelos-sob-demanda.md) | Catálogo de modelos sob demanda | Implementado | RF1 a RF6, 0.8.0 a 0.14.0 | — | — | Depois da entrega, todos os provedores exceto Alibaba Cloud passaram a tentar listar modelos (commit `2ae1e79`). |
-| [0003](0003_notificacoes-reinicio-quota.md) | Notificações de reinício de quota | Proposto | — | — | — | Define `Notifier`, permissão e `notified.json`, reaproveitados pelo 0008. |
-| [0004](0004_animacoes-efeitos-visuais.md) | Animações e efeitos visuais | Em andamento | RF1 (0.17.0, `6725548`), RF2 (0.18.0) | — | — | RF3 (diálogos, bandeja, transições de tema) e RF4 (TUI) pendentes. |
-| [0005](0005_nivel-de-acesso-ao-consumo.md) | Nível de acesso ao consumo | Proposto | — | — | — | Pré-requisito dos 0015, 0016 e 0017. |
-| [0006](0006_historico-local-de-medicoes.md) | Histórico local de medições | Proposto | — | — | — | Base de 0007 (projeção), 0008, 0010 e 0014. |
-| [0007](0007_ritmo-ate-o-reset.md) | Ritmo até o reset | Proposto | — | — | 0006 | Sem histórico usa a média desde o início da janela. |
-| [0008](0008_alertas-de-consumo-por-limiar.md) | Alertas de consumo por limiar | Proposto | — | 0003 (RF2 e RF3) | 0006 | Reusa entregador, permissão e preferências do 0003. |
-| [0009](0009_limite-mais-restritivo.md) | Indicador do limite mais restritivo | Proposto | — | — | — | Consumido por 0007, 0012 e 0014. |
-| [0010](0010_idade-da-medicao-e-leitura-desatualizada.md) | Idade da medição e leitura desatualizada | Proposto | — | — | 0006 | Sem o 0006 a leitura preservada vale só na sessão. |
-| [0011](0011_status-de-incidentes-dos-provedores.md) | Status de incidentes dos provedores | Proposto | — | — | 0005 | Exige fontes públicas verificadas por provedor. |
-| [0012](0012_servidor-http-local-e-contrato-de-exportacao.md) | Servidor HTTP local e contrato `export::v1` | Proposto | — | — | 0005, 0007, 0009, 0010, 0011 | O contrato `v1` é aditivo: campos novos entram conforme os planos forem entregues. |
-| [0013](0013_watch-e-hooks-de-eventos.md) | `watch` e hooks de eventos | Proposto | — | 0012 (RF1) | 0003, 0008, 0009, 0011 | Hooks executam comandos do usuário; consentimento obrigatório. |
-| [0014](0014_widgets-do-sistema.md) | Widgets do sistema (macOS) | Proposto | — | 0012 (RF1), 0019 | 0006, 0007, 0009, 0010 | Exige conta de desenvolvedor Apple; protótipo de empacotamento primeiro. |
-| [0015](0015_custo-estimado-por-logs-locais.md) | Custo estimado por logs locais | Proposto | — | 0005 | 0006 | Nunca lê conteúdo das conversas. |
-| [0016](0016_sessao-colada-pelo-usuario.md) | Sessão colada pelo usuário | Proposto | — | 0005 | — | Alternativa à importação automática de cookies, que o projeto não adota. |
-| [0017](0017_extensoes-por-manifesto-e-script.md) | Extensões por manifesto e script | Proposto | — | 0005 | — | Extensão nunca recebe credenciais do Cuotai. |
-| [0018](0018_atualizacao-automatica.md) | Atualização automática do desktop | Proposto | — | 0019 (RF2 e RF3) | 0019 (RF7) | Exige par de chaves de assinatura do atualizador do Tauri. As notas da versão vêm do `CHANGELOG.md`. |
-| [0019](0019_empacotamento-e-distribuicao.md) | Licença, empacotamento, changelog e distribuição | Em andamento | RF1 (0.17.2) | — | — | Pré-requisito dos 0014 e 0018. RF1 entregue: licença `MIT OR Apache-2.0`, `CONTRIBUTING.md`, `SECURITY.md`, modelos de *issue* e `deny.toml`. O RF7 cria o `CHANGELOG.md` e o vínculo versão ↔ requisito. |
+| [0001](0001_core-support-for-graphical-frontends.md) | Core support for graphical front ends | Implemented | 0.7.x | — | — | Foundation of the desktop app and the descriptor contract. |
+| [0002](0002_on-demand-model-catalog.md) | On-demand model catalog | Implemented | RF1 to RF6, 0.8.0 to 0.14.0 | — | — | After delivery, every provider except Alibaba Cloud started trying to list models (commit `2ae1e79`). |
+| [0003](0003_quota-reset-notifications.md) | Quota reset notifications | Proposed | — | — | — | Defines `Notifier`, permission and `notified.json`, reused by 0008. |
+| [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | In progress | RF1 (0.17.0, `6725548`), RF2 (0.18.0) | — | — | RF3 (dialogs, tray, theme transitions) and RF4 (TUI) pending. Text still in Portuguese (see section 1). |
+| [0005](0005_usage-access-level.md) | Usage access level | Proposed | — | — | — | Prerequisite of 0015, 0016 and 0017. |
+| [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
+| [0007](0007_pace-until-reset.md) | Pace until the reset | Proposed | — | — | 0006 | Without history it uses the average since the start of the window. |
+| [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | Proposed | — | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. |
+| [0009](0009_binding-limit-indicator.md) | Binding limit indicator | Proposed | — | — | — | Consumed by 0007, 0012 and 0014. |
+| [0010](0010_measurement-age-and-stale-reading.md) | Measurement age and stale reading | Proposed | — | — | 0006 | Without 0006 the preserved reading holds only during the session. |
+| [0011](0011_provider-incident-status.md) | Provider incident status | Proposed | — | — | 0005 | Needs verified public sources per provider. |
+| [0012](0012_local-http-server-and-export-contract.md) | Local HTTP server and `export::v1` contract | Proposed | — | — | 0005, 0007, 0009, 0010, 0011 | The `v1` contract is additive: new fields enter as the plans are delivered. |
+| [0013](0013_watch-and-event-hooks.md) | `watch` and event hooks | Proposed | — | 0012 (RF1) | 0003, 0008, 0009, 0011 | Hooks run user commands; consent is mandatory. |
+| [0014](0014_system-widgets.md) | System widgets (macOS) | Proposed | — | 0012 (RF1), 0019 | 0006, 0007, 0009, 0010 | Needs an Apple developer account; packaging prototype first. |
+| [0015](0015_estimated-cost-from-local-logs.md) | Estimated cost from local logs | Proposed | — | 0005 | 0006 | Never reads conversation content. |
+| [0016](0016_user-pasted-session.md) | User-pasted session | Proposed | — | 0005 | — | Alternative to automatic cookie import, which the project does not adopt. |
+| [0017](0017_manifest-and-script-extensions.md) | Manifest and script extensions | Proposed | — | 0005 | — | An extension never receives Cuotai's credentials. |
+| [0018](0018_automatic-updates.md) | Automatic updates for the desktop app | Proposed | — | 0019 (RF2 and RF3) | 0019 (RF7) | Needs a Tauri updater signing key pair. Release notes come from `CHANGELOG.md`. |
+| [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2) | — | — | Prerequisite of 0014 and 0018. RF1 delivered: `MIT OR Apache-2.0` license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and `deny.toml`. RF7 creates `CHANGELOG.md` and the version ↔ requirement link. |
 
-## 3. Entregas por versão
+## 3. Delivered by version
 
-Enquanto o `CHANGELOG.md` não existe (PRD 0019, RF7), esta tabela é o controle do que cada versão entregou em termos de requisitos de plano. Só entram versões com evidência no repositório (tabelas de estado dos PRDs e commits que elevam a versão). Versões sem requisito de plano (correções, dependências, ajustes) serão cobertas pelo changelog retroativo (RF7.6).
+While `CHANGELOG.md` does not exist (PRD 0019, RF7), this table is the record of what each version delivered in terms of plan requirements. Only versions with evidence in the repository enter (the PRDs' status tables and the commits that raise the version). Versions with no plan requirement (fixes, dependencies, adjustments) will be covered by the retroactive changelog (RF7.6).
 
-| Versão | Plano | Requisitos entregues |
+| Version | Plan | Requirements delivered |
 |---|---|---|
-| 0.7.x | 0001 | Todos os RFs (core com suporte a frontends gráficos). |
-| 0.8.0 | 0002 | RF1 (caminho de configuração compartilhável), primeira parte. |
-| 0.9.0 | 0002 | RF2 (contrato de modelos por conta no core). |
-| 0.10.0 | 0002 | RF3 (persistência SQLite e sincronização manual). |
-| 0.11.0 | 0002 | RF4 (adaptadores verificados e matriz dos provedores). |
-| 0.12.0 | 0002 | RF5 (seção Modelos na TUI). |
-| 0.13.0 | 0002 | RF6 (seção Modelos no desktop). |
-| 0.14.0 | 0002 | RF1 (conclusão: escolha do TOML no desktop e aviso de arquivos diferentes). |
-| 0.17.0 | 0004 | RF1 (base de movimento: tokens, movimento reduzido e atualização incremental do painel). |
-| 0.17.1 | — | Sem requisito de plano: atualização de segurança (`rustls` 0.23.46 e `yoke-derive` 0.8.4). |
-| 0.17.2 | 0019 | RF1 (licença, `CONTRIBUTING.md`, `SECURITY.md`, modelos de *issue*, `deny.toml`; RF1.4 parcial). |
-| 0.18.0 | 0004 | RF2 (efeitos do painel desktop: contagem, destaque de nível, FLIP, saída, skeleton e micro-interações). |
+| 0.7.x | 0001 | All RFs (core support for graphical front ends). |
+| 0.8.0 | 0002 | RF1 (shareable configuration path), first part. |
+| 0.9.0 | 0002 | RF2 (per-account model contract in the core). |
+| 0.10.0 | 0002 | RF3 (SQLite persistence and manual sync). |
+| 0.11.0 | 0002 | RF4 (verified adapters and the provider matrix). |
+| 0.12.0 | 0002 | RF5 (Models section in the TUI). |
+| 0.13.0 | 0002 | RF6 (Models section in the desktop app). |
+| 0.14.0 | 0002 | RF1 (completion: TOML choice in the desktop app and different-files warning). |
+| 0.17.0 | 0004 | RF1 (motion foundation: tokens, reduced motion and incremental dashboard update). |
+| 0.17.1 | — | No plan requirement: security update (`rustls` 0.23.46 and `yoke-derive` 0.8.4). |
+| 0.17.2 | 0019 | RF1 (license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates, `deny.toml`; RF1.4 partial). |
+| 0.18.0 | 0004 | RF2 (desktop dashboard effects: counting, level highlight, FLIP, exit, skeleton and micro-interactions). |
 
-## 4. Grafo de dependências
+## 4. Dependency graph
 
-Setas sólidas são dependências fortes; tracejadas, fracas. A seta aponta do plano para aquilo de que ele depende.
+Solid arrows are strong dependencies; dashed ones, weak. The arrow points from a plan to what it depends on.
 
 ```mermaid
 graph LR
@@ -69,25 +71,25 @@ graph LR
   classDef wip fill:#fbefcf,stroke:#b07d00
   classDef todo fill:#eef1f4,stroke:#7a8794
 
-  P1["0001 Core e frontends"]:::done
-  P2["0002 Catálogo de modelos"]:::done
-  P3["0003 Notificações de reinício"]:::todo
-  P4["0004 Animações"]:::wip
-  P5["0005 Nível de acesso"]:::todo
-  P6["0006 Histórico"]:::todo
-  P7["0007 Ritmo"]:::todo
-  P8["0008 Alertas por limiar"]:::todo
-  P9["0009 Limite mais restritivo"]:::todo
-  P10["0010 Idade da medição"]:::todo
-  P11["0011 Status de incidentes"]:::todo
-  P12["0012 Servidor e export v1"]:::todo
-  P13["0013 Watch e hooks"]:::todo
+  P1["0001 Core and front ends"]:::done
+  P2["0002 Model catalog"]:::done
+  P3["0003 Reset notifications"]:::todo
+  P4["0004 Animations"]:::wip
+  P5["0005 Access level"]:::todo
+  P6["0006 History"]:::todo
+  P7["0007 Pace"]:::todo
+  P8["0008 Threshold alerts"]:::todo
+  P9["0009 Binding limit"]:::todo
+  P10["0010 Measurement age"]:::todo
+  P11["0011 Incident status"]:::todo
+  P12["0012 Server and export v1"]:::todo
+  P13["0013 Watch and hooks"]:::todo
   P14["0014 Widgets"]:::todo
-  P15["0015 Custo por logs"]:::todo
-  P16["0016 Sessão colada"]:::todo
-  P17["0017 Extensões"]:::todo
-  P18["0018 Atualização automática"]:::todo
-  P19["0019 Distribuição"]:::todo
+  P15["0015 Cost from logs"]:::todo
+  P16["0016 Pasted session"]:::todo
+  P17["0017 Extensions"]:::todo
+  P18["0018 Automatic updates"]:::todo
+  P19["0019 Distribution"]:::wip
 
   P8 --> P3
   P13 --> P12
@@ -118,9 +120,9 @@ graph LR
   P14 -.-> P10
 ```
 
-### O que cada plano desbloqueia
+### What each plan unblocks
 
-| Plano | Desbloqueia (forte) | Beneficia (fraca) |
+| Plan | Unblocks (strong) | Benefits (weak) |
 |---|---|---|
 | 0003 | 0008 | 0013 |
 | 0005 | 0015, 0016, 0017 | 0011, 0012 |
@@ -133,35 +135,36 @@ graph LR
 | 0012 | 0013, 0014 | — |
 | 0019 | 0014, 0018 | — |
 
-## 5. Ordem sugerida de entrega
+## 5. Suggested delivery order
 
-As ondas respeitam as dependências fortes; dentro de cada onda a ordem é de prioridade (impacto frente aos concorrentes, segundo a análise de mercado de 2026-10-19).
+The waves respect the strong dependencies; within each wave the order is by priority (impact against competitors, according to the 2026-10-19 market analysis).
 
-| Onda | Planos | Por quê |
+| Wave | Plans | Why |
 |---|---|---|
-| 0 (em curso) | 0003, 0004 | Já iniciados ou com infraestrutura reaproveitada pelos demais. |
-| 1 (sem dependências) | 0019 (RF1: licença), 0006, 0007, 0009, 0005, 0012, 0011 | Desbloqueiam quase tudo; 0006 e 0007 fecham a maior lacuna frente aos concorrentes (histórico e ritmo). |
-| 2 | 0008, 0010, 0018, 0013, 0016, 0015, 0017 | Dependem de itens da onda 0 ou 1. |
-| 3 | 0014 | Depende do contrato do 0012 e do pipeline do 0019, além de conta de desenvolvedor Apple. |
+| 0 (under way) | 0003, 0004 | Already started or with infrastructure reused by the others. |
+| 1 (no dependencies) | 0019 (RF1: license, done), 0006, 0007, 0009, 0005, 0012, 0011 | They unblock almost everything; 0006 and 0007 close the biggest gap against competitors (history and pace). |
+| 2 | 0008, 0010, 0018, 0013, 0016, 0015, 0017 | They depend on items from wave 0 or 1. |
+| 3 | 0014 | Depends on 0012's contract and 0019's pipeline, plus an Apple developer account. |
 
-Caminho crítico de distribuição: **0019 → 0018**. Caminho crítico de integrações: **0012 → 0013 e 0014**. Caminho crítico de alertas: **0003 → 0008**.
+Critical path of distribution: **0019 → 0018**. Critical path of integrations: **0012 → 0013 and 0014**. Critical path of alerts: **0003 → 0008**.
 
-## 6. Decisões pendentes do dono do projeto
+## 6. Decisions for the project owner
 
-| Decisão | Afeta | Observação |
+| Decision | Affects | Notes |
 |---|---|---|
-| ~~Licença do repositório~~ | 0019 (RF1) | **Decidida em 2026-10-19: `MIT OR Apache-2.0`**, titular "Cuotai contributors". |
-| Migração da documentação para inglês | 0019 (RF1.4), `docs/` e `docs/plans/` | Regra no `AGENTS.md`. Falta traduzir `docs/*.md`, `apps/desktop/README.md` e os PRDs. |
-| Conta de desenvolvedor Apple e certificado Developer ID | 0014, 0018, 0019 | Necessária para notarização e para widgets (*app group*). |
-| Certificado Authenticode do Windows | 0019 | Sem ele, o instalador sai sem assinatura, declarado nas notas da versão. |
-| Política de cookies | 0016 | Recomendação: manter a colagem manual e não importar cookies de navegadores. |
-| Servidor local ligado por padrão ou não | 0012 | Recomendação: desligado por padrão, somente em loopback. |
+| ~~Repository license~~ | 0019 (RF1) | **Decided on 2026-10-19: `MIT OR Apache-2.0`**, holder "Cuotai contributors". |
+| ~~Documentation language~~ | 0019 (RF1.4) | **Decided on 2026-10-19: English** for the README, `docs/`, plans, commits, pull requests and issues. Pending: translating PRD 0004. |
+| Apple developer account and Developer ID certificate | 0014, 0018, 0019 | Needed for notarization and for widgets (*app group*). |
+| Windows Authenticode certificate | 0019 | Without it, the installer ships unsigned, declared in the release notes. |
+| Cookie policy | 0016 | Recommendation: keep manual pasting and do not import cookies from browsers. |
+| Local server on by default or not | 0012 | Recommendation: off by default, loopback only. |
 
-## 7. Histórico deste arquivo
+## 7. History of this file
 
-| Data | Alteração |
+| Date | Change |
 |---|---|
-| 2026-10-19 | Criação do controle com os PRDs 0001 a 0019. |
-| 2026-10-19 | Changelog incluído como requisito (PRD 0019, RF7); nova seção "Entregas por versão" e rodapé `Refs:` nos commits. |
-| 2026-10-19 | PRD 0019 RF1 entregue em 0.17.2 (licença `MIT OR Apache-2.0`); decisão de idioma da documentação (inglês) registrada. |
-| 2026-10-19 | PRD 0004 RF2 entregue em 0.18.0. |
+| 2026-10-19 | Control created with PRDs 0001 to 0019. |
+| 2026-10-19 | Changelog added as a requirement (PRD 0019, RF7); new "Delivered by version" section and the `Refs:` footer in commits. |
+| 2026-10-19 | PRD 0019 RF1 delivered in 0.17.2 (`MIT OR Apache-2.0` license); documentation-language decision (English) recorded. |
+| 2026-10-19 | PRD 0004 RF2 delivered in 0.18.0. |
+| 2026-10-19 | Documentation and plans translated to English (except PRD 0004); plan files renamed to English slugs; commits are written in English from now on. |
