@@ -1646,7 +1646,7 @@ async fn run_token_plan_cli(
     Ok(Data::new(metrics, notes, TOKEN_PLAN_DASHBOARD))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 async fn token_plan_via_cli_with_path(
     _account: &Account,
     ctx: &Context<'_>,
@@ -2505,6 +2505,7 @@ mod tests {
         assert_eq!(err.status, Status::AuthenticationError);
     }
 
+    #[cfg(unix)] // fake `bl` is a `#!/bin/sh` script
     #[tokio::test]
     async fn cli_consulta_bl_e_monta_metricas_quando_resposta_valida() {
         let dir = tempfile::tempdir().unwrap();
@@ -2548,6 +2549,7 @@ mod tests {
         assert_eq!(data.metrics[1].used, Some(70.0));
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn cli_objeto_vazio_retorna_quota_desconhecida() {
         let dir = tempfile::tempdir().unwrap();
@@ -2576,6 +2578,7 @@ mod tests {
             .any(|note| note.contains("quota desconhecida")));
         assert!(data.notes.iter().all(|note| !note.contains("{}")));
     }
+    #[cfg(unix)]
     #[tokio::test]
     async fn cli_stdout_ausente_ou_nao_objeto_e_schema_incompativel() {
         for body in ["", "[]", "\"ok\""] {
@@ -2602,6 +2605,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn cli_login_required_classifica_autenticacao_sem_vazar_stderr() {
         let dir = tempfile::tempdir().unwrap();
@@ -2631,6 +2635,7 @@ mod tests {
         assert!(!err.note.fallback.contains("XYZ_NEVER_LEAK"));
         assert!(!err.note.fallback.contains("secret-cli-token"));
     }
+    #[cfg(unix)]
     #[tokio::test]
     async fn cli_login_required_on_stdout_classifies_auth_without_leaking_payload() {
         let dir = tempfile::tempdir().unwrap();
