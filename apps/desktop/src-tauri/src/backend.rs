@@ -1974,10 +1974,11 @@ fn mint_handle() -> String {
     COUNTER.fetch_add(1, Ordering::Relaxed).to_string()
 }
 
-/// Novo ciclo para a configuração `config` mantendo os relatórios do ciclo anterior (sem consultar nada).
-/// Os prazos recomeçam a contar a partir de agora com os intervalos efetivos novos.
+/// Build a cycle for `config` while retaining reports and last valid readings from the previous cycle
+/// without querying providers. Deadlines restart from now using the new effective intervals.
 fn rebuild_cycle_keeping_reports(old: &RefreshCycle, config: &Config) -> RefreshCycle {
     let mut cycle = RefreshCycle::new(config, Instant::now());
+    cycle.keep_last_good_from(old);
     if let Some(snapshot) = old.snapshot().cloned() {
         if snapshot.reports.len() == config.accounts.len() {
             if let Some(token) = cycle.begin_full() {
