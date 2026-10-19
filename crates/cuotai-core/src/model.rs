@@ -239,6 +239,14 @@ impl Account {
     pub fn effective_refresh_seconds(&self, global_refresh_seconds: u64) -> u64 {
         self.refresh_seconds.unwrap_or(global_refresh_seconds)
     }
+
+    /// Stable account key: provider slug + name (`claude:Work`). Survives
+    /// reordering and credential edits; a rename yields a new key. Names
+    /// are unique per configuration and slugs carry no `:`, so it is
+    /// unambiguous.
+    pub fn key(&self) -> String {
+        format!("{}:{}", self.provider.slug(), self.name)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

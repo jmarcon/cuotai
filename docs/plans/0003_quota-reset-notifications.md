@@ -3,10 +3,17 @@
 | Field | Value |
 |---|---|
 | ID | 0003 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` and desktop (TUI optional) |
 | Consumers | `apps/desktop`, `crates/cuotai-tui` |
 | Date | 2026-10-19 |
+
+## Implementation status (2026-10-19)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.24.0 | `cuotai_core::resets::upcoming(config, reports, now, &Prefs) -> Vec<ResetEvent>`, pure, sorted by `notify_at`. `Prefs { lead, when: NotifyWhen (OnlyIfUsed default, OnlyIfExhausted, Always), include_other, disabled }` (the set of disabled account keys). `ResetEvent` carries `account_index`, `account_key`, `metrics` (label, window, `resets_at`), the group's earliest `resets_at` and `notify_at = resets_at − lead`. The stable account key is `Account::key()` = `<provider slug>:<name>` (also used by PRD 0012 RF1.1); a report whose provider or name no longer matches its account is skipped. Exhaustion follows `metrics::classify_metric`; a missing value is neither used nor exhausted. `ResetKey` (account key + label + `resets_at`) with `same_reset` applies the 2-minute `DRIFT_TOLERANCE`; a postponement beyond it is a new key, so RF2 cancels the old notice. Metrics of one account resetting within one minute of the earliest become one event. Table tests with a fixed clock. No visible change. |
+| RF2 to RF4 | — | Not delivered. |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
