@@ -65,6 +65,24 @@
   align-items: start;
   padding-top: 16px; /* respiro entre a barra superior e os cards, em qualquer tema */
 }
+/* PRD 0010 RF4: collapsible "Recharging" group (native <details>: mouse, Enter and Space toggle it) */
+.recharging {
+  margin-top: 20px;
+}
+.recharging > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.recharging > summary:focus-visible {
+  outline: 2px solid var(--accent);
+}
 
 .card {
   border: var(--border-w) solid var(--border);
