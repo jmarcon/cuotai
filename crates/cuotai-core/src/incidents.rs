@@ -1,9 +1,21 @@
-//! Verified public incident sources (PRD 0011 RF1).
+//! Verified public incident sources (PRD 0011 RF1) and the opt-in status
+//! client built on them (RF2/RF3).
 //!
-//! This registry is pure and allocation-free. It neither queries a source nor
+//! The registry is pure and allocation-free. It neither queries a source nor
 //! asserts that a provider is operational. `None` means no reliable, scoped
-//! source was verified, not "no incidents". Polling and opt-in preferences are
-//! separate requirements; merely looking up a source must never enable them.
+//! source was verified, not "no incidents". Merely looking up a source never
+//! enables polling: [`IncidentMonitor`] is off until a frontend turns it on,
+//! and [`crate::Monitor`] then queries only the sources of configured
+//! providers.
+
+mod parse;
+mod status;
+
+pub(crate) use status::failure_notes;
+pub use status::{
+    Incident, IncidentMonitor, IncidentState, ProviderStatus, CACHE_TTL, MAX_BODY_BYTES,
+    REQUEST_TIMEOUT,
+};
 
 use crate::Provider;
 
