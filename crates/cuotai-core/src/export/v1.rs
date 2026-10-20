@@ -181,6 +181,57 @@ impl Export {
     }
 }
 
+/// The summary of `/v1/limits` (PRD 0012 RF2.2): per account, only what a
+/// status bar shows (class, binding metric and age of the reading), taken
+/// from an [`Export`] as it is.
+#[derive(Debug, Clone, Serialize)]
+pub struct Limits {
+    /// Always [`SCHEMA`].
+    pub schema: u32,
+    pub generated_at: DateTime<Utc>,
+    /// In configuration order.
+    pub accounts: Vec<AccountLimit>,
+}
+
+/// One account of [`Limits`]; every field means what it means in
+/// [`AccountExport`].
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountLimit {
+    pub index: usize,
+    pub key: String,
+    pub name: String,
+    pub provider: Provider,
+    pub class: AccountClass,
+    pub binding: Option<Binding>,
+    pub age_seconds: Option<u64>,
+    pub freshness: Option<Freshness>,
+    pub stale: bool,
+}
+
+impl Limits {
+    pub fn from_export(export: &Export) -> Self {
+        Self {
+            schema: export.schema,
+            generated_at: export.generated_at,
+            accounts: export
+                .accounts
+                .iter()
+                .map(|account| AccountLimit {
+                    index: account.index,
+                    key: account.key.clone(),
+                    name: account.name.clone(),
+                    provider: account.provider,
+                    class: account.class,
+                    binding: account.binding.clone(),
+                    age_seconds: account.age_seconds,
+                    freshness: account.freshness,
+                    stale: account.stale,
+                })
+                .collect(),
+        }
+    }
+}
+
 fn account_export(
     index: usize,
     account: &Account,
@@ -892,6 +943,56 @@ mod tests {
         let mut errors = Vec::new();
         validate(&schema, &schema, &broken, "$", &mut errors);
         assert_eq!(errors.len(), 3, "{errors:#?}");
+    }
+
+    /// PRD 0012 RF2.2: the `/v1/limits` summary is declared in the same
+    /// schema (`$defs/Limits`) and carries, per account, the binding metric
+    /// and the age the export already computed.
+    #[test]
+    fn limits_summary_follows_its_schema() {
+        let schema: Value =
+            serde_json::from_str(&std::fs::read_to_string(doc_path(SCHEMA_DOC)).unwrap())
+                .expect("docs/export-v1.schema.json is JSON");
+        let (config, cycle) = reference();
+        let limits = serde_json::to_value(Limits::from_export(&build(
+            &config,
+            &cycle,
+            Options::default(),
+        )))
+        .unwrap();
+        let mut errors = Vec::new();
+        validate(
+            &schema,
+            &schema["$defs"]["Limits"],
+            &limits,
+            "$",
+            &mut errors,
+        );
+        assert!(errors.is_empty(), "{errors:#?}");
+
+        let accounts = limits["accounts"].as_array().unwrap();
+        assert_eq!(accounts.len(), 4, "every account, in configuration order");
+        assert_eq!(accounts[0]["key"], "claude:Personal");
+        assert_eq!(accounts[0]["binding"]["label"], "Semana");
+        assert_eq!(accounts[0]["age_seconds"], 120);
+        // A failure with a preserved reading: no binding, stale, its own age.
+        assert!(accounts[1]["binding"].is_null());
+        assert_eq!(accounts[1]["stale"], true);
+        assert_eq!(accounts[1]["age_seconds"], 60);
+        // Still pending: nothing to summarize, never zero.
+        assert!(accounts[3]["age_seconds"].is_null() && accounts[3]["binding"].is_null());
+
+        let mut broken = limits.clone();
+        broken["accounts"][0]["report"] = Value::Null;
+        let mut errors = Vec::new();
+        validate(
+            &schema,
+            &schema["$defs"]["Limits"],
+            &broken,
+            "$",
+            &mut errors,
+        );
+        assert_eq!(errors.len(), 1, "the summary never carries the report");
     }
 
     /// The subset of JSON Schema 2020-12 the document uses, strict about

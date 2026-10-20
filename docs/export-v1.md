@@ -1,6 +1,6 @@
 # Export contract v1 (`export::v1`)
 
-`export::v1` is Cuotai's versioned, read-only description of the last known state of every account, for status bars, scripts and other integrations (PRD 0012 RF1). It is independent of transport: `cuotai-core` builds it in memory, and the local server and the `--json-v1` flag planned in PRD 0012 RF2 to RF4 will publish it. The `--json` output (`Snapshot`) is still there and keeps its shape.
+`export::v1` is Cuotai's versioned, read-only description of the last known state of every account, for status bars, scripts and other integrations (PRD 0012 RF1). It is independent of transport: `cuotai-core` builds it in memory, the core's [local server](local-server.md) publishes it (PRD 0012 RF2/RF3), and the `--json-v1` flag planned in PRD 0012 RF4 will print it. The `--json` output (`Snapshot`) is still there and keeps its shape.
 
 - Schema: [`export-v1.schema.json`](export-v1.schema.json) (JSON Schema 2020-12).
 - Reference output: [`export-v1.example.json`](export-v1.example.json), produced by the core from a fixed fixture and checked by the test `export::v1::tests::export_v1_reference_matches_the_document`.
@@ -63,6 +63,10 @@ println!("{}", serde_json::to_string(&export)?);
 
 Localized texts are objects `{ "id", "params", "fallback" }`: resolve `id` in your own catalog (Cuotai's are `crates/cuotai-core/locales/*.json`) or show the Portuguese `fallback`.
 
+## Limits summary (`Limits`)
+
+`Limits::from_export(&export)` is the body of the local server's `/v1/limits`: `schema`, `generated_at` and, per account in configuration order, `index`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness` and `stale`, with the same meaning as in `AccountExport`. It is part of version 1 under the same additive policy and is declared as `$defs/Limits` in the schema (checked by `export::v1::tests::limits_summary_follows_its_schema`).
+
 ## Missing values
 
 A value the provider did not report stays `null`; it never becomes `0`. This holds for metric `used`, `limit`, `remaining`, `window`, `period` and `resets_at` (including non-finite numbers), and for every derived field above that has nothing to derive from.
@@ -75,4 +79,4 @@ A value the provider did not report stays `null`; it never becomes `0`. This hol
 - E-mails, unless the producer turns on "include identity": the account's `email` field is then absent, and every e-mail address in the text of notes, `notes_l10n` and `source` (the account's own and any address a provider reported, such as Cursor's account or Perplexity's member filter) is replaced with `[redacted]`; URLs lose their user part as above.
 - The TOML path (only its digest) and account configuration such as `credential_env`, `oauth` or `params`.
 
-The export holds only what the dashboard already shows. Any process that can read it, for example any local process of the same user once the PRD 0012 server is on, can read your usage data.
+The export holds only what the dashboard already shows. Any process that can read it, for example any local process of the same user while the [local server](local-server.md) is on, can read your usage data.

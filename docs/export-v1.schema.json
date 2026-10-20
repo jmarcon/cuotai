@@ -41,6 +41,32 @@
         "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." }
       }
     },
+    "Limits": {
+      "type": "object",
+      "description": "Body of the local server's /v1/limits (PRD 0012 RF2.2): a per-account summary of the export.",
+      "required": ["schema", "generated_at", "accounts"],
+      "properties": {
+        "schema": { "const": 1 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountLimit" }, "description": "In configuration order." }
+      }
+    },
+    "AccountLimit": {
+      "type": "object",
+      "description": "The same fields as AccountExport, with the same meaning.",
+      "required": ["index", "key", "name", "provider", "class", "binding", "age_seconds", "freshness", "stale"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "key": { "type": "string" },
+        "name": { "type": "string" },
+        "provider": { "$ref": "#/$defs/Provider" },
+        "class": { "enum": ["available", "exhausted", "unmeasured"] },
+        "binding": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Binding" }] },
+        "age_seconds": { "type": ["integer", "null"], "minimum": 0 },
+        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }] },
+        "stale": { "type": "boolean" }
+      }
+    },
     "Provider": { "type": "string", "description": "Provider slug (docs/providers.md); new providers add values." },
     "Report": {
       "type": "object",

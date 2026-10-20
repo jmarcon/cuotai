@@ -138,6 +138,14 @@ static LIBRARIES: &[Library] = &[
         Role::Runtime,
         &[Core],
     ),
+    // Only with the core's `serve` feature (PRD 0012 local server).
+    lib(
+        "httparse",
+        "MIT OR Apache-2.0",
+        "https://github.com/seanmonstar/httparse",
+        Role::Runtime,
+        &[Core],
+    ),
     lib(
         "keyring",
         "MIT OR Apache-2.0",

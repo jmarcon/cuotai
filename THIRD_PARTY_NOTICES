@@ -257,3 +257,7 @@ Only HTTP contracts and response field names are used.
 Kiro credit/overage and MiMo platform-session HTTP contracts additionally follow
 steipete/CodexBar Providers/Kiro/KiroUsageLimitsAPI.swift and
 Providers/MiMo/MiMoUsageFetcher.swift (MIT), independently implemented.
+
+The optional local HTTP server of cuotai-core (the `serve` feature, PRD 0012)
+parses HTTP/1.x requests with httparse 1.10.1, https://github.com/seanmonstar/httparse
+(MIT OR Apache-2.0), linked as a Cargo dependency; no code is adapted from it.
