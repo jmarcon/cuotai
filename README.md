@@ -40,6 +40,8 @@ The desktop app watches your accounts in the background with incremental per-acc
 
 Cards, details and the tray also show the **consumption pace until the reset**: whether what you used so far lasts at a steady rate ("Week: 8 points in reserve · lasts until the reset") or runs out early ("runs out at 16:40, 2h 10m before the reset"), with an "Expected 47% used" mark drawn over each bar in the details. It is a linear estimate, not a promise; windows that just opened, rolling rate limits and metrics without a reset time show nothing. **Settings → Appearance → Show consumption pace** hides it (on by default).
 
+The TUI shows it too: a stage icon (`↓` in reserve, `→` on pace, `↑` above the pace, `✕` limit reached) before each eligible metric on the cards, a pace line per metric in the details, and a `Ritmo:` line under each eligible metric in `--once` (see [the TUI guide](docs/tui.md)). `--json` is unchanged.
+
 <div align="center">
   <img src="docs/assets/desktop-main.png" alt="Cuotai desktop main window" width="100%" />
   <p><em>The Cuotai desktop main window showing 5-hour and weekly windows, rate limits and account status.</em></p>

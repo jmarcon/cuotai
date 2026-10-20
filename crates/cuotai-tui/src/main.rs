@@ -9,7 +9,7 @@ mod wizard;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use cuotai_core::{
-    config_file::ConfigFile, metrics, oauth::OAuthSession, EnvironmentCredentials, Monitor,
+    config_file::ConfigFile, metrics, oauth::OAuthSession, pace, EnvironmentCredentials, Monitor,
     Provider, Report, Snapshot, Status,
 };
 use std::{
@@ -112,28 +112,51 @@ fn print_snapshot(snapshot: &Snapshot) {
     );
     let now = Utc::now();
     for report in &snapshot.reports {
-        println!("\n{}", report_heading(report, now));
-        for metric in &report.metrics {
-            println!("  {}: {}", ui::safe(&metric.label), ui::metric_text(metric));
-            if let Some(period) = &metric.period {
-                println!("    Período: {}", ui::safe(period));
-            }
-            if let Some(reset) = metric.resets_at {
-                println!("    Renova: {}", reset.to_rfc3339());
-            }
+        print!(
+            "{}",
+            report_text(report, now, ui::tui_locale(), ui::local_time)
+        );
+    }
+}
+
+/// One `--once` account block: heading, metrics (with the PRD 0007 RF4 pace
+/// line under each eligible one), notes and source.
+fn report_text(
+    report: &Report,
+    now: DateTime<Utc>,
+    locale: &str,
+    at: impl Fn(DateTime<Utc>) -> String,
+) -> String {
+    let mut out = format!("\n{}\n", report_heading(report, now));
+    for metric in &report.metrics {
+        out += &format!(
+            "  {}: {}\n",
+            ui::safe(&metric.label),
+            ui::metric_text(metric)
+        );
+        if let Some(period) = &metric.period {
+            out += &format!("    Período: {}\n", ui::safe(period));
         }
-        for (idx, fallback_text) in report.notes.iter().enumerate() {
-            let text = report
-                .notes_l10n
-                .get(idx)
-                .map(ui::resolve_l10n)
-                .unwrap_or_else(|| fallback_text.clone());
-            println!("  {}", ui::safe(&text));
+        if let Some(reset) = metric.resets_at {
+            out += &format!("    Renova: {}\n", reset.to_rfc3339());
         }
-        if !report.source.is_empty() {
-            println!("  Fonte: {}", ui::safe(&report.source));
+        if let Some(pace) = pace::assess(metric, now, None) {
+            let text = dashboard::pace_text(&pace, locale, &at);
+            out += &format!("    Ritmo: {text} (estimativa linear)\n");
         }
     }
+    for (idx, fallback_text) in report.notes.iter().enumerate() {
+        let text = report
+            .notes_l10n
+            .get(idx)
+            .map(|note| note.resolve(locale))
+            .unwrap_or_else(|| fallback_text.clone());
+        out += &format!("  {}\n", ui::safe(&text));
+    }
+    if !report.source.is_empty() {
+        out += &format!("  Fonte: {}\n", ui::safe(&report.source));
+    }
+    out
 }
 
 /// PRD 0009 RF3.2: one line per account with the core's binding summary;
@@ -262,5 +285,38 @@ mod tests {
             report_heading(&report, now),
             "Work / Claude — Rate limit · consultado há 2 min"
         );
+    }
+
+    #[test]
+    fn once_prints_the_pace_line_under_each_eligible_metric() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let resets = |minutes| Some(now + chrono::Duration::minutes(minutes));
+        let report = report(
+            "Work",
+            Status::Ready,
+            vec![
+                quota(MetricWindow::Window5h, 40.0, resets(120)),
+                quota(MetricWindow::Weekly, 88.0, resets(30 * 60)),
+                // Freshly opened, then no reset: no invented pace.
+                quota(MetricWindow::Daily, 1.0, resets(24 * 60 - 5)),
+                quota(MetricWindow::Monthly, 10.0, None),
+            ],
+        );
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        assert_eq!(
+            report_text(&report, now, "en-US", at),
+            "\nWork / Claude — Atualizado · consultado agora\n\
+             \x20 Window5h: 40.00 % / 100.00\n\
+             \x20   Renova: 2026-01-01T02:00:00+00:00\n\
+             \x20   Ritmo: 20 points in reserve · lasts until the reset (estimativa linear)\n\
+             \x20 Weekly: 88.00 % / 100.00\n\
+             \x20   Renova: 2026-01-02T06:00:00+00:00\n\
+             \x20   Ritmo: 6 points above the pace · runs out at 18:49, 11h 10m before the reset (estimativa linear)\n\
+             \x20 Daily: 1.00 % / 100.00\n\
+             \x20   Renova: 2026-01-01T23:55:00+00:00\n\
+             \x20 Monthly: 10.00 % / 100.00\n"
+        );
+        assert!(report_text(&report, now, "es", at)
+            .contains("Ritmo: 6 puntos por encima del ritmo · se agota a las 18:49"));
     }
 }
