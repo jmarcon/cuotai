@@ -16,6 +16,7 @@
   "access.credential_hint.local_cli": "Usa un perfil ya autenticado del CLI del proveedor instalado en esta máquina.",
   "access.credential_hint.subscription_session": "Usa la sesión de la suscripción (login nativo o su token), no una clave de API de la plataforma.",
   "access.credential_hint.user_session": "Necesita una cookie de sesión que exportas tú; caduca y nunca se importa automáticamente.",
+  "access.interface_changed": "La respuesta no sigue la interfaz interna conocida: puede haber cambiado sin aviso. Contrato de referencia: {evidence}",
   "access.level.derived": "Derivada",
   "access.level.official": "Oficial",
   "access.level.unavailable": "No disponible",

@@ -120,6 +120,27 @@
   width: 14px;
   height: 14px;
 }
+/* PRD 0005 RF4.1: the core's access level and summary, one muted line that never competes with the quota */
+.access-line {
+  overflow: hidden;
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.access-line.full {
+  white-space: normal;
+}
+.access-line .lv {
+  font-weight: 600;
+}
+.access-line[data-access="unavailable"] .lv { color: var(--warn); }
+/* RF4.2: the explanation of a changed interface ends in its long reference URL; break it inside the box */
+.detail > .metric > .sub,
+.cause > span {
+  overflow-wrap: anywhere;
+}
 /* PRD 0007 RF3.2: the uniform-pace mark sits on the bar row only, so it never covers text at any width */
 .gauge {
   position: relative;

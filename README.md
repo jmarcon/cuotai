@@ -42,6 +42,8 @@ Cards, details and the tray also show the **consumption pace until the reset**: 
 
 The TUI shows it too: a stage icon (`↓` in reserve, `→` on pace, `↑` above the pace, `✕` limit reached) before each eligible metric on the cards, a pace line per metric in the details, and a `Ritmo:` line under each eligible metric in `--once` (see [the TUI guide](docs/tui.md)). `--json` is unchanged.
 
+Every card and its details also say, discreetly, **how that account's usage is read**: `Official` (an interface the vendor documents), `Undocumented` (an internal interface that may change without notice), `Derived` (inferred from metrics or rate-limit headers) or `Unavailable` (no usage query exists), with a one-line summary. An `Unavailable` account shows why instead of a generic error, and when an undocumented interface stops matching, the card says it may have changed and names the public contract Cuotai follows. The same levels appear when you add an account.
+
 <div align="center">
   <img src="docs/assets/desktop-main.png" alt="Cuotai desktop main window" width="100%" />
   <p><em>The Cuotai desktop main window showing 5-hour and weekly windows, rate limits and account status.</em></p>

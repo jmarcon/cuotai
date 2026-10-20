@@ -2,10 +2,13 @@
 //! credentials: reliability level, credential class, plan requirement,
 //! scope, per-query cost and evidence. Front ends render the descriptor and
 //! never branch on [`Provider`]. Texts are `access.*` ids in the core
-//! catalogs (Portuguese fallback).
+//! catalogs (Portuguese fallback). The descriptor serializes with
+//! snake_case enums and `{ kind, url }` evidence, the shape `export::v1`
+//! (PRD 0012) embeds as `access` per account (RF4.3).
 
 use crate::text::Localized;
-use crate::{Account, Provider};
+use crate::{Account, Provider, Report, Status};
+use serde::Serialize;
 use std::collections::BTreeMap;
 
 /// Date the evidence below was last checked against its public source.
@@ -20,7 +23,8 @@ macro_rules! router {
     };
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Level {
     /// An interface the vendor documents for that credential.
     Official,
@@ -32,7 +36,8 @@ pub enum Level {
     Unavailable,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Credential {
     InferenceKey,
     AdminKey,
@@ -42,7 +47,8 @@ pub enum Credential {
     UserSession,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Scope {
     Account,
     Organization,
@@ -52,7 +58,8 @@ pub enum Scope {
 }
 
 /// Public source of the classification: never an authenticated URL.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "url", rename_all = "snake_case")]
 pub enum Evidence {
     /// Vendor documentation page.
     Documentation(&'static str),
@@ -68,7 +75,7 @@ impl Evidence {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct UsageAccess {
     pub level: Level,
     pub credential: Credential,
@@ -256,6 +263,40 @@ impl UsageAccess {
             Localized::with_param("access.confirm_unavailable", "reason", reason, pt)
         })
     }
+
+    /// PRD 0005 RF4.2: what the card and the account details show in place
+    /// of `report`'s generic failure. An `Unavailable` account gets its
+    /// reason whatever the failure; an `Undocumented` one whose response no
+    /// longer matched the known schema gets "the interface may have changed"
+    /// with the public reference it follows. `None` for a successful report
+    /// and for every other failure, whose own note already explains it.
+    pub fn explain(&self, report: &Report) -> Option<Localized> {
+        if report.status == Status::Ready {
+            return None;
+        }
+        match self.level {
+            Level::Unavailable => self.reason.clone(),
+            Level::Undocumented
+                if report.status == Status::Error
+                    && report
+                        .notes_l10n
+                        .iter()
+                        .any(|note| note.id == crate::providers::SCHEMA_NOTE) =>
+            {
+                let evidence = self.evidence.url();
+                Some(Localized::with_param(
+                    "access.interface_changed",
+                    "evidence",
+                    evidence,
+                    format!(
+                        "A resposta não segue a interface interna conhecida: ela pode ter \
+                         mudado sem aviso. Contrato de referência: {evidence}"
+                    ),
+                ))
+            }
+            Level::Official | Level::Derived | Level::Undocumented => None,
+        }
+    }
 }
 
 /// How `account`'s usage is obtained. Pure: reads only the provider, the
@@ -418,8 +459,31 @@ pub(crate) fn classify(
 mod tests {
     use super::*;
     use crate::oauth::OAuthConfig;
+    use crate::providers::QueryError;
     use Credential as C;
     use Level::*;
+
+    struct NoCredentials;
+    impl crate::Credentials for NoCredentials {
+        fn get(&self, _: &str) -> Option<String> {
+            None
+        }
+    }
+
+    /// The report `Monitor::refresh_account` builds from a failed query.
+    fn failed(account: &Account, error: QueryError) -> Report {
+        let (notes, notes_l10n) = crate::text::Notes::one(error.note).finish();
+        Report {
+            account: account.name.clone(),
+            provider: account.provider,
+            checked_at: chrono::Utc::now(),
+            status: error.status,
+            metrics: Vec::new(),
+            notes,
+            notes_l10n,
+            source: String::new(),
+        }
+    }
 
     fn account(provider: Provider, params: &[(&str, &str)], oauth: bool) -> Account {
         Account {
@@ -732,6 +796,11 @@ mod tests {
                     "{at}"
                 );
             }
+            // Undocumented has no vendor documentation: its evidence is the
+            // public contract `explain` cites when the interface changes.
+            if access.level == Level::Undocumented {
+                assert!(matches!(access.evidence, Evidence::Reference(_)), "{at}");
+            }
             // RF2.2: public HTTPS sources only, no credentials in the URL, no URL in the texts.
             let url = access.evidence.url().to_ascii_lowercase();
             assert!(url.starts_with("https://") && !url.contains('@'), "{at}");
@@ -763,6 +832,7 @@ mod tests {
             texts.extend(access.notes());
             texts.extend(access.cost_advisory());
             texts.extend(access.save_confirmation());
+            texts.extend(access.explain(&failed(&account, QueryError::schema())));
             texts.extend([
                 access.level.label(),
                 access.credential.label(),
@@ -904,5 +974,93 @@ mod tests {
                 access.level == Level::Unavailable
             );
         }
+    }
+
+    /// PRD 0005 RF4.2: an `Unavailable` account explains its reason instead
+    /// of the generic failure; an `Undocumented` one with a schema mismatch
+    /// says the interface may have changed and points to its reference.
+    #[tokio::test]
+    async fn explain_replaces_the_generic_failure() {
+        use Provider::*;
+        // The report a real refresh of an Unavailable provider produces.
+        let poolside = Account {
+            name: "p".into(),
+            ..account(Poolside, &[], false)
+        };
+        let config = crate::Config {
+            accounts: vec![poolside.clone()],
+            ..Default::default()
+        };
+        let monitor = crate::Monitor::with_credentials(config, std::sync::Arc::new(NoCredentials))
+            .expect("valid config");
+        let unsupported = monitor.refresh_account(0).await;
+        assert_eq!(unsupported.status, Status::Unsupported);
+        let access = describe(&poolside);
+        assert_eq!(access.explain(&unsupported), access.reason);
+        assert!(access.reason.is_some());
+        // Whatever the failure, an Unavailable account has no query to blame.
+        let transport = failed(&poolside, QueryError::transport());
+        assert_eq!(access.explain(&transport), access.reason);
+
+        let claude = account(Claude, &[], true);
+        let schema = failed(&claude, QueryError::schema());
+        let changed = describe(&claude).explain(&schema).expect("schema mismatch");
+        assert_eq!(changed.id, "access.interface_changed");
+        let en = changed.resolve("en-US");
+        assert!(en.contains("may have changed without notice"), "{en}");
+        assert!(en.ends_with(describe(&claude).evidence.url()), "{en}");
+        // Other failures of an Undocumented account keep their own note.
+        for error in [QueryError::transport(), QueryError::config("query.x", "x")] {
+            assert_eq!(describe(&claude).explain(&failed(&claude, error)), None);
+        }
+        // A documented or derived interface does not blame a schema change.
+        for provider in [OpenAiApi, GeminiApi] {
+            let acc = account(provider, &[], false);
+            assert_eq!(
+                describe(&acc).explain(&failed(&acc, QueryError::schema())),
+                None
+            );
+        }
+        // A successful report never gets an explanation.
+        for acc in variants() {
+            let ready = Report {
+                status: Status::Ready,
+                ..failed(&acc, QueryError::schema())
+            };
+            assert_eq!(describe(&acc).explain(&ready), None);
+        }
+    }
+
+    /// RF4.3: the serialized descriptor `export::v1` embeds per account.
+    #[test]
+    fn descriptor_serializes_with_stable_slugs_and_public_evidence() {
+        let json = |acc: &Account| serde_json::to_value(describe(acc)).unwrap();
+        let poolside = json(&account(Provider::Poolside, &[], false));
+        assert_eq!(poolside["level"], "unavailable");
+        assert_eq!(poolside["credential"], "inference_key");
+        assert_eq!(poolside["scope"], "account");
+        assert_eq!(poolside["metered"], false);
+        assert_eq!(poolside["evidence"]["kind"], "documentation");
+        assert_eq!(poolside["reason"]["id"], "access.reason.poolside");
+        assert_eq!(poolside["plan_requirement"], serde_json::Value::Null);
+        let cursor = json(&account(Provider::Cursor, &[], false));
+        assert_eq!(cursor["level"], "official");
+        assert_eq!(cursor["scope"], "organization");
+        assert_eq!(
+            cursor["plan_requirement"]["id"],
+            "access.plan.teams_enterprise"
+        );
+        assert_eq!(cursor["reason"], serde_json::Value::Null);
+        let claude = json(&account(Provider::Claude, &[], true));
+        assert_eq!(claude["level"], "undocumented");
+        assert_eq!(claude["credential"], "subscription_session");
+        assert_eq!(claude["evidence"]["kind"], "reference");
+        assert!(claude["evidence"]["url"]
+            .as_str()
+            .is_some_and(|url| url.starts_with("https://github.com/decolua/9router/")));
+        assert_eq!(
+            json(&account(Provider::AwsBedrock, &[], false))["metered"],
+            true
+        );
     }
 }

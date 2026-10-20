@@ -16,6 +16,7 @@
   "access.credential_hint.local_cli": "Uses an already signed-in profile of the vendor's CLI installed on this machine.",
   "access.credential_hint.subscription_session": "Uses the subscription session (native login or its token), not a platform API key.",
   "access.credential_hint.user_session": "Needs a session cookie you export yourself; it expires and is never imported automatically.",
+  "access.interface_changed": "The response does not follow the known internal interface: it may have changed without notice. Reference contract: {evidence}",
   "access.level.derived": "Derived",
   "access.level.official": "Official",
   "access.level.unavailable": "Unavailable",
