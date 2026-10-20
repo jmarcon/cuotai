@@ -102,7 +102,8 @@ Run the interactive dashboard in your terminal (it opens the wizard automaticall
 ```sh
 cargo run -p cuotai-tui
 
-# Announce quota resets while the dashboard is open (header banner, bell, OSC 9)
+# Announce quota resets and usage alerts (75%, 90%, exhausted, available again)
+# while the dashboard is open (header banner, bell, OSC 9)
 cargo run -p cuotai-tui -- --notify
 ```
 

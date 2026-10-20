@@ -687,9 +687,10 @@ pub async fn run(
         if last_tick.elapsed() >= Duration::from_secs(1) {
             dirty = true;
             last_tick = Instant::now();
-            // PRD 0003 RF4: reset notices over the readings already shown.
+            // PRD 0003 RF4 and PRD 0008 RF4: reset notices over the
+            // readings already shown and the usage alerts of the refreshes.
             if let Some(notices) = &mut state.notices {
-                let readings = notice_readings(&refresh_cycle);
+                let readings = notify::readings(&refresh_cycle);
                 let bell = notices.tick(&file.config, &readings, chrono::Utc::now(), tui_locale());
                 if !bell.is_empty() {
                     let mut stdout = io::stdout();
@@ -800,7 +801,13 @@ pub async fn run(
                     // guard we want.
                     match job.await {
                         Ok(snapshot) => {
-                            refresh_cycle.finish_full(Some(snapshot), token, Instant::now());
+                            notify::finish_full(
+                                &mut refresh_cycle,
+                                state.notices.as_mut(),
+                                Some(snapshot),
+                                token,
+                                chrono::Utc::now(),
+                            );
                             state.restore_selection(
                                 selected_account,
                                 &cycle_slot_reports(&refresh_cycle),
@@ -828,7 +835,14 @@ pub async fn run(
             if let Some((job, token)) = account_refresh.take(index) {
                 match job.await {
                     Ok(report) => {
-                        refresh_cycle.finish_account(index, Some(report), token, Instant::now());
+                        notify::finish_account(
+                            &mut refresh_cycle,
+                            state.notices.as_mut(),
+                            index,
+                            Some(report),
+                            token,
+                            chrono::Utc::now(),
+                        );
                         state.error = None;
                     }
                     Err(_) => {
@@ -1293,7 +1307,7 @@ fn reload_config_after_conflict(
     *refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
     refresh_cycle.restore_last_good(monitor.restored_readings());
     *account_refresh = AccountRefresh::new(file.config.accounts.len());
-    state.accounts = file.config.accounts.clone();
+    state.set_accounts(&file.config);
     state.detail_scroll = 0;
     state.details = false;
     state.location = location(file);
@@ -1313,19 +1327,6 @@ fn cycle_slot_reports(cycle: &RefreshCycle) -> Vec<Option<cuotai_core::Report>> 
             .map(|index| cycle.account_report(index).cloned())
             .collect(),
     }
-}
-
-/// PRD 0003 RF4: what reset notices read, like the desktop: each account's
-/// current report or, while it failed or nothing answered yet, its last
-/// valid reading.
-fn notice_readings(cycle: &RefreshCycle) -> Vec<Option<&cuotai_core::Report>> {
-    (0..cycle.len())
-        .map(|index| {
-            cycle
-                .last_good_report(index)
-                .or_else(|| cycle.account_report(index))
-        })
-        .collect()
 }
 
 /// Apply a caller-supplied edit (`Some(index)` for Upsert, `None` for the
@@ -1438,7 +1439,7 @@ fn apply_edit_to_config(
         }
         std::cmp::Ordering::Equal => {}
     }
-    state.accounts = file.config.accounts.clone();
+    state.set_accounts(&file.config);
     state.restore_selection(
         state.selected_account(&cycle_slot_reports(refresh_cycle)),
         &cycle_slot_reports(refresh_cycle),
@@ -1503,7 +1504,7 @@ fn move_account_in_config(
 
     *refresh_cycle = staged_cycle;
     account_refresh.move_account(from, to);
-    state.accounts = file.config.accounts.clone();
+    state.set_accounts(&file.config);
     state.restore_selection(selected_after, &cycle_slot_reports(refresh_cycle));
     state.detail_scroll = 0;
     state.error = None;
@@ -1892,7 +1893,7 @@ fn run_remove_account(
             if account_refresh.len() > file.config.accounts.len() {
                 account_refresh.remove(index);
             }
-            state.accounts = file.config.accounts.clone();
+            state.set_accounts(&file.config);
             state.restore_selection(
                 state.selected_account(&cycle_slot_reports(refresh_cycle)),
                 &cycle_slot_reports(refresh_cycle),
@@ -1956,7 +1957,8 @@ struct State {
     history_range: HistoryRange,
     /// RF4 effects; `None` when animations are off.
     anim: Option<Anim>,
-    /// PRD 0003 RF4: reset notices; `None` without `--notify`.
+    /// PRD 0003 RF4 and PRD 0008 RF4: reset notices and usage alerts;
+    /// `None` without `--notify`.
     notices: Option<Notices>,
 }
 
@@ -2076,6 +2078,15 @@ impl HistoryView {
 }
 
 impl State {
+    /// The accounts of `config` after a save or reload; usage alerts of
+    /// the accounts no longer there are forgotten.
+    fn set_accounts(&mut self, config: &Config) {
+        self.accounts = config.accounts.clone();
+        if let Some(notices) = &mut self.notices {
+            notices.keep_accounts(config);
+        }
+    }
+
     fn visible(&self, reports: &[Option<cuotai_core::Report>]) -> Vec<usize> {
         dashboard::visible_indices(&self.accounts, reports, &self.filter, self.show_unmeasured)
     }

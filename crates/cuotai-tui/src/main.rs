@@ -65,8 +65,10 @@ struct Args {
     /// com --history, os dias mostrados (padrão 7).
     #[arg(long, value_name = "DIAS")]
     history_days: Option<u32>,
-    /// Com a TUI aberta, avisa quando uma cota usada renova: faixa no cabeçalho,
-    /// sino do terminal (BEL) e notificação OSC 9 no iTerm2, WezTerm e Ghostty.
+    /// Com a TUI aberta, avisa quando uma cota usada renova e quando uma cota
+    /// com limite atinge 75% ou 90% de uso, esgota ou volta a ter folga: faixa
+    /// no cabeçalho, sino do terminal (BEL) e notificação OSC 9 no iTerm2,
+    /// WezTerm e Ghostty.
     #[arg(long, conflicts_with_all = ["once", "json", "history"])]
     notify: bool,
 }

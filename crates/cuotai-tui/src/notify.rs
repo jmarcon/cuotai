@@ -1,19 +1,24 @@
-//! PRD 0003 RF4: quota reset notices while the TUI is open (`--notify`).
+//! PRD 0003 RF4 and PRD 0008 RF4: quota reset notices and usage alerts
+//! while the TUI is open (`--notify`).
 //!
-//! The core plans the resets (`resets::plan`, the desktop's planner) and
-//! writes the texts; here they become a header banner, the terminal bell
-//! (`BEL`) and, only on terminals known to show it, an OSC 9 notification,
-//! so an unknown sequence never reaches (and dirties) another screen.
-//! Nothing persists: what was notified lives for the session, and a reset
-//! that passed before the TUI opened is never announced. No provider is
-//! queried for a notice.
+//! The core plans the resets (`resets::plan`, the desktop's planner),
+//! judges each refresh's readings (`alerts::evaluate`, the desktop's
+//! evaluator) and writes the texts; here they become a header banner, the
+//! terminal bell (`BEL`) and, only on terminals known to show it, an OSC 9
+//! notification, so an unknown sequence never reaches (and dirties)
+//! another screen. Nothing persists: what was notified lives for the
+//! session, and a reset that passed before the TUI opened is never
+//! announced. No provider is queried for a notice.
 
 use crate::ui::{local_time, safe};
 use chrono::{DateTime, TimeDelta, Utc};
 use cuotai_core::{
+    alerts::{self, AlertEvent, AlertPrefs, AlertState, NOTICE_SPACING},
+    refresh::{Generation, RefreshCycle},
     resets::{self, Ledger, Prefs},
-    Config, Report,
+    Account, Config, Report, Snapshot,
 };
+use std::time::Instant;
 
 /// How long the header keeps the last notice.
 const BANNER_KEEP: TimeDelta = TimeDelta::hours(1);
@@ -24,6 +29,15 @@ pub(crate) struct Notices {
     prefs: Prefs,
     /// What this session already notified (or skipped); never saved.
     ledger: Ledger,
+    /// PRD 0008 RF4: usage alerts on with the core defaults (75% and 90%,
+    /// exhaustion and recovery, nothing muted).
+    alert_prefs: AlertPrefs,
+    /// What the usage alerts saw this session; never saved.
+    alerts: AlertState,
+    /// Alerts judged on a refresh, waiting for the next pass.
+    pending: Vec<AlertEvent>,
+    /// When the last usage alert went out ([`NOTICE_SPACING`]).
+    last_alert: Option<DateTime<Utc>>,
     started: DateTime<Utc>,
     osc9: bool,
     /// When the last notice went out and its header line.
@@ -33,19 +47,50 @@ pub(crate) struct Notices {
 impl Notices {
     /// A session opened at `started`; `osc9` from [`osc9_supported`].
     pub(crate) fn new(started: DateTime<Utc>, osc9: bool) -> Self {
+        let mut alert_prefs = AlertPrefs::default();
+        alert_prefs.enabled = true;
         Self {
             prefs: Prefs::default(),
             ledger: Ledger::default(),
+            alert_prefs,
+            alerts: AlertState::default(),
+            pending: Vec::new(),
+            last_alert: None,
             started,
             osc9,
             banner: None,
         }
     }
 
+    /// PRD 0008 RF4: the usage alerts `next` deserves after `prev`, the
+    /// account's reading it replaces; pass them to [`Self::record`] once
+    /// the cycle applied `next`.
+    fn assess(&self, prev: Option<&Report>, next: &Report, now: DateTime<Utc>) -> Vec<AlertEvent> {
+        alerts::evaluate(prev, next, &self.alert_prefs, &self.alerts, now)
+    }
+
+    /// Remember `next`, the reading the cycle applied, and queue the
+    /// `events` [`Self::assess`] gave for it for the next pass.
+    fn record(&mut self, next: &Report, events: Vec<AlertEvent>, now: DateTime<Utc>) {
+        self.alerts.update(next, &self.alert_prefs, &events, now);
+        self.pending.extend(events);
+    }
+
+    /// Forget the usage alerts of accounts no longer in `config` (after a
+    /// save), so one added back later starts afresh.
+    pub(crate) fn keep_accounts(&mut self, config: &Config) {
+        let keys: Vec<String> = config.accounts.iter().map(Account::key).collect();
+        self.pending
+            .retain(|event| keys.contains(&event.account_key));
+        self.alerts.retain_accounts(keys.iter().map(String::as_str));
+    }
+
     /// One pass at `now` over `readings` (one per `config.accounts`): the
-    /// resets due become the banner and the bytes to write to the terminal,
-    /// one OSC 9 per notice when supported and then a single `BEL`; empty
-    /// when nothing is due. Each reset is announced once per session.
+    /// resets due and the pending usage alerts become the banner and the
+    /// bytes to write to the terminal, one OSC 9 per notice when supported
+    /// and then a single `BEL`; empty when nothing is due. Each reset is
+    /// announced once per session; usage alerts go out at most once per
+    /// [`NOTICE_SPACING`], the ones arriving sooner wait for the next.
     pub(crate) fn tick(
         &mut self,
         config: &Config,
@@ -54,6 +99,7 @@ impl Notices {
         locale: &str,
     ) -> Vec<u8> {
         self.ledger.prune(now);
+        self.alerts.prune(now);
         let plan = resets::plan(
             config,
             readings.iter().copied(),
@@ -81,12 +127,13 @@ impl Notices {
             let title = notice.title.resolve(locale);
             lines.push(format!("{} ({})", safe(&title), safe(&account.name)));
             if self.osc9 {
-                let text = format!("{title} — {}", notice.body.resolve(locale));
-                out.extend_from_slice(b"\x1b]9;");
-                out.extend_from_slice(safe(&text).as_bytes());
-                out.extend_from_slice(b"\x1b\\");
+                osc9(
+                    &mut out,
+                    &format!("{title} — {}", notice.body.resolve(locale)),
+                );
             }
         }
+        self.deliver_alerts(config, now, locale, &mut out, &mut lines);
         if lines.is_empty() {
             return out;
         }
@@ -95,12 +142,130 @@ impl Notices {
         out
     }
 
+    /// The pending usage alerts, unless [`NOTICE_SPACING`] still holds
+    /// them: one line (and OSC 9) per account, in configuration order,
+    /// with the core text ("Claude: 90% of the 5-hour window used —
+    /// Work: Session (5h) · resets 14:30"). Alerts of accounts no longer
+    /// configured are dropped.
+    fn deliver_alerts(
+        &mut self,
+        config: &Config,
+        now: DateTime<Utc>,
+        locale: &str,
+        out: &mut Vec<u8>,
+        lines: &mut Vec<String>,
+    ) {
+        if self.pending.is_empty()
+            || self
+                .last_alert
+                .is_some_and(|last| now < last + NOTICE_SPACING)
+        {
+            return;
+        }
+        let mut pending = std::mem::take(&mut self.pending);
+        for account in &config.accounts {
+            let key = account.key();
+            let (mine, rest): (Vec<_>, Vec<_>) = pending
+                .into_iter()
+                .partition(|event| event.account_key == key);
+            pending = rest;
+            let Some(notice) = alerts::notice(&[(account, mine)], now, &chrono::Local) else {
+                continue;
+            };
+            let text = format!(
+                "{} — {}",
+                notice.title.resolve(locale),
+                notice.body.resolve(locale)
+            );
+            lines.push(safe(&text).into_owned());
+            if self.osc9 {
+                osc9(out, &text);
+            }
+            self.last_alert = Some(now);
+        }
+    }
+
     /// The header line of the last notice, for [`BANNER_KEEP`].
     pub(crate) fn banner(&self, now: DateTime<Utc>) -> Option<&str> {
         self.banner
             .as_ref()
             .filter(|(at, _)| now - *at < BANNER_KEEP)
             .map(|(_, line)| line.as_str())
+    }
+}
+
+/// One OSC 9 notification with `text` (control characters removed).
+fn osc9(out: &mut Vec<u8>, text: &str) {
+    out.extend_from_slice(b"\x1b]9;");
+    out.extend_from_slice(safe(text).as_bytes());
+    out.extend_from_slice(b"\x1b\\");
+}
+
+/// What notices read, like the desktop: the account's current report or,
+/// while it failed or nothing answered yet, its last valid reading (also
+/// the `prev` of a usage alert's first reading, PRD 0008 RF1.7).
+fn reading(cycle: &RefreshCycle, index: usize) -> Option<&Report> {
+    cycle
+        .last_good_report(index)
+        .or_else(|| cycle.account_report(index))
+}
+
+/// [`reading`] for every account of the cycle.
+pub(crate) fn readings(cycle: &RefreshCycle) -> Vec<Option<&Report>> {
+    (0..cycle.len())
+        .map(|index| reading(cycle, index))
+        .collect()
+}
+
+/// Apply one account's answer to the cycle. With `--notify` (PRD 0008
+/// RF4), a report is judged against the reading it replaces and, only
+/// once the cycle accepted it, its usage alerts are queued for the next
+/// [`Notices::tick`]. No query happens here.
+pub(crate) fn finish_account(
+    cycle: &mut RefreshCycle,
+    notices: Option<&mut Notices>,
+    index: usize,
+    report: Option<Report>,
+    token: Generation,
+    now: DateTime<Utc>,
+) {
+    let (Some(notices), Some(next)) = (notices, report.as_ref()) else {
+        cycle.finish_account(index, report, token, Instant::now());
+        return;
+    };
+    let events = notices.assess(reading(cycle, index), next, now);
+    if cycle.finish_account(index, report, token, Instant::now()) {
+        if let Some(next) = cycle.account_report(index) {
+            notices.record(next, events, now);
+        }
+    }
+}
+
+/// [`finish_account`] for a full sweep: every report judged against the
+/// reading it replaces, the alerts queued once the cycle accepted it.
+pub(crate) fn finish_full(
+    cycle: &mut RefreshCycle,
+    notices: Option<&mut Notices>,
+    snapshot: Option<Snapshot>,
+    token: Generation,
+    now: DateTime<Utc>,
+) {
+    let (Some(notices), Some(next)) = (notices, snapshot.as_ref()) else {
+        cycle.finish_full(snapshot, token, Instant::now());
+        return;
+    };
+    let events: Vec<_> = next
+        .reports
+        .iter()
+        .enumerate()
+        .map(|(index, report)| notices.assess(reading(cycle, index), report, now))
+        .collect();
+    if cycle.finish_full(snapshot, token, Instant::now()) {
+        for (index, events) in events.into_iter().enumerate() {
+            if let Some(next) = cycle.account_report(index) {
+                notices.record(next, events, now);
+            }
+        }
     }
 }
 
@@ -274,5 +439,201 @@ mod tests {
             ("TERM_PROGRAM", "WezTerm"),
             ("STY", "1.pts-0")
         ]));
+    }
+
+    /// A 5h reading of `used`% taken at `checked_at`, its window ending at
+    /// `resets_at` (kept in the future so no reset notice joins in).
+    fn measured(
+        account: &Account,
+        used: f64,
+        checked_at: DateTime<Utc>,
+        resets_at: DateTime<Utc>,
+    ) -> Report {
+        Report {
+            checked_at,
+            ..report(account, used, resets_at)
+        }
+    }
+
+    /// One account's query answering `report` at its `checked_at`.
+    fn answer(cycle: &mut RefreshCycle, notices: &mut Notices, index: usize, report: Report) {
+        let token = cycle.begin(index).expect("slot free");
+        let now = report.checked_at;
+        finish_account(cycle, Some(notices), index, Some(report), token, now);
+    }
+
+    fn pass(
+        notices: &mut Notices,
+        config: &Config,
+        cycle: &RefreshCycle,
+        now: DateTime<Utc>,
+    ) -> Vec<u8> {
+        notices.tick(config, &readings(cycle), now, "en-US")
+    }
+
+    #[test]
+    fn a_threshold_crossed_on_a_refresh_rings_once_per_window() {
+        let config = config(vec![account("Pessoal")]);
+        let pessoal = &config.accounts[0];
+        let window = start() + TimeDelta::hours(3);
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut notices = Notices::new(start(), false);
+
+        // The first reading of the session is no news, even above 75%.
+        answer(
+            &mut cycle,
+            &mut notices,
+            0,
+            measured(pessoal, 80.0, start() + mins(1), window),
+        );
+        assert!(pass(&mut notices, &config, &cycle, start() + mins(1)).is_empty());
+
+        answer(
+            &mut cycle,
+            &mut notices,
+            0,
+            measured(pessoal, 92.0, start() + mins(2), window),
+        );
+        let at = start() + mins(2);
+        assert_eq!(pass(&mut notices, &config, &cycle, at), vec![BEL]);
+        let banner = notices.banner(at).expect("banner after the alert");
+        assert!(
+            banner.contains("Claude: 90% of the 5-hour window used — Pessoal: 5h · resets "),
+            "{banner}"
+        );
+
+        // Oscillating around 90% in the same window stays silent.
+        for (minute, used) in [(4, 88.0), (6, 93.0), (8, 89.0), (10, 91.0)] {
+            let at = start() + mins(minute);
+            answer(
+                &mut cycle,
+                &mut notices,
+                0,
+                measured(pessoal, used, at, window),
+            );
+            assert!(
+                pass(&mut notices, &config, &cycle, at).is_empty(),
+                "{minute}"
+            );
+        }
+
+        // A new window instance re-arms it.
+        let next_window = window + TimeDelta::hours(5);
+        let at = start() + mins(12);
+        answer(
+            &mut cycle,
+            &mut notices,
+            0,
+            measured(pessoal, 91.0, at, next_window),
+        );
+        assert_eq!(pass(&mut notices, &config, &cycle, at), vec![BEL]);
+    }
+
+    #[test]
+    fn alerts_of_a_sweep_share_one_bell_and_later_ones_wait_a_minute() {
+        let config = config(vec![account("a"), account("b")]);
+        let window = start() + TimeDelta::hours(3);
+        let sweep = |used: [f64; 2], at| Snapshot {
+            reports: config
+                .accounts
+                .iter()
+                .zip(used)
+                .map(|(account, used)| measured(account, used, at, window))
+                .collect(),
+            started_at: at,
+            finished_at: at,
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut notices = Notices::new(start(), true);
+        for (used, minute) in [([50.0, 50.0], 1), ([95.0, 80.0], 2)] {
+            let at = start() + mins(minute);
+            let token = cycle.begin_full().expect("no sweep in flight");
+            finish_full(
+                &mut cycle,
+                Some(&mut notices),
+                Some(sweep(used, at)),
+                token,
+                at,
+            );
+        }
+        let at = start() + mins(2);
+        let out = pass(&mut notices, &config, &cycle, at);
+        let text = String::from_utf8(out.clone()).unwrap();
+        assert_eq!(bells(&out), 1);
+        assert_eq!(text.matches("\x1b]9;").count(), 2);
+        let banner = notices.banner(at).unwrap();
+        assert!(
+            banner.contains("90% of the 5-hour window used — a: 5h"),
+            "{banner}"
+        );
+        assert!(
+            banner.contains(" · Claude: 75% of the 5-hour window used — b: 5h"),
+            "{banner}"
+        );
+
+        // Twenty seconds later "a" runs out: held, then delivered alone.
+        let soon = at + TimeDelta::seconds(20);
+        answer(
+            &mut cycle,
+            &mut notices,
+            0,
+            measured(&config.accounts[0], 100.0, soon, window),
+        );
+        assert!(pass(&mut notices, &config, &cycle, soon).is_empty());
+        assert!(pass(&mut notices, &config, &cycle, at + TimeDelta::seconds(59)).is_empty());
+        let out = pass(&mut notices, &config, &cycle, at + NOTICE_SPACING);
+        assert_eq!(bells(&out), 1);
+        let banner = notices.banner(at + NOTICE_SPACING).unwrap();
+        assert!(
+            banner.contains("Claude: 5-hour quota exhausted — a: 5h"),
+            "{banner}"
+        );
+        assert!(!banner.contains("— b:"), "{banner}");
+    }
+
+    #[test]
+    fn a_stale_restored_reading_or_a_removed_account_never_rings() {
+        let remaining = config(vec![account("a")]);
+        let config = config(vec![account("a"), account("b")]);
+        let window = start() + TimeDelta::hours(3);
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        // The history's last readings, 30 minutes before the TUI opened.
+        cycle.restore_last_good(
+            config
+                .accounts
+                .iter()
+                .map(|account| Some(measured(account, 50.0, start() - mins(30), window)))
+                .collect(),
+        );
+        let mut notices = Notices::new(start(), false);
+        answer(
+            &mut cycle,
+            &mut notices,
+            0,
+            measured(&config.accounts[0], 95.0, start(), window),
+        );
+        assert!(pass(&mut notices, &config, &cycle, start()).is_empty());
+
+        // "b" crosses 90%, then is removed before the next pass.
+        let at = start() + mins(1);
+        answer(
+            &mut cycle,
+            &mut notices,
+            1,
+            measured(&config.accounts[1], 60.0, at, window),
+        );
+        let later = at + mins(1);
+        answer(
+            &mut cycle,
+            &mut notices,
+            1,
+            measured(&config.accounts[1], 95.0, later, window),
+        );
+        assert_eq!(notices.pending.len(), 1, "b's 90% alert is queued");
+        notices.keep_accounts(&remaining);
+        assert!(notices
+            .tick(&remaining, &[cycle.account_report(0)], later, "en-US")
+            .is_empty());
+        assert_eq!(notices.banner(later), None);
     }
 }
