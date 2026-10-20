@@ -3,11 +3,20 @@
 | Field | Value |
 |---|---|
 | ID | 0008 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, desktop (TUI optional) |
 | Consumers | `apps/desktop`, `crates/cuotai-tui`, PRD 0013 (events) |
 | Depends on | PRD 0003 (RF2 and RF3: `Notifier` deliverer, permission, `notified.json` and preferences); PRD 0006 is optional |
 | Date | 2026-10-19 |
+
+## Implementation status (2026-10-20)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.42.0 | `cuotai_core::alerts::evaluate(prev, next, &AlertPrefs, &AlertState, now) -> Vec<AlertEvent>`, pure, with an injected clock and no query. `AlertEvent` carries `account_key` (`Report::account_key`, the same `<provider slug>:<name>` as `Account::key`), `label`, `window`, `kind` (`Threshold`, `Exhausted`, `Recovered`), `threshold` (percent; 100 for `Exhausted` and `Recovered`), `consumed` (fraction) and `resets_at`. Eligible: a `Quota` that `metrics::classify_metric` reads as available with a cap or exhausted with a positive cap; uncapped metrics, the other kinds and missing or non-finite values are skipped. `AlertPrefs::new(enabled, thresholds)` rejects values outside 10–99 (`ThresholdError`); the default is off with 75 and 90, and exhaustion is always evaluated while enabled. The window instance is `resets_at` within `resets::DRIFT_TOLERANCE` (2 min, an unknown `resets_at` being the same instance); in one instance a level fires once and a query crossing several emits the highest above every level already reached; a level re-arms after falling `HYSTERESIS_POINTS` (5) below it or in a new instance. `Recovered` fires once, on the first reading with slack in a later instance, only when that metric's exhaustion was notified. RF1.7: without a usable `prev` (absent, not `Ready`, another account, or not older), or for a reading older than `CROSSING_GRACE` (10 min) at `now`, nothing fires; on an account's first reading in the process, `prev` (the last reading PRD 0006 recorded, which the caller passes when present) must be at most 10 minutes older than `next`, and only levels `prev` had not reached yet in the same window instance count as crossed. Design: the evaluator stays pure and the caller then calls `AlertState::update(next, &prefs, &delivered, now)`, which records every level the reading reached (notified or not, so a crossing seen without a notice, on a first reading or with alerts off, never fires later), the seen recoveries, the re-armed levels and `resets_at` drift (followed reading by reading, so gradual drift stays one instance); `retain_accounts(keys)` forgets removed accounts. The state keeps SHA-256 digests of the account key and of account key + label, thresholds and dates; the first-reading set lives only in memory. Persisting it in `notified.json` is RF2. |
+| RF2 | — | Not delivered. |
+| RF3 | — | Not delivered. |
+| RF4 | — | Not delivered. |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 

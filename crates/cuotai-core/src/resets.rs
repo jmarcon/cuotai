@@ -95,7 +95,7 @@ impl ResetKey {
     }
 }
 
-fn key_digest(account_key: &str, label: &str) -> String {
+pub(crate) fn key_digest(account_key: &str, label: &str) -> String {
     crate::models::digest(format!("{account_key}\u{1f}{label}").as_bytes())
 }
 
