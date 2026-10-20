@@ -411,3 +411,12 @@
 
 /* PRD 0003 RF3.2: the account's bell (card and details); pressed = notices on. */
 .icon.bell.on { color: var(--accent); }
+
+/* PRD 0008 RF3.4: a metric with an active usage alert (the binding marker stays on the left). */
+.metric.usage-alert {
+  border-color: var(--warn);
+  box-shadow: inset -3px 0 0 var(--warn);
+}
+.metric.usage-alert.binding {
+  box-shadow: inset 3px 0 0 var(--accent), inset -3px 0 0 var(--warn);
+}

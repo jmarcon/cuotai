@@ -286,3 +286,18 @@ body {
 }
 .pop-notice .i { width: 14px; height: 14px; color: var(--accent); flex: 0 0 auto; }
 .pop-notice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* PRD 0008 RF3.4: an account with an active usage alert (the exhausted tone stays as it is). */
+.row.usage-alert,
+.tile.usage-alert {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.row-alert {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--warn);
+}
+.row-alert .i { width: 12px; height: 12px; flex: 0 0 auto; }
+.row-alert span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

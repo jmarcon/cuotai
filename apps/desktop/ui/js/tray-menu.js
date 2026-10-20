@@ -13,7 +13,9 @@ export function trayMenuLines(reports) {
   const seen = new Set();
   for (const r of shown) (seen.has(r.provider) ? repeated : seen).add(r.provider);
   return shown.map((r) => {
-    const name = repeated.has(r.provider) ? `${brand(r.provider).label} · ${r.account}` : brand(r.provider).label;
+    // PRD 0008 RF3.4: "▲" marks an account with an active usage alert.
+    const label = repeated.has(r.provider) ? `${brand(r.provider).label} · ${r.account}` : brand(r.provider).label;
+    const name = r.usage_alerts?.length ? `▲ ${label}` : label;
     const pct = bindingPct(r);
     const value = r.status !== "ready" ? statusLabel(r.status) : blockedText(r) ?? (pct != null ? `${Math.round(pct)}%` : "—");
     // Keep the required value and age when an arbitrary account name would exceed the native 80-character limit.

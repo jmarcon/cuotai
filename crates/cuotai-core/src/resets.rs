@@ -7,6 +7,7 @@
 //! ([`Ledger`]) and the window for a notice that came late, so a reset is
 //! notified once even across restarts, suspension or clock changes.
 
+use crate::alerts::AlertState;
 use crate::metrics::{classify_metric, window_param, MetricState};
 use crate::model::{Account, Config, Metric, MetricKind, MetricWindow, Report};
 use crate::text::{params, provider_l10n, Localized};
@@ -308,13 +309,16 @@ where
     plan
 }
 
-/// Resets already notified, persisted between runs (`notified.json`):
-/// only digests of account key and metric label plus dates, forgotten
+/// Notices already sent, persisted between runs (`notified.json`): the
+/// notified resets and the usage alert state (PRD 0008 RF2.1), only digests
+/// of account key and metric label plus thresholds and dates, forgotten
 /// after [`LEDGER_KEEP`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ledger {
     #[serde(default)]
     notified: Vec<Notified>,
+    #[serde(default, skip_serializing_if = "AlertState::is_empty")]
+    alerts: AlertState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -372,12 +376,23 @@ impl Ledger {
     }
 
     /// Forget what was notified and reset more than [`LEDGER_KEEP`] before
-    /// `now`; `true` when something was dropped.
+    /// `now`, and the alert marks as old ([`AlertState::prune`]); `true`
+    /// when something was dropped.
     pub fn prune(&mut self, now: DateTime<Utc>) -> bool {
         let before = self.notified.len();
         self.notified
             .retain(|entry| entry.resets_at.max(entry.at) >= now - LEDGER_KEEP);
-        self.notified.len() != before
+        let alerts = self.alerts.prune(now);
+        self.notified.len() != before || alerts
+    }
+
+    /// What usage alerts remember (PRD 0008).
+    pub fn alerts(&self) -> &AlertState {
+        &self.alerts
+    }
+
+    pub fn alerts_mut(&mut self) -> &mut AlertState {
+        &mut self.alerts
     }
 }
 

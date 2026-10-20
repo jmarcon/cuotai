@@ -2,11 +2,11 @@
 // Critério único: percentual DISPONÍVEL, barra = disponível, quantidade = usado / limite; métricas sem limite viram texto.
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
-  STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, isBindingMetric, isMetricHidden, isStaleReading, level, loadModels, metricKey, modelState, noteText,
+  STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, isBindingMetric, isMetricHidden, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
   paceHtml, paceOf, remainingPct, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
-/** `eye`: mostra o botão de ocultar/exibir a quota (só no diálogo). */
+/** `eye`: the quota's hide/show button and, PRD 0008 RF3.2, its usage alert mute (dialog only). */
 export function metricCardHtml(r, m, { eye = false } = {}) {
   const pct = remainingPct(m);
   const lv = level(pct);
@@ -21,11 +21,13 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
     : `<div class="gauge"><div class="bar ${lv}"><span style="width:${pct ?? 0}%"></span></div>${mark}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets a highlight and a chip; every other metric stays listed.
   const binding = isBindingMetric(r, m);
-  return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""}">
+  // PRD 0008 RF3.4: a metric with an active usage alert is highlighted too.
+  return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${m.alert?.active ? "usage-alert" : ""}">
     <div class="metric-top">
       <div><h3>${esc(m.label)}${binding ? ` <span class="mini binding" data-binding-chip title="${te("card.binding.title")}">${esc(bindingChipText(r))}</span>` : ""}</h3><span class="sub">${esc(fmtAmount(m))}</span></div>
       <div class="metric-right">
         ${text == null && pct != null ? `<span class="pct ${lv}" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${icon(lv === "good" ? "check" : "warn")}${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
+        ${eye ? metricAlertHtml(r, m) : ""}
         ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "common.show" : "common.hide")}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
       </div>
     </div>

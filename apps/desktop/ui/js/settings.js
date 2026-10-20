@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, sendTestNotification, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, sendTestNotification, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -128,7 +128,7 @@ export async function openSettings(extra = {}) {
       } catch (e) { msg.textContent = l10nError(e); }
     };
     bindHistory(dlg);
-    bindNotify(dlg, extra);
+    bindNotify(dlg, extra, s);
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -216,9 +216,11 @@ function bindHistory(dlg) {
   };
 }
 
-/** PRD 0003 RF3.1: reset notices of this device (desktop.json). Off by default; the backend schedules them. */
+/** PRD 0003 RF3.1: reset notices of this device (desktop.json). Off by default; the backend schedules them.
+ *  PRD 0008 RF3.1: usage alerts in the same section (off by default), sharing its permission guidance and test. */
 function notifySectionHtml(s) {
   const n = s.notify;
+  const a = s.alerts;
   const leads = s.notify_leads.map((m) => `<option value="${m}" ${n.lead_minutes === m ? "selected" : ""}>${m ? te("settings.notify.leadMin", { min: m }) : te("settings.notify.leadNow")}</option>`).join("");
   const whens = s.notify_whens.map((w) => `<option value="${w}" ${n.when === w ? "selected" : ""}>${te(`settings.notify.when.${w}`)}</option>`).join("");
   return `<section class="set-sec" data-notify><h3>${te("settings.notify.title")}</h3>
@@ -229,34 +231,46 @@ function notifySectionHtml(s) {
         <label class="f"><span>${te("settings.notify.when")}</span><select id="notify-when">${whens}</select>
           <small>${te("settings.notify.whenHelp")}</small></label>
         <label class="check"><input id="notify-other" type="checkbox" ${n.include_other ? "checked" : ""} /> ${te("settings.notify.other")}</label>
+        <label class="check" data-alerts><input id="alerts-on" type="checkbox" ${a.enabled ? "checked" : ""} /> ${te("settings.alerts.on")}</label>
+        <p class="hint">${te("settings.alerts.help")}</p>
+        <div class="f"><span id="alert-thresholds-label">${te("settings.alerts.thresholds")}</span>
+          <div class="thresholds" role="group" aria-labelledby="alert-thresholds-label"><span id="alert-chips"></span>
+            <input id="alert-new" type="number" min="${s.alert_min}" max="${s.alert_max}" step="1" inputmode="numeric" aria-label="${te("settings.alerts.new")}" placeholder="%" />
+            <button class="btn" type="button" data-alert-add>${te("settings.alerts.add")}</button></div>
+          <small>${te("settings.alerts.thresholdsHelp", { min: s.alert_min, max: s.alert_max })}</small></div>
+        <label class="check"><input id="alerts-exhaustion" type="checkbox" ${a.exhaustion ? "checked" : ""} /> ${te("settings.alerts.exhaustion")}</label>
+        <label class="check"><input id="alerts-recovery" type="checkbox" ${a.recovery ? "checked" : ""} /> ${te("settings.alerts.recovery")}</label>
         <p class="hint">${te("settings.notify.accounts")}</p>
-        <div class="dlg-actions left"><button class="btn" data-notify-test ${n.enabled ? "" : "disabled"}>${icon("bell")} ${te("settings.notify.test")}</button></div>
+        <div class="dlg-actions left"><button class="btn" data-notify-test ${n.enabled || a.enabled ? "" : "disabled"}>${icon("bell")} ${te("settings.notify.test")}</button></div>
         <p class="err" id="notify-msg" role="status"></p>
       </section>`;
 }
 
-/** RF3.3: turning on asks the system permission first; anything but `granted` keeps the switch off and shows the
- *  guidance. The test waits for the switch: on desktop the first notice is what makes the system decide the
- *  permission. Failures put the controls back to the saved values. */
-function bindNotify(dlg, extra) {
+/** RF3.3: turning either switch on asks the system permission first; anything but `granted` keeps that switch off
+ *  and shows the guidance. The test waits for a switch: on desktop the first notice is what makes the system decide
+ *  the permission. Failures put the controls back to the saved values. */
+function bindNotify(dlg, extra, s) {
   const on = dlg.querySelector("#notify-on");
+  const alertsOn = dlg.querySelector("#alerts-on");
   const denied = dlg.querySelector("#notify-denied");
   const msg = dlg.querySelector("#notify-msg");
   const test = dlg.querySelector("[data-notify-test]");
   const report = (text, ok = false) => { msg.classList.toggle("ok", ok); msg.textContent = text; };
-  on.onchange = async () => {
-    const want = on.checked;
-    on.disabled = true;
+  const toggle = (box, enable) => async () => {
+    const want = box.checked;
+    box.disabled = true;
     try {
-      const permission = await setNotifyEnabled(want);
-      on.checked = permission === "granted";
-      test.disabled = !on.checked;
+      const permission = await enable(want);
+      box.checked = permission === "granted";
+      test.disabled = !(on.checked || alertsOn.checked);
       denied.hidden = !want || permission === "granted";
       report("");
       extra.onChange?.();
-    } catch (x) { on.checked = !want; report(errorText(x)); }
-    finally { on.disabled = false; }
+    } catch (x) { box.checked = !want; report(errorText(x)); }
+    finally { box.disabled = false; }
   };
+  on.onchange = toggle(on, setNotifyEnabled);
+  alertsOn.onchange = toggle(alertsOn, setAlertsEnabled);
   const lead = dlg.querySelector("#notify-lead");
   const when = dlg.querySelector("#notify-when");
   const other = dlg.querySelector("#notify-other");
@@ -273,10 +287,53 @@ function bindNotify(dlg, extra) {
     }
   };
   lead.onchange = when.onchange = other.onchange = options;
+  bindAlertOptions(dlg, extra, s, report);
   test.onclick = () =>
     sendTestNotification(t("notify.test.title"), t("notify.test.body")).then(
       () => report(t("settings.notify.testSent"), true),
       () => report(t("settings.notify.testFailed")));
+}
+
+/** PRD 0008 RF3.1: the thresholds as chips (removed by a click, added from the field, 10 to 99), plus the
+ *  exhaustion and recovery notices; every change is saved at once and a refused one is put back. */
+function bindAlertOptions(dlg, extra, s, report) {
+  const chips = dlg.querySelector("#alert-chips");
+  const input = dlg.querySelector("#alert-new");
+  const exhaustion = dlg.querySelector("#alerts-exhaustion");
+  const recovery = dlg.querySelector("#alerts-recovery");
+  const saved = { thresholds: [...s.alerts.thresholds], exhaustion: exhaustion.checked, recovery: recovery.checked };
+  const draw = () => {
+    chips.innerHTML = saved.thresholds.map((v) => {
+      const label = t("settings.alerts.remove", { pct: v });
+      return `<button class="chip" type="button" data-alert-remove="${v}" title="${esc(label)}" aria-label="${esc(label)}">${v}% ×</button>`;
+    }).join("");
+  };
+  const save = async (thresholds) => {
+    try {
+      await setAlertOptions(thresholds, exhaustion.checked, recovery.checked);
+      Object.assign(saved, { thresholds: [...new Set(thresholds)].sort((x, y) => x - y), exhaustion: exhaustion.checked, recovery: recovery.checked });
+      report("");
+      extra.onChange?.();
+      return true;
+    } catch (x) {
+      exhaustion.checked = saved.exhaustion; recovery.checked = saved.recovery;
+      report(errorText(x));
+      return false;
+    } finally { draw(); }
+  };
+  chips.onclick = (e) => {
+    const chip = e.target.closest("[data-alert-remove]");
+    if (chip) save(saved.thresholds.filter((v) => v !== Number(chip.dataset.alertRemove)));
+  };
+  const add = async () => {
+    const value = Number(input.value);
+    if (!Number.isInteger(value) || value < s.alert_min || value > s.alert_max) return report(t("settings.error.invalid_threshold"));
+    if (await save([...saved.thresholds, value])) input.value = "";
+  };
+  dlg.querySelector("[data-alert-add]").onclick = add;
+  input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } };
+  exhaustion.onchange = recovery.onchange = () => save(saved.thresholds);
+  draw();
 }
 
 const errorText = (e) => {

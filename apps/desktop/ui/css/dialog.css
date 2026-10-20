@@ -338,3 +338,17 @@ dialog.libs {
 .lib-repo:hover {
   text-decoration: underline;
 }
+
+/* PRD 0008 RF3.1: the usage alert thresholds as editable chips. */
+.thresholds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.thresholds .chip {
+  padding: 4px 10px;
+}
+.thresholds input {
+  width: 5.5em;
+}

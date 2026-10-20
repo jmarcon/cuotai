@@ -421,20 +421,63 @@ async fn set_history_recording(app: AppHandle, b: Shared<'_>, on: bool) -> Resul
 /// permission (`granted`, `denied`, `prompt`) or `off`. Error: `unwritable`.
 #[tauri::command]
 async fn set_notify_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<String, String> {
-    let permission = if on {
-        notify::request_permission(&app)
+    let permission = permission_for(&app, on);
+    b.update_notices(&app, |n| n.switch_resets(permission))
+        .await?;
+    Ok(permission.to_owned())
+}
+
+/// PRD 0008 RF3.1/RF3.3: turn usage alerts on or off, with the same
+/// permission request as reset notices: on stays off unless the system
+/// answers `granted`. Returns the permission or `off`. Error: `unwritable`.
+#[tauri::command]
+async fn set_alerts_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<String, String> {
+    let permission = permission_for(&app, on);
+    b.update_notices(&app, |n| n.switch_alerts(permission))
+        .await?;
+    Ok(permission.to_owned())
+}
+
+/// Turning a notice switch on asks the operating system first.
+fn permission_for(app: &AppHandle, on: bool) -> &'static str {
+    if on {
+        notify::request_permission(app)
     } else {
         "off"
-    };
-    let enabled = permission == "granted";
+    }
+}
+
+/// PRD 0008 RF3.1: the alert thresholds (each 10 to 99%) and the
+/// exhaustion and recovery notices, saved in `desktop.json`. Errors:
+/// `invalid_threshold`, `unwritable`.
+#[tauri::command]
+async fn set_alert_options(
+    app: AppHandle,
+    b: Shared<'_>,
+    thresholds: Vec<u8>,
+    exhaustion: bool,
+    recovery: bool,
+) -> Result<(), String> {
     b.update_notices(&app, |n| {
-        n.set_prefs(settings::NotifyPrefs {
-            enabled,
-            ..n.prefs().clone()
-        })
+        let alerts = n.alerts().with_choices(&thresholds, exhaustion, recovery)?;
+        n.set_alerts(alerts)
     })
-    .await?;
-    Ok(permission.to_owned())
+    .await
+}
+
+/// PRD 0008 RF3.2: mute (`on = false`) or unmute the usage alerts of the
+/// metric `label` of the account with the core key `account_key`. Error:
+/// `unwritable`.
+#[tauri::command]
+async fn set_metric_alert(
+    app: AppHandle,
+    b: Shared<'_>,
+    account_key: String,
+    label: String,
+    on: bool,
+) -> Result<(), String> {
+    b.update_notices(&app, |n| n.set_metric_alert(&account_key, &label, on))
+        .await
 }
 
 /// PRD 0003 RF3.1: lead time (0, 5, 15 or 60 min), filter (`used`,
@@ -477,8 +520,8 @@ async fn set_locale(app: AppHandle, b: Shared<'_>, locale: String) -> Result<(),
 
 /// PRD 0003 RF3.3: send one notice now, with the texts the interface
 /// translated, to check the permission and the notification center. Only
-/// while notices are on: on desktop the first notice is what makes the
-/// system decide the permission. Error: `notify_off`.
+/// while reset notices or usage alerts are on: on desktop the first notice
+/// is what makes the system decide the permission. Error: `notify_off`.
 #[tauri::command]
 async fn send_test_notification(
     app: AppHandle,
@@ -641,6 +684,9 @@ pub fn run() {
             history_size,
             account_history,
             set_notify_enabled,
+            set_alerts_enabled,
+            set_alert_options,
+            set_metric_alert,
             set_notify_options,
             set_account_notify,
             set_locale,

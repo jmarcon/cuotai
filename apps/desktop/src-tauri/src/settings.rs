@@ -2,12 +2,13 @@
 //! Arquivo `desktop.json` na pasta padrão de configuração: pasta de temas e idiomas e o
 //! `cuotai.toml` escolhido pelo usuário (só o caminho; nunca dentro do TOML).
 use cuotai_core::{
+    alerts::{AlertPrefs, THRESHOLD_RANGE},
     history::Retention,
     resets::{NotifyWhen, Prefs},
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -43,6 +44,10 @@ struct Stored {
     /// use (PRD 0003 RF2.2); absent until the interface first reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     locale: Option<String>,
+    /// Usage alerts of this device (PRD 0008 RF3); absent = off. Read
+    /// leniently like `notify` ([`AlertSettings::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    alerts: Option<serde_json::Value>,
 }
 
 /// Lead times offered, in minutes ("at the time" is 0).
@@ -150,6 +155,148 @@ fn notify_of(stored: &Stored) -> NotifyPrefs {
         .as_ref()
         .map(NotifyPrefs::from_value)
         .unwrap_or_default()
+}
+
+/// PRD 0008 RF3: usage alert preferences of this device. Off by default;
+/// the account's bell ([`NotifyPrefs::off_accounts`]) mutes its alerts
+/// too, and `muted` holds the metrics muted in the details per
+/// `Account::key` (a rename changes the key and so loses the choice).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AlertSettings {
+    pub enabled: bool,
+    /// Ascending, each within `alerts::THRESHOLD_RANGE`.
+    pub thresholds: Vec<u8>,
+    pub exhaustion: bool,
+    pub recovery: bool,
+    /// Account key → muted metric labels.
+    pub muted: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl Default for AlertSettings {
+    /// The core's defaults: off, 75 and 90%, exhaustion and recovery.
+    fn default() -> Self {
+        let core = AlertPrefs::default();
+        Self {
+            enabled: core.enabled,
+            thresholds: core.thresholds().collect(),
+            exhaustion: core.exhaustion,
+            recovery: core.recovery,
+            muted: BTreeMap::new(),
+        }
+    }
+}
+
+impl AlertSettings {
+    /// Each field on its own: an unknown or mistyped value is its default;
+    /// thresholds outside the range are dropped.
+    fn from_value(value: &serde_json::Value) -> Self {
+        let default = Self::default();
+        let flag = |key: &str, default: bool| value[key].as_bool().unwrap_or(default);
+        Self {
+            enabled: flag("enabled", default.enabled),
+            thresholds: value["thresholds"]
+                .as_array()
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|t| u8::try_from(t.as_u64()?).ok())
+                        .filter(|t| THRESHOLD_RANGE.contains(t))
+                        .collect::<BTreeSet<u8>>()
+                        .into_iter()
+                        .collect()
+                })
+                .unwrap_or(default.thresholds),
+            exhaustion: flag("exhaustion", default.exhaustion),
+            recovery: flag("recovery", default.recovery),
+            muted: value["muted"]
+                .as_object()
+                .map(|accounts| {
+                    accounts
+                        .iter()
+                        .filter_map(|(key, labels)| {
+                            let labels: BTreeSet<String> = labels
+                                .as_array()?
+                                .iter()
+                                .filter_map(|label| label.as_str().map(str::to_owned))
+                                .collect();
+                            (!labels.is_empty()).then(|| (key.clone(), labels))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Thresholds (each 10 to 99; repeats collapse) and the exhaustion and
+    /// recovery notices from the interface. Error: `invalid_threshold`.
+    pub fn with_choices(
+        &self,
+        thresholds: &[u8],
+        exhaustion: bool,
+        recovery: bool,
+    ) -> Result<Self, &'static str> {
+        let checked =
+            AlertPrefs::new(true, thresholds.iter().copied()).map_err(|_| "invalid_threshold")?;
+        Ok(Self {
+            thresholds: checked.thresholds().collect(),
+            exhaustion,
+            recovery,
+            ..self.clone()
+        })
+    }
+
+    /// Mute (`on = false`) or unmute the metric `label` of `account_key`.
+    pub fn with_metric(&self, account_key: &str, label: &str, on: bool) -> Self {
+        let mut next = self.clone();
+        if on {
+            if let Some(labels) = next.muted.get_mut(account_key) {
+                labels.remove(label);
+                if labels.is_empty() {
+                    next.muted.remove(account_key);
+                }
+            }
+        } else {
+            next.muted
+                .entry(account_key.to_owned())
+                .or_default()
+                .insert(label.to_owned());
+        }
+        next
+    }
+
+    /// The core evaluator's preferences; `off_accounts` are the accounts
+    /// whose bell is off.
+    pub fn evaluator(&self, off_accounts: &BTreeSet<String>) -> AlertPrefs {
+        // Always valid: read and chosen within the range.
+        let mut prefs =
+            AlertPrefs::new(self.enabled, self.thresholds.iter().copied()).unwrap_or_default();
+        prefs.exhaustion = self.exhaustion;
+        prefs.recovery = self.recovery;
+        prefs.muted_accounts = off_accounts.clone();
+        prefs.muted_metrics = self.muted.clone();
+        prefs
+    }
+}
+
+fn alerts_of(stored: &Stored) -> AlertSettings {
+    stored
+        .alerts
+        .as_ref()
+        .map(AlertSettings::from_value)
+        .unwrap_or_default()
+}
+
+/// PRD 0008 RF3: the usage alert preferences stored in `file`.
+pub fn read_alerts(file: &Path) -> AlertSettings {
+    alerts_of(&read(file))
+}
+
+/// Store the usage alert preferences in `file`; the defaults remove the key.
+pub fn write_alerts(file: &Path, alerts: &AlertSettings) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.alerts = (*alerts != AlertSettings::default())
+            .then(|| serde_json::to_value(alerts).ok())
+            .flatten()
+    })
 }
 
 /// PRD 0003 RF3: the reset notice preferences stored in `file`.
@@ -377,6 +524,10 @@ pub struct SettingsView {
     notify: NotifyPrefs,
     notify_leads: [u32; 4],
     notify_whens: [&'static str; 3],
+    /// PRD 0008 RF3: usage alerts (off by default) and the threshold range.
+    alerts: AlertSettings,
+    alert_min: u8,
+    alert_max: u8,
     version: &'static str,
 }
 
@@ -400,6 +551,9 @@ pub fn view() -> SettingsView {
         notify: notify_of(&stored),
         notify_leads: NOTIFY_LEADS,
         notify_whens: NOTIFY_WHENS,
+        alerts: alerts_of(&stored),
+        alert_min: *THRESHOLD_RANGE.start(),
+        alert_max: *THRESHOLD_RANGE.end(),
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -572,5 +726,62 @@ mod tests {
             base.with_choices(5, "sometimes", false),
             Err("invalid_notify")
         );
+    }
+
+    #[test]
+    fn usage_alerts_are_off_by_default_round_trip_and_read_leniently() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let defaults = read_alerts(&file);
+        assert!(!defaults.enabled, "off by default");
+        assert_eq!(defaults.thresholds, [75, 90]);
+        assert!(defaults.exhaustion && defaults.recovery);
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let chosen = AlertSettings {
+            enabled: true,
+            ..AlertSettings::default()
+        }
+        .with_choices(&[95, 10, 95], false, true)
+        .unwrap()
+        .with_metric("claude:Work", "Week", false);
+        assert_eq!(chosen.thresholds, [10, 95]);
+        write_alerts(&file, &chosen).unwrap();
+        assert_eq!(read_alerts(&file), chosen);
+        assert_eq!(motion_of(&read(&file)), "off");
+        // Unmuting the last metric of an account drops its key.
+        assert!(chosen
+            .with_metric("claude:Work", "Week", true)
+            .muted
+            .is_empty());
+        // Back to the defaults removes the key.
+        write_alerts(&file, &AlertSettings::default()).unwrap();
+        assert!(!fs::read_to_string(&file).unwrap().contains("alerts"));
+        // Hand-edited: each bad field falls back alone, out-of-range
+        // thresholds are dropped and the rest of the file stays.
+        fs::write(
+            &file,
+            r#"{"motion":"off","alerts":{"enabled":true,"thresholds":[5,50,"x",300,99,50],"exhaustion":"no","muted":{"claude:Work":["5h",1],"claude:Home":[],"x":"5h"}}}"#,
+        )
+        .unwrap();
+        let alerts = read_alerts(&file);
+        assert!(alerts.enabled);
+        assert_eq!(alerts.thresholds, [50, 99]);
+        assert!(alerts.exhaustion && alerts.recovery);
+        assert_eq!(
+            alerts.muted,
+            BTreeMap::from([(
+                "claude:Work".to_string(),
+                BTreeSet::from(["5h".to_string()])
+            )])
+        );
+        assert_eq!(motion_of(&read(&file)), "off");
+        let base = AlertSettings::default();
+        for bad in [[9u8].as_slice(), &[100], &[50, 0]] {
+            assert_eq!(
+                base.with_choices(bad, true, true),
+                Err("invalid_threshold"),
+                "{bad:?}"
+            );
+        }
     }
 }

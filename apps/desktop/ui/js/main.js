@@ -9,7 +9,7 @@ import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
-  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify,
+  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -90,12 +90,13 @@ function card(r, position, ordered, recharging = false) {
   const rate = rateLimitOf(r);
   const rateChip = rate != null && level(rate) !== "good"
     ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "";
-  const alertChip = alert ? `<span class="mini ${alert.tone}" title="${esc(alert.label())}">${icon(alert.icon)}<span class="mini-t">${esc(alert.label())}</span></span>` : "";
+  const alertChip = alert ? `<span class="mini ${alert.tone}" title="${esc(alert.label(r))}">${icon(alert.icon)}<span class="mini-t">${esc(alert.label(r))}</span></span>` : "";
   // PRD 0009 RF2.2: the core's binding window next to the state ("Week · 100%"); an emphasis, the other metrics stay.
   const bindingTitle = blockedText(r) ?? t("card.binding.title");
   const bindingChip = r.status === "ready" && r.binding
     ? `<span class="mini binding ${isBlocked(r) ? "bad" : level(100 - r.binding.used_ratio * 100)}" data-binding-chip title="${esc(bindingTitle)}" aria-label="${esc(`${bindingTitle}: ${bindingChipText(r)}`)}">${esc(bindingChipText(r))}</span>` : "";
-  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""}" data-card="${esc(key)}">
+  // PRD 0008 RF3.4: an active usage alert highlights the card; the exhausted state keeps its own class.
+  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${r.usage_alerts?.length ? "usage-alert" : ""}" data-card="${esc(key)}">
     <div class="card-head">
       ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorder")}" aria-label="${te("account.reorder")}">${icon("grip")}</button>` : ""}
       ${logo(r.provider)}
@@ -200,6 +201,8 @@ const detailsContext = {
   onChange: () => render(),
   view: () => store.view,
   onBell: (accountKey, on) => toggleBell(accountKey, on),
+  onMetricAlert: (accountKey, label, on) =>
+    setMetricAlert(accountKey, label, on).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
 };
 /** PRD 0003 RF3.2: the bell lives in desktop.json; the backend answers with a new view ("snapshot"). */
 function toggleBell(accountKey, on) {

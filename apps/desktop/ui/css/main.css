@@ -94,6 +94,11 @@
 .card.off {
   opacity: 0.55;
 }
+/* PRD 0008 RF3.4: a card with an active usage alert; `.exhausted` keeps its own look. */
+.card.usage-alert {
+  border-color: var(--warn);
+  box-shadow: var(--shadow), inset 0 3px 0 var(--warn);
+}
 /* PRD 0004 RF2.4: elevação sutil no hover/foco (os temas com sombra própria, como Win98 e Tron, mantêm a deles) */
 .card {
   transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
