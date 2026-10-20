@@ -231,6 +231,38 @@ export const blockedText = (r) => {
 /** Chip text "Week · 100%" (consumed share of the binding window). */
 export const bindingChipText = (r) => `${bindingLabel(r)} · ${Math.round(r.binding.used_ratio * 100)}%`;
 export const isBindingMetric = (r, m) => r.binding != null && r.metrics[r.binding.index] === m;
+// ---------- PRD 0010 RF3: measurement age and the preserved reading ----------
+/** The current query failed and the core kept the last valid reading (`r.last_good`): always shown as stale. */
+export const isStaleReading = (r) => r.status !== "ready" && r.last_good != null;
+/** Instant of the reading on screen: the preserved one while the current query failed. */
+export const shownAt = (r) => (isStaleReading(r) ? r.last_good.checked_at : r.checked_at);
+/** "3 min ago" in minute steps; a future instant (clock adjusted backwards) reads "now", never an error. */
+export function fmtAge(iso, now = Date.now()) {
+  const min = Math.floor((now - new Date(iso).getTime()) / 60000);
+  if (Number.isNaN(min)) return "";
+  if (min < 1) return t("time.now");
+  const rtf = new Intl.RelativeTimeFormat(currentLocale(), { style: "short" });
+  if (min < 60) return rtf.format(-min, "minute");
+  return min < 1440 ? rtf.format(-Math.floor(min / 60), "hour") : rtf.format(-Math.floor(min / 1440), "day");
+}
+/** Core freshness of the reading on screen; a failure without a reading has none (only the attempt's age). */
+const freshnessOf = (r) => (isStaleReading(r) ? "stale" : r.status === "ready" ? r.freshness : null);
+/** Plain text: "Stale · 42 min ago", "Fresh · 3 min ago", or just the age. */
+export const ageText = (r) => {
+  const f = freshnessOf(r);
+  return f ? `${t(`freshness.${f}`)} · ${fmtAge(shownAt(r))}` : fmtAge(shownAt(r));
+};
+const FRESHNESS_ICON = { fresh: "check", aging: "clock", stale: "warn" };
+/** Age chip with the freshness icon and text (never color alone); the absolute time is in the tooltip. */
+export function ageHtml(r) {
+  const f = freshnessOf(r);
+  const title = [t("age.measuredAt", { time: fmtReset(shownAt(r)) ?? "—" }), r.clock_adjusted && !isStaleReading(r) ? t("age.clockAdjusted") : ""]
+    .filter(Boolean).join(" · ");
+  return `<span class="age ${f ?? ""}" data-age data-freshness="${f ?? ""}" title="${esc(title)}">${icon(FRESHNESS_ICON[f] ?? "clock")}<span>${esc(ageText(r))}</span></span>`;
+}
+/** The report with the preserved metrics in place of the failed ones, for drawing only: the status stays the
+ *  failure and nothing from the old reading feeds the binding, alerts or ordering. */
+export const staleView = (r) => ({ ...r, metrics: r.last_good.metrics, notes: [], notes_l10n: [], binding: null });
 export const reportKey = (r) => `${r.provider}::${r.account}`;
 /** Resolve the structured note sidecar by the same index as the legacy fallback. */
 export const noteText = (report, index) =>
@@ -401,10 +433,13 @@ export function createStore(render) {
   const s = { view: null, error: null };
   const set = (v) => { s.view = v; s.error = v?.error ?? null; render(); };
   s.refresh = () => refreshAll().catch((e) => { s.error = String(e); render(); });
-  s.refreshOne = (i) => refreshAccount(i).catch((e) => { s.error = String(e); render(); });
+  // The browser demo has no "snapshot" event: re-read the view after a refresh so its recovery shows.
+  s.refreshOne = (i) => refreshAccount(i).then(() => isDesktop || getView().then(set)).catch((e) => { s.error = String(e); render(); });
   if (isDesktop) T.event.listen("snapshot", (e) => set(e.payload));
   queueMicrotask(() => getView().then(set).catch((e) => { s.error = String(e); render(); }));
-  setInterval(render, 30000); // countdowns
+  // Countdowns and the age text (PRD 0010 RF3.1): the view is re-read so the core's freshness, computed when the
+  // view is built, follows the clock. No query: only the backend's in-memory state.
+  setInterval(() => getView().then(set, render), 30000);
   return s;
 }
 
@@ -417,13 +452,15 @@ const dm = (label, used, limit, resetH, kind, window, unit = "solicitações") =
     state: unmeasured ? "unmeasured" : exhausted ? "exhausted" : "available",
     ratio: unmeasured || exhausted ? (exhausted ? 0 : null) : (limit - used) / limit, uncapped: false, no_cap: false };
 };
+const ago = (min) => new Date(Date.now() - min * 60e3).toISOString();
 const dr = (account, provider, metrics, notes = [], status = "ready") => ({
-  account, provider, checked_at: new Date().toISOString(), status, metrics, notes, source: "demo",
+  account, provider, checked_at: ago(3), status, metrics, notes, source: "demo", freshness: "fresh", clock_adjusted: false, last_good: null,
   class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null }, model_count: null });
 const demoReports = [
   dr("juliano.marcon@gmail.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 26, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
   { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 24.6, "quota", "weekly", "%")]), class: "exhausted", model_count: 1 },
-  dr("juliano.marcon@gmail.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]),
+  // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
+  { ...dr("juliano.marcon@gmail.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging" },
   { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("premium_interactions", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
   dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 1, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
@@ -432,7 +469,8 @@ const demoReports = [
   dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
   dr("Personal", "anthropic_api", [], ["Credencial ausente ou expirada."], "authentication_error"),
   dr("Pessoal", "mistral", [], ["HTTP 429: limite de requisições atingido."], "rate_limited"),
-  dr("Dev", "cursor", [], ["Serviço indisponível no momento."], "error"),
+  { ...dr("Dev", "cursor", [], ["Serviço indisponível no momento."], "error"), checked_at: ago(1),
+    last_good: { checked_at: ago(42), metrics: [dm("Fast requests", 380, 500, 120, "quota", "monthly")] } },
   dr("Work", "windsurf", [], ["Informe a variável de ambiente da credencial."], "needs_configuration"),
   { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "quota", "other", "créditos")]),
     identity: { email: null, copy: { label: "ARN do perfil", value: "arn:aws:codewhisperer:us-east-1:499578350335:profile/QRDG99H" },
@@ -474,7 +512,11 @@ const demoModels = async ({ index, generation }) => {
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
-  refresh_account: async () => {},
+  // Demo of PRD 0010 RF3.2: refreshing the failing account succeeds, so its preserved reading (and badge) goes away.
+  refresh_account: async ({ index }) => {
+    const r = demoReports[index];
+    if (r?.last_good) demoReports[index] = { ...r, status: "ready", checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
+  },
   list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label })),
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
     credential_help: { id: "credential_help.demo", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },

@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-20
+
+### Added
+
+- The desktop app shows how old each reading is: every card, tray tile, list row, details view and tray menu line says "3 min ago" with a Fresh, Aging or Stale label and icon (the core judges it against the account's refresh interval), and the tray icon tooltip names the oldest reading. When a query fails after a success, the card keeps the last valid metrics dimmed and still, with a "Stale · 42 min ago" badge and the cause of the failure, until the next successful query removes the badge; an authentication failure drops the old values (PRD 0010 RF3).
+
 ## [0.27.1] - 2026-10-19
 
 ### Added
 
-- Every push and pull request is now checked on Linux, macOS and Windows (formatting, Clippy and the tests of the TUI/core and desktop workspaces, plus the dependency-license check); the desktop app gained the Windows icon its Windows build requires, and its test executables now carry the Windows manifest they need to start (PRD 0019 RF2).
+- Every push and pull request is now checked on Linux, macOS and Windows (formatting, Clippy and the tests of the TUI/core and desktop workspaces, plus the dependency-license check); the desktop app gained the Windows icon its Windows build requires, and its test executables now carry the Windows manifest they need to start (PRD 0019 RF2, 4943177).
 
 ## [0.27.0] - 2026-10-19
 
@@ -300,8 +306,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/7b73876...main
-[0.27.1]: https://github.com/jmarcon/cuotai/compare/7b73876...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/4943177...main
+[0.28.0]: https://github.com/jmarcon/cuotai/compare/4943177...main
+[0.27.1]: https://github.com/jmarcon/cuotai/commit/4943177
 [0.27.0]: https://github.com/jmarcon/cuotai/commit/7b73876
 [0.26.0]: https://github.com/jmarcon/cuotai/commit/ff3429f
 [0.25.0]: https://github.com/jmarcon/cuotai/commit/c2ebd6d

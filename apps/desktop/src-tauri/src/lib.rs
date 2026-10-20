@@ -221,6 +221,8 @@ struct TrayMenuPayload {
     open: String,
     settings: String,
     quit: String,
+    /// PRD 0010 RF3.3: icon tooltip ("Cuotai · oldest reading: 42 min ago").
+    tooltip: String,
 }
 
 /// Remove controles, apara e limita o tamanho de uma linha de menu.
@@ -294,6 +296,8 @@ fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String>
     let menu = build_tray_menu(&app, &payload).map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("cuotai") {
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+        tray.set_tooltip(Some(clean_menu_line(&payload.tooltip)))
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -480,6 +484,7 @@ pub fn run() {
                 open: "Abrir".into(),
                 settings: "Configurações".into(),
                 quit: "Sair".into(),
+                tooltip: "Cuotai".into(),
             };
             if let (Some(tray), Ok(menu)) = (
                 app.tray_by_id("cuotai"),

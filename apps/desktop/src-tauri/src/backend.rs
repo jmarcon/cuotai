@@ -8,6 +8,7 @@ use cuotai_core::{
         FieldDescriptorKind, FieldVisibility,
     },
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
+    freshness::{assess, clock_adjusted, Freshness},
     identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{
@@ -251,6 +252,29 @@ pub struct ReportView {
     /// (ties and accounts without a value keep the manual order).
     binding: Option<Binding>,
     binding_rank: usize,
+    /// PRD 0010 RF3: the core's freshness of `checked_at` against the
+    /// account's effective interval, and whether the clock went backwards
+    /// since (age reads zero). The UI renders the relative age itself.
+    freshness: Freshness,
+    clock_adjusted: bool,
+    /// PRD 0010 RF3.2: the core's last valid reading, only while the current
+    /// report failed (`RefreshCycle::last_good_report`). Display only.
+    last_good: Option<LastGoodView>,
+}
+
+/// The preserved reading: its original `checked_at` and metrics. The UI always
+/// labels it stale; `binding`, alerts and history never read it.
+#[derive(Serialize, Clone)]
+pub struct LastGoodView {
+    checked_at: chrono::DateTime<chrono::Utc>,
+    metrics: Vec<MetricView>,
+}
+
+fn last_good_view(report: &Report) -> LastGoodView {
+    LastGoodView {
+        checked_at: report.checked_at,
+        metrics: report.metrics.iter().map(metric_view).collect(),
+    }
 }
 
 #[derive(Serialize, Clone)]
@@ -294,6 +318,8 @@ fn report_view(
 ) -> ReportView {
     let account = &config.accounts[index];
     let binding = binding(report);
+    let refresh_seconds = account.effective_refresh_seconds(config.refresh_seconds);
+    let now = chrono::Utc::now();
     ReportView {
         index,
         account: report.account.clone(),
@@ -305,13 +331,16 @@ fn report_view(
         notes_l10n: report.notes_l10n.clone(),
         source: report.source.clone(),
         class: classify_report(Some(report)),
-        refresh_seconds: account.effective_refresh_seconds(config.refresh_seconds),
+        refresh_seconds,
         next_refresh_at_ms,
         uses_oauth: account.oauth.is_some(),
         identity: account_identity(account, report.status),
         model_count,
         binding,
         binding_rank,
+        freshness: assess(report.checked_at, Duration::from_secs(refresh_seconds), now),
+        clock_adjusted: clock_adjusted(report.checked_at, now),
+        last_good: None,
     }
 }
 
@@ -377,7 +406,9 @@ impl Inner {
                     let next = (!l.cycle.is_busy(i))
                         .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
                     let models = l.monitor.model_count(i);
-                    report_view(i, report, &l.file.config, next, models, ranks[i])
+                    let mut view = report_view(i, report, &l.file.config, next, models, ranks[i]);
+                    view.last_good = l.cycle.last_good_report(i).map(last_good_view);
+                    view
                 })
             })
             .collect();
@@ -2149,6 +2180,49 @@ mod tests {
             view["binding"]["blocked_until"],
             serde_json::to_value(until).unwrap()
         );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn view_offers_the_last_good_reading_only_while_the_current_report_failed() {
+        let backend =
+            build_backend(Arc::new(MemoryStore::default()), vec![plain_account("a")]).await;
+        let mut g = backend.inner.inner.lock().await;
+        let finish = |g: &mut Inner, report: Report| {
+            let cycle = &mut g.loaded.as_mut().unwrap().cycle;
+            let token = cycle.begin(0).unwrap();
+            cycle.finish_account(0, Some(report), token, Instant::now());
+        };
+        let mut good = ready(
+            "a",
+            vec![quota("5h", 40.0, cuotai_core::MetricWindow::Window5h, 2)],
+        );
+        good.checked_at = chrono::Utc::now() - chrono::Duration::minutes(42);
+        finish(&mut g, good.clone());
+        let view = serde_json::to_value(g.view()).unwrap();
+        // 42 min against a 300 s interval is past 3×: stale, and no second copy.
+        assert_eq!(view["reports"][0]["freshness"], "stale");
+        assert!(view["reports"][0]["last_good"].is_null());
+
+        let mut failed = ready("a", vec![]);
+        failed.status = Status::Error;
+        finish(&mut g, failed);
+        let view = serde_json::to_value(g.view()).unwrap();
+        let r = &view["reports"][0];
+        // The current report keeps the failure; the old metrics keep their age.
+        assert_eq!(r["status"], "error");
+        assert_eq!(r["metrics"].as_array().unwrap().len(), 0);
+        assert_eq!(r["freshness"], "fresh");
+        assert_eq!(
+            r["last_good"]["checked_at"],
+            serde_json::to_value(good.checked_at).unwrap()
+        );
+        assert_eq!(r["last_good"]["metrics"][0]["label"], "5h");
+
+        // The next success removes the preserved reading (the badge goes away).
+        finish(&mut g, ready("a", vec![]));
+        let view = serde_json::to_value(g.view()).unwrap();
+        assert!(view["reports"][0]["last_good"].is_null());
+        assert_eq!(view["reports"][0]["freshness"], "fresh");
     }
 
     #[test]

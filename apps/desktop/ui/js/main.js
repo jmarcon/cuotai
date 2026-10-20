@@ -6,9 +6,9 @@ import { confirmDelete, offerExternalReload, openAccountDialog } from "./account
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
-  fmtNext, ALERTS, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, level, logo,
+  fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice,
+  currentSort, initOrderSync, staleView, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -70,7 +70,9 @@ function card(r, position, ordered) {
   const key = reportKey(r);
   const on = !disabled.has(key);
   const isBusy = busy(index);
-  const n = r.metrics.length;
+  // PRD 0010 RF3.2: a failure with a preserved reading draws the old metrics, dimmed and still, plus the cause.
+  const stale = isStaleReading(r);
+  const n = (stale ? r.last_good.metrics : r.metrics).length;
   const custom = currentSort() === "custom" && !filterText.trim(); // com filtro, os vizinhos visíveis não são os da ordem real
   const reorderButtons = custom ? [[-1, "↑"], [1, "↓"]].map(([delta, symbol]) => {
     const target = ordered[position + delta];
@@ -103,10 +105,12 @@ function card(r, position, ordered) {
         <button class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" title="${te(on ? "account.disable" : "account.enable")}" data-toggle="${esc(key)}"><span></span></button>
       </div>
     </div>
-    <div class="summary">${summaryHtml(r)}</div>
+    <div class="summary">${stale
+      ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(r.notes.length ? noteText(r, 0) : statusLabel(r.status))}</span></p>`
+      : summaryHtml(r)}</div>
     <div class="card-foot">
-      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${nextChip}
-      <span class="grow"></span>${reorderButtons}
+      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${ageHtml(r)}${nextChip}
+      <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
     </div>
   </section>`;
 }

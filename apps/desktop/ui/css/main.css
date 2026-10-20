@@ -449,11 +449,15 @@
 }
 .card-foot {
   display: flex;
+  flex-wrap: wrap; /* PRD 0010 RF3: the age chip joins the foot; chips wrap whole instead of breaking */
   align-items: center;
   gap: 8px;
   padding: 6px 16px 12px;
   font-size: 12px;
   color: var(--fg-muted);
+}
+.card-foot > * {
+  white-space: nowrap;
 }
 .card-foot .grow {
   flex: 1;
