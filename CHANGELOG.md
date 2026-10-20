@@ -13,11 +13,18 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-20
+
+### Added
+
+- The desktop app sends a system notification when a quota resets, at the time the provider reported or a chosen lead time before it, scheduled by the app itself so it arrives with the window hidden in the tray: one notice per reset (several metrics of an account resetting together, or everything due after a suspension or a clock change, become one), never repeated after a restart (`<OS data dir>/cuotai/notified.json` keeps only digests and dates for 8 days), a reset missed by more than 10 minutes while the app was closed is not notified late, a postponed reset replaces the pending notice, and no provider is queried for it; the text names only the provider, the account and the metrics, in the language chosen in the app (PRD 0003 RF2).
+- **Settings → Notifications** turns quota reset notices on (off by default, asking the system permission first and explaining how to allow it when refused), chooses the lead time (at the time, 5, 15 or 60 min), the filter (only if used, only if exhausted, always) and whether "other" windows count, and sends a test notification; each account gets a bell on its card and in its details, kept per provider and account name in `desktop.json` (a rename turns it back on), and the tray menu, its tooltip and the tray popover show the next notice (PRD 0003 RF3).
+
 ## [0.40.0] - 2026-10-20
 
 ### Added
 
-- The desktop account details show the recorded history of each metric as a compact area chart of the last 24 hours, 7 days or 30 days, with the last reading highlighted, a dashed marker at each reset, gaps where nothing was recorded, an equivalent table for screen readers, an explained empty state for an account without history and no animation with reduced motion; **Settings → History** can now turn recording off (on by default; what was recorded stays until erased) and shows the history's size on disk (PRD 0006 RF5).
+- The desktop account details show the recorded history of each metric as a compact area chart of the last 24 hours, 7 days or 30 days, with the last reading highlighted, a dashed marker at each reset, gaps where nothing was recorded, an equivalent table for screen readers, an explained empty state for an account without history and no animation with reduced motion; **Settings → History** can now turn recording off (on by default; what was recorded stays until erased) and shows the history's size on disk (PRD 0006 RF5, e522b44).
 
 ## [0.39.0] - 2026-10-20
 
@@ -384,8 +391,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/b955116...main
-[0.40.0]: https://github.com/jmarcon/cuotai/compare/b955116...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/e522b44...main
+[0.41.0]: https://github.com/jmarcon/cuotai/compare/e522b44...main
+[0.40.0]: https://github.com/jmarcon/cuotai/commit/e522b44
 [0.39.0]: https://github.com/jmarcon/cuotai/commit/b955116
 [0.38.0]: https://github.com/jmarcon/cuotai/commit/e743686
 [0.37.0]: https://github.com/jmarcon/cuotai/commit/b89c2d8

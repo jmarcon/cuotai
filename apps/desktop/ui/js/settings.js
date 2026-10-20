@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, sendTestNotification, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -46,6 +46,7 @@ export async function openSettings(extra = {}) {
         </div>
         <p class="err" id="refresh-msg" role="alert"></p>
       </section>
+      ${notifySectionHtml(s)}
       <section class="set-sec" data-history><h3>${te("settings.history.title")}</h3>
         <p class="hint">${te("settings.history.help")}</p>
         <label class="check"><input id="history-recording" type="checkbox" ${s.history_recording !== false ? "checked" : ""} /> ${te("settings.history.record")}</label>
@@ -127,6 +128,7 @@ export async function openSettings(extra = {}) {
       } catch (e) { msg.textContent = l10nError(e); }
     };
     bindHistory(dlg);
+    bindNotify(dlg, extra);
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -212,6 +214,69 @@ function bindHistory(dlg) {
     catch (e) { report(l10nError(e), false); }
     showSize();
   };
+}
+
+/** PRD 0003 RF3.1: reset notices of this device (desktop.json). Off by default; the backend schedules them. */
+function notifySectionHtml(s) {
+  const n = s.notify;
+  const leads = s.notify_leads.map((m) => `<option value="${m}" ${n.lead_minutes === m ? "selected" : ""}>${m ? te("settings.notify.leadMin", { min: m }) : te("settings.notify.leadNow")}</option>`).join("");
+  const whens = s.notify_whens.map((w) => `<option value="${w}" ${n.when === w ? "selected" : ""}>${te(`settings.notify.when.${w}`)}</option>`).join("");
+  return `<section class="set-sec" data-notify><h3>${te("settings.notify.title")}</h3>
+        <p class="hint">${te("settings.notify.help")}</p>
+        <label class="check"><input id="notify-on" type="checkbox" ${n.enabled ? "checked" : ""} /> ${te("settings.notify.on")}</label>
+        <div class="confirm" id="notify-denied" role="alert" hidden><p>${te("settings.notify.denied")}</p><p class="hint">${te("settings.notify.system")}</p></div>
+        <label class="f"><span>${te("settings.notify.lead")}</span><select id="notify-lead">${leads}</select></label>
+        <label class="f"><span>${te("settings.notify.when")}</span><select id="notify-when">${whens}</select>
+          <small>${te("settings.notify.whenHelp")}</small></label>
+        <label class="check"><input id="notify-other" type="checkbox" ${n.include_other ? "checked" : ""} /> ${te("settings.notify.other")}</label>
+        <p class="hint">${te("settings.notify.accounts")}</p>
+        <div class="dlg-actions left"><button class="btn" data-notify-test ${n.enabled ? "" : "disabled"}>${icon("bell")} ${te("settings.notify.test")}</button></div>
+        <p class="err" id="notify-msg" role="status"></p>
+      </section>`;
+}
+
+/** RF3.3: turning on asks the system permission first; anything but `granted` keeps the switch off and shows the
+ *  guidance. The test waits for the switch: on desktop the first notice is what makes the system decide the
+ *  permission. Failures put the controls back to the saved values. */
+function bindNotify(dlg, extra) {
+  const on = dlg.querySelector("#notify-on");
+  const denied = dlg.querySelector("#notify-denied");
+  const msg = dlg.querySelector("#notify-msg");
+  const test = dlg.querySelector("[data-notify-test]");
+  const report = (text, ok = false) => { msg.classList.toggle("ok", ok); msg.textContent = text; };
+  on.onchange = async () => {
+    const want = on.checked;
+    on.disabled = true;
+    try {
+      const permission = await setNotifyEnabled(want);
+      on.checked = permission === "granted";
+      test.disabled = !on.checked;
+      denied.hidden = !want || permission === "granted";
+      report("");
+      extra.onChange?.();
+    } catch (x) { on.checked = !want; report(errorText(x)); }
+    finally { on.disabled = false; }
+  };
+  const lead = dlg.querySelector("#notify-lead");
+  const when = dlg.querySelector("#notify-when");
+  const other = dlg.querySelector("#notify-other");
+  const saved = { lead: lead.value, when: when.value, other: other.checked };
+  const options = async () => {
+    try {
+      await setNotifyOptions(Number(lead.value), when.value, other.checked);
+      Object.assign(saved, { lead: lead.value, when: when.value, other: other.checked });
+      report("");
+      extra.onChange?.();
+    } catch (x) {
+      lead.value = saved.lead; when.value = saved.when; other.checked = saved.other;
+      report(errorText(x));
+    }
+  };
+  lead.onchange = when.onchange = other.onchange = options;
+  test.onclick = () =>
+    sendTestNotification(t("notify.test.title"), t("notify.test.body")).then(
+      () => report(t("settings.notify.testSent"), true),
+      () => report(t("settings.notify.testFailed")));
 }
 
 const errorText = (e) => {

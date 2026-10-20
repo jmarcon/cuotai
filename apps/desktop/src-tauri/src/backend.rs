@@ -1,6 +1,7 @@
 //! Ponte entre `cuotai-core` e a UI. Não contém regra de negócio: validação,
 //! edição de contas, escrita do TOML, classificação de métricas e agendamento
 //! vêm do core; aqui só há estado, DTOs e orquestração.
+use crate::notify::{Notices, SystemNotifier};
 use cuotai_core::{
     account_edit::{
         self, build_account, credential_help, default_env, field_descriptors,
@@ -98,6 +99,8 @@ fn refresh_edit_error(error: &cuotai_core::refresh::EditError) -> cuotai_core::t
 }
 
 const TICK: Duration = Duration::from_secs(5);
+/// Longest sleep of the reset notice timer while a notice is ahead.
+const NOTICE_NAP: Duration = Duration::from_secs(60);
 pub const EVENT: &str = "snapshot";
 
 /// Canal de eventos do login (RF2): somente `LoginEvent` serializável do
@@ -228,11 +231,16 @@ struct Inner {
     /// PRD 0006 RF5: bumped when the history was erased or recording
     /// switched, so open account details read it again.
     history_epoch: u64,
+    /// PRD 0003: reset notice preferences, ledger and language.
+    notices: Notices,
 }
 
 #[derive(Default)]
 pub struct Backend {
     inner: Mutex<Inner>,
+    /// Wakes the reset notice timer (PRD 0003 RF2.1) after a refresh, a
+    /// configuration change or a preference change.
+    notice_nudge: tokio::sync::Notify,
 }
 
 // ---------- DTOs (somente leitura para a UI) ----------
@@ -338,6 +346,32 @@ pub struct ReportView {
     pace_index: Option<usize>,
     /// PRD 0005 RF4: how the account's usage is read.
     access: ReportAccess,
+    /// The core's stable `Account::key` (provider slug + name), which the
+    /// per-account notice preference is keyed by (PRD 0003 RF3.2).
+    account_key: String,
+    /// PRD 0003 RF3.2: the account's bell (reset notices on).
+    notify: bool,
+}
+
+/// PRD 0003 RF3: whether reset notices are on and, then, the next one
+/// (tray and tooltip). Only provider, account name, window and label.
+#[derive(Serialize, Clone)]
+pub struct NotifyView {
+    enabled: bool,
+    next: Option<NextNoticeView>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct NextNoticeView {
+    index: usize,
+    provider: Provider,
+    account: String,
+    /// Window and label of the group's first metric.
+    window: MetricWindow,
+    label: String,
+    /// When the notice is due (`resets_at − lead`).
+    at: chrono::DateTime<chrono::Utc>,
+    resets_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// The core's descriptor (`access::describe`, flattened: `level` slug,
@@ -403,6 +437,7 @@ pub struct View {
     history_warning: Option<cuotai_core::text::Localized>,
     /// Changes when the history was erased or recording switched (RF5).
     history_epoch: u64,
+    notify: NotifyView,
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -465,6 +500,8 @@ fn report_view(
         pending: false,
         pace_index,
         access: report_access(account, report),
+        account_key: account.key(),
+        notify: true,
     }
 }
 
@@ -515,6 +552,34 @@ fn binding_ranks(slots: &[Option<Report>]) -> Vec<usize> {
     ranks
 }
 
+/// What reset notices read (PRD 0003 RF2): each account's current report
+/// or, while it failed or nothing answered yet, its last valid reading
+/// (restored from the history on opening), so a reset passed while the
+/// app was closed is still known.
+fn notice_readings(cycle: &RefreshCycle) -> Vec<Option<&Report>> {
+    (0..cycle.len())
+        .map(|index| {
+            cycle
+                .last_good_report(index)
+                .or_else(|| cycle.account_report(index))
+        })
+        .collect()
+}
+
+fn next_notice_view(event: &cuotai_core::resets::ResetEvent, config: &Config) -> NextNoticeView {
+    let account = &config.accounts[event.account_index];
+    let first = &event.metrics[0];
+    NextNoticeView {
+        index: event.account_index,
+        provider: account.provider,
+        account: account.name.clone(),
+        window: first.window,
+        label: first.label.clone(),
+        at: event.notify_at,
+        resets_at: event.resets_at,
+    }
+}
+
 impl Inner {
     fn view(&self) -> View {
         let Some(l) = &self.loaded else {
@@ -534,6 +599,10 @@ impl Inner {
                 generation: 0,
                 history_warning: None,
                 history_epoch: self.history_epoch,
+                notify: NotifyView {
+                    enabled: self.notices.prefs().enabled,
+                    next: None,
+                },
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -581,9 +650,14 @@ impl Inner {
                     (None, None) => return None,
                 };
                 view.last_good = last_good.map(last_good_view);
+                view.notify = self.notices.account_on(&view.account_key);
                 Some(view)
             })
             .collect();
+        let next = self
+            .notices
+            .next(&l.file.config, &notice_readings(&l.cycle), clock)
+            .map(|event| next_notice_view(&event, &l.file.config));
         View {
             config_path: Some(config_label(&l.file)),
             config_source: Some(l.file.source),
@@ -608,6 +682,10 @@ impl Inner {
                 .history_status()
                 .and_then(|status| status.warning()),
             history_epoch: self.history_epoch,
+            notify: NotifyView {
+                enabled: self.notices.prefs().enabled,
+                next,
+            },
         }
     }
 
@@ -718,9 +796,83 @@ impl Inner {
 }
 
 impl Backend {
+    /// The app's backend with this device's reset notice state (PRD 0003).
+    pub fn new(notices: Notices) -> Self {
+        Self {
+            inner: Mutex::new(Inner {
+                notices,
+                ..Inner::default()
+            }),
+            notice_nudge: tokio::sync::Notify::new(),
+        }
+    }
+
+    /// Every state change ends here: the UI gets the view and the reset
+    /// notice timer recomputes (PRD 0003 RF2.1).
     async fn emit(&self, app: &AppHandle) {
         let view = self.inner.lock().await.view();
         let _ = app.emit(EVENT, view);
+        self.notice_nudge.notify_one();
+    }
+
+    /// PRD 0003 RF2.1: the reset notice timer, beside [`Self::run_scheduler`].
+    /// Each pass delivers what is due from the readings already in memory
+    /// (never a provider query) and sleeps until the next notice or a nudge
+    /// (refresh, configuration or preference change). The sleep is capped
+    /// at [`NOTICE_NAP`] while a notice is ahead: the monotonic clock stops
+    /// during a system suspension and the wall clock may be changed, so the
+    /// next pass sees either soon after.
+    pub async fn run_notices(self: Arc<Self>, app: AppHandle) {
+        let notifier = SystemNotifier(app.clone());
+        loop {
+            let tick = {
+                let mut g = self.inner.lock().await;
+                let Inner {
+                    loaded, notices, ..
+                } = &mut *g;
+                loaded.as_ref().map(|l| {
+                    let readings = notice_readings(&l.cycle);
+                    notices.tick(&l.file.config, &readings, chrono::Utc::now(), &notifier)
+                })
+            };
+            if tick.is_some_and(|tick| tick.delivered > 0) {
+                // The tray's next notice moved on.
+                let view = self.inner.lock().await.view();
+                let _ = app.emit(EVENT, view);
+            }
+            let nudged = self.notice_nudge.notified();
+            match tick.and_then(|tick| tick.next) {
+                Some(at) => {
+                    let wait = (at - chrono::Utc::now())
+                        .to_std()
+                        .unwrap_or_default()
+                        .min(NOTICE_NAP);
+                    tokio::select! {
+                        () = tokio::time::sleep_until(tokio::time::Instant::now() + wait) => {}
+                        () = nudged => {}
+                    }
+                }
+                None => nudged.await,
+            }
+        }
+    }
+
+    /// Change the reset notice state (preferences, a bell, the language),
+    /// then show it and recompute the timer. Errors are stable codes.
+    pub async fn update_notices(
+        &self,
+        app: &AppHandle,
+        change: impl FnOnce(&mut Notices) -> Result<(), &'static str>,
+    ) -> Result<(), String> {
+        change(&mut self.inner.lock().await.notices).map_err(str::to_owned)?;
+        self.emit(app).await;
+        Ok(())
+    }
+
+    /// Reset notices are on (PRD 0003 RF3.3: nothing reaches the system's
+    /// notification center, the test included, before the user turns them on).
+    pub async fn notices_enabled(&self) -> bool {
+        self.inner.lock().await.notices.prefs().enabled
     }
 
     /// Carrega a configuração se ainda não houver uma válida em memória.
@@ -999,6 +1151,7 @@ impl Backend {
                 loaded,
                 session,
                 generation,
+                notices,
                 ..
             } = &mut *g;
             let l = loaded.as_mut().ok_or("Configuração não carregada.")?;
@@ -1157,6 +1310,9 @@ impl Backend {
             // Saved: an edited identity (rename, credential, region) loses its entry.
             let _ = l.monitor.prune_models();
             l.monitor.mark_history_removed();
+            // PRD 0003 RF3.2: a renamed account loses its bell; best effort
+            // like the model cache (an unwritable file keeps a stale key).
+            let _ = notices.keep_accounts(&l.file.config);
             if l.tokens.len() < l.file.config.accounts.len() {
                 l.tokens
                     .extend((0..l.file.config.accounts.len() - l.tokens.len()).map(|_| None));
@@ -1256,6 +1412,7 @@ impl Backend {
             }
             l.generation += 1;
             g.generation = l.generation;
+            let _ = g.notices.keep_accounts(&post_save_config);
             (staged, session, post_save_config)
         };
         // We are OUT of the inner mutex from here. The vault purge,

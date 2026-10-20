@@ -225,6 +225,13 @@ static LIBRARIES: &[Library] = &[
         &[Desktop],
     ),
     lib(
+        "tauri-plugin-notification",
+        "Apache-2.0 OR MIT",
+        "https://github.com/tauri-apps/plugins-workspace",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
         "thiserror",
         "MIT OR Apache-2.0",
         "https://github.com/dtolnay/thiserror",

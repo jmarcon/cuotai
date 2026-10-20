@@ -2,6 +2,7 @@
 //! Somente consome `cuotai-core` (via `backend.rs`); não contém lógica de provider.
 mod about;
 mod backend;
+mod notify;
 mod settings;
 mod user_content;
 
@@ -232,6 +233,9 @@ struct TrayMenuPayload {
     quit: String,
     /// PRD 0010 RF3.3: icon tooltip ("Cuotai · oldest reading: 42 min ago").
     tooltip: String,
+    /// PRD 0003 RF3.4: "Next notice: Claude 5h · today, 14:30", when one is ahead.
+    #[serde(default)]
+    notice: Option<String>,
 }
 
 /// Remove controles, apara e limita o tamanho de uma linha de menu.
@@ -247,6 +251,21 @@ fn clean_menu_line(text: &str) -> String {
 
 fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
+    if let Some(notice) = p
+        .notice
+        .as_deref()
+        .map(clean_menu_line)
+        .filter(|n| !n.is_empty())
+    {
+        menu.append(&MenuItem::with_id(
+            app,
+            "notice",
+            notice,
+            false,
+            None::<&str>,
+        )?)?;
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
     let lines: Vec<String> = p
         .lines
         .iter()
@@ -305,7 +324,7 @@ fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String>
     let menu = build_tray_menu(&app, &payload).map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("cuotai") {
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
-        tray.set_tooltip(Some(clean_menu_line(&payload.tooltip)))
+        tray.set_tooltip(Some(tray_tooltip(&payload)))
             .map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -397,6 +416,83 @@ async fn set_history_recording(app: AppHandle, b: Shared<'_>, on: bool) -> Resul
     b.set_history_recording(&app, on).await
 }
 
+/// PRD 0003 RF3.3: turn reset notices on or off. On asks the operating system
+/// for permission first and stays off unless it is `granted`; returns the
+/// permission (`granted`, `denied`, `prompt`) or `off`. Error: `unwritable`.
+#[tauri::command]
+async fn set_notify_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<String, String> {
+    let permission = if on {
+        notify::request_permission(&app)
+    } else {
+        "off"
+    };
+    let enabled = permission == "granted";
+    b.update_notices(&app, |n| {
+        n.set_prefs(settings::NotifyPrefs {
+            enabled,
+            ..n.prefs().clone()
+        })
+    })
+    .await?;
+    Ok(permission.to_owned())
+}
+
+/// PRD 0003 RF3.1: lead time (0, 5, 15 or 60 min), filter (`used`,
+/// `exhausted`, `always`) and "other" windows, saved in `desktop.json`.
+/// Errors: `invalid_notify`, `unwritable`.
+#[tauri::command]
+async fn set_notify_options(
+    app: AppHandle,
+    b: Shared<'_>,
+    lead_minutes: u32,
+    when: String,
+    include_other: bool,
+) -> Result<(), String> {
+    b.update_notices(&app, |n| {
+        let prefs = n.prefs().with_choices(lead_minutes, &when, include_other)?;
+        n.set_prefs(prefs)
+    })
+    .await
+}
+
+/// PRD 0003 RF3.2: the bell of the account with the core key `account_key`.
+/// Error: `unwritable`.
+#[tauri::command]
+async fn set_account_notify(
+    app: AppHandle,
+    b: Shared<'_>,
+    account_key: String,
+    on: bool,
+) -> Result<(), String> {
+    b.update_notices(&app, |n| n.set_account(&account_key, on))
+        .await
+}
+
+/// PRD 0003 RF2.2: the language chosen in the app, for the notices the
+/// backend sends. Errors: `invalid_locale`, `unwritable`.
+#[tauri::command]
+async fn set_locale(app: AppHandle, b: Shared<'_>, locale: String) -> Result<(), String> {
+    b.update_notices(&app, |n| n.set_locale(&locale)).await
+}
+
+/// PRD 0003 RF3.3: send one notice now, with the texts the interface
+/// translated, to check the permission and the notification center. Only
+/// while notices are on: on desktop the first notice is what makes the
+/// system decide the permission. Error: `notify_off`.
+#[tauri::command]
+async fn send_test_notification(
+    app: AppHandle,
+    b: Shared<'_>,
+    title: String,
+    body: String,
+) -> Result<(), String> {
+    use notify::Notifier;
+    if !b.notices_enabled().await {
+        return Err("notify_off".into());
+    }
+    notify::SystemNotifier(app).deliver(&clean_menu_line(&title), &clean_menu_line(&body))
+}
+
 /// PRD 0006 RF5.3: bytes the history file takes on this device.
 #[tauri::command]
 async fn history_size(b: Shared<'_>) -> Result<u64, String> {
@@ -483,10 +579,25 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
     let _ = w.set_focus();
 }
 
+/// The icon tooltip, plus the next reset notice on a second line.
+fn tray_tooltip(p: &TrayMenuPayload) -> String {
+    let tooltip = clean_menu_line(&p.tooltip);
+    match p
+        .notice
+        .as_deref()
+        .map(clean_menu_line)
+        .filter(|n| !n.is_empty())
+    {
+        Some(notice) => format!("{tooltip}\n{notice}"),
+        None => tooltip,
+    }
+}
+
 pub fn run() {
-    let backend = Arc::new(Backend::default());
+    let backend = Arc::new(Backend::new(notify::Notices::load()));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Arc::clone(&backend))
         .invoke_handler(tauri::generate_handler![
             get_view,
@@ -529,6 +640,11 @@ pub fn run() {
             set_history_recording,
             history_size,
             account_history,
+            set_notify_enabled,
+            set_notify_options,
+            set_account_notify,
+            set_locale,
+            send_test_notification,
             open_settings,
             show_main_window,
             quit_app
@@ -572,6 +688,7 @@ pub fn run() {
                 settings: "Configurações".into(),
                 quit: "Sair".into(),
                 tooltip: "Cuotai".into(),
+                notice: None,
             };
             if let (Some(tray), Ok(menu)) = (
                 app.tray_by_id("cuotai"),
@@ -599,6 +716,7 @@ pub fn run() {
                 });
             }
             tauri::async_runtime::spawn(Arc::clone(&backend).run_scheduler(app.handle().clone()));
+            tauri::async_runtime::spawn(Arc::clone(&backend).run_notices(app.handle().clone()));
             Ok(())
         })
         .run(tauri::generate_context!())

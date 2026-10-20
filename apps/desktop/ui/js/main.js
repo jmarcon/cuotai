@@ -9,7 +9,7 @@ import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
-  cardPace, paceHtml, accessHtml, causeText,
+  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -102,6 +102,7 @@ function card(r, position, ordered, recharging = false) {
       <div class="who"><h2 title="${esc(brand(r.provider).label)}">${esc(brand(r.provider).label)}</h2><p title="${esc(r.account)}">${esc(r.account)}</p></div>
       <div class="actions">
         <button class="icon" title="${te("common.refresh")}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
+        ${bellHtml(store.view, r)}
         <button class="icon" title="${te("card.details")}" aria-label="${te("card.details")}" data-details="${esc(key)}">${icon("search")}</button>
         <button class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" title="${te(on ? "account.disable" : "account.enable")}" data-toggle="${esc(key)}"><span></span></button>
       </div>
@@ -197,7 +198,13 @@ const detailsContext = {
   onRemove: (index, label) =>
     confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),
   onChange: () => render(),
+  view: () => store.view,
+  onBell: (accountKey, on) => toggleBell(accountKey, on),
 };
+/** PRD 0003 RF3.2: the bell lives in desktop.json; the backend answers with a new view ("snapshot"). */
+function toggleBell(accountKey, on) {
+  return setAccountNotify(accountKey, on).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x)));
+}
 onHiddenChange(() => { render(); refreshDetails(); });
 
 let dragKey = null;
@@ -261,9 +268,11 @@ root.addEventListener("click", (e) => {
   const all = t.closest("[data-refresh-all]");
   if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
-  if (t.closest("[data-settings]")) return openSettings({ onChange: render, view: () => store.view });
+  if (t.closest("[data-settings]")) return openSettings({ onChange: () => (isDesktop ? render() : store.reload()), view: () => store.view });
   const det = t.closest("[data-details]");
   if (det) return openDetails(det.dataset.details, detailsContext, det.closest("[data-card]"));
+  const bell = t.closest("[data-bell]");
+  if (bell) return toggleBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
   const tog = t.closest("[data-toggle]");
   if (tog) { disabled.toggle(tog.dataset.toggle); return render(); }
 });

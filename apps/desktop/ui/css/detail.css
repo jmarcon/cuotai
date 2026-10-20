@@ -408,3 +408,6 @@
     clip-path: inset(0 0 0 0);
   }
 }
+
+/* PRD 0003 RF3.2: the account's bell (card and details); pressed = notices on. */
+.icon.bell.on { color: var(--accent); }
