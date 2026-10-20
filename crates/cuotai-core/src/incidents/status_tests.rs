@@ -277,6 +277,14 @@ async fn every_format_normalizes_scoped_active_incidents() {
     let incident = grok.incident.as_ref().unwrap();
     assert_eq!(incident.title, "Elevated errors on grok.com");
     assert_eq!(incident.url, "https://status.x.ai/grok-com/ps_1");
+
+    // RF4.1: every page the client reports can be opened by a frontend.
+    for status in &statuses {
+        assert!(super::super::is_status_link(&status.page_url), "{status:?}");
+        if let Some(incident) = &status.incident {
+            assert!(super::super::is_status_link(&incident.url), "{status:?}");
+        }
+    }
 }
 
 /// The verified captures through HTTP: quiet pages are operational, feeds
@@ -484,6 +492,22 @@ async fn queries_only_when_enabled_and_only_configured_sources() {
         received[0].url.path(),
         "/status.claude.com/api/v2/summary.json"
     );
+}
+
+/// RF4.3: the domains a frontend lists before the user opts in, without
+/// any request: configured providers with a source, one entry per host.
+#[tokio::test]
+async fn status_domains_are_listed_while_off_without_a_request() {
+    use Provider::*;
+    let server = MockServer::start().await;
+    let monitor = only(&[Claude, Mistral, AnthropicApi, Groq, ChatGpt], &server);
+    monitor.incidents().set_enabled(false);
+    assert_eq!(
+        monitor.status_domains(),
+        ["status.claude.com", "groqstatus.com", "status.openai.com"]
+    );
+    assert!(only(&[Mistral, Kiro], &server).status_domains().is_empty());
+    assert_eq!(requests(&server).await, 0);
 }
 
 /// RF2.1: public requests identify the client and carry nothing from the

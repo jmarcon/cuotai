@@ -9,7 +9,7 @@ import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
-  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert,
+  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -110,7 +110,7 @@ function card(r, position, ordered, recharging = false) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${paceLine(r)}${accessHtml(r)}</div>
+      : summaryHtml(r)}${paceLine(r)}${incidentHtml(r)}${accessHtml(r)}</div>
     <div class="card-foot">
       ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
@@ -279,6 +279,8 @@ root.addEventListener("click", (e) => {
   const tog = t.closest("[data-toggle]");
   if (tog) { disabled.toggle(tog.dataset.toggle); return render(); }
 });
+// PRD 0011 RF4.1: "Open status page" on cards and in the details dialog (appended to the body).
+bindStatusLinks(document);
 // Reorder through the core so the TOML, reports, deadlines and both
 // frontends share one order. No refresh command is issued by this path.
 async function reorderAccounts(from, to, focusKey = null) {

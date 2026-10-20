@@ -408,6 +408,20 @@ impl Monitor {
             .collect()
     }
 
+    /// PRD 0011 RF4.3: the domains status queries reach for the configured
+    /// providers, in configuration order, once each. No network and
+    /// independent of the preference, so a frontend can list them before
+    /// the user turns the feature on.
+    pub fn status_domains(&self) -> Vec<&'static str> {
+        let mut domains = Vec::new();
+        for (_, source) in self.status_sources() {
+            if !domains.contains(&source.host()) {
+                domains.push(source.host());
+            }
+        }
+        domains
+    }
+
     /// PRD 0011 RF2: query each due source of the configured providers once
     /// (coalesced by URL, cached for [`incidents::CACHE_TTL`], under this
     /// monitor's query slots) and return their statuses. Makes no request

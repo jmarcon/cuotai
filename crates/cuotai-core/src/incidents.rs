@@ -70,6 +70,13 @@ impl StatusSource {
     pub fn includes_component(self, id: &str) -> bool {
         self.scope.iter().any(|component| component.id == id)
     }
+
+    /// Host of the endpoint (every registry URL is `https://host/path`):
+    /// the domain a status query reveals the user's IP and interest to.
+    pub fn host(self) -> &'static str {
+        let rest = self.url.strip_prefix("https://").unwrap_or(self.url);
+        rest.split('/').next().unwrap_or(rest)
+    }
 }
 
 const OPENAI: &str = "https://status.openai.com/api/v1/summary";
@@ -278,6 +285,29 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         | Provider::Antigravity
         | Provider::Kimchi => return None,
     })
+}
+
+/// Whether `url` is a link the status client can report: a plain `https`
+/// URL on the host of a verified source, in normalized form, without port,
+/// credentials, query or fragment. Lets a frontend open a reported status
+/// or incident page while refusing any other address.
+pub fn is_status_link(url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    parsed.scheme() == "https"
+        && parsed.as_str() == url
+        && parsed.port().is_none()
+        && parsed.username().is_empty()
+        && parsed.password().is_none()
+        && parsed.query().is_none()
+        && parsed.fragment().is_none()
+        && parsed.host_str().is_some_and(|host| {
+            Provider::ALL
+                .into_iter()
+                .filter_map(source)
+                .any(|source| source.host() == host)
+        })
 }
 
 #[cfg(test)]

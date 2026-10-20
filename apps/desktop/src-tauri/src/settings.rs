@@ -48,6 +48,10 @@ struct Stored {
     /// leniently like `notify` ([`AlertSettings::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     alerts: Option<serde_json::Value>,
+    /// Public provider status queries (PRD 0011 RF4.3); absent = off, the
+    /// owner's opt-in decision. Only `true` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    status_queries: Option<bool>,
 }
 
 /// Lead times offered, in minutes ("at the time" is 0).
@@ -352,6 +356,17 @@ pub fn history_recording() -> bool {
     recording_of(&load())
 }
 
+/// Off unless `desktop.json` says `true`.
+fn status_queries_of(stored: &Stored) -> bool {
+    stored.status_queries == Some(true)
+}
+
+/// PRD 0011 RF4.3: whether this device queries the providers' public
+/// status pages (off until the user turns it on).
+pub fn status_queries() -> bool {
+    status_queries_of(&load())
+}
+
 /// Valores aceitos para `motion`, na ordem exibida pela UI.
 pub const MOTIONS: [&str; 4] = ["system", "always", "reduced", "off"];
 
@@ -497,6 +512,13 @@ pub fn save_history_recording(on: bool) -> Result<(), &'static str> {
     update(&file, |s| s.history_recording = (!on).then_some(false))
 }
 
+/// Queries the public status pages or not; `false` (the default) removes
+/// the key.
+pub fn save_status_queries(on: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| s.status_queries = on.then_some(true))
+}
+
 #[derive(Serialize)]
 pub struct SettingsView {
     /// Pasta em uso agora.
@@ -520,6 +542,8 @@ pub struct SettingsView {
     history_days_max: u16,
     /// New readings enter the history (on by default).
     history_recording: bool,
+    /// PRD 0011 RF4.3: public status queries (off by default).
+    status_queries: bool,
     /// PRD 0003 RF3: reset notices (off by default) and the choices offered.
     notify: NotifyPrefs,
     notify_leads: [u32; 4],
@@ -548,6 +572,7 @@ pub fn view() -> SettingsView {
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,
         history_recording: recording_of(&stored),
+        status_queries: status_queries_of(&stored),
         notify: notify_of(&stored),
         notify_leads: NOTIFY_LEADS,
         notify_whens: NOTIFY_WHENS,
@@ -682,6 +707,25 @@ mod tests {
         // A hand-edited `true` means on, like a removed key.
         fs::write(&file, r#"{"history_recording":true}"#).unwrap();
         assert!(recording_of(&read(&file)));
+    }
+
+    #[test]
+    fn status_queries_are_off_unless_turned_on_and_keep_other_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert!(!status_queries_of(&read(&file)), "off by default");
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        update(&file, |s| s.status_queries = Some(true)).unwrap();
+        let stored = read(&file);
+        assert!(status_queries_of(&stored));
+        assert_eq!(motion_of(&stored), "off");
+        // Turning it off removes the key; a hand-edited `false` is off too.
+        update(&file, |s| s.status_queries = None).unwrap();
+        assert!(!fs::read_to_string(&file)
+            .unwrap()
+            .contains("status_queries"));
+        fs::write(&file, r#"{"status_queries":false}"#).unwrap();
+        assert!(!status_queries_of(&read(&file)));
     }
 
     #[test]

@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-10-20
+
+### Added
+
+- The desktop app can show the providers' public status, off until you turn it on in Settings → Privacy, which explains that the app will then make public, credential-free requests to the listed status domains of your configured providers: cards and the tray popover show a colored badge with an icon and text for a degraded service, partial or major outage, maintenance or an unreadable status page, with an "Open status page" link, the account details show the full status and when it was read, and the tray icon gets a red dot while any configured provider reports a partial outage or worse (PRD 0011 RF4).
+
 ## [0.47.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` can read the public status of the configured providers, off until the frontend enables it through `Monitor::incidents()`: each verified source is queried once per five minutes through the monitor's own HTTP client and query limit, with no credentials, an identified User-Agent, a 5-second timeout and a 1 MiB cap, and `Monitor::refresh_incidents`/`incident_statuses` report each provider as operational, degraded, partial or major outage, maintenance or unknown, with the active incident's cleaned-up title, start and public link; a failed status query keeps the last reading marked stale and never changes the quota reading, and while the provider reports an incident a failed query (error, rate limit or authentication) gains a note that the failure may not be from the account, plus a suggestion to wait before signing in again for authentication failures, without changing its status (PRD 0011 RF2, RF3).
+- `cuotai-core` can read the public status of the configured providers, off until the frontend enables it through `Monitor::incidents()`: each verified source is queried once per five minutes through the monitor's own HTTP client and query limit, with no credentials, an identified User-Agent, a 5-second timeout and a 1 MiB cap, and `Monitor::refresh_incidents`/`incident_statuses` report each provider as operational, degraded, partial or major outage, maintenance or unknown, with the active incident's cleaned-up title, start and public link; a failed status query keeps the last reading marked stale and never changes the quota reading, and while the provider reports an incident a failed query (error, rate limit or authentication) gains a note that the failure may not be from the account, plus a suggestion to wait before signing in again for authentication failures, without changing its status (PRD 0011 RF2, RF3, 64f2266).
 
 ## [0.46.0] - 2026-10-20
 
@@ -432,8 +438,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/074966d...main
-[0.47.0]: https://github.com/jmarcon/cuotai/compare/074966d...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/64f2266...main
+[0.48.0]: https://github.com/jmarcon/cuotai/compare/64f2266...main
+[0.47.0]: https://github.com/jmarcon/cuotai/commit/64f2266
 [0.46.0]: https://github.com/jmarcon/cuotai/commit/074966d
 [0.45.0]: https://github.com/jmarcon/cuotai/commit/e421c1b
 [0.44.0]: https://github.com/jmarcon/cuotai/commit/e5f1573

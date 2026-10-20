@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, sendTestNotification, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, sendTestNotification, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setShowPace, setSort, setStatusEnabled, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -76,6 +76,7 @@ export async function openSettings(extra = {}) {
         </div>
         <p class="err" id="history-data-msg" role="status"></p>
       </section>
+      ${privacySectionHtml(s, view)}
       <section class="set-sec"><h3>${te("settings.config.title")}</h3>
         <p class="hint">${te("settings.config.help")}</p>
         <div class="path-row"><code title="${esc(configLabel(view))}">${esc(configLabel(view) || "—")}</code></div>
@@ -129,6 +130,10 @@ export async function openSettings(extra = {}) {
     };
     bindHistory(dlg);
     bindNotify(dlg, extra, s);
+    // PRD 0011 RF4.3: saved in desktop.json; on failure the box goes back to the saved value.
+    dlg.querySelector("#status-queries").onchange = (e) => setStatusEnabled(e.target.checked).then(
+      () => { dlg.querySelector("#status-msg").textContent = ""; extra.onChange?.(); },
+      (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#status-msg").textContent = errorText(x); });
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -214,6 +219,20 @@ function bindHistory(dlg) {
     catch (e) { report(l10nError(e), false); }
     showSize();
   };
+}
+
+/** PRD 0011 RF4.3: public provider status queries, off until the user turns them on, with what they reveal and the
+ *  domains they reach for the configured providers (listed while off too, so the choice is informed). */
+function privacySectionHtml(s, view) {
+  const domains = view?.status?.domains ?? [];
+  return `<section class="set-sec" data-privacy><h3>${te("settings.privacy.title")}</h3>
+        <label class="check"><input id="status-queries" type="checkbox" ${s.status_queries ? "checked" : ""} /> ${te("settings.status.on")}</label>
+        <p class="hint">${te("settings.status.help")}</p>
+        <p class="hint" data-status-domains>${domains.length
+          ? `${te("settings.status.domains")} ${domains.map((d) => `<code>${esc(d)}</code>`).join(", ")}`
+          : te("settings.status.none")}</p>
+        <p class="err" id="status-msg" role="alert"></p>
+      </section>`;
 }
 
 /** PRD 0003 RF3.1: reset notices of this device (desktop.json). Off by default; the backend schedules them.
