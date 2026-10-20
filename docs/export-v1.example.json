@@ -1,0 +1,298 @@
+{
+  "schema": 1,
+  "generated_at": "2026-10-20T12:00:00Z",
+  "config_identity": "d4b3f1a88b20e7ff1a40533eee532d6be98fb820f3140630f652978ed3052e94",
+  "accounts": [
+    {
+      "index": 0,
+      "key": "claude:Personal",
+      "name": "Personal",
+      "provider": "claude",
+      "class": "available",
+      "report": {
+        "account": "Personal",
+        "provider": "claude",
+        "checked_at": "2026-10-20T11:58:00Z",
+        "status": "ready",
+        "metrics": [
+          {
+            "label": "Sessão (5h)",
+            "used": 30.0,
+            "limit": 100.0,
+            "remaining": null,
+            "unit": "%",
+            "kind": "quota",
+            "window": "window_5h",
+            "period": null,
+            "resets_at": "2026-10-20T14:00:00Z"
+          },
+          {
+            "label": "Semana",
+            "used": 80.0,
+            "limit": 100.0,
+            "remaining": null,
+            "unit": "%",
+            "kind": "quota",
+            "window": "weekly",
+            "period": null,
+            "resets_at": "2026-10-22T12:00:00Z"
+          },
+          {
+            "label": "Créditos extras",
+            "used": null,
+            "limit": null,
+            "remaining": null,
+            "unit": "USD",
+            "kind": "credits",
+            "window": null,
+            "period": null,
+            "resets_at": null
+          }
+        ],
+        "notes": [],
+        "source": "https://api.anthropic.com/api/oauth/usage"
+      },
+      "age_seconds": 120,
+      "freshness": "fresh",
+      "clock_adjusted": false,
+      "stale": false,
+      "last_good": null,
+      "binding": {
+        "index": 1,
+        "label": "Semana",
+        "window": "weekly",
+        "used_ratio": 0.8,
+        "remaining": 20.0,
+        "resets_at": "2026-10-22T12:00:00Z",
+        "reason": "tightest",
+        "blocked_until": null
+      },
+      "pace": [
+        {
+          "elapsed_fraction": 0.6,
+          "expected_used_fraction": 0.6,
+          "used_fraction": 0.3,
+          "delta_points": -30.0,
+          "stage": "reserve",
+          "tone": "good",
+          "source": "average",
+          "resets_at": "2026-10-20T14:00:00Z",
+          "projected_exhaustion_at": null,
+          "lasts_until_reset": true
+        },
+        {
+          "elapsed_fraction": 0.7142857142857143,
+          "expected_used_fraction": 0.7142857142857143,
+          "used_fraction": 0.8,
+          "delta_points": 8.57142857142857,
+          "stage": "ahead",
+          "tone": "warn",
+          "source": "average",
+          "resets_at": "2026-10-22T12:00:00Z",
+          "projected_exhaustion_at": "2026-10-21T18:00:00Z",
+          "lasts_until_reset": false
+        },
+        null
+      ],
+      "access": {
+        "level": "undocumented",
+        "credential": "subscription_session",
+        "plan_requirement": null,
+        "scope": "account",
+        "metered": false,
+        "evidence": {
+          "kind": "reference",
+          "url": "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/claude.js"
+        },
+        "verified_on": "2026-10-20",
+        "summary": {
+          "id": "access.summary.claude",
+          "fallback": "Janelas de uso do plano Claude pela interface interna usada pelos clientes oficiais."
+        },
+        "credential_hint": {
+          "id": "access.credential_hint.subscription_session",
+          "fallback": "Usa a sessão da assinatura (login nativo ou o token dela), não uma chave de API da plataforma."
+        },
+        "risk": {
+          "id": "access.risk.undocumented",
+          "fallback": "Interface interna, não documentada pelo fornecedor; pode mudar sem aviso."
+        },
+        "reason": null
+      }
+    },
+    {
+      "index": 1,
+      "key": "open_ai_api:Work",
+      "name": "Work",
+      "provider": "open_ai_api",
+      "class": "unmeasured",
+      "report": {
+        "account": "Work",
+        "provider": "open_ai_api",
+        "checked_at": "2026-10-20T11:59:00Z",
+        "status": "error",
+        "metrics": [],
+        "notes": [
+          "Consulta retornou HTTP 503. Verifique acesso e permissões."
+        ],
+        "notes_l10n": [
+          {
+            "id": "query.http",
+            "params": {
+              "code": "503"
+            },
+            "fallback": "Consulta retornou HTTP 503. Verifique acesso e permissões."
+          }
+        ],
+        "source": ""
+      },
+      "age_seconds": 60,
+      "freshness": "fresh",
+      "clock_adjusted": false,
+      "stale": true,
+      "last_good": {
+        "checked_at": "2026-10-20T11:18:00Z",
+        "age_seconds": 2520,
+        "metrics": [
+          {
+            "label": "Gasto do mês",
+            "used": 12.5,
+            "limit": null,
+            "remaining": null,
+            "unit": "USD",
+            "kind": "spend",
+            "window": "monthly",
+            "period": "2026-10",
+            "resets_at": null
+          }
+        ]
+      },
+      "binding": null,
+      "pace": [],
+      "access": {
+        "level": "official",
+        "credential": "admin_key",
+        "plan_requirement": null,
+        "scope": "organization",
+        "metered": false,
+        "evidence": {
+          "kind": "documentation",
+          "url": "https://developers.openai.com/api/reference/resources/admin/subresources/organization"
+        },
+        "verified_on": "2026-10-20",
+        "summary": {
+          "id": "access.summary.open_ai_api",
+          "fallback": "Custos e uso da organização pela Admin API da OpenAI."
+        },
+        "credential_hint": {
+          "id": "access.credential_hint.admin_key",
+          "fallback": "Precisa de uma chave de administrador ou de cobrança, não da chave de inferência."
+        },
+        "risk": {
+          "id": "access.risk.official",
+          "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
+        },
+        "reason": null
+      }
+    },
+    {
+      "index": 2,
+      "key": "groq:Groq",
+      "name": "Groq",
+      "provider": "groq",
+      "class": "unmeasured",
+      "report": {
+        "account": "Groq",
+        "provider": "groq",
+        "checked_at": "2026-10-20T11:59:00Z",
+        "status": "needs_configuration",
+        "metrics": [],
+        "notes": [
+          "Credencial ausente: [redacted]"
+        ],
+        "notes_l10n": [
+          {
+            "id": "query.missing_credential",
+            "params": {
+              "name": "[redacted]"
+            },
+            "fallback": "Credencial ausente: [redacted]"
+          }
+        ],
+        "source": ""
+      },
+      "age_seconds": 60,
+      "freshness": "fresh",
+      "clock_adjusted": false,
+      "stale": false,
+      "last_good": null,
+      "binding": null,
+      "pace": [],
+      "access": {
+        "level": "derived",
+        "credential": "inference_key",
+        "plan_requirement": null,
+        "scope": "organization",
+        "metered": false,
+        "evidence": {
+          "kind": "documentation",
+          "url": "https://console.groq.com/docs/rate-limits"
+        },
+        "verified_on": "2026-10-20",
+        "summary": {
+          "id": "access.summary.groq",
+          "fallback": "Rate limits da organização lidos nos cabeçalhos x-ratelimit-* da listagem de modelos."
+        },
+        "credential_hint": {
+          "id": "access.credential_hint.inference_key",
+          "fallback": "Usa a chave de API da conta; nenhuma resposta é gerada."
+        },
+        "risk": {
+          "id": "access.risk.derived",
+          "fallback": "O uso é inferido de outra fonte (métricas ou cabeçalhos de rate limit); não é um saldo e pode atrasar."
+        },
+        "reason": null
+      }
+    },
+    {
+      "index": 3,
+      "key": "kimi:Kimi",
+      "name": "Kimi",
+      "provider": "kimi",
+      "class": "unmeasured",
+      "report": null,
+      "age_seconds": null,
+      "freshness": null,
+      "clock_adjusted": false,
+      "stale": false,
+      "last_good": null,
+      "binding": null,
+      "pace": [],
+      "access": {
+        "level": "official",
+        "credential": "inference_key",
+        "plan_requirement": null,
+        "scope": "account",
+        "metered": false,
+        "evidence": {
+          "kind": "documentation",
+          "url": "https://platform.kimi.ai/docs/api/balance.md"
+        },
+        "verified_on": "2026-10-20",
+        "summary": {
+          "id": "access.summary.kimi",
+          "fallback": "Saldo da plataforma internacional do Kimi pelo endpoint de saldo documentado."
+        },
+        "credential_hint": {
+          "id": "access.credential_hint.inference_key",
+          "fallback": "Usa a chave de API da conta; nenhuma resposta é gerada."
+        },
+        "risk": {
+          "id": "access.risk.official",
+          "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
+        },
+        "reason": null
+      }
+    }
+  ]
+}

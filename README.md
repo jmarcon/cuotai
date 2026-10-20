@@ -120,6 +120,8 @@ cargo run -p cuotai-tui -- --config cuotai.toml --json
 
 In the JSON output, each metric carries a `kind` (`quota`, `rate_limit`, `balance`, `credits`, `spend` or `usage`) and a `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`), classified by the provider adapter. Consumers do not need to parse `label` or `period` to tell quotas, rate limits and windows apart.
 
+Rust integrations can also build the versioned `export::v1` contract from `cuotai-core`: the last known state of every account with its age, freshness, preserved stale reading, binding metric, pace and usage access level, with no credentials, credential variable names or e-mails, and `null` for anything unknown. See [`docs/export-v1.md`](docs/export-v1.md).
+
 ---
 
 ## Documentation
@@ -129,6 +131,7 @@ The detailed technical documentation lives in **[`docs/`](docs/)**. Some documen
 - **[TUI, CLI and account wizard guide (`docs/tui.md`)](docs/tui.md)** — Keyboard and mouse shortcuts (including the Models section, `m`, with local search and `s` to sync models), the step-by-step wizard flow, configuration file precedence and CLI exit codes.
 - **[OAuth login, sessions and vault (`docs/oauth.md`)](docs/oauth.md)** — How native browser and Device Code logins work, the assisted Cursor import, OAuth preparation for Google/Azure/AWS SSO and secure storage in the Keychain.
 - **[Provider catalog and limitations (`docs/providers.md`)](docs/providers.md)** — The full table of the 36 providers, the usage access matrix (level, credential, plan, scope and evidence of each provider and mode, generated from the core), default environment variables, `9router` compatibility, metric semantics and per-query cost warnings (such as AWS Cost Explorer).
+- **[Export contract v1 (`docs/export-v1.md`)](docs/export-v1.md)** — The versioned `export::v1` contract for integrations: fields, stability and deprecation policy, redaction rules, JSON Schema and reference output.
 - **[Architecture, Rust library and verification (`docs/architecture.md`)](docs/architecture.md)** — The split between `cuotai-core`, `cuotai-tui` and `apps/desktop`, using `cuotai-core` as a Rust library, the internationalization contract and the test suite.
 - **[Desktop app guide (`apps/desktop/README.md`)](apps/desktop/README.md)** — Details specific to the Tauri 2 shell, themes and the user customization folder.
 - **[Configuration example (`cuotai.example.toml`)](cuotai.example.toml)** — A commented reference of every `[[accounts]]` entry and TOML parameter.

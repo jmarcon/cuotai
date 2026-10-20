@@ -35,17 +35,24 @@ pub struct AccountIdentity {
     pub copy: Option<CopyValue>,
 }
 
+/// The account's e-mail (public login metadata in `params`), if known.
+pub fn email(account: &Account) -> Option<&str> {
+    param(account, "email")
+}
+
+fn param<'a>(account: &'a Account, key: &str) -> Option<&'a str> {
+    account
+        .params
+        .get(key)
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+}
+
 /// Identity summary of `account` after a report with `status`.
 pub fn account_identity(account: &Account, status: Status) -> AccountIdentity {
-    let param = |key: &str| {
-        account
-            .params
-            .get(key)
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-    };
+    let param = |key: &str| param(account, key);
     let mut identity = AccountIdentity {
-        email: param("email").map(str::to_owned),
+        email: email(account).map(str::to_owned),
         ..AccountIdentity::default()
     };
     for (key, tone) in [

@@ -360,15 +360,9 @@ fn encode<T: Serialize>(value: &T) -> Result<String, ModelError> {
 impl ModelCache {
     /// Store at `path`, isolated by `config` (only its digest is written).
     pub fn new(path: PathBuf, config: &ConfigIdentity) -> Self {
-        let identity = match config {
-            ConfigIdentity::File(file) => {
-                [b"file:".as_slice(), file.as_os_str().as_encoded_bytes()].concat()
-            }
-            ConfigIdentity::Explicit(id) => [b"explicit:".as_slice(), id.as_bytes()].concat(),
-        };
         Self {
             path,
-            config_key: digest(&identity),
+            config_key: config.digest(),
         }
     }
 
