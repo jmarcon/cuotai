@@ -3,11 +3,27 @@
 | Field | Value |
 |---|---|
 | ID | 0011 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, tray), `crates/cuotai-tui`, PRDs 0012 and 0013 |
 | Depends on | PRD 0005 (RF1) to tell "provider incident" from "interface changed"; not required |
 | Date | 2026-10-19 |
+
+## Implementation status
+
+| Requirement | Status | Version | Delivery |
+|---|---|---|---|
+| RF1 | Implemented | 0.46.0 | Allocation-free `incidents::source` exhaustively maps 36 providers: 17 have verified public sources with exact component selectors; 19 explicitly return `None`. Statuspage v2, native AWS RSS, Google Cloud JSON, incident.io Widget JSON and xAI RSS verified with real network reads and public-use documentation; anonymized local captures and scope-boundary tests; [source audit and limitations](../providers.md#public-incident-source-registry). |
+| RF2 | Pending | — | Status client, opt-in query gate, normalization and cache. |
+| RF3 | Pending | — | Correlation with account failures. |
+| RF4 | Pending | — | Desktop display and privacy settings. |
+| RF5 | Pending | — | TUI/CLI display and override. |
+
+**Owner decision (2026-10-20):** status queries are opt-in and off until enabled; `--no-status` remains an override. RF1 does not poll, add preferences, change reports or modify either frontend. The final end-to-end badge/tray acceptance below applies when RF2–RF5 land, not to the pure source registry.
+
+**Verification decisions:** share URLs across products but filter exact stable IDs (Google explicitly documents product IDs as stable). `AtomRss` and `JsonCustom` carry a dialect so consumers do not guess how to extract component selectors. AWS's published RSS has a five-minute TTL and a documented format-change/completeness caveat; it is not an account health guarantee. OpenAI/Groq/Perplexity use their enabled documented Widget API, not compatibility summaries with null incidents. Unverified/blocked or unscopable sources stay `None`; no HTML scraping or challenge bypass. No new dependency.
+
+**RF1 validation (2026-10-20):** five fixture-backed scope tests passed; a throwaway library consumer enumerated all 36 providers and exercised the shared-source/Codex isolation without a runtime, credentials or network. All 17 JSON/RSS fixtures parse locally. Both workspace `cargo check`, formatting checks, Clippy with `-D warnings`, workspace tests (853) and desktop tests (49) passed; `node --check` passed for all 17 desktop scripts and JSON validation for all three catalogs. CLI `--json` and `--once` with an isolated empty TOML both exited 0 with unchanged output. There is no changed visual surface in RF1; desktop/TUI incident smokes belong to RF4/RF5.
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 

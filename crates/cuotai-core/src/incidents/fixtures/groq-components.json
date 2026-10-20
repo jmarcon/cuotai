@@ -1,0 +1,64 @@
+{
+  "components": [
+    {
+      "id": "01K053E2FAKWKEYHXEV7WAHJBM",
+      "name": "API"
+    },
+    {
+      "id": "01K6Y7AE9BDH78Q7P0GAVJ7PX1",
+      "name": "llama-3.1-8b-instant"
+    },
+    {
+      "id": "01K6Y7AE9BWXJATX45RHX9SQEV",
+      "name": "llama-3.3-70b-versatile"
+    },
+    {
+      "id": "01K6Y7AE9BBBKD92266DJ23AGX",
+      "name": "openai/gpt-oss-120b"
+    },
+    {
+      "id": "01K6Y7AE9BFXCCZGAP08KRFX0C",
+      "name": "openai/gpt-oss-20b"
+    },
+    {
+      "id": "01K6Y7AE9BVFH7CWEXN74MND4V",
+      "name": "whisper-large-v3"
+    },
+    {
+      "id": "01K6Y7AE9BZFN4QCY3TNQXFBHC",
+      "name": "whisper-large-v3-turbo"
+    },
+    {
+      "id": "01KD6DG59NFJREPYMMSF9A48GJ",
+      "name": "Canopy Labs Orpheus Arabic Saudi"
+    },
+    {
+      "id": "01KD6DE2KKE9AZKYPBN7E8BKT6",
+      "name": "Canopy Labs Orpheus English"
+    },
+    {
+      "id": "01K6Y7AE9BWQMK2RSC6SX46019",
+      "name": "meta-llama/llama-prompt-guard-2-22m"
+    },
+    {
+      "id": "01K6Y7AE9B0EC9MMK29ZBRS5YR",
+      "name": "meta-llama/llama-prompt-guard-2-86m"
+    },
+    {
+      "id": "01K8R45PBNMKVK1GM18WXJ6F54",
+      "name": "openai/gpt-oss-safeguard-20b"
+    },
+    {
+      "id": "01M4E7VKEN3NX707NWK84AD5DW",
+      "name": "minimaxai/minimax-m2.7"
+    },
+    {
+      "id": "01M4E7VKENMQX977YTJG7NJ94Y",
+      "name": "qwen/qwen3.8-27b"
+    },
+    {
+      "id": "01K053E2FAFPVT8SKR4T23WHQK",
+      "name": "Website"
+    }
+  ]
+}

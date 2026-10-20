@@ -1,0 +1,192 @@
+{
+  "page": {
+    "id": "0tp9ssgtptvs",
+    "name": "Cursor",
+    "url": "https://status.cursor.com",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-10-20T19:54:37.565Z"
+  },
+  "components": [
+    {
+      "id": "k0trcq273dr6",
+      "name": "Automations",
+      "status": "operational",
+      "created_at": "2026-04-09T12:49:50.813Z",
+      "updated_at": "2026-10-13T02:23:19.857Z",
+      "position": 7,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-01-01",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "2x2chyqwmkzl",
+      "name": "Review Agents",
+      "status": "operational",
+      "created_at": "2026-04-09T12:50:23.139Z",
+      "updated_at": "2026-10-13T02:23:20.027Z",
+      "position": 8,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-01-01",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "vsny1qv7v86c",
+      "name": "CLI",
+      "status": "operational",
+      "created_at": "2026-04-09T12:50:51.849Z",
+      "updated_at": "2026-10-19T13:52:07.234Z",
+      "position": 9,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-01-01",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "mwv1g9sc7kdh",
+      "name": "Cloud Agents",
+      "status": "operational",
+      "created_at": "2026-04-09T12:51:12.021Z",
+      "updated_at": "2026-10-19T13:52:07.263Z",
+      "position": 10,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-01-01",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "jh0714rgjgt4",
+      "name": "cursor.com",
+      "status": "operational",
+      "created_at": "2026-04-09T12:51:33.290Z",
+      "updated_at": "2026-10-19T13:52:07.287Z",
+      "position": 11,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-01-01",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "rflc60xp5jp2",
+      "name": "IDE",
+      "status": "operational",
+      "created_at": "2026-04-09T12:51:46.876Z",
+      "updated_at": "2026-10-19T13:52:07.316Z",
+      "position": 12,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-01-01",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "xwjpvdf81qh9",
+      "name": "Origin",
+      "status": "operational",
+      "created_at": "2026-08-17T15:24:19.328Z",
+      "updated_at": "2026-10-13T02:23:20.156Z",
+      "position": 13,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-08-17",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "sm5wkcnqkvr9",
+      "name": "Grok Bot",
+      "status": "operational",
+      "created_at": "2026-08-17T16:57:56.065Z",
+      "updated_at": "2026-10-19T18:28:33.715Z",
+      "position": 14,
+      "description": null,
+      "showcase": true,
+      "start_date": "2026-08-10",
+      "group_id": null,
+      "page_id": "0tp9ssgtptvs",
+      "group": false,
+      "only_show_if_degraded": false
+    }
+  ],
+  "incidents": [],
+  "scheduled_maintenances": [
+    {
+      "id": "hnh7j4gwv771",
+      "name": "Public service incident",
+      "status": "scheduled",
+      "created_at": "2026-10-19T12:04:06.930Z",
+      "updated_at": "2026-10-19T12:04:07.028Z",
+      "monitoring_at": null,
+      "resolved_at": null,
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/x7nspq96xvck",
+      "started_at": "2026-10-19T12:04:06.924Z",
+      "page_id": "0tp9ssgtptvs",
+      "incident_updates": [
+        {
+          "id": "l92jv6wm90d0",
+          "status": "scheduled",
+          "body": "Public status update.",
+          "incident_id": "hnh7j4gwv771",
+          "created_at": "2026-10-19T12:04:07.025Z",
+          "updated_at": "2026-10-19T12:04:07.025Z",
+          "display_at": "2026-10-19T12:04:07.025Z",
+          "affected_components": [
+            {
+              "code": "jh0714rgjgt4",
+              "name": "cursor.com",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "jh0714rgjgt4",
+          "name": "cursor.com",
+          "status": "operational",
+          "created_at": "2026-04-09T12:51:33.290Z",
+          "updated_at": "2026-10-19T13:52:07.287Z",
+          "position": 11,
+          "description": null,
+          "showcase": true,
+          "start_date": "2026-01-01",
+          "group_id": null,
+          "page_id": "0tp9ssgtptvs",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2026-10-19T15:00:00.000Z",
+      "scheduled_until": "2026-10-26T01:00:00.000Z"
+    }
+  ],
+  "status": {
+    "indicator": "none",
+    "description": "Public status update."
+  }
+}

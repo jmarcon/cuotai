@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-20
+
+### Added
+
+- `cuotai-core` exposes `incidents::source` with verified public status endpoints, wire formats, component filters and verification dates for 17 providers, sharing endpoints across related products and explicitly returning no source for the other 19 rather than implying they are operational; the provider guide records source policies and coverage limits, and looking up a source makes no network request or change to the CLI, TUI or desktop (PRD 0011 RF1).
+
 ## [0.45.0] - 2026-10-20
 
 ### Added
 
-- `cuotai --notify` now also announces usage alerts while the TUI is open, with the same evaluator as the desktop app: when a quota with a limit reaches 75% or 90% of use, runs out, or has slack again in the next window after it ran out, the header banner shows it ("14:31 · Claude: 90% of the 5-hour window used — Personal: Session (5h) · resets 19:00", in `CUOTAI_LANG`) and the terminal bell rings once (plus OSC 9 on iTerm2, WezTerm and Ghostty); each threshold is announced once per window, oscillating around it stays silent, a refresh's alerts share one bell and further ones wait a minute, a crossing already in the last reading when the TUI opened is not announced, nothing is saved between sessions and no provider is queried for an alert (PRD 0008 RF4).
+- `cuotai --notify` now also announces usage alerts while the TUI is open, with the same evaluator as the desktop app: when a quota with a limit reaches 75% or 90% of use, runs out, or has slack again in the next window after it ran out, the header banner shows it ("14:31 · Claude: 90% of the 5-hour window used — Personal: Session (5h) · resets 19:00", in `CUOTAI_LANG`) and the terminal bell rings once (plus OSC 9 on iTerm2, WezTerm and Ghostty); each threshold is announced once per window, oscillating around it stays silent, a refresh's alerts share one bell and further ones wait a minute, a crossing already in the last reading when the TUI opened is not announced, nothing is saved between sessions and no provider is queried for an alert (PRD 0008 RF4, e421c1b).
 
 ## [0.44.0] - 2026-10-20
 
@@ -420,8 +426,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/e5f1573...main
-[0.45.0]: https://github.com/jmarcon/cuotai/compare/e5f1573...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/e421c1b...main
+[0.46.0]: https://github.com/jmarcon/cuotai/compare/e421c1b...main
+[0.45.0]: https://github.com/jmarcon/cuotai/commit/e421c1b
 [0.44.0]: https://github.com/jmarcon/cuotai/commit/e5f1573
 [0.43.0]: https://github.com/jmarcon/cuotai/commit/816ce15
 [0.42.0]: https://github.com/jmarcon/cuotai/commit/6bb1783

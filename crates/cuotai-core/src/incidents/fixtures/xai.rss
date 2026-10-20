@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:ns0="http://www.w3.org/2005/Atom" version="2.0">
+  <channel>
+    <title>SpaceXAI System Status</title>
+    <link>https://status.x.ai</link>
+    <ns0:link href="https://status.x.ai/feed.xml" rel="self" type="application/rss+xml" />
+    <description>Incident history for xAI services.</description>
+    <item>
+      <title>[grok.com] Public incident</title>
+      <link>https://status.x.ai/grok-com/ps_d022a635bce02f4a</link>
+      <guid isPermaLink="false">ps_d022a635bce02f4a</guid>
+      <description>Public incident update.</description>
+      <pubDate>Wed, 07 Oct 2026 00:24:33 GMT</pubDate>
+      <category>outage</category>
+      <category>resolved</category>
+    </item>
+    <item>
+      <title>[Global (api.x.ai)] Public incident</title>
+      <link>https://status.x.ai/api-global/INC578e0bc8</link>
+      <guid isPermaLink="false">INC578e0bc8</guid>
+      <description>Public incident update.</description>
+      <pubDate>Tue, 22 Sep 2026 01:02:42 GMT</pubDate>
+      <category>outage</category>
+      <category>resolved</category>
+    </item>
+    <item>
+      <title>[US (us.api.x.ai)] Public incident</title>
+      <link>https://status.x.ai/api-us/INC578e0bc8</link>
+      <guid isPermaLink="false">INC578e0bc8</guid>
+      <description>Public incident update.</description>
+      <pubDate>Tue, 22 Sep 2026 01:02:42 GMT</pubDate>
+      <category>outage</category>
+      <category>resolved</category>
+    </item>
+    <item>
+      <title>[Grok (Build)] Public incident</title>
+      <link>https://status.x.ai/grok-build/INC578e0bc8</link>
+      <guid isPermaLink="false">INC578e0bc8</guid>
+      <description>Public incident update.</description>
+      <pubDate>Tue, 22 Sep 2026 01:02:42 GMT</pubDate>
+      <category>outage</category>
+      <category>resolved</category>
+    </item>
+    </channel>
+</rss>

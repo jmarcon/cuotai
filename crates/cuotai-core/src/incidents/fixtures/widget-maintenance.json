@@ -1,0 +1,30 @@
+{
+  "page_title": "Example",
+  "page_url": "https://status.example.invalid/",
+  "ongoing_incidents": [],
+  "in_progress_maintenances": [],
+  "scheduled_maintenances": [
+    {
+      "id": "example-maintenance",
+      "name": "Scheduled maintenance",
+      "status": "maintenance_scheduled",
+      "url": "https://status.example.invalid/incidents/example-maintenance",
+      "affected_components": [
+        {
+          "id": "component-0",
+          "name": "Service 0",
+          "current_status": "operational"
+        },
+        {
+          "id": "component-1",
+          "name": "Service 1",
+          "current_status": "operational"
+        }
+      ],
+      "starts_at": "2026-11-14T17:00:00Z",
+      "ends_at": "2026-11-14T22:00:00Z",
+      "last_update_at": "2026-10-16T13:46:24.288Z",
+      "last_update_message": "Scheduled service maintenance."
+    }
+  ]
+}

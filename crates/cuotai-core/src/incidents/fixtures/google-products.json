@@ -1,0 +1,19 @@
+{
+  "products": [
+    {
+      "title": "Vertex AI Online Prediction",
+      "id": "sdXM79fz1FS6ekNpu37K",
+      "current_title": "Agent Platform Online Inference"
+    },
+    {
+      "title": "Cloud Monitoring",
+      "id": "3zaaDb7antc73BM1UAVT",
+      "current_title": "Cloud Monitoring"
+    },
+    {
+      "title": "Vertex Gemini API",
+      "id": "Z0FZJAMvEB4j3NbCJs6B",
+      "current_title": "Gemini on Agent Platform"
+    }
+  ]
+}
