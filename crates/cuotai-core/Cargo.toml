@@ -28,7 +28,17 @@ x25519-dalek = { version = "2", features = ["static_secrets"] }
 aes-gcm = "0.10"
 rusqlite = { version = "0.39", features = ["bundled"] }
 dirs = "6"
+# PRD 0012 RF2: HTTP/1.x request parsing for the optional local server.
+httparse = { version = "=1.10.1", optional = true }
+
+[features]
+default = []
+# PRD 0012 RF2/RF3: `serve::LocalServer`, the read-only loopback HTTP server.
+serve = ["dep:httparse"]
 
 [dev-dependencies]
+# Builds the crate's own tests with `serve`, so `cargo test --workspace`
+# covers the server without turning the feature on for the binaries.
+cuotai-core = { path = ".", features = ["serve"] }
 wiremock = "0.6"
 parking_lot = "0.12"

@@ -21,6 +21,8 @@ pub mod pace;
 mod providers;
 pub mod refresh;
 pub mod resets;
+#[cfg(feature = "serve")]
+pub mod serve;
 pub mod text;
 mod transport;
 

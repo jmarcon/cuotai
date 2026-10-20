@@ -1,0 +1,67 @@
+# Local HTTP server (`serve::LocalServer`)
+
+`cuotai-core` can publish the [`export::v1`](export-v1.md) contract over a read-only HTTP server on loopback, so status bars and scripts read the last known state without making Cuotai query a provider on every read (PRD 0012 RF2 and RF3). It lives behind the core's `serve` feature, which is **off by default**; the front ends that offer it turn it on (`cuotai --serve` with PRD 0012 RF4, the desktop's Settings → Integration with RF5), and the server itself stays off until the user starts it.
+
+```toml
+cuotai-core = { path = "crates/cuotai-core", features = ["serve"] }
+```
+
+## Starting it (Rust)
+
+```rust
+use std::sync::{Arc, Mutex};
+use cuotai_core::export::v1::{Export, Options};
+use cuotai_core::serve::{LocalServer, ServeConfig};
+
+// `state` is what the front end already keeps: the configuration, its identity,
+// the RefreshCycle its scheduler updates and the Monitor (for provider statuses).
+let state = Arc::clone(&shared);
+let server = LocalServer::start(ServeConfig::default(), move || {
+    let state = state.lock().unwrap();
+    Some(Export::from_cycle(
+        &state.config,
+        &state.identity,
+        &state.cycle,
+        &state.monitor.incident_statuses(),
+        chrono::Utc::now(),
+        Options::default(),
+    ))
+})
+.await?;
+println!("serving on {}", server.url()); // http://127.0.0.1:6738
+// ...
+server.shutdown().await; // returns once the port is closed
+```
+
+The source is called for every data request and must only read what the refresh cycle already holds: the server never triggers a query, and there is no `?refresh=1`. Return `None` while there is no state at all.
+
+## Address and port
+
+- Binds to `127.0.0.1` by default (`::1` is also accepted). Any other address is a configuration error (`ServeError::NonLoopback`) unless the explicit `allow_non_loopback` flag is set, and then a token is mandatory (`ServeError::TokenRequired`). Access over the local network is out of scope: use your own tunnel (for example `ssh -L 9000:localhost:6738 host`), which keeps a loopback `Host`.
+- The default port is **6738**, unassigned in the IANA registry (6717–6766 are unassigned) and clear of OpenUsage's 6736. When it is taken, the server tries the next nine ports (`ServeConfig::port_fallback`, on by default); `LocalServer::addr()` and `fell_back()` report what was bound. With the fallback off, or when all ten are taken, `start` fails with `ServeError::PortInUse`. Port `0` lets the system choose.
+
+## Routes
+
+Every route is `GET` only; any other method answers `405` with `Allow: GET`, and an unknown path answers `404`. Every response is `Content-Type: application/json` with `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`, and closes the connection.
+
+| Route | Answer |
+|---|---|
+| `/health` | `{"status":"ok","version":"<Cuotai version>","schema":1}`, even before the first reading. |
+| `/v1/snapshot` | The full `Export` ([`export-v1.md`](export-v1.md)). |
+| `/v1/accounts/{key}` | One `AccountExport`; `{key}` is the account's `<provider slug>:<name>`, percent-encoded (`/v1/accounts/claude:Personal%20Max`). Unknown keys answer `404`. |
+| `/v1/limits` | The summary `Limits` (`schema`, `generated_at` and, per account, `index`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness`, `stale`), declared as `$defs/Limits` in [`export-v1.schema.json`](export-v1.schema.json). |
+
+Until some account has a reading (current or preserved), the data routes answer `503` with `Retry-After: 5`. Errors carry `{"error":"<code>"}` with `not_found`, `method_not_allowed`, `no_data`, `unauthorized`, `host_not_allowed`, `browser_not_allowed`, `peer_not_allowed`, `bad_request`, `uri_too_long` or `headers_too_large`.
+
+## Limits
+
+`ServeConfig::bounds` (`Bounds::default()`): at most 16 connections at once (any other is closed as soon as it is accepted), a request head of at most 8 KiB and 32 headers (`431`), a request target of at most 2 KiB (`414`), and 5 seconds for the whole connection (a slower client is disconnected).
+
+## Security
+
+- **DNS rebinding:** the `Host` header must be exactly one of `localhost`, `127.0.0.1` or `[::1]` (any port; or the address bound with `allow_non_loopback`). A page on a rebound domain sends its own name and gets `403`.
+- **Web pages:** a request with an `Origin` header, or with `Sec-Fetch-Site` other than `none`, comes from a page and gets `403`; no `Access-Control-Allow-Origin` is sent, so browsers do not let other origins read answers. `ServeConfig::allow_browsers` turns this off explicitly: pages are accepted, every answer carries `Access-Control-Allow-Origin: *` and CORS preflights get `204`. That means **any page open in the browser can read your usage** (with a token, any page that knows it); front ends show `serve::allow_browsers_warning()` before enabling it.
+- **Token:** optional. When `ServeConfig::token` is set, every route requires `Authorization: Bearer <token>` and answers `401` with `WWW-Authenticate: Bearer realm="cuotai"` otherwise (compared in constant time). `Token::generate()` creates `cuotai_` plus 32 random bytes; `ensure_token(&SystemTokenVault)` returns the token stored in the OS vault (Keychain, Credential Manager, Secret Service; service `cuotai.serve`) or generates and stores one, and `TokenVault::delete` revokes it. The token never goes into the TOML, and `Token` has no `Display` and a redacted `Debug`. `Token::parse` accepts a user-supplied token (16 to 512 RFC 6750 characters). Without a token, only loopback peers are served.
+- **No secrets:** the routes serve only the redacted export (no credentials, credential variable names, authenticated URLs or e-mails unless the producer includes identity). The access log (`ServeConfig::access_log`, one `AccessEntry` per answered request: time, peer address, method, path without its query, status and duration) never records headers, so no `Authorization`, nor query parameters.
+
+Any local process of the same user can still read the data, exactly as it could read `--json`.
