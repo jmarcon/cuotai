@@ -7,8 +7,8 @@
 //! or stored here.
 
 use crate::motion::{eighth_bar, Anim};
-use crate::ui::{local_time, metric_text, resolve_l10n, safe};
-use chrono::{DateTime, Utc};
+use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe};
+use chrono::{DateTime, Local, Utc};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
 #[cfg(test)]
 use cuotai_core::Snapshot;
@@ -220,6 +220,12 @@ pub(crate) struct View<'a> {
     pub(crate) error: Option<&'a str>,
     /// RF4 effects; `None` (animations off) renders exactly as before.
     pub(crate) anim: Option<&'a Anim>,
+    /// PRD 0010 RF5: the core's last valid reading per account
+    /// (`RefreshCycle::last_good_report`), `Some` only while the current
+    /// report failed. Same length as `accounts` or empty. Display only.
+    pub(crate) last_good: &'a [Option<&'a Report>],
+    /// Clock for ages and countdowns, injected so rendering is testable.
+    pub(crate) now: DateTime<Utc>,
 }
 
 /// Clickable action exposed by the footer hint line. Values mirror the
@@ -545,7 +551,7 @@ fn render_cards(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Ta
     }
 
     targets.columns = columns;
-    let now = Utc::now();
+    let now = view.now;
     let total_rows = page.len().div_ceil(columns);
     let row_constraints: Vec<Constraint> = (0..total_rows)
         .map(|_| Constraint::Length(card_height))
@@ -579,7 +585,11 @@ fn render_card(
 ) {
     let account = &view.accounts[account_index];
     let report = view.reports.get(account_index).and_then(Option::as_ref);
-    let mut rows: Vec<(usize, MetricRow)> = report
+    // A failed query with a preserved reading shows the old metrics,
+    // labelled stale with their original age; the class stays unknown.
+    let stale = view.last_good.get(account_index).copied().flatten();
+    let mut rows: Vec<(usize, MetricRow)> = stale
+        .or(report)
         .map(|report| report.metrics.iter().map(metric_row).enumerate().collect())
         .unwrap_or_default();
     // PRD 0009 RF3.1: the core's binding metric leads the card; the others
@@ -640,7 +650,7 @@ fn render_card(
     let chunks = Layout::vertical(constraints).split(inner);
 
     let mut chunk_index = 0;
-    let separator = || Span::styled("  · ", Style::default().fg(MUTED));
+    let separator = || Span::styled(" · ", Style::default().fg(MUTED));
     let mut status_spans = vec![
         Span::styled(account.provider.label(), Style::default().fg(MUTED)),
         separator(),
@@ -651,31 +661,77 @@ fn render_card(
             ),
             None => Span::styled("Aguardando", Style::default().fg(MUTED)),
         },
-        separator(),
-        Span::styled(
-            class_label(class),
-            Style::default().fg(class_color(class)).add_modifier(
-                if view.anim.is_some_and(|anim| anim.blinking(&account.name)) {
-                    Modifier::BOLD | Modifier::REVERSED
-                } else {
-                    Modifier::BOLD
-                },
-            ),
-        ),
     ];
+    let suffix = match stale {
+        Some(stale) => Some(Span::styled(
+            format!("(desatualizada) {}", age_text(stale.checked_at, view.now)),
+            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+        )),
+        None => {
+            status_spans.push(separator());
+            status_spans.push(Span::styled(
+                class_label(class),
+                Style::default().fg(class_color(class)).add_modifier(
+                    if view.anim.is_some_and(|anim| anim.blinking(&account.name)) {
+                        Modifier::BOLD | Modifier::REVERSED
+                    } else {
+                        Modifier::BOLD
+                    },
+                ),
+            ));
+            report.map(|report| {
+                Span::styled(
+                    age_text(report.checked_at, view.now),
+                    Style::default().fg(MUTED),
+                )
+            })
+        }
+    };
     if let Some(count) = view.model_counts.get(account_index).copied().flatten() {
-        status_spans.push(separator());
-        status_spans.push(Span::styled(
-            model_count_label(count),
-            Style::default().fg(MUTED),
-        ));
+        let count_spans = vec![
+            separator(),
+            Span::styled(model_count_label(count), Style::default().fg(MUTED)),
+        ];
+        let suffix_width = suffix
+            .as_ref()
+            .map(|span| Line::from(vec![separator(), span.clone()]).width())
+            .unwrap_or(0);
+        if Line::from(status_spans.clone()).width()
+            + Line::from(count_spans.clone()).width()
+            + suffix_width
+            <= usize::from(inner.width)
+        {
+            status_spans.splice(3..3, count_spans);
+        }
     }
-    let provider_status_line = Line::from(status_spans);
-    frame.render_widget(Paragraph::new(provider_status_line), chunks[chunk_index]);
+    let prefix = Line::from(status_spans);
+    if let Some(suffix) = suffix {
+        let suffix = Line::from(vec![separator(), suffix]);
+        let suffix_width = u16::try_from(suffix.width())
+            .unwrap_or(u16::MAX)
+            .min(inner.width);
+        let prefix_width = u16::try_from(prefix.width())
+            .unwrap_or(u16::MAX)
+            .min(inner.width.saturating_sub(suffix_width));
+        let status_chunks = Layout::horizontal([
+            Constraint::Length(prefix_width),
+            Constraint::Length(suffix_width),
+            Constraint::Min(0),
+        ])
+        .split(chunks[chunk_index]);
+        frame.render_widget(Paragraph::new(prefix), status_chunks[0]);
+        frame.render_widget(Paragraph::new(suffix), status_chunks[1]);
+    } else {
+        frame.render_widget(Paragraph::new(prefix), chunks[chunk_index]);
+    }
     chunk_index += 1;
 
     for (index, metric) in rows.iter().take(METRICS_VISIBLE_IN_CARD) {
-        let motion = view.anim.map(|anim| (anim, account.name.as_str(), *index));
+        // A preserved reading stays still: no bar transition.
+        let motion = view
+            .anim
+            .filter(|_| stale.is_none())
+            .map(|anim| (anim, account.name.as_str(), *index));
         render_metric_block(frame, &chunks, &mut chunk_index, metric, now, motion);
     }
     if note_rows > 0 {
@@ -970,7 +1026,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     ];
     frame.render_widget(Paragraph::new(heading), sections[0]);
     let body = sections[1];
-    let now = Utc::now();
+    let now = view.now;
     let mut lines: Vec<Line> = Vec::new();
     let Some(report) = view.reports.get(account_index).and_then(Option::as_ref) else {
         lines.push(Line::from(Span::styled(
@@ -999,12 +1055,35 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         ),
         Span::styled(
             format!(
-                "   ·   consultado {}",
-                report.checked_at.format("%H:%M:%S UTC")
+                "   ·   consultado {} ({} · {} local)",
+                age_text(report.checked_at, now),
+                report.checked_at.format("%H:%M:%S UTC"),
+                report.checked_at.with_timezone(&Local).format("%H:%M:%S"),
             ),
             Style::default().fg(MUTED),
         ),
     ]));
+    // PRD 0010 RF5: a failed query with a preserved reading lists the old
+    // metrics under an explicit stale line with their original age; the
+    // current report's notes below still carry the cause of the failure.
+    let stale = view.last_good.get(account_index).copied().flatten();
+    if let Some(stale) = stale {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "  LEITURA ",
+                Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(
+                    "(desatualizada) última válida {} ({} · {} local)",
+                    age_text(stale.checked_at, now),
+                    stale.checked_at.format("%H:%M:%S UTC"),
+                    stale.checked_at.with_timezone(&Local).format("%H:%M:%S"),
+                ),
+                Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+    }
     let limit = binding(report);
     if let Some(limit) = &limit {
         lines.push(Line::from(vec![
@@ -1024,13 +1103,14 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
     ));
 
-    if report.metrics.is_empty() {
+    let shown = stale.unwrap_or(report);
+    if shown.metrics.is_empty() {
         lines.push(Line::from(Span::styled(
             "Provedor sem métricas expostas nesta consulta.",
             Style::default().fg(MUTED),
         )));
     } else {
-        for (index, metric) in report.metrics.iter().enumerate() {
+        for (index, metric) in shown.metrics.iter().enumerate() {
             let row = metric_row(metric);
             lines.push(Line::default());
             lines.push(Line::from(vec![
@@ -1057,7 +1137,10 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 },
             ]));
             lines.push(Line::from(format!("  {}", safe(&row.text))));
-            let motion = view.anim.map(|anim| (anim, account.name.as_str(), index));
+            let motion = view
+                .anim
+                .filter(|_| stale.is_none())
+                .map(|anim| (anim, account.name.as_str(), index));
             lines.push(line_bar(&row, body.width.max(20), now, motion));
         }
     }
@@ -1654,6 +1737,8 @@ mod tests {
                         next_refresh: Some(Duration::from_secs(60)),
                         error: None,
                         anim: None,
+                        last_good: &[],
+                        now: Utc::now(),
                     },
                 );
             })
@@ -1709,6 +1794,8 @@ mod tests {
                         next_refresh: Some(Duration::from_secs(60)),
                         error: None,
                         anim: None,
+                        last_good: &[],
+                        now: Utc::now(),
                     },
                 );
             })
@@ -1756,6 +1843,8 @@ mod tests {
                             next_refresh: None,
                             error: None,
                             anim: None,
+                            last_good: &[],
+                            now: Utc::now(),
                         },
                     );
                 })
@@ -1796,6 +1885,8 @@ mod tests {
                         next_refresh: None,
                         error: None,
                         anim: None,
+                        last_good: &[],
+                        now: Utc::now(),
                     },
                 );
             })
@@ -1835,6 +1926,8 @@ mod tests {
                         next_refresh: None,
                         error: None,
                         anim: None,
+                        last_good: &[],
+                        now: Utc::now(),
                     },
                 );
             })
@@ -1881,6 +1974,8 @@ mod tests {
                         next_refresh: Some(Duration::from_secs(42)),
                         error: None,
                         anim: None,
+                        last_good: &[],
+                        now: Utc::now(),
                     },
                 );
             })
@@ -1918,6 +2013,8 @@ mod tests {
                         next_refresh: Some(Duration::from_secs(0)),
                         error: None,
                         anim: None,
+                        last_good: &[],
+                        now: Utc::now(),
                     },
                 );
             })
@@ -1954,6 +2051,8 @@ mod tests {
                         next_refresh: None,
                         error: None,
                         anim: None,
+                        last_good: &[],
+                        now: Utc::now(),
                     },
                 );
             })
@@ -2003,6 +2102,8 @@ mod tests {
                             next_refresh: None,
                             error: None,
                             anim: Some(anim),
+                            last_good: &[],
+                            now: Utc::now(),
                         },
                     );
                 })
@@ -2057,6 +2158,21 @@ mod tests {
     }
 
     fn render_rows(reports: &[Option<Report>], details: bool) -> Vec<String> {
+        render_at(reports, &[], &[], details, at_min(0))
+    }
+
+    /// The fixture reports' `checked_at` plus `minutes`.
+    fn at_min(minutes: i64) -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap() + chrono::Duration::minutes(minutes)
+    }
+
+    fn render_at(
+        reports: &[Option<Report>],
+        last_good: &[Option<&Report>],
+        model_counts: &[Option<usize>],
+        details: bool,
+        now: DateTime<Utc>,
+    ) -> Vec<String> {
         let accounts = three_accounts();
         let visible = visible_indices(&accounts, reports, "", true);
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
@@ -2067,7 +2183,7 @@ mod tests {
                     View {
                         accounts: &accounts,
                         reports,
-                        model_counts: &[],
+                        model_counts,
                         visible: &visible,
                         selected: Some(0),
                         details,
@@ -2080,6 +2196,8 @@ mod tests {
                         next_refresh: None,
                         error: None,
                         anim: None,
+                        last_good,
+                        now,
                     },
                 );
             })
@@ -2131,5 +2249,74 @@ mod tests {
         assert!(text.contains("Sessao") && text.contains("Diaria"));
         assert!(text.contains("LIMITE  bloqueada até"));
         assert!(text.contains("pela janela semanal"));
+    }
+
+    /// PRD 0010 RF5.1: a failed query whose cycle preserved the last valid
+    /// reading; `last_good` mirrors `RefreshCycle::last_good_report`.
+    fn failed_after_success() -> (Vec<Option<Report>>, Report) {
+        let mut reports = reports_of(&ready_snapshot());
+        let good = report(
+            Status::Ready,
+            vec![metric("Antiga", Some(3.0), Some(10.0), Some(7.0))],
+        );
+        let mut failed = report(Status::Error, Vec::new());
+        failed.checked_at = at_min(40);
+        failed.notes = vec!["Falha de rede".into()];
+        reports[0] = Some(failed);
+        (reports, good)
+    }
+
+    #[test]
+    fn cards_show_relative_age_from_the_injected_clock() {
+        let rows = render_at(
+            &reports_of(&ready_snapshot()),
+            &[],
+            &[Some(2), None, None],
+            false,
+            at_min(3),
+        )
+        .join("\n");
+        assert_eq!(rows.matches("há 3 min").count(), 3);
+        let first_card = rows
+            .lines()
+            .find(|line| line.contains("OpenAI API"))
+            .expect("first card status line");
+        assert!(first_card.contains("Disponível · há 3 min"));
+        assert!(!rows.contains("desatualizada"));
+    }
+
+    #[test]
+    fn failed_card_with_preserved_reading_is_marked_stale_with_original_age() {
+        let (reports, good) = failed_after_success();
+        let rows =
+            render_at(&reports, &[Some(&good), None, None], &[], false, at_min(42)).join("\n");
+        // The old metrics stay on screen with their own age (42 min), not
+        // the failed query's (2 min), and the class is not claimed.
+        assert!(rows.contains("(desatualizada) há 42 min"));
+        assert!(rows.contains("Antiga:"));
+        assert!(!rows.contains("há 2 min"));
+        assert_eq!(rows.matches("desatualizada").count(), 1);
+
+        // Without a preserved reading the failed card has no metrics and
+        // no stale mark; the next success removes the mark the same way.
+        let rows = render_at(&reports, &[], &[], false, at_min(42)).join("\n");
+        assert!(!rows.contains("desatualizada") && !rows.contains("Antiga:"));
+    }
+
+    #[test]
+    fn details_show_age_local_time_and_the_stale_reading_with_the_cause() {
+        let (reports, good) = failed_after_success();
+        let text =
+            render_at(&reports, &[Some(&good), None, None], &[], true, at_min(42)).join("\n");
+        let local = |at: DateTime<Utc>| at.with_timezone(&Local).format("%H:%M:%S").to_string();
+        assert!(text.contains(&format!(
+            "consultado há 2 min (00:40:00 UTC · {} local)",
+            local(at_min(40))
+        )));
+        assert!(text.contains(&format!(
+            "(desatualizada) última válida há 42 min (00:00:00 UTC · {} local)",
+            local(at_min(0))
+        )));
+        assert!(text.contains("Antiga") && text.contains("Falha de rede"));
     }
 }
