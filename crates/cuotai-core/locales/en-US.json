@@ -2,6 +2,8 @@
   "_meta": {
     "name": "English"
   },
+  "access.confirm_unavailable": "{reason} The account will be saved, but it will show this reason instead of numbers.",
+  "access.cost_advisory": "Provider is billed per query: every cycle queries and incurs a charge. The minimum effective interval is 300s; lower values are rejected by the core validation. Keep a long interval (e.g. 3600s) to reduce cost. Manual refreshes remain explicit.",
   "access.credential.admin_key": "Admin key",
   "access.credential.cloud_identity": "Cloud identity",
   "access.credential.inference_key": "Inference key",
@@ -28,6 +30,7 @@
   "access.reason.poolside": "The known usage endpoint needs a platform admin token, not the inference key.",
   "access.reason.qwen": "The DashScope key only authenticates inference; there is no public quota query for it.",
   "access.reason.qwen_oauth": "No quota endpoint is confirmed for the Qwen Code session; the free OAuth plan was discontinued.",
+  "access.requires_plan": "Requires the {plan} plan.",
   "access.risk.derived": "Usage is inferred from another source (metrics or rate-limit headers); it is not a balance and may lag.",
   "access.risk.official": "Interface documented by the vendor for this credential; it does not guarantee permission on your account.",
   "access.risk.unavailable": "There is no usage query for this credential; the account shows the reason instead of numbers.",
@@ -87,7 +90,6 @@
   "binding.blocked": "blocked by the {window} window; return time unknown",
   "binding.blocked_until": "blocked until {at} by the {window} window",
   "binding.tightest": "most restrictive: {window} window at {used}%",
-  "cost_advisory.aws_bedrock": "Provider is billed per query: every cycle queries and incurs a charge. The minimum effective interval is 300s; lower values are rejected by the core validation. Keep a long interval (e.g. 3600s) to reduce cost. Manual refreshes remain explicit.",
   "credential_help.alibaba_cloud": "Set the NAME of the variable holding the AccessKey ID of the billing RAM account. In Parameters set the AccessKey Secret variable; the values are never written into TOML.",
   "credential_help.alibaba_coding_plan": "Alibaba Coding Plan subscription key (usually sk-sp-). Select China or international; different from a standard DashScope API key.",
   "credential_help.alibaba_model_studio": "Alibaba Model Studio/DashScope API key. Can point to QWEN_API_KEY. Select the region matching your account; not a Qwen Code OAuth login.",

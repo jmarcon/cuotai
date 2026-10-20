@@ -43,6 +43,15 @@ dialog.dlg:popover-open {
   font-size: 12px;
   color: var(--fg-muted);
 }
+/* PRD 0005 RF3.2: core access notes, one per line, under the credential help
+   (a direct child of `.f`, so it undoes the label-title weight). */
+.f > .access-notes,
+.access-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-weight: 400;
+}
 .f input,
 .f select {
   height: 34px;

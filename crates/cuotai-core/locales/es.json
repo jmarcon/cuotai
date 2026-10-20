@@ -2,6 +2,8 @@
   "_meta": {
     "name": "Español"
   },
+  "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
+  "access.cost_advisory": "Proveedor cobrado por consulta: cada ciclo consulta y genera un cobro. El intervalo efectivo mínimo es 300s; los valores menores son rechazados por la validación del core. Mantenga un intervalo alto (ej. 3600s) para reducir el costo. Las actualizaciones manuales siguen siendo explícitas.",
   "access.credential.admin_key": "Clave de administrador",
   "access.credential.cloud_identity": "Identidad de nube",
   "access.credential.inference_key": "Clave de inferencia",
@@ -28,6 +30,7 @@
   "access.reason.poolside": "El endpoint de uso conocido exige un token de administrador de la plataforma, no la clave de inferencia.",
   "access.reason.qwen": "La clave DashScope solo autentica inferencia; no hay consulta pública de cuota para ella.",
   "access.reason.qwen_oauth": "No hay endpoint de cuota confirmado para la sesión de Qwen Code; el plan OAuth gratuito fue descontinuado.",
+  "access.requires_plan": "Requiere el plan {plan}.",
   "access.risk.derived": "El uso se infiere de otra fuente (métricas o cabeceras de rate limit); no es un saldo y puede retrasarse.",
   "access.risk.official": "Interfaz documentada por el proveedor para esta credencial; no garantiza permiso en tu cuenta.",
   "access.risk.unavailable": "No hay consulta de uso para esta credencial; la cuenta muestra el motivo en lugar de números.",
@@ -87,7 +90,6 @@
   "binding.blocked": "bloqueada por la ventana {window}; hora de retorno desconocida",
   "binding.blocked_until": "bloqueada hasta las {at} por la ventana {window}",
   "binding.tightest": "más restrictiva: ventana {window} al {used}%",
-  "cost_advisory.aws_bedrock": "Proveedor cobrado por consulta: cada ciclo consulta y genera un cobro. El intervalo efectivo mínimo es 300s; los valores menores son rechazados por la validación del core. Mantenga un intervalo alto (ej. 3600s) para reducir el costo. Las actualizaciones manuales siguen siendo explícitas.",
   "credential_help.alibaba_cloud": "Indique el NOMBRE de la variable con el AccessKey ID de la cuenta RAM de facturación. En Parámetros indique la variable del AccessKey Secret; los valores nunca se escriben en TOML.",
   "credential_help.alibaba_coding_plan": "Clave de la suscripción Alibaba Coding Plan (normalmente sk-sp-). Seleccione China o internacional; distinta de una clave de API estándar de DashScope.",
   "credential_help.alibaba_model_studio": "Clave de API de Alibaba Model Studio/DashScope. Puede apuntar a QWEN_API_KEY. Seleccione la región correspondiente a su cuenta; no es un login OAuth de Qwen Code.",

@@ -32,7 +32,7 @@ Para incluir um idioma novo no app:
 
 * Acrescente um arquivo `crates/cuotai-core/locales/<código>.json` para
   os ids que o core emite (`field.*`, `native.*`, `login.*`,
-  `credential_help.*`, `oauth.*`, `cost_advisory.*`, `edit_error.*`,
+  `credential_help.*`, `oauth.*`, `access.*`, `edit_error.*`,
   `query.*`, `note.*`, `remove_error.*`, `remove.kept.*`, `status.*`,
   `provider.*`, `binding.*`, `metric_window.*`, `pace.*`). `pt-BR` é a fonte — sem arquivo, o `fallback`
   embutido em cada `Localized` aparece em português. Outros idiomas

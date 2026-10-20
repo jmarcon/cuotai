@@ -1989,13 +1989,34 @@ pub fn suggested_credential(provider: Provider) -> &'static str {
     default_env(provider)
 }
 
-/// Cost advisory surfaced by the wizard's interval step and the desktop
-/// dialog. Delegates to `Provider::cost_advisory` so the policy lives
-/// next to `is_metered`; the `account_edit` shim exists so the wizard
-/// and the desktop form do not reach across the boundary into `model.rs`
-/// just to fetch a hint.
-pub fn cost_advisory(provider: Provider) -> Option<crate::text::Localized> {
-    provider.cost_advisory()
+/// PRD 0005 RF3: how the usage of the account being edited will be read,
+/// from the same inputs [`build_account`] takes (choice indices refer to the
+/// full descriptor). Front ends render the picker label, the credential
+/// notes, the cost advisory and the save confirmation from it, never from
+/// the provider. Fields the provider does not declare are ignored.
+pub fn draft_access(
+    provider: Provider,
+    auth_mode: &str,
+    fields: &[DraftField],
+) -> crate::access::UsageAccess {
+    let params = fields
+        .iter()
+        .filter_map(|field| {
+            let value = match (&descriptor(provider, field.key)?.kind, &field.value) {
+                (FieldDescriptorKind::Choice(choice), DraftValue::Choice(index)) => {
+                    choice.options.get(*index)?.value.to_string()
+                }
+                (FieldDescriptorKind::Text, DraftValue::Text(text)) => text.trim().to_string(),
+                _ => return None,
+            };
+            Some((field.key.to_string(), value))
+        })
+        .collect();
+    crate::access::classify(
+        provider,
+        auth_mode == crate::oauth::login::MODE_OAUTH,
+        &params,
+    )
 }
 
 /// Glue every step together. Returns the new account ready to be inserted

@@ -198,6 +198,7 @@
   "dialog.reg.tenantHelp": "Vazio usa o padrão do provedor.",
   "dialog.save.loginRunning": "Login em andamento; conclua ou cancele antes de salvar.",
   "dialog.save.needLogin": "Conclua o login antes de salvar (ou volte para a credencial manual).",
+  "dialog.saveAnyway": "Salvar mesmo assim",
   "dialog.save.profileChanged": "O perfil mudou após o login; refaça o login antes de salvar.",
   "dialog.conflict.reload": "Recarregar arquivo do disco",
   "dialog.conflict.reloaded": "Arquivo recarregado; revise e salve novamente quando estiver pronto.",

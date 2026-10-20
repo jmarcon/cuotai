@@ -2,7 +2,7 @@
 // RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
-  configChangedOnDisk, deleteAccount, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
+  configChangedOnDisk, deleteAccount, draftAccess, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
   loginCancel, loginStart, loginSubmitCode, modelSupport, onLogin, reloadConfig,
   reportKey, saveAccount, visibleFields,
 } from "./lib.js";
@@ -59,7 +59,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   const dlg = open(`<form method="dialog" class="dlg-body" autocomplete="off">
     <h2>${te(editing ? "dialog.editTitle" : "dialog.addTitle")}</h2>
     <label class="f" data-field="provider"><span>${te("dialog.provider")}</span>
-      <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>
+      <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)} · ${esc(tl(p.level))}</option>`).join("")}</select>
       <small class="field-err" hidden></small></label>
     <label class="f" data-field="name"><span>${te("dialog.name")}</span><input name="name" value="${esc(existing?.name ?? "")}" required /><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
@@ -313,6 +313,22 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       .filter((f) => f.options && Number.isInteger(values.get(f.key)?.choice))
       .map((f) => [f.key, values.get(f.key).choice]),
   );
+  // Visible field values in the core draft shape (save and access share it).
+  const draftFields = () => schema.fields.filter((f) => visible.has(f.key)).map((f) => ({ key: f.key, text: values.get(f.key)?.text ?? (f.options ? null : ""), choice: values.get(f.key)?.choice ?? (f.options ? 0 : null) }));
+  // PRD 0005 RF3: the core describes how the draft's usage is read; the dialog only renders it.
+  let confirmUnavailable = false;
+  let accessSeq = 0;
+  async function renderAccess() {
+    const seq = ++accessSeq;
+    const access = await draftAccess(provider, authMode, draftFields());
+    if (seq !== accessSeq) return; // a newer change is already being described
+    confirmUnavailable = false; // any change withdraws a pending "Save anyway"
+    dlg.querySelector("#ok").textContent = t("common.save");
+    costWarn.textContent = tl(access.cost_advisory);
+    costWarn.hidden = !access.cost_advisory;
+    const notes = dyn.querySelector("#access-notes");
+    if (notes) notes.innerHTML = access.notes.map((n) => `<small>${esc(tl(n))}</small>`).join("");
+  }
   function copyText(text, btn) {
     navigator.clipboard?.writeText(text).then(
       () => { const prev = btn.textContent; btn.textContent = t("dialog.copied"); setTimeout(() => (btn.textContent = prev), 1500); },
@@ -557,13 +573,6 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     choiceNotice.textContent = notices.join(" ");
     choiceNotice.hidden = notices.length === 0;
     visible = new Set(await visibleFields(provider, choices(), authMode, loginParams()));
-    if (schema.cost_advisory) {
-      costWarn.textContent = tl(schema.cost_advisory);
-      costWarn.hidden = false;
-    } else {
-      costWarn.textContent = "";
-      costWarn.hidden = true;
-    }
     const cred = schema.credential_kind;
     const mode = selectedMode();
     const available = modes().filter((m) => !m.unavailable_reason);
@@ -585,14 +594,16 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       authHtml = `<fieldset class="auth"><legend>${te("dialog.authLegend")}</legend>${radios.join("")}</fieldset>`;
     }
 
+    // RF3.2: the access notes share the area of the credential help (`#access-notes`, filled by renderAccess).
+    const notesSlot = `<span class="access-notes" id="access-notes"></span>`;
     let bodyHtml = "";
     if (!mode) {
       bodyHtml = cred === "none"
-        ? `<p class="hint">${te("dialog.credNone")}</p>`
+        ? `<p class="hint">${te("dialog.credNone")}${notesSlot}</p>`
         : `<label class="f" data-field="credential"><span>${te(cred === "profile" ? "dialog.credProfile" : "dialog.credEnv")}</span>
             <input name="credential" value="${esc(existing?.credential ?? "")}" placeholder="${esc(cred === "env" ? schema.default_env : "")}" required />
             <small class="field-err" hidden></small>
-            <small>${esc(tl(schema.credential_help))}</small></label>`;
+            <small>${esc(tl(schema.credential_help))}</small>${notesSlot}</label>`;
     } else {
       const renderOption = (option, isRegistration) => {
         const prefix = isRegistration ? "r" : "o";
@@ -619,7 +630,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
            <button type="button" class="btn" id="login-btn">${te("dialog.login.redo")}</button>`
         : `<button type="button" class="btn" id="login-btn">${te(existing?.uses_oauth ? "dialog.login.reauth" : "dialog.login.start")}</button>`;
       const loginHint = `<p class="hint login-hint" id="login-hint" hidden></p>`;
-      bodyHtml = optInputs.join("") + button + loginHint;
+      bodyHtml = optInputs.join("") + button + loginHint + `<p class="hint">${notesSlot}</p>`;
     }
 
     dynAuth.innerHTML = authHtml + bodyHtml;
@@ -638,6 +649,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     const loginBtn = dyn.querySelector("#login-btn");
     if (loginBtn) loginBtn.addEventListener("click", () => startLogin(loginBtn));
     syncLoginBtn();
+    await renderAccess();
   }
 
   dlg.addEventListener("change", async (e) => {
@@ -660,7 +672,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       await renderDynamic();
     } else if (e.target.name?.startsWith("f:")) {
       collect();
-      if (e.target.tagName === "SELECT") await renderDynamic();
+      await (e.target.tagName === "SELECT" ? renderDynamic() : renderAccess());
     }
   });
   dlg.querySelector("[data-cancel]").addEventListener("click", () => {
@@ -684,6 +696,14 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
         return;
       }
     }
+    // RF3.4: an Unavailable account shows the core's reason first and needs a second, explicit "Save anyway".
+    const latest = await draftAccess(provider, authMode, draftFields());
+    if (latest.save_confirmation && !confirmUnavailable) {
+      confirmUnavailable = true;
+      err.textContent = tl(latest.save_confirmation);
+      ok.textContent = t("dialog.saveAnyway");
+      return;
+    }
     ok.disabled = true;
     committing = true;
     dlg.querySelector("[data-cancel]").disabled = true;
@@ -694,7 +714,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       const result = await saveAccount({
         index, provider, name: String(data.get("name") ?? ""),
         credential,
-        fields: schema.fields.filter((f) => visible.has(f.key)).map((f) => ({ key: f.key, text: values.get(f.key)?.text ?? (f.options ? null : ""), choice: values.get(f.key)?.choice ?? (f.options ? 0 : null) })),
+        fields: draftFields(),
         interval: String(data.get("interval") ?? ""),
         commitLogin: loginDone(),
         loginAttempt: loginState?.attempt ?? 0,

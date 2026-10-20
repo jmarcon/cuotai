@@ -93,7 +93,7 @@ pub fn params<const N: usize>(items: [(&str, ParamValue); N]) -> BTreeMap<String
 /// `native.<provider>.<key>.label`, `login.<provider>.<mode_id>.{label,help,...}`,
 /// `edit_error.<case>`, `query.<case>`, `note.<adapter>.<case>`,
 /// `credential_help.<provider>`, `oauth.registration_help.<provider>`,
-/// `oauth.unsupported_reason.<provider>`, `cost_advisory.<provider>`,
+/// `oauth.unsupported_reason.<provider>`, `access.<kind>.<slug>`,
 /// `status.<snake_case>`, `provider.<slug>`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Localized {
@@ -508,9 +508,6 @@ mod tests {
                 ids.push(models.id.to_string());
             }
             ids.push(edit::credential_help(provider).id.to_string());
-            if let Some(note) = edit::cost_advisory(provider) {
-                ids.push(note.id.to_string());
-            }
             for d in edit::field_descriptors(provider) {
                 ids.push(edit::field_label_id(provider, d.key));
                 ids.push(edit::field_help_id(provider, d.key));

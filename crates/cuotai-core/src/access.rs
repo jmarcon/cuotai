@@ -6,6 +6,7 @@
 
 use crate::text::Localized;
 use crate::{Account, Provider};
+use std::collections::BTreeMap;
 
 /// Date the evidence below was last checked against its public source.
 const VERIFIED_ON: &str = "2026-10-20";
@@ -215,26 +216,70 @@ impl UsageAccess {
         self.plan_requirement = Some(Localized::fixed(format!("access.plan.{plan}"), pt));
         self
     }
+
+    /// `access.cost_advisory`: the per-query cost warning (PRD 0005 RF3.3),
+    /// `Some` exactly when `metered`.
+    pub fn cost_advisory(&self) -> Option<Localized> {
+        self.metered.then(|| {
+            Localized::fixed(
+                "access.cost_advisory",
+                "Provedor cobrado por consulta: cada ciclo consulta e gera cobrança. \
+                 O intervalo efetivo mínimo é 300s; valores menores são rejeitados \
+                 pela validação do core. Mantenha um intervalo alto (ex.: 3600s) \
+                 para reduzir custo. Atualizações manuais continuam explícitas.",
+            )
+        })
+    }
+
+    /// What the account editors show where the credential help appears
+    /// (PRD 0005 RF3.2), in order: credential hint, risk, plan requirement
+    /// and, for `Unavailable`, the reason.
+    pub fn notes(&self) -> Vec<Localized> {
+        let mut notes = vec![self.credential_hint.clone(), self.risk.clone()];
+        notes.extend(self.plan_requirement.clone().map(|plan| {
+            let pt = format!("Requer o plano {}.", plan.fallback);
+            Localized::with_param("access.requires_plan", "plan", plan, pt)
+        }));
+        notes.extend(self.reason.clone());
+        notes
+    }
+
+    /// PRD 0005 RF3.4: the warning an editor shows before saving an
+    /// `Unavailable` account, confirmed with "Save anyway"; `None` for every
+    /// other level.
+    pub fn save_confirmation(&self) -> Option<Localized> {
+        self.reason.clone().map(|reason| {
+            let pt = format!(
+                "{} A conta será gravada, mas mostrará este motivo em vez de números.",
+                reason.fallback
+            );
+            Localized::with_param("access.confirm_unavailable", "reason", reason, pt)
+        })
+    }
 }
 
 /// How `account`'s usage is obtained. Pure: reads only the provider, the
 /// authentication type and the `params` that switch the queried interface.
 pub fn describe(account: &Account) -> UsageAccess {
+    classify(account.provider, account.oauth.is_some(), &account.params)
+}
+
+/// [`describe`] from its inputs, so an account still being edited (see
+/// `account_edit::draft_access`) gets the same answer.
+pub(crate) fn classify(
+    provider: Provider,
+    oauth: bool,
+    params: &BTreeMap<String, String>,
+) -> UsageAccess {
     use Credential::*;
     use Level::*;
-    let param = |key: &str, value: &str| account.params.get(key).is_some_and(|v| v == value);
-    let set = |key: &str| {
-        account
-            .params
-            .get(key)
-            .is_some_and(|v| !v.trim().is_empty())
-    };
-    let oauth = account.oauth.is_some();
+    let param = |key: &str, value: &str| params.get(key).is_some_and(|v| v == value);
+    let set = |key: &str| params.get(key).is_some_and(|v| !v.trim().is_empty());
     let doc = Evidence::Documentation;
     let enterprise = |access: UsageAccess| access.requires("enterprise", "Enterprise");
     // Exhaustive on purpose (PRD 0005 RF1.3): a new provider does not compile
     // without declaring how its usage is read.
-    let mut access = match account.provider {
+    let mut access = match provider {
         Provider::OpenAiApi => entry(Official, AdminKey, Scope::Organization,
             doc("https://developers.openai.com/api/reference/resources/admin/subresources/organization"),
             "open_ai_api", "Custos e uso da organização pela Admin API da OpenAI."),
@@ -293,7 +338,7 @@ pub fn describe(account: &Account) -> UsageAccess {
         Provider::Groq => entry(Derived, InferenceKey, Scope::Organization,
             doc("https://console.groq.com/docs/rate-limits"),
             "groq", "Rate limits da organização lidos nos cabeçalhos x-ratelimit-* da listagem de modelos."),
-        Provider::Perplexity if account.params.get("product").is_some_and(|v| v.eq_ignore_ascii_case("computer")) => enterprise(entry(Official, AdminKey, Scope::Organization,
+        Provider::Perplexity if params.get("product").is_some_and(|v| v.eq_ignore_ascii_case("computer")) => enterprise(entry(Official, AdminKey, Scope::Organization,
             doc("https://docs.perplexity.ai/docs/admin/computer-analytics-api.md"),
             "perplexity_computer", "Créditos da organização pela Analytics API do Perplexity Computer.")),
         Provider::Perplexity => unavailable(InferenceKey,
@@ -365,7 +410,7 @@ pub fn describe(account: &Account) -> UsageAccess {
             Evidence::Reference("https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts"),
             "kimchi", "Saldo em USD e orçamentos do Kimchi pelo contrato do cliente oficial."),
     };
-    access.metered = account.provider.is_metered();
+    access.metered = provider.is_metered();
     access
 }
 
@@ -715,15 +760,15 @@ mod tests {
         let mut texts: Vec<Localized> = Vec::new();
         for account in variants() {
             let access = describe(&account);
+            texts.extend(access.notes());
+            texts.extend(access.cost_advisory());
+            texts.extend(access.save_confirmation());
             texts.extend([
                 access.level.label(),
                 access.credential.label(),
                 access.scope.label(),
                 access.summary,
-                access.credential_hint,
-                access.risk,
             ]);
-            texts.extend(access.reason);
             texts.extend(access.plan_requirement);
         }
         for locale in ["en-US", "es"] {
@@ -757,6 +802,107 @@ mod tests {
                     "{path:?} owns core access ids"
                 );
             }
+        }
+    }
+
+    /// RF3: the editors' view of a draft matches the saved account, and the
+    /// cost warning, plan note and save confirmation follow the level.
+    #[test]
+    fn draft_access_matches_the_saved_account() {
+        use crate::account_edit::{draft_access, DraftField, DraftValue};
+        use Provider::*;
+        let choice = |key, index| DraftField {
+            key,
+            value: DraftValue::Choice(index),
+        };
+        let text = |key, value: &str| DraftField {
+            key,
+            value: DraftValue::Text(value.into()),
+        };
+        let cases = [
+            (
+                Copilot,
+                "credential",
+                vec![choice("query_mode", 1)],
+                &[("query_mode", "quota")][..],
+                false,
+            ),
+            (
+                Copilot,
+                "credential",
+                vec![choice("query_mode", 0)],
+                &[],
+                false,
+            ),
+            (
+                GeminiAi,
+                "credential",
+                vec![choice("product", 1)],
+                &[("product", "cli")],
+                false,
+            ),
+            (
+                GeminiAi,
+                "credential",
+                vec![choice("product", 0)],
+                &[],
+                false,
+            ),
+            (
+                Perplexity,
+                "credential",
+                vec![text("product", " Computer ")],
+                &[("product", "computer")],
+                false,
+            ),
+            (
+                Cline,
+                "credential",
+                vec![text("organization_id", "  ")],
+                &[],
+                false,
+            ),
+            (Cursor, "oauth", vec![], &[], true),
+            // Undeclared keys and mismatched kinds never switch the interface.
+            (
+                Grok,
+                "credential",
+                vec![text("product", "cli"), choice("bogus", 1)],
+                &[],
+                false,
+            ),
+        ];
+        for (provider, mode, fields, params, oauth) in cases {
+            assert_eq!(
+                draft_access(provider, mode, &fields),
+                describe(&account(provider, params, oauth)),
+                "{provider:?} {mode}"
+            );
+        }
+        let empty = |p| draft_access(p, "credential", &[]);
+        assert!(empty(AwsBedrock).cost_advisory().is_some());
+        assert!(empty(OpenAiApi).cost_advisory().is_none());
+        let windsurf: Vec<_> = empty(Windsurf).notes().into_iter().map(|n| n.id).collect();
+        assert_eq!(
+            windsurf,
+            [
+                "access.credential_hint.admin_key",
+                "access.risk.official",
+                "access.requires_plan"
+            ]
+        );
+        let poolside = empty(Poolside);
+        assert_eq!(poolside.notes().last(), poolside.reason.as_ref());
+        let confirm = poolside.save_confirmation().expect("unavailable asks");
+        assert!(confirm
+            .resolve("en-US")
+            .starts_with("The known usage endpoint"));
+        for account in variants() {
+            let access = describe(&account);
+            assert_eq!(
+                access.save_confirmation().is_some(),
+                access.level == Level::Unavailable
+            );
         }
     }
 }
