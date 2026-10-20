@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, configLabel, currentSort, getSettings, groupingRecharging, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setGroupRecharging, setMotion, setRefreshSeconds, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, configLabel, currentSort, getSettings, groupingRecharging, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setGroupRecharging, setMotion, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -28,7 +28,10 @@ export async function openSettings(extra = {}) {
           <small>${te("settings.motion.help")}</small></label>
         <p class="err" id="motion-msg" role="alert"></p>
         <label class="check"><input id="group-recharging" type="checkbox" ${groupingRecharging() ? "checked" : ""} /> ${te("settings.group.recharging")}</label>
-        <p class="hint">${te("settings.group.help")}</p></section>
+        <p class="hint">${te("settings.group.help")}</p>
+        <label class="check"><input id="show-pace" type="checkbox" ${s.show_pace !== false ? "checked" : ""} /> ${te("settings.pace.show")}</label>
+        <p class="hint">${te("settings.pace.help")}</p>
+        <p class="err" id="pace-msg" role="alert"></p></section>
       <section class="set-sec"><h3>${te("lang.label")}</h3>${langMenuHtml({ inline: true })}</section>
       <section class="set-sec"><h3>${te("settings.order.title")}</h3>
         <label class="check"><input id="order-binding" type="checkbox" ${currentSort() === "binding" ? "checked" : ""} /> ${te("settings.order.binding")}</label>
@@ -79,6 +82,10 @@ export async function openSettings(extra = {}) {
     // PRD 0009 RF2.3: display-only ordering; the manual order (TOML, shared with the TUI) is never rewritten.
     dlg.querySelector("#order-binding").onchange = (e) => { setSort(e.target.checked ? "binding" : "custom"); extra.onChange?.(); };
     dlg.querySelector("#group-recharging").onchange = (e) => { setGroupRecharging(e.target.checked); extra.onChange?.(); };
+    // PRD 0007 RF3.4: saved in desktop.json; on failure the box goes back to the saved value.
+    dlg.querySelector("#show-pace").onchange = (e) => setShowPace(e.target.checked).then(
+      () => { dlg.querySelector("#pace-msg").textContent = ""; extra.onChange?.(); },
+      (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#pace-msg").textContent = errorText(x); });
     const input = dlg.querySelector("#refresh-seconds");
     const msg = dlg.querySelector("#refresh-msg");
     for (const b of dlg.querySelectorAll("[data-preset]")) b.onclick = () => { input.value = b.dataset.preset; msg.textContent = ""; };

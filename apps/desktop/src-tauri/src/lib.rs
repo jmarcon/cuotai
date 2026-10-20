@@ -341,6 +341,12 @@ fn set_motion(motion: String) -> Result<(), String> {
     settings::save_motion(&motion).map_err(str::to_owned)
 }
 
+/// PRD 0007 RF3.4: show or hide the consumption pace. Error: `unwritable`.
+#[tauri::command]
+fn set_show_pace(show: bool) -> Result<(), String> {
+    settings::save_show_pace(show).map_err(str::to_owned)
+}
+
 /// RF1.2: `path = None` volta ao `cuotai.toml` padrão do SO. Recarrega pelo core e só então
 /// grava a escolha em `desktop.json`. Erros: códigos de `settings` ou o JSON tipado do core.
 #[tauri::command]
@@ -442,6 +448,7 @@ pub fn run() {
             set_user_dir,
             open_user_dir,
             set_motion,
+            set_show_pace,
             open_settings,
             show_main_window,
             quit_app

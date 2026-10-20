@@ -18,6 +18,9 @@ struct Stored {
     /// desconhecido vira `system` sem invalidar os demais campos do arquivo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     motion: Option<String>,
+    /// Consumption pace (PRD 0007 RF3.4); absent = shown. Only `false` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    show_pace: Option<bool>,
 }
 
 /// Valores aceitos para `motion`, na ordem exibida pela UI.
@@ -142,6 +145,12 @@ pub fn save_motion(motion: &str) -> Result<(), &'static str> {
     })
 }
 
+/// Shows or hides the consumption pace; `true` (the default) removes the key.
+pub fn save_show_pace(show: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| s.show_pace = (!show).then_some(false))
+}
+
 #[derive(Serialize)]
 pub struct SettingsView {
     /// Pasta em uso agora.
@@ -157,10 +166,13 @@ pub struct SettingsView {
     config_env_locked: bool,
     /// Animações: `system`, `always`, `reduced` ou `off`.
     motion: &'static str,
+    /// Consumption pace on cards, details and tray (on by default).
+    show_pace: bool,
     version: &'static str,
 }
 
 pub fn view() -> SettingsView {
+    let stored = load();
     SettingsView {
         user_dir: effective_user_dir().map(|p| p.display().to_string()),
         default_dir: default_dir().map(|p| p.display().to_string()),
@@ -170,7 +182,8 @@ pub fn view() -> SettingsView {
         config_env_locked: cuotai_core::config_file::Locations::from_process()
             .env
             .is_some(),
-        motion: motion_of(&load()),
+        motion: motion_of(&stored),
+        show_pace: stored.show_pace != Some(false),
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -244,5 +257,20 @@ mod tests {
         assert_eq!(motion_of(&stored), "system");
         assert_eq!(stored.user_dir.as_deref(), Some("/u"));
         assert_eq!(save_motion("fast"), Err("invalid_motion"));
+    }
+
+    #[test]
+    fn pace_is_shown_unless_turned_off_and_keeps_other_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(read(&file).show_pace, None);
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        update(&file, |s| s.show_pace = Some(false)).unwrap();
+        let stored = read(&file);
+        assert_eq!(stored.show_pace, Some(false));
+        assert_eq!(motion_of(&stored), "off");
+        // A hand-edited `true` or a removed key both mean "shown".
+        fs::write(&file, r#"{"show_pace":true}"#).unwrap();
+        assert_ne!(read(&file).show_pace, Some(false));
     }
 }

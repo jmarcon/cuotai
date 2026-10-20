@@ -6,7 +6,7 @@ import { easeOut, motionMs } from "./motion.js";
 import {
   bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
-  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange,
+  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText,
 } from "./lib.js";
 
 await boot();
@@ -29,6 +29,7 @@ function row(r) {
       <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${lv}">${esc(value)}</span></div>
       <div class="row-sub">${esc(r.account)}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
       <div class="row-age">${ageHtml(r)}</div>
+      ${trayPace(r, (p, label) => paceHtml(p, { label, short: true }))}
       <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
     </div>${icon("chev", "chev")}</button>`;
 }
@@ -73,6 +74,7 @@ function tile(r) {
     blockedText(r) ?? "",
     r.binding ? bindingChipText(r) : "",
     ageText(r),
+    trayPace(r, (p, label) => paceText(p, { label, short: true })),
     ...(w.h5 ? [`${t("card.window.h5")}: ${Math.round(w.h5.pct)}%`] : []),
     ...(w.week ? [`${t("card.window.week")}: ${Math.round(w.week.pct)}%`] : [])].filter(Boolean);
   const center = alert ? icon(alert.icon) : pct != null ? `${Math.round(pct)}%` : "—";
@@ -83,6 +85,11 @@ function tile(r) {
     <span class="tile-acct">${esc(r.account)}</span>${ageHtml(r)}</button>`;
 }
 const te2 = (key, vars) => t(key, vars);
+/** PRD 0007 RF3.3: "Week: lasts until the reset" / "Week: runs out at 16:40, 2h 10m before the reset". */
+const trayPace = (r, draw) => {
+  const m = cardPace(r);
+  return m ? draw(m.pace, t(`card.binding.${m.window}`)) : "";
+};
 
 const short = (s, n = 90) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 

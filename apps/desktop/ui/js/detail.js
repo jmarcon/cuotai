@@ -3,7 +3,7 @@
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
   STALE, ageHtml, bindingChipText, errText, esc, fmtAmount, fmtReset, getView, icon, isBindingMetric, isMetricHidden, isStaleReading, level, loadModels, metricKey, modelState, noteText,
-  remainingPct, reportKey, staleView, statusLabel, syncModels, textualMetric,
+  paceHtml, paceOf, remainingPct, reportKey, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
 /** `eye`: mostra o botão de ocultar/exibir a quota (só no diálogo). */
@@ -13,9 +13,12 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
   const text = textualMetric(m);
   const reset = fmtReset(m.resets_at);
   const hid = isMetricHidden(r, m);
+  const pace = paceOf(m);
+  // PRD 0007 RF3.2: the bar shows what is available, so the uniform-pace mark sits at the expected available share.
+  const mark = pace ? `<i class="pace-mark" style="left:${(1 - pace.expected_used_fraction) * 100}%" title="${te("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) })}"></i>` : "";
   const gauge = text != null
     ? `<div class="balance ${m.state === "exhausted" ? "bad" : ""}">${esc(text)}</div>`
-    : `<div class="bar ${lv}"><span style="width:${pct ?? 0}%"></span></div>`;
+    : `<div class="gauge"><div class="bar ${lv}"><span style="width:${pct ?? 0}%"></span></div>${mark}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets a highlight and a chip; every other metric stays listed.
   const binding = isBindingMetric(r, m);
   return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""}">
@@ -27,6 +30,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
       </div>
     </div>
     ${gauge}
+    ${pace ? paceHtml(pace, { expected: true }) : ""}
     ${reset ? `<div class="resets">${te("metric.resetsAt", { when: reset })}</div>` : ""}
   </div>`;
 }
