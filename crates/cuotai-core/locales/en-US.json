@@ -311,6 +311,7 @@
   "field.zed.system_id.label": "System ID (optional)",
   "field.zed.user_id.help": "Required; sent as \"Authorization: <user_id> <access_token>\".",
   "field.zed.user_id.label": "Zed numeric user ID",
+  "history.error.storage": "Could not read or write the local measurement history.",
   "login.alibaba_token_plan.bailian_console.completion_notice": "bl auth login --console completed on the dedicated profile.",
   "login.alibaba_token_plan.bailian_console.help": "Runs \"bl auth login --console\" on a dedicated bl profile; the login lives in bl's local store, outside the Cuotai vault. Cancelling does not undo what bl recorded. params.session_env remains an optional Cookie override; QWEN_API_KEY only authenticates inference and is not sent to the quota query.",
   "login.alibaba_token_plan.bailian_console.label": "Bailian console (bl)",

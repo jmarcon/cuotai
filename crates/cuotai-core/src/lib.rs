@@ -8,6 +8,7 @@ pub mod config_file;
 pub mod edit_error;
 pub mod export;
 pub mod freshness;
+pub mod history;
 pub mod identity;
 pub mod last_config;
 pub mod metrics;

@@ -3,13 +3,23 @@
 | Field | Value |
 |---|---|
 | ID | 0006 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (details), `crates/cuotai-tui` (details and `--history`), PRDs 0007, 0008, 0012 and 0014 |
 | Depends on | none |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-20)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.37.0 | `cuotai_core::history::HistoryStore`: `new(path, &ConfigIdentity)` and `in_data_dir(&ConfigFile)` (`<OS local data dir>/cuotai/history/history.sqlite3`, its own directory, `0700`/`0600` on Unix even when they already existed, sharing `models::create_private_file`); the file is opened per operation in WAL mode with a 5 s busy timeout (a journal-mode switch racing another first open is retried within it). Rows are keyed by `ConfigIdentity::digest()` and the model catalog's account digest (`models::account_key`, now shared), so a move keeps the series and a rename or a new credential, product or region starts another. `record(account, taken_at, &[Metric])` writes one sample per metric in one `BEGIN IMMEDIATE` transaction, `INSERT OR IGNORE` on `(config, account, metric_key, taken_at)` to the millisecond, and returns how many were new; non-finite values become `NULL`, never zero. `mark_removed(&saved_config, now)` sets `removed_at` on the series of accounts gone from the saved TOML (kept until RF4 prunes them) and clears it when the identity comes back or is recorded again; it never creates the file. Schema v1 through an append-only forward migration list (`PRAGMA user_version`, applied inside `BEGIN IMMEDIATE`; a newer version is rejected): `samples` (`account_digest`, `metric_key`, `taken_at`, `used`, `limit`, `remaining`, `unit`, `kind`, `window`, `resets_at`, plus `config_key`; times in UTC unix ms; primary key on `(config_key, account_digest, metric_key, taken_at)`, an index on `(config_key, taken_at)`) and `series` (label, position and `seen_at` of the newest reading carrying the metric, `removed_at`). `history::metric_key(&Metric)` is the SHA-256 of kind, window, label and unit. Every open, read or write failure is `HistoryError::Storage` (`history.error.storage`, en-US/es). Only recording API: nothing calls it before RF2. |
+| RF3 | 0.37.0 | Network-free queries on `HistoryStore`, each a `Result` (storage errors are never an empty answer): `latest(account) -> Option<StoredReport { checked_at, metrics: Vec<StoredMetric { key, taken_at, metric }> }>`, the metrics of the last recorded reading in their order, each with its own last sample and original time (`checked_at` is that reading's time, aged with `freshness::age`; `period` is not stored); `series(account, metric_key, impl RangeBounds<DateTime<Utc>>) -> Vec<pace::Point>` in time order, without samples lacking a finite `used`; `windows(account, metric_key, range) -> Vec<WindowUsage { started_at, ended_at, resets_at, limit, initial_used, final_used, peak_used, peak_at, samples }>`, where a window ends when `used` drops by more than 20% of a finite positive `limit` or when `resets_at` moves beyond `resets::DRIFT_TOLERANCE` (2 minutes) from the last one seen in the window (slow drift stays one window; a metric without a limit splits only on `resets_at`; non-finite values are ignored); `bounds() -> Option<Bounds { first, last }>` over this configuration. Table tests cover increasing use, a reset drop, a drop within 20%, drift within and beyond the tolerance, gaps of days, a metric with no limit and non-finite values; a local smoke read 30 days of one metric at a 5-minute cadence (8,640 samples) in about 6 ms on a debug build. |
+| RF2, RF4 to RF6 | — | Not delivered. |
+
+**Decisions (2026-10-20):** the `series` table keeps the metric label in clear text (adapter metric names, already part of `metric_key`) so `latest` can name what it restores; `period` (adapter descriptive text) is not stored. Account names, credential references, params, the TOML path, notes and provider bodies never enter the file.
 
 ## 1. Context
 
