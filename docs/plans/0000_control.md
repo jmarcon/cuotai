@@ -5,8 +5,8 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-20 |
-| Cuotai version at that date | 0.35.1 |
-| Plans | 19 (7 implemented, 2 in progress, 10 proposed) |
+| Cuotai version at that date | 0.36.0 |
+| Plans | 19 (7 implemented, 3 in progress, 9 proposed) |
 
 ## 1. How to maintain it
 
@@ -33,7 +33,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0009](0009_binding-limit-indicator.md) | Binding limit indicator | Implemented | RF1, RF4 (0.22.0), RF2 (0.26.0), RF3 (0.27.0) | — | — | `metrics::binding` and its localized summary in the core, read by the desktop (ring, list, card chip, highlighted metric, opt-in "most restrictive first" order) and by the TUI (card leads with the binding metric, details marker) and `--once` (one summary line per account). Consumed by 0007, 0012 and 0014; 0012 RF1.1 adds it to `export::v1`. |
 | [0010](0010_measurement-age-and-stale-reading.md) | Measurement age and stale reading | Implemented | RF1 (0.21.0), RF2 (0.25.0), RF3 (0.28.0), RF5 (0.29.0), RF4 (0.30.0) | — | 0006 | RF1 and RF2 delivered in the core: `freshness::age`/`assess` and the per-account last valid reading (`RefreshCycle::last_good_report`). RF3: the desktop shows the age and freshness on cards, tray, menu and icon tooltip, and the preserved reading as stale with the failure cause. RF5: the TUI cards and details and `--once` show the relative age (details also in UTC and local time) and the preserved reading marked `(desatualizada)`; `--json` unchanged. RF4: optional, display-only "Recharging" group on the desktop (Settings → Appearance, off by default) with the return time. RF2.3 holds per session only until 0006 RF2 persists the reading and loads it on opening (the plan's own "without history" branch). |
 | [0011](0011_provider-incident-status.md) | Provider incident status | Proposed | — | — | 0005 | Needs verified public sources per provider. |
-| [0012](0012_local-http-server-and-export-contract.md) | Local HTTP server and `export::v1` contract | Proposed | — | — | 0005, 0007, 0009, 0010, 0011 | The `v1` contract is additive: new fields enter as the plans are delivered. |
+| [0012](0012_local-http-server-and-export-contract.md) | Local HTTP server and `export::v1` contract | In progress | RF1 (0.36.0) | — | 0005, 0007, 0009, 0010, 0011 | The `v1` contract is additive: new fields enter as the plans are delivered. RF1 delivered in the core: `export::v1::Export::from_cycle` with key, class, current report, age, freshness, the preserved `last_good` reading with `stale` (0010), `binding` (0009), `pace` per metric (0007) and `access` (0005); `incident` waits for 0011. Redacted notes and `source`, e-mail only with "include identity", `null` for missing values; `docs/export-v1.md`, a JSON Schema and a reference output guarded by tests. Owner decision: the server is off by default, loopback only, suggested port 6738. RF2 to RF5 pending. |
 | [0013](0013_watch-and-event-hooks.md) | `watch` and event hooks | Proposed | — | 0012 (RF1) | 0003, 0008, 0009, 0011 | Hooks run user commands; consent is mandatory. |
 | [0014](0014_system-widgets.md) | System widgets (macOS) | Proposed | — | 0012 (RF1), 0019 | 0006, 0007, 0009, 0010 | Needs an Apple developer account; packaging prototype first. |
 | [0015](0015_estimated-cost-from-local-logs.md) | Estimated cost from local logs | Proposed | — | 0005 | 0006 | Never reads conversation content. |
@@ -80,6 +80,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.34.0 | 0005 | RF3 (TUI wizard and desktop dialog: level label per provider in the picker, credential hint/risk/plan/reason under the credential help, the per-query cost warning derived from the descriptor, and an explicit "Save anyway" before saving an `Unavailable` account; texts from the core in pt, en-US and es). |
 | 0.35.0 | 0005 | RF4 (TUI and desktop cards and details: discreet level and summary, the reason of an `Unavailable` account and "the interface may have changed" with its reference for an `Undocumented` schema mismatch in place of the generic failure; serializable descriptor for `export::v1`; `--json` unchanged). |
 | 0.35.1 | 0005 | RF5 (generated `docs/providers.md` usage access matrix verified against `access::describe` by a drift test; access descriptor listed as a mandatory step in the new-provider guides). |
+| 0.36.0 | 0012 | RF1 (core `export::v1` contract built from the `RefreshCycle` without queries: key, class, current report, age and freshness, preserved stale reading, binding metric, pace per metric and access descriptor; redacted notes and source, e-mail only with "include identity", `null` for missing values; `docs/export-v1.md`, JSON Schema and reference-output tests). |
 
 ## 4. Dependency graph
 
@@ -102,7 +103,7 @@ graph LR
   P9["0009 Binding limit"]:::done
   P10["0010 Measurement age"]:::done
   P11["0011 Incident status"]:::todo
-  P12["0012 Server and export v1"]:::todo
+  P12["0012 Server and export v1"]:::wip
   P13["0013 Watch and hooks"]:::todo
   P14["0014 Widgets"]:::todo
   P15["0015 Cost from logs"]:::todo
@@ -177,7 +178,7 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | Apple developer account and Developer ID certificate | 0014, 0018, 0019 | Needed for notarization and for widgets (*app group*). |
 | Windows Authenticode certificate | 0019 | Without it, the installer ships unsigned, declared in the release notes. |
 | Cookie policy | 0016 | Recommendation: keep manual pasting and do not import cookies from browsers. |
-| Local server on by default or not | 0012 | Recommendation: off by default, loopback only. |
+| ~~Local server on by default or not~~ | 0012 | **Decided on 2026-10-20: off by default, loopback only**, suggested port 6738 (checked for conflicts when RF2 is implemented). |
 
 ## 7. History of this file
 
@@ -209,3 +210,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-20 | PRD 0005 RF3 delivered in 0.34.0; plan 0005 stays in progress (RF4 and RF5 pending). |
 | 2026-10-20 | PRD 0005 RF4 delivered in 0.35.0; plan 0005 stays in progress (RF5 pending). |
 | 2026-10-20 | PRD 0005 RF5 delivered in 0.35.1; plan 0005 implemented. |
+| 2026-10-20 | PRD 0012 RF1 delivered in 0.36.0; plan 0012 in progress (RF2 to RF5 pending); local server decision recorded (off by default, loopback only, port 6738). |

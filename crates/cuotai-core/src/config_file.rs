@@ -128,6 +128,17 @@ impl ConfigIdentity {
             Err(e) => Err(e),
         }
     }
+
+    /// SHA-256 (lowercase hex) of the identity: the per-config key caches
+    /// store and exports publish instead of the path itself.
+    pub fn digest(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let bytes = match self {
+            Self::File(file) => [b"file:".as_slice(), file.as_os_str().as_encoded_bytes()].concat(),
+            Self::Explicit(id) => [b"explicit:".as_slice(), id.as_bytes()].concat(),
+        };
+        format!("{:x}", Sha256::digest(bytes))
+    }
 }
 
 impl std::fmt::Display for ConfigIdentity {

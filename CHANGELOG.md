@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-20
+
+### Added
+
+- `cuotai-core` exposes the versioned `export::v1` contract (`Export::from_cycle`), built from the state a `RefreshCycle` already holds without querying any provider: per account its stable key, class, current report, age, freshness, the preserved stale reading, binding metric, pace per metric and usage access descriptor, with credential variable names, URL credentials and (unless "include identity" is on) e-mails redacted and `null` for every missing value, documented in `docs/export-v1.md` with a JSON Schema and a reference output that tests guard against accidental changes (PRD 0012 RF1).
+
 ## [0.35.1] - 2026-10-20
 
 ### Changed
 
-- `docs/providers.md` gains a usage access matrix with the level, credential class, plan requirement, scope and evidence of every provider and of each mode that changes the queried interface, generated from `cuotai-core`'s `access::describe` and checked by a test that fails with regeneration instructions when they drift, and the new-provider guides list the access descriptor as a mandatory step (PRD 0005 RF5).
+- `docs/providers.md` gains a usage access matrix with the level, credential class, plan requirement, scope and evidence of every provider and of each mode that changes the queried interface, generated from `cuotai-core`'s `access::describe` and checked by a test that fails with regeneration instructions when they drift, and the new-provider guides list the access descriptor as a mandatory step (PRD 0005 RF5, 40bbc64).
 
 ## [0.35.0] - 2026-10-20
 
@@ -354,8 +360,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/594aa92...main
-[0.35.1]: https://github.com/jmarcon/cuotai/compare/594aa92...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/40bbc64...main
+[0.36.0]: https://github.com/jmarcon/cuotai/compare/40bbc64...main
+[0.35.1]: https://github.com/jmarcon/cuotai/commit/40bbc64
 [0.35.0]: https://github.com/jmarcon/cuotai/commit/594aa92
 [0.34.0]: https://github.com/jmarcon/cuotai/commit/6e448ea
 [0.33.0]: https://github.com/jmarcon/cuotai/commit/79445c0

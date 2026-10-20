@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jmarcon/cuotai/blob/main/docs/export-v1.schema.json",
+  "title": "Cuotai export v1",
+  "description": "cuotai-core export::v1 (PRD 0012 RF1). Additive within schema 1: consumers must ignore unknown properties and tolerate new enum values. See docs/export-v1.md.",
+  "type": "object",
+  "required": ["schema", "generated_at", "config_identity", "accounts"],
+  "properties": {
+    "schema": { "const": 1, "description": "Contract version; a removed or redefined field needs 2." },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "config_identity": { "type": "string", "description": "Lowercase hex SHA-256 of the configuration identity; never the file path." },
+    "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountExport" }, "description": "In configuration order." }
+  },
+  "$defs": {
+    "AccountExport": {
+      "type": "object",
+      "required": [
+        "index", "key", "name", "provider", "class", "report", "age_seconds", "freshness",
+        "clock_adjusted", "stale", "last_good", "binding", "pace", "access"
+      ],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0, "description": "Position in the configuration." },
+        "key": { "type": "string", "description": "Stable identity: <provider slug>:<name>." },
+        "name": { "type": "string" },
+        "provider": { "$ref": "#/$defs/Provider" },
+        "email": { "type": ["string", "null"], "description": "Present only when the producer includes identity; null when unknown." },
+        "class": { "enum": ["available", "exhausted", "unmeasured"] },
+        "report": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Report" }], "description": "Current report; null until the account has one." },
+        "age_seconds": { "type": ["integer", "null"], "minimum": 0, "description": "Age of report.checked_at; null without a report." },
+        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }], "description": "report.checked_at against the account's effective interval; null without a report." },
+        "clock_adjusted": { "type": "boolean", "description": "report.checked_at is in the future; the age reads zero." },
+        "stale": { "type": "boolean", "description": "true exactly when last_good is present." },
+        "last_good": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/LastGood" }] },
+        "binding": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Binding" }] },
+        "pace": {
+          "type": "array",
+          "items": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Pace" }] },
+          "description": "One entry per report.metrics item, same order; empty without a report."
+        },
+        "access": { "$ref": "#/$defs/UsageAccess" }
+      }
+    },
+    "Provider": { "type": "string", "description": "Provider slug (docs/providers.md); new providers add values." },
+    "Report": {
+      "type": "object",
+      "required": ["account", "provider", "checked_at", "status", "metrics", "notes", "source"],
+      "properties": {
+        "account": { "type": "string" },
+        "provider": { "$ref": "#/$defs/Provider" },
+        "checked_at": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["ready", "needs_configuration", "unsupported", "authentication_error", "rate_limited", "error"] },
+        "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" } },
+        "notes": { "type": "array", "items": { "type": "string" }, "description": "Portuguese texts, redacted." },
+        "notes_l10n": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "Same length and order as notes; absent when empty." },
+        "source": { "type": "string", "description": "Public endpoint or reference contract, redacted; may be empty." }
+      }
+    },
+    "Metric": {
+      "type": "object",
+      "required": ["label", "used", "limit", "remaining", "unit", "kind", "window", "period", "resets_at"],
+      "properties": {
+        "label": { "type": "string" },
+        "used": { "type": ["number", "null"] },
+        "limit": { "type": ["number", "null"] },
+        "remaining": { "type": ["number", "null"] },
+        "unit": { "type": "string" },
+        "kind": { "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] },
+        "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }] },
+        "period": { "type": ["string", "null"] },
+        "resets_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "LastGood": {
+      "type": "object",
+      "required": ["checked_at", "age_seconds", "metrics"],
+      "properties": {
+        "checked_at": { "type": "string", "format": "date-time", "description": "Original measurement time." },
+        "age_seconds": { "type": "integer", "minimum": 0 },
+        "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" } }
+      }
+    },
+    "Binding": {
+      "type": "object",
+      "required": ["index", "label", "window", "used_ratio", "remaining", "resets_at", "reason", "blocked_until"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0, "description": "Position in report.metrics." },
+        "label": { "type": "string" },
+        "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }] },
+        "used_ratio": { "type": "number", "minimum": 0 },
+        "remaining": { "type": "number" },
+        "resets_at": { "type": ["string", "null"], "format": "date-time" },
+        "reason": { "enum": ["exhausted", "tightest"] },
+        "blocked_until": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "Pace": {
+      "type": "object",
+      "required": [
+        "elapsed_fraction", "expected_used_fraction", "used_fraction", "delta_points", "stage", "tone",
+        "source", "resets_at", "projected_exhaustion_at", "lasts_until_reset"
+      ],
+      "properties": {
+        "elapsed_fraction": { "type": "number", "minimum": 0 },
+        "expected_used_fraction": { "type": "number", "minimum": 0 },
+        "used_fraction": { "type": "number", "minimum": 0 },
+        "delta_points": { "type": "number" },
+        "stage": { "enum": ["reserve", "on_pace", "ahead", "exhausted"] },
+        "tone": { "enum": ["good", "neutral", "warn", "bad"] },
+        "source": { "enum": ["average", "recent"] },
+        "resets_at": { "type": "string", "format": "date-time" },
+        "projected_exhaustion_at": { "type": ["string", "null"], "format": "date-time" },
+        "lasts_until_reset": { "type": "boolean" }
+      }
+    },
+    "UsageAccess": {
+      "type": "object",
+      "required": [
+        "level", "credential", "plan_requirement", "scope", "metered", "evidence", "verified_on",
+        "summary", "credential_hint", "risk", "reason"
+      ],
+      "properties": {
+        "level": { "enum": ["official", "undocumented", "derived", "unavailable"] },
+        "credential": { "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session"] },
+        "plan_requirement": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
+        "scope": { "enum": ["account", "organization", "whole_cloud", "product"] },
+        "metered": { "type": "boolean", "description": "Every query is billed." },
+        "evidence": {
+          "type": "object",
+          "required": ["kind", "url"],
+          "properties": {
+            "kind": { "enum": ["documentation", "reference"] },
+            "url": { "type": "string", "description": "Public page; never an authenticated URL." }
+          }
+        },
+        "verified_on": { "type": "string", "format": "date" },
+        "summary": { "$ref": "#/$defs/Localized" },
+        "credential_hint": { "$ref": "#/$defs/Localized" },
+        "risk": { "$ref": "#/$defs/Localized" },
+        "reason": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Present exactly when level is unavailable." }
+      }
+    },
+    "Localized": {
+      "type": "object",
+      "required": ["id", "fallback"],
+      "properties": {
+        "id": { "type": "string", "description": "Stable catalog id." },
+        "params": {
+          "type": "object",
+          "additionalProperties": { "anyOf": [{ "type": "string" }, { "$ref": "#/$defs/Localized" }] },
+          "description": "Absent when empty."
+        },
+        "fallback": { "type": "string", "description": "Portuguese text with the parameters already in place." }
+      }
+    }
+  }
+}

@@ -3,13 +3,22 @@
 | Field | Value |
 |---|---|
 | ID | 0012 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (contract and server), TUI/CLI and desktop |
 | Consumers | `crates/cuotai-tui` (`--serve`), `apps/desktop` (embedded server), third-party integrations, PRDs 0013 and 0014 |
 | Depends on | none; it incorporates the results of PRDs 0005, 0007, 0009, 0010 and 0011 as they are delivered |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-20)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.36.0 | `cuotai_core::export::v1`: `Export::from_cycle(config, &ConfigIdentity, &RefreshCycle, now, Options) -> Export { schema: 1, generated_at, config_identity, accounts }`, pure (reads the cycle, never queries). `config_identity` is `ConfigIdentity::digest()` (the SHA-256 `models` already keyed by), never the path. `AccountExport` carries `index`, `key` (`Account::key`), `name`, `provider`, `class` (`classify_report`), `report` (the current report, `null` while pending), `age_seconds`, `freshness`, `clock_adjusted`, `stale` and `last_good` (PRD 0010: `{checked_at, age_seconds, metrics}` from `last_good_report`, `stale` exactly when present; it never feeds class, binding or pace), `binding` (PRD 0009 RF3.2), `pace` per metric, parallel to `report.metrics` (PRD 0007 RF4.2), and `access` (PRD 0005 RF4.3). `incident` waits for PRD 0011. RF1.2: `docs/export-v1.md` (fields, additive policy, deprecation), `docs/export-v1.schema.json` (maintained by hand; a test validates the exports against it and fails on any undeclared field) and the reference `docs/export-v1.example.json` (exact comparison; `CUOTAI_REGENERATE_DOCS=1` regenerates it). RF1.3: notes, `notes_l10n` (text and parameters) and `source` replace the account's `credential_env`, `*_env` parameters, the provider's default variable and any `UPPER_SNAKE` name with `[redacted]`, and strip URL user, password, query and fragment; `Options::include_identity` (off by default) adds `email` (from the account's `email` parameter, `null` when unknown) and otherwise redacts every e-mail address from notes, including those a provider reported. RF1.4: missing and non-finite values serialize as `null`. Core only: `--json-v1`, the server and the desktop arrive with RF2 to RF5. |
+| RF2 to RF5 | — | Not delivered. |
+
+**Owner decisions (2026-10-20):** the local server is off by default and bound to loopback only; the suggested port is 6738, subject to a conflict check when RF2 is implemented.
 
 ## 1. Context
 
