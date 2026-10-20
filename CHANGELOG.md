@@ -13,12 +13,22 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-20
+
+### Added
+
+- `cuotai --notify` (off by default) announces quota resets while the TUI is open, with the same planner as the desktop app: when a used quota of a 5-hour, daily, weekly or monthly window reaches the reset time the provider reported, the header shows a banner ("14:30 · Claude: 5-hour quota reset (Personal)", in `CUOTAI_LANG`) for an hour, the terminal bell rings once (one bell for every account due together) and iTerm2, WezTerm and Ghostty also show an OSC 9 notification, never sent to other terminals or inside tmux and screen; each reset is announced once per session, a reset that passed before the TUI opened is not, nothing is saved, no provider is queried for it, and `--once`, `--json` and `--history` do not accept the flag (PRD 0003 RF4).
+
+### Fixed
+
+- Once a quota's reset time has passed, the TUI card now reads "renova agora" instead of "renova renova agora".
+
 ## [0.43.0] - 2026-10-20
 
 ### Added
 
-- The desktop app sends a system notification when a quota with a limit crosses a usage threshold ("Claude: 90% of the 5-hour window used", with the account, the metric and the reset time), runs out, or has slack again in the next window after it ran out: the backend judges every reading the refresh applies, with no extra query and also with the window hidden in the tray, notifies each threshold once per window, never repeats after a restart (the state joins the reset notices in `<OS local data dir>/cuotai/notified.json`, digests and dates only, kept for 8 days), puts an account's alerts of one refresh in one notification and sends at most one per minute, grouping the rest (PRD 0008 RF2).
-- **Settings → Notifications** adds **Usage alerts** (off by default, asking the same system permission and sharing the test notification of reset notices), the thresholds as editable chips from 10 to 99% (75 and 90 by default), **Notify exhaustion** and **Notify recovery**, saved in `desktop.json`; the account's bell now mutes its usage alerts too, each quota can be muted in the account details (kept per provider and account name, forgotten when the account is removed), and the card, the tray popover, its menu and the account details highlight an account with an active alert while the exhausted look stays (PRD 0008 RF3).
+- The desktop app sends a system notification when a quota with a limit crosses a usage threshold ("Claude: 90% of the 5-hour window used", with the account, the metric and the reset time), runs out, or has slack again in the next window after it ran out: the backend judges every reading the refresh applies, with no extra query and also with the window hidden in the tray, notifies each threshold once per window, never repeats after a restart (the state joins the reset notices in `<OS local data dir>/cuotai/notified.json`, digests and dates only, kept for 8 days), puts an account's alerts of one refresh in one notification and sends at most one per minute, grouping the rest (PRD 0008 RF2, 816ce15).
+- **Settings → Notifications** adds **Usage alerts** (off by default, asking the same system permission and sharing the test notification of reset notices), the thresholds as editable chips from 10 to 99% (75 and 90 by default), **Notify exhaustion** and **Notify recovery**, saved in `desktop.json`; the account's bell now mutes its usage alerts too, each quota can be muted in the account details (kept per provider and account name, forgotten when the account is removed), and the card, the tray popover, its menu and the account details highlight an account with an active alert while the exhausted look stays (PRD 0008 RF3, 816ce15).
 
 ## [0.42.0] - 2026-10-20
 
@@ -404,8 +414,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/6bb1783...main
-[0.43.0]: https://github.com/jmarcon/cuotai/compare/6bb1783...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/816ce15...main
+[0.44.0]: https://github.com/jmarcon/cuotai/compare/816ce15...main
+[0.43.0]: https://github.com/jmarcon/cuotai/commit/816ce15
 [0.42.0]: https://github.com/jmarcon/cuotai/commit/6bb1783
 [0.41.0]: https://github.com/jmarcon/cuotai/commit/29dc2cc
 [0.40.0]: https://github.com/jmarcon/cuotai/commit/e522b44

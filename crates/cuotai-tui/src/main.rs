@@ -3,6 +3,7 @@ mod auth_ui;
 mod dashboard;
 mod models_view;
 mod motion;
+mod notify;
 mod ui;
 mod wizard;
 
@@ -64,6 +65,10 @@ struct Args {
     /// com --history, os dias mostrados (padrão 7).
     #[arg(long, value_name = "DIAS")]
     history_days: Option<u32>,
+    /// Com a TUI aberta, avisa quando uma cota usada renova: faixa no cabeçalho,
+    /// sino do terminal (BEL) e notificação OSC 9 no iTerm2, WezTerm e Ghostty.
+    #[arg(long, conflicts_with_all = ["once", "json", "history"])]
+    notify: bool,
 }
 
 /// PRD 0006 RF4.1: the retention of `--history-days`, or the default.
@@ -176,7 +181,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         );
     }
     let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
-    ui::run(file, session, animations, retention).await?;
+    ui::run(file, session, animations, retention, args.notify).await?;
     Ok(0)
 }
 
