@@ -975,6 +975,7 @@
   "serve.error.non_loopback": "El servidor local solo escucha en loopback (127.0.0.1 o ::1); la dirección {addr} requiere la opción explícita fuera de loopback.",
   "serve.error.token_required": "Una dirección fuera de loopback requiere un token de acceso al servidor local.",
   "serve.error.port_in_use": "Los puertos {first} a {last} están en uso; elige otro puerto para el servidor local.",
+  "serve.error.port_taken": "El puerto {port} está en uso; elige otro puerto para el servidor local.",
   "serve.error.bind": "No se pudo abrir el puerto {port} del servidor local.",
   "serve.error.invalid_token": "Token del servidor local no válido: usa de 16 a 512 caracteres sin espacios (letras, números y - . _ ~ + /).",
   "serve.error.vault": "El almacén del sistema no está disponible o denegó el acceso al token del servidor local.",

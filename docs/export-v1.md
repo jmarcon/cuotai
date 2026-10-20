@@ -1,6 +1,6 @@
 # Export contract v1 (`export::v1`)
 
-`export::v1` is Cuotai's versioned, read-only description of the last known state of every account, for status bars, scripts and other integrations (PRD 0012 RF1). It is independent of transport: `cuotai-core` builds it in memory, the core's [local server](local-server.md) publishes it (PRD 0012 RF2/RF3), and the `--json-v1` flag planned in PRD 0012 RF4 will print it. The `--json` output (`Snapshot`) is still there and keeps its shape.
+`export::v1` is Cuotai's versioned, read-only description of the last known state of every account, for status bars, scripts and other integrations (PRD 0012 RF1). It is independent of transport: `cuotai-core` builds it in memory, the core's [local server](local-server.md) publishes it (PRD 0012 RF2/RF3; `cuotai --serve` since RF4), and `cuotai --json-v1` prints it after one query (PRD 0012 RF4; an account whose query failed carries its last recorded reading as `last_good`). The `--json` output (`Snapshot`) is still there and keeps its shape.
 
 - Schema: [`export-v1.schema.json`](export-v1.schema.json) (JSON Schema 2020-12).
 - Reference output: [`export-v1.example.json`](export-v1.example.json), produced by the core from a fixed fixture and checked by the test `export::v1::tests::export_v1_reference_matches_the_document`.

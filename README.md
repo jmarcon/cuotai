@@ -27,7 +27,7 @@ Anyone working with several AI assistants and APIs ends up switching between doz
 - **Three interfaces, one core (`cuotai-core`):**
   - **Desktop and system tray (Tauri 2):** a detailed main window, a quick menu-bar popover (donut or list view) and a native right-click menu.
   - **Terminal TUI (Ratatui):** a fast dashboard with keyboard and mouse support, instant filtering and a full account wizard.
-  - **CLI (`--once` / `--json`):** built for scripts, status bars (Waybar, SketchyBar, tmux) and automation.
+  - **CLI (`--once` / `--json` / `--json-v1` / `--serve`):** built for scripts, status bars (Waybar, SketchyBar, tmux) and automation.
 - **Themes and internationalization:** 14 built-in themes (Dracula, Catppuccin, Tokyo Night, One Dark, GitHub, macOS, Windows 11, Ubuntu, Synthwave, CRT, Win98/XP, Tron), custom themes and languages, and a UI in **Portuguese**, **English** and **Spanish**.
 
 ---
@@ -132,15 +132,22 @@ cargo run -p cuotai-tui -- --config cuotai.toml --once
 # Structured JSON snapshot for scripts and status bars
 cargo run -p cuotai-tui -- --config cuotai.toml --json
 
+# The versioned export::v1 contract (class, age, binding metric, pace, access level)
+cargo run -p cuotai-tui -- --config cuotai.toml --json-v1
+
+# Read-only local server on 127.0.0.1:6738, refreshed in the background (Ctrl+C stops it)
+cargo run -p cuotai-tui -- --config cuotai.toml --serve
+curl -s http://127.0.0.1:6738/v1/limits
+
 # Recorded history of every account (or one), without querying providers
 cargo run -p cuotai-tui -- --config cuotai.toml --history "Personal Codex" --history-days 30
 ```
 
 In the JSON output, each metric carries a `kind` (`quota`, `rate_limit`, `balance`, `credits`, `spend` or `usage`) and a `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`), classified by the provider adapter. Consumers do not need to parse `label` or `period` to tell quotas, rate limits and windows apart.
 
-Rust integrations can also build the versioned `export::v1` contract from `cuotai-core`: the last known state of every account with its age, freshness, preserved stale reading, binding metric, pace and usage access level, with no credentials, credential variable names or e-mails, and `null` for anything unknown. See [`docs/export-v1.md`](docs/export-v1.md). With the core's `serve` feature, `serve::LocalServer` publishes it read-only on `127.0.0.1:6738` (`/health`, `/v1/snapshot`, `/v1/accounts/{key}`, `/v1/limits`) from the state the refresh cycle already holds, never querying a provider per request, with DNS-rebinding and browser protection and an optional bearer token kept in the OS vault; it is off by default. See [`docs/local-server.md`](docs/local-server.md).
+`cuotai --json-v1` prints the versioned `export::v1` contract, which Rust integrations can also build from `cuotai-core`: the last known state of every account with its age, freshness, preserved stale reading, binding metric, pace and usage access level, with no credentials, credential variable names or e-mails, and `null` for anything unknown. See [`docs/export-v1.md`](docs/export-v1.md). `cuotai --serve [--port N] [--token-file FILE]` (or, with the core's `serve` feature, `serve::LocalServer`) publishes it read-only on `127.0.0.1:6738` (`/health`, `/v1/snapshot`, `/v1/accounts/{key}`, `/v1/limits`) from the state the refresh cycle already holds, never querying a provider per request, with DNS-rebinding and browser protection and an optional bearer token; it is off until you start it, and stops cleanly on `SIGINT`/`SIGTERM`. See [`docs/local-server.md`](docs/local-server.md).
 
-Every successful reading (TUI, desktop app, `--once` and `--json`) also enters a local measurement history on this computer only: `<OS local data dir>/cuotai/history/history.sqlite3`, private to your user, holding numbers and window metadata, never credentials, account names or provider text. On opening, each account shows its last recorded reading, marked stale, until the first query answers, and the consumption pace projects from the recent slope. The history keeps 90 days by default (`--history-days 7…365` on the command line, **Settings → History** on the desktop), keeps one sample per hour after 7 days (each window's peak stays) and stays under 64 MiB, warning when it had to delete old samples. The desktop account details draw an area chart of each metric over the last 24 hours, 7 days or 30 days, with the last reading highlighted and a marker at each reset (and a table for screen readers); **Settings → History** turns recording off (on by default; what was recorded stays until you erase it), shows the size on disk, exports to CSV or JSON and erases one account's history or all of it, after a confirmation. The TUI account details draw a sparkline of each metric over the last 24 hours, 7 days or 30 days (keys `1`, `2`, `3`), and `--history [ACCOUNT]` prints the recorded series (`--json` for scripts; `--history-days` picks the days shown, 7 by default).
+Every successful reading (TUI, desktop app, `--once`, `--json`, `--json-v1` and `--serve`) also enters a local measurement history on this computer only: `<OS local data dir>/cuotai/history/history.sqlite3`, private to your user, holding numbers and window metadata, never credentials, account names or provider text. On opening, each account shows its last recorded reading, marked stale, until the first query answers, and the consumption pace projects from the recent slope. The history keeps 90 days by default (`--history-days 7…365` on the command line, **Settings → History** on the desktop), keeps one sample per hour after 7 days (each window's peak stays) and stays under 64 MiB, warning when it had to delete old samples. The desktop account details draw an area chart of each metric over the last 24 hours, 7 days or 30 days, with the last reading highlighted and a marker at each reset (and a table for screen readers); **Settings → History** turns recording off (on by default; what was recorded stays until you erase it), shows the size on disk, exports to CSV or JSON and erases one account's history or all of it, after a confirmation. The TUI account details draw a sparkline of each metric over the last 24 hours, 7 days or 30 days (keys `1`, `2`, `3`), and `--history [ACCOUNT]` prints the recorded series (`--json` for scripts; `--history-days` picks the days shown, 7 by default).
 
 ---
 
@@ -152,7 +159,7 @@ The detailed technical documentation lives in **[`docs/`](docs/)**. Some documen
 - **[OAuth login, sessions and vault (`docs/oauth.md`)](docs/oauth.md)** — How native browser and Device Code logins work, the assisted Cursor import, OAuth preparation for Google/Azure/AWS SSO and secure storage in the Keychain.
 - **[Provider catalog and limitations (`docs/providers.md`)](docs/providers.md)** — The full table of the 36 providers, the usage access matrix (level, credential, plan, scope and evidence of each provider and mode, generated from the core), default environment variables, `9router` compatibility, metric semantics and per-query cost warnings (such as AWS Cost Explorer).
 - **[Export contract v1 (`docs/export-v1.md`)](docs/export-v1.md)** — The versioned `export::v1` contract for integrations: fields, stability and deprecation policy, redaction rules, JSON Schema and reference output.
-- **[Local HTTP server (`docs/local-server.md`)](docs/local-server.md)** — The read-only loopback server of `cuotai-core` (`serve` feature): routes, port and fallback, limits, token, DNS-rebinding and browser protection.
+- **[Local HTTP server (`docs/local-server.md`)](docs/local-server.md)** — `cuotai --serve` and the read-only loopback server of `cuotai-core` (`serve` feature): routes, port and fallback, exit codes, limits, token, DNS-rebinding and browser protection.
 - **[Architecture, Rust library and verification (`docs/architecture.md`)](docs/architecture.md)** — The split between `cuotai-core`, `cuotai-tui` and `apps/desktop`, using `cuotai-core` as a Rust library, the internationalization contract and the test suite.
 - **[Desktop app guide (`apps/desktop/README.md`)](apps/desktop/README.md)** — Details specific to the Tauri 2 shell, themes and the user customization folder.
 - **[Configuration example (`cuotai.example.toml`)](cuotai.example.toml)** — A commented reference of every `[[accounts]]` entry and TOML parameter.
