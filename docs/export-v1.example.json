@@ -118,6 +118,21 @@
           "fallback": "Interface interna, não documentada pelo fornecedor; pode mudar sem aviso."
         },
         "reason": null
+      },
+      "incident": {
+        "state": "partial_outage",
+        "label": {
+          "id": "incident.state.partial_outage",
+          "fallback": "Interrupção parcial"
+        },
+        "event": {
+          "title": "Elevated errors on Claude Code",
+          "started_at": "2026-10-20T11:30:00Z",
+          "url": "https://status.claude.com/incidents/abc123"
+        },
+        "page_url": "https://status.claude.com/",
+        "read_at": "2026-10-20T11:59:00Z",
+        "stale": false
       }
     },
     {
@@ -193,7 +208,8 @@
           "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
         },
         "reason": null
-      }
+      },
+      "incident": null
     },
     {
       "index": 2,
@@ -252,6 +268,17 @@
           "fallback": "O uso é inferido de outra fonte (métricas ou cabeçalhos de rate limit); não é um saldo e pode atrasar."
         },
         "reason": null
+      },
+      "incident": {
+        "state": "unknown",
+        "label": {
+          "id": "incident.state.unknown",
+          "fallback": "Status desconhecido"
+        },
+        "event": null,
+        "page_url": "https://groqstatus.com/",
+        "read_at": null,
+        "stale": true
       }
     },
     {
@@ -292,7 +319,8 @@
           "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
         },
         "reason": null
-      }
+      },
+      "incident": null
     }
   ]
 }

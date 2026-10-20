@@ -16,7 +16,7 @@
       "type": "object",
       "required": [
         "index", "key", "name", "provider", "class", "report", "age_seconds", "freshness",
-        "clock_adjusted", "stale", "last_good", "binding", "pace", "access"
+        "clock_adjusted", "stale", "last_good", "binding", "pace", "access", "incident"
       ],
       "properties": {
         "index": { "type": "integer", "minimum": 0, "description": "Position in the configuration." },
@@ -37,7 +37,8 @@
           "items": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Pace" }] },
           "description": "One entry per report.metrics item, same order; empty without a report."
         },
-        "access": { "$ref": "#/$defs/UsageAccess" }
+        "access": { "$ref": "#/$defs/UsageAccess" },
+        "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." }
       }
     },
     "Provider": { "type": "string", "description": "Provider slug (docs/providers.md); new providers add values." },
@@ -137,6 +138,32 @@
         "credential_hint": { "$ref": "#/$defs/Localized" },
         "risk": { "$ref": "#/$defs/Localized" },
         "reason": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Present exactly when level is unavailable." }
+      }
+    },
+    "ProviderIncident": {
+      "type": "object",
+      "required": ["state", "label", "event", "page_url", "read_at", "stale"],
+      "properties": {
+        "state": { "enum": ["operational", "degraded", "partial_outage", "major_outage", "maintenance", "unknown"] },
+        "label": { "$ref": "#/$defs/Localized" },
+        "event": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["title", "started_at", "url"],
+              "properties": {
+                "title": { "type": "string", "description": "Provider title without markup, at most 120 characters." },
+                "started_at": { "type": ["string", "null"], "format": "date-time" },
+                "url": { "type": "string", "description": "Public https page on the status host." }
+              }
+            }
+          ],
+          "description": "The most severe active event in the provider's scope."
+        },
+        "page_url": { "type": "string", "description": "Public status page of the source." },
+        "read_at": { "type": ["string", "null"], "format": "date-time", "description": "When the reading was obtained; null before the first one." },
+        "stale": { "type": "boolean", "description": "The latest status query failed; state is the previous reading (unknown without one)." }
       }
     },
     "Localized": {

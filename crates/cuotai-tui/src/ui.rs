@@ -19,6 +19,7 @@ use cuotai_core::{
     account_edit::{self, RemoveError, RemoveOutcome, RemovedAccount},
     config_file::ConfigFile,
     history::{HistoryRange, Retention},
+    incidents::{IncidentMonitor, ProviderStatus},
     login::{self, CompletedLogin},
     models::ModelCache,
     oauth::OAuthSession,
@@ -47,6 +48,10 @@ type Screen = Terminal<CrosstermBackend<io::Stdout>>;
 const DRACULA_BG: Color = Color::Rgb(40, 42, 54);
 const DRACULA_FG: Color = Color::Rgb(248, 248, 242);
 const DRACULA_YELLOW: Color = Color::Rgb(241, 250, 140);
+
+/// PRD 0011 RF5: how often the status loop lets the core read the due
+/// sources (each is read at most once every 5 minutes), as the desktop.
+const STATUS_TICK: Duration = Duration::from_secs(30);
 
 struct Restore;
 impl Drop for Restore {
@@ -194,8 +199,12 @@ pub async fn run(
     animations: bool,
     retention: Retention,
     notify: bool,
+    status: bool,
 ) -> io::Result<()> {
-    let mut monitor = new_monitor(&file, &session, retention)?;
+    // PRD 0011 RF5: off unless opted in; shared by every rebuilt monitor.
+    let incidents = IncidentMonitor::new();
+    incidents.set_enabled(status);
+    let mut monitor = new_monitor(&file, &session, retention, &incidents)?;
     let mut auth_task: Option<LoginTask> = None;
     let mut authorized: Option<CompletedLogin> = None;
     let mut saving_config: Option<(Config, Option<usize>)> = None;
@@ -238,6 +247,7 @@ pub async fn run(
                 notify::osc9_supported(|key| std::env::var(key).ok()),
             )
         }),
+        incidents: Vec::new(),
     };
     let mut frame_area = Rect::default();
     let mut refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
@@ -264,6 +274,9 @@ pub async fn run(
     let mut models: Option<ModelsView> = None;
     // "Sobre": libraries and repositories; opened from the dashboard only.
     let mut about: Option<AboutView> = None;
+    // PRD 0011 RF5: the status read in flight and when the next one is due.
+    let mut status_job: Option<JoinHandle<Vec<ProviderStatus>>> = None;
+    let mut status_due = Instant::now();
 
     // Both the keyboard and mouse event paths run the same dashboard
     // transitions through `run_command!` and `dispatch_wizard_action!` so a
@@ -853,6 +866,25 @@ pub async fn run(
                 }
             }
         }
+        if status_job.as_ref().is_some_and(JoinHandle::is_finished) {
+            if let Some(job) = status_job.take() {
+                if let Ok(statuses) = job.await {
+                    if statuses != state.incidents {
+                        state.incidents = statuses;
+                        dirty = true;
+                    }
+                }
+            }
+            status_due = Instant::now() + STATUS_TICK;
+        } else if status_job.is_none()
+            && monitor.incidents().is_enabled()
+            && Instant::now() >= status_due
+        {
+            let monitor = Arc::clone(&monitor);
+            status_job = Some(tokio::spawn(
+                async move { monitor.refresh_incidents().await },
+            ));
+        }
         if wizard.is_none() && deletion.is_none() && !file.config.accounts.is_empty() {
             // Drive either an initial full sweep (no data yet at all and
             // the cycle has never finished a sweep) or per-account
@@ -1231,19 +1263,22 @@ fn location(file: &ConfigFile) -> String {
 }
 
 /// Monitor for `file` with its model cache and measurement history (pruned
-/// by `retention`) in the OS data dir; without a resolvable data dir, model
+/// by `retention`) in the OS data dir and the session's status preference
+/// and cache (`incidents`); without a resolvable data dir, model
 /// operations report `NoCache`, nothing is recorded and quotas work.
 fn new_monitor(
     file: &ConfigFile,
     session: &Arc<OAuthSession>,
     retention: Retention,
+    incidents: &IncidentMonitor,
 ) -> io::Result<Arc<Monitor>> {
     let mut monitor = Monitor::with_oauth(
         file.config.clone(),
         Arc::new(EnvironmentCredentials),
         Arc::clone(session),
     )
-    .map_err(io::Error::other)?;
+    .map_err(io::Error::other)?
+    .with_incidents(incidents.clone());
     if let Ok(cache) = ModelCache::in_data_dir(file) {
         monitor = monitor.with_model_cache(cache);
     }
@@ -1293,8 +1328,8 @@ fn reload_config_after_conflict(
     let retention = monitor
         .history()
         .map_or_else(Retention::default, |store| store.retention());
-    let new_monitor =
-        new_monitor(&candidate, session, retention).map_err(|e| format!("monitor: {e}"))?;
+    let new_monitor = new_monitor(&candidate, session, retention, monitor.incidents())
+        .map_err(|e| format!("monitor: {e}"))?;
     // Commit: from here on a panic would leave the runtime in a
     // consistent (old) configuration; the candidate has been
     // validated but not yet swapped.
@@ -1960,6 +1995,9 @@ struct State {
     /// PRD 0003 RF4 and PRD 0008 RF4: reset notices and usage alerts;
     /// `None` without `--notify`.
     notices: Option<Notices>,
+    /// PRD 0011 RF5: the last provider statuses the status loop read;
+    /// empty while status queries are off.
+    incidents: Vec<ProviderStatus>,
 }
 
 /// Per-account synced catalog sizes shown on the cards. Read from the local
@@ -2186,6 +2224,7 @@ impl State {
                         .notices
                         .as_ref()
                         .and_then(|notices| notices.banner(now)),
+                    incidents: &self.incidents,
                     now,
                 },
             );
@@ -2317,6 +2356,7 @@ mod tests {
             history_range: HistoryRange::default(),
             anim: None,
             notices: None,
+            incidents: Vec::new(),
         }
     }
 

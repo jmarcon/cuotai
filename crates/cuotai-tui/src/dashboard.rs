@@ -11,11 +11,12 @@ use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_local
 use chrono::{DateTime, Local, Utc};
 use cuotai_core::access::{self, UsageAccess};
 use cuotai_core::history::{self, HistoryRange, MetricHistory, Trend};
+use cuotai_core::incidents::{IncidentState, ProviderStatus};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
 use cuotai_core::pace::{self, Pace, PaceStage, PaceTone, Point};
 #[cfg(test)]
 use cuotai_core::Snapshot;
-use cuotai_core::{Account, Metric, Report, Status};
+use cuotai_core::{Account, Metric, Provider, Report, Status};
 use ratatui::{
     layout::{Constraint, Layout, Position, Rect},
     style::{Color, Modifier, Style},
@@ -414,8 +415,19 @@ pub(crate) struct View<'a> {
     /// PRD 0003 RF4: the last reset notice of the session (`--notify`),
     /// shown on its own header line while `Some`.
     pub(crate) banner: Option<&'a str>,
+    /// PRD 0011 RF5: the configured providers' public status (one entry
+    /// per provider with a verified source), empty while status queries
+    /// are off.
+    pub(crate) incidents: &'a [ProviderStatus],
     /// Clock for ages and countdowns, injected so rendering is testable.
     pub(crate) now: DateTime<Utc>,
+}
+
+/// PRD 0011 RF5: the status shown on the accounts of `provider`, if any.
+fn incident_of<'a>(view: &View<'a>, provider: Provider) -> Option<&'a ProviderStatus> {
+    view.incidents
+        .iter()
+        .find(|status| status.provider == provider)
 }
 
 /// Clickable action exposed by the footer hint line. Values mirror the
@@ -850,12 +862,24 @@ fn render_card(
         Some(spinner) => format!(" {spinner} {} ", safe(&account.name)),
         None => format!(" {} ", safe(&account.name)),
     };
-    let block = Block::default()
+    // PRD 0011 RF5: the provider's incident badge on the top border, to the
+    // right of the name and never over it.
+    let badge = incident_of(view, account.provider)
+        .and_then(|status| incident_badge(status, tui_locale()))
+        .and_then(|badge| {
+            let room = usize::from(area.width.saturating_sub(3))
+                .saturating_sub(Span::raw(title.as_str()).width());
+            badge_title(&badge, room)
+        });
+    let mut block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
         .title_style(title_style)
         .title(title)
         .title_bottom(access_title(&access, area.width));
+    if let Some(badge) = badge {
+        block = block.title(badge);
+    }
     let inner = block.inner(area);
     frame.render_widget(block, area);
     if inner.height == 0 || inner.width == 0 {
@@ -1008,6 +1032,144 @@ fn access_title(access: &UsageAccess, width: u16) -> Line<'static> {
         format!(" {text} "),
         Style::default().fg(MUTED).remove_modifier(Modifier::BOLD),
     ))
+}
+
+/// PRD 0011 RF5: how a provider status reads on a card and in `--once`,
+/// the desktop's rule. Only an incident or maintenance (marked as the last
+/// reading when stale) or a page the latest query could not read is
+/// flagged; `Operational` and a plain `Unknown` (never read as healthy)
+/// show nothing outside the details.
+pub(crate) struct IncidentBadge {
+    pub(crate) glyph: &'static str,
+    pub(crate) color: Color,
+    /// The core's state label (or "page unavailable"), plus the stale mark.
+    pub(crate) label: String,
+    /// The active incident's title, without terminal controls.
+    pub(crate) title: Option<String>,
+    /// The incident page, or the status page without one.
+    pub(crate) url: String,
+}
+
+/// Shape and color of each state; the shape carries it, color repeats it.
+fn incident_look(state: IncidentState) -> (&'static str, Color) {
+    match state {
+        IncidentState::Operational => ("✓", GREEN),
+        IncidentState::Degraded => ("!", YELLOW),
+        IncidentState::PartialOutage => ("▲", RED),
+        IncidentState::MajorOutage => ("✕", RED),
+        IncidentState::Maintenance => ("i", CYAN),
+        IncidentState::Unknown => ("?", MUTED),
+    }
+}
+
+pub(crate) fn incident_badge(status: &ProviderStatus, locale: &str) -> Option<IncidentBadge> {
+    let notice = !matches!(
+        status.state,
+        IncidentState::Operational | IncidentState::Unknown
+    );
+    if !notice && !status.stale {
+        return None;
+    }
+    let url = status
+        .incident
+        .as_ref()
+        .map_or_else(|| status.page_url.clone(), |incident| incident.url.clone());
+    if !notice {
+        return Some(IncidentBadge {
+            glyph: "?",
+            color: MUTED,
+            label: "Página de status indisponível".into(),
+            title: None,
+            url,
+        });
+    }
+    let (glyph, color) = incident_look(status.state);
+    let mut label = status.state.label().resolve(locale);
+    if status.stale {
+        label.push_str(" · última leitura");
+    }
+    Some(IncidentBadge {
+        glyph,
+        color,
+        label,
+        title: status
+            .incident
+            .as_ref()
+            .map(|incident| safe(&incident.title).into_owned()),
+        url,
+    })
+}
+
+/// The card's badge in at most `room` cells: the whole label, a cut one or
+/// only the shape.
+fn badge_title(badge: &IncidentBadge, room: usize) -> Option<Line<'static>> {
+    let full = format!(" {} {} ", badge.glyph, badge.label);
+    let text = if Span::raw(full.as_str()).width() <= room {
+        full
+    } else if room >= 6 {
+        let cut: String = badge.label.chars().take(room - 5).collect();
+        format!(" {} {}… ", badge.glyph, cut.trim_end())
+    } else if room >= 3 {
+        format!(" {} ", badge.glyph)
+    } else {
+        return None;
+    };
+    Some(
+        Line::from(Span::styled(
+            text,
+            Style::default()
+                .fg(badge.color)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .right_aligned(),
+    )
+}
+
+/// PRD 0011 RF5: the details' full provider status (operational and
+/// unknown too): state and incident, start, reading time and page.
+fn incident_lines(status: &ProviderStatus, now: DateTime<Utc>) -> Vec<Line<'static>> {
+    let (glyph, color) = incident_look(status.state);
+    let mut heading = vec![
+        Span::styled(
+            "  PROVEDOR  ",
+            Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{glyph} {}", resolve_l10n(&status.state.label())),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ),
+    ];
+    if let Some(incident) = &status.incident {
+        heading.push(Span::styled(
+            format!(" · {}", safe(&incident.title)),
+            Style::default().fg(FG),
+        ));
+    }
+    let mut facts = Vec::new();
+    if let Some(start) = status.incident.as_ref().and_then(|i| i.started_at) {
+        facts.push(format!("desde {}", local_time(start)));
+    }
+    match (status.read_at, status.stale) {
+        (Some(read), false) => facts.push(format!("lido {}", age_text(read, now))),
+        (Some(read), true) => facts.push(format!(
+            "lido {} · a última consulta de status falhou; esta é a leitura anterior",
+            age_text(read, now)
+        )),
+        (None, false) => facts.push("ainda não lido".into()),
+        (None, true) => facts.push("a consulta de status falhou; página ainda não lida".into()),
+    }
+    let url = status
+        .incident
+        .as_ref()
+        .map_or(status.page_url.as_str(), |incident| incident.url.as_str());
+    vec![
+        Line::from(heading),
+        Line::styled(
+            format!("  {}", facts.join(" · ")),
+            Style::default().fg(if status.stale { YELLOW } else { MUTED }),
+        ),
+        Line::styled(format!("  {}", safe(url)), Style::default().fg(CYAN)),
+    ]
 }
 
 fn build_hint(hidden_metrics: usize) -> Line<'static> {
@@ -1369,6 +1531,9 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(MUTED),
         ),
     ]));
+    if let Some(status) = incident_of(view, account.provider) {
+        lines.extend(incident_lines(status, now));
+    }
     lines.push(Line::default());
     lines.push(Line::styled(
         "  QUOTAS E CONSUMO",
@@ -2069,6 +2234,7 @@ mod tests {
                         recent: &[],
                         history: None,
                         banner: None,
+                        incidents: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2129,6 +2295,7 @@ mod tests {
                         recent: &[],
                         history: None,
                         banner: None,
+                        incidents: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2181,6 +2348,7 @@ mod tests {
                             recent: &[],
                             history: None,
                             banner: None,
+                            incidents: &[],
                             now: Utc::now(),
                         },
                     );
@@ -2226,6 +2394,7 @@ mod tests {
                         recent: &[],
                         history: None,
                         banner: None,
+                        incidents: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2270,6 +2439,7 @@ mod tests {
                         recent: &[],
                         history: None,
                         banner: None,
+                        incidents: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2321,6 +2491,7 @@ mod tests {
                         recent: &[],
                         history: None,
                         banner: None,
+                        incidents: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2363,6 +2534,7 @@ mod tests {
                         recent: &[],
                         history: None,
                         banner: None,
+                        incidents: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2404,6 +2576,7 @@ mod tests {
                         recent: &[],
                         history: None,
                         banner: None,
+                        incidents: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2452,6 +2625,7 @@ mod tests {
                             recent: &[],
                             history: None,
                             banner,
+                            incidents: &[],
                             now: Utc::now(),
                         },
                     );
@@ -2515,6 +2689,7 @@ mod tests {
                             recent: &[],
                             history: None,
                             banner: None,
+                            incidents: &[],
                             now: Utc::now(),
                         },
                     );
@@ -2626,6 +2801,7 @@ mod tests {
             now,
             (width, height),
             None,
+            &[],
         )
     }
 
@@ -2640,6 +2816,7 @@ mod tests {
         now: DateTime<Utc>,
         (width, height): (u16, u16),
         history: Option<&DetailHistory>,
+        incidents: &[ProviderStatus],
     ) -> Vec<String> {
         let visible = visible_indices(accounts, reports, "", true);
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -2667,6 +2844,7 @@ mod tests {
                         recent: &[],
                         history,
                         banner: None,
+                        incidents,
                         now,
                     },
                 );
@@ -3013,6 +3191,7 @@ mod tests {
             at_min(0),
             (width, 60),
             Some(detail),
+            &[],
         )
         .join("\n")
     }
@@ -3079,5 +3258,147 @@ mod tests {
         };
         let text = render_history(&other, 120);
         assert!(!text.contains("HISTÓRICO") && !text.contains("histórico 24 h"));
+    }
+
+    /// PRD 0011 RF5 fixture: alpha's provider in a partial outage, beta's
+    /// operational and gamma's page unreadable since the start.
+    fn statuses() -> Vec<ProviderStatus> {
+        let status = |provider, state, stale: bool| ProviderStatus {
+            provider,
+            state,
+            incident: None,
+            page_url: "https://status.example.com/".into(),
+            read_at: (!stale).then(|| at_min(-2)),
+            stale,
+        };
+        vec![
+            ProviderStatus {
+                incident: Some(cuotai_core::incidents::Incident {
+                    title: "Elevated API errors".into(),
+                    started_at: None,
+                    url: "https://status.example.com/incidents/x1".into(),
+                }),
+                ..status(Provider::OpenAiApi, IncidentState::PartialOutage, false)
+            },
+            status(Provider::AnthropicApi, IncidentState::Operational, false),
+            status(Provider::Cursor, IncidentState::Unknown, true),
+        ]
+    }
+
+    fn render_status(
+        accounts: &[Account],
+        (details, selected): (bool, usize),
+        incidents: &[ProviderStatus],
+        size: (u16, u16),
+    ) -> Vec<String> {
+        let reports: Vec<Option<Report>> = accounts
+            .iter()
+            .map(|_| {
+                Some(report(
+                    Status::Ready,
+                    vec![metric("m", Some(1.0), Some(10.0), Some(9.0))],
+                ))
+            })
+            .collect();
+        render_view(
+            accounts,
+            &reports,
+            &[],
+            &[],
+            (details, selected),
+            at_min(0),
+            size,
+            None,
+            incidents,
+        )
+    }
+
+    /// RF5.1 text snapshot: the badge sits on each card's top border, right
+    /// of the name, only for an incident or an unreadable page; status
+    /// queries off draw the cards exactly as before.
+    #[test]
+    fn cards_carry_the_incident_badge_snapshot() {
+        let rows = render_status(&three_accounts(), (false, 0), &statuses(), (60, 40));
+        let borders: Vec<&str> = [4, 12, 20].iter().map(|&row| rows[row].as_str()).collect();
+        assert_eq!(
+            borders.join("\n"),
+            "\
+┌ alpha ──────────────────────────── ▲ Interrupção parcial ┐
+┌ beta ────────────────────────────────────────────────────┐
+┌ gamma ────────────────── ? Página de status indisponível ┐",
+        );
+        // The card body is untouched by the badge.
+        assert_eq!(
+            rows[5],
+            "│OpenAI API · Atualizado · Disponível · agora              │"
+        );
+        let off = render_status(&three_accounts(), (false, 0), &[], (60, 40)).join("\n");
+        assert!(!off.contains("Interrupção") && !off.contains("indisponível"));
+        assert!(!off.contains('▲'));
+    }
+
+    #[test]
+    fn only_incidents_and_unreadable_pages_flag_a_card() {
+        let text = render_status(&three_accounts(), (false, 0), &statuses(), (60, 40)).join("\n");
+        assert_eq!(text.matches("▲ Interrupção parcial").count(), 1);
+        // Operational shows nothing on the card; a failed read says so,
+        // never "operational".
+        assert!(!text.contains("Operacional"), "{text}");
+        assert!(text.contains("? Página de status indisponível"), "{text}");
+
+        // A stale incident is marked as the last reading.
+        let mut stale = statuses();
+        stale[0].stale = true;
+        let text = render_status(&three_accounts(), (false, 0), &stale, (80, 30)).join("\n");
+        assert!(
+            text.contains("▲ Interrupção parcial · última leitura"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_narrow_card_cuts_the_badge_and_keeps_the_name() {
+        let mut accounts = three_accounts();
+        accounts[0].name = "conta-pessoal-de-trabalho".into();
+        let rows = render_status(&accounts, (false, 0), &statuses(), (45, 30));
+        let top = &rows[4];
+        assert!(top.starts_with("┌ conta-pessoal-de-trabalho "), "{top}");
+        assert!(top.contains("─ ▲ Interrupçã… ┐"), "{top}");
+        assert_eq!(Span::raw(top.as_str()).width(), 45);
+    }
+
+    #[test]
+    fn details_list_the_providers_full_status() {
+        let at = |selected| {
+            render_status(&three_accounts(), (true, selected), &statuses(), (100, 40)).join("\n")
+        };
+        let alpha = at(0);
+        assert!(
+            alpha.contains("PROVEDOR  ▲ Interrupção parcial · Elevated API errors"),
+            "{alpha}"
+        );
+        assert!(alpha.contains("lido há 2 min"), "{alpha}");
+        assert!(alpha.contains("https://status.example.com/incidents/x1"));
+        // Operational and unknown are spelled out in the details.
+        let beta = at(1);
+        assert!(beta.contains("PROVEDOR  ✓ Operacional"), "{beta}");
+        assert!(beta.contains("https://status.example.com/"));
+        let gamma = at(2);
+        assert!(gamma.contains("PROVEDOR  ? Status desconhecido"), "{gamma}");
+        assert!(
+            gamma.contains("a consulta de status falhou; página ainda não lida"),
+            "{gamma}"
+        );
+        // A failed read after a valid one keeps it, said to be the previous.
+        let mut stale = statuses();
+        stale[0].stale = true;
+        let alpha = render_status(&three_accounts(), (true, 0), &stale, (100, 40)).join("\n");
+        assert!(
+            alpha.contains("lido há 2 min · a última consulta de status falhou"),
+            "{alpha}"
+        );
+        // Off: no status block at all.
+        let off = render_status(&three_accounts(), (true, 0), &[], (100, 40)).join("\n");
+        assert!(!off.contains("PROVEDOR"), "{off}");
     }
 }

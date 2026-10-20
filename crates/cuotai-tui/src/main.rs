@@ -12,6 +12,7 @@ use clap::Parser;
 use cuotai_core::{
     config_file::ConfigFile,
     history::{HistoryStore, MetricHistory, Retention},
+    incidents::ProviderStatus,
     metrics,
     oauth::OAuthSession,
     pace::{self, Point},
@@ -71,6 +72,23 @@ struct Args {
     /// WezTerm e Ghostty.
     #[arg(long, conflicts_with_all = ["once", "json", "history"])]
     notify: bool,
+    /// Consulta as páginas públicas de status dos provedores configurados
+    /// (sem credenciais, cookies ou dados da conta; cada página no máximo a
+    /// cada 5 min) e mostra incidentes nos cartões, nos detalhes e no
+    /// --once. Desligado por padrão; também: CUOTAI_STATUS=1.
+    #[arg(long)]
+    status: bool,
+    /// Não consulta as páginas de status, mesmo com --status ou CUOTAI_STATUS.
+    #[arg(long)]
+    no_status: bool,
+}
+
+/// PRD 0011 RF5: public status queries are opt-in (`--status`, or
+/// `CUOTAI_STATUS` with any non-empty value except `0`); `--no-status`
+/// always turns them off.
+fn status_enabled(status: bool, no_status: bool, var: impl Fn(&str) -> Option<String>) -> bool {
+    let set = var("CUOTAI_STATUS").is_some_and(|v| !v.is_empty() && v != "0");
+    !no_status && (status || set)
 }
 
 /// PRD 0006 RF4.1: the retention of `--history-days`, or the default.
@@ -133,6 +151,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return Ok(history_exit_code(&found));
     }
     let interactive = !args.once && !args.json;
+    let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err("A TUI requer terminal interativo. Use --once ou --json.".into());
     }
@@ -150,6 +169,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         let history = history_store(&file, retention);
         let mut monitor =
             Monitor::with_oauth(file.config, Arc::new(EnvironmentCredentials), session)?;
+        monitor.incidents().set_enabled(status);
         if let Some(store) = history {
             monitor = monitor.with_history(store);
         }
@@ -169,7 +189,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 .enumerate()
                 .map(|(index, report)| monitor.recent_points(index, &report.metrics, now))
                 .collect();
-            print_snapshot(&snapshot, &recent, now);
+            print_snapshot(&snapshot, &recent, &monitor.incident_statuses(), now);
         }
         if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
             eprintln!("cuotai: {}", warning.resolve(ui::tui_locale()));
@@ -183,11 +203,16 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         );
     }
     let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
-    ui::run(file, session, animations, retention, args.notify).await?;
+    ui::run(file, session, animations, retention, args.notify, status).await?;
     Ok(0)
 }
 
-fn print_snapshot(snapshot: &Snapshot, recent: &[Vec<Vec<Point>>], now: DateTime<Utc>) {
+fn print_snapshot(
+    snapshot: &Snapshot,
+    recent: &[Vec<Vec<Point>>],
+    incidents: &[ProviderStatus],
+    now: DateTime<Utc>,
+) {
     println!("CUOTAI • {}", snapshot.finished_at.to_rfc3339());
     print!(
         "\n{}",
@@ -195,24 +220,37 @@ fn print_snapshot(snapshot: &Snapshot, recent: &[Vec<Vec<Point>>], now: DateTime
     );
     for (index, report) in snapshot.reports.iter().enumerate() {
         let recent = recent.get(index).map_or(&[][..], Vec::as_slice);
+        let status = incidents.iter().find(|s| s.provider == report.provider);
         print!(
             "{}",
-            report_text(report, recent, now, ui::tui_locale(), ui::local_time)
+            report_text(
+                report,
+                recent,
+                status,
+                now,
+                ui::tui_locale(),
+                ui::local_time
+            )
         );
     }
 }
 
-/// One `--once` account block: heading, metrics (with the PRD 0007 RF4 pace
-/// line under each eligible one, projected from the recorded `recent`
-/// points of each metric when there are enough), notes and source.
+/// One `--once` account block: heading, the provider's flagged status (PRD
+/// 0011 RF5, the card's rule), metrics (with the PRD 0007 RF4 pace line
+/// under each eligible one, projected from the recorded `recent` points of
+/// each metric when there are enough), notes and source.
 fn report_text(
     report: &Report,
     recent: &[Vec<Point>],
+    status: Option<&ProviderStatus>,
     now: DateTime<Utc>,
     locale: &str,
     at: impl Fn(DateTime<Utc>) -> String,
 ) -> String {
     let mut out = format!("\n{}\n", report_heading(report, now));
+    if let Some(line) = status.and_then(|status| incident_line(status, locale, &at)) {
+        out += &line;
+    }
     for (index, metric) in report.metrics.iter().enumerate() {
         out += &format!(
             "  {}: {}\n",
@@ -243,6 +281,23 @@ fn report_text(
         out += &format!("  Fonte: {}\n", ui::safe(&report.source));
     }
     out
+}
+
+/// PRD 0011 RF5: `--once` line of a flagged provider status: state (or an
+/// unreadable page), incident title, start and the page to open.
+fn incident_line(
+    status: &ProviderStatus,
+    locale: &str,
+    at: impl Fn(DateTime<Utc>) -> String,
+) -> Option<String> {
+    let badge = dashboard::incident_badge(status, locale)?;
+    let mut parts = vec![badge.label];
+    parts.extend(badge.title);
+    if let Some(start) = status.incident.as_ref().and_then(|i| i.started_at) {
+        parts.push(format!("desde {}", at(start)));
+    }
+    parts.push(ui::safe(&badge.url).into_owned());
+    Some(format!("  Status do provedor: {}\n", parts.join(" · ")))
 }
 
 /// PRD 0009 RF3.2: one line per account with the core's binding summary;
@@ -520,7 +575,7 @@ mod tests {
         );
         let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
         assert_eq!(
-            report_text(&report, &[], now, "en-US", at),
+            report_text(&report, &[], None, now, "en-US", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
              \x20 Window5h: 40.00 % / 100.00\n\
              \x20   Renova: 2026-01-01T02:00:00+00:00\n\
@@ -532,7 +587,7 @@ mod tests {
              \x20   Renova: 2026-01-01T23:55:00+00:00\n\
              \x20 Monthly: 10.00 % / 100.00\n"
         );
-        assert!(report_text(&report, &[], now, "es", at)
+        assert!(report_text(&report, &[], None, now, "es", at)
             .contains("Ritmo: 6 puntos por encima del ritmo · se agota a las 18:49"));
 
         // PRD 0007 RF1.5 with the recorded history: the 5-hour window rose
@@ -542,8 +597,102 @@ mod tests {
             used,
         };
         let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
-        assert!(report_text(&report, &recent, now, "en-US", at)
+        assert!(report_text(&report, &recent, None, now, "en-US", at)
             .contains("Ritmo: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"));
+    }
+
+    /// RF5.2: opt-in through `--status` or `CUOTAI_STATUS`; `--no-status`
+    /// overrides both.
+    #[test]
+    fn status_queries_are_opt_in_and_no_status_wins() {
+        let env = |value: Option<&'static str>| {
+            move |key: &str| {
+                (key == "CUOTAI_STATUS")
+                    .then_some(value)
+                    .flatten()
+                    .map(String::from)
+            }
+        };
+        assert!(!status_enabled(false, false, env(None)), "off by default");
+        assert!(status_enabled(true, false, env(None)));
+        assert!(status_enabled(false, false, env(Some("1"))));
+        assert!(!status_enabled(false, false, env(Some("0"))));
+        assert!(!status_enabled(false, false, env(Some(""))));
+        assert!(!status_enabled(true, true, env(Some("1"))));
+        assert!(!status_enabled(false, true, env(Some("yes"))));
+    }
+
+    /// RF5.1 text snapshot: `--once` names a flagged provider status under
+    /// the heading and keeps the core's incident note; an operational or
+    /// plainly unknown provider prints nothing.
+    #[test]
+    fn once_prints_the_incident_and_its_note() {
+        use cuotai_core::incidents::{Incident, IncidentState};
+        use cuotai_core::text::Localized;
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let mut failed = report("Work", Status::Error, Vec::new());
+        for note in [
+            Localized::fixed(
+                "query.transport",
+                "Falha de rede ou tempo limite na consulta.",
+            ),
+            Localized::fixed(
+                "note.incident.ongoing",
+                "O provedor informa um incidente em andamento; a falha pode não ser da sua conta.",
+            ),
+        ] {
+            failed.notes.push(note.fallback.to_string());
+            failed.notes_l10n.push(note);
+        }
+        let outage = ProviderStatus {
+            provider: Provider::Claude,
+            state: IncidentState::MajorOutage,
+            incident: Some(Incident {
+                title: "Elevated errors on Claude Code".into(),
+                started_at: Some(now - chrono::Duration::minutes(30)),
+                url: "https://status.claude.com/incidents/abc123".into(),
+            }),
+            page_url: "https://status.claude.com/".into(),
+            read_at: Some(now),
+            stale: false,
+        };
+        assert_eq!(
+            report_text(&failed, &[], Some(&outage), now, "en-US", at),
+            "\nWork / Claude — Erro · consultado agora\n\
+             \x20 Status do provedor: Major outage · Elevated errors on Claude Code · desde 23:30 · https://status.claude.com/incidents/abc123\n\
+             \x20 Network failure or query timeout.\n\
+             \x20 The provider reports an ongoing incident; the failure may not be from your account.\n"
+        );
+
+        let maintenance = ProviderStatus {
+            state: IncidentState::Maintenance,
+            incident: None,
+            stale: true,
+            ..outage.clone()
+        };
+        let ready = report("Work", Status::Ready, Vec::new());
+        assert_eq!(
+            report_text(&ready, &[], Some(&maintenance), now, "pt-BR", at),
+            "\nWork / Claude — Atualizado · consultado agora\n\
+             \x20 Status do provedor: Em manutenção · última leitura · https://status.claude.com/\n"
+        );
+        let unreadable = ProviderStatus {
+            state: IncidentState::Unknown,
+            read_at: None,
+            ..maintenance.clone()
+        };
+        assert!(report_text(&ready, &[], Some(&unreadable), now, "pt-BR", at)
+            .contains("  Status do provedor: Página de status indisponível · https://status.claude.com/\n"));
+        for state in [IncidentState::Operational, IncidentState::Unknown] {
+            let quiet = ProviderStatus {
+                state,
+                stale: false,
+                ..unreadable.clone()
+            };
+            assert!(!report_text(&ready, &[], Some(&quiet), now, "pt-BR", at)
+                .contains("Status do provedor"));
+        }
     }
 
     #[test]
