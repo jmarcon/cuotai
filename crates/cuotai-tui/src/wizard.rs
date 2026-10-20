@@ -9,6 +9,7 @@
 use crossterm::event::{
     KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use cuotai_core::access::UsageAccess;
 use cuotai_core::account_edit as edit;
 use cuotai_core::login::{self, LoginCredentialStore, LoginMode, LoginOption, LoginRequest};
 use cuotai_core::oauth::OAuthConfig;
@@ -238,6 +239,10 @@ pub(crate) struct Wizard {
     /// Models picker of the provider step: highlighted position among the
     /// configured accounts of the highlighted provider.
     models_pick: Option<usize>,
+    /// PRD 0005 RF3.4: set by the first Enter on the summary of an
+    /// `Unavailable` account; the next Enter saves anyway, any other key
+    /// clears it.
+    confirm_save: bool,
 }
 
 impl Wizard {
@@ -300,6 +305,7 @@ impl Wizard {
             external_login_params: None,
             oauth_login_params: BTreeMap::new(),
             models_pick: None,
+            confirm_save: false,
         }
     }
 
@@ -932,6 +938,8 @@ impl Wizard {
         }
         // Aviso de sucesso é transitório: some na primeira tecla seguinte.
         self.notice = None;
+        // RF3.4: any key other than the confirming Enter cancels "save anyway".
+        let confirmed = std::mem::take(&mut self.confirm_save);
         // Any selected core mode uses the same field navigation and F2 action.
         if self.step == Step::Credential && self.selected_mode().is_some() {
             match key.code {
@@ -980,6 +988,11 @@ impl Wizard {
             (KeyCode::Enter, _) => {
                 if self.step == Step::Summary {
                     return match self.build_config() {
+                        Ok(_) if !confirmed && self.access().save_confirmation().is_some() => {
+                            self.error = None;
+                            self.confirm_save = true;
+                            Action::Continue
+                        }
                         Ok(config) => Action::Save {
                             config,
                             edit: self.editing,
@@ -1094,10 +1107,10 @@ impl Wizard {
             entries.push(("Voltar", KeyCode::BackTab));
         }
         entries.push((
-            if self.step == Step::Summary {
-                "Gravar"
-            } else {
-                "Próximo"
+            match self.step {
+                Step::Summary if self.confirm_save => "Gravar mesmo assim",
+                Step::Summary => "Gravar",
+                _ => "Próximo",
             },
             KeyCode::Enter,
         ));
@@ -1360,6 +1373,31 @@ impl Wizard {
         }
     }
 
+    /// The current form values in the core draft shape (visible fields only).
+    fn draft_fields(&self) -> Vec<edit::DraftField> {
+        self.visible_fields()
+            .into_iter()
+            .map(|i| {
+                let field = &self.fields[i];
+                let value = match &field.kind {
+                    FieldKind::Text(value) => edit::DraftValue::Text(value.clone()),
+                    FieldKind::Choice { options, selected } => {
+                        edit::DraftValue::Choice(options[*selected].index)
+                    }
+                };
+                edit::DraftField {
+                    key: field.key,
+                    value,
+                }
+            })
+            .collect()
+    }
+
+    /// PRD 0005 RF3: how the draft's usage will be read, from the core.
+    fn access(&self) -> UsageAccess {
+        edit::draft_access(self.provider, &self.auth_mode, &self.draft_fields())
+    }
+
     fn build_config(&self) -> Result<Config, String> {
         // Translate the wizard's UI fields into the UI-neutral AccountDraft
         // and let the core account-edit module own the policy (name check,
@@ -1368,21 +1406,7 @@ impl Wizard {
         // Only thing the wizard adds is what is purely UI: which fields are
         // currently visible (Choice/text resolution comes from the live
         // widgets).
-        let visible = self.visible_fields();
-        let mut draft_fields: Vec<edit::DraftField> = Vec::with_capacity(visible.len());
-        for &i in &visible {
-            let field = &self.fields[i];
-            let value = match &field.kind {
-                FieldKind::Text(value) => edit::DraftValue::Text(value.clone()),
-                FieldKind::Choice { options, selected } => {
-                    edit::DraftValue::Choice(options[*selected].index)
-                }
-            };
-            draft_fields.push(edit::DraftField {
-                key: field.key,
-                value,
-            });
-        }
+        let draft_fields = self.draft_fields();
         let existing_account = self
             .editing
             .and_then(|i| self.base.accounts.get(i))
@@ -1507,9 +1531,23 @@ impl Wizard {
             Span::styled("Arquivo de destino: ", dim),
             Span::raw(path.display().to_string()),
         ]));
-        if let Some(advisory) = edit::cost_advisory(self.provider) {
+        // PRD 0005 RF3.3/RF3.4: cost and "no query" warnings come from the
+        // same core descriptor; an Unavailable account shows its reason here,
+        // before the save that needs a second, explicit Enter.
+        let access = self.access();
+        lines.push(Line::from(vec![
+            Span::styled("Acesso ao uso: ", dim),
+            Span::raw(crate::ui::resolve_l10n(&access.level.label())),
+            Span::styled(" — ", dim),
+            Span::raw(crate::ui::resolve_l10n(&access.summary)),
+        ]));
+        for warning in access
+            .cost_advisory()
+            .into_iter()
+            .chain(access.save_confirmation())
+        {
             lines.push(Line::from(Span::styled(
-                advisory.fallback,
+                crate::ui::resolve_l10n(&warning),
                 Style::default().fg(DRACULA_YELLOW),
             )));
         }
@@ -1595,6 +1633,16 @@ impl Wizard {
                 Paragraph::new(Span::styled(
                     error.clone(),
                     Style::default().fg(DRACULA_RED),
+                ))
+                .wrap(Wrap { trim: false }),
+                chunks[2],
+            );
+        } else if self.confirm_save {
+            // The reason itself is already in the summary body (RF3.4).
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    "Esta conta não tem consulta de uso. Enter grava mesmo assim; outra tecla cancela.",
+                    Style::default().fg(DRACULA_YELLOW),
                 ))
                 .wrap(Wrap { trim: false }),
                 chunks[2],
@@ -1753,10 +1801,18 @@ impl Wizard {
             } else {
                 Style::default()
             };
-            lines.push(Line::from(Span::styled(
-                format!("{marker}{}", provider.label()),
-                style,
-            )));
+            // PRD 0005 RF3.1: the level of the provider's default interface.
+            let access = cuotai_core::access::describe(&Account {
+                provider: *provider,
+                ..Account::default()
+            });
+            lines.push(Line::from(vec![
+                Span::styled(format!("{marker}{}", provider.label()), style),
+                Span::styled(
+                    format!("  [{}]", crate::ui::resolve_l10n(&access.level.label())),
+                    Style::default().fg(DRACULA_COMMENT),
+                ),
+            ]));
         }
         if self.provider_offset as usize + visible < total {
             lines.push(Line::from(Span::styled(
@@ -1887,7 +1943,7 @@ impl Wizard {
                 }
                 edit::CredentialKind::None => {}
             }
-            let help = edit::credential_help(self.provider).fallback;
+            let help = crate::ui::resolve_l10n(&edit::credential_help(self.provider));
             if !help.is_empty() {
                 lines.push(Line::from(Span::styled(
                     help,
@@ -1900,6 +1956,20 @@ impl Wizard {
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
+        }
+        // PRD 0005 RF3.2: the access notes share the credential help area,
+        // below every clickable row so the mouse hit-test is unchanged.
+        let access = self.access();
+        for note in access.notes() {
+            let warn = access.reason.as_ref() == Some(&note);
+            lines.push(Line::from(Span::styled(
+                crate::ui::resolve_l10n(&note),
+                Style::default().fg(if warn {
+                    DRACULA_YELLOW
+                } else {
+                    DRACULA_COMMENT
+                }),
+            )));
         }
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
     }
@@ -1973,10 +2043,10 @@ impl Wizard {
             Line::default(),
             Line::from(Span::styled(format!("> {}", self.interval), accent)),
         ];
-        if let Some(advisory) = edit::cost_advisory(self.provider) {
+        if let Some(advisory) = self.access().cost_advisory() {
             lines.push(Line::default());
             lines.push(Line::from(Span::styled(
-                advisory.fallback,
+                crate::ui::resolve_l10n(&advisory),
                 Style::default().fg(DRACULA_YELLOW),
             )));
         }
@@ -2171,6 +2241,38 @@ mod tests {
         let mut wiz = Wizard::new(&config, Some(0));
         wiz.interval = interval.into();
         wiz
+    }
+
+    #[test]
+    fn unavailable_account_saves_only_after_a_second_enter() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let at_summary = |provider| {
+            let mut acc = account("A", "SOME_KEY");
+            acc.provider = provider;
+            let config = Config {
+                accounts: vec![acc],
+                ..Config::default()
+            };
+            let mut wiz = Wizard::new(&config, Some(0));
+            wiz.step = Step::Summary;
+            wiz
+        };
+        let mut wiz = at_summary(Provider::Poolside);
+        assert!(matches!(press(&mut wiz, KeyCode::Enter), Action::Continue));
+        assert!(wiz.confirm_save, "the reason is shown before saving");
+        // Any other key withdraws the confirmation.
+        press(&mut wiz, KeyCode::Down);
+        assert!(matches!(press(&mut wiz, KeyCode::Enter), Action::Continue));
+        assert!(matches!(
+            press(&mut wiz, KeyCode::Enter),
+            Action::Save { edit: Some(0), .. }
+        ));
+        // Every other level saves on the first Enter.
+        let mut wiz = at_summary(Provider::OpenAiApi);
+        assert!(matches!(
+            press(&mut wiz, KeyCode::Enter),
+            Action::Save { .. }
+        ));
     }
 
     #[test]

@@ -922,18 +922,7 @@ impl Backend {
                     "Conclua o login antes de salvar (ou volte para a credencial manual).".into(),
                 );
             }
-            let descriptors = field_descriptors(input.provider);
-            let fields: Vec<DraftField> = descriptors
-                .iter()
-                .filter_map(|d| {
-                    let f = input.fields.iter().find(|f| f.key == d.key)?;
-                    let value = match d.kind {
-                        FieldDescriptorKind::Text => DraftValue::Text(f.text.clone()?),
-                        FieldDescriptorKind::Choice(_) => DraftValue::Choice(f.choice?),
-                    };
-                    Some(DraftField { key: d.key, value })
-                })
-                .collect();
+            let fields = draft_fields(input.provider, &input.fields);
             let oauth_login_params = completed.map(|c| c.params.clone()).unwrap_or_default();
             let (credential, credential_params) = if let Some(mode) = &selected_mode {
                 login::account_login_inputs(
@@ -1781,6 +1770,8 @@ pub struct AccountForm {
 pub struct ProviderInfo {
     id: Provider,
     label: &'static str,
+    /// PRD 0005 RF3.1: level of the provider's default interface.
+    level: cuotai_core::text::Localized,
 }
 
 pub fn providers() -> Vec<ProviderInfo> {
@@ -1789,8 +1780,51 @@ pub fn providers() -> Vec<ProviderInfo> {
         .map(|&id| ProviderInfo {
             id,
             label: id.label(),
+            level: cuotai_core::access::describe(&cuotai_core::Account {
+                provider: id,
+                ..Default::default()
+            })
+            .level
+            .label(),
         })
         .collect()
+}
+
+/// The dialog's values in the core draft shape; unknown keys and values of
+/// the wrong kind are dropped (the core validates the rest).
+fn draft_fields(provider: Provider, fields: &[FieldValue]) -> Vec<DraftField> {
+    field_descriptors(provider)
+        .iter()
+        .filter_map(|d| {
+            let f = fields.iter().find(|f| f.key == d.key)?;
+            let value = match d.kind {
+                FieldDescriptorKind::Text => DraftValue::Text(f.text.clone()?),
+                FieldDescriptorKind::Choice(_) => DraftValue::Choice(f.choice?),
+            };
+            Some(DraftField { key: d.key, value })
+        })
+        .collect()
+}
+
+/// PRD 0005 RF3: what the dialog shows about how the draft's usage is read.
+#[derive(Serialize)]
+pub struct AccessView {
+    level: cuotai_core::text::Localized,
+    summary: cuotai_core::text::Localized,
+    notes: Vec<cuotai_core::text::Localized>,
+    cost_advisory: Option<cuotai_core::text::Localized>,
+    save_confirmation: Option<cuotai_core::text::Localized>,
+}
+
+pub fn draft_access(provider: Provider, auth_mode: &str, fields: &[FieldValue]) -> AccessView {
+    let access = account_edit::draft_access(provider, auth_mode, &draft_fields(provider, fields));
+    AccessView {
+        level: access.level.label(),
+        notes: access.notes(),
+        cost_advisory: access.cost_advisory(),
+        save_confirmation: access.save_confirmation(),
+        summary: access.summary,
+    }
 }
 
 #[derive(Serialize)]
@@ -1858,7 +1892,6 @@ pub struct FormSchema {
     credential_kind: CredentialKind,
     default_env: &'static str,
     credential_help: cuotai_core::text::Localized,
-    cost_advisory: Option<cuotai_core::text::Localized>,
     fields: Vec<FieldSchema>,
     login: ProviderLoginSchema,
 }
@@ -1913,7 +1946,6 @@ pub fn form_schema(provider: Provider) -> FormSchema {
         credential_kind: account_edit::credential_kind(provider),
         default_env: default_env(provider),
         credential_help: credential_help(provider),
-        cost_advisory: account_edit::cost_advisory(provider),
         login: ProviderLoginSchema {
             modes: login
                 .modes

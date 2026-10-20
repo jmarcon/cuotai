@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-20
+
+### Added
+
+- The TUI wizard and the desktop account dialog show how each provider's usage is read: the picker labels every provider `Official`, `Undocumented`, `Derived` or `Unavailable`; the credential step adds, under the credential help, which credential the query needs, its risk (for example "may change without notice"), any plan requirement and, for `Unavailable`, the reason; the per-query cost warning now comes from the same description; and saving an `Unavailable` account shows the reason first and needs an explicit "Save anyway" (a second Enter in the TUI), in Portuguese, English and Spanish (PRD 0005 RF3).
+
 ## [0.33.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `access::describe(&Account) -> UsageAccess`, a pure, network-free description of how each account's usage is read: the level (`Official` with a vendor documentation URL, `Undocumented`, `Derived` or `Unavailable` with a mandatory reason), the credential class, the plan requirement, the scope, whether every query is billed and the evidence with its verification date, for all 36 providers and the product/mode/login variants that change the queried interface, with `access.*` texts in the `en-US` and `es` core catalogs and Portuguese fallbacks (PRD 0005 RF1, RF2).
+- `cuotai-core` exposes `access::describe(&Account) -> UsageAccess`, a pure, network-free description of how each account's usage is read: the level (`Official` with a vendor documentation URL, `Undocumented`, `Derived` or `Unavailable` with a mandatory reason), the credential class, the plan requirement, the scope, whether every query is billed and the evidence with its verification date, for all 36 providers and the product/mode/login variants that change the queried interface, with `access.*` texts in the `en-US` and `es` core catalogs and Portuguese fallbacks (PRD 0005 RF1, RF2, 79445c0).
 
 ## [0.32.0] - 2026-10-20
 
@@ -336,8 +342,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/91efa8b...main
-[0.33.0]: https://github.com/jmarcon/cuotai/compare/91efa8b...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/79445c0...main
+[0.34.0]: https://github.com/jmarcon/cuotai/compare/79445c0...main
+[0.33.0]: https://github.com/jmarcon/cuotai/commit/79445c0
 [0.32.0]: https://github.com/jmarcon/cuotai/commit/91efa8b
 [0.31.0]: https://github.com/jmarcon/cuotai/commit/f64f5ba
 [0.30.0]: https://github.com/jmarcon/cuotai/commit/571fac3

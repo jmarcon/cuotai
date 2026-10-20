@@ -914,22 +914,6 @@ credential_env = "OPENAI_ADMIN_KEY"
         assert!(config.validate().is_ok());
     }
 
-    #[test]
-    fn cost_advisory_is_visible_only_for_metered_providers() {
-        // The wizard and the desktop dialog ask the core for a hint;
-        // only metered providers carry a non-empty advisory so the
-        // UI can render `<p class="warn">…</p>` without an extra
-        // match on the provider table.
-        assert!(Provider::AwsBedrock.is_metered());
-        assert!(Provider::AwsBedrock.cost_advisory().is_some());
-        assert!(!Provider::OpenAiApi.is_metered());
-        assert!(Provider::OpenAiApi.cost_advisory().is_none());
-        // Cross-check via the account_edit shim — keeps the wizard
-        // away from `model.rs`.
-        assert!(crate::account_edit::cost_advisory(Provider::AwsBedrock).is_some());
-        assert!(crate::account_edit::cost_advisory(Provider::OpenAiApi).is_none());
-    }
-
     #[tokio::test]
     async fn editing_metered_account_does_not_cost_query_other_metered_account() {
         // Contract from the RF6 acceptance: editing one metered

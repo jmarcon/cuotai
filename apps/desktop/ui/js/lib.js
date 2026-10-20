@@ -56,6 +56,8 @@ export const listProviders = () => call("list_providers");
 export const formSchema = (provider) => call("form_schema", { provider });
 export const visibleFields = (provider, choices, authMode, loginParams = {}) => call("visible_fields", { provider, choices, authMode, loginParams });
 export const fieldChoices = (provider, choices, authMode) => call("field_choices", { provider, choices, authMode });
+/** PRD 0005 RF3: how the draft's usage is read (level, notes, cost warning, save confirmation), from the core. */
+export const draftAccess = (provider, authMode, fields) => call("draft_access", { provider, authMode, fields });
 // RF2: login orquestrado pelo core; a UI só renderiza eventos e envia entradas.
 export const loginStart = (request) => call("login_start", { request });
 export const loginSubmitCode = (code) => call("login_submit_code", { code });
@@ -552,11 +554,22 @@ const demo = {
     const r = demoReports[index];
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
   },
-  list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label })),
+  list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, level: demoLevel(demoLevelOf(id)) })),
+  // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
+  draft_access: async ({ provider }) => {
+    const level = demoLevelOf(provider);
+    const reason = level === "unavailable" ? dl(`access.reason.${provider}`, "Não há consulta pública de uso para esta credencial (demo).") : null;
+    return {
+      level: demoLevel(level),
+      summary: dl(`access.summary.${provider}`, "Consulta de uso de demonstração."),
+      notes: [dl(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "Credencial da consulta (demo)."), dl(`access.risk.${level}`, "Risco da interface (demo)."), ...(reason ? [reason] : [])],
+      cost_advisory: provider === "aws_bedrock" ? dl("access.cost_advisory", "Provedor cobrado por consulta (demo).") : null,
+      save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} A conta será gravada, mas mostrará este motivo em vez de números.` },
+    };
+  },
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
     credential_help: { id: "credential_help.demo", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },
     login: { modes: [{ id: "oauth", label: { id: "login.demo.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "login.demo.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "login.demo.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "login.demo.oauth.unavailable_reason", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
-    cost_advisory: null,
     fields: [{ id: "field.demo.project_id", key: "project_id", label: { id: "field.demo.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "field.demo.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "field.demo.mode", key: "mode", label: { id: "field.demo.mode.label", params: {}, fallback: "Modo" }, help: { id: "field.demo.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "field.demo.mode.option.personal", index: 0, value: "personal", label: { id: "field.demo.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "field.demo.mode.option.org", index: 1, value: "org", label: { id: "field.demo.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
@@ -775,10 +788,18 @@ export const alertOf = (r) => ALERTS.find((c) => c.match(r)) ?? null;
 
 // Kiro de demonstração: um modo de login (oauth) e os campos de credencial, como no core.
 const dl = (id, fallback) => ({ id, params: {}, fallback });
+// Default-mode level per provider, as `access::describe` classifies them (demo only).
+const DEMO_LEVELS = {
+  derived: ["gemini_api", "vertex_ai", "groq"],
+  unavailable: ["qwen", "perplexity", "cloudflare_ai", "gemini_ai", "nvidia_nim", "poolside", "alibaba_model_studio"],
+  official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud"],
+};
+const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
+const demoLevel = (level) => dl(`access.level.${level}`, { official: "Oficial", undocumented: "Não documentada", derived: "Derivada", unavailable: "Indisponível" }[level]);
 function demoKiroSchema() {
   const opts = (key, items) => items.map(([value, label], index) => ({ id: `${key}.${value}`, index, value, label: dl(`${key}.${value}`, label) }));
   return {
-    credential_kind: "env", default_env: "KIRO_ACCESS_TOKEN", credential_help: dl("credential_help.kiro", "Access token Kiro (demo)."), cost_advisory: null,
+    credential_kind: "env", default_env: "KIRO_ACCESS_TOKEN", credential_help: dl("credential_help.kiro", "Access token Kiro (demo)."),
     login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("login.oauth.label", "Login no navegador"), help: dl("login.oauth.help", "Login nativo no navegador do sistema."),
       completion_notice: dl("login.oauth.completion", "Login autorizado (demo)."),
       credential_store: "cuotai_vault", account_binding: { type: "none" },

@@ -142,25 +142,6 @@ impl Provider {
     /// of how the user wires the configuration.
     pub const METERED_MIN_REFRESH_SECONDS: u64 = 300;
 
-    /// Cost advisory surfaced by frontends next to the interval input and
-    /// the summary. `None` for free providers so the UI hides the warning
-    /// automatically. Centralised here so the TUI wizard and the desktop
-    /// dialog render the same message; changes to the advisory reach
-    /// both frontends through a single point.
-    pub fn cost_advisory(self) -> Option<crate::text::Localized> {
-        if self.is_metered() {
-            Some(crate::text::Localized::fixed(
-                format!("cost_advisory.{}", self.slug()),
-                "Provedor cobrado por consulta: cada ciclo consulta e gera cobrança. \
-                 O intervalo efetivo mínimo é 300s; valores menores são rejeitados \
-                 pela validação do core. Mantenha um intervalo alto (ex.: 3600s) \
-                 para reduzir custo. Atualizações manuais continuam explícitas.",
-            ))
-        } else {
-            None
-        }
-    }
-
     /// Stable snake_case slug (the serde representation of the variant).
     /// Used to build RF8 text ids such as `field.kiro.auth_method.label`
     /// and `credential_help.aws_bedrock`. Kept in lockstep with the

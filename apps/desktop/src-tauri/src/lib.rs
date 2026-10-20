@@ -65,6 +65,15 @@ fn field_choices(
 }
 
 #[tauri::command]
+fn draft_access(
+    provider: Provider,
+    auth_mode: String,
+    fields: Vec<backend::FieldValue>,
+) -> backend::AccessView {
+    backend::draft_access(provider, &auth_mode, &fields)
+}
+
+#[tauri::command]
 async fn login_start(
     app: AppHandle,
     b: Shared<'_>,
@@ -423,6 +432,7 @@ pub fn run() {
             form_schema,
             visible_fields,
             field_choices,
+            draft_access,
             get_account,
             save_account,
             delete_account,
