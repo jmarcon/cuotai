@@ -11,7 +11,7 @@ Requires Rust/Cargo. AWS Bedrock also requires AWS CLI v2 on your `PATH`.
 ```sh
 cargo run -p cuotai-tui -- --list-providers
 cargo run -p cuotai-tui
-cargo run -p cuotai-tui -- --notify   # announce quota resets while open
+cargo run -p cuotai-tui -- --notify   # announce quota resets and usage alerts while open
 ```
 
 The TUI resolves the texts delivered by the core (login labels,
@@ -82,12 +82,14 @@ cargo install --path crates/cuotai-tui --locked
 - The loop draws at ~30 fps only while an effect runs; when idle it keeps the usual pace (redraw on events and the 1 s countdown tick).
 - **Off:** `--no-animations`, `CUOTAI_NO_ANIMATIONS=1` (any non-empty value except `0`), or `TERM=dumb` (always). Under SSH (`SSH_CONNECTION` or `SSH_TTY`) they are off by default; `CUOTAI_ANIMATIONS=1` turns them back on, but never overrides the opt-outs above. With animations off the screen renders exactly as before. `--once`/`--json` never animate.
 
-### Reset notices (`--notify`)
+### Reset notices and usage alerts (`--notify`)
 
 - Off by default. With `--notify`, while the TUI is open, it announces each quota reset using the same planner as the desktop app (`cuotai_core::resets`): a `quota` metric of a 5 h, daily, weekly or monthly window that was used (`used > 0` or `remaining < limit`; a missing value counts as unused) reaching the `resets_at` the provider reported. `other` windows, rate limits and balances never notify; a `resets_at` drifting up to 2 minutes is the same reset.
 - The notice is a yellow line at the top of the header (`14:30 · Claude: cota de 5 horas renovada (Pessoal)`, in `CUOTAI_LANG`; several accounts due together share the line, separated by ` · `) kept for an hour, plus one terminal bell (`BEL`) per pass. On iTerm2, WezTerm and Ghostty (`TERM_PROGRAM`) it also sends an OSC 9 desktop notification with the provider, account name, metric labels and the reminder that the time is the provider's; it is never sent to other terminals, inside tmux (`TMUX`) or screen (`STY`), so an unknown sequence never reaches the screen. Control characters of account names and labels are removed.
 - Nothing persists: each reset is announced once per session and a reset that passed before the TUI opened (a reading restored from the history) is not announced. After a suspension, what became due at once is one notice per account, and a reset more than 10 minutes old by then is skipped. A notice never triggers a query; the new balance shows on the next refresh. It uses the account's current reading or, while its query failed, its last valid one.
-- `--once`, `--json` and `--history` reject `--notify` and keep their output unchanged. The desktop app's notification preferences (lead time, filter, per-account bell) live in `desktop.json` and do not apply here.
+- **Usage alerts** (PRD 0008 RF4): with the same flag, every refresh is judged by the desktop app's evaluator (`cuotai_core::alerts`) against the reading it replaces, with the core defaults: a `quota` metric with a positive limit reaching **75%** or **90%** of use, reaching **100%** (exhausted) or, after its exhaustion was announced, having slack again in the next window. Balances, credits, spend, usage, rate limits, uncapped metrics and missing values never alert. Each threshold is announced once per window instance (`resets_at` within 2 minutes is the same window); it re-arms only when use falls 5 points below it or a new window starts, so oscillating around it stays silent, and several thresholds crossed by one refresh announce only the highest.
+- An alert joins the same header line (`14:31 · Claude: 90% da janela de 5 horas usada — Pessoal: Sessão (5h) · renova 19:00`, one item per account with its metrics when several crossed together) and rings the same single `BEL` per pass, with OSC 9 on the terminals above. Alerts arriving less than a minute after the previous one wait and go out together. The first reading of an account in the session is never news: it is compared with the last recorded reading (PRD 0006), a threshold that reading had already crossed is not announced, and nothing is when that reading is more than 10 minutes older. Nothing persists between sessions; an account removed or renamed in the wizard drops its pending alerts. No alert triggers a query.
+- `--once`, `--json` and `--history` reject `--notify` and keep their output unchanged. The desktop app's notification preferences (reset lead time and filter, alert thresholds, exhaustion and recovery switches, per-account bell, muted metrics) live in `desktop.json` and do not apply here.
 
 ## Configuring an account with the wizard
 

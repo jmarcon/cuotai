@@ -13,15 +13,21 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-20
+
+### Added
+
+- `cuotai --notify` now also announces usage alerts while the TUI is open, with the same evaluator as the desktop app: when a quota with a limit reaches 75% or 90% of use, runs out, or has slack again in the next window after it ran out, the header banner shows it ("14:31 · Claude: 90% of the 5-hour window used — Personal: Session (5h) · resets 19:00", in `CUOTAI_LANG`) and the terminal bell rings once (plus OSC 9 on iTerm2, WezTerm and Ghostty); each threshold is announced once per window, oscillating around it stays silent, a refresh's alerts share one bell and further ones wait a minute, a crossing already in the last reading when the TUI opened is not announced, nothing is saved between sessions and no provider is queried for an alert (PRD 0008 RF4).
+
 ## [0.44.0] - 2026-10-20
 
 ### Added
 
-- `cuotai --notify` (off by default) announces quota resets while the TUI is open, with the same planner as the desktop app: when a used quota of a 5-hour, daily, weekly or monthly window reaches the reset time the provider reported, the header shows a banner ("14:30 · Claude: 5-hour quota reset (Personal)", in `CUOTAI_LANG`) for an hour, the terminal bell rings once (one bell for every account due together) and iTerm2, WezTerm and Ghostty also show an OSC 9 notification, never sent to other terminals or inside tmux and screen; each reset is announced once per session, a reset that passed before the TUI opened is not, nothing is saved, no provider is queried for it, and `--once`, `--json` and `--history` do not accept the flag (PRD 0003 RF4).
+- `cuotai --notify` (off by default) announces quota resets while the TUI is open, with the same planner as the desktop app: when a used quota of a 5-hour, daily, weekly or monthly window reaches the reset time the provider reported, the header shows a banner ("14:30 · Claude: 5-hour quota reset (Personal)", in `CUOTAI_LANG`) for an hour, the terminal bell rings once (one bell for every account due together) and iTerm2, WezTerm and Ghostty also show an OSC 9 notification, never sent to other terminals or inside tmux and screen; each reset is announced once per session, a reset that passed before the TUI opened is not, nothing is saved, no provider is queried for it, and `--once`, `--json` and `--history` do not accept the flag (PRD 0003 RF4, e5f1573).
 
 ### Fixed
 
-- Once a quota's reset time has passed, the TUI card now reads "renova agora" instead of "renova renova agora".
+- Once a quota's reset time has passed, the TUI card now reads "renova agora" instead of "renova renova agora" (e5f1573).
 
 ## [0.43.0] - 2026-10-20
 
@@ -414,8 +420,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/816ce15...main
-[0.44.0]: https://github.com/jmarcon/cuotai/compare/816ce15...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/e5f1573...main
+[0.45.0]: https://github.com/jmarcon/cuotai/compare/e5f1573...main
+[0.44.0]: https://github.com/jmarcon/cuotai/commit/e5f1573
 [0.43.0]: https://github.com/jmarcon/cuotai/commit/816ce15
 [0.42.0]: https://github.com/jmarcon/cuotai/commit/6bb1783
 [0.41.0]: https://github.com/jmarcon/cuotai/commit/29dc2cc
