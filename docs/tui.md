@@ -26,6 +26,7 @@ For a single run or a local install:
 ```sh
 cargo run -p cuotai-tui -- --config cuotai.toml --once
 cargo run -p cuotai-tui -- --config cuotai.toml --json
+cargo run -p cuotai-tui -- --config cuotai.toml --history [ACCOUNT] [--history-days N] [--json]
 cargo install --path crates/cuotai-tui --locked
 ```
 
@@ -43,11 +44,12 @@ cargo install --path crates/cuotai-tui --locked
   - `0`: every account refreshed successfully (`ready`)
   - `2`: results with missing configuration or an account failure
   - `1`: local error (invalid arguments or file)
+- **Recorded history (`--history` and the details):** `--history` prints the local measurement history of every account, or of the account named after it, without querying any provider: per metric its sample count, `mín · máx · último` summary, a 60-cell sparkline (`▁▂▃▄▅▆▇█`, blanks where nothing was recorded) and one line per window instance with its first and last value, peak and reset. `--history-days N` picks the days shown (7 to 365, default 7); `--json` emits `{from, to, days, accounts: [{account, provider, metrics: [{key, label, unit, kind, window, limit, points, windows}]}]}`. With nothing recorded it says `Sem medições registradas nos últimos N dias.` instead of failing. Exit codes: `0` when every listed account has data, `2` when one has none, `1` for a local error (unknown account, invalid days, unreadable file or history). The dashboard details show a `HISTÓRICO` line with the span (`1` 24 h, `2` 7 d, `3` 30 d) and, under each metric, `24 h  ▁▂▃…  mín 5 · máx 80 · último 40 %`; a metric with no samples in the span says `sem medições registradas`, and when the sparkline would not fit only the summary remains.
 
 ## TUI keyboard and mouse shortcuts
 
 - **Accounts:** `a` adds an account, `e` edits the selected one, `d` or `Delete` deletes the selected account (confirm with `s` to write or `n`/`Esc` to cancel).
-- **Navigation:** `↑↓`/`j k` select, `PgUp/PgDn` page, `Home/End` jump to the ends, `Enter` opens the account details (`←→` switch between visible accounts in the details; `↑↓` or `[`/`]` scroll the details; `Enter`/`Esc` go back).
+- **Navigation:** `↑↓`/`j k` select, `PgUp/PgDn` page, `Home/End` jump to the ends, `Enter` opens the account details (`←→` switch between visible accounts in the details; `↑↓` or `[`/`]` scroll the details; `1`, `2`, `3` show the history of the last 24 hours, 7 days or 30 days; `Enter`/`Esc` go back).
 - **Filter and view:** `/` filters, `Enter/Esc` end filter editing, `c` clears the filter, `u` shows or hides accounts without data (visible by default).
 - **Refresh:** `r` refreshes all accounts and `R` refreshes only the selected one.
 - **Models:** in the details, `m` opens the account's Models; in the wizard's Provider step, `m` lists the provider's **already configured** accounts and `Enter` opens the chosen one (with no account, it shows only the support status and guidance). The first open queries only if the provider is supported and has never been queried; afterwards it reads the cache. `/` searches locally by ID/name (separate from the account filter), `c` clears, `s` is **Sync models**, `↑↓`/`PgUp/PgDn`/`Home/End`/wheel scroll, `Esc` (or right click) goes back. The query runs in the background, does not refresh quotas, and is discarded if the account changes (edit, delete, move, reload). `r`, `R`, `--once` and `--json` never sync models.

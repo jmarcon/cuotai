@@ -12,7 +12,7 @@ use chrono::{DateTime, Months, TimeDelta, Utc};
 use serde::Serialize;
 
 /// One measurement of a metric at `taken_at` (a PRD 0006 history sample).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Point {
     pub taken_at: DateTime<Utc>,
     pub used: f64,

@@ -335,6 +335,25 @@ impl Monitor {
             })
     }
 
+    /// PRD 0006 RF6: every recorded metric of account `index` within
+    /// `range` ([`history::HistoryStore::account_history`]). Empty without
+    /// history or for an unknown index; a storage failure is returned and
+    /// also shown in [`Monitor::history_status`].
+    pub fn account_history(
+        &self,
+        index: usize,
+        range: impl std::ops::RangeBounds<chrono::DateTime<Utc>>,
+    ) -> Result<Vec<history::MetricHistory>, history::HistoryError> {
+        let (Some(recorder), Some(account)) = (&self.history, self.config.accounts.get(index))
+        else {
+            return Ok(Vec::new());
+        };
+        recorder
+            .store()
+            .account_history(account, range)
+            .inspect_err(|error| recorder.note_error(*error))
+    }
+
     fn now(&self) -> chrono::DateTime<Utc> {
         #[cfg(test)]
         if let Some(clock) = &self.clock {
