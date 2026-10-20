@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-20
+
+### Added
+
+- The TUI account details show the recorded history of each metric: a `▁▂▃▄▅▆▇█` sparkline of the last 24 hours, 7 days or 30 days (keys `1`, `2` and `3`) with its minimum, maximum and last value, blanks where nothing was recorded, and only the text summary on a narrow terminal; `cuotai --history [ACCOUNT] [--history-days N] [--json]` prints the series of every account (or one) with the window instances and their peaks, without querying any provider, says there is no data when nothing was recorded, and exits with 0 (data for every account), 2 (an account without data) or 1 (local error) (PRD 0006 RF6).
+
 ## [0.38.0] - 2026-10-20
 
 ### Added
 
-- Every successful reading is now recorded in the local measurement history by the TUI, the desktop app and `--once`/`--json`, off the refresh's critical path (a bounded queue: a slow disk never delays a query and a full queue drops the reading with a visible warning), skipping a reading identical to the previous one of its metric within 15 minutes unless its window changed; errors and failed logins record nothing. The history keeps 90 days by default (7 to 365 via `--history-days` or Settings → History on the desktop, saved in `desktop.json`), folds samples older than 7 days to one per hour while keeping each window's peak, stays under 64 MiB by deleting the oldest samples with a visible warning, and can be exported to CSV or JSON and erased per account or entirely (with confirmation) from Settings → History. On opening, each account shows its last recorded reading as stale until the first query answers, and the consumption pace projects from the recent slope of the recorded samples when there are enough (PRD 0006 RF2, RF4).
+- Every successful reading is now recorded in the local measurement history by the TUI, the desktop app and `--once`/`--json`, off the refresh's critical path (a bounded queue: a slow disk never delays a query and a full queue drops the reading with a visible warning), skipping a reading identical to the previous one of its metric within 15 minutes unless its window changed; errors and failed logins record nothing. The history keeps 90 days by default (7 to 365 via `--history-days` or Settings → History on the desktop, saved in `desktop.json`), folds samples older than 7 days to one per hour while keeping each window's peak, stays under 64 MiB by deleting the oldest samples with a visible warning, and can be exported to CSV or JSON and erased per account or entirely (with confirmation) from Settings → History. On opening, each account shows its last recorded reading as stale until the first query answers, and the consumption pace projects from the recent slope of the recorded samples when there are enough (PRD 0006 RF2, RF4, e743686).
 
 ## [0.37.0] - 2026-10-20
 
@@ -372,8 +378,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/b89c2d8...main
-[0.38.0]: https://github.com/jmarcon/cuotai/compare/b89c2d8...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/e743686...main
+[0.39.0]: https://github.com/jmarcon/cuotai/compare/e743686...main
+[0.38.0]: https://github.com/jmarcon/cuotai/commit/e743686
 [0.37.0]: https://github.com/jmarcon/cuotai/commit/b89c2d8
 [0.36.0]: https://github.com/jmarcon/cuotai/commit/ed5f027
 [0.35.1]: https://github.com/jmarcon/cuotai/commit/40bbc64

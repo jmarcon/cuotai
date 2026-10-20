@@ -6,15 +6,15 @@ mod motion;
 mod ui;
 mod wizard;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use clap::Parser;
 use cuotai_core::{
     config_file::ConfigFile,
-    history::{HistoryStore, Retention},
+    history::{HistoryStore, MetricHistory, Retention},
     metrics,
     oauth::OAuthSession,
     pace::{self, Point},
-    EnvironmentCredentials, Monitor, Provider, Report, Snapshot, Status,
+    Account, Config, EnvironmentCredentials, Monitor, Provider, Report, Snapshot, Status,
 };
 use std::{
     io::{self, IsTerminal, Write},
@@ -25,6 +25,10 @@ use std::{
 
 /// How long `--once`/`--json` wait for the readings to reach the history.
 const HISTORY_FLUSH: Duration = Duration::from_secs(5);
+/// PRD 0006 RF6.2: days `--history` prints without `--history-days`.
+const HISTORY_DEFAULT_DAYS: u32 = 7;
+/// Sparkline cells of each `--history` metric.
+const HISTORY_SPARK_CELLS: usize = 60;
 
 #[derive(Parser)]
 #[command(
@@ -39,9 +43,14 @@ struct Args {
     /// Consulta uma vez, sem abrir a TUI.
     #[arg(long)]
     once: bool,
-    /// Consulta uma vez e emite o Snapshot em JSON (sem credenciais).
+    /// Consulta uma vez e emite o Snapshot em JSON (sem credenciais); com
+    /// --history, emite o histórico em JSON.
     #[arg(long)]
     json: bool,
+    /// Mostra o histórico local de medições de CONTA (ou de todas) e sai,
+    /// sem consultar os provedores.
+    #[arg(long, value_name = "CONTA", num_args = 0..=1, conflicts_with = "once")]
+    history: Option<Option<String>>,
     /// Lista os identificadores aceitos na configuração.
     #[arg(long)]
     list_providers: bool,
@@ -51,7 +60,8 @@ struct Args {
     /// Desliga as animações da TUI (também: CUOTAI_NO_ANIMATIONS=1).
     #[arg(long)]
     no_animations: bool,
-    /// Dias de histórico local de medições mantidos (7 a 365; padrão 90).
+    /// Dias de histórico local de medições mantidos (7 a 365; padrão 90);
+    /// com --history, os dias mostrados (padrão 7).
     #[arg(long, value_name = "DIAS")]
     history_days: Option<u32>,
 }
@@ -93,6 +103,27 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             );
         }
         return Ok(0);
+    }
+    if let Some(account) = &args.history {
+        let days = retention(Some(args.history_days.unwrap_or(HISTORY_DEFAULT_DAYS)))?.keep_days();
+        let file = ConfigFile::load(args.config, false)?;
+        let store = HistoryStore::in_data_dir(&file)
+            .map_err(|error| error.l10n().resolve(ui::tui_locale()))?;
+        let now = Utc::now();
+        let since = now - TimeDelta::days(i64::from(days));
+        let found = account_histories(&store, &file.config, account.as_deref(), since, now)?;
+        let mut stdout = io::stdout().lock();
+        if args.json {
+            serde_json::to_writer_pretty(&mut stdout, &history_json(&found, since, now, days))?;
+            writeln!(stdout)?;
+        } else {
+            write!(
+                stdout,
+                "{}",
+                history_text(&found, since, now, days, ui::local_time)
+            )?;
+        }
+        return Ok(history_exit_code(&found));
     }
     let interactive = !args.once && !args.json;
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
@@ -243,6 +274,136 @@ fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
     )
 }
 
+/// PRD 0006 RF6.2: the recorded metrics of each account named `name` (all
+/// accounts without one) within `since..=now`, in configuration order. An
+/// unknown name is a local error; a storage failure is never "no data".
+fn account_histories<'a>(
+    store: &HistoryStore,
+    config: &'a Config,
+    name: Option<&str>,
+    since: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> Result<Vec<(&'a Account, Vec<MetricHistory>)>, String> {
+    let accounts: Vec<&Account> = config
+        .accounts
+        .iter()
+        .filter(|account| name.is_none_or(|name| account.name == name))
+        .collect();
+    if let (Some(name), true) = (name, accounts.is_empty()) {
+        return Err(format!(
+            "Conta não encontrada na configuração: {}",
+            ui::safe(name)
+        ));
+    }
+    accounts
+        .into_iter()
+        .map(|account| {
+            store
+                .account_history(account, since..=now)
+                .map(|metrics| (account, metrics))
+                .map_err(|error| error.l10n().resolve(ui::tui_locale()))
+        })
+        .collect()
+}
+
+/// `0` when every listed account has recorded data in the span, `2` when
+/// one (or the configuration) has none, like the other single-run outputs.
+fn history_exit_code(found: &[(&Account, Vec<MetricHistory>)]) -> u8 {
+    if !found.is_empty() && found.iter().all(|(_, metrics)| !metrics.is_empty()) {
+        0
+    } else {
+        2
+    }
+}
+
+/// `--history --json`: the span and, per account, the core's metrics
+/// (points and window instances); no credentials, only the account name
+/// and provider the TOML already holds.
+fn history_json(
+    found: &[(&Account, Vec<MetricHistory>)],
+    since: DateTime<Utc>,
+    now: DateTime<Utc>,
+    days: u16,
+) -> serde_json::Value {
+    serde_json::json!({
+        "from": since,
+        "to": now,
+        "days": days,
+        "accounts": found
+            .iter()
+            .map(|(account, metrics)| serde_json::json!({
+                "account": account.name,
+                "provider": account.provider,
+                "metrics": metrics,
+            }))
+            .collect::<Vec<_>>(),
+    })
+}
+
+/// `--history` text: per account, each metric's summary, sparkline over
+/// the span and window instances; an account without samples says so.
+fn history_text(
+    found: &[(&Account, Vec<MetricHistory>)],
+    since: DateTime<Utc>,
+    now: DateTime<Utc>,
+    days: u16,
+    at: impl Fn(DateTime<Utc>) -> String,
+) -> String {
+    let mut out = format!(
+        "CUOTAI • histórico de {days} dias até {}\n",
+        now.to_rfc3339()
+    );
+    if found.is_empty() {
+        out += "\nNenhuma conta na configuração; sem medições para mostrar.\n";
+    }
+    for (account, metrics) in found {
+        out += &format!(
+            "\n{} / {}\n",
+            ui::safe(&account.name),
+            account.provider.label()
+        );
+        if metrics.is_empty() {
+            out += &format!("  Sem medições registradas nos últimos {days} dias.\n");
+        }
+        for metric in metrics {
+            let Some(trend) = metric.trend() else {
+                out += &format!(
+                    "  {}: sem valores medidos no período\n",
+                    ui::safe(&metric.label)
+                );
+                continue;
+            };
+            out += &format!(
+                "  {}: {} medições · {} ({})\n",
+                ui::safe(&metric.label),
+                metric.points.len(),
+                dashboard::trend_text(&trend, &metric.unit),
+                at(trend.last.taken_at)
+            );
+            out += &format!(
+                "    {}\n",
+                dashboard::sparkline(metric, since, now, HISTORY_SPARK_CELLS).trim_end()
+            );
+            for window in &metric.windows {
+                let resets = window
+                    .resets_at
+                    .map(|reset| format!(" · renova {}", at(reset)))
+                    .unwrap_or_default();
+                out += &format!(
+                    "    Janela {} → {}: {} → {}, pico {} em {}{resets}\n",
+                    at(window.started_at),
+                    at(window.ended_at),
+                    dashboard::compact(window.initial_used),
+                    dashboard::compact(window.final_used),
+                    dashboard::compact(window.peak_used),
+                    at(window.peak_at),
+                );
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,5 +537,74 @@ mod tests {
         let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
         assert!(report_text(&report, &recent, now, "en-US", at)
             .contains("Ritmo: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"));
+    }
+
+    #[test]
+    fn history_mode_prints_the_span_and_exits_like_the_other_single_runs() {
+        use cuotai_core::config_file::ConfigIdentity;
+        let dir = std::env::temp_dir().join(format!("cuotai-tui-history-{}", std::process::id()));
+        let path = dir.join("history.sqlite3");
+        let store = HistoryStore::new(path.clone(), &ConfigIdentity::Explicit("cli".into()));
+        let config = Config::from_toml(
+            "[[accounts]]\nname = \"Work\"\nprovider = \"groq\"\ncredential_env = \"GROQ_WORK\"\n\
+             [[accounts]]\nname = \"Spare\"\nprovider = \"groq\"\ncredential_env = \"GROQ_SPARE\"\n",
+        )
+        .unwrap();
+        let now = Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap();
+        let since = now - TimeDelta::days(7);
+        let at = |t: DateTime<Utc>| t.format("%m-%d %H:%M").to_string();
+
+        // Nothing recorded: it says so (exit 2) and never creates the file.
+        let found = account_histories(&store, &config, None, since, now).unwrap();
+        assert_eq!(history_exit_code(&found), 2);
+        let text = history_text(&found, since, now, 7, at);
+        assert_eq!(
+            text.matches("Sem medições registradas nos últimos 7 dias.")
+                .count(),
+            2
+        );
+        assert!(!path.exists());
+        assert!(account_histories(&store, &config, Some("Nope"), since, now)
+            .unwrap_err()
+            .contains("Conta não encontrada"));
+
+        // Two readings of one 5-hour window, a reset, and an old sample
+        // outside the span.
+        let hours = |n: i64| now + TimeDelta::hours(n);
+        let work = &config.accounts[0];
+        for (taken, used, reset) in [
+            (-200, 99.0, -190),
+            (-3, 10.0, 2),
+            (-2, 70.0, 2),
+            (-1, 5.0, 4),
+        ] {
+            let metric = quota(MetricWindow::Window5h, used, Some(hours(reset)));
+            store.record(work, hours(taken), &[metric]).unwrap();
+        }
+        let found = account_histories(&store, &config, Some("Work"), since, now).unwrap();
+        assert_eq!(history_exit_code(&found), 0);
+        assert_eq!(
+            history_text(&found, since, now, 7, at),
+            format!(
+                "CUOTAI • histórico de 7 dias até 2026-01-02T00:00:00+00:00\n\
+                 \nWork / {}\n\
+                 \x20 Window5h: 3 medições · mín 5 · máx 70 · último 5 % (01-01 23:00)\n\
+                 \x20   {}▂▆\n\
+                 \x20   Janela 01-01 21:00 → 01-01 22:00: 10 → 70, pico 70 em 01-01 22:00 · renova 01-02 02:00\n\
+                 \x20   Janela 01-01 23:00 → 01-01 23:00: 5 → 5, pico 5 em 01-01 23:00 · renova 01-02 04:00\n",
+                Provider::Groq.label(),
+                " ".repeat(58)
+            )
+        );
+        let json = history_json(&found, since, now, 7);
+        let metric = &json["accounts"][0]["metrics"][0];
+        assert_eq!(json["accounts"][0]["account"], "Work");
+        assert_eq!(metric["points"].as_array().unwrap().len(), 3);
+        assert_eq!(metric["windows"][0]["peak_used"], 70.0);
+        assert_eq!(metric["limit"], 100.0);
+        // Every account: one without data makes it partial.
+        let found = account_histories(&store, &config, None, since, now).unwrap();
+        assert_eq!(history_exit_code(&found), 2);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

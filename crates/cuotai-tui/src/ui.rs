@@ -17,7 +17,7 @@ use crossterm::{
 use cuotai_core::{
     account_edit::{self, RemoveError, RemoveOutcome, RemovedAccount},
     config_file::ConfigFile,
-    history::Retention,
+    history::{HistoryRange, Retention},
     login::{self, CompletedLogin},
     models::ModelCache,
     oauth::OAuthSession,
@@ -228,6 +228,7 @@ pub async fn run(
         targets: dashboard::Targets::default(),
         model_counts: ModelCounts::default(),
         history: HistoryView::default(),
+        history_range: HistoryRange::default(),
         anim: animations.then(|| Anim::new(motion::truecolor(|key| std::env::var(key).ok()))),
     };
     let mut frame_area = Rect::default();
@@ -293,6 +294,8 @@ pub async fn run(
         Models,
         /// Abre a tela Sobre (bibliotecas de código aberto e repositórios).
         About,
+        /// PRD 0006 RF6.1: span of the details' history (1, 2, 3).
+        HistoryRange(HistoryRange),
     }
 
     /// Map a keyboard event onto a dashboard command. Returns `None` when the
@@ -312,6 +315,9 @@ pub async fn run(
             KeyCode::Enter => Command::ToggleDetails,
             KeyCode::Esc if details => Command::CloseDetails,
             KeyCode::Char('m') if details => Command::Models,
+            KeyCode::Char('1') if details => Command::HistoryRange(HistoryRange::Day),
+            KeyCode::Char('2') if details => Command::HistoryRange(HistoryRange::Week),
+            KeyCode::Char('3') if details => Command::HistoryRange(HistoryRange::Month),
             KeyCode::Char('?') => Command::About,
             KeyCode::Char('u') => Command::ToggleUnmeasured,
             KeyCode::Down if details => Command::ScrollDetailDown,
@@ -657,6 +663,7 @@ pub async fn run(
                     state.move_selection(-1, &cycle_slot_reports(&refresh_cycle))
                 }
                 Command::About => about = Some(AboutView::default()),
+                Command::HistoryRange(range) => state.history_range = range,
                 Command::Models => {
                     if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))
                     {
@@ -945,7 +952,10 @@ pub async fn run(
                         .then(|| refresh_cycle.next_refresh_in(index, Instant::now()))
                 });
                 state.model_counts.refresh(&monitor, state.accounts.len());
-                state.history.refresh(&monitor, &refresh_cycle);
+                let detail = selected
+                    .filter(|_| state.details)
+                    .map(|index| (index, state.history_range));
+                state.history.refresh(&monitor, &refresh_cycle, detail);
                 state.draw(&mut terminal, &refresh_cycle, refreshing, next)?;
                 frame_area = state.targets.area;
             }
@@ -1911,6 +1921,8 @@ struct State {
     targets: dashboard::Targets,
     model_counts: ModelCounts,
     history: HistoryView,
+    /// PRD 0006 RF6.1: span of the details' history.
+    history_range: HistoryRange,
     /// RF4 effects; `None` when animations are off.
     anim: Option<Anim>,
 }
@@ -1943,7 +1955,8 @@ impl ModelCounts {
 
 /// PRD 0007 RF1.5 over PRD 0006: the recorded points the pace of each
 /// account's metrics reads, re-read only when the monitor or the account's
-/// report changes (never per frame), and the history warning to show.
+/// report changes (never per frame), the details' history (RF6.1) and the
+/// history warning to show.
 #[derive(Default)]
 struct HistoryView {
     monitor: usize,
@@ -1951,18 +1964,34 @@ struct HistoryView {
     read_for: Vec<Option<chrono::DateTime<chrono::Utc>>>,
     /// Per account, per metric of its current report.
     recent: Vec<Vec<Vec<Point>>>,
+    /// RF6.1: the open details' history, `None` when closed or without a
+    /// history store.
+    detail: Option<dashboard::DetailHistory>,
+    /// Account, span and reading time `detail` was read for, and when.
+    detail_for: Option<(usize, HistoryRange, Option<chrono::DateTime<chrono::Utc>>)>,
+    detail_read: Option<Instant>,
     warning: Option<String>,
 }
 
+/// The details' history is read again this often while open, so the
+/// reading the recorder writes after the refresh shows and the span moves.
+const DETAIL_REREAD: Duration = Duration::from_secs(30);
+
 impl HistoryView {
-    fn refresh(&mut self, monitor: &Arc<Monitor>, cycle: &RefreshCycle) {
+    /// `detail`: the account and span of the open details, if any.
+    fn refresh(
+        &mut self,
+        monitor: &Arc<Monitor>,
+        cycle: &RefreshCycle,
+        detail: Option<(usize, HistoryRange)>,
+    ) {
         let id = Arc::as_ptr(monitor) as usize;
         if self.monitor != id || self.read_for.len() != cycle.len() {
             *self = Self {
                 monitor: id,
                 read_for: vec![None; cycle.len()],
                 recent: vec![Vec::new(); cycle.len()],
-                warning: None,
+                ..Self::default()
             };
         }
         let now = chrono::Utc::now();
@@ -1977,6 +2006,34 @@ impl HistoryView {
                     .unwrap_or_default();
                 self.read_for[index] = stamp;
             }
+        }
+        let wanted = detail.map(|(index, range)| {
+            let reading = cycle.account_report(index).map(|report| report.checked_at);
+            (index, range, reading)
+        });
+        let due = self
+            .detail_read
+            .is_none_or(|read| read.elapsed() >= DETAIL_REREAD);
+        match wanted {
+            None => {
+                self.detail = None;
+                self.detail_for = None;
+            }
+            Some((index, range, _)) if wanted != self.detail_for || due => {
+                let start = range.since(now);
+                self.detail = monitor.history().map(|_| dashboard::DetailHistory {
+                    account: index,
+                    range,
+                    start,
+                    end: now,
+                    metrics: monitor
+                        .account_history(index, start..=now)
+                        .map_err(|error| error.l10n().resolve(tui_locale())),
+                });
+                self.detail_for = wanted;
+                self.detail_read = Some(Instant::now());
+            }
+            Some(_) => {}
         }
         self.warning = monitor
             .history_status()
@@ -2079,6 +2136,7 @@ impl State {
                     anim: self.anim.as_ref(),
                     last_good: &last_good,
                     recent: &self.history.recent,
+                    history: self.history.detail.as_ref(),
                     now: chrono::Utc::now(),
                 },
             );
@@ -2207,6 +2265,7 @@ mod tests {
             targets: dashboard::Targets::default(),
             model_counts: ModelCounts::default(),
             history: HistoryView::default(),
+            history_range: HistoryRange::default(),
             anim: None,
         }
     }

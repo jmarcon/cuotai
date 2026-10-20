@@ -18,16 +18,18 @@
 //!
 //! The queries ([`HistoryStore::latest`], [`HistoryStore::series`],
 //! [`HistoryStore::windows`], [`HistoryStore::bounds`],
-//! [`HistoryStore::recent`]) read the file only; nothing here touches the
-//! network. [`HistoryRecorder`] records refresh results off the refresh's
-//! critical path (RF2) and prunes by [`Retention`] (RF4), which also owns
-//! export and erasure.
+//! [`HistoryStore::recent`], [`HistoryStore::account_history`]) read the
+//! file only; nothing here touches the network. [`HistoryRecorder`] records
+//! refresh results off the refresh's critical path (RF2) and prunes by
+//! [`Retention`] (RF4), which also owns export and erasure.
 
 mod recorder;
 mod retention;
+mod trend;
 
 pub use recorder::{HistoryRecorder, HistoryStatus};
 pub use retention::{CeilingPrune, ExportFormat, PruneReport, Retention, RetentionError};
+pub use trend::{HistoryRange, MetricHistory, Trend};
 
 use crate::config_file::{ConfigFile, ConfigIdentity};
 use crate::models::{account_key, create_private_file, digest};
@@ -175,7 +177,7 @@ pub struct StoredMetric {
 
 /// Use of a metric over one window instance: consecutive samples with the
 /// same `resets_at` (within [`DRIFT_TOLERANCE`]) and no reset-sized drop.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct WindowUsage {
     /// First and last sample of the window in the queried range.
     pub started_at: DateTime<Utc>,

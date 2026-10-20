@@ -10,6 +10,7 @@ use crate::motion::{eighth_bar, Anim};
 use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_locale};
 use chrono::{DateTime, Local, Utc};
 use cuotai_core::access::{self, UsageAccess};
+use cuotai_core::history::{self, HistoryRange, MetricHistory, Trend};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
 use cuotai_core::pace::{self, Pace, PaceStage, PaceTone, Point};
 #[cfg(test)]
@@ -31,6 +32,11 @@ const WIDE_COLUMNS_WIDTH: u16 = 110;
 const HEADER_HEIGHT: u16 = 4;
 const FOOTER_HEIGHT: u16 = 3;
 const METRICS_VISIBLE_IN_CARD: usize = 2;
+/// PRD 0006 RF6.1: sparkline glyphs, lowest to highest level.
+const SPARK: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+/// Below this many cells the history line is text only.
+const SPARK_MIN_CELLS: usize = 8;
+const SPARK_MAX_CELLS: usize = 48;
 
 // Dracula palette: background, foreground, selection, muted, and status accents.
 const BG: Color = Color::Rgb(40, 42, 54);
@@ -243,6 +249,128 @@ fn pace_icon(pace: &Pace) -> Span<'static> {
     )
 }
 
+/// PRD 0006 RF6.1: the selected account's recorded metrics over the chosen
+/// span, read by `ui.rs` from the core when the account, the span or its
+/// reading changes (never per frame).
+pub(crate) struct DetailHistory {
+    /// Account index the metrics belong to.
+    pub(crate) account: usize,
+    pub(crate) range: HistoryRange,
+    /// The span read: the time axis of the sparklines.
+    pub(crate) start: DateTime<Utc>,
+    pub(crate) end: DateTime<Utc>,
+    /// The core's metrics, or the storage failure to show.
+    pub(crate) metrics: Result<Vec<MetricHistory>, String>,
+}
+
+pub(crate) fn range_label(range: HistoryRange) -> &'static str {
+    match range {
+        HistoryRange::Day => "24 h",
+        HistoryRange::Week => "7 d",
+        HistoryRange::Month => "30 d",
+    }
+}
+
+/// A value with at most two decimals and no trailing zeros (`40`, `12.5`).
+pub(crate) fn compact(value: f64) -> String {
+    let text = format!("{value:.2}");
+    let text = text.trim_end_matches('0').trim_end_matches('.');
+    if text == "-0" {
+        "0".into()
+    } else {
+        text.into()
+    }
+}
+
+/// RF6.1 range summary: `mín 5 · máx 80 · último 40 %`.
+pub(crate) fn trend_text(trend: &Trend, unit: &str) -> String {
+    format!(
+        "mín {} · máx {} · último {} {}",
+        compact(trend.min),
+        compact(trend.max),
+        compact(trend.last.used),
+        safe(unit)
+    )
+}
+
+/// RF6.1: `cells` glyphs over `start..=end` from the core's levels; a
+/// bucket without a sample is a blank, never the lowest bar.
+pub(crate) fn sparkline(
+    metric: &MetricHistory,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    cells: usize,
+) -> String {
+    metric
+        .levels(start, end, cells, SPARK.len() as u8)
+        .into_iter()
+        .map(|level| level.map_or(' ', |level| SPARK[usize::from(level)]))
+        .collect()
+}
+
+/// RF6.1: the history line of one metric in `width` cells: the span, the
+/// sparkline and the summary, or only the summary (minimum, maximum and
+/// last value) when the sparkline would not fit. The span leads, so a
+/// leading gap is never trimmed away.
+fn history_line(
+    metric: Option<&MetricHistory>,
+    detail: &DetailHistory,
+    width: u16,
+) -> Line<'static> {
+    let range = range_label(detail.range);
+    let Some((metric, trend)) = metric.and_then(|m| m.trend().map(|trend| (m, trend))) else {
+        return Line::styled(
+            format!("  histórico {range}: sem medições registradas"),
+            Style::default().fg(MUTED),
+        );
+    };
+    let summary = trend_text(&trend, &metric.unit);
+    let cells = usize::from(width)
+        .saturating_sub(6 + range.chars().count() + summary.chars().count())
+        .min(SPARK_MAX_CELLS);
+    if cells < SPARK_MIN_CELLS {
+        return Line::styled(
+            format!("  histórico {range}: {summary}"),
+            Style::default().fg(MUTED),
+        );
+    }
+    Line::from(vec![
+        Span::styled(format!("  {range}  "), Style::default().fg(MUTED)),
+        Span::styled(
+            sparkline(metric, detail.start, detail.end, cells),
+            Style::default().fg(CYAN),
+        ),
+        Span::styled(format!("  {summary}"), Style::default().fg(MUTED)),
+    ])
+}
+
+/// RF6.1: the span picker of the details, the chosen one highlighted.
+fn history_heading(detail: &DetailHistory) -> Line<'static> {
+    let mut spans = vec![Span::styled(
+        "  HISTÓRICO  ",
+        Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+    )];
+    for (index, range) in HistoryRange::ALL.into_iter().enumerate() {
+        let label = format!("{} {}", index + 1, range_label(range));
+        spans.push(if range == detail.range {
+            Span::styled(
+                format!("[{label}]"),
+                Style::default().fg(PINK).add_modifier(Modifier::BOLD),
+            )
+        } else {
+            Span::styled(format!(" {label} "), Style::default().fg(MUTED))
+        });
+        spans.push(Span::raw(" "));
+    }
+    if let Err(error) = &detail.metrics {
+        spans.push(Span::styled(
+            format!(" {}", safe(error)),
+            Style::default().fg(YELLOW),
+        ));
+    }
+    Line::from(spans)
+}
+
 /// Input to `draw`. Field names match the spec; `selected` is the position
 /// inside `visible`, not an account index. `next_refresh` carries the time
 /// remaining until the next scheduled refresh: `None` when the timer is
@@ -280,6 +408,9 @@ pub(crate) struct View<'a> {
     /// PRD 0007 RF1.5: recorded points per account and metric of its
     /// current report (PRD 0006); same length as `accounts` or empty.
     pub(crate) recent: &'a [Vec<Vec<Point>>],
+    /// PRD 0006 RF6.1: the selected account's history in the details;
+    /// `None` without a history (nothing is shown).
+    pub(crate) history: Option<&'a DetailHistory>,
     /// Clock for ages and countdowns, injected so rendering is testable.
     pub(crate) now: DateTime<Utc>,
 }
@@ -508,6 +639,8 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         actions.push(plain("Enter/Esc voltar", Some(FooterAction::CloseDetails)));
         actions.push(separator());
         actions.push(plain("m modelos", Some(FooterAction::Models)));
+        actions.push(separator());
+        actions.push(plain("1/2/3 histórico", None));
     } else {
         actions.push(plain("Enter detalhes", Some(FooterAction::OpenDetails)));
     }
@@ -1238,6 +1371,13 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(YELLOW),
         )));
     }
+    // PRD 0006 RF6.1: the span picker, then one history line per metric.
+    let detail_history = view
+        .history
+        .filter(|detail| detail.account == account_index);
+    if let Some(detail) = detail_history {
+        lines.push(history_heading(detail));
+    }
 
     let shown = stale.unwrap_or(report);
     if shown.metrics.is_empty() {
@@ -1299,6 +1439,12 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                         Style::default().fg(MUTED),
                     ),
                 ]));
+            }
+            // A storage failure is shown once, on the heading.
+            if let Some((detail, Ok(recorded))) = detail_history.map(|d| (d, &d.metrics)) {
+                let key = history::metric_key(metric);
+                let recorded = recorded.iter().find(|m| m.key == key);
+                lines.push(history_line(recorded, detail, body.width));
             }
         }
     }
@@ -1897,6 +2043,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        history: None,
                         now: Utc::now(),
                     },
                 );
@@ -1955,6 +2102,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        history: None,
                         now: Utc::now(),
                     },
                 );
@@ -2005,6 +2153,7 @@ mod tests {
                             anim: None,
                             last_good: &[],
                             recent: &[],
+                            history: None,
                             now: Utc::now(),
                         },
                     );
@@ -2048,6 +2197,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        history: None,
                         now: Utc::now(),
                     },
                 );
@@ -2090,6 +2240,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        history: None,
                         now: Utc::now(),
                     },
                 );
@@ -2139,6 +2290,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        history: None,
                         now: Utc::now(),
                     },
                 );
@@ -2179,6 +2331,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        history: None,
                         now: Utc::now(),
                     },
                 );
@@ -2218,6 +2371,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        history: None,
                         now: Utc::now(),
                     },
                 );
@@ -2270,6 +2424,7 @@ mod tests {
                             anim: Some(anim),
                             last_good: &[],
                             recent: &[],
+                            history: None,
                             now: Utc::now(),
                         },
                     );
@@ -2372,6 +2527,30 @@ mod tests {
         now: DateTime<Utc>,
         (width, height): (u16, u16),
     ) -> Vec<String> {
+        render_view(
+            accounts,
+            reports,
+            last_good,
+            model_counts,
+            (details, selected),
+            now,
+            (width, height),
+            None,
+        )
+    }
+
+    /// [`render_accounts`] with the details' history (PRD 0006 RF6.1).
+    #[allow(clippy::too_many_arguments)]
+    fn render_view(
+        accounts: &[Account],
+        reports: &[Option<Report>],
+        last_good: &[Option<&Report>],
+        model_counts: &[Option<usize>],
+        (details, selected): (bool, usize),
+        now: DateTime<Utc>,
+        (width, height): (u16, u16),
+        history: Option<&DetailHistory>,
+    ) -> Vec<String> {
         let visible = visible_indices(accounts, reports, "", true);
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
@@ -2396,6 +2575,7 @@ mod tests {
                         anim: None,
                         last_good,
                         recent: &[],
+                        history,
                         now,
                     },
                 );
@@ -2702,5 +2882,111 @@ mod tests {
         let openai = details(2);
         assert!(openai.contains("ACESSO  Oficial"));
         assert!(openai.contains("Provedor sem métricas expostas"));
+    }
+
+    /// PRD 0006 RF6.1: the first account's "Sessao" recorded at the start,
+    /// middle and end of the last 24 hours (0, 90 and 40 of 100); "Diaria"
+    /// and "Semana" have no samples in the span.
+    fn session_history(range: HistoryRange) -> DetailHistory {
+        let session = blocked_by_week()[0].as_ref().unwrap().metrics[0].clone();
+        let end = at_min(0);
+        let point = |hours: i64, used: f64| Point {
+            taken_at: end - chrono::Duration::hours(hours),
+            used,
+        };
+        DetailHistory {
+            account: 0,
+            range,
+            start: range.since(end),
+            end,
+            metrics: Ok(vec![MetricHistory {
+                key: history::metric_key(&session),
+                label: session.label.clone(),
+                unit: session.unit.clone(),
+                kind: session.kind,
+                window: session.window,
+                limit: Some(100.0),
+                points: vec![point(24, 0.0), point(12, 90.0), point(0, 40.0)],
+                windows: Vec::new(),
+            }]),
+        }
+    }
+
+    fn render_history(detail: &DetailHistory, width: u16) -> String {
+        render_view(
+            &three_accounts(),
+            &blocked_by_week(),
+            &[],
+            &[],
+            (true, 0),
+            at_min(0),
+            (width, 60),
+            Some(detail),
+        )
+        .join("\n")
+    }
+
+    #[test]
+    fn details_draw_a_sparkline_per_metric_over_the_chosen_span() {
+        let text = render_history(&session_history(HistoryRange::Day), 120);
+        assert!(
+            text.contains("HISTÓRICO  [1 24 h]  2 7 d   3 30 d"),
+            "{text}"
+        );
+        // 48 half-hour buckets: the first reading, the peak in the middle
+        // and the last one, with blanks (never the lowest bar) between.
+        let line = format!(
+            "24 h  ▁{}▇{}▄  mín 0 · máx 90 · último 40 req",
+            " ".repeat(23),
+            " ".repeat(22)
+        );
+        assert!(text.contains(&line), "{text}");
+        // A metric without samples in the span says so, once per metric.
+        assert_eq!(
+            text.matches("histórico 24 h: sem medições registradas")
+                .count(),
+            2
+        );
+        // The 7-day span is the one highlighted; its first six days are
+        // blank, kept in place behind the span label.
+        let week = render_history(&session_history(HistoryRange::Week), 120);
+        assert!(
+            week.contains("HISTÓRICO   1 24 h  [2 7 d]  3 30 d"),
+            "{week}"
+        );
+        let line = format!(
+            "7 d  {}▁  ▇  ▄  mín 0 · máx 90 · último 40 req",
+            " ".repeat(41)
+        );
+        assert!(week.contains(&line), "{week}");
+        assert!(week.contains("histórico 7 d: sem medições registradas"));
+    }
+
+    #[test]
+    fn a_narrow_detail_degrades_the_sparkline_to_minimum_maximum_and_last() {
+        let text = render_history(&session_history(HistoryRange::Day), 45);
+        assert!(
+            !text.contains(['▁', '▂', '▃', '▄', '▅', '▆', '▇']),
+            "{text}"
+        );
+        assert!(text.contains("histórico 24 h: mín 0 · máx 90"), "{text}");
+        assert!(text.contains("último 40"), "{text}");
+    }
+
+    #[test]
+    fn a_history_failure_shows_once_and_another_accounts_history_never() {
+        let failed = DetailHistory {
+            metrics: Err("Falha ao ler ou gravar o histórico local de medições.".into()),
+            ..session_history(HistoryRange::Day)
+        };
+        let text = render_history(&failed, 120);
+        assert!(text.contains("Falha ao ler ou gravar o histórico local"));
+        assert!(!text.contains("histórico 24 h"), "{text}");
+        let other = DetailHistory {
+            account: 1,
+            ..session_history(HistoryRange::Day)
+        };
+        let text = render_history(&other, 120);
+        assert!(!text.contains("HISTÓRICO") && !text.contains("histórico 24 h"));
     }
 }
