@@ -2,6 +2,7 @@
 //! Call `Monitor::refresh` from an async runtime. A failed account does not fail
 //! other accounts; reports retain configuration order and never contain secrets.
 pub mod about;
+pub mod access;
 pub mod account_edit;
 pub mod config_file;
 pub mod edit_error;
