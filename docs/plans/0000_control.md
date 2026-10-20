@@ -5,8 +5,8 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-20 |
-| Cuotai version at that date | 0.35.0 |
-| Plans | 19 (6 implemented, 3 in progress, 10 proposed) |
+| Cuotai version at that date | 0.35.1 |
+| Plans | 19 (7 implemented, 2 in progress, 10 proposed) |
 
 ## 1. How to maintain it
 
@@ -26,7 +26,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0002](0002_on-demand-model-catalog.md) | On-demand model catalog | Implemented | RF1 to RF6, 0.8.0 to 0.14.0 | — | — | After delivery, every provider except Alibaba Cloud started trying to list models (commit `2ae1e79`). |
 | [0003](0003_quota-reset-notifications.md) | Quota reset notifications | In progress | RF1 (0.24.0) | — | — | RF1 delivered: the pure `resets::upcoming` planner and `Account::key` (provider slug + name, reused by 0012 RF1.1) in the core. Defines `Notifier`, permission and `notified.json`, reused by 0008. |
 | [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | Implemented | RF1 (0.17.0, `6725548`), RF2 (0.18.0, `d89c1b1`), RF3 (0.19.0, `59f9f22`), RF4 (0.20.0) | — | — | Motion tokens, dashboard effects, dialogs, tray and the TUI animation engine. |
-| [0005](0005_usage-access-level.md) | Usage access level | In progress | RF1, RF2 (0.33.0), RF3 (0.34.0), RF4 (0.35.0) | — | — | Prerequisite of 0015, 0016 and 0017. RF1 and RF2 delivered in the core: `access::describe` (level, credential class, plan, scope, `metered`, evidence with `verified_on`, localized summary/hint/risk/reason) for the 36 providers and their switching modes, exhaustive on `Provider`, with `access.*` texts in `en-US`/`es`. RF3: the TUI wizard and the desktop dialog show the level in the picker, the credential notes under the credential help, the cost warning from the descriptor (`Provider::cost_advisory` removed) and a "Save anyway" confirmation for `Unavailable`, all from `account_edit::draft_access`. RF4: TUI and desktop cards and details show "level · summary" and the core's `UsageAccess::explain` (an `Unavailable` reason, a changed undocumented interface with its reference) in place of the generic failure; `UsageAccess` serializes for `export::v1`, where it enters as `access` with 0012 RF1.1; `--json` unchanged. RF5 (generated matrix) pending. |
+| [0005](0005_usage-access-level.md) | Usage access level | Implemented | RF1, RF2 (0.33.0), RF3 (0.34.0), RF4 (0.35.0), RF5 (0.35.1) | — | — | Prerequisite of 0015, 0016 and 0017. RF1 and RF2 delivered in the core: `access::describe` (level, credential class, plan, scope, `metered`, evidence with `verified_on`, localized summary/hint/risk/reason) for the 36 providers and their switching modes, exhaustive on `Provider`, with `access.*` texts in `en-US`/`es`. RF3: the TUI wizard and the desktop dialog show the level in the picker, the credential notes under the credential help, the cost warning from the descriptor (`Provider::cost_advisory` removed) and a "Save anyway" confirmation for `Unavailable`, all from `account_edit::draft_access`. RF4: TUI and desktop cards and details show "level · summary" and the core's `UsageAccess::explain` (an `Unavailable` reason, a changed undocumented interface with its reference) in place of the generic failure; `UsageAccess` serializes for `export::v1`, where it enters as `access` with 0012 RF1.1; `--json` unchanged. RF5: `docs/providers.md` carries the usage access matrix (level, credential, plan, scope, evidence per provider and mode) generated from `access::describe` by a core test that fails on drift with regeneration instructions (`CUOTAI_REGENERATE_DOCS=1`); the new-provider guides in `AGENTS.md`, `docs/architecture.md` and `CONTRIBUTING.md` list the access descriptor as mandatory. |
 | [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
 | [0007](0007_pace-until-reset.md) | Pace until the reset | Implemented | RF1, RF2 (0.23.0), RF3 (0.31.0), RF4 (0.32.0) | — | 0006 | RF1 and RF2 delivered: `pace::assess` and its localized labels in the core; `pace::Point` is the sample 0006 RF3 returns. Without history it uses the average since the start of the window. RF3: the desktop shows the pace under the card bar, per metric in the details (expected mark over the bar) and in the tray, with an on-by-default switch in Settings → Appearance. RF4: the TUI cards show a stage icon per eligible metric, the details a pace line per metric, and `--once` a `Ritmo:` line; `--json` is unchanged and pace enters `export::v1` with 0012. |
 | [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | Proposed | — | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. |
@@ -79,6 +79,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.33.0 | 0005 | RF1 and RF2 (core usage access descriptor: `access::describe` per account with `Official`/`Undocumented`/`Derived`/`Unavailable`, credential class, plan requirement, scope, `metered`, verified evidence and a mandatory reason for `Unavailable`; `access.*` ids in the `en-US`/`es` core catalogs, none in the desktop catalogs). |
 | 0.34.0 | 0005 | RF3 (TUI wizard and desktop dialog: level label per provider in the picker, credential hint/risk/plan/reason under the credential help, the per-query cost warning derived from the descriptor, and an explicit "Save anyway" before saving an `Unavailable` account; texts from the core in pt, en-US and es). |
 | 0.35.0 | 0005 | RF4 (TUI and desktop cards and details: discreet level and summary, the reason of an `Unavailable` account and "the interface may have changed" with its reference for an `Undocumented` schema mismatch in place of the generic failure; serializable descriptor for `export::v1`; `--json` unchanged). |
+| 0.35.1 | 0005 | RF5 (generated `docs/providers.md` usage access matrix verified against `access::describe` by a drift test; access descriptor listed as a mandatory step in the new-provider guides). |
 
 ## 4. Dependency graph
 
@@ -94,7 +95,7 @@ graph LR
   P2["0002 Model catalog"]:::done
   P3["0003 Reset notifications"]:::wip
   P4["0004 Animations"]:::done
-  P5["0005 Access level"]:::wip
+  P5["0005 Access level"]:::done
   P6["0006 History"]:::todo
   P7["0007 Pace"]:::done
   P8["0008 Threshold alerts"]:::todo
@@ -207,3 +208,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-20 | PRD 0005 RF1 and RF2 delivered in 0.33.0; plan 0005 in progress (RF3 to RF5 pending). |
 | 2026-10-20 | PRD 0005 RF3 delivered in 0.34.0; plan 0005 stays in progress (RF4 and RF5 pending). |
 | 2026-10-20 | PRD 0005 RF4 delivered in 0.35.0; plan 0005 stays in progress (RF5 pending). |
+| 2026-10-20 | PRD 0005 RF5 delivered in 0.35.1; plan 0005 implemented. |

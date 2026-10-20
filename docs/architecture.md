@@ -23,6 +23,15 @@ apps/desktop/             Tauri 2 app: main window, tray popover and native menu
 - **`resets`**: `upcoming(config, reports, now, &prefs)` plans quota reset notices from the readings already taken, with an injected clock: a `Quota` metric with a future `resets_at` in a `window_5h`/`daily`/`weekly`/`monthly` window (`other` with `include_other`), filtered by `NotifyWhen` (`OnlyIfUsed` by default, `OnlyIfExhausted`, `Always`; a missing value is neither used nor exhausted), skipping accounts in `prefs.disabled`. Metrics of one account resetting within the same minute form one `ResetEvent` with `notify_at = resets_at − lead`. `ResetKey::same_reset` treats `resets_at` within 2 minutes as the same reset. Accounts are identified by `Account::key()` (`<provider slug>:<name>`); renaming an account gives it a new key.
 - **`oauth` and `login`**: `OAuthSession`, `OAuthConfig`, `OAuthLogin` and `TokenStore` manage credentials and renewal; `cuotai_core::login` exposes a cancellable, UI-independent driver with prompt/progress events and a staged commit between the vault and the TOML.
 
+### Adding a provider
+
+A new provider touches only the core; the TUI and the desktop app render its descriptors and reports generically.
+
+1. Add the variant to `Provider` (`model.rs`: `label`, `slug`, `ALL`), the adapter under `providers/` and its dispatch in `lib.rs`.
+2. **Declare its access descriptor (mandatory).** Add the arm to the exhaustive `match` in `access::classify` (level, credential class, scope, plan requirement, public evidence and the summary/reason texts), one arm per `params` value or login that changes the queried interface, and the `access.summary.<slug>` (plus `access.reason.<slug>` for `Unavailable`) ids in `locales/en-US.json` and `es.json`. The build fails without the arm, and the `access` tests fail without the texts or when `Unavailable` lacks a reason or `Official` lacks a documentation URL.
+3. Regenerate the usage access matrix of [`providers.md`](providers.md) with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix`; the same test without the variable fails while the document differs from `access::describe`. A new interface-switching param also goes into the `MODES` list of the `access` tests, which the matrix and the invariant tests walk.
+4. Add the account fields in `account_edit.rs`, the credential help, an example to `cuotai.example.toml` and the `wiremock` contract tests.
+
 ### Using it as a Rust library
 
 ```rust

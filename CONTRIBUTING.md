@@ -67,9 +67,10 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 
 1. Add the variant to `Provider` (`crates/cuotai-core/src/model.rs`), including `label`, `slug` and `ALL`.
 2. Add the adapter under `crates/cuotai-core/src/providers/` and the dispatch in `lib.rs`.
-3. Add account fields in `account_edit.rs`, the core catalog texts and the credential help.
-4. Add an example to `cuotai.example.toml` and a row to `docs/providers.md`. If you reuse third-party code, add the notice to `THIRD_PARTY_NOTICES` and to the list in `about.rs`.
-5. Add `wiremock` tests and, where available, model-listing support in `models.rs`.
+3. Declare the access descriptor (mandatory): the provider's arm in the exhaustive `match` of `access::classify` (`crates/cuotai-core/src/access.rs`), one per `params` value or login that changes the queried interface (a new interface-switching param also goes into the `MODES` list of the `access` tests), and its `access.summary.*`/`access.reason.*` texts in the core catalogs. Then regenerate the usage access matrix in [`docs/providers.md`](docs/providers.md#usage-access-matrix) with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix`; without the variable the same test fails while the matrix differs from `access::describe`. See "Adding a provider" in [`docs/architecture.md`](docs/architecture.md).
+4. Add account fields in `account_edit.rs`, the core catalog texts and the credential help.
+5. Add an example to `cuotai.example.toml` and a row to `docs/providers.md`. If you reuse third-party code, add the notice to `THIRD_PARTY_NOTICES` and to the list in `about.rs`.
+6. Add `wiremock` tests and, where available, model-listing support in `models.rs`.
 
 ## Commits and versions
 
