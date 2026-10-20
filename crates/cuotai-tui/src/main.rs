@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use clap::Parser;
 use cuotai_core::{
     config_file::ConfigFile, metrics, oauth::OAuthSession, EnvironmentCredentials, Monitor,
-    Provider, Snapshot, Status,
+    Provider, Report, Snapshot, Status,
 };
 use std::{
     io::{self, IsTerminal, Write},
@@ -110,13 +110,9 @@ fn print_snapshot(snapshot: &Snapshot) {
         "\n{}",
         summary_lines(snapshot, ui::tui_locale(), ui::local_time)
     );
+    let now = Utc::now();
     for report in &snapshot.reports {
-        println!(
-            "\n{} / {} — {}",
-            ui::safe(&report.account),
-            report.provider.label(),
-            report.status.label()
-        );
+        println!("\n{}", report_heading(report, now));
         for metric in &report.metrics {
             println!("  {}: {}", ui::safe(&metric.label), ui::metric_text(metric));
             if let Some(period) = &metric.period {
@@ -165,11 +161,22 @@ fn summary_lines(
     out
 }
 
+/// PRD 0010 RF5.2: `--once` account heading with the measurement age.
+fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
+    format!(
+        "{} / {} — {} · consultado {}",
+        ui::safe(&report.account),
+        report.provider.label(),
+        report.status.label(),
+        ui::age_text(report.checked_at, now)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use cuotai_core::{Metric, MetricKind, MetricWindow, Report};
+    use cuotai_core::{Metric, MetricKind, MetricWindow};
 
     fn quota(window: MetricWindow, used: f64, resets_at: Option<DateTime<Utc>>) -> Metric {
         Metric {
@@ -244,6 +251,16 @@ mod tests {
         assert_eq!(
             summary_lines(&snapshot, "pt-BR", at).lines().next(),
             Some("Claude  bloqueada até 14:30 pela janela semanal")
+        );
+    }
+
+    #[test]
+    fn once_heading_carries_the_measurement_age() {
+        let report = report("Work", Status::RateLimited, Vec::new());
+        let now = report.checked_at + chrono::Duration::seconds(125);
+        assert_eq!(
+            report_heading(&report, now),
+            "Work / Claude — Rate limit · consultado há 2 min"
         );
     }
 }

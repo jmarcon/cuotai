@@ -1969,6 +1969,9 @@ impl State {
                 .map(|index| cycle.account_report(index).cloned())
                 .collect(),
         };
+        let last_good: Vec<Option<&cuotai_core::Report>> = (0..cycle.len())
+            .map(|index| cycle.last_good_report(index))
+            .collect();
         let visible = self.visible(&slot_reports);
         if visible.is_empty() {
             self.selection.select(None);
@@ -2003,6 +2006,8 @@ impl State {
                     next_refresh,
                     error: self.error.as_deref(),
                     anim: self.anim.as_ref(),
+                    last_good: &last_good,
+                    now: chrono::Utc::now(),
                 },
             );
             if let Some(anim) = &self.anim {
@@ -2055,6 +2060,23 @@ pub(crate) fn local_time(at: chrono::DateTime<chrono::Utc>) -> String {
         local.format("%H:%M").to_string()
     } else {
         local.format("%Y-%m-%d %H:%M").to_string()
+    }
+}
+
+/// PRD 0010 RF5: measurement age from the core's `freshness::age` in the
+/// TUI's Portuguese chrome ("há 42 s", "há 3 min", "há 2 h", "há 1 d"). A
+/// reading "from the future" (clock adjusted backwards) reads "agora".
+pub(crate) fn age_text(
+    checked_at: chrono::DateTime<chrono::Utc>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> String {
+    let secs = cuotai_core::freshness::age(checked_at, now).as_secs();
+    match secs {
+        0 => "agora".into(),
+        1..=59 => format!("há {secs} s"),
+        60..=3_599 => format!("há {} min", secs / 60),
+        3_600..=86_399 => format!("há {} h", secs / 3_600),
+        _ => format!("há {} d", secs / 86_400),
     }
 }
 
@@ -2114,6 +2136,21 @@ mod tests {
             model_counts: ModelCounts::default(),
             anim: None,
         }
+    }
+
+    #[test]
+    fn age_text_steps_at_minute_hour_and_day_boundaries() {
+        use chrono::TimeZone;
+        let at = chrono::Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let age = |secs: i64| age_text(at, at + chrono::Duration::seconds(secs));
+        assert_eq!(age(-30), "agora", "clock adjusted backwards");
+        assert_eq!(age(0), "agora");
+        assert_eq!(age(59), "há 59 s");
+        assert_eq!(age(60), "há 1 min");
+        assert_eq!(age(3_599), "há 59 min");
+        assert_eq!(age(3_600), "há 1 h");
+        assert_eq!(age(86_399), "há 23 h");
+        assert_eq!(age(86_400), "há 1 d");
     }
 
     #[test]

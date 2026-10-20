@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-20
+
+### Added
+
+- The TUI and `--once` show how old each reading is: every dashboard card says `há 3 min`, the details add the age plus the measurement time in UTC and in the local time zone, and each `--once` account heading ends with `consultado há 3 min`. When a query fails after a success, the card and the details keep the last valid metrics, still and marked `(desatualizada) há 42 min` with their original age, beside the cause of the failure, until the next successful query; `--json` and the exit codes are unchanged (PRD 0010 RF5).
+
 ## [0.28.0] - 2026-10-20
 
 ### Added
 
-- The desktop app shows how old each reading is: every card, tray tile, list row, details view and tray menu line says "3 min ago" with a Fresh, Aging or Stale label and icon (the core judges it against the account's refresh interval), and the tray icon tooltip names the oldest reading. When a query fails after a success, the card keeps the last valid metrics dimmed and still, with a "Stale · 42 min ago" badge and the cause of the failure, until the next successful query removes the badge; an authentication failure drops the old values (PRD 0010 RF3).
+- The desktop app shows how old each reading is: every card, tray tile, list row, details view and tray menu line says "3 min ago" with a Fresh, Aging or Stale label and icon (the core judges it against the account's refresh interval), and the tray icon tooltip names the oldest reading. When a query fails after a success, the card keeps the last valid metrics dimmed and still, with a "Stale · 42 min ago" badge and the cause of the failure, until the next successful query removes the badge; an authentication failure drops the old values (PRD 0010 RF3, 4a87dbf).
 
 ## [0.27.1] - 2026-10-19
 
@@ -306,8 +312,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/4943177...main
-[0.28.0]: https://github.com/jmarcon/cuotai/compare/4943177...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/4a87dbf...main
+[0.29.0]: https://github.com/jmarcon/cuotai/compare/4a87dbf...main
+[0.28.0]: https://github.com/jmarcon/cuotai/commit/4a87dbf
 [0.27.1]: https://github.com/jmarcon/cuotai/commit/4943177
 [0.27.0]: https://github.com/jmarcon/cuotai/commit/7b73876
 [0.26.0]: https://github.com/jmarcon/cuotai/commit/ff3429f
