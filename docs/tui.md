@@ -11,6 +11,7 @@ Requires Rust/Cargo. AWS Bedrock also requires AWS CLI v2 on your `PATH`.
 ```sh
 cargo run -p cuotai-tui -- --list-providers
 cargo run -p cuotai-tui
+cargo run -p cuotai-tui -- --notify   # announce quota resets while open
 ```
 
 The TUI resolves the texts delivered by the core (login labels,
@@ -80,6 +81,13 @@ cargo install --path crates/cuotai-tui --locked
 - With `COLORTERM=truecolor` (or `24bit`) bar colours follow a red → yellow → green gradient by level; otherwise the usual red/yellow/green steps are used.
 - The loop draws at ~30 fps only while an effect runs; when idle it keeps the usual pace (redraw on events and the 1 s countdown tick).
 - **Off:** `--no-animations`, `CUOTAI_NO_ANIMATIONS=1` (any non-empty value except `0`), or `TERM=dumb` (always). Under SSH (`SSH_CONNECTION` or `SSH_TTY`) they are off by default; `CUOTAI_ANIMATIONS=1` turns them back on, but never overrides the opt-outs above. With animations off the screen renders exactly as before. `--once`/`--json` never animate.
+
+### Reset notices (`--notify`)
+
+- Off by default. With `--notify`, while the TUI is open, it announces each quota reset using the same planner as the desktop app (`cuotai_core::resets`): a `quota` metric of a 5 h, daily, weekly or monthly window that was used (`used > 0` or `remaining < limit`; a missing value counts as unused) reaching the `resets_at` the provider reported. `other` windows, rate limits and balances never notify; a `resets_at` drifting up to 2 minutes is the same reset.
+- The notice is a yellow line at the top of the header (`14:30 · Claude: cota de 5 horas renovada (Pessoal)`, in `CUOTAI_LANG`; several accounts due together share the line, separated by ` · `) kept for an hour, plus one terminal bell (`BEL`) per pass. On iTerm2, WezTerm and Ghostty (`TERM_PROGRAM`) it also sends an OSC 9 desktop notification with the provider, account name, metric labels and the reminder that the time is the provider's; it is never sent to other terminals, inside tmux (`TMUX`) or screen (`STY`), so an unknown sequence never reaches the screen. Control characters of account names and labels are removed.
+- Nothing persists: each reset is announced once per session and a reset that passed before the TUI opened (a reading restored from the history) is not announced. After a suspension, what became due at once is one notice per account, and a reset more than 10 minutes old by then is skipped. A notice never triggers a query; the new balance shows on the next refresh. It uses the account's current reading or, while its query failed, its last valid one.
+- `--once`, `--json` and `--history` reject `--notify` and keep their output unchanged. The desktop app's notification preferences (lead time, filter, per-account bell) live in `desktop.json` and do not apply here.
 
 ## Configuring an account with the wizard
 

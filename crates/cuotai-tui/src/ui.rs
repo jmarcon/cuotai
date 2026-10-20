@@ -4,6 +4,7 @@ use crate::{
     dashboard::{self, FooterAction},
     models_view::{ModelsView, Reply},
     motion::{self, Anim},
+    notify::{self, Notices},
     wizard::{Action, Wizard},
 };
 use crossterm::{
@@ -34,7 +35,7 @@ use ratatui::{
 };
 use std::{
     borrow::Cow,
-    io,
+    io::{self, Write},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -192,6 +193,7 @@ pub async fn run(
     session: Arc<OAuthSession>,
     animations: bool,
     retention: Retention,
+    notify: bool,
 ) -> io::Result<()> {
     let mut monitor = new_monitor(&file, &session, retention)?;
     let mut auth_task: Option<LoginTask> = None;
@@ -230,6 +232,12 @@ pub async fn run(
         history: HistoryView::default(),
         history_range: HistoryRange::default(),
         anim: animations.then(|| Anim::new(motion::truecolor(|key| std::env::var(key).ok()))),
+        notices: notify.then(|| {
+            Notices::new(
+                chrono::Utc::now(),
+                notify::osc9_supported(|key| std::env::var(key).ok()),
+            )
+        }),
     };
     let mut frame_area = Rect::default();
     let mut refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
@@ -679,6 +687,16 @@ pub async fn run(
         if last_tick.elapsed() >= Duration::from_secs(1) {
             dirty = true;
             last_tick = Instant::now();
+            // PRD 0003 RF4: reset notices over the readings already shown.
+            if let Some(notices) = &mut state.notices {
+                let readings = notice_readings(&refresh_cycle);
+                let bell = notices.tick(&file.config, &readings, chrono::Utc::now(), tui_locale());
+                if !bell.is_empty() {
+                    let mut stdout = io::stdout();
+                    stdout.write_all(&bell)?;
+                    stdout.flush()?;
+                }
+            }
         }
         if let Some(task) = &mut auth_task {
             dirty |= task.drain();
@@ -1295,6 +1313,19 @@ fn cycle_slot_reports(cycle: &RefreshCycle) -> Vec<Option<cuotai_core::Report>> 
             .map(|index| cycle.account_report(index).cloned())
             .collect(),
     }
+}
+
+/// PRD 0003 RF4: what reset notices read, like the desktop: each account's
+/// current report or, while it failed or nothing answered yet, its last
+/// valid reading.
+fn notice_readings(cycle: &RefreshCycle) -> Vec<Option<&cuotai_core::Report>> {
+    (0..cycle.len())
+        .map(|index| {
+            cycle
+                .last_good_report(index)
+                .or_else(|| cycle.account_report(index))
+        })
+        .collect()
 }
 
 /// Apply a caller-supplied edit (`Some(index)` for Upsert, `None` for the
@@ -1925,6 +1956,8 @@ struct State {
     history_range: HistoryRange,
     /// RF4 effects; `None` when animations are off.
     anim: Option<Anim>,
+    /// PRD 0003 RF4: reset notices; `None` without `--notify`.
+    notices: Option<Notices>,
 }
 
 /// Per-account synced catalog sizes shown on the cards. Read from the local
@@ -2112,6 +2145,7 @@ impl State {
             anim.observe(&self.accounts, &slot_reports);
         }
         let mut targets = dashboard::Targets::default();
+        let now = chrono::Utc::now();
         terminal.draw(|frame| {
             targets = dashboard::draw(
                 frame,
@@ -2137,7 +2171,11 @@ impl State {
                     last_good: &last_good,
                     recent: &self.history.recent,
                     history: self.history.detail.as_ref(),
-                    now: chrono::Utc::now(),
+                    banner: self
+                        .notices
+                        .as_ref()
+                        .and_then(|notices| notices.banner(now)),
+                    now,
                 },
             );
             if let Some(anim) = &self.anim {
@@ -2267,6 +2305,7 @@ mod tests {
             history: HistoryView::default(),
             history_range: HistoryRange::default(),
             anim: None,
+            notices: None,
         }
     }
 

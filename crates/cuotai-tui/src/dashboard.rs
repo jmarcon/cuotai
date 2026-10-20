@@ -135,12 +135,12 @@ fn metric_state_color(state: MetricState) -> Option<Color> {
 
 /// Build a short, locale-neutral countdown ("3d 4h", "5h 02m", "12m 03s",
 /// "47s"). Once `resets_at` is at or before now, return the renewal hint
-/// without inventing a cycle.
+/// (the word after "renova") without inventing a cycle.
 fn reset_text(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> &'static str {
     if resets_at <= now {
-        return "renova agora";
+        return "agora";
     }
-    "renova em breve"
+    "em breve"
 }
 
 fn reset_seconds(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> Option<i64> {
@@ -411,6 +411,9 @@ pub(crate) struct View<'a> {
     /// PRD 0006 RF6.1: the selected account's history in the details;
     /// `None` without a history (nothing is shown).
     pub(crate) history: Option<&'a DetailHistory>,
+    /// PRD 0003 RF4: the last reset notice of the session (`--notify`),
+    /// shown on its own header line while `Some`.
+    pub(crate) banner: Option<&'a str>,
     /// Clock for ages and countdowns, injected so rendering is testable.
     pub(crate) now: DateTime<Utc>,
 }
@@ -504,8 +507,9 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
         );
         return targets;
     }
+    let header = HEADER_HEIGHT + u16::from(view.banner.is_some());
     let areas = Layout::vertical([
-        Constraint::Length(HEADER_HEIGHT),
+        Constraint::Length(header),
         Constraint::Min(0),
         Constraint::Length(FOOTER_HEIGHT),
     ])
@@ -562,6 +566,12 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
         .border_style(Style::default().fg(CYAN))
         .title_style(Style::default().fg(CYAN).add_modifier(Modifier::BOLD));
     let mut lines: Vec<Line> = Vec::new();
+    if let Some(banner) = view.banner {
+        lines.push(Line::styled(
+            safe(banner),
+            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+        ));
+    }
     lines.extend(view.location.lines().map(|part| Line::from(safe(part))));
     if view.filtering || !view.filter.is_empty() {
         lines.push(Line::from(format!(
@@ -1594,7 +1604,7 @@ fn line_bar(
 fn format_reset_line(reset: DateTime<Utc>, now: DateTime<Utc>) -> String {
     match reset_seconds(reset, now) {
         Some(total) => format_reset_remaining(total),
-        None => reset_text(reset, now).to_string(),
+        None => format!("renova {}", reset_text(reset, now)),
     }
 }
 
@@ -1639,6 +1649,20 @@ mod tests {
     #[test]
     fn missing_report_is_unmeasured() {
         assert_eq!(classification(None), AccountClass::Unmeasured);
+    }
+
+    #[test]
+    fn a_passed_reset_reads_renova_agora_once() {
+        let at = Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap();
+        let line = |now| render_reset(at, now).to_string();
+        assert_eq!(line(at - chrono::Duration::seconds(47)), "renova 47s");
+        assert_eq!(line(at), "renova agora");
+        assert_eq!(line(at + chrono::Duration::minutes(5)), "renova agora");
+        assert_eq!(format_reset_line(at, at), "renova agora");
+        assert_eq!(
+            format_reset_line(at, at - chrono::Duration::seconds(47)),
+            "47s"
+        );
     }
 
     #[test]
@@ -2044,6 +2068,7 @@ mod tests {
                         last_good: &[],
                         recent: &[],
                         history: None,
+                        banner: None,
                         now: Utc::now(),
                     },
                 );
@@ -2103,6 +2128,7 @@ mod tests {
                         last_good: &[],
                         recent: &[],
                         history: None,
+                        banner: None,
                         now: Utc::now(),
                     },
                 );
@@ -2154,6 +2180,7 @@ mod tests {
                             last_good: &[],
                             recent: &[],
                             history: None,
+                            banner: None,
                             now: Utc::now(),
                         },
                     );
@@ -2198,6 +2225,7 @@ mod tests {
                         last_good: &[],
                         recent: &[],
                         history: None,
+                        banner: None,
                         now: Utc::now(),
                     },
                 );
@@ -2241,6 +2269,7 @@ mod tests {
                         last_good: &[],
                         recent: &[],
                         history: None,
+                        banner: None,
                         now: Utc::now(),
                     },
                 );
@@ -2291,6 +2320,7 @@ mod tests {
                         last_good: &[],
                         recent: &[],
                         history: None,
+                        banner: None,
                         now: Utc::now(),
                     },
                 );
@@ -2332,6 +2362,7 @@ mod tests {
                         last_good: &[],
                         recent: &[],
                         history: None,
+                        banner: None,
                         now: Utc::now(),
                     },
                 );
@@ -2372,6 +2403,7 @@ mod tests {
                         last_good: &[],
                         recent: &[],
                         history: None,
+                        banner: None,
                         now: Utc::now(),
                     },
                 );
@@ -2385,6 +2417,63 @@ mod tests {
             header_text.contains("Consultando"),
             "expected querying hint in header, got: {header_text:?}"
         );
+    }
+
+    #[test]
+    fn reset_banner_takes_its_own_header_line_without_hiding_the_location() {
+        let accounts = three_accounts();
+        let snapshot = ready_snapshot();
+        let reports = reports_of(&snapshot);
+        let visible = visible_indices(&accounts, &reports, "", true);
+        let render = |banner: Option<&str>| {
+            let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+            let mut targets = Targets::default();
+            terminal
+                .draw(|frame| {
+                    targets = draw(
+                        frame,
+                        View {
+                            accounts: &accounts,
+                            reports: &reports,
+                            model_counts: &[],
+                            visible: &visible,
+                            selected: Some(0),
+                            details: false,
+                            detail_scroll: 0,
+                            show_unmeasured: true,
+                            refreshing: false,
+                            location: "/tmp/config.toml (--config)\nAviso: o desktop usa outro",
+                            filter: "",
+                            filtering: false,
+                            next_refresh: None,
+                            error: None,
+                            anim: None,
+                            last_good: &[],
+                            recent: &[],
+                            history: None,
+                            banner,
+                            now: Utc::now(),
+                        },
+                    );
+                })
+                .unwrap();
+            let buffer = terminal.backend().buffer();
+            let rows: Vec<String> = (0..6)
+                .map(|y| (0..120).map(|x| buffer[(x, y)].symbol()).collect())
+                .collect();
+            (rows, targets.cards[0].0.y)
+        };
+
+        let (rows, first_card) = render(Some("14:30 · Claude: cota 5h renovada (Pessoal)"));
+        assert!(rows[1].contains("14:30 · Claude: cota 5h renovada (Pessoal)"));
+        assert!(rows[2].contains("/tmp/config.toml"));
+        assert!(rows[3].contains("Aviso: o desktop usa outro"));
+        assert_eq!(first_card, HEADER_HEIGHT + 1);
+
+        let (rows, first_card) = render(None);
+        assert!(rows[1].contains("/tmp/config.toml"));
+        assert!(rows[2].contains("Aviso: o desktop usa outro"));
+        assert_eq!(first_card, HEADER_HEIGHT);
     }
 
     #[test]
@@ -2425,6 +2514,7 @@ mod tests {
                             last_good: &[],
                             recent: &[],
                             history: None,
+                            banner: None,
                             now: Utc::now(),
                         },
                     );
@@ -2576,6 +2666,7 @@ mod tests {
                         last_good,
                         recent: &[],
                         history,
+                        banner: None,
                         now,
                     },
                 );
