@@ -10,9 +10,17 @@
 ```rust
 use cuotai_core::export::v1::{Export, Options};
 
-// `cycle` is the RefreshCycle the front end already maintains; building the
-// export reads its state and never queries a provider.
-let export = Export::from_cycle(&config, &config_identity, &cycle, chrono::Utc::now(), Options::default());
+// `cycle` is the RefreshCycle the front end already maintains and
+// `monitor.incident_statuses()` the provider statuses already read (empty while
+// status queries are off); building the export never queries a provider.
+let export = Export::from_cycle(
+    &config,
+    &config_identity,
+    &cycle,
+    &monitor.incident_statuses(),
+    chrono::Utc::now(),
+    Options::default(),
+);
 println!("{}", serde_json::to_string(&export)?);
 ```
 
@@ -20,7 +28,7 @@ println!("{}", serde_json::to_string(&export)?);
 
 ## Stability and deprecation policy
 
-- `schema` is `1`. Within version 1 the contract is **additive**: new fields, new objects and new enum values may appear (for example `incident` when PRD 0011 ships). Consumers must ignore properties they do not know and handle unknown enum values gracefully.
+- `schema` is `1`. Within version 1 the contract is **additive**: new fields, new objects and new enum values may appear (`incident` joined in 0.49.0 with PRD 0011). Consumers must ignore properties they do not know and handle unknown enum values gracefully.
 - Removing a field, renaming it, changing its type or changing its meaning requires `schema: 2`. When version 2 exists, the producers keep offering version 1 for at least one minor release, and the changelog announces the removal in advance.
 - The schema and the reference file change together with the code. The reference test fails on any difference; regenerate it with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core export_v1_reference` only after checking that the change is additive. The schema test fails when the export emits a field that the schema does not declare.
 
@@ -51,6 +59,7 @@ println!("{}", serde_json::to_string(&export)?);
 | `binding` | object or `null` | The metric that restricts the account most (`index` into `report.metrics`, `label`, `window`, `used_ratio`, `remaining`, `resets_at`, `reason` `exhausted`/`tightest`, `blocked_until`). `null` for a failed or unmeasured report. |
 | `pace` | array | One entry per `report.metrics` item, in the same order: the consumption pace until the reset (`elapsed_fraction`, `expected_used_fraction`, `used_fraction`, `delta_points`, `stage`, `tone`, `source`, `resets_at`, `projected_exhaustion_at`, `lasts_until_reset`), or `null` for a metric without one (not a quota, no window, no cap, the window just opened). Empty without a report. |
 | `access` | object | How the account's usage is read: `level` (`official`, `undocumented`, `derived`, `unavailable`), `credential` class, `plan_requirement`, `scope`, `metered`, public `evidence` with `verified_on`, and localized `summary`, `credential_hint`, `risk` and `reason`. |
+| `incident` | object or `null` | The public status of the account's provider (PRD 0011): `state` (`operational`, `degraded`, `partial_outage`, `major_outage`, `maintenance`, `unknown`), its localized `label`, the most severe active `event` in the provider's scope (`title` without markup, `started_at`, public `url` on the status host) or `null`, the `page_url`, `read_at` (`null` before the first reading) and `stale` (the latest status query failed and `state` is the previous reading, or `unknown` without one). `null` while status queries are off or when the provider has no verified source; it is never `operational` without a valid reading. |
 
 Localized texts are objects `{ "id", "params", "fallback" }`: resolve `id` in your own catalog (Cuotai's are `crates/cuotai-core/locales/*.json`) or show the Portuguese `fallback`.
 

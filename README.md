@@ -48,6 +48,8 @@ The same section turns on **usage alerts** (off by default, with the same permis
 
 **Settings → Privacy** can show the **providers' public status** (off by default). Turned on, the app reads the public status pages of the providers you configured (the section lists their domains; each page at most once every 5 minutes, without credentials, cookies or account data, though those sites see your IP address and that you use the provider). A card then shows a colored badge with an icon and text when its provider reports degraded performance, a partial or major outage or maintenance, or when its status page could not be read, with **Open status page**; the details show the full status and when it was read, the tray popover lists the affected providers, and the tray icon gets a red dot while any of them reports a partial outage or worse. Providers without a verified public source never show as operational. A failed query during an incident says the failure may not be from your account.
 
+The TUI and the CLI read the same status only when you ask (`--status`, or `CUOTAI_STATUS=1` in the environment); `--no-status` always turns it off, also in scripts that inherit the variable. A card then shows the badge on its top border (`▲ Interrupção parcial`, `? Página de status indisponível`), the details list the provider's full status with the incident, its start, when it was read and the page, and `--once` prints a `Status do provedor:` line under the affected account. `--json` keeps its shape.
+
 Every card and its details also say, discreetly, **how that account's usage is read**: `Official` (an interface the vendor documents), `Undocumented` (an internal interface that may change without notice), `Derived` (inferred from metrics or rate-limit headers) or `Unavailable` (no usage query exists), with a one-line summary. An `Unavailable` account shows why instead of a generic error, and when an undocumented interface stops matching, the card says it may have changed and names the public contract Cuotai follows. The same levels appear when you add an account.
 
 <div align="center">
@@ -107,6 +109,9 @@ cargo run -p cuotai-tui
 # Announce quota resets and usage alerts (75%, 90%, exhausted, available again)
 # while the dashboard is open (header banner, bell, OSC 9)
 cargo run -p cuotai-tui -- --notify
+
+# Show the providers' public status (off by default; also CUOTAI_STATUS=1)
+cargo run -p cuotai-tui -- --status
 ```
 
 Or install the `cuotai` binary locally:

@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-10-20
+
+### Added
+
+- The TUI and `--once` can show the providers' public status, off until you pass `--status` or set `CUOTAI_STATUS=1`, with `--no-status` always turning it off: each status page of your configured providers is then read without credentials at most once every five minutes, a card shows a badge on its top border for a degraded service, partial or major outage, maintenance or an unreadable page, the details list the full status with the incident, its start, when it was read and the page, `--once` prints a `Status do provedor:` line under the account plus the note on failures during an incident, `--json` keeps its shape, and `export::v1` gains each account's `incident` (PRD 0011 RF5).
+
 ## [0.48.0] - 2026-10-20
 
 ### Added
 
-- The desktop app can show the providers' public status, off until you turn it on in Settings → Privacy, which explains that the app will then make public, credential-free requests to the listed status domains of your configured providers: cards and the tray popover show a colored badge with an icon and text for a degraded service, partial or major outage, maintenance or an unreadable status page, with an "Open status page" link, the account details show the full status and when it was read, and the tray icon gets a red dot while any configured provider reports a partial outage or worse (PRD 0011 RF4).
+- The desktop app can show the providers' public status, off until you turn it on in Settings → Privacy, which explains that the app will then make public, credential-free requests to the listed status domains of your configured providers: cards and the tray popover show a colored badge with an icon and text for a degraded service, partial or major outage, maintenance or an unreadable status page, with an "Open status page" link, the account details show the full status and when it was read, and the tray icon gets a red dot while any configured provider reports a partial outage or worse (PRD 0011 RF4, 4ea2fd9).
 
 ## [0.47.0] - 2026-10-20
 
@@ -438,8 +444,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/64f2266...main
-[0.48.0]: https://github.com/jmarcon/cuotai/compare/64f2266...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/4ea2fd9...main
+[0.49.0]: https://github.com/jmarcon/cuotai/compare/4ea2fd9...main
+[0.48.0]: https://github.com/jmarcon/cuotai/commit/4ea2fd9
 [0.47.0]: https://github.com/jmarcon/cuotai/commit/64f2266
 [0.46.0]: https://github.com/jmarcon/cuotai/commit/074966d
 [0.45.0]: https://github.com/jmarcon/cuotai/commit/e421c1b

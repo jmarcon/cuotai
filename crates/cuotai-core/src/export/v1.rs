@@ -1,7 +1,8 @@
 //! `export::v1` (PRD 0012 RF1): the last known state of every account, built
 //! from a [`RefreshCycle`] without querying anything, with the derived fields
 //! the front ends already show (class, age, freshness, the preserved reading,
-//! binding metric, pace and usage access).
+//! binding metric, pace, usage access and, PRD 0011 RF5, the provider's
+//! public status).
 //!
 //! The contract is additive within `schema: 1` and documented in
 //! `docs/export-v1.md` with `docs/export-v1.schema.json`; the reference
@@ -19,6 +20,7 @@ use serde::Serialize;
 use crate::access::{self, UsageAccess};
 use crate::config_file::ConfigIdentity;
 use crate::freshness::{self, Freshness};
+use crate::incidents::{Incident, IncidentState, ProviderStatus};
 use crate::metrics::{self, AccountClass, Binding};
 use crate::pace::{self, Pace};
 use crate::refresh::RefreshCycle;
@@ -89,6 +91,40 @@ pub struct AccountExport {
     pub pace: Vec<Option<Pace>>,
     /// [`access::describe`] of the account.
     pub access: UsageAccess,
+    /// PRD 0011 RF5: the public status of the account's provider, `null`
+    /// while status queries are off or when the provider has no verified
+    /// source (never "operational" without a reading).
+    pub incident: Option<IncidentExport>,
+}
+
+/// The provider status of [`AccountExport::incident`].
+#[derive(Debug, Clone, Serialize)]
+pub struct IncidentExport {
+    pub state: IncidentState,
+    /// [`IncidentState::label`].
+    pub label: Localized,
+    /// The most severe active event in the provider's scope, if any.
+    pub event: Option<Incident>,
+    /// Public status page of the source.
+    pub page_url: String,
+    /// When the reading shown was obtained; `null` before the first one.
+    pub read_at: Option<DateTime<Utc>>,
+    /// The latest status query failed: `state` is the previous reading (or
+    /// `unknown` without one).
+    pub stale: bool,
+}
+
+impl From<&ProviderStatus> for IncidentExport {
+    fn from(status: &ProviderStatus) -> Self {
+        Self {
+            state: status.state,
+            label: status.state.label(),
+            event: status.incident.clone(),
+            page_url: status.page_url.clone(),
+            read_at: status.read_at,
+            stale: status.stale,
+        }
+    }
 }
 
 /// The preserved reading of [`AccountExport::last_good`].
@@ -101,12 +137,15 @@ pub struct LastGood {
 }
 
 impl Export {
-    /// The export of `config` with the reports `cycle` holds at `now`. Pure:
-    /// reads the cycle's state and never starts a query.
+    /// The export of `config` with the reports `cycle` holds at `now` and
+    /// the provider `incidents` already read ([`crate::Monitor::incident_statuses`];
+    /// empty while status queries are off). Pure: reads its inputs and never
+    /// starts a query.
     pub fn from_cycle(
         config: &Config,
         identity: &ConfigIdentity,
         cycle: &RefreshCycle,
+        incidents: &[ProviderStatus],
         now: DateTime<Utc>,
         options: Options,
     ) -> Self {
@@ -117,7 +156,7 @@ impl Export {
             .map(|(index, account)| {
                 let interval =
                     Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds));
-                account_export(
+                let mut export = account_export(
                     index,
                     account,
                     cycle.account_report(index),
@@ -125,7 +164,12 @@ impl Export {
                     interval,
                     now,
                     options,
-                )
+                );
+                export.incident = incidents
+                    .iter()
+                    .find(|status| status.provider == account.provider)
+                    .map(IncidentExport::from);
+                export
             })
             .collect();
         Self {
@@ -177,6 +221,7 @@ fn account_export(
                 .collect()
         }),
         access: access::describe(account),
+        incident: None,
     }
 }
 
@@ -419,8 +464,45 @@ mod tests {
     }
 
     fn build(config: &Config, cycle: &RefreshCycle, options: Options) -> Export {
+        build_with(config, cycle, &statuses(), options)
+    }
+
+    fn build_with(
+        config: &Config,
+        cycle: &RefreshCycle,
+        incidents: &[ProviderStatus],
+        options: Options,
+    ) -> Export {
         let identity = ConfigIdentity::Explicit("reference".into());
-        Export::from_cycle(config, &identity, cycle, now(), options)
+        Export::from_cycle(config, &identity, cycle, incidents, now(), options)
+    }
+
+    /// PRD 0011 RF5: what the status client read for the reference: Claude
+    /// in a partial outage with its incident, Groq's page never readable.
+    /// OpenAI and Kimi have no reading (as while status queries are off).
+    fn statuses() -> Vec<ProviderStatus> {
+        vec![
+            ProviderStatus {
+                provider: Provider::Claude,
+                state: IncidentState::PartialOutage,
+                incident: Some(Incident {
+                    title: "Elevated errors on Claude Code".into(),
+                    started_at: Some(minutes_ago(30)),
+                    url: "https://status.claude.com/incidents/abc123".into(),
+                }),
+                page_url: "https://status.claude.com/".into(),
+                read_at: Some(minutes_ago(1)),
+                stale: false,
+            },
+            ProviderStatus {
+                provider: Provider::Groq,
+                state: IncidentState::Unknown,
+                incident: None,
+                page_url: "https://groqstatus.com/".into(),
+                read_at: None,
+                stale: true,
+            },
+        ]
     }
 
     fn export(config: &Config, cycle: &RefreshCycle, options: Options) -> Value {
@@ -573,6 +655,37 @@ mod tests {
             assert!(pending[field].is_null(), "{field}");
         }
         assert_eq!(pending["pace"], serde_json::json!([]));
+    }
+
+    /// PRD 0011 RF5: each account carries its own provider's status; an
+    /// account whose provider was not read (status queries off, no verified
+    /// source) has `null`, never an operational state.
+    #[test]
+    fn incident_is_the_accounts_own_provider_status() {
+        let (config, cycle) = reference();
+        let json = export(&config, &cycle, Options::default());
+        let accounts = json["accounts"].as_array().unwrap();
+        let claude = &accounts[0]["incident"];
+        assert_eq!(claude["state"], "partial_outage");
+        assert_eq!(claude["label"]["id"], "incident.state.partial_outage");
+        assert_eq!(claude["event"]["title"], "Elevated errors on Claude Code");
+        assert_eq!(
+            claude["event"]["url"],
+            "https://status.claude.com/incidents/abc123"
+        );
+        assert_eq!(claude["stale"], false);
+        // OpenAI was not read; Groq's page never answered: unknown, stale.
+        assert!(accounts[1]["incident"].is_null());
+        let groq = &accounts[2]["incident"];
+        assert_eq!(groq["state"], "unknown");
+        assert_eq!(groq["stale"], true);
+        assert!(groq["read_at"].is_null() && groq["event"].is_null());
+        assert!(accounts[3]["incident"].is_null());
+
+        let off = serde_json::to_value(build_with(&config, &cycle, &[], Options::default()));
+        for account in off.unwrap()["accounts"].as_array().unwrap() {
+            assert!(account["incident"].is_null(), "{account}");
+        }
     }
 
     /// RF1.4: unknown values are `null`, never `0`, including non-finite
