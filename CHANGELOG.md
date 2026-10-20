@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-20
+
+### Added
+
+- The desktop app shows the consumption pace until the reset: a short line under the card's bar for the most restrictive metric ("Week: 8 points in reserve · lasts until the reset", or "runs out at 16:40, 2h 10m before the reset"), the pace of every metric in the details with an "Expected 47% used" mark drawn over the bar, and the same outlook in the tray tooltip and list; it is a linear estimate, windows that just opened or have no reset show nothing, and Settings → Appearance can hide it (on by default, saved in `desktop.json`) (PRD 0007 RF3).
+
 ## [0.30.0] - 2026-10-20
 
 ### Added
 
-- The desktop app can group accounts whose quota is used up or blocked in a collapsible "Recharging" section, below the others, where each card shows when it comes back ("Returns Today 14:30", or "Return unknown" when the provider gives no reset time); it is an option in Settings → Appearance, off by default, the group opens and closes with the mouse or Enter/Space, and the manual order holds inside each group without ever changing the order saved in `cuotai.toml` (PRD 0010 RF4).
+- The desktop app can group accounts whose quota is used up or blocked in a collapsible "Recharging" section, below the others, where each card shows when it comes back ("Returns Today 14:30", or "Return unknown" when the provider gives no reset time); it is an option in Settings → Appearance, off by default, the group opens and closes with the mouse or Enter/Space, and the manual order holds inside each group without ever changing the order saved in `cuotai.toml` (PRD 0010 RF4, 571fac3).
 
 ## [0.29.0] - 2026-10-20
 
@@ -318,8 +324,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/8f23ed7...main
-[0.30.0]: https://github.com/jmarcon/cuotai/compare/8f23ed7...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/571fac3...main
+[0.31.0]: https://github.com/jmarcon/cuotai/compare/571fac3...main
+[0.30.0]: https://github.com/jmarcon/cuotai/commit/571fac3
 [0.29.0]: https://github.com/jmarcon/cuotai/commit/8f23ed7
 [0.28.0]: https://github.com/jmarcon/cuotai/commit/4a87dbf
 [0.27.1]: https://github.com/jmarcon/cuotai/commit/4943177

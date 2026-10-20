@@ -248,7 +248,13 @@ pub struct Binding {
 /// smallest remaining fraction wins, ties going to the shortest window and
 /// then to the adapter's order. Non-`Ready` or unmeasured reports: `None`.
 pub fn binding(report: &Report) -> Option<Binding> {
-    let candidate = binding_candidate(report)?;
+    binding_where(report, |_| true)
+}
+
+/// [`binding`] among the metrics whose index `keep` accepts (e.g. the ones
+/// with a pace, PRD 0007 RF3.2), with the same order and ties.
+pub fn binding_where(report: &Report, keep: impl Fn(usize) -> bool) -> Option<Binding> {
+    let candidate = binding_candidate(report, &keep)?;
     let metric = &report.metrics[candidate.index];
     Some(Binding {
         index: candidate.index,
@@ -273,17 +279,25 @@ struct BindingCandidate {
     exhausted: bool,
 }
 
-fn binding_candidate(report: &Report) -> Option<BindingCandidate> {
+fn binding_candidate(report: &Report, keep: &dyn Fn(usize) -> bool) -> Option<BindingCandidate> {
     if report.status != Status::Ready {
         return None;
     }
-    select_kind(report, MetricKind::Quota).or_else(|| select_kind(report, MetricKind::RateLimit))
+    select_kind(report, MetricKind::Quota, keep)
+        .or_else(|| select_kind(report, MetricKind::RateLimit, keep))
 }
 
-fn select_kind(report: &Report, kind: MetricKind) -> Option<BindingCandidate> {
+fn select_kind(
+    report: &Report,
+    kind: MetricKind,
+    keep: &dyn Fn(usize) -> bool,
+) -> Option<BindingCandidate> {
     let mut selected: Option<BindingCandidate> = None;
     for (index, metric) in report.metrics.iter().enumerate() {
-        if metric.kind != kind || !metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0) {
+        if !keep(index)
+            || metric.kind != kind
+            || !metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0)
+        {
             continue;
         }
         let (ratio, exhausted) = match classify_metric(metric) {
@@ -344,7 +358,7 @@ fn window_rank(window: Option<MetricWindow>) -> u8 {
 
 /// Remaining fraction of the account's binding metric, if any.
 pub fn binding_ratio(report: &Report) -> Option<f64> {
-    binding_candidate(report).map(|candidate| candidate.ratio)
+    binding_candidate(report, &|_| true).map(|candidate| candidate.ratio)
 }
 
 /// Most restrictive account first; accounts without a binding value last.
@@ -830,6 +844,22 @@ mod tests {
         for status in [Status::AuthenticationError, Status::Error] {
             assert_eq!(binding(&report(status, metrics.clone())), None);
         }
+    }
+
+    #[test]
+    fn binding_where_picks_the_tightest_among_the_kept_metrics() {
+        let r = report(
+            Status::Ready,
+            vec![
+                quota(WEEK, Some(8.0), Some(8.0), Some(14)),
+                quota(WEEK, Some(2.0), Some(8.0), None),
+                quota(WEEK, Some(6.0), Some(8.0), None),
+            ],
+        );
+        assert_eq!(binding(&r).unwrap().index, 0);
+        // Without the blocked metric the 25%-left one binds, not the adapter's next.
+        assert_eq!(binding_where(&r, |i| i != 0).unwrap().index, 2);
+        assert_eq!(binding_where(&r, |_| false), None);
     }
 
     #[test]

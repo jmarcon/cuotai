@@ -97,8 +97,8 @@ export const setUserDir = (path) => call("set_user_dir", { path });
 export const MOTIONS = ["system", "always", "reduced", "off"];
 const applyMotion = (m) => { m = MOTIONS.includes(m) ? m : "system"; document.documentElement.dataset.motion = m; put("cuotai.motion", m); };
 export const setMotion = async (motion) => { await call("set_motion", { motion }); applyMotion(motion); };
-/** Ressincroniza o espelho com `desktop.json` (boot de cada janela); falha mantém o valor espelhado. */
-export const syncMotion = () => getSettings().then((s) => applyMotion(s.motion), () => {});
+/** Resyncs the mirrors from `desktop.json` when each window boots; on failure, keeps the mirrored values. */
+export const syncSettings = () => getSettings().then((s) => { applyMotion(s.motion); applyPace(s.show_pace); }, () => {});
 export const openUserDir = () => call("open_user_dir");
 /** "Sobre": identidade do projeto e lista de bibliotecas de código aberto (vem do core). */
 export const aboutInfo = () => call("about_info");
@@ -464,13 +464,13 @@ const dr = (account, provider, metrics, notes = [], status = "ready") => ({
   account, provider, checked_at: ago(3), status, metrics, notes, source: "demo", freshness: "fresh", clock_adjusted: false, last_good: null,
   class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null }, model_count: null });
 const demoReports = [
-  dr("alex@example.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 26, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
+  dr("alex@example.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 120, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
   { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 24.6, "quota", "weekly", "%")]), class: "exhausted", model_count: 1 },
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
   { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging" },
   { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("premium_interactions", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
-  dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 1, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
+  dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
   dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),
   dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
@@ -488,8 +488,8 @@ const demoReports = [
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
 const DEMO_BINDINGS = new Map([
-  [0, [2, 7]], [1, [1, 0]], [2, [0, 4]], [3, [1, 1]], [4, [null, 10]], [5, [0, 5]], [6, [0, 8]], [7, [0, 2]],
-  [8, [0, 9]], [9, [null, 11]], [10, [null, 12]], [11, [null, 13]], [12, [null, 14]], [13, [0, 6]], [14, [0, 3]], [15, [null, 15]],
+  [0, [2, 5]], [1, [1, 0]], [2, [0, 6]], [3, [1, 1]], [4, [null, 10]], [5, [1, 4]], [6, [0, 8]], [7, [0, 2]],
+  [8, [0, 9]], [9, [null, 11]], [10, [null, 12]], [11, [null, 13]], [12, [null, 14]], [13, [0, 7]], [14, [0, 3]], [15, [null, 15]],
 ].map(([index, binding]) => [demoReports[index], binding]));
 const demoBinding = (r) => {
   const [metricIndex] = DEMO_BINDINGS.get(r) ?? [];
@@ -500,11 +500,39 @@ const demoBinding = (r) => {
   return { index: metricIndex, label: m.label, window: m.window, used_ratio: usedRatio, remaining: m.limit * (1 - usedRatio),
     resets_at: m.resets_at, reason: exhausted ? "exhausted" : "tightest", blocked_until: exhausted ? m.resets_at : null };
 };
+// ponytail: fixed core pace output per demo metric (one per stage), same shape as `MetricView.pace`; the browser
+// demo never estimates pace itself. Add a mocked backend when the demo needs paces that follow the clock.
+const hhmm = (iso) => new Date(iso).toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
+  const delta = (used - expected) * 100, points = String(Math.round(Math.abs(delta)));
+  const label = { reserve: { id: "pace.reserve", params: { delta: points }, fallback: `${points} pontos de reserva` },
+    on_pace: { id: "pace.on_pace", fallback: "No ritmo" }, ahead: { id: "pace.ahead", params: { delta: points }, fallback: `${points} pontos acima do ritmo` },
+    exhausted: { id: "pace.exhausted", fallback: "Limite atingido até a renovação" } }[stage];
+  const at = runsOutH == null ? null : h(runsOutH);
+  const margin = runsOutH == null ? "" : fmtCountdown(h(resetH - runsOutH)).replace(/^(\d+d \d+h) \d+m$/, "$1");
+  const outlook = stage === "exhausted" ? null : at
+    ? { id: "pace.runs_out_at", params: { at: hhmm(at), margin }, fallback: `acaba às ${hhmm(at)}, ${margin} antes da renovação` }
+    : { id: "pace.lasts_until_reset", fallback: "dura até a renovação" };
+  return { elapsed_fraction: expected, expected_used_fraction: expected, used_fraction: used, delta_points: delta, stage, tone, source: "average",
+    resets_at: h(resetH), projected_exhaustion_at: at, lasts_until_reset: stage !== "exhausted" && !at, label, outlook };
+};
+// report index → [pace_index, { metric index: pace }]; windows that just opened (or not yet) have none, as in the core.
+const DEMO_PACES = new Map([
+  [0, [2, { 0: dp("reserve", "good", 0.926, 0.015, 0.37), 2: dp("on_pace", "neutral", 0.101, 0.12, 151, 124.7), 3: dp("reserve", "good", 0.096, 0, 151.9) }]],
+  [1, [1, { 0: dp("reserve", "good", 0.1, 0, 4.5), 1: dp("exhausted", "bad", 0.854, 1, 24.6) }]],
+  [5, [1, { 0: dp("reserve", "good", 0.48, 0.06, 2.6), 1: dp("ahead", "warn", 0.413, 0.6, 98.6, 46.3), 2: dp("reserve", "good", 0.48, 0, 2.6) }]],
+  [7, [0, { 0: dp("exhausted", "bad", 0.351, 1, 109) }]],
+  [8, [0, { 0: dp("reserve", "good", 0.656, 0, 248) }]],
+  [14, [0, { 0: dp("exhausted", "bad", 0.866, 1, 100) }]],
+].map(([index, pace]) => [demoReports[index], pace]));
 const demoView = () => {
   const now = new Date().toISOString();
-  const reports = demoReports.map((r, index) => ({ ...r, index, binding: demoBinding(r),
-    binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
-    next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth }));
+  const reports = demoReports.map((r, index) => {
+    const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
+    return { ...r, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
+      metrics: r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null })), pace_index: paceIndex,
+      next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth };
+  });
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
     started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation };
 };
@@ -596,9 +624,10 @@ const demo = {
   sync_models: demoModels,
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
-  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), version: "demo" }),
+  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off", version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
+  set_show_pace: async () => {},
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
   // Demonstração: amostra da lista real (no app, a lista completa vem do core).
@@ -634,10 +663,38 @@ export const groupingRecharging = () => groupRecharging;
 export const setGroupRecharging = (on) => { groupRecharging = on; put(GROUP_KEY, on ? "on" : "off"); };
 /** [others, recharging] in the order already chosen; with grouping off, everything stays in the first list. */
 export const splitRecharging = (list) => (groupRecharging ? [list.filter((r) => !isRecharging(r)), list.filter(isRecharging)] : [list, []]);
+// PRD 0007 RF3.4: consumption pace, on by default; `desktop.json` is the source, localStorage mirrors it for windows.
+const PACE_KEY = "cuotai.pace";
+let showPace = get(PACE_KEY, "on") !== "off";
+const applyPace = (on) => { showPace = on !== false; put(PACE_KEY, showPace ? "on" : "off"); };
+export const paceShown = () => showPace;
+export const setShowPace = async (on) => { await call("set_show_pace", { show: on }); applyPace(on); };
+/** The core's pace of `m` (never estimated here); null when the core has none or the user hid pace. */
+export const paceOf = (m) => (showPace ? m.pace ?? null : null);
+/** PRD 0007 RF3.2: the card's metric — the core's most restrictive metric with a pace, unless the user hid it. */
+export const cardPace = (r) => {
+  const m = r.status === "ready" && r.pace_index != null ? r.metrics[r.pace_index] : null;
+  return m && paceOf(m) && !isMetricHidden(r, m) ? m : null;
+};
+/** "8 points in reserve · lasts until the reset" from the core texts; `expected` adds "Expected 47% used",
+ *  `label` prefixes the metric, `short` keeps only the outlook (the stage when exhausted). */
+export function paceText(p, { expected = false, label = "", short = false } = {}) {
+  const parts = short ? [tl(p.outlook ?? p.label)]
+    : [tl(p.label), expected ? t("metric.pace.expected", { pct: Math.round(p.expected_used_fraction * 100) }) : "", p.outlook ? tl(p.outlook) : ""];
+  const text = parts.filter(Boolean).join(" · ");
+  return label ? `${label}: ${text}` : text;
+}
+const PACE_ICON = { good: "check", neutral: "clock", warn: "warn", bad: "xcircle" };
+/** Pace line: tone icon plus text (never color alone); the tooltip says it is a linear estimate. */
+export function paceHtml(p, opts) {
+  const text = paceText(p, opts);
+  return `<p class="pace-line" data-pace="${esc(p.stage)}" title="${esc(`${text}. ${t("card.pace.estimate")}`)}">${icon(PACE_ICON[p.tone] ?? "clock", p.tone)}<span>${esc(text)}</span></p>`;
+}
 export function initOrderSync(onChange) {
   addEventListener("storage", (e) => {
     if (e.key === SORT_KEY && SORT_MODES.includes(e.newValue)) sortMode = e.newValue;
     else if (e.key === GROUP_KEY) groupRecharging = e.newValue === "on";
+    else if (e.key === PACE_KEY) showPace = e.newValue !== "off";
     else return;
     onChange();
   });

@@ -12,10 +12,12 @@ use cuotai_core::{
     identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{
-        binding, classify_metric, classify_report, cmp_binding, AccountClass, Binding, MetricState,
+        binding, binding_where, classify_metric, classify_report, cmp_binding, AccountClass,
+        Binding, MetricState,
     },
     models::{self, ModelError, ModelState},
     oauth::OAuthSession,
+    pace::{self, Pace},
     refresh::{Edit, RefreshCycle},
     Config, EnvironmentCredentials, Metric, Monitor, Provider, Report, Status,
 };
@@ -221,6 +223,49 @@ pub struct MetricView {
     /// "available") plus `no_cap` or `ratio`/`uncapped`.
     #[serde(flatten)]
     state: MetricState,
+    /// PRD 0007 RF3.1: the core's pace (`pace::assess` with the backend's
+    /// clock); `None` for ineligible metrics and for the preserved reading.
+    pace: Option<PaceView>,
+}
+
+/// The core's `Pace` plus its texts: `label` (stage) and `outlook` (`None`
+/// when exhausted), with `at` in local time and `margin` as `2h 10m`.
+#[derive(Serialize, Clone)]
+pub struct PaceView {
+    #[serde(flatten)]
+    pace: Pace,
+    label: cuotai_core::text::Localized,
+    outlook: Option<cuotai_core::text::Localized>,
+}
+
+fn pace_view(pace: Pace) -> PaceView {
+    PaceView {
+        label: pace.stage_label(),
+        outlook: pace.outlook_label(local_at, compact_span),
+        pace,
+    }
+}
+
+/// Local `HH:MM`, with the date when it is not today (as the TUI does).
+fn local_at(at: chrono::DateTime<chrono::Utc>) -> String {
+    let local = at.with_timezone(&chrono::Local);
+    let today = local.date_naive() == chrono::Local::now().date_naive();
+    local
+        .format(if today { "%H:%M" } else { "%Y-%m-%d %H:%M" })
+        .to_string()
+}
+
+/// `1d 4h`, `2h 10m`, `40m`: the UI's countdown style.
+fn compact_span(span: chrono::TimeDelta) -> String {
+    let minutes = span.num_minutes().max(0);
+    let (days, hours, mins) = (minutes / 1440, minutes / 60 % 24, minutes % 60);
+    if days > 0 {
+        format!("{days}d {hours}h")
+    } else if hours > 0 {
+        format!("{hours}h {mins}m")
+    } else {
+        format!("{mins}m")
+    }
 }
 
 #[derive(Serialize, Clone)]
@@ -260,6 +305,9 @@ pub struct ReportView {
     /// PRD 0010 RF3.2: the core's last valid reading, only while the current
     /// report failed (`RefreshCycle::last_good_report`). Display only.
     last_good: Option<LastGoodView>,
+    /// PRD 0007 RF3.2: index (into `metrics`) of the most restrictive metric
+    /// that has a pace (the core's binding rule restricted to them).
+    pace_index: Option<usize>,
 }
 
 /// The preserved reading: its original `checked_at` and metrics. The UI always
@@ -305,6 +353,7 @@ fn metric_view(metric: &Metric) -> MetricView {
     MetricView {
         metric: metric.clone(),
         state: classify_metric(metric),
+        pace: None,
     }
 }
 
@@ -320,13 +369,22 @@ fn report_view(
     let binding = binding(report);
     let refresh_seconds = account.effective_refresh_seconds(config.refresh_seconds);
     let now = chrono::Utc::now();
+    let metrics: Vec<MetricView> = report
+        .metrics
+        .iter()
+        .map(|metric| MetricView {
+            pace: pace::assess(metric, now, None).map(pace_view),
+            ..metric_view(metric)
+        })
+        .collect();
+    let pace_index = binding_where(report, |i| metrics[i].pace.is_some()).map(|b| b.index);
     ReportView {
         index,
         account: report.account.clone(),
         provider: report.provider,
         checked_at: report.checked_at,
         status: report.status,
-        metrics: report.metrics.iter().map(metric_view).collect(),
+        metrics,
         notes: report.notes.clone(),
         notes_l10n: report.notes_l10n.clone(),
         source: report.source.clone(),
@@ -341,6 +399,7 @@ fn report_view(
         freshness: assess(report.checked_at, Duration::from_secs(refresh_seconds), now),
         clock_adjusted: clock_adjusted(report.checked_at, now),
         last_good: None,
+        pace_index,
     }
 }
 
@@ -2223,6 +2282,40 @@ mod tests {
         let view = serde_json::to_value(g.view()).unwrap();
         assert!(view["reports"][0]["last_good"].is_null());
         assert_eq!(view["reports"][0]["freshness"], "fresh");
+    }
+
+    #[test]
+    fn view_carries_each_metric_pace_and_the_tightest_metric_with_one() {
+        use cuotai_core::MetricWindow::{Other, Weekly, Window5h};
+        let config = Config {
+            accounts: vec![plain_account("a")],
+            ..Config::default()
+        };
+        let report = ready(
+            "a",
+            vec![
+                quota("5h", 40.0, Window5h, 2),
+                quota("week", 88.0, Weekly, 30),
+                quota("credits", 95.0, Other, 30),
+                quota("fresh", 50.0, Window5h, 5),
+            ],
+        );
+        let view = serde_json::to_value(report_view(0, &report, &config, None, None, 0)).unwrap();
+        let m = &view["metrics"];
+        // 3 h of 5 h gone, 40% used: 20 points in reserve, lasts.
+        assert_eq!(m[0]["pace"]["stage"], "reserve");
+        assert_eq!(m[0]["pace"]["label"]["params"]["delta"], "20");
+        assert_eq!(m[0]["pace"]["outlook"]["id"], "pace.lasts_until_reset");
+        // 138 h of 168 h gone, 88% used: ahead, runs out ~11 h before the reset.
+        assert_eq!(m[1]["pace"]["stage"], "ahead");
+        assert_eq!(m[1]["pace"]["outlook"]["id"], "pace.runs_out_at");
+        assert_eq!(m[1]["pace"]["outlook"]["params"]["margin"], "11h 10m");
+        // No uniform window, and a freshly opened one: no invented pace.
+        assert!(m[2]["pace"].is_null());
+        assert!(m[3]["pace"].is_null());
+        // The binding is the 95% "credits"; the card's pace line uses the week.
+        assert_eq!(view["binding"]["index"], 2);
+        assert_eq!(view["pace_index"], 1);
     }
 
     #[test]
