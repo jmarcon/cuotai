@@ -11,7 +11,8 @@ use std::time::Duration;
 /// How old a measurement is relative to the account's refresh interval.
 ///
 /// `Fresh` up to 1.5× the interval, `Aging` up to 3×, `Stale` above that.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Freshness {
     Fresh,
     Aging,

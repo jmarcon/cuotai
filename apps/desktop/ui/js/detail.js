@@ -2,8 +2,8 @@
 // Critério único: percentual DISPONÍVEL, barra = disponível, quantidade = usado / limite; métricas sem limite viram texto.
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
-  STALE, bindingChipText, errText, esc, fmtAmount, fmtReset, getView, icon, isBindingMetric, isMetricHidden, level, loadModels, metricKey, modelState, noteText,
-  remainingPct, reportKey, statusLabel, syncModels, textualMetric,
+  STALE, ageHtml, bindingChipText, errText, esc, fmtAmount, fmtReset, getView, icon, isBindingMetric, isMetricHidden, isStaleReading, level, loadModels, metricKey, modelState, noteText,
+  remainingPct, reportKey, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
 /** `eye`: mostra o botão de ocultar/exibir a quota (só no diálogo). */
@@ -31,13 +31,21 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
   </div>`;
 }
 
-/** Lista de quotas + notas. Sem `eye` (popover), as ocultas não aparecem. */
+/** Lista de quotas + notas. Sem `eye` (popover), as ocultas não aparecem. PRD 0010 RF3: the age leads; a failure
+ *  with a preserved reading lists the old metrics dimmed under the cause of the failure. */
 export function detailHtml(r, { eye = false } = {}) {
   const notes = r.notes.map((_, index) => noteText(r, index));
+  const age = `<div class="det-age">${ageHtml(r)}</div>`;
+  if (isStaleReading(r)) {
+    const s = staleView(r);
+    const metrics = eye ? s.metrics : s.metrics.filter((m) => !isMetricHidden(s, m));
+    return `<div class="detail">${age}<p class="cause">${icon("warn")}<span>${esc(notes[0] ?? statusLabel(r.status))}</span></p>
+      <div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye })).join("")}</div>${notes.slice(1).map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  }
   if (!r.metrics.length)
-    return `<div class="detail"><div class="metric"><p class="sub">${esc(notes[0] ?? statusLabel(r.status))}</p></div>${notes.slice(1).map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+    return `<div class="detail">${age}<div class="metric"><p class="sub">${esc(notes[0] ?? statusLabel(r.status))}</p></div>${notes.slice(1).map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
-  return `<div class="detail">${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  return `<div class="detail">${age}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
 }
 
 // ---------- modelos (PRD 0002 RF6) ----------

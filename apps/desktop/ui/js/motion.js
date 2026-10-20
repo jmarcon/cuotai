@@ -23,10 +23,12 @@ const RANK = { good: 1, warn: 2, bad: 3 };
 /** Pior nível entre as porcentagens do cartão ("" sem nenhuma). */
 function worst(card) {
   let lv = "";
-  for (const e of card.querySelectorAll("[data-pct]")) for (const c of e.classList) if (RANK[c] > (RANK[lv] ?? 0)) lv = c;
+  for (const e of card.querySelectorAll(LIVE_PCT)) for (const c of e.classList) if (RANK[c] > (RANK[lv] ?? 0)) lv = c;
   return lv;
 }
 
+// PRD 0010 RF3.2: a preserved (stale) reading is still: no count-up and no level flash.
+const LIVE_PCT = "[data-pct]:not(.stale-reading *)";
 const counting = new Map(); // contagem em andamento: elemento → id do rAF
 function countUp(el, from, to, ms) {
   const text = el.firstChild; // "42%" (o `<small>` do resumo vem depois)
@@ -49,7 +51,7 @@ export function before(root) {
   for (const el of root.querySelectorAll("[data-card]")) {
     cards.set(el.dataset.card, { el, rect: el.getBoundingClientRect(), lv: worst(el), out: el.classList.contains("exhausted") });
   }
-  return { cards, pcts: new Map([...root.querySelectorAll("[data-pct]")].map((e) => [e, parseFloat(e.textContent)])) };
+  return { cards, pcts: new Map([...root.querySelectorAll(LIVE_PCT)].map((e) => [e, parseFloat(e.textContent)])) };
 }
 
 /** Depois do `patch`: anima a diferença em relação a `before`. */
@@ -105,7 +107,7 @@ export function after(root, prev) {
 
   // Porcentagens: contam do valor exibido até o novo enquanto a barra (CSS) transita.
   if (slow) {
-    for (const e of root.querySelectorAll("[data-pct]")) {
+    for (const e of root.querySelectorAll(LIVE_PCT)) {
       const from = prev.pcts.get(e), to = Number(e.dataset.pct);
       if (Number.isFinite(from) && from !== to) countUp(e, from, to, slow);
     }

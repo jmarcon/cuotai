@@ -6,7 +6,7 @@ import { easeOut, motionMs } from "./motion.js";
 import {
   bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
-  bindingPct, bindingChipText, blockedText, ALERTS, alertOf, windowsOf, onHiddenChange,
+  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange,
 } from "./lib.js";
 
 await boot();
@@ -28,6 +28,7 @@ function row(r) {
     <div class="row-main">
       <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${lv}">${esc(value)}</span></div>
       <div class="row-sub">${esc(r.account)}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
+      <div class="row-age">${ageHtml(r)}</div>
       <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
     </div>${icon("chev", "chev")}</button>`;
 }
@@ -71,6 +72,7 @@ function tile(r) {
     alert ? alert.label() : pct != null ? te2("metric.level." + lv, { pct: Math.round(pct) }) : "",
     blockedText(r) ?? "",
     r.binding ? bindingChipText(r) : "",
+    ageText(r),
     ...(w.h5 ? [`${t("card.window.h5")}: ${Math.round(w.h5.pct)}%`] : []),
     ...(w.week ? [`${t("card.window.week")}: ${Math.round(w.week.pct)}%`] : [])].filter(Boolean);
   const center = alert ? icon(alert.icon) : pct != null ? `${Math.round(pct)}%` : "—";
@@ -78,7 +80,7 @@ function tile(r) {
   return `<button class="tile" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}" data-binding="${esc(r.binding?.window ?? "")}">
     ${donutHtml(alert && pct == null ? 100 : pct, tone, center)}
     <span class="tile-name">${logo(r.provider, 14)}<b>${esc(brand(r.provider).label)}</b></span>
-    <span class="tile-acct">${esc(r.account)}</span></button>`;
+    <span class="tile-acct">${esc(r.account)}</span>${ageHtml(r)}</button>`;
 }
 const te2 = (key, vars) => t(key, vars);
 

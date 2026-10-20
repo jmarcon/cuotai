@@ -78,6 +78,48 @@
 .win.binding .win-name::after {
   content: " \25CF";
 }
+/* PRD 0010 RF3: measurement age with the freshness icon and text (never color alone) */
+.age {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.age svg.i {
+  width: 13px;
+  height: 13px;
+}
+.age.aging { color: var(--warn); }
+.age.stale {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+  font-weight: 600;
+}
+/* RF3.2: the preserved reading is dimmed and still (no bar transition) */
+.stale-reading {
+  opacity: 0.5;
+}
+.stale-reading .bar > span {
+  transition: none;
+}
+/* `.sum-note.cause`: main.css (loaded later) styles `.sum-note` as a clamped muted box */
+.cause,
+.sum-note.cause {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bad);
+}
+.cause svg.i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
 .metric-right {
   display: flex;
   align-items: center;

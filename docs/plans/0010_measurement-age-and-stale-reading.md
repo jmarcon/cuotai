@@ -11,13 +11,14 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
-## Implementation status (2026-10-19)
+## Implementation status (2026-10-20)
 
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | 0.21.0 | `cuotai_core::freshness`: `age(checked_at, now)`, `assess(checked_at, interval, now) -> Freshness` (`Fresh` ≤ 1.5× the effective interval, `Aging` ≤ 3×, `Stale` above, compared in whole durations) and `clock_adjusted(checked_at, now)` for a clock that went backwards (age reads zero, never an error). Pure, injected clock; table tests at 30 s, 300 s and 3600 s. Core only: front ends consume it from RF3 and RF5. |
 | RF2 | 0.25.0 | `RefreshCycle` keeps `last_good` per account beside the current report; `last_good_report(index)` returns it only while the current report is missing or not `Ready`. `Ready` replaces it, `AuthenticationError` discards it, `RateLimited`/`Error`/others keep it; `Edit::Upsert` discards the touched account's reading, `Remove`/`Move` carry the rest; `keep_last_good_from` carries it across the desktop's cycle rebuild for a global interval change. `slots`, `snapshot()` and `--json` are unchanged, so alerts and history never see it. RF2.3 holds per session only: surviving a restart waits for PRD 0006 RF2/RF3 (`latest`). Front ends display it from RF3 and RF5. |
-| RF3 to RF5 | — | Not delivered. |
+| RF3 | 0.28.0 | The desktop `ReportView` carries the core `freshness` (`freshness::assess` against `Account::effective_refresh_seconds`), `clock_adjusted` and `last_good` (`{checked_at, metrics}` from `RefreshCycle::last_good_report`, present only while the current report failed); the UI re-reads the view every 30 s, so age and freshness follow the clock with no new query. Cards, tray tiles and list rows, the details (dialog and popover) and each native tray menu line show "3 min ago" with a Fresh/Aging/Stale icon and text (the absolute time in the tooltip); the tray icon tooltip names the oldest reading. A failure with a preserved reading draws the old metrics dimmed and still (no bar transition, count-up or level flash) under the localized cause, with a "Stale · 42 min ago" badge; the binding, alerts and ordering keep reading the current report only. The next `Ready` removes it; `AuthenticationError` drops it (RF2.4). Browser smoke in pt-BR, en-US and es with healthy, aging, failing-with-reading and failing-without-reading accounts. |
+| RF4, RF5 | — | Not delivered. |
 
 ## 1. Context
 
