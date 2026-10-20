@@ -9,14 +9,22 @@ mod wizard;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use cuotai_core::{
-    config_file::ConfigFile, metrics, oauth::OAuthSession, pace, EnvironmentCredentials, Monitor,
-    Provider, Report, Snapshot, Status,
+    config_file::ConfigFile,
+    history::{HistoryStore, Retention},
+    metrics,
+    oauth::OAuthSession,
+    pace::{self, Point},
+    EnvironmentCredentials, Monitor, Provider, Report, Snapshot, Status,
 };
 use std::{
     io::{self, IsTerminal, Write},
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
+
+/// How long `--once`/`--json` wait for the readings to reach the history.
+const HISTORY_FLUSH: Duration = Duration::from_secs(5);
 
 #[derive(Parser)]
 #[command(
@@ -43,6 +51,24 @@ struct Args {
     /// Desliga as animações da TUI (também: CUOTAI_NO_ANIMATIONS=1).
     #[arg(long)]
     no_animations: bool,
+    /// Dias de histórico local de medições mantidos (7 a 365; padrão 90).
+    #[arg(long, value_name = "DIAS")]
+    history_days: Option<u32>,
+}
+
+/// PRD 0006 RF4.1: the retention of `--history-days`, or the default.
+fn retention(days: Option<u32>) -> Result<Retention, String> {
+    days.map_or(Ok(Retention::default()), |days| {
+        Retention::days(days).map_err(|error| error.l10n().resolve(ui::tui_locale()))
+    })
+}
+
+/// PRD 0006: the history of `file` in the OS data dir, pruned by
+/// `retention`; `None` (nothing recorded) without a resolvable data dir.
+pub(crate) fn history_store(file: &ConfigFile, retention: Retention) -> Option<HistoryStore> {
+    HistoryStore::in_data_dir(file)
+        .ok()
+        .map(|store| store.with_retention(retention))
 }
 
 #[tokio::main]
@@ -72,6 +98,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err("A TUI requer terminal interativo. Use --once ou --json.".into());
     }
+    let retention = retention(args.history_days)?;
     let file = ConfigFile::load(args.config, interactive)?;
     let session = Arc::new(match args.dev_credentials_sqlite {
         Some(path) => {
@@ -82,14 +109,32 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         None => OAuthSession::system()?,
     });
     if args.once || args.json {
-        let monitor = Monitor::with_oauth(file.config, Arc::new(EnvironmentCredentials), session)?;
+        let history = history_store(&file, retention);
+        let mut monitor =
+            Monitor::with_oauth(file.config, Arc::new(EnvironmentCredentials), session)?;
+        if let Some(store) = history {
+            monitor = monitor.with_history(store);
+        }
+        monitor.mark_history_removed();
         let snapshot = monitor.refresh().await;
+        // The readings are queued off the refresh; let them land first.
+        monitor.flush_history(HISTORY_FLUSH);
         if args.json {
             let mut stdout = io::stdout().lock();
             serde_json::to_writer_pretty(&mut stdout, &snapshot)?;
             writeln!(stdout)?;
         } else {
-            print_snapshot(&snapshot);
+            let now = Utc::now();
+            let recent: Vec<Vec<Vec<Point>>> = snapshot
+                .reports
+                .iter()
+                .enumerate()
+                .map(|(index, report)| monitor.recent_points(index, &report.metrics, now))
+                .collect();
+            print_snapshot(&snapshot, &recent, now);
+        }
+        if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
+            eprintln!("cuotai: {}", warning.resolve(ui::tui_locale()));
         }
         return Ok(
             if snapshot.reports.iter().all(|r| r.status == Status::Ready) {
@@ -100,35 +145,37 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         );
     }
     let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
-    ui::run(file, session, animations).await?;
+    ui::run(file, session, animations, retention).await?;
     Ok(0)
 }
 
-fn print_snapshot(snapshot: &Snapshot) {
+fn print_snapshot(snapshot: &Snapshot, recent: &[Vec<Vec<Point>>], now: DateTime<Utc>) {
     println!("CUOTAI • {}", snapshot.finished_at.to_rfc3339());
     print!(
         "\n{}",
         summary_lines(snapshot, ui::tui_locale(), ui::local_time)
     );
-    let now = Utc::now();
-    for report in &snapshot.reports {
+    for (index, report) in snapshot.reports.iter().enumerate() {
+        let recent = recent.get(index).map_or(&[][..], Vec::as_slice);
         print!(
             "{}",
-            report_text(report, now, ui::tui_locale(), ui::local_time)
+            report_text(report, recent, now, ui::tui_locale(), ui::local_time)
         );
     }
 }
 
 /// One `--once` account block: heading, metrics (with the PRD 0007 RF4 pace
-/// line under each eligible one), notes and source.
+/// line under each eligible one, projected from the recorded `recent`
+/// points of each metric when there are enough), notes and source.
 fn report_text(
     report: &Report,
+    recent: &[Vec<Point>],
     now: DateTime<Utc>,
     locale: &str,
     at: impl Fn(DateTime<Utc>) -> String,
 ) -> String {
     let mut out = format!("\n{}\n", report_heading(report, now));
-    for metric in &report.metrics {
+    for (index, metric) in report.metrics.iter().enumerate() {
         out += &format!(
             "  {}: {}\n",
             ui::safe(&metric.label),
@@ -140,7 +187,8 @@ fn report_text(
         if let Some(reset) = metric.resets_at {
             out += &format!("    Renova: {}\n", reset.to_rfc3339());
         }
-        if let Some(pace) = pace::assess(metric, now, None) {
+        let points = recent.get(index).map(Vec::as_slice);
+        if let Some(pace) = pace::assess(metric, now, points) {
             let text = dashboard::pace_text(&pace, locale, &at);
             out += &format!("    Ritmo: {text} (estimativa linear)\n");
         }
@@ -304,7 +352,7 @@ mod tests {
         );
         let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
         assert_eq!(
-            report_text(&report, now, "en-US", at),
+            report_text(&report, &[], now, "en-US", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
              \x20 Window5h: 40.00 % / 100.00\n\
              \x20   Renova: 2026-01-01T02:00:00+00:00\n\
@@ -316,7 +364,17 @@ mod tests {
              \x20   Renova: 2026-01-01T23:55:00+00:00\n\
              \x20 Monthly: 10.00 % / 100.00\n"
         );
-        assert!(report_text(&report, now, "es", at)
+        assert!(report_text(&report, &[], now, "es", at)
             .contains("Ritmo: 6 puntos por encima del ritmo · se agota a las 18:49"));
+
+        // PRD 0007 RF1.5 with the recorded history: the 5-hour window rose
+        // 30 points in the last 40 minutes, so it runs out before the reset.
+        let point = |minutes: i64, used: f64| Point {
+            taken_at: now - chrono::Duration::minutes(minutes),
+            used,
+        };
+        let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
+        assert!(report_text(&report, &recent, now, "en-US", at)
+            .contains("Ritmo: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"));
     }
 }

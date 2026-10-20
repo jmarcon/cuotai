@@ -102,6 +102,16 @@ export const setMotion = async (motion) => { await call("set_motion", { motion }
 /** Resyncs the mirrors from `desktop.json` when each window boots; on failure, keeps the mirrored values. */
 export const syncSettings = () => getSettings().then((s) => { applyMotion(s.motion); applyPace(s.show_pace); }, () => {});
 export const openUserDir = () => call("open_user_dir");
+// PRD 0006 RF4: measurement history retention (desktop.json), export and erasure; the core does the work.
+export const setHistoryDays = (days) => call("set_history_days", { days });
+export const historyExport = (index, days, format, path) => call("history_export", { index, days, format, path });
+export const historyErase = (index) => call("history_erase", { index });
+/** Native "save as" for an export (`csv` or `json`); null when cancelled. */
+export async function pickExportFile(format) {
+  const defaultPath = `cuotai-history.${format}`;
+  if (isDesktop && T.dialog) return T.dialog.save({ defaultPath, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
+  return `/Users/demo/${defaultPath}`; // navegador (demo)
+}
 /** "Sobre": identidade do projeto e lista de bibliotecas de código aberto (vem do core). */
 export const aboutInfo = () => call("about_info");
 /** Abre no navegador um repositório da lista do "Sobre" (o shell recusa qualquer outro endereço). */
@@ -241,8 +251,9 @@ export const returnText = (r) => {
   return at ? t("group.returnsAt", { time: at }) : t("group.returnUnknown");
 };
 // ---------- PRD 0010 RF3: measurement age and the preserved reading ----------
-/** The current query failed and the core kept the last valid reading (`r.last_good`): always shown as stale. */
-export const isStaleReading = (r) => r.status !== "ready" && r.last_good != null;
+/** The current query failed, or none answered yet (`r.pending`, a reading restored from the history on opening),
+ *  and the core kept the last valid reading (`r.last_good`): always shown as stale. */
+export const isStaleReading = (r) => (r.pending || r.status !== "ready") && r.last_good != null;
 /** Instant of the reading on screen: the preserved one while the current query failed. */
 export const shownAt = (r) => (isStaleReading(r) ? r.last_good.checked_at : r.checked_at);
 /** "3 min ago" in minute steps; a future instant (clock adjusted backwards) reads "now", never an error. */
@@ -278,7 +289,7 @@ export const noteText = (report, index) =>
   report.notes_l10n?.[index] ? tl(report.notes_l10n[index]) : report.notes[index] ?? "";
 /** PRD 0005 RF4.2: what a failed account shows first: the core's explanation (an Unavailable account's reason, a
  *  changed undocumented interface), else the adapter's first note, else the status. */
-export const causeText = (r) => (r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
+export const causeText = (r) => (r.pending ? t("card.waiting") : r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
 /** Adapter notes still to list after `causeText` (all of them when the core's explanation took the first place). */
 export const restNotes = (r) => r.notes.map((_, index) => noteText(r, index)).slice(r.access?.explanation ? 0 : 1);
 /** PRD 0005 RF4.1: the core's level and summary in one discreet line; `full` wraps instead of cutting. */
@@ -499,6 +510,9 @@ const demoReports = [
   dr("Work", "poolside", [], ["Poolside não publica endpoint de uso/saldo por chave."], "unsupported"),
   { ...dr("Personal", "zed", [], ["Resposta incompatível com a interface de consulta; nenhum valor foi estimado."], "error"),
     notes_l10n: [{ id: "query.schema", params: {}, fallback: "Resposta incompatível com a interface de consulta; nenhum valor foi estimado." }] },
+  // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
+  { ...dr("Restored", "chat_gpt", []), pending: true, class: "unmeasured", checked_at: ago(180),
+    last_good: { checked_at: ago(180), metrics: [dm("5h", 30, 100, 2, "quota", "window_5h", "%")] } },
 ];
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
@@ -549,7 +563,11 @@ const demoView = () => {
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r) };
   });
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
-    started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation };
+    started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation,
+    // `?history-warning` shows the size-ceiling warning (PRD 0006 RF4.3) the core would send.
+    history_warning: new URLSearchParams(location.search).has("history-warning")
+      ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "O histórico passou de 64 MiB: as 1200 medições mais antigas foram apagadas." }
+      : null };
 };
 // ponytail: demo mirror of `access::describe` + `UsageAccess::explain` (default modes, generic pt summary and
 // evidence); the app reads both from the core.
@@ -579,7 +597,7 @@ const demo = {
   // Demo of PRD 0010 RF3.2: refreshing the failing account succeeds, so its preserved reading (and badge) goes away.
   refresh_account: async ({ index }) => {
     const r = demoReports[index];
-    if (r?.last_good) demoReports[index] = { ...r, status: "ready", checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
+    if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
   },
   list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, level: demoLevel(demoLevelOf(id)) })),
   // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
@@ -664,10 +682,15 @@ const demo = {
   sync_models: demoModels,
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
-  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off", version: "demo" }),
+  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
+    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
+  set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
+  // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven.
+  history_export: async ({ index }) => (index == null ? 42 : 7),
+  history_erase: async ({ index }) => (index == null ? 42 : 7),
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
   // Demonstração: amostra da lista real (no app, a lista completa vem do core).

@@ -17,9 +17,11 @@ use crossterm::{
 use cuotai_core::{
     account_edit::{self, RemoveError, RemoveOutcome, RemovedAccount},
     config_file::ConfigFile,
+    history::Retention,
     login::{self, CompletedLogin},
     models::ModelCache,
     oauth::OAuthSession,
+    pace::Point,
     refresh::{Edit, RefreshCycle},
     Account, Config, EnvironmentCredentials, Metric, Monitor, Snapshot,
 };
@@ -189,8 +191,9 @@ pub async fn run(
     mut file: ConfigFile,
     session: Arc<OAuthSession>,
     animations: bool,
+    retention: Retention,
 ) -> io::Result<()> {
-    let mut monitor = new_monitor(&file, &session)?;
+    let mut monitor = new_monitor(&file, &session, retention)?;
     let mut auth_task: Option<LoginTask> = None;
     let mut authorized: Option<CompletedLogin> = None;
     let mut saving_config: Option<(Config, Option<usize>)> = None;
@@ -224,10 +227,14 @@ pub async fn run(
         details: false,
         targets: dashboard::Targets::default(),
         model_counts: ModelCounts::default(),
+        history: HistoryView::default(),
         anim: animations.then(|| Anim::new(motion::truecolor(|key| std::env::var(key).ok()))),
     };
     let mut frame_area = Rect::default();
     let mut refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
+    // PRD 0010 RF2.3: the last recorded readings show, stale, until the
+    // first query of each account answers.
+    refresh_cycle.restore_last_good(monitor.restored_readings());
     let mut refresh = Refresh(if wizard.is_none() {
         // Claim the full-sweep token BEFORE spawning the task: any
         // edit/remove that lands while the task is in flight bumps
@@ -938,6 +945,7 @@ pub async fn run(
                         .then(|| refresh_cycle.next_refresh_in(index, Instant::now()))
                 });
                 state.model_counts.refresh(&monitor, state.accounts.len());
+                state.history.refresh(&monitor, &refresh_cycle);
                 state.draw(&mut terminal, &refresh_cycle, refreshing, next)?;
                 frame_area = state.targets.area;
             }
@@ -1180,22 +1188,30 @@ fn location(file: &ConfigFile) -> String {
     line
 }
 
-/// Monitor for `file` with its model cache in the OS data dir; without a
-/// resolvable data dir, model operations report `NoCache` and quotas work.
-fn new_monitor(file: &ConfigFile, session: &Arc<OAuthSession>) -> io::Result<Arc<Monitor>> {
-    let monitor = Monitor::with_oauth(
+/// Monitor for `file` with its model cache and measurement history (pruned
+/// by `retention`) in the OS data dir; without a resolvable data dir, model
+/// operations report `NoCache`, nothing is recorded and quotas work.
+fn new_monitor(
+    file: &ConfigFile,
+    session: &Arc<OAuthSession>,
+    retention: Retention,
+) -> io::Result<Arc<Monitor>> {
+    let mut monitor = Monitor::with_oauth(
         file.config.clone(),
         Arc::new(EnvironmentCredentials),
         Arc::clone(session),
     )
     .map_err(io::Error::other)?;
-    let monitor = match ModelCache::in_data_dir(file) {
-        Ok(cache) => monitor.with_model_cache(cache),
-        Err(_) => monitor,
-    };
+    if let Ok(cache) = ModelCache::in_data_dir(file) {
+        monitor = monitor.with_model_cache(cache);
+    }
+    if let Some(store) = crate::history_store(file, retention) {
+        monitor = monitor.with_history(store);
+    }
     // Just loaded from the TOML: drop catalogs of accounts gone from it.
     // A cache failure only keeps stale digests; model ops report it.
     let _ = monitor.prune_models();
+    monitor.mark_history_removed();
     Ok(Arc::new(monitor))
 }
 
@@ -1232,7 +1248,11 @@ fn reload_config_after_conflict(
         true,
     )
     .map_err(|e| e.message())?;
-    let new_monitor = new_monitor(&candidate, session).map_err(|e| format!("monitor: {e}"))?;
+    let retention = monitor
+        .history()
+        .map_or_else(Retention::default, |store| store.retention());
+    let new_monitor =
+        new_monitor(&candidate, session, retention).map_err(|e| format!("monitor: {e}"))?;
     // Commit: from here on a panic would leave the runtime in a
     // consistent (old) configuration; the candidate has been
     // validated but not yet swapped.
@@ -1243,6 +1263,7 @@ fn reload_config_after_conflict(
     *file = candidate;
     *monitor = new_monitor;
     *refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
+    refresh_cycle.restore_last_good(monitor.restored_readings());
     *account_refresh = AccountRefresh::new(file.config.accounts.len());
     state.accounts = file.config.accounts.clone();
     state.detail_scroll = 0;
@@ -1350,6 +1371,7 @@ fn apply_edit_to_config(
     file.save(config.clone())?;
     // Saved: an edited identity (rename, credential, region) loses its entry.
     let _ = new_monitor.prune_models();
+    new_monitor.mark_history_removed();
     // 4) Commit: cycle, monitor, per-account refresh table and UI state
     //    all change together. From this point on a panic must not roll
     //    back; callers depend on the cycle and monitor agreeing with the
@@ -1824,6 +1846,7 @@ fn run_remove_account(
             *refresh_cycle = staged_cycle;
             *monitor = Arc::clone(&new_monitor);
             let _ = monitor.prune_models();
+            monitor.mark_history_removed();
             account_refresh.clear_slot(index);
             if account_refresh.len() > file.config.accounts.len() {
                 account_refresh.remove(index);
@@ -1887,6 +1910,7 @@ struct State {
     details: bool,
     targets: dashboard::Targets,
     model_counts: ModelCounts,
+    history: HistoryView,
     /// RF4 effects; `None` when animations are off.
     anim: Option<Anim>,
 }
@@ -1914,6 +1938,50 @@ impl ModelCounts {
         self.monitor = id;
         self.accounts = accounts;
         self.stale = false;
+    }
+}
+
+/// PRD 0007 RF1.5 over PRD 0006: the recorded points the pace of each
+/// account's metrics reads, re-read only when the monitor or the account's
+/// report changes (never per frame), and the history warning to show.
+#[derive(Default)]
+struct HistoryView {
+    monitor: usize,
+    /// `checked_at` of the `Ready` report the points were read for.
+    read_for: Vec<Option<chrono::DateTime<chrono::Utc>>>,
+    /// Per account, per metric of its current report.
+    recent: Vec<Vec<Vec<Point>>>,
+    warning: Option<String>,
+}
+
+impl HistoryView {
+    fn refresh(&mut self, monitor: &Arc<Monitor>, cycle: &RefreshCycle) {
+        let id = Arc::as_ptr(monitor) as usize;
+        if self.monitor != id || self.read_for.len() != cycle.len() {
+            *self = Self {
+                monitor: id,
+                read_for: vec![None; cycle.len()],
+                recent: vec![Vec::new(); cycle.len()],
+                warning: None,
+            };
+        }
+        let now = chrono::Utc::now();
+        for index in 0..cycle.len() {
+            let report = cycle
+                .account_report(index)
+                .filter(|report| report.status == cuotai_core::Status::Ready);
+            let stamp = report.map(|report| report.checked_at);
+            if stamp != self.read_for[index] {
+                self.recent[index] = report
+                    .map(|report| monitor.recent_points(index, &report.metrics, now))
+                    .unwrap_or_default();
+                self.read_for[index] = stamp;
+            }
+        }
+        self.warning = monitor
+            .history_status()
+            .and_then(|status| status.warning())
+            .map(|warning| warning.resolve(tui_locale()));
     }
 }
 
@@ -2004,9 +2072,13 @@ impl State {
                     filter: &self.filter,
                     filtering: self.filtering,
                     next_refresh,
-                    error: self.error.as_deref(),
+                    // A storage failure, size-ceiling pruning or dropped
+                    // readings of the history (PRD 0006) show when nothing
+                    // more urgent does.
+                    error: self.error.as_deref().or(self.history.warning.as_deref()),
                     anim: self.anim.as_ref(),
                     last_good: &last_good,
+                    recent: &self.history.recent,
                     now: chrono::Utc::now(),
                 },
             );
@@ -2134,6 +2206,7 @@ mod tests {
             details: true,
             targets: dashboard::Targets::default(),
             model_counts: ModelCounts::default(),
+            history: HistoryView::default(),
             anim: None,
         }
     }

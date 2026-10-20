@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-20
+
+### Added
+
+- Every successful reading is now recorded in the local measurement history by the TUI, the desktop app and `--once`/`--json`, off the refresh's critical path (a bounded queue: a slow disk never delays a query and a full queue drops the reading with a visible warning), skipping a reading identical to the previous one of its metric within 15 minutes unless its window changed; errors and failed logins record nothing. The history keeps 90 days by default (7 to 365 via `--history-days` or Settings → History on the desktop, saved in `desktop.json`), folds samples older than 7 days to one per hour while keeping each window's peak, stays under 64 MiB by deleting the oldest samples with a visible warning, and can be exported to CSV or JSON and erased per account or entirely (with confirmation) from Settings → History. On opening, each account shows its last recorded reading as stale until the first query answers, and the consumption pace projects from the recent slope of the recorded samples when there are enough (PRD 0006 RF2, RF4).
+
 ## [0.37.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `history::HistoryStore`, a local measurement history in its own private SQLite file (`<OS local data dir>/cuotai/history/history.sqlite3`, directory `0700` and file `0600` on Unix) shared by every front end pointing at the same TOML: it records per account and metric only numbers and window metadata (never secrets, account names, URLs or notes; a missing value stays `NULL`), keeps an account's series when it is moved and starts a new one when it is renamed or gets another credential, product or region, marks removed accounts for pruning, writes safely from two instances at once, reports every storage failure as an error, and answers `latest` (the last reading per metric with its original time), `series`, `windows` (use per window instance with reset detection) and `bounds` without any network; nothing records into it yet (PRD 0006 RF1, RF3).
+- `cuotai-core` exposes `history::HistoryStore`, a local measurement history in its own private SQLite file (`<OS local data dir>/cuotai/history/history.sqlite3`, directory `0700` and file `0600` on Unix) shared by every front end pointing at the same TOML: it records per account and metric only numbers and window metadata (never secrets, account names, URLs or notes; a missing value stays `NULL`), keeps an account's series when it is moved and starts a new one when it is renamed or gets another credential, product or region, marks removed accounts for pruning, writes safely from two instances at once, reports every storage failure as an error, and answers `latest` (the last reading per metric with its original time), `series`, `windows` (use per window instance with reset detection) and `bounds` without any network; nothing records into it yet (PRD 0006 RF1, RF3, b89c2d8).
 
 ## [0.36.0] - 2026-10-20
 
@@ -366,8 +372,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/ed5f027...main
-[0.37.0]: https://github.com/jmarcon/cuotai/compare/ed5f027...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/b89c2d8...main
+[0.38.0]: https://github.com/jmarcon/cuotai/compare/b89c2d8...main
+[0.37.0]: https://github.com/jmarcon/cuotai/commit/b89c2d8
 [0.36.0]: https://github.com/jmarcon/cuotai/commit/ed5f027
 [0.35.1]: https://github.com/jmarcon/cuotai/commit/40bbc64
 [0.35.0]: https://github.com/jmarcon/cuotai/commit/594aa92

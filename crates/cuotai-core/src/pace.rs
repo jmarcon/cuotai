@@ -145,6 +145,19 @@ pub fn assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> 
     })
 }
 
+/// Start of the span whose samples [`assess`] reads as `recent` for `metric`
+/// at `now`: the later of the window start and `now` minus 2 hours (or 10%
+/// of the window, whichever is greater). `None` when the metric has no pace
+/// to project, so a caller can skip reading the history at all.
+pub fn recent_since(metric: &Metric, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    assess(metric, now, None)?;
+    let resets_at = metric.resets_at?;
+    let start = window_start(metric, resets_at, now)?;
+    let lookback = (secs(resets_at - start) * 0.1).max(MIN_LOOKBACK_SECS);
+    let since = now - TimeDelta::milliseconds((lookback * 1000.0) as i64);
+    Some(since.max(start))
+}
+
 /// `resets_at − length`; `monthly` is the calendar month ending at
 /// `resets_at`. An RFC 3339 start in `period` wins when coherent: already
 /// begun and not earlier than the nominal start.
@@ -617,6 +630,39 @@ mod tests {
                 );
                 assert!(!text.resolve(locale).contains('{'), "{locale} {}", text.id);
             }
+        }
+    }
+
+    #[test]
+    fn recent_since_spans_the_lookback_inside_the_window() {
+        let hours = |n: f64| TimeDelta::milliseconds((n * 3_600_000.0) as i64);
+        let cases = [
+            // Half of 5 h elapsed: the 2-hour floor.
+            ("5h", five_h(50.0), Some(now() - hours(2.0))),
+            // A quarter of a day elapsed: 10% of 24 h beats 2 h.
+            (
+                "daily",
+                quota(MetricWindow::Daily, 40.0, now() + mins(18 * 60)),
+                Some(now() - hours(2.4)),
+            ),
+            // 9 h into a week: 10% (16.8 h) reaches back past the start.
+            (
+                "weekly, young",
+                quota(
+                    MetricWindow::Weekly,
+                    5.0,
+                    now() + TimeDelta::weeks(1) - hours(9.0),
+                ),
+                Some(now() - hours(9.0)),
+            ),
+            (
+                "not eligible",
+                quota(MetricWindow::Other, 5.0, now() + mins(60)),
+                None,
+            ),
+        ];
+        for (case, metric, expected) in cases {
+            assert_eq!(recent_since(&metric, now()), expected, "{case}");
         }
     }
 }

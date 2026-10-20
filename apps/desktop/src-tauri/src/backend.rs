@@ -9,6 +9,7 @@ use cuotai_core::{
     },
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
     freshness::{assess, clock_adjusted, Freshness},
+    history::{ExportFormat, HistoryStore},
     identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{
@@ -17,7 +18,7 @@ use cuotai_core::{
     },
     models::{self, ModelError, ModelState},
     oauth::OAuthSession,
-    pace::{self, Pace},
+    pace::{self, Pace, Point},
     refresh::{Edit, RefreshCycle},
     Config, EnvironmentCredentials, Metric, Monitor, Provider, Report, Status,
 };
@@ -25,7 +26,8 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     future::Future,
-    path::PathBuf,
+    ops::Bound,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -34,6 +36,19 @@ use tokio::sync::{mpsc, oneshot};
 
 fn l10n_to_json(note: &cuotai_core::text::Localized) -> String {
     serde_json::to_string(note).unwrap_or_else(|_| note.fallback.to_string())
+}
+
+/// Create (or truncate) the export file at `path`, readable by its owner
+/// only on Unix (even when it already existed): it holds the usage history.
+fn private_file(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let file = options.open(path)?;
+    #[cfg(unix)]
+    file.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+    Ok(file)
 }
 
 /// Encapsulate an `EditError` for the frontend: the core's RF8
@@ -224,7 +239,8 @@ pub struct MetricView {
     #[serde(flatten)]
     state: MetricState,
     /// PRD 0007 RF3.1: the core's pace (`pace::assess` with the backend's
-    /// clock); `None` for ineligible metrics and for the preserved reading.
+    /// clock and, PRD 0006, the metric's recorded points); `None` for
+    /// ineligible metrics and for the preserved reading.
     pace: Option<PaceView>,
 }
 
@@ -303,8 +319,13 @@ pub struct ReportView {
     freshness: Freshness,
     clock_adjusted: bool,
     /// PRD 0010 RF3.2: the core's last valid reading, only while the current
-    /// report failed (`RefreshCycle::last_good_report`). Display only.
+    /// report failed (`RefreshCycle::last_good_report`) or, restored from
+    /// the history on opening (RF2.3), while no query answered yet.
+    /// Display only.
     last_good: Option<LastGoodView>,
+    /// No query of this account answered yet: the view only carries the
+    /// restored `last_good` (status, metrics and notes are placeholders).
+    pending: bool,
     /// PRD 0007 RF3.2: index (into `metrics`) of the most restrictive metric
     /// that has a pace (the core's binding rule restricted to them).
     pace_index: Option<usize>,
@@ -370,6 +391,9 @@ pub struct View {
     /// RF6.1: identidade da configuração carregada (muda a cada save/remove/move/reload/troca);
     /// a UI a devolve nos comandos de modelos. 0 antes de carregar (nunca aceita).
     generation: u64,
+    /// PRD 0006: the history's storage failure, size-ceiling pruning or
+    /// dropped readings, to show; `None` when all is well.
+    history_warning: Option<cuotai_core::text::Localized>,
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -380,6 +404,8 @@ fn metric_view(metric: &Metric) -> MetricView {
     }
 }
 
+/// `recent`: the recorded points of each metric of `report` (PRD 0006),
+/// which project its pace from the recent slope when there are enough.
 fn report_view(
     index: usize,
     report: &Report,
@@ -387,6 +413,7 @@ fn report_view(
     next_refresh_at_ms: Option<u64>,
     model_count: Option<usize>,
     binding_rank: usize,
+    recent: &[Vec<Point>],
 ) -> ReportView {
     let account = &config.accounts[index];
     let binding = binding(report);
@@ -395,9 +422,13 @@ fn report_view(
     let metrics: Vec<MetricView> = report
         .metrics
         .iter()
-        .map(|metric| MetricView {
-            pace: pace::assess(metric, now, None).map(pace_view),
-            ..metric_view(metric)
+        .enumerate()
+        .map(|(i, metric)| {
+            let points = recent.get(i).map(Vec::as_slice);
+            MetricView {
+                pace: pace::assess(metric, now, points).map(pace_view),
+                ..metric_view(metric)
+            }
         })
         .collect();
     let pace_index = binding_where(report, |i| metrics[i].pace.is_some()).map(|b| b.index);
@@ -422,8 +453,44 @@ fn report_view(
         freshness: assess(report.checked_at, Duration::from_secs(refresh_seconds), now),
         clock_adjusted: clock_adjusted(report.checked_at, now),
         last_good: None,
+        pending: false,
         pace_index,
         access: report_access(account, report),
+    }
+}
+
+/// An account no query answered yet, shown through its restored reading
+/// (PRD 0010 RF2.3): no current metrics (so it is unmeasured), notes or
+/// source and no "active session" claim (nothing answered with that
+/// credential yet); the UI draws `last_good` as stale.
+fn pending_view(
+    index: usize,
+    restored: &Report,
+    config: &Config,
+    next_refresh_at_ms: Option<u64>,
+    model_count: Option<usize>,
+    binding_rank: usize,
+) -> ReportView {
+    let placeholder = Report {
+        metrics: Vec::new(),
+        notes: Vec::new(),
+        notes_l10n: Vec::new(),
+        source: String::new(),
+        ..restored.clone()
+    };
+    let view = report_view(
+        index,
+        &placeholder,
+        config,
+        next_refresh_at_ms,
+        model_count,
+        binding_rank,
+        &[],
+    );
+    ReportView {
+        pending: true,
+        identity: account_identity(&config.accounts[index], Status::Error),
+        ..view
     }
 }
 
@@ -456,6 +523,7 @@ impl Inner {
                 error: self.load_error.clone(),
                 refresh_seconds: 0,
                 generation: 0,
+                history_warning: None,
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -480,19 +548,30 @@ impl Inner {
         let started_at = l.cycle.snapshot().map(|snapshot| snapshot.started_at);
         let finished_at = l.cycle.snapshot().map(|snapshot| snapshot.finished_at);
         let ranks = binding_ranks(&slot_reports);
+        let clock = chrono::Utc::now();
         let reports: Vec<ReportView> = slot_reports
             .iter()
             .enumerate()
             .filter_map(|(i, slot)| {
-                slot.as_ref().map(|report| {
-                    // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
-                    let next = (!l.cycle.is_busy(i))
-                        .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
-                    let models = l.monitor.model_count(i);
-                    let mut view = report_view(i, report, &l.file.config, next, models, ranks[i]);
-                    view.last_good = l.cycle.last_good_report(i).map(last_good_view);
-                    view
-                })
+                // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
+                let next = (!l.cycle.is_busy(i))
+                    .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
+                let models = l.monitor.model_count(i);
+                let last_good = l.cycle.last_good_report(i);
+                let mut view = match (slot, last_good) {
+                    (Some(report), _) => {
+                        let recent = l.monitor.recent_points(i, &report.metrics, clock);
+                        report_view(i, report, &l.file.config, next, models, ranks[i], &recent)
+                    }
+                    // PRD 0010 RF2.3: a reading restored from the history
+                    // shows (stale) until the first query answers.
+                    (None, Some(restored)) => {
+                        pending_view(i, restored, &l.file.config, next, models, ranks[i])
+                    }
+                    (None, None) => return None,
+                };
+                view.last_good = last_good.map(last_good_view);
+                Some(view)
             })
             .collect();
         View {
@@ -514,6 +593,10 @@ impl Inner {
             error: None,
             refresh_seconds: l.file.config.refresh_seconds,
             generation: l.generation,
+            history_warning: l
+                .monitor
+                .history_status()
+                .and_then(|status| status.warning()),
         }
     }
 
@@ -550,13 +633,25 @@ impl Inner {
         })?;
         // Keyed by `ConfigFile::identity()` in the OS data dir; no data dir
         // leaves model operations as `NoCache` while quotas keep working.
-        let monitor = Arc::new(match cuotai_core::models::ModelCache::in_data_dir(&file) {
+        let mut monitor = match cuotai_core::models::ModelCache::in_data_dir(&file) {
             Ok(cache) => monitor.with_model_cache(cache),
             Err(_) => monitor,
-        });
+        };
+        // PRD 0006: the measurement history of this TOML, pruned by the
+        // device's retention (`desktop.json`); without a data dir nothing is
+        // recorded. Tests never touch the real OS data dir.
+        if let Some(store) = (!cfg!(test))
+            .then(|| HistoryStore::in_data_dir(&file).ok())
+            .flatten()
+        {
+            monitor =
+                monitor.with_history(store.with_retention(crate::settings::history_retention()));
+        }
+        let monitor = Arc::new(monitor);
         // Just loaded from the TOML: drop catalogs of accounts gone from it.
         // A cache failure only keeps stale digests; model ops report it.
         let _ = monitor.prune_models();
+        monitor.mark_history_removed();
         self.generation += 1;
         let accounts_len = file.config.accounts.len();
         // `install` replaces the live configuration (initial load or
@@ -573,9 +668,13 @@ impl Inner {
             })
             .flatten()
             .map(|p| p.display().to_string());
+        // PRD 0010 RF2.3: the last recorded readings show, stale, until the
+        // first query of each account answers.
+        let mut cycle = RefreshCycle::new(&file.config, Instant::now());
+        cycle.restore_last_good(monitor.restored_readings());
         self.loaded = Some(Loaded {
             other_config,
-            cycle: RefreshCycle::new(&file.config, Instant::now()),
+            cycle,
             file,
             monitor,
             generation: self.generation,
@@ -1044,6 +1143,7 @@ impl Backend {
             l.monitor = new_monitor;
             // Saved: an edited identity (rename, credential, region) loses its entry.
             let _ = l.monitor.prune_models();
+            l.monitor.mark_history_removed();
             if l.tokens.len() < l.file.config.accounts.len() {
                 l.tokens
                     .extend((0..l.file.config.accounts.len() - l.tokens.len()).map(|_| None));
@@ -1137,6 +1237,7 @@ impl Backend {
             l.cycle = staged_cycle;
             l.monitor = Arc::new(new_monitor);
             let _ = l.monitor.prune_models();
+            l.monitor.mark_history_removed();
             if index < l.tokens.len() {
                 l.tokens.remove(index);
             }
@@ -1324,6 +1425,93 @@ impl Backend {
         }
         self.emit(app).await;
         Ok(())
+    }
+
+    /// PRD 0006 RF4.1: keep `days` of measurement history on this device
+    /// (saved in `desktop.json`) and prune by it at once. Errors:
+    /// `invalid_history_days`, `unwritable`.
+    pub async fn set_history_days(&self, app: &AppHandle, days: u32) -> Result<(), String> {
+        let retention = crate::settings::save_history_days(days).map_err(str::to_owned)?;
+        if let Some(l) = self.inner.lock().await.loaded.as_ref() {
+            l.monitor.set_history_retention(retention);
+        }
+        self.emit(app).await;
+        Ok(())
+    }
+
+    /// The history store and the accounts of `index` (every account with
+    /// `None`) of the loaded configuration.
+    async fn history_scope(
+        &self,
+        index: Option<usize>,
+    ) -> Result<(HistoryStore, Vec<cuotai_core::Account>), String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        let store = l
+            .monitor
+            .history()
+            .ok_or_else(|| l10n_to_json(&cuotai_core::history::HistoryError::Storage.l10n()))?;
+        let accounts = match index {
+            Some(index) => vec![l
+                .file
+                .config
+                .accounts
+                .get(index)
+                .cloned()
+                .ok_or("Conta inexistente.")?],
+            None => l.file.config.accounts.clone(),
+        };
+        Ok((store, accounts))
+    }
+
+    /// PRD 0006 RF4.4: write the history of account `index` (every account
+    /// with `None`) of the last `days` days (everything with `None`) to the
+    /// absolute `path` the user chose, in `format`; the file is private
+    /// (0600 on Unix). Returns the rows written.
+    pub async fn history_export(
+        &self,
+        index: Option<usize>,
+        days: Option<u32>,
+        format: ExportFormat,
+        path: PathBuf,
+    ) -> Result<usize, String> {
+        let export_error = || l10n_to_json(&cuotai_core::history::HistoryError::Export.l10n());
+        if !path.is_absolute() {
+            return Err(export_error());
+        }
+        let (store, accounts) = self.history_scope(index).await?;
+        let since = days.map(|days| chrono::Utc::now() - chrono::TimeDelta::days(days.into()));
+        tauri::async_runtime::spawn_blocking(move || {
+            let file =
+                private_file(&path).map_err(|_| cuotai_core::history::HistoryError::Export)?;
+            let mut out = std::io::BufWriter::new(file);
+            let start = since.map_or(Bound::Unbounded, Bound::Included);
+            store.export(&accounts, None, (start, Bound::Unbounded), format, &mut out)
+        })
+        .await
+        .map_err(|_| export_error())?
+        .map_err(|error| l10n_to_json(&error.l10n()))
+    }
+
+    /// PRD 0006 RF4.4: erase the history of account `index` (and the
+    /// orphaned series), or the whole history file with `None`; the UI
+    /// asks for confirmation first. Returns the samples removed.
+    pub async fn history_erase(
+        &self,
+        app: &AppHandle,
+        index: Option<usize>,
+    ) -> Result<usize, String> {
+        let (store, accounts) = self.history_scope(index).await?;
+        let removed = tauri::async_runtime::spawn_blocking(move || match index {
+            Some(_) => store.erase_account(&accounts[0]),
+            None => store.erase_all(),
+        })
+        .await
+        .map_err(|_| l10n_to_json(&cuotai_core::history::HistoryError::Storage.l10n()))?
+        .map_err(|error| l10n_to_json(&error.l10n()))?;
+        self.emit(app).await;
+        Ok(removed)
     }
 
     /// Persist a shared configuration-order move. `Edit::Move` carries every
@@ -2286,7 +2474,8 @@ mod tests {
         assert_eq!(binding_ranks(&slots), vec![1, 0, 2]);
 
         let report = slots[1].as_ref().unwrap();
-        let view = serde_json::to_value(report_view(1, report, &config, None, None, 0)).unwrap();
+        let view =
+            serde_json::to_value(report_view(1, report, &config, None, None, 0, &[])).unwrap();
         assert_eq!(view["binding"]["index"], 1);
         assert_eq!(view["binding"]["window"], "weekly");
         assert_eq!(view["binding"]["reason"], "exhausted");
@@ -2340,6 +2529,62 @@ mod tests {
         assert_eq!(view["reports"][0]["freshness"], "fresh");
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn view_shows_a_restored_reading_as_pending_and_stale_until_the_first_answer() {
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("a"), plain_account("b")],
+        )
+        .await;
+        let mut g = backend.inner.inner.lock().await;
+        let mut stored = ready(
+            "a",
+            vec![quota("5h", 40.0, cuotai_core::MetricWindow::Window5h, 2)],
+        );
+        stored.checked_at = chrono::Utc::now() - chrono::Duration::hours(3);
+        stored.source = String::new();
+        let cycle = &mut g.loaded.as_mut().unwrap().cycle;
+        cycle.restore_last_good(vec![Some(stored.clone()), None]);
+
+        let view = serde_json::to_value(g.view()).unwrap();
+        assert_eq!(view["loaded"], false);
+        let reports = view["reports"].as_array().unwrap();
+        assert_eq!(
+            reports.len(),
+            1,
+            "b, with nothing recorded, stays a skeleton"
+        );
+        let r = &reports[0];
+        assert_eq!(
+            (r["index"].as_u64(), r["pending"].as_bool()),
+            (Some(0), Some(true))
+        );
+        assert!(
+            r["metrics"].as_array().unwrap().is_empty()
+                && r["notes"].as_array().unwrap().is_empty()
+        );
+        assert_eq!(r["class"], "unmeasured");
+        assert!(r["binding"].is_null() && r["pace_index"].is_null());
+        assert_eq!(
+            r["last_good"]["checked_at"],
+            serde_json::to_value(stored.checked_at).unwrap()
+        );
+        assert_eq!(r["last_good"]["metrics"][0]["label"], "5h");
+        assert!(
+            r["last_good"]["metrics"][0]["pace"].is_null(),
+            "no pace from an old reading"
+        );
+
+        // The first answer replaces it with a current report.
+        let cycle = &mut g.loaded.as_mut().unwrap().cycle;
+        let token = cycle.begin(0).unwrap();
+        cycle.finish_account(0, Some(ready("a", vec![])), token, Instant::now());
+        let view = serde_json::to_value(g.view()).unwrap();
+        assert_eq!(view["reports"][0]["pending"], false);
+        assert!(view["reports"][0]["last_good"].is_null());
+        assert!(view["history_warning"].is_null());
+    }
+
     #[test]
     fn view_carries_each_metric_pace_and_the_tightest_metric_with_one() {
         use cuotai_core::MetricWindow::{Other, Weekly, Window5h};
@@ -2356,7 +2601,8 @@ mod tests {
                 quota("fresh", 50.0, Window5h, 5),
             ],
         );
-        let view = serde_json::to_value(report_view(0, &report, &config, None, None, 0)).unwrap();
+        let view =
+            serde_json::to_value(report_view(0, &report, &config, None, None, 0, &[])).unwrap();
         let m = &view["metrics"];
         // 3 h of 5 h gone, 40% used: 20 points in reserve, lasts.
         assert_eq!(m[0]["pace"]["stage"], "reserve");
@@ -2410,7 +2656,7 @@ mod tests {
             ready("cloud", Vec::new()),
         ];
         let view = |i: usize| {
-            serde_json::to_value(report_view(i, &reports[i], &config, None, None, 0)).unwrap()
+            serde_json::to_value(report_view(i, &reports[i], &config, None, None, 0, &[])).unwrap()
         };
         let pool = view(0);
         assert_eq!(pool["access"]["level"], "unavailable");

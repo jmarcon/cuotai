@@ -205,6 +205,22 @@ impl RefreshCycle {
         }
     }
 
+    /// PRD 0010 RF2.3: offer readings recorded before the app opened
+    /// (`readings`, in account order, e.g. `Monitor::restored_readings`) as
+    /// the preserved reading of each account that has neither a report nor
+    /// a preserved reading yet, so it shows as stale until the first query
+    /// finishes. Does nothing when the count differs from the accounts'.
+    pub fn restore_last_good(&mut self, readings: Vec<Option<Report>>) {
+        if readings.len() != self.last_good.len() {
+            return;
+        }
+        for ((kept, slot), reading) in self.last_good.iter_mut().zip(&self.slots).zip(readings) {
+            if kept.is_none() && slot.is_none() {
+                *kept = reading.filter(|report| report.status == Status::Ready);
+            }
+        }
+    }
+
     /// Clone the cycle's mutable bookkeeping so the caller can stage an edit
     /// on the copy before committing it. The cached snapshot is cloned
     /// because both edit paths need its `started_at` field (Upsert
@@ -2276,6 +2292,30 @@ mod tests {
         assert!(cycle.last_good_report(0).is_none());
         finish(&mut cycle, 0, failed("a", 95, Status::Error));
         assert!(cycle.last_good_report(0).is_none());
+    }
+
+    #[test]
+    fn restored_readings_show_until_the_first_query_answers() {
+        let config = config_with(vec![account("a", None), account("b", None)]);
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        cycle.restore_last_good(vec![Some(report("a", 5)), None, None]);
+        assert!(cycle.last_good_report(0).is_none(), "wrong count: ignored");
+        cycle.restore_last_good(vec![Some(report("a", 5)), None]);
+        assert_eq!(key(cycle.last_good_report(0)), Some(("a", 5, READY)));
+        assert!(cycle.last_good_report(1).is_none());
+        assert!(cycle.snapshot().is_none(), "never a current report");
+
+        // A failed first query keeps showing it; a success replaces it.
+        finish(&mut cycle, 0, failed("a", 20, Status::Error));
+        assert_eq!(key(cycle.last_good_report(0)), Some(("a", 5, READY)));
+        finish(&mut cycle, 0, report("a", 30));
+        assert!(cycle.last_good_report(0).is_none());
+        // Restoring again never overrides what this session already knows.
+        finish(&mut cycle, 1, failed("b", 31, Status::Error));
+        cycle.restore_last_good(vec![Some(report("a", 1)), Some(report("b", 1))]);
+        finish(&mut cycle, 0, failed("a", 40, Status::Error));
+        assert_eq!(key(cycle.last_good_report(0)), Some(("a", 30, READY)));
+        assert!(cycle.last_good_report(1).is_none(), "b already answered");
     }
 
     #[test]
