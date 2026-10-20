@@ -1,4 +1,4 @@
-//! PRD 0006 RF1/RF3 — local measurement history.
+//! PRD 0006 — local measurement history.
 //!
 //! [`HistoryStore`] keeps successful readings per account and metric in
 //! `history.sqlite3`, a file of its own (never the model catalog, the TOML or
@@ -11,21 +11,32 @@
 //! The store is opened per operation (cheap, so building one never touches
 //! disk) in WAL mode with a busy timeout, so the TUI, the desktop app and the
 //! CLI pointing at the same TOML write to it concurrently; a write is
-//! idempotent per `(account, metric, taken_at)`. Every open, read or write
-//! failure surfaces as [`HistoryError::Storage`], never as success.
+//! idempotent per `(account, metric, taken_at)` and skips a sample identical
+//! to the previous one of its metric taken less than 15 minutes before
+//! (RF2.3). Every open, read or write failure surfaces as
+//! [`HistoryError::Storage`], never as success.
 //!
 //! The queries ([`HistoryStore::latest`], [`HistoryStore::series`],
-//! [`HistoryStore::windows`], [`HistoryStore::bounds`]) read the file only;
-//! nothing here touches the network.
+//! [`HistoryStore::windows`], [`HistoryStore::bounds`],
+//! [`HistoryStore::recent`]) read the file only; nothing here touches the
+//! network. [`HistoryRecorder`] records refresh results off the refresh's
+//! critical path (RF2) and prunes by [`Retention`] (RF4), which also owns
+//! export and erasure.
+
+mod recorder;
+mod retention;
+
+pub use recorder::{HistoryRecorder, HistoryStatus};
+pub use retention::{CeilingPrune, ExportFormat, PruneReport, Retention, RetentionError};
 
 use crate::config_file::{ConfigFile, ConfigIdentity};
 use crate::models::{account_key, create_private_file, digest};
 use crate::pace::Point;
 use crate::resets::DRIFT_TOLERANCE;
 use crate::text::Localized;
-use crate::{Account, Config, Metric, MetricKind, MetricWindow};
+use crate::{Account, Config, Metric, MetricKind, MetricWindow, Report, Status};
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, TransactionBehavior};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use std::ops::{Bound, RangeBounds};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -34,11 +45,18 @@ use std::time::Duration;
 pub enum HistoryError {
     #[error("Falha ao ler ou gravar o histórico local de medições.")]
     Storage,
+    /// The export destination refused the data (RF4.4).
+    #[error("Falha ao gravar a exportação do histórico.")]
+    Export,
 }
 
 impl HistoryError {
     pub fn l10n(&self) -> Localized {
-        Localized::fixed("history.error.storage", self.to_string())
+        let id = match self {
+            Self::Storage => "history.error.storage",
+            Self::Export => "history.error.export",
+        };
+        Localized::fixed(id, self.to_string())
     }
 }
 
@@ -51,6 +69,12 @@ impl From<rusqlite::Error> for HistoryError {
 /// A drop in `used` above this fraction of `limit` ends the window (a reset).
 const RESET_DROP: f64 = 0.2;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+/// RF2.3: a sample identical to the previous one of its metric taken less
+/// than this after it is not stored.
+const COMPACT_WITHIN_MS: i64 = 15 * 60 * 1000;
+/// Ceiling of the WAL file kept after a checkpoint, so a large prune does
+/// not leave a large side file behind.
+const WAL_SIZE_LIMIT: i64 = 4 << 20;
 
 /// Forward migrations: entry `n` takes `PRAGMA user_version` from `n` to
 /// `n + 1`. Append new steps, never edit a shipped one.
@@ -58,8 +82,11 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// `series` names each metric of an account (the label `latest` shows), its
 /// position and the newest reading that carried it (`seen_at`); `removed_at`
 /// marks the series of an account gone from the configuration for pruning.
-/// Times are UTC unix milliseconds.
-const MIGRATIONS: [&str; 1] = ["CREATE TABLE series (
+/// Times are UTC unix milliseconds. Version 2 indexes samples by age (the
+/// file-wide retention and size pruning, RF4) and adds `meta` (the
+/// resolution reduction's progress).
+const MIGRATIONS: [&str; 2] = [
+    "CREATE TABLE series (
     config_key TEXT NOT NULL,
     account_digest TEXT NOT NULL,
     metric_key TEXT NOT NULL,
@@ -83,7 +110,10 @@ CREATE TABLE samples (
     resets_at INTEGER,
     PRIMARY KEY (config_key, account_digest, metric_key, taken_at)
 ) WITHOUT ROWID;
-CREATE INDEX samples_by_time ON samples (config_key, taken_at);"];
+CREATE INDEX samples_by_time ON samples (config_key, taken_at);",
+    "CREATE INDEX samples_by_age ON samples (taken_at);
+CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;",
+];
 
 /// Measurement history of one configuration. Holds only the database path
 /// and the configuration digest; errors surface on use.
@@ -91,6 +121,9 @@ CREATE INDEX samples_by_time ON samples (config_key, taken_at);"];
 pub struct HistoryStore {
     path: PathBuf,
     config_key: String,
+    /// What [`Self::prune`] keeps (RF4); the default until
+    /// [`Self::with_retention`].
+    retention: Retention,
 }
 
 /// Stable identity of a metric's series: the digest of its kind, window,
@@ -110,6 +143,24 @@ pub struct StoredReport {
     pub checked_at: DateTime<Utc>,
     /// The metrics of that reading in their reported order.
     pub metrics: Vec<StoredMetric>,
+}
+
+impl StoredReport {
+    /// The reading as a `Ready` report of `account` with its original
+    /// `checked_at`, for the preserved last valid reading (PRD 0010 RF2.3).
+    /// It carries no notes and no source: only numbers were stored.
+    pub fn into_report(self, account: &Account) -> Report {
+        Report {
+            account: account.name.clone(),
+            provider: account.provider,
+            checked_at: self.checked_at,
+            status: Status::Ready,
+            metrics: self.metrics.into_iter().map(|m| m.metric).collect(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+        }
+    }
 }
 
 /// The last sample of one metric. `metric.period` is not stored (`None`).
@@ -244,33 +295,57 @@ fn migrate(db: &mut Connection, migrations: &[&str]) -> Result<(), HistoryError>
     Ok(())
 }
 
-/// Group samples (in time order) into window instances. Samples without a
-/// finite `used` are skipped; a non-finite `limit` counts as missing.
-fn group_windows(samples: impl IntoIterator<Item = WindowSample>) -> Vec<WindowUsage> {
-    let mut windows: Vec<WindowUsage> = Vec::new();
+/// The window instance (0, 1, …) of each sample, in time order: `None` for
+/// a sample without a finite `used`, which is skipped. A window ends when
+/// `used` drops by more than [`RESET_DROP`] of a finite positive `limit`
+/// (the sample's, else the previous one's) or when `resets_at` moves beyond
+/// [`DRIFT_TOLERANCE`] from the last one seen in the window.
+fn instances(samples: &[WindowSample]) -> Vec<Option<usize>> {
+    let mut ids = Vec::with_capacity(samples.len());
+    let mut count = 0;
     let mut previous: Option<(f64, Option<f64>)> = None;
+    let mut resets_at: Option<DateTime<Utc>> = None;
     for sample in samples {
         let Some(used) = finite(sample.used) else {
+            ids.push(None);
             continue;
         };
         let limit = finite(sample.limit);
-        let current =
-            windows
-                .last_mut()
-                .zip(previous)
-                .filter(|(window, (last_used, last_limit))| {
-                    let dropped = limit
-                        .or(*last_limit)
-                        .filter(|limit| *limit > 0.0)
-                        .is_some_and(|limit| last_used - used > RESET_DROP * limit);
-                    let moved = matches!(
-                        (window.resets_at, sample.resets_at),
-                        (Some(known), Some(next)) if (next - known).abs() > DRIFT_TOLERANCE
-                    );
-                    !dropped && !moved
-                });
-        match current {
-            Some((window, _)) => {
+        let same = previous.is_some_and(|(last_used, last_limit)| {
+            let dropped = limit
+                .or(last_limit)
+                .filter(|limit| *limit > 0.0)
+                .is_some_and(|limit| last_used - used > RESET_DROP * limit);
+            let moved = matches!(
+                (resets_at, sample.resets_at),
+                (Some(known), Some(next)) if (next - known).abs() > DRIFT_TOLERANCE
+            );
+            !dropped && !moved
+        });
+        if same {
+            resets_at = sample.resets_at.or(resets_at);
+        } else {
+            count += 1;
+            resets_at = sample.resets_at;
+        }
+        ids.push(Some(count - 1));
+        previous = Some((used, limit));
+    }
+    ids
+}
+
+/// Group samples (in time order) into window instances (see [`instances`]).
+/// A non-finite `limit` counts as missing.
+fn group_windows(samples: impl IntoIterator<Item = WindowSample>) -> Vec<WindowUsage> {
+    let samples: Vec<WindowSample> = samples.into_iter().collect();
+    let mut windows: Vec<WindowUsage> = Vec::new();
+    for (sample, id) in samples.iter().zip(instances(&samples)) {
+        let (Some(id), Some(used)) = (id, finite(sample.used)) else {
+            continue;
+        };
+        let limit = finite(sample.limit);
+        match windows.get_mut(id) {
+            Some(window) => {
                 window.ended_at = sample.taken_at;
                 window.final_used = used;
                 window.samples += 1;
@@ -293,9 +368,45 @@ fn group_windows(samples: impl IntoIterator<Item = WindowSample>) -> Vec<WindowU
                 samples: 1,
             }),
         }
-        previous = Some((used, limit));
     }
     windows
+}
+
+/// The stored values of one sample, as compaction compares them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Values {
+    used: Option<f64>,
+    limit: Option<f64>,
+    remaining: Option<f64>,
+    resets_at: Option<i64>,
+}
+
+impl Values {
+    fn of(metric: &Metric) -> Self {
+        Self {
+            used: finite(metric.used),
+            limit: finite(metric.limit),
+            remaining: finite(metric.remaining),
+            resets_at: metric.resets_at.map(millis),
+        }
+    }
+
+    /// RF2.3: `self`, taken at `at`, repeats `previous` (taken at
+    /// `previous_at`): same values, less than 15 minutes later and the same
+    /// window (`resets_at` within [`DRIFT_TOLERANCE`]).
+    fn repeats(&self, at: i64, previous: &Values, previous_at: i64) -> bool {
+        let same_window = match (self.resets_at, previous.resets_at) {
+            (None, None) => true,
+            (Some(next), Some(known)) => {
+                next.abs_diff(known) <= DRIFT_TOLERANCE.num_milliseconds().unsigned_abs()
+            }
+            _ => false,
+        };
+        (0..COMPACT_WITHIN_MS).contains(&(at - previous_at))
+            && same_window
+            && (self.used, self.limit, self.remaining)
+                == (previous.used, previous.limit, previous.remaining)
+    }
 }
 
 impl HistoryStore {
@@ -304,6 +415,7 @@ impl HistoryStore {
         Self {
             path,
             config_key: config.digest(),
+            retention: Retention::default(),
         }
     }
 
@@ -318,6 +430,15 @@ impl HistoryStore {
         ))
     }
 
+    /// The same store pruned by `retention` ([`Self::prune`]).
+    pub fn with_retention(self, retention: Retention) -> Self {
+        Self { retention, ..self }
+    }
+
+    pub fn retention(&self) -> Retention {
+        self.retention
+    }
+
     /// Open (creating privately: directory 0700, file 0600 on Unix) and
     /// migrate the store.
     fn open(&self) -> Result<Connection, HistoryError> {
@@ -325,14 +446,28 @@ impl HistoryStore {
         let mut db = Connection::open(&self.path)?;
         db.busy_timeout(BUSY_TIMEOUT)?;
         wal(&db)?;
+        db.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT)?;
         migrate(&mut db, &MIGRATIONS)?;
         Ok(db)
+    }
+
+    /// Open the store only when the file exists: reads that find nothing
+    /// recorded never create it.
+    fn open_existing(&self) -> Result<Option<Connection>, HistoryError> {
+        if !self.path.try_exists().map_err(|_| HistoryError::Storage)? {
+            return Ok(None);
+        }
+        self.open().map(Some)
     }
 
     /// Record the reading of `account` taken at `taken_at`: one sample per
     /// metric, in one transaction. Non-finite values are stored as `NULL`.
     /// A sample already stored for the same account, metric and time (to
-    /// the millisecond) is kept as is. Returns how many samples were new.
+    /// the millisecond) is kept as is, and a sample identical to the
+    /// previous one of its metric taken less than 15 minutes before it is
+    /// not stored unless `resets_at` moved beyond [`DRIFT_TOLERANCE`] (a new
+    /// window; RF2.3). The series still notes the reading, so
+    /// [`Self::latest`] dates it. Returns how many samples were new.
     pub fn record(
         &self,
         account: &Account,
@@ -360,6 +495,12 @@ impl HistoryStore {
                     used, \"limit\", remaining, unit, kind, \"window\", resets_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             )?;
+            let mut previous = tx.prepare(
+                "SELECT taken_at, used, \"limit\", remaining, resets_at FROM samples
+                 WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
+                   AND taken_at <= ?4
+                 ORDER BY taken_at DESC LIMIT 1",
+            )?;
             for (position, metric) in metrics.iter().enumerate() {
                 let key = metric_key(metric);
                 let position = i64::try_from(position).map_err(|_| HistoryError::Storage)?;
@@ -371,18 +512,38 @@ impl HistoryStore {
                     position,
                     at
                 ])?;
+                let values = Values::of(metric);
+                let last = previous
+                    .query_row(
+                        rusqlite::params![self.config_key, account_digest, key, at],
+                        |row| {
+                            Ok((
+                                row.get::<_, i64>(0)?,
+                                Values {
+                                    used: row.get(1)?,
+                                    limit: row.get(2)?,
+                                    remaining: row.get(3)?,
+                                    resets_at: row.get(4)?,
+                                },
+                            ))
+                        },
+                    )
+                    .optional()?;
+                if last.is_some_and(|(last_at, last)| values.repeats(at, &last, last_at)) {
+                    continue;
+                }
                 added += sample.execute(rusqlite::params![
                     self.config_key,
                     account_digest,
                     key,
                     at,
-                    finite(metric.used),
-                    finite(metric.limit),
-                    finite(metric.remaining),
+                    values.used,
+                    values.limit,
+                    values.remaining,
                     metric.unit,
                     tag(metric.kind),
                     metric.window.map(tag),
-                    metric.resets_at.map(millis),
+                    values.resets_at,
                 ])?;
             }
         }
@@ -422,8 +583,36 @@ impl HistoryStore {
     /// The metrics of the last recorded reading of `account`, each with its
     /// last stored sample; `None` when nothing was recorded.
     pub fn latest(&self, account: &Account) -> Result<Option<StoredReport>, HistoryError> {
-        let account_digest = account_key(account);
         let db = self.open()?;
+        Ok(self.latest_in(&db, account)?)
+    }
+
+    /// PRD 0010 RF2.3: the last recorded reading of every account of
+    /// `config`, in its order, as a `Ready` [`Report`] with its original
+    /// `checked_at` (no notes, no source) for
+    /// [`crate::refresh::RefreshCycle::restore_last_good`]. All `None` when
+    /// nothing was recorded yet (the file is not created).
+    pub fn latest_reports(&self, config: &Config) -> Result<Vec<Option<Report>>, HistoryError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(vec![None; config.accounts.len()]);
+        };
+        config
+            .accounts
+            .iter()
+            .map(|account| {
+                Ok(self
+                    .latest_in(&db, account)?
+                    .map(|stored| stored.into_report(account)))
+            })
+            .collect()
+    }
+
+    fn latest_in(
+        &self,
+        db: &Connection,
+        account: &Account,
+    ) -> rusqlite::Result<Option<StoredReport>> {
+        let account_digest = account_key(account);
         let Some(seen_at) = db.query_row(
             "SELECT MAX(seen_at) FROM series WHERE config_key = ?1 AND account_digest = ?2",
             [&self.config_key, &account_digest],
@@ -432,7 +621,7 @@ impl HistoryStore {
         else {
             return Ok(None);
         };
-        let mut query = db.prepare(
+        let mut query = db.prepare_cached(
             "SELECT s.metric_key, s.label, x.taken_at, x.used, x.\"limit\", x.remaining,
                     x.unit, x.kind, x.\"window\", x.resets_at
              FROM series s JOIN samples x
@@ -473,6 +662,61 @@ impl HistoryStore {
             checked_at: instant(seen_at)?,
             metrics,
         }))
+    }
+
+    /// PRD 0007 RF1.5 input: for each of `metrics` (a reading of `account`),
+    /// the recorded points of its series in the span [`crate::pace::assess`]
+    /// reads at `now` ([`crate::pace::recent_since`]); empty for a metric
+    /// with no pace. Pass each list as `recent` to `assess`. Nothing is read
+    /// (nor created) when no metric has a pace or nothing was recorded.
+    pub fn recent(
+        &self,
+        account: &Account,
+        metrics: &[Metric],
+        now: DateTime<Utc>,
+    ) -> Result<Vec<Vec<Point>>, HistoryError> {
+        let spans: Vec<Option<DateTime<Utc>>> = metrics
+            .iter()
+            .map(|metric| crate::pace::recent_since(metric, now))
+            .collect();
+        let mut points = vec![Vec::new(); metrics.len()];
+        if spans.iter().all(Option::is_none) {
+            return Ok(points);
+        }
+        let Some(db) = self.open_existing()? else {
+            return Ok(points);
+        };
+        let account_digest = account_key(account);
+        let mut query = db.prepare(
+            "SELECT taken_at, used FROM samples
+             WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
+               AND taken_at BETWEEN ?4 AND ?5 AND used IS NOT NULL
+             ORDER BY taken_at",
+        )?;
+        for ((metric, since), points) in metrics.iter().zip(spans).zip(&mut points) {
+            let Some(since) = since else {
+                continue;
+            };
+            *points = query
+                .query_map(
+                    rusqlite::params![
+                        self.config_key,
+                        account_digest,
+                        metric_key(metric),
+                        millis(since),
+                        millis(now)
+                    ],
+                    |row| {
+                        Ok(Point {
+                            taken_at: instant(row.get(0)?)?,
+                            used: row.get(1)?,
+                        })
+                    },
+                )?
+                .filter(|point| point.as_ref().map_or(true, |p| p.used.is_finite()))
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+        }
+        Ok(points)
     }
 
     /// Samples of one metric within `range` (any `RangeBounds`, compared to
@@ -570,7 +814,7 @@ mod tests {
     use chrono::{TimeDelta, TimeZone};
     use std::path::Path;
 
-    const CONFIG: &str = r#"
+    pub(super) const CONFIG: &str = r#"
 [[accounts]]
 name = "alpha"
 provider = "groq"
@@ -581,7 +825,7 @@ provider = "groq"
 credential_env = "GROQ_KEY_BETA"
 "#;
 
-    fn config(toml: &str) -> Config {
+    pub(super) fn config(toml: &str) -> Config {
         Config::from_toml(toml).unwrap()
     }
 
@@ -589,7 +833,7 @@ credential_env = "GROQ_KEY_BETA"
         format!("[[accounts]]\nname = \"{name}\"\nprovider = \"groq\"\ncredential_env = \"{env}\"\n{extra}\n")
     }
 
-    fn t0() -> DateTime<Utc> {
+    pub(super) fn t0() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 10, 1, 12, 0, 0).unwrap()
     }
 
@@ -597,11 +841,11 @@ credential_env = "GROQ_KEY_BETA"
         TimeDelta::minutes(n)
     }
 
-    fn store(path: &Path, config: &str) -> HistoryStore {
+    pub(super) fn store(path: &Path, config: &str) -> HistoryStore {
         HistoryStore::new(path.to_path_buf(), &ConfigIdentity::Explicit(config.into()))
     }
 
-    fn quota(label: &str, used: Option<f64>, limit: Option<f64>) -> Metric {
+    pub(super) fn quota(label: &str, used: Option<f64>, limit: Option<f64>) -> Metric {
         Metric {
             label: label.into(),
             used,
@@ -651,35 +895,38 @@ credential_env = "GROQ_KEY_BETA"
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap()
         };
-        assert_eq!(version(&db), 1);
+        assert_eq!(version(&db), MIGRATIONS.len() as i64);
         let mode: String = raw(&db)
             .query_row("PRAGMA journal_mode", [], |r| r.get(0))
             .unwrap();
         assert_eq!(mode, "wal");
 
-        // An empty database left at version 0 is migrated on first use.
+        // A version-1 file (0.37.0) is migrated on first use and gains the
+        // age index.
         let empty = dir.path().join("empty.sqlite3");
-        raw(&empty)
-            .execute_batch("PRAGMA user_version = 0")
-            .unwrap();
+        migrate(&mut raw(&empty), &MIGRATIONS[..1]).unwrap();
+        assert_eq!(version(&empty), 1);
         let config = config(CONFIG);
         let alpha = &config.accounts[0];
         store(&empty, "one")
             .record(alpha, t0(), &[quota("5h", Some(10.0), Some(100.0))])
             .unwrap();
-        assert_eq!(version(&empty), 1);
-
-        // A later step runs alone on a version-1 file and keeps its data.
-        let mut db_v1 = raw(&empty);
-        migrate(
-            &mut db_v1,
-            &[
-                MIGRATIONS[0],
-                "ALTER TABLE samples ADD COLUMN note_free INTEGER",
-            ],
-        )
-        .unwrap();
         assert_eq!(version(&empty), 2);
+        let indexed: i64 = raw(&empty)
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_by_age'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(indexed, 1);
+
+        // A later step runs alone on a current file and keeps its data.
+        let mut current = raw(&empty);
+        let mut next = MIGRATIONS.to_vec();
+        next.push("ALTER TABLE samples ADD COLUMN note_free INTEGER");
+        migrate(&mut current, &next).unwrap();
+        assert_eq!(version(&empty), 3);
         assert_eq!(count(&empty, "used = 10.0"), 1);
 
         // Written by a newer Cuotai: every operation fails, nothing is guessed.
@@ -1250,5 +1497,134 @@ credential_env = "GROQ_KEY_BETA"
             (cap, Some(reset + mins(2)))
         );
         assert!(group_windows([]).is_empty());
+    }
+
+    #[test]
+    fn a_repeated_sample_within_15_minutes_is_compacted_unless_the_window_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = config(CONFIG).accounts.remove(0);
+        let reset = t0() + TimeDelta::hours(5);
+        let reading = |used: f64, resets: TimeDelta| Metric {
+            resets_at: Some(reset + resets),
+            ..quota("5h", Some(used), Some(100.0))
+        };
+        let secs = TimeDelta::seconds;
+        // (case, offset from t0, metric, stored)
+        let steps = [
+            ("first", secs(0), reading(10.0, secs(0)), 1),
+            ("same, 14:59 later", secs(899), reading(10.0, secs(0)), 0),
+            (
+                "same window, drifted 2 min",
+                mins(10),
+                reading(10.0, mins(2)),
+                0,
+            ),
+            (
+                "same, 15 min after the stored one",
+                mins(15),
+                reading(10.0, secs(0)),
+                1,
+            ),
+            ("changed value", mins(16), reading(11.0, secs(0)), 1),
+            (
+                "new window, same value",
+                mins(17),
+                reading(11.0, secs(121)),
+                1,
+            ),
+            ("replayed instant", mins(17), reading(11.0, secs(121)), 0),
+        ];
+        for (case, offset, metric, stored) in steps {
+            assert_eq!(
+                history.record(&alpha, t0() + offset, &[metric]),
+                Ok(stored),
+                "{case}"
+            );
+        }
+        let missing = quota("other", None, None);
+        history
+            .record(&alpha, t0() + mins(18), std::slice::from_ref(&missing))
+            .unwrap();
+        assert_eq!(
+            history.record(&alpha, t0() + mins(19), &[missing]),
+            Ok(0),
+            "missing values repeat too"
+        );
+        let key = metric_key(&reading(0.0, secs(0)));
+        assert_eq!(history.series(&alpha, &key, ..).unwrap().len(), 4);
+
+        // A compacted reading still dates the account's last reading.
+        history
+            .record(&alpha, t0() + mins(20), &[reading(11.0, secs(121))])
+            .unwrap();
+        let latest = history.latest(&alpha).unwrap().unwrap();
+        assert_eq!(latest.checked_at, t0() + mins(20));
+        assert_eq!(latest.metrics[0].taken_at, t0() + mins(17));
+    }
+
+    #[test]
+    fn latest_reports_restore_ready_readings_in_configuration_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let config = config(CONFIG);
+        assert_eq!(history.latest_reports(&config).unwrap().len(), 2);
+        assert!(!db.exists(), "reading never creates the file");
+        history
+            .record(
+                &config.accounts[1],
+                t0(),
+                &[quota("5h", Some(42.0), Some(100.0))],
+            )
+            .unwrap();
+        let restored = history.latest_reports(&config).unwrap();
+        assert!(restored[0].is_none());
+        let beta = restored[1].as_ref().unwrap();
+        assert_eq!(
+            (beta.account.as_str(), beta.status, beta.checked_at),
+            ("beta", Status::Ready, t0())
+        );
+        assert_eq!(beta.metrics[0].used, Some(42.0));
+        assert!(beta.notes.is_empty() && beta.source.is_empty());
+    }
+
+    #[test]
+    fn recent_reads_the_pace_lookback_of_each_eligible_metric() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = config(CONFIG).accounts.remove(0);
+        // 5-hour window ending at t0 + 5h, so `now` = t0 + 3h is 3/5 in.
+        let now = t0() + TimeDelta::hours(3);
+        let five_h = |used: f64| Metric {
+            resets_at: Some(t0() + TimeDelta::hours(5)),
+            ..quota("5h", Some(used), Some(100.0))
+        };
+        let rate = Metric {
+            kind: MetricKind::RateLimit,
+            ..five_h(1.0)
+        };
+        assert_eq!(
+            history.recent(&alpha, &[five_h(50.0), rate.clone()], now),
+            Ok(vec![vec![], vec![]])
+        );
+        assert!(!db.exists(), "nothing recorded: nothing read or created");
+        for minute in [0, 50, 70, 120, 150, 180, 190] {
+            let at = t0() + mins(minute);
+            history
+                .record(&alpha, at, &[five_h(minute as f64 / 4.0), rate.clone()])
+                .unwrap();
+        }
+        let recent = history.recent(&alpha, &[five_h(50.0), rate], now).unwrap();
+        let minutes: Vec<i64> = recent[0]
+            .iter()
+            .map(|p| (p.taken_at - t0()).num_minutes())
+            .collect();
+        assert_eq!(minutes, [70, 120, 150, 180], "the last 2 hours up to now");
+        assert!(recent[1].is_empty(), "a rate limit has no pace");
+        let pace = crate::pace::assess(&five_h(45.0), now, Some(&recent[0])).unwrap();
+        assert_eq!(pace.source, crate::pace::PaceSource::Recent);
     }
 }

@@ -142,6 +142,12 @@ pub struct Monitor {
     /// Per-config model catalog store; `None` keeps model operations
     /// unavailable without affecting quota refresh.
     models: Option<models::ModelCache>,
+    /// PRD 0006 RF2: measurement history recorder; `None` records nothing.
+    history: Option<history::HistoryRecorder>,
+    /// Test-only fixed clock for `checked_at`, so recording tests control
+    /// the time between readings.
+    #[cfg(test)]
+    clock: Option<Arc<parking_lot::Mutex<chrono::DateTime<Utc>>>>,
 }
 
 impl Monitor {
@@ -183,6 +189,9 @@ impl Monitor {
             #[cfg(test)]
             groq_url: None,
             models: None,
+            history: None,
+            #[cfg(test)]
+            clock: None,
         })
     }
 
@@ -223,6 +232,9 @@ impl Monitor {
             #[cfg(test)]
             groq_url: self.groq_url.clone(),
             models: self.models.clone(),
+            history: self.history.clone(),
+            #[cfg(test)]
+            clock: self.clock.clone(),
         })
     }
 
@@ -232,8 +244,107 @@ impl Monitor {
         self.models = Some(cache);
         self
     }
+
+    /// PRD 0006 RF2.1: record every `Ready` report into `store` (pruned by
+    /// its [`history::Retention`]) from a worker thread with a bounded
+    /// queue, so a slow disk never delays a refresh; kept by
+    /// [`Monitor::with_config`]. Without it nothing is recorded.
+    pub fn with_history(self, store: history::HistoryStore) -> Self {
+        self.with_recorder(history::HistoryRecorder::spawn(store))
+    }
+
+    fn with_recorder(mut self, recorder: history::HistoryRecorder) -> Self {
+        self.history = Some(recorder);
+        self
+    }
+
+    /// The history store (with its current retention), for queries.
+    pub fn history(&self) -> Option<history::HistoryStore> {
+        self.history.as_ref().map(history::HistoryRecorder::store)
+    }
+
+    /// What front ends show about the history; `None` without one.
+    pub fn history_status(&self) -> Option<history::HistoryStatus> {
+        self.history.as_ref().map(history::HistoryRecorder::status)
+    }
+
+    /// RF4.1: prune by `retention` from now on (at once, then every 24 h).
+    pub fn set_history_retention(&self, retention: history::Retention) {
+        if let Some(recorder) = &self.history {
+            recorder.set_retention(retention);
+        }
+    }
+
+    /// Mark for pruning the series of accounts gone from this monitor's
+    /// configuration; call it with the configuration just loaded from or
+    /// saved to the TOML (as [`Monitor::prune_models`]). Queued, never blocks.
+    pub fn mark_history_removed(&self) {
+        if let Some(recorder) = &self.history {
+            recorder.mark_removed(&self.config);
+        }
+    }
+
+    /// Wait up to `timeout` for the queued readings to reach the disk (a
+    /// process about to exit calls it). `true` without history.
+    pub fn flush_history(&self, timeout: Duration) -> bool {
+        self.history
+            .as_ref()
+            .is_none_or(|recorder| recorder.flush(timeout))
+    }
+
+    /// PRD 0010 RF2.3: the last recorded reading of each account, in
+    /// configuration order, for [`refresh::RefreshCycle::restore_last_good`]
+    /// on opening. All `None` without history; a storage failure also
+    /// shows in [`Monitor::history_status`].
+    pub fn restored_readings(&self) -> Vec<Option<Report>> {
+        let none = || vec![None; self.config.accounts.len()];
+        let Some(recorder) = &self.history else {
+            return none();
+        };
+        recorder
+            .store()
+            .latest_reports(&self.config)
+            .unwrap_or_else(|error| {
+                recorder.note_error(error);
+                none()
+            })
+    }
+
+    /// PRD 0007 RF1.5: the recorded points [`pace::assess`] reads as
+    /// `recent` for each of `metrics` of account `index` at `now`; empty
+    /// lists (the average since the window start) without history, for a
+    /// metric with no pace, or on a storage failure (also shown in
+    /// [`Monitor::history_status`]).
+    pub fn recent_points(
+        &self,
+        index: usize,
+        metrics: &[Metric],
+        now: chrono::DateTime<Utc>,
+    ) -> Vec<Vec<pace::Point>> {
+        let none = || vec![Vec::new(); metrics.len()];
+        let (Some(recorder), Some(account)) = (&self.history, self.config.accounts.get(index))
+        else {
+            return none();
+        };
+        recorder
+            .store()
+            .recent(account, metrics, now)
+            .unwrap_or_else(|error| {
+                recorder.note_error(error);
+                none()
+            })
+    }
+
+    fn now(&self) -> chrono::DateTime<Utc> {
+        #[cfg(test)]
+        if let Some(clock) = &self.clock {
+            return *clock.lock();
+        }
+        Utc::now()
+    }
+
     pub async fn refresh(&self) -> Snapshot {
-        let started_at = Utc::now();
+        let started_at = self.now();
         let mut indexed = stream::iter(0..self.config.accounts.len())
             .map(|index| async move { (index, self.refresh_account(index).await) })
             .buffer_unordered(self.config.concurrency)
@@ -242,7 +353,7 @@ impl Monitor {
         indexed.sort_unstable_by_key(|(index, _)| *index);
         Snapshot {
             started_at,
-            finished_at: Utc::now(),
+            finished_at: self.now(),
             reports: indexed.into_iter().map(|(_, report)| report).collect(),
         }
     }
@@ -281,16 +392,21 @@ impl Monitor {
                 (error.status, Vec::new(), plain, l10n, String::new())
             }
         };
-        Report {
+        let report = Report {
             account: account.name.clone(),
             provider: account.provider,
-            checked_at: Utc::now(),
+            checked_at: self.now(),
             status,
             metrics,
             notes,
             notes_l10n,
             source,
+        };
+        // RF2.2/RF2.4: only enqueued; the disk never delays the refresh.
+        if let Some(recorder) = &self.history {
+            recorder.submit(account, &report);
         }
+        report
     }
 
     /// Run `run` under one query slot and the account deadline, with OAuth
@@ -773,6 +889,166 @@ credential_env = "GROQ_KEY_GAMMA"
             .map(|report| report.account.clone())
             .collect();
         assert_eq!(accounts, ["alpha", "gamma"]);
+    }
+
+    // PRD 0006 RF2 acceptance: recording from the refresh, against a local
+    // `wiremock` Groq with a fixed clock for `checked_at`.
+    fn groq_rate_limits(reset: &str) -> wiremock::ResponseTemplate {
+        wiremock::ResponseTemplate::new(200)
+            .set_body_json(serde_json::json!({ "data": [] }))
+            .insert_header("x-ratelimit-limit-requests", "14400")
+            .insert_header("x-ratelimit-remaining-requests", "14370")
+            .insert_header("x-ratelimit-reset-requests", reset)
+            .insert_header("x-ratelimit-limit-tokens", "18000")
+            .insert_header("x-ratelimit-remaining-tokens", "17997")
+            .insert_header("x-ratelimit-reset-tokens", reset)
+    }
+
+    /// Groq monitor at `server` whose clock reads `clock`; beta's key is
+    /// refused (401).
+    async fn recording_monitor(
+        server: &wiremock::MockServer,
+        recorder: history::HistoryRecorder,
+        clock: &Arc<parking_lot::Mutex<chrono::DateTime<Utc>>>,
+    ) -> Monitor {
+        use wiremock::matchers::{header, method};
+        wiremock::Mock::given(method("GET"))
+            .and(header("authorization", "Bearer gsk_BETA"))
+            .respond_with(wiremock::ResponseTemplate::new(401))
+            .mount(server)
+            .await;
+        wiremock::Mock::given(method("GET"))
+            .respond_with(groq_rate_limits("2m59s"))
+            .mount(server)
+            .await;
+        let creds: Arc<dyn Credentials> = Arc::new(GroqKeys);
+        let session =
+            Arc::new(oauth::OAuthSession::new(EmptyStore::new(), Arc::clone(&creds)).unwrap());
+        let mut config = three_groq_accounts();
+        config.accounts.truncate(2);
+        let mut monitor = Monitor::with_oauth(config, creds, session)
+            .unwrap()
+            .with_recorder(recorder);
+        monitor.groq_url = Some(server.uri());
+        monitor.clock = Some(Arc::clone(clock));
+        monitor
+    }
+
+    fn store_at(dir: &tempfile::TempDir) -> history::HistoryStore {
+        history::HistoryStore::new(
+            dir.path().join("history.sqlite3"),
+            &config_file::ConfigIdentity::Explicit("one".into()),
+        )
+    }
+
+    fn t0() -> chrono::DateTime<Utc> {
+        use chrono::TimeZone;
+        Utc.with_ymd_and_hms(2026, 10, 1, 12, 0, 0).unwrap()
+    }
+
+    #[tokio::test]
+    async fn refresh_records_ready_readings_compacts_repeats_and_follows_new_windows() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_at(&dir);
+        let server = wiremock::MockServer::start().await;
+        let clock = Arc::new(parking_lot::Mutex::new(t0()));
+        let monitor = recording_monitor(
+            &server,
+            history::HistoryRecorder::spawn(store.clone()),
+            &clock,
+        )
+        .await;
+        let (alpha, beta) = (&monitor.config.accounts[0], &monitor.config.accounts[1]);
+        let samples = |store: &history::HistoryStore| {
+            let latest = store.latest(alpha).unwrap().expect("alpha recorded");
+            latest
+                .metrics
+                .iter()
+                .map(|m| store.series(alpha, &m.key, ..).unwrap().len())
+                .collect::<Vec<_>>()
+        };
+
+        let snapshot = monitor.refresh().await;
+        assert_eq!(snapshot.reports[0].status, Status::Ready);
+        assert_eq!(snapshot.reports[1].status, Status::AuthenticationError);
+        assert!(monitor.flush_history(Duration::from_secs(10)));
+        assert_eq!(samples(&store), [1, 1], "one sample per metric");
+        assert_eq!(store.latest(alpha).unwrap().unwrap().checked_at, t0());
+        assert!(
+            store.latest(beta).unwrap().is_none(),
+            "a failure records nothing"
+        );
+
+        // Same values 10 minutes later: omitted, the reading still dated.
+        *clock.lock() = t0() + chrono::TimeDelta::minutes(10);
+        monitor.refresh_account(0).await;
+        assert!(monitor.flush_history(Duration::from_secs(10)));
+        assert_eq!(samples(&store), [1, 1]);
+        assert_eq!(
+            store.latest(alpha).unwrap().unwrap().checked_at,
+            t0() + chrono::TimeDelta::minutes(10)
+        );
+
+        // Same values, a reset an hour away: a new window is recorded.
+        server.reset().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(groq_rate_limits("1h"))
+            .mount(&server)
+            .await;
+        *clock.lock() = t0() + chrono::TimeDelta::minutes(11);
+        monitor.refresh_account(0).await;
+        assert!(monitor.flush_history(Duration::from_secs(10)));
+        assert_eq!(samples(&store), [2, 2]);
+        assert_eq!(monitor.history_status().unwrap().warning(), None);
+
+        // A monitor without history records nothing and changes nothing.
+        let plain = Monitor {
+            history: None,
+            ..monitor.with_config(monitor.config.clone()).unwrap()
+        };
+        *clock.lock() = t0() + chrono::TimeDelta::hours(1);
+        assert_eq!(plain.refresh_account(0).await.status, Status::Ready);
+        assert!(plain.flush_history(Duration::ZERO) && plain.history_status().is_none());
+        assert!(monitor.flush_history(Duration::from_secs(10)));
+        assert_eq!(samples(&store), [2, 2]);
+    }
+
+    #[tokio::test]
+    async fn a_slow_disk_never_delays_the_refresh_and_a_full_queue_drops() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_at(&dir);
+        store.bounds().unwrap();
+        // Another process holds the write lock: every write waits for it.
+        let locker = rusqlite::Connection::open(dir.path().join("history.sqlite3")).unwrap();
+        locker.execute_batch("BEGIN EXCLUSIVE").unwrap();
+        let server = wiremock::MockServer::start().await;
+        let clock = Arc::new(parking_lot::Mutex::new(t0()));
+        let recorder = history::HistoryRecorder::with_capacity(store.clone(), 1);
+        let monitor = recording_monitor(&server, recorder, &clock).await;
+        for n in 0..5 {
+            *clock.lock() = t0() + chrono::TimeDelta::minutes(20 * n);
+            let started = std::time::Instant::now();
+            assert_eq!(monitor.refresh_account(0).await.status, Status::Ready);
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "the 5 s busy wait never reaches the refresh"
+            );
+        }
+        let dropped = monitor.history_status().unwrap().dropped;
+        assert!(dropped >= 3, "capacity 1 behind a blocked write: {dropped}");
+        assert_eq!(
+            monitor.history_status().unwrap().warning().map(|w| w.id),
+            Some("history.warning.dropped".into())
+        );
+        drop(locker);
+        assert!(monitor.flush_history(Duration::from_secs(20)));
+        let alpha = &monitor.config.accounts[0];
+        let key = &store.latest(alpha).unwrap().unwrap().metrics[0].key;
+        assert_eq!(
+            store.series(alpha, key, ..).unwrap().len() as u64,
+            5 - dropped,
+            "every queued reading lands once the disk answers"
+        );
     }
 
     #[test]

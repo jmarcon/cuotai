@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, configLabel, currentSort, getSettings, groupingRecharging, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setGroupRecharging, setMotion, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, currentSort, getSettings, groupingRecharging, historyErase, historyExport, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, setConfigFile, setGroupRecharging, setHistoryDays, setMotion, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -45,6 +45,31 @@ export async function openSettings(extra = {}) {
           <button class="btn primary" data-apply-refresh>${te("settings.refresh.save")}</button>
         </div>
         <p class="err" id="refresh-msg" role="alert"></p>
+      </section>
+      <section class="set-sec" data-history><h3>${te("settings.history.title")}</h3>
+        <p class="hint">${te("settings.history.help")}</p>
+        <label class="f"><span>${te("settings.history.days")}</span>
+          <input id="history-days" type="number" inputmode="numeric" min="${s.history_days_min}" max="${s.history_days_max}" step="1" value="${esc(s.history_days)}" />
+          <small>${te("settings.history.range", { min: s.history_days_min, max: s.history_days_max })}</small></label>
+        <div class="dlg-actions left"><button class="btn primary" data-apply-history>${te("settings.history.save")}</button></div>
+        <p class="err" id="history-msg" role="alert"></p>
+        <label class="f"><span>${te("settings.history.account")}</span>
+          <select id="history-account"><option value="">${te("settings.history.allAccounts")}</option>
+            ${historyAccounts(view).map(([index, label]) => `<option value="${index}">${esc(label)}</option>`).join("")}</select></label>
+        <label class="f"><span>${te("settings.history.period")}</span>
+          <select id="history-period">${[["1", "settings.history.period.day"], ["7", "settings.history.period.week"], ["30", "settings.history.period.month"], ["", "settings.history.period.all"]]
+            .map(([days, key]) => `<option value="${days}" ${days === "" ? "selected" : ""}>${te(key)}</option>`).join("")}</select></label>
+        <div class="dlg-actions left">
+          <button class="btn" data-export="csv">${icon("copy")} ${te("settings.history.exportCsv")}</button>
+          <button class="btn" data-export="json">${icon("copy")} ${te("settings.history.exportJson")}</button>
+          <button class="btn danger-btn" data-erase>${icon("trash")} ${te("settings.history.erase")}</button>
+        </div>
+        <div class="confirm" id="history-confirm" role="alertdialog" aria-labelledby="history-confirm-text" hidden>
+          <p id="history-confirm-text"></p>
+          <div class="dlg-actions left"><button class="btn danger-btn" data-erase-confirm>${te("settings.history.eraseConfirm")}</button>
+            <button class="btn" data-erase-cancel>${te("common.cancel")}</button></div>
+        </div>
+        <p class="err" id="history-data-msg" role="status"></p>
       </section>
       <section class="set-sec"><h3>${te("settings.config.title")}</h3>
         <p class="hint">${te("settings.config.help")}</p>
@@ -97,6 +122,7 @@ export async function openSettings(extra = {}) {
         msg.textContent = t("settings.refresh.saved");
       } catch (e) { msg.textContent = l10nError(e); }
     };
+    bindHistory(dlg);
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -121,6 +147,52 @@ export async function openSettings(extra = {}) {
   bindThemeSwitch(dlg, () => { extra.onChange?.(); return render(); });
   showDialog(dlg);
   await render();
+}
+
+/** Accounts of the loaded configuration that have a report, as `[index, label]` for the history scope. */
+const historyAccounts = (view) => (view?.reports ?? []).map((r) => [r.index, `${brand(r.provider).label} · ${r.account}`]);
+
+/** PRD 0006 RF4: retention (`desktop.json`), export and erasure, all done by the core; erasing always asks first. */
+function bindHistory(dlg) {
+  const days = dlg.querySelector("#history-days");
+  const msg = dlg.querySelector("#history-msg");
+  const dataMsg = dlg.querySelector("#history-data-msg");
+  const select = dlg.querySelector("#history-account");
+  const account = () => (select.value === "" ? null : Number(select.value));
+  const period = () => { const v = dlg.querySelector("#history-period").value; return v === "" ? null : Number(v); };
+  const confirm = dlg.querySelector("#history-confirm");
+  const report = (text, ok) => { dataMsg.classList.toggle("ok", ok); dataMsg.textContent = text; };
+  dlg.querySelector("[data-apply-history]").onclick = async () => {
+    msg.classList.remove("ok");
+    try {
+      await setHistoryDays(Number(days.value));
+      msg.classList.add("ok");
+      msg.textContent = t("settings.history.saved", { days: Number(days.value) });
+    } catch (e) { msg.textContent = errorText(e); }
+  };
+  for (const button of dlg.querySelectorAll("[data-export]")) button.onclick = async () => {
+    const format = button.dataset.export;
+    const path = await pickExportFile(format);
+    if (typeof path !== "string" || !path) return; // cancelled
+    try { report(t("settings.history.exported", { count: await historyExport(account(), period(), format, path), path }), true); }
+    catch (e) { report(l10nError(e), false); }
+  };
+  // The scope is fixed when the confirmation opens, so changing the list afterwards cannot widen it.
+  let scope = null;
+  dlg.querySelector("[data-erase]").onclick = () => {
+    scope = account();
+    confirm.querySelector("#history-confirm-text").textContent = scope == null
+      ? t("settings.history.eraseAll")
+      : t("settings.history.eraseOne", { account: select.selectedOptions[0]?.textContent ?? "" });
+    confirm.hidden = false;
+    confirm.querySelector("[data-erase-cancel]").focus();
+  };
+  confirm.querySelector("[data-erase-cancel]").onclick = () => { confirm.hidden = true; dlg.querySelector("[data-erase]").focus(); };
+  confirm.querySelector("[data-erase-confirm]").onclick = async () => {
+    confirm.hidden = true;
+    try { report(t("settings.history.erased", { count: await historyErase(scope) }), true); }
+    catch (e) { report(l10nError(e), false); }
+  };
 }
 
 const errorText = (e) => {

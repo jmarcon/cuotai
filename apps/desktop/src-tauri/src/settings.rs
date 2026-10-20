@@ -1,6 +1,7 @@
 //! Configurações do app desktop (não confundir com o `cuotai.toml` de contas, que é do core).
 //! Arquivo `desktop.json` na pasta padrão de configuração: pasta de temas e idiomas e o
 //! `cuotai.toml` escolhido pelo usuário (só o caminho; nunca dentro do TOML).
+use cuotai_core::history::Retention;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -21,6 +22,24 @@ struct Stored {
     /// Consumption pace (PRD 0007 RF3.4); absent = shown. Only `false` is stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     show_pace: Option<bool>,
+    /// Days of measurement history kept (PRD 0006 RF4.1, 7 to 365); absent
+    /// = the core default (90). A value out of range reads as the default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    history_days: Option<u32>,
+}
+
+/// The history retention stored in `desktop.json`; the core default when
+/// absent or out of range.
+fn retention_of(stored: &Stored) -> Retention {
+    stored
+        .history_days
+        .and_then(|days| Retention::days(days).ok())
+        .unwrap_or_default()
+}
+
+/// PRD 0006 RF4.1: the measurement history retention of this device.
+pub fn history_retention() -> Retention {
+    retention_of(&load())
 }
 
 /// Valores aceitos para `motion`, na ordem exibida pela UI.
@@ -151,6 +170,17 @@ pub fn save_show_pace(show: bool) -> Result<(), &'static str> {
     update(&file, |s| s.show_pace = (!show).then_some(false))
 }
 
+/// Keeps `days` of measurement history (the default, 90, removes the key).
+/// Errors: `invalid_history_days` (outside 7 to 365), `unwritable`.
+pub fn save_history_days(days: u32) -> Result<Retention, &'static str> {
+    let retention = Retention::days(days).map_err(|_| "invalid_history_days")?;
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        s.history_days = (retention != Retention::default()).then_some(days)
+    })?;
+    Ok(retention)
+}
+
 #[derive(Serialize)]
 pub struct SettingsView {
     /// Pasta em uso agora.
@@ -168,6 +198,10 @@ pub struct SettingsView {
     motion: &'static str,
     /// Consumption pace on cards, details and tray (on by default).
     show_pace: bool,
+    /// Days of measurement history kept, and the accepted range.
+    history_days: u16,
+    history_days_min: u16,
+    history_days_max: u16,
     version: &'static str,
 }
 
@@ -184,6 +218,9 @@ pub fn view() -> SettingsView {
             .is_some(),
         motion: motion_of(&stored),
         show_pace: stored.show_pace != Some(false),
+        history_days: retention_of(&stored).keep_days(),
+        history_days_min: Retention::MIN_DAYS,
+        history_days_max: Retention::MAX_DAYS,
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -272,5 +309,30 @@ mod tests {
         // A hand-edited `true` or a removed key both mean "shown".
         fs::write(&file, r#"{"show_pace":true}"#).unwrap();
         assert_ne!(read(&file).show_pace, Some(false));
+    }
+
+    #[test]
+    fn history_retention_defaults_to_90_days_and_ignores_values_out_of_range() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(retention_of(&read(&file)).keep_days(), 90);
+        update(&file, |s| s.history_days = Some(365)).unwrap();
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let stored = read(&file);
+        assert_eq!(retention_of(&stored).keep_days(), 365);
+        assert_eq!(motion_of(&stored), "off");
+        // Hand-edited outside 7 to 365: the default, the other fields stay.
+        for days in ["6", "366", "7000000"] {
+            fs::write(
+                &file,
+                format!(r#"{{"motion":"off","history_days":{days}}}"#),
+            )
+            .unwrap();
+            let stored = read(&file);
+            assert_eq!(retention_of(&stored).keep_days(), 90, "{days}");
+            assert_eq!(motion_of(&stored), "off", "{days}");
+        }
+        assert_eq!(save_history_days(6), Err("invalid_history_days"));
+        assert_eq!(save_history_days(400), Err("invalid_history_days"));
     }
 }

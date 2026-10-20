@@ -356,6 +356,40 @@ fn set_show_pace(show: bool) -> Result<(), String> {
     settings::save_show_pace(show).map_err(str::to_owned)
 }
 
+/// PRD 0006 RF4.1: days of measurement history kept on this device (7 to
+/// 365), saved in `desktop.json`; prunes at once. Errors:
+/// `invalid_history_days`, `unwritable`.
+#[tauri::command]
+async fn set_history_days(app: AppHandle, b: Shared<'_>, days: u32) -> Result<(), String> {
+    b.set_history_days(&app, days).await
+}
+
+/// PRD 0006 RF4.4: export the history of account `index` (`None` = every
+/// account) of the last `days` days (`None` = everything) to the file the
+/// user chose in the native save dialog. Returns the rows written.
+#[tauri::command]
+async fn history_export(
+    b: Shared<'_>,
+    index: Option<usize>,
+    days: Option<u32>,
+    format: cuotai_core::history::ExportFormat,
+    path: String,
+) -> Result<usize, String> {
+    b.history_export(index, days, format, std::path::PathBuf::from(path))
+        .await
+}
+
+/// PRD 0006 RF4.4: erase the history of account `index`, or all of it with
+/// `None`, after the confirmation the UI asked for. Returns the samples removed.
+#[tauri::command]
+async fn history_erase(
+    app: AppHandle,
+    b: Shared<'_>,
+    index: Option<usize>,
+) -> Result<usize, String> {
+    b.history_erase(&app, index).await
+}
+
 /// RF1.2: `path = None` volta ao `cuotai.toml` padrão do SO. Recarrega pelo core e só então
 /// grava a escolha em `desktop.json`. Erros: códigos de `settings` ou o JSON tipado do core.
 #[tauri::command]
@@ -459,6 +493,9 @@ pub fn run() {
             open_user_dir,
             set_motion,
             set_show_pace,
+            set_history_days,
+            history_export,
+            history_erase,
             open_settings,
             show_main_window,
             quit_app

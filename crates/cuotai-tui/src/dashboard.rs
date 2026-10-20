@@ -11,7 +11,7 @@ use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_local
 use chrono::{DateTime, Local, Utc};
 use cuotai_core::access::{self, UsageAccess};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
-use cuotai_core::pace::{self, Pace, PaceStage, PaceTone};
+use cuotai_core::pace::{self, Pace, PaceStage, PaceTone, Point};
 #[cfg(test)]
 use cuotai_core::Snapshot;
 use cuotai_core::{Account, Metric, Report, Status};
@@ -185,16 +185,27 @@ struct MetricRow {
     pace: Option<Pace>,
 }
 
-/// `pace_at` is the clock for the pace; `None` shows no pace.
-fn metric_row(metric: &Metric, pace_at: Option<DateTime<Utc>>) -> MetricRow {
+/// `pace_at` is the clock for the pace; `None` shows no pace. `recent` are
+/// the recorded points of the metric (PRD 0006), which project the pace
+/// from the recent slope when there are enough of them (PRD 0007 RF1.5).
+fn metric_row(metric: &Metric, pace_at: Option<DateTime<Utc>>, recent: &[Point]) -> MetricRow {
     MetricRow {
         label: metric.label.clone(),
         text: metric_text(metric),
         state: classify_metric(metric),
         period: metric.period.clone(),
         resets_at: metric.resets_at,
-        pace: pace_at.and_then(|now| pace::assess(metric, now, None)),
+        pace: pace_at.and_then(|now| pace::assess(metric, now, Some(recent))),
     }
+}
+
+/// The recorded points of each metric of account `index`'s current report.
+fn recent_of<'a>(view: &View<'a>, index: usize) -> &'a [Vec<Point>] {
+    view.recent.get(index).map_or(&[], Vec::as_slice)
+}
+
+fn points(recent: &[Vec<Point>], metric: usize) -> &[Point] {
+    recent.get(metric).map_or(&[], Vec::as_slice)
 }
 
 /// PRD 0007 RF4: the core's pace texts joined as "stage · outlook", with
@@ -266,6 +277,9 @@ pub(crate) struct View<'a> {
     /// (`RefreshCycle::last_good_report`), `Some` only while the current
     /// report failed. Same length as `accounts` or empty. Display only.
     pub(crate) last_good: &'a [Option<&'a Report>],
+    /// PRD 0007 RF1.5: recorded points per account and metric of its
+    /// current report (PRD 0006); same length as `accounts` or empty.
+    pub(crate) recent: &'a [Vec<Vec<Point>>],
     /// Clock for ages and countdowns, injected so rendering is testable.
     pub(crate) now: DateTime<Utc>,
 }
@@ -635,8 +649,15 @@ fn render_card(
         .map(|report| {
             // The preserved reading is old: no pace from today's clock.
             let pace_at = stale.is_none().then_some(now);
-            let row = |metric| metric_row(metric, pace_at);
-            report.metrics.iter().map(row).enumerate().collect()
+            let recent = recent_of(view, account_index);
+            let row = |(index, metric)| metric_row(metric, pace_at, points(recent, index));
+            report
+                .metrics
+                .iter()
+                .enumerate()
+                .map(row)
+                .enumerate()
+                .collect()
         })
         .unwrap_or_default();
     // PRD 0009 RF3.1: the core's binding metric leads the card; the others
@@ -1228,7 +1249,8 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         }
     } else {
         for (index, metric) in shown.metrics.iter().enumerate() {
-            let row = metric_row(metric, stale.is_none().then_some(now));
+            let recent = points(recent_of(view, account_index), index);
+            let row = metric_row(metric, stale.is_none().then_some(now), recent);
             lines.push(Line::default());
             lines.push(Line::from(vec![
                 Span::styled(
@@ -1874,6 +1896,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good: &[],
+                        recent: &[],
                         now: Utc::now(),
                     },
                 );
@@ -1931,6 +1954,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good: &[],
+                        recent: &[],
                         now: Utc::now(),
                     },
                 );
@@ -1980,6 +2004,7 @@ mod tests {
                             error: None,
                             anim: None,
                             last_good: &[],
+                            recent: &[],
                             now: Utc::now(),
                         },
                     );
@@ -2022,6 +2047,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good: &[],
+                        recent: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2063,6 +2089,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good: &[],
+                        recent: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2111,6 +2138,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good: &[],
+                        recent: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2150,6 +2178,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good: &[],
+                        recent: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2188,6 +2217,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good: &[],
+                        recent: &[],
                         now: Utc::now(),
                     },
                 );
@@ -2239,6 +2269,7 @@ mod tests {
                             error: None,
                             anim: Some(anim),
                             last_good: &[],
+                            recent: &[],
                             now: Utc::now(),
                         },
                     );
@@ -2364,6 +2395,7 @@ mod tests {
                         error: None,
                         anim: None,
                         last_good,
+                        recent: &[],
                         now,
                     },
                 );
@@ -2526,6 +2558,31 @@ mod tests {
         // no stale mark; the next success removes the mark the same way.
         let rows = render_at(&reports, &[], &[], false, at_min(42)).join("\n");
         assert!(!rows.contains("desatualizada") && !rows.contains("Antiga:"));
+    }
+
+    #[test]
+    fn a_reading_restored_from_the_history_shows_stale_while_waiting() {
+        // PRD 0010 RF2.3: just opened, no query answered yet; the cycle
+        // offers the last recorded reading of the first account.
+        let (_, good) = failed_after_success();
+        let rows = render_at(
+            &[None, None, None],
+            &[Some(&good), None, None],
+            &[],
+            false,
+            at_min(90),
+        )
+        .join("\n");
+        let card = rows
+            .lines()
+            .find(|line| line.contains("desatualizada"))
+            .expect("stale status line");
+        assert!(
+            card.contains("Aguardando") && card.contains("(desatualizada) há 1 h"),
+            "{card}"
+        );
+        assert!(rows.contains("Antiga:"));
+        assert_eq!(rows.matches("Aguardando").count(), 3);
     }
 
     #[test]
