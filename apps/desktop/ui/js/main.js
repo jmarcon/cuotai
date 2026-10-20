@@ -8,7 +8,7 @@ import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
   moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, staleView, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice,
+  currentSort, initOrderSync, staleView, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -65,7 +65,7 @@ function summaryHtml(r) {
   return `<p class="sum-note">${esc(r.notes.length ? noteText(r, 0) : statusLabel(r.status))}</p>`;
 }
 
-function card(r, position, ordered) {
+function card(r, position, ordered, recharging = false) {
   const index = r.index;
   const key = reportKey(r);
   const on = !disabled.has(key);
@@ -109,7 +109,7 @@ function card(r, position, ordered) {
       ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(r.notes.length ? noteText(r, 0) : statusLabel(r.status))}</span></p>`
       : summaryHtml(r)}</div>
     <div class="card-foot">
-      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${ageHtml(r)}${nextChip}
+      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
     </div>
   </section>`;
@@ -120,6 +120,13 @@ const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:
     <div class="card-head"><span class="sk sk-logo"></span><div class="who"><h2>${te("card.waiting")}</h2><span class="sk"></span></div></div>
     <div class="summary"><span class="sk"></span><span class="sk sk-short"></span></div>
   </section>`;
+
+// PRD 0010 RF4.1: exhausted or blocked accounts in a native, keyboard-operable <details>; the open state survives
+// `patch` because it is rendered from here and updated by the `toggle` listener.
+let rechargingOpen = true;
+const rechargingGroup = (list) => `<details class="recharging" data-recharging ${rechargingOpen ? "open" : ""}>
+    <summary>${icon("battery")}<span>${te("group.recharging")}</span><span class="count">${list.length}</span></summary>
+    <div class="grid">${list.map((r, position) => card(r, position, list, true)).join("")}</div></details>`;
 
 // Filtro por texto (nome do provedor, da conta, e-mail): sem acentos e sem diferenciar maiúsculas.
 let filterText = "";
@@ -195,6 +202,7 @@ function render() {
   const { view, error } = store;
   const reports = view?.reports ?? [];
   const ordered = sortReports(reports).filter(matchesFilter);
+  const [rest, recharging] = splitRecharging(ordered); // the chosen order holds inside each group
   const loading = !!view && view.busy.length > 0;
   // "Aguardando": contas da configuração que ainda não têm relatório (só antes da primeira resposta de cada uma).
   const have = new Set(reports.map((r) => r.index));
@@ -219,7 +227,8 @@ function render() {
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
-    <main class="grid">${ordered.map((report, position) => card(report, position, ordered)).join("")}${waiting.map(skeleton).join("")}</main></div>`);
+    <main class="grid">${rest.map((report, position) => card(report, position, rest)).join("")}${waiting.map(skeleton).join("")}</main>
+    ${recharging.length ? rechargingGroup(recharging) : ""}</div>`);
   motion.after(root, prev);
 }
 
@@ -285,14 +294,16 @@ root.addEventListener("dragstart", (e) => {
 });
 root.addEventListener("dragover", (e) => {
   const target = e.target.closest?.("[data-card]");
-  if (!dragKey || !target) return;
+  const source = dragKey && root.querySelector(`[data-card="${CSS.escape(dragKey)}"]`);
+  if (!source || !target || source.closest(".grid") !== target.closest(".grid")) return;
   e.preventDefault();
   clearDrop();
   if (target.dataset.card !== dragKey) target.classList.add("drop");
 });
 root.addEventListener("drop", (e) => {
   const target = e.target.closest?.("[data-card]");
-  if (!dragKey || !target) return;
+  const source = dragKey && root.querySelector(`[data-card="${CSS.escape(dragKey)}"]`);
+  if (!source || !target || source.closest(".grid") !== target.closest(".grid")) return;
   e.preventDefault();
   const reports = store.view?.reports ?? [];
   const from = reports.find((r) => reportKey(r) === dragKey)?.index;
@@ -313,7 +324,7 @@ root.addEventListener("keydown", (e) => {
   if (!grip || !delta) return;
   e.preventDefault();
   const key = grip.dataset.grip;
-  const ordered = sortReports(store.view?.reports ?? []);
+  const ordered = splitRecharging(sortReports(store.view?.reports ?? [])).find((g) => g.some((r) => reportKey(r) === key)) ?? [];
   const position = ordered.findIndex((r) => reportKey(r) === key);
   const target = ordered[position + delta];
   if (position >= 0 && target) reorderAccounts(ordered[position].index, target.index, key);
@@ -324,6 +335,7 @@ root.addEventListener("input", (e) => {
 root.addEventListener("keydown", (e) => {
   if (e.target.id === "filter" && e.key === "Escape" && filterText) { e.preventDefault(); filterText = ""; render(); }
 });
+root.addEventListener("toggle", (e) => { if (e.target.matches?.("[data-recharging]")) rechargingOpen = e.target.open; }, true);
 // "/" foca o filtro (como na TUI), exceto ao digitar em outro campo ou com um diálogo aberto.
 addEventListener("keydown", (e) => {
   if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;

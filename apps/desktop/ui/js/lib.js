@@ -231,6 +231,13 @@ export const blockedText = (r) => {
 /** Chip text "Week · 100%" (consumed share of the binding window). */
 export const bindingChipText = (r) => `${bindingLabel(r)} · ${Math.round(r.binding.used_ratio * 100)}%`;
 export const isBindingMetric = (r, m) => r.binding != null && r.metrics[r.binding.index] === m;
+/** PRD 0010 RF4.1: the current reading is exhausted or blocked; a failure (even with a preserved reading) is not. */
+export const isRecharging = (r) => r.status === "ready" && (r.class === "exhausted" || isBlocked(r));
+/** "Returns Today 14:30", or "Return unknown" when the core knows no `blocked_until`. */
+export const returnText = (r) => {
+  const at = isBlocked(r) ? fmtReset(r.binding.blocked_until) : null;
+  return at ? t("group.returnsAt", { time: at }) : t("group.returnUnknown");
+};
 // ---------- PRD 0010 RF3: measurement age and the preserved reading ----------
 /** The current query failed and the core kept the last valid reading (`r.last_good`): always shown as stale. */
 export const isStaleReading = (r) => r.status !== "ready" && r.last_good != null;
@@ -620,9 +627,17 @@ export const SORT_MODES = ["custom", "binding", "reset-asc", "reset-desc", "pct-
 let sortMode = SORT_MODES.includes(get(SORT_KEY, "custom")) ? get(SORT_KEY, "custom") : "custom";
 export const currentSort = () => sortMode;
 export const setSort = (mode) => { if (SORT_MODES.includes(mode)) { sortMode = mode; put(SORT_KEY, mode); } };
+// PRD 0010 RF4.2: optional "Recharging" group, off by default; display only, the TOML order is never rewritten.
+const GROUP_KEY = "cuotai.group-recharging";
+let groupRecharging = get(GROUP_KEY, "off") === "on";
+export const groupingRecharging = () => groupRecharging;
+export const setGroupRecharging = (on) => { groupRecharging = on; put(GROUP_KEY, on ? "on" : "off"); };
+/** [others, recharging] in the order already chosen; with grouping off, everything stays in the first list. */
+export const splitRecharging = (list) => (groupRecharging ? [list.filter((r) => !isRecharging(r)), list.filter(isRecharging)] : [list, []]);
 export function initOrderSync(onChange) {
   addEventListener("storage", (e) => {
     if (e.key === SORT_KEY && SORT_MODES.includes(e.newValue)) sortMode = e.newValue;
+    else if (e.key === GROUP_KEY) groupRecharging = e.newValue === "on";
     else return;
     onChange();
   });
