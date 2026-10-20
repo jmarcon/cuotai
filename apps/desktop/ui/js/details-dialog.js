@@ -7,7 +7,7 @@ import { showDialog } from "./motion.js";
 
 let dlg = null;
 let currentKey = null;
-let ctx = null; // { reports(), generation(), historyEpoch(), view(), onEdit(index), onRemove(index, label), onChange(), onBell(key, on) }
+let ctx = null; // { reports(), generation(), historyEpoch(), view(), onEdit(index), onRemove(index, label), onChange(), onBell(key, on), onMetricAlert(key, label, on) }
 let models = null; // seção de modelos montada uma vez por diálogo; sobrevive aos redesenhos
 let history = null; // PRD 0006 RF5.2: idem, para o histórico
 
@@ -59,6 +59,12 @@ export function openDetails(key, context, from = null) {
       if (t.closest("[data-close]")) return dlg.close();
       const bell = t.closest("[data-bell]");
       if (bell) return ctx.onBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
+      // PRD 0008 RF3.2: mute or unmute one metric's usage alerts.
+      const metricAlert = t.closest("[data-metric-alert]");
+      if (metricAlert) {
+        const { metricAlert: key, metricLabel: label, metricOn: on } = metricAlert.dataset;
+        return ctx.onMetricAlert(key, label, on !== "true");
+      }
       const hide = t.closest("[data-hide]");
       if (hide) { hiddenMetrics.toggle(hide.dataset.hide); render(); return ctx.onChange(); }
       const cp = t.closest("[data-copy]");

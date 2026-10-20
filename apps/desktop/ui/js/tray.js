@@ -23,11 +23,13 @@ function row(r) {
   const blocked = blockedText(r);
   const lv = r.status !== "ready" || blocked ? "bad" : level(pct);
   const value = r.status !== "ready" ? statusLabel(r.status) : blocked ?? (pct != null ? `${Math.round(pct)}%` : "—");
-  return `<button class="row" data-open="${esc(reportKey(r))}">
+  // PRD 0008 RF3.4: an active usage alert highlights the row.
+  return `<button class="row${r.usage_alerts?.length ? " usage-alert" : ""}" data-open="${esc(reportKey(r))}">
     ${logo(r.provider, 32)}
     <div class="row-main">
       <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${lv}">${esc(value)}</span></div>
       <div class="row-sub">${esc(r.account)}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
+      ${r.usage_alerts?.length ? `<div class="row-alert">${icon("bell")}<span>${esc(ALERTS.find((c) => c.id === "usage").label(r))}</span></div>` : ""}
       <div class="row-age">${ageHtml(r)}</div>
       ${trayPace(r, (p, label) => paceHtml(p, { label, short: true }))}
       <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
@@ -70,7 +72,7 @@ function tile(r) {
   const lv = level(pct);
   const w = windowsOf(r);
   const tip = [`${brand(r.provider).label} (${r.account})`,
-    alert ? alert.label() : pct != null ? te2("metric.level." + lv, { pct: Math.round(pct) }) : "",
+    alert ? alert.label(r) : pct != null ? te2("metric.level." + lv, { pct: Math.round(pct) }) : "",
     blockedText(r) ?? "",
     r.binding ? bindingChipText(r) : "",
     ageText(r),
@@ -79,7 +81,7 @@ function tile(r) {
     ...(w.week ? [`${t("card.window.week")}: ${Math.round(w.week.pct)}%`] : [])].filter(Boolean);
   const center = alert ? icon(alert.icon) : pct != null ? `${Math.round(pct)}%` : "—";
   const tone = alert ? alert.tone : lv;
-  return `<button class="tile" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}" data-binding="${esc(r.binding?.window ?? "")}">
+  return `<button class="tile${r.usage_alerts?.length ? " usage-alert" : ""}" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}" data-binding="${esc(r.binding?.window ?? "")}">
     ${donutHtml(alert && pct == null ? 100 : pct, tone, center)}
     <span class="tile-name">${logo(r.provider, 14)}<b>${esc(brand(r.provider).label)}</b></span>
     <span class="tile-acct">${esc(r.account)}</span>${ageHtml(r)}</button>`;

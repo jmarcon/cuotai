@@ -396,13 +396,14 @@ impl RefreshCycle {
     /// another honours both signals (Ready resets, RateLimited hides
     /// the affected slot behind a fresh backoff). A sweep with `None`
     /// (every task failed) bumps the failure counter for every slot so
-    /// the next periodic sweep honours the same ceiling.
+    /// the next periodic sweep honours the same ceiling. `true` when the
+    /// attempt was accepted (so its reports, if any, are now the slots').
     pub fn finish_full(
         &mut self,
         snapshot: Option<Snapshot>,
         generation: Generation,
         now: Instant,
-    ) {
+    ) -> bool {
         // Step 1: the strict guard. A `finish_full` is only valid
         // when (a) `self.generation` still equals the token's
         // generation (no edit/remove bumped it) AND (b) EVERY slot
@@ -417,14 +418,14 @@ impl RefreshCycle {
         // `self.generation`, so the cycle's live generation no
         // longer matches the sweep's token.
         if self.generation != generation.0 {
-            return;
+            return false;
         }
         if self.in_flight.is_empty() {
             // The cycle is fresh or every slot has been released;
             // there is no in-flight sweep to finish. The token is
             // meaningless and any snapshot we received belongs to an
             // older generation.
-            return;
+            return false;
         }
         let all_match = self
             .in_flight
@@ -437,7 +438,7 @@ impl RefreshCycle {
             // flight. Drop the entire result — applying a partial
             // snapshot would overwrite a slot whose latest commit is
             // newer than the sweep's view.
-            return;
+            return false;
         }
         // Step 2: release every slot so the snapshot application
         // operates on an empty busy set. Per-slot deadlines were
@@ -498,6 +499,7 @@ impl RefreshCycle {
                 self.deadlines[index] = now + backoff;
             }
         }
+        true
     }
 
     /// Complete one account-refresh attempt and schedule that account's next
@@ -509,14 +511,15 @@ impl RefreshCycle {
     /// counter increments so the deadline backs off. A successful report
     /// replaces exactly its configuration-order slot, advances the
     /// snapshot completion timestamp when a snapshot was already
-    /// assembled, and resets the failure counter on `Ready`.
+    /// assembled, and resets the failure counter on `Ready`. `true` when
+    /// the attempt was accepted (so a report, if any, is now the slot's).
     pub fn finish_account(
         &mut self,
         index: usize,
         report: Option<Report>,
         generation: Generation,
         now: Instant,
-    ) {
+    ) -> bool {
         // Generation guard: refuse any report that does not belong to
         // the most recent begin call on this slot. The most common
         // causes are (1) an edit bumped `self.generation` while the
@@ -524,7 +527,7 @@ impl RefreshCycle {
         // reload replaced the cycle. Refuse silently — the caller will
         // see the slot stay pending and re-queue.
         if index >= self.in_flight.len() || self.in_flight[index] != Some(generation.0) {
-            return;
+            return false;
         }
         self.release(index);
         match report {
@@ -584,6 +587,7 @@ impl RefreshCycle {
                 self.deadlines[index] = now + backoff;
             }
         }
+        true
     }
 
     /// Effective deadline a transition into `failures` consecutive

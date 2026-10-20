@@ -8,6 +8,7 @@ use cuotai_core::{
         visible_field_indices, AccountDraft, CredentialKind, DraftField, DraftValue,
         FieldDescriptorKind, FieldVisibility,
     },
+    alerts,
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
     freshness::{assess, clock_adjusted, Freshness},
     history::{
@@ -257,6 +258,15 @@ pub struct MetricView {
     /// clock and, PRD 0006, the metric's recorded points); `None` for
     /// ineligible metrics and for the preserved reading.
     pace: Option<PaceView>,
+    /// PRD 0008 RF3.2/RF3.4: while usage alerts are on and the metric can
+    /// alert, whether it is muted in the details and has an active alert.
+    alert: Option<MetricAlertView>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct MetricAlertView {
+    muted: bool,
+    active: bool,
 }
 
 /// The core's `Pace` plus its texts: `label` (stage) and `outlook` (`None`
@@ -349,8 +359,12 @@ pub struct ReportView {
     /// The core's stable `Account::key` (provider slug + name), which the
     /// per-account notice preference is keyed by (PRD 0003 RF3.2).
     account_key: String,
-    /// PRD 0003 RF3.2: the account's bell (reset notices on).
+    /// PRD 0003 RF3.2: the account's bell (reset notices and, PRD 0008
+    /// RF3.2, usage alerts on).
     notify: bool,
+    /// PRD 0008 RF3.4: labels of the metrics with an active usage alert
+    /// (empty when none); the card and the tray highlight the account.
+    usage_alerts: Vec<String>,
 }
 
 /// PRD 0003 RF3: whether reset notices are on and, then, the next one
@@ -359,6 +373,8 @@ pub struct ReportView {
 pub struct NotifyView {
     enabled: bool,
     next: Option<NextNoticeView>,
+    /// PRD 0008 RF3: usage alerts are on.
+    alerts: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -445,6 +461,7 @@ fn metric_view(metric: &Metric) -> MetricView {
         metric: metric.clone(),
         state: classify_metric(metric),
         pace: None,
+        alert: None,
     }
 }
 
@@ -502,6 +519,7 @@ fn report_view(
         access: report_access(account, report),
         account_key: account.key(),
         notify: true,
+        usage_alerts: Vec::new(),
     }
 }
 
@@ -558,12 +576,61 @@ fn binding_ranks(slots: &[Option<Report>]) -> Vec<usize> {
 /// app was closed is still known.
 fn notice_readings(cycle: &RefreshCycle) -> Vec<Option<&Report>> {
     (0..cycle.len())
-        .map(|index| {
-            cycle
-                .last_good_report(index)
-                .or_else(|| cycle.account_report(index))
-        })
+        .map(|index| last_reading(cycle, index))
         .collect()
+}
+
+/// The account's latest valid reading: the current report or, while it
+/// failed or nothing answered yet, the preserved or restored one (PRD 0006;
+/// the `prev` of a usage alert's first reading, PRD 0008 RF1.7).
+fn last_reading(cycle: &RefreshCycle, index: usize) -> Option<&Report> {
+    cycle
+        .last_good_report(index)
+        .or_else(|| cycle.account_report(index))
+}
+
+/// Apply one account's query to the cycle. PRD 0008 RF2.2: the report is
+/// judged against the reading it replaces ([`last_reading`]) and, only once
+/// the cycle accepted it, the usage alerts it deserves are recorded for
+/// [`Backend::run_notices`] to deliver. No query happens here.
+fn finish_account(
+    cycle: &mut RefreshCycle,
+    notices: &mut Notices,
+    index: usize,
+    report: Report,
+    token: cuotai_core::refresh::Generation,
+    now: chrono::DateTime<chrono::Utc>,
+) {
+    let events = notices.assess(last_reading(cycle, index), &report, now);
+    if cycle.finish_account(index, Some(report), token, Instant::now()) {
+        if let Some(next) = cycle.account_report(index) {
+            notices.record(next, events, now);
+        }
+    }
+}
+
+/// [`finish_account`] for a full sweep: every report judged against the
+/// reading it replaces, the alerts recorded once the cycle accepted it.
+fn finish_full(
+    cycle: &mut RefreshCycle,
+    notices: &mut Notices,
+    snapshot: cuotai_core::Snapshot,
+    token: cuotai_core::refresh::Generation,
+    now: chrono::DateTime<chrono::Utc>,
+) {
+    let events: Vec<_> = snapshot
+        .reports
+        .iter()
+        .enumerate()
+        .map(|(index, report)| notices.assess(last_reading(cycle, index), report, now))
+        .collect();
+    if cycle.finish_full(Some(snapshot), token, Instant::now()) {
+        for (index, events) in events.into_iter().enumerate() {
+            if let Some(next) = cycle.account_report(index) {
+                notices.record(next, events, now);
+            }
+        }
+    }
 }
 
 fn next_notice_view(event: &cuotai_core::resets::ResetEvent, config: &Config) -> NextNoticeView {
@@ -602,6 +669,7 @@ impl Inner {
                 notify: NotifyView {
                     enabled: self.notices.prefs().enabled,
                     next: None,
+                    alerts: self.notices.alerts().enabled,
                 },
             };
         };
@@ -640,7 +708,10 @@ impl Inner {
                 let mut view = match (slot, last_good) {
                     (Some(report), _) => {
                         let recent = l.monitor.recent_points(i, &report.metrics, clock);
-                        report_view(i, report, &l.file.config, next, models, ranks[i], &recent)
+                        let mut view =
+                            report_view(i, report, &l.file.config, next, models, ranks[i], &recent);
+                        self.mark_usage_alerts(&mut view, report);
+                        view
                     }
                     // PRD 0010 RF2.3: a reading restored from the history
                     // shows (stale) until the first query answers.
@@ -685,8 +756,33 @@ impl Inner {
             notify: NotifyView {
                 enabled: self.notices.prefs().enabled,
                 next,
+                alerts: self.notices.alerts().enabled,
             },
         }
+    }
+
+    /// PRD 0008 RF3.2/RF3.4: while usage alerts are on, each metric that can
+    /// alert says whether it is muted and has an active alert, and the
+    /// account lists the metrics with one.
+    fn mark_usage_alerts(&self, view: &mut ReportView, report: &Report) {
+        if !self.notices.alerts().enabled {
+            return;
+        }
+        let active: Vec<&str> = self
+            .notices
+            .active(report)
+            .map(|metric| metric.label.as_str())
+            .collect();
+        for metric in &mut view.metrics {
+            if alerts::eligible(&metric.metric) {
+                let label = metric.metric.label.as_str();
+                metric.alert = Some(MetricAlertView {
+                    muted: self.notices.metric_muted(&view.account_key, label),
+                    active: active.contains(&label),
+                });
+            }
+        }
+        view.usage_alerts = active.into_iter().map(str::to_owned).collect();
     }
 
     fn install(&mut self, file: ConfigFile) -> Result<(), String> {
@@ -869,10 +965,12 @@ impl Backend {
         Ok(())
     }
 
-    /// Reset notices are on (PRD 0003 RF3.3: nothing reaches the system's
-    /// notification center, the test included, before the user turns them on).
+    /// Reset notices or usage alerts are on (PRD 0003 RF3.3, reused by PRD
+    /// 0008 RF3.3: nothing reaches the system's notification center, the
+    /// test included, before the user turns one of them on).
     pub async fn notices_enabled(&self) -> bool {
-        self.inner.lock().await.notices.prefs().enabled
+        let g = self.inner.lock().await;
+        g.notices.prefs().enabled || g.notices.alerts().enabled
     }
 
     /// Carrega a configuração se ainda não houver uma válida em memória.
@@ -1009,8 +1107,11 @@ impl Backend {
         let snapshot = monitor.refresh().await;
         {
             let mut g = self.inner.lock().await;
-            if let Some(l) = g.loaded.as_mut() {
-                l.cycle.finish_full(Some(snapshot), token, Instant::now());
+            let Inner {
+                loaded, notices, ..
+            } = &mut *g;
+            if let Some(l) = loaded.as_mut() {
+                finish_full(&mut l.cycle, notices, snapshot, token, chrono::Utc::now());
                 for slot in l.tokens.iter_mut() {
                     if *slot == Some(token) {
                         *slot = None;
@@ -1045,9 +1146,18 @@ impl Backend {
         let report = monitor.refresh_account(index).await;
         {
             let mut g = self.inner.lock().await;
-            if let Some(l) = g.loaded.as_mut() {
-                l.cycle
-                    .finish_account(index, Some(report), token, Instant::now());
+            let Inner {
+                loaded, notices, ..
+            } = &mut *g;
+            if let Some(l) = loaded.as_mut() {
+                finish_account(
+                    &mut l.cycle,
+                    notices,
+                    index,
+                    report,
+                    token,
+                    chrono::Utc::now(),
+                );
                 if let Some(slot) = l.tokens.iter_mut().find(|slot| **slot == Some(token)) {
                     *slot = None;
                 }
@@ -2870,6 +2980,66 @@ mod tests {
         let view = serde_json::to_value(g.view()).unwrap();
         assert!(view["reports"][0]["last_good"].is_null());
         assert_eq!(view["reports"][0]["freshness"], "fresh");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn usage_alerts_follow_only_the_reports_the_cycle_applies() {
+        use cuotai_core::MetricWindow::Window5h;
+        struct Titles(std::cell::RefCell<Vec<String>>);
+        impl crate::notify::Notifier for Titles {
+            fn deliver(&self, title: &str, _: &str) -> Result<(), String> {
+                self.0.borrow_mut().push(title.into());
+                Ok(())
+            }
+        }
+        let backend =
+            build_backend(Arc::new(MemoryStore::default()), vec![plain_account("a")]).await;
+        let mut g = backend.inner.inner.lock().await;
+        g.notices.switch_alerts("granted").unwrap();
+        let now = chrono::Utc::now();
+        let reading = |used, minutes_ago| Report {
+            checked_at: now - chrono::Duration::minutes(minutes_ago),
+            ..ready("a", vec![quota("5h", used, Window5h, 2)])
+        };
+        let titles = Titles(Default::default());
+        {
+            let Inner {
+                loaded, notices, ..
+            } = &mut *g;
+            let l = loaded.as_mut().unwrap();
+            let first = l.cycle.begin(0).unwrap();
+            finish_account(&mut l.cycle, notices, 0, reading(50.0, 10), first, now);
+            // A late result of a superseded query is dropped by the cycle:
+            // its crossing is neither delivered nor remembered.
+            finish_account(&mut l.cycle, notices, 0, reading(95.0, 5), first, now);
+            assert_eq!(notices.tick(&l.file.config, &[], now, &titles).delivered, 0);
+            let token = l.cycle.begin(0).unwrap();
+            finish_account(&mut l.cycle, notices, 0, reading(92.0, 1), token, now);
+            assert_eq!(notices.tick(&l.file.config, &[], now, &titles).delivered, 1);
+            assert!(titles.0.borrow()[0].contains("90%"), "{:?}", titles.0);
+            // A full sweep is judged the same way.
+            let sweep = l.cycle.begin_full().unwrap();
+            let snapshot = cuotai_core::Snapshot {
+                started_at: now,
+                finished_at: now,
+                reports: vec![reading(100.0, 0)],
+            };
+            finish_full(&mut l.cycle, notices, snapshot, sweep, now);
+            let later = now + cuotai_core::alerts::NOTICE_SPACING;
+            assert_eq!(
+                notices.tick(&l.file.config, &[], later, &titles).delivered,
+                1
+            );
+        }
+        assert_eq!(titles.0.borrow().len(), 2);
+        let view = serde_json::to_value(g.view()).unwrap();
+        assert_eq!(view["notify"]["alerts"], true);
+        let r = &view["reports"][0];
+        assert_eq!(r["usage_alerts"], serde_json::json!(["5h"]));
+        assert_eq!(
+            r["metrics"][0]["alert"],
+            serde_json::json!({ "muted": false, "active": true })
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]

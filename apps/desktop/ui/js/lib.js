@@ -119,6 +119,11 @@ export const setNotifyEnabled = (on) => call("set_notify_enabled", { on });
 export const setNotifyOptions = (leadMinutes, when, includeOther) => call("set_notify_options", { leadMinutes, when, includeOther });
 export const setAccountNotify = (accountKey, on) => call("set_account_notify", { accountKey, on });
 export const sendTestNotification = (title, body) => call("send_test_notification", { title, body });
+// PRD 0008 RF3: usage alerts (desktop.json; the backend judges each reading and sends them). `setAlertsEnabled` asks
+// the same system permission as reset notices and resolves to `granted`, `denied`, `prompt` or `off`.
+export const setAlertsEnabled = (on) => call("set_alerts_enabled", { on });
+export const setAlertOptions = (thresholds, exhaustion, recovery) => call("set_alert_options", { thresholds, exhaustion, recovery });
+export const setMetricAlert = (accountKey, label, on) => call("set_metric_alert", { accountKey, label, on });
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
   const n = view?.notify?.next;
@@ -127,12 +132,22 @@ export function nextNoticeText(view) {
   const window = t(key) === key ? n.label : t(key);
   return t("notify.next", { name: `${brand(n.provider).label} ${window}`, when: fmtReset(n.at) });
 }
-/** RF3.2: the account's bell (card and details), only while reset notices are on; `aria-pressed` is its state. */
+/** RF3.2: the account's bell (card and details), only while reset notices or usage alerts (PRD 0008 RF3.2) are on;
+ *  it mutes both. `aria-pressed` is its state. */
 export function bellHtml(view, r) {
-  if (!view?.notify?.enabled || !r.account_key) return "";
+  if (!(view?.notify?.enabled || view?.notify?.alerts) || !r.account_key) return "";
   const label = t("notify.bell", { account: r.account });
   const state = t(r.notify ? "notify.bell.on" : "notify.bell.off");
   return `<button class="icon bell${r.notify ? " on" : ""}" aria-pressed="${r.notify}" aria-label="${esc(label)}" title="${esc(`${label}: ${state}`)}" data-bell="${esc(r.account_key)}" data-bell-on="${r.notify}">${icon(r.notify ? "bell" : "bellOff")}</button>`;
+}
+/** PRD 0008 RF3.2: one metric's usage alerts in the details (only while alerts are on and the metric can alert);
+ *  pressed = alerts on, unpressed = muted. */
+export function metricAlertHtml(r, m) {
+  if (!m.alert || !r.account_key) return "";
+  const on = !m.alert.muted;
+  const label = t("alerts.metric", { metric: m.label });
+  const state = t(on ? "notify.bell.on" : "notify.bell.off");
+  return `<button class="icon bell${on ? " on" : ""}" aria-pressed="${on}" aria-label="${esc(label)}" title="${esc(`${label}: ${state}`)}" data-metric-alert="${esc(r.account_key)}" data-metric-label="${esc(m.label)}" data-metric-on="${on}">${icon(on ? "bell" : "bellOff")}</button>`;
 }
 /** Native "save as" for an export (`csv` or `json`); null when cancelled. */
 export async function pickExportFile(format) {
@@ -590,10 +605,12 @@ const demoView = () => {
   const now = new Date().toISOString();
   const reports = demoReports.map((r, index) => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
+    const notify = !demoSettings.notify.off_accounts.includes(demoKey(r));
+    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, alert: demoMetricAlert(r, m, notify) }));
     return { ...r, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
-      metrics: r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null })), pace_index: paceIndex,
+      metrics, pace_index: paceIndex,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
-      account_key: demoKey(r), notify: !demoSettings.notify.off_accounts.includes(demoKey(r)) };
+      account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label) };
   });
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
     started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation,
@@ -601,8 +618,19 @@ const demoView = () => {
     history_warning: new URLSearchParams(location.search).has("history-warning")
       ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "O histórico passou de 64 MiB: as 1200 medições mais antigas foram apagadas." }
       : null,
-    history_epoch: demoSettings.historyEpoch, notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports) } };
+    history_epoch: demoSettings.historyEpoch,
+    notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled } };
 };
+// ponytail: demo mirror of `alerts::eligible` and of an active alert (a capped quota at or above the lowest
+// threshold, bell and metric not muted); the app reads both from the backend's alert state.
+function demoMetricAlert(r, m, notify) {
+  const a = demoSettings.alerts;
+  const used = m.used ?? (m.limit != null && m.remaining != null ? m.limit - m.remaining : null);
+  if (!a.enabled || r.status !== "ready" || m.kind !== "quota" || !(m.limit > 0) || used == null) return null;
+  const muted = (a.muted[demoKey(r)] ?? []).includes(m.label);
+  const pct = (used / m.limit) * 100;
+  return { muted, active: notify && !muted && (pct >= 100 || a.thresholds.some((t) => pct >= t)) };
+}
 // ponytail: demo mirror of `Account::key` and of the core planner's next notice (first future quota reset with a
 // window, "always" filter, lead applied); the app reads both from the backend.
 const demoKey = (r) => `${r.provider}:${r.account}`;
@@ -632,7 +660,9 @@ function demoAccess(r) {
     explanation: r.status === "ready" ? null : reason ?? changed };
 }
 const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(),
-  notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] } };
+  notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
+  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} } };
+const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
 // nenhum catálogo inventado é exibido como real.
 const demoModels = async ({ index, generation }) => {
@@ -801,7 +831,8 @@ const demo = {
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording,
-    notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"], version: "demo" }),
+    notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
+    alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -811,11 +842,26 @@ const demo = {
   history_export: async ({ index }) => (index == null ? 42 : 7),
   history_erase: async ({ index }) => { demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
-  // `?notify-denied` plays a system that refuses the permission (PRD 0003 RF3.3).
+  // `?notify-denied` plays a system that refuses the permission (PRD 0003 RF3.3, reused by PRD 0008 RF3.3).
   set_notify_enabled: async ({ on }) => {
-    const permission = !on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted";
+    const permission = demoPermission(on);
     demoSettings.notify.enabled = permission === "granted";
     return permission;
+  },
+  set_alerts_enabled: async ({ on }) => {
+    const permission = demoPermission(on);
+    demoSettings.alerts.enabled = permission === "granted";
+    return permission;
+  },
+  set_alert_options: async ({ thresholds, exhaustion, recovery }) => {
+    if (!thresholds.every((t) => Number.isInteger(t) && t >= 10 && t <= 99)) throw "invalid_threshold";
+    Object.assign(demoSettings.alerts, { thresholds: [...new Set(thresholds)].sort((a, b) => a - b), exhaustion, recovery });
+  },
+  set_metric_alert: async ({ accountKey, label, on }) => {
+    const muted = (demoSettings.alerts.muted[accountKey] ?? []).filter((l) => l !== label);
+    if (!on) muted.push(label);
+    if (muted.length) demoSettings.alerts.muted[accountKey] = muted;
+    else delete demoSettings.alerts.muted[accountKey];
   },
   set_notify_options: async ({ leadMinutes, when, includeOther }) => {
     if (![0, 5, 15, 60].includes(leadMinutes) || !["used", "exhausted", "always"].includes(when)) throw "invalid_notify";
@@ -827,7 +873,7 @@ const demo = {
   },
   set_locale: async () => {},
   send_test_notification: async ({ title, body }) => {
-    if (!demoSettings.notify.enabled) throw "notify_off";
+    if (!demoSettings.notify.enabled && !demoSettings.alerts.enabled) throw "notify_off";
     window.__lastTestNotification = { title, body };
   },
   history_size: async () => (demoSettings.historyErased.has("all") ? 4096 : 1887437),
@@ -967,10 +1013,14 @@ export function sortMenuHtml() {
 }
 
 // ---------- categorias de aviso (cards e popover): ícone dedicado e cor própria, da mais grave à menos grave ----------
+// `label(r)`: with the account, the category's text for it; without, the category's title.
 export const ALERTS = [
   { id: "error", icon: "xcircle", tone: "bad", label: () => t("status.error"), match: (r) => r.status === "error" },
   { id: "auth", icon: "key", tone: "accent", label: () => t("status.authentication_error"), match: (r) => r.status === "authentication_error" },
   { id: "exhausted", icon: "battery", tone: "bad", label: () => t("tray.cat.exhausted"), match: (r) => r.status === "ready" && r.class === "exhausted" },
+  // PRD 0008 RF3.4: an active usage alert (the exhausted state above keeps precedence).
+  { id: "usage", icon: "bell", tone: "warn", label: (r) => (r ? t("alerts.active", { metrics: r.usage_alerts.join(", ") }) : t("alerts.activeTitle")),
+    match: (r) => r.status === "ready" && r.class !== "exhausted" && r.usage_alerts?.length > 0 },
   { id: "rate", icon: "gauge", tone: "warn", label: () => t("status.rate_limited"), match: (r) => r.status === "rate_limited" },
   { id: "config", icon: "wrench", tone: "info", label: () => t("status.needs_configuration"), match: (r) => r.status === "needs_configuration" },
   { id: "unsupported", icon: "ban", tone: "muted", label: () => t("status.unsupported"), match: (r) => r.status === "unsupported" },

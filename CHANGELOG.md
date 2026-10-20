@@ -13,11 +13,18 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-20
+
+### Added
+
+- The desktop app sends a system notification when a quota with a limit crosses a usage threshold ("Claude: 90% of the 5-hour window used", with the account, the metric and the reset time), runs out, or has slack again in the next window after it ran out: the backend judges every reading the refresh applies, with no extra query and also with the window hidden in the tray, notifies each threshold once per window, never repeats after a restart (the state joins the reset notices in `<OS local data dir>/cuotai/notified.json`, digests and dates only, kept for 8 days), puts an account's alerts of one refresh in one notification and sends at most one per minute, grouping the rest (PRD 0008 RF2).
+- **Settings → Notifications** adds **Usage alerts** (off by default, asking the same system permission and sharing the test notification of reset notices), the thresholds as editable chips from 10 to 99% (75 and 90 by default), **Notify exhaustion** and **Notify recovery**, saved in `desktop.json`; the account's bell now mutes its usage alerts too, each quota can be muted in the account details (kept per provider and account name, forgotten when the account is removed), and the card, the tray popover, its menu and the account details highlight an account with an active alert while the exhausted look stays (PRD 0008 RF3).
+
 ## [0.42.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `alerts::evaluate`, which decides from the readings already taken (no extra query) when a quota's consumption deserves a notice: crossing a threshold chosen between 10 and 99% (75 and 90 by default), exhaustion, and slack again in the next window after a notified exhaustion; only quotas with a cap count (never balance, credits, spend, usage, rate limits or missing values), each threshold fires once per window (a query crossing several reports only the highest, `resets_at` drifting up to 2 minutes is the same window), re-arms only after falling 5 points below it or in a new window, and nothing crossed in the past fires on the first reading after opening unless the previous recorded reading is at most 10 minutes older and was still below it; `alerts::AlertState` remembers it with digests and dates only (PRD 0008 RF1).
+- `cuotai-core` exposes `alerts::evaluate`, which decides from the readings already taken (no extra query) when a quota's consumption deserves a notice: crossing a threshold chosen between 10 and 99% (75 and 90 by default), exhaustion, and slack again in the next window after a notified exhaustion; only quotas with a cap count (never balance, credits, spend, usage, rate limits or missing values), each threshold fires once per window (a query crossing several reports only the highest, `resets_at` drifting up to 2 minutes is the same window), re-arms only after falling 5 points below it or in a new window, and nothing crossed in the past fires on the first reading after opening unless the previous recorded reading is at most 10 minutes older and was still below it; `alerts::AlertState` remembers it with digests and dates only (PRD 0008 RF1, 6bb1783).
 
 ## [0.41.0] - 2026-10-20
 
@@ -397,8 +404,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/29dc2cc...main
-[0.42.0]: https://github.com/jmarcon/cuotai/compare/29dc2cc...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/6bb1783...main
+[0.43.0]: https://github.com/jmarcon/cuotai/compare/6bb1783...main
+[0.42.0]: https://github.com/jmarcon/cuotai/commit/6bb1783
 [0.41.0]: https://github.com/jmarcon/cuotai/commit/29dc2cc
 [0.40.0]: https://github.com/jmarcon/cuotai/commit/e522b44
 [0.39.0]: https://github.com/jmarcon/cuotai/commit/b955116

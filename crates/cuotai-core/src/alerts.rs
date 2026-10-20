@@ -1,4 +1,4 @@
-//! Usage threshold alerts (PRD 0008 RF1).
+//! Usage threshold alerts (PRD 0008 RF1, RF2).
 //!
 //! [`evaluate`] is a pure function over the previous and the new reading of
 //! one account, the user's [`AlertPrefs`], what [`AlertState`] remembers and
@@ -6,14 +6,19 @@
 //! notices a new reading deserves (a threshold crossed, the quota exhausted,
 //! slack again in the next window); the caller delivers them and then calls
 //! [`AlertState::update`] with the same reading, so a threshold fires once
-//! per window instance and oscillating around it stays silent.
+//! per window instance and oscillating around it stays silent. The state
+//! persists in `notified.json` beside the reset notices
+//! ([`crate::resets::Ledger::alerts`]) and [`notice`] writes the text of
+//! one notification.
 
-use crate::metrics::{classify_metric, MetricState};
-use crate::model::{Metric, MetricKind, MetricWindow, Report, Status};
-use crate::resets::{key_digest, DRIFT_TOLERANCE};
-use chrono::{DateTime, TimeDelta, Utc};
-use serde::Serialize;
-use std::collections::BTreeSet;
+use crate::metrics::{classify_metric, window_param, MetricState};
+use crate::model::{Account, Metric, MetricKind, MetricWindow, Report, Status};
+use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
+use crate::text::{params, provider_l10n, Localized};
+use chrono::{DateTime, TimeDelta, TimeZone, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Display;
 use std::ops::RangeInclusive;
 
 /// Consumption thresholds the user may choose, in percent.
@@ -29,6 +34,9 @@ pub const HYSTERESIS_POINTS: f64 = 5.0;
 /// most this much older, so a crossing is only notified when it is known
 /// to have happened within it.
 pub const CROSSING_GRACE: TimeDelta = TimeDelta::minutes(10);
+/// At most one usage alert notification per this span (PRD 0008 §6): the
+/// alerts that arrive sooner wait and join the next one.
+pub const NOTICE_SPACING: TimeDelta = TimeDelta::minutes(1);
 /// The exhaustion level: 100% consumed.
 const EXHAUSTED: u8 = 100;
 /// Absorbs `f64` rounding in `used × 100 / limit` (29% must reach 29).
@@ -45,14 +53,28 @@ pub struct AlertPrefs {
     /// Off: [`evaluate`] returns nothing.
     pub enabled: bool,
     thresholds: BTreeSet<u8>,
+    /// Notify `Exhausted` (on by default). Off, a reading reaching 100%
+    /// notifies the highest threshold it crossed instead.
+    pub exhaustion: bool,
+    /// Notify `Recovered` (on by default).
+    pub recovery: bool,
+    /// [`crate::Account::key`]s whose alerts are muted.
+    pub muted_accounts: BTreeSet<String>,
+    /// Muted metrics: account key → metric labels.
+    pub muted_metrics: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Default for AlertPrefs {
-    /// Off, with the [`DEFAULT_THRESHOLDS`].
+    /// Off, with the [`DEFAULT_THRESHOLDS`], exhaustion and recovery
+    /// notices and nothing muted.
     fn default() -> Self {
         Self {
             enabled: false,
             thresholds: BTreeSet::from(DEFAULT_THRESHOLDS),
+            exhaustion: true,
+            recovery: true,
+            muted_accounts: BTreeSet::new(),
+            muted_metrics: BTreeMap::new(),
         }
     }
 }
@@ -77,6 +99,7 @@ impl AlertPrefs {
         Ok(Self {
             enabled,
             thresholds,
+            ..Self::default()
         })
     }
 
@@ -84,9 +107,25 @@ impl AlertPrefs {
     pub fn thresholds(&self) -> impl DoubleEndedIterator<Item = u8> + '_ {
         self.thresholds.iter().copied()
     }
+
+    /// Whether `event` reaches the user: alerts on, its account and metric
+    /// not muted and its kind wanted.
+    pub fn wants(&self, event: &AlertEvent) -> bool {
+        self.enabled
+            && !self.muted_accounts.contains(&event.account_key)
+            && !self
+                .muted_metrics
+                .get(&event.account_key)
+                .is_some_and(|labels| labels.contains(&event.label))
+            && match event.kind {
+                AlertKind::Threshold => true,
+                AlertKind::Exhausted => self.exhaustion,
+                AlertKind::Recovered => self.recovery,
+            }
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AlertKind {
     /// Consumption reached `threshold` percent.
@@ -118,17 +157,21 @@ pub struct AlertEvent {
 /// (`resets_at`) and level, whether the level was reached and whether it
 /// was notified; recoveries already seen; and the accounts read in this
 /// process. It keeps digests of the account key and metric label plus
-/// thresholds and dates, never names or usage values.
-#[derive(Debug, Clone, Default)]
+/// thresholds and dates, never names or usage values. Serialized (into
+/// `notified.json`), it carries only the marks: the first-reading set
+/// starts empty in every process.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AlertState {
+    #[serde(default)]
     marks: Vec<Mark>,
     /// Account digests with a recent `Ready` reading since this state was
     /// created: their next reading is not a first reading. Per process,
-    /// never meant to be persisted.
+    /// never persisted.
+    #[serde(skip)]
     seen: BTreeSet<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Mark {
     account: String,
     metric: String,
@@ -162,11 +205,13 @@ struct Consumption {
 /// Per eligible metric (a `Quota` with a positive finite cap; anything
 /// without a cap and missing or non-finite values are skipped, never read
 /// as zero), in report order: `Exhausted` once 100% is reached in a window
-/// instance; otherwise `Recovered` when the metric's exhaustion was notified
-/// in an earlier instance, and `Threshold` with the highest crossed
-/// threshold above every level already reached in this instance. Instances
-/// are told apart by `resets_at` beyond [`DRIFT_TOLERANCE`]; an unknown
-/// `resets_at` is the same instance.
+/// instance (with `prefs.exhaustion` off, the highest threshold instead);
+/// otherwise `Recovered` when the metric's exhaustion was notified in an
+/// earlier instance, and `Threshold` with the highest crossed threshold
+/// above every level already reached in this instance. Instances are told
+/// apart by `resets_at` beyond [`DRIFT_TOLERANCE`]; an unknown `resets_at`
+/// is the same instance. Only what [`AlertPrefs::wants`] is returned (a
+/// muted account or metric, or an unwanted kind, stays silent).
 pub fn evaluate(
     prev: Option<&Report>,
     next: &Report,
@@ -222,7 +267,15 @@ pub fn evaluate(
         };
         if consumption.exhausted {
             if highest.is_none_or(|level| level < EXHAUSTED) {
-                events.push(event(AlertKind::Exhausted, EXHAUSTED));
+                if prefs.exhaustion {
+                    events.push(event(AlertKind::Exhausted, EXHAUSTED));
+                } else if let Some(threshold) = prefs
+                    .thresholds()
+                    .next_back()
+                    .filter(|t| highest.is_none_or(|level| *t > level))
+                {
+                    events.push(event(AlertKind::Threshold, threshold));
+                }
             }
             continue;
         }
@@ -237,6 +290,7 @@ pub fn evaluate(
             events.push(event(AlertKind::Threshold, threshold));
         }
     }
+    events.retain(|event| prefs.wants(event));
     events
 }
 
@@ -249,17 +303,19 @@ impl AlertState {
     /// falling [`HYSTERESIS_POINTS`] below them; and a `resets_at` drifting
     /// within [`DRIFT_TOLERANCE`], which follows the reading so gradual
     /// drift stays one instance. A recent `Ready` reading also makes the
-    /// account's next reading a non-first one.
+    /// account's next reading a non-first one. `true` when what persists
+    /// (the marks, not the first-reading set) changed.
     pub fn update(
         &mut self,
         next: &Report,
         prefs: &AlertPrefs,
         events: &[AlertEvent],
         now: DateTime<Utc>,
-    ) {
+    ) -> bool {
         if next.status != Status::Ready {
-            return;
+            return false;
         }
+        let mut changed = false;
         let account_key = next.account_key();
         let account = account_digest(&account_key);
         if now - next.checked_at <= CROSSING_GRACE {
@@ -279,6 +335,7 @@ impl AlertState {
                         && event.threshold == threshold
                 })
             };
+            let before = self.marks.len();
             self.marks.retain(|mark| {
                 !(mark.metric == digest
                     && mark.kind != AlertKind::Recovered
@@ -286,14 +343,16 @@ impl AlertState {
                     && consumption.percent
                         <= f64::from(mark.threshold) - HYSTERESIS_POINTS + EPSILON)
             });
+            changed |= self.marks.len() != before;
             if let Some(at) = at {
                 for mark in &mut self.marks {
                     if mark.metric == digest
-                        && mark
-                            .resets_at
-                            .is_some_and(|resets_at| (resets_at - at).abs() <= DRIFT_TOLERANCE)
+                        && mark.resets_at.is_some_and(|resets_at| {
+                            resets_at != at && (resets_at - at).abs() <= DRIFT_TOLERANCE
+                        })
                     {
                         mark.resets_at = Some(at);
+                        changed = true;
                     }
                 }
             }
@@ -306,6 +365,7 @@ impl AlertState {
                 notified: notified(kind, threshold),
                 at: now,
             };
+            let before = self.marks.len();
             if consumption.exhausted {
                 if !self.has_level(&digest, at, EXHAUSTED) {
                     self.marks.push(mark(AlertKind::Exhausted, EXHAUSTED));
@@ -320,15 +380,54 @@ impl AlertState {
                     self.marks.push(mark(AlertKind::Threshold, threshold));
                 }
             }
+            changed |= self.marks.len() != before;
         }
+        changed
     }
 
     /// Forget every account whose key is not in `keys` (removed from the
     /// configuration): its levels, recoveries and first-reading status.
-    pub fn retain_accounts<'a>(&mut self, keys: impl IntoIterator<Item = &'a str>) {
+    /// `true` when a mark was dropped.
+    pub fn retain_accounts<'a>(&mut self, keys: impl IntoIterator<Item = &'a str>) -> bool {
         let kept: BTreeSet<String> = keys.into_iter().map(account_digest).collect();
+        let before = self.marks.len();
         self.marks.retain(|mark| kept.contains(&mark.account));
         self.seen.retain(|account| kept.contains(account));
+        self.marks.len() != before
+    }
+
+    /// Forget marks whose window instance and date are both more than
+    /// [`LEDGER_KEEP`] (8 days) before `now`; `true` when one was dropped.
+    pub fn prune(&mut self, now: DateTime<Utc>) -> bool {
+        let before = self.marks.len();
+        self.marks.retain(|mark| {
+            mark.resets_at
+                .map_or(mark.at, |resets_at| resets_at.max(mark.at))
+                >= now - LEDGER_KEEP
+        });
+        self.marks.len() != before
+    }
+
+    /// Nothing to persist.
+    pub fn is_empty(&self) -> bool {
+        self.marks.is_empty()
+    }
+
+    /// The metrics of `report` with an active alert (PRD 0008 RF3.4): a
+    /// level notified in the metric's current window instance and not
+    /// re-armed since. A new window instance or a fall of
+    /// [`HYSTERESIS_POINTS`] below the level ends it.
+    pub fn active<'r>(&'r self, report: &'r Report) -> impl Iterator<Item = &'r Metric> + 'r {
+        let account_key = report.account_key();
+        report.metrics.iter().filter(move |metric| {
+            let digest = key_digest(&account_key, &metric.label);
+            self.marks.iter().any(|mark| {
+                mark.notified
+                    && mark.metric == digest
+                    && mark.kind != AlertKind::Recovered
+                    && same_instance(mark.resets_at, metric.resets_at)
+            })
+        })
     }
 
     /// Highest level reached in the instance of `resets_at`.
@@ -428,6 +527,234 @@ fn consumption(metric: &Metric) -> Option<Consumption> {
         }
         _ => None,
     }
+}
+
+/// Whether `metric` can raise usage alerts now: a `Quota` with a positive
+/// finite cap and a reading (the rule of [`evaluate`]).
+pub fn eligible(metric: &Metric) -> bool {
+    consumption(metric).is_some()
+}
+
+/// The text of one notification for the alerts delivered together: the
+/// events of each account in one group, `groups` in account order (groups
+/// without events are skipped; `None` when nothing is left). One event:
+/// "Claude: 90% of the 5-hour window used" with "Work: Session (5h) ·
+/// resets 14:30" (the reset in `tz`, with the date when it is not today
+/// at `now`). Several events of one account: "Claude: 3 usage alerts" and
+/// one item per metric. Several accounts (alerts held by
+/// [`NOTICE_SPACING`]): "Cuotai: 4 usage alerts" and the items per
+/// account. Only the provider, the account name and metric labels: never
+/// an e-mail, credential, URL, provider note or usage value beyond the
+/// threshold.
+pub fn notice<Tz>(
+    groups: &[(&Account, Vec<AlertEvent>)],
+    now: DateTime<Utc>,
+    tz: &Tz,
+) -> Option<Notice>
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let groups: Vec<&(&Account, Vec<AlertEvent>)> = groups
+        .iter()
+        .filter(|(_, events)| !events.is_empty())
+        .collect();
+    let count: usize = groups.iter().map(|(_, events)| events.len()).sum();
+    match groups.as_slice() {
+        [] => None,
+        [(account, events)] if events.len() == 1 => Some(single(account, &events[0], now, tz)),
+        [(account, events)] => {
+            let provider_pt = account.provider.label();
+            let items = join(events.iter().map(item))?;
+            let body = format!("{}: {}", account.name, items.fallback);
+            Some(Notice {
+                title: Localized::with_params(
+                    "alerts.title.many",
+                    params([
+                        ("provider", provider_l10n(account.provider).into()),
+                        ("count", count.into()),
+                    ]),
+                    format!("{provider_pt}: {count} alertas de uso"),
+                ),
+                body: Localized::with_params(
+                    "alerts.body.many",
+                    params([
+                        ("account", account.name.as_str().into()),
+                        ("items", items.into()),
+                    ]),
+                    body,
+                ),
+            })
+        }
+        _ => {
+            let body = join(groups.iter().filter_map(|(account, events)| {
+                let items = join(events.iter().map(item))?;
+                let fallback = format!(
+                    "{} {}: {}",
+                    account.provider.label(),
+                    account.name,
+                    items.fallback
+                );
+                Some(Localized::with_params(
+                    "alerts.item.account",
+                    params([
+                        ("provider", provider_l10n(account.provider).into()),
+                        ("account", account.name.as_str().into()),
+                        ("items", items.into()),
+                    ]),
+                    fallback,
+                ))
+            }))?;
+            Some(Notice {
+                title: Localized::with_params(
+                    "alerts.title.accounts",
+                    params([("count", count.into())]),
+                    format!("Cuotai: {count} alertas de uso"),
+                ),
+                body,
+            })
+        }
+    }
+}
+
+/// One event: the title names the window (or the metric when it has no
+/// known window), the body the account, the metric and the reset.
+fn single<Tz>(account: &Account, event: &AlertEvent, now: DateTime<Utc>, tz: &Tz) -> Notice
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let provider = provider_l10n(account.provider);
+    let provider_pt = account.provider.label();
+    let percent = event.threshold.to_string();
+    let label = event.label.as_str();
+    let known_window = matches!(
+        event.window,
+        Some(
+            MetricWindow::Window5h
+                | MetricWindow::Daily
+                | MetricWindow::Weekly
+                | MetricWindow::Monthly
+        )
+    );
+    let (window, window_pt) = window_param(event.window, label);
+    let title = match (event.kind, known_window) {
+        (AlertKind::Threshold, true) => Localized::with_params(
+            "alerts.title.threshold",
+            params([
+                ("provider", provider.into()),
+                ("percent", percent.as_str().into()),
+                ("window", window),
+            ]),
+            format!("{provider_pt}: {percent}% da janela {window_pt} usada"),
+        ),
+        (AlertKind::Threshold, false) => Localized::with_params(
+            "alerts.title.threshold_metric",
+            params([
+                ("provider", provider.into()),
+                ("percent", percent.as_str().into()),
+                ("metric", label.into()),
+            ]),
+            format!("{provider_pt}: {percent}% usado em {label}"),
+        ),
+        (AlertKind::Exhausted, true) => Localized::with_params(
+            "alerts.title.exhausted",
+            params([("provider", provider.into()), ("window", window)]),
+            format!("{provider_pt}: cota {window_pt} esgotada"),
+        ),
+        (AlertKind::Exhausted, false) => Localized::with_params(
+            "alerts.title.exhausted_metric",
+            params([("provider", provider.into()), ("metric", label.into())]),
+            format!("{provider_pt}: limite de {label} atingido"),
+        ),
+        (AlertKind::Recovered, true) => Localized::with_params(
+            "alerts.title.recovered",
+            params([("provider", provider.into()), ("window", window)]),
+            format!("{provider_pt}: cota {window_pt} disponível de novo"),
+        ),
+        (AlertKind::Recovered, false) => Localized::with_params(
+            "alerts.title.recovered_metric",
+            params([("provider", provider.into()), ("metric", label.into())]),
+            format!("{provider_pt}: {label} disponível de novo"),
+        ),
+    };
+    let body = match event.resets_at {
+        Some(at) => {
+            let at = local_time(at, now, tz);
+            Localized::with_params(
+                "alerts.body",
+                params([
+                    ("account", account.name.as_str().into()),
+                    ("metric", label.into()),
+                    ("at", at.as_str().into()),
+                ]),
+                format!("{}: {label} · renova {at}", account.name),
+            )
+        }
+        None => Localized::with_params(
+            "alerts.body.no_reset",
+            params([
+                ("account", account.name.as_str().into()),
+                ("metric", label.into()),
+            ]),
+            format!("{}: {label}", account.name),
+        ),
+    };
+    Notice { title, body }
+}
+
+/// "Session (5h) 90%", "… at the limit", "… available again".
+fn item(event: &AlertEvent) -> Localized {
+    let label = event.label.as_str();
+    let percent = event.threshold.to_string();
+    match event.kind {
+        AlertKind::Threshold => Localized::with_params(
+            "alerts.item.threshold",
+            params([
+                ("metric", label.into()),
+                ("percent", percent.as_str().into()),
+            ]),
+            format!("{label} {percent}%"),
+        ),
+        AlertKind::Exhausted => Localized::with_param(
+            "alerts.item.exhausted",
+            "metric",
+            label,
+            format!("{label} no limite"),
+        ),
+        AlertKind::Recovered => Localized::with_param(
+            "alerts.item.recovered",
+            "metric",
+            label,
+            format!("{label} disponível de novo"),
+        ),
+    }
+}
+
+/// The items separated by "; "; `None` without items.
+fn join(mut items: impl Iterator<Item = Localized>) -> Option<Localized> {
+    let first = items.next()?;
+    Some(items.fold(first, |first, rest| {
+        let fallback = format!("{}; {}", first.fallback, rest.fallback);
+        Localized::with_params(
+            "alerts.join",
+            params([("first", first.into()), ("rest", rest.into())]),
+            fallback,
+        )
+    }))
+}
+
+/// `HH:MM` in `tz`, with the date when it is not the day of `now` there.
+fn local_time<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> String
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let local = at.with_timezone(tz);
+    let today = local.date_naive() == now.with_timezone(tz).date_naive();
+    local
+        .format(if today { "%H:%M" } else { "%Y-%m-%d %H:%M" })
+        .to_string()
 }
 
 #[cfg(test)]
@@ -924,6 +1251,259 @@ mod tests {
             vec![],
             "first reading again"
         );
+    }
+
+    #[test]
+    fn exhaustion_and_recovery_switches_and_mutes() {
+        // Exhaustion off: reaching 100% notifies the highest threshold
+        // instead, once, and without the exhaustion notice no recovery.
+        let mut no_exhaustion = on();
+        no_exhaustion.exhaustion = false;
+        let jump = series(&[
+            (Some(50.0), window()),
+            (Some(100.0), window()),
+            (Some(5.0), next_window()),
+        ]);
+        assert_eq!(
+            run(&no_exhaustion, &mut AlertState::default(), &jump),
+            vec![vec![], vec![(T, 90)], vec![]]
+        );
+        let climb = same_window(&[Some(70.0), Some(92.0), Some(100.0)]);
+        assert_eq!(
+            run(&no_exhaustion, &mut AlertState::default(), &climb),
+            vec![vec![], vec![(T, 90)], vec![]]
+        );
+        let mut no_recovery = on();
+        no_recovery.recovery = false;
+        let cycle = series(&[
+            (Some(90.0), window()),
+            (Some(100.0), window()),
+            (Some(5.0), next_window()),
+        ]);
+        assert_eq!(
+            run(&no_recovery, &mut AlertState::default(), &cycle),
+            vec![vec![], vec![(X, 100)], vec![]]
+        );
+
+        // A muted metric stays silent, and what it crossed while muted
+        // stays silent once unmuted; only the next level fires.
+        let mut muted = on();
+        muted
+            .muted_metrics
+            .insert("claude:Work".into(), BTreeSet::from(["5h".to_string()]));
+        let readings = same_window(&[Some(50.0), Some(80.0), Some(92.0)]);
+        let mut state = AlertState::default();
+        assert_eq!(run(&muted, &mut state, &readings[..2]), vec![vec![]; 2]);
+        let unmuted = evaluate(
+            Some(&readings[1]),
+            &readings[2],
+            &on(),
+            &state,
+            readings[2].checked_at,
+        );
+        assert_eq!(fired(&unmuted), vec![(T, 90)]);
+        // Another account's metric of the same label is not muted.
+        let mut other = muted.clone();
+        other.muted_metrics = BTreeMap::from([(
+            "claude:Home".to_string(),
+            BTreeSet::from(["5h".to_string()]),
+        )]);
+        assert_eq!(
+            run(&other, &mut AlertState::default(), &readings)[1],
+            vec![(T, 75)]
+        );
+        let mut account = on();
+        account.muted_accounts.insert("claude:Work".into());
+        assert_eq!(
+            run(&account, &mut AlertState::default(), &readings),
+            vec![vec![]; 3]
+        );
+    }
+
+    #[test]
+    fn persisted_state_keeps_notices_across_a_restart_without_names_and_expires() {
+        // 90% notified, then 87%: not re-armed (that takes 85%).
+        let readings = same_window(&[Some(70.0), Some(91.0), Some(87.0)]);
+        let mut state = AlertState::default();
+        assert_eq!(
+            run(&on(), &mut state, &readings),
+            vec![vec![], vec![(T, 90)], vec![]]
+        );
+        let json = serde_json::to_string(&state).unwrap();
+        for secret in ["Work", "5h", "claude", "87.0", "0.87", "91.0"] {
+            assert!(!json.contains(secret), "{secret} in {json}");
+        }
+        let restored: AlertState = serde_json::from_str(&json).unwrap();
+        // Reopened 5 minutes later: the recorded 87% is `prev` of a first
+        // reading at 92%. Without the persisted state 90 would repeat.
+        let at = readings[2].checked_at + mins(5);
+        let next = report("Work", at, vec![quota(Some(92.0), window())]);
+        let after =
+            |state: &AlertState| fired(&evaluate(Some(&readings[2]), &next, &on(), state, at));
+        assert_eq!(after(&AlertState::default()), vec![(T, 90)]);
+        assert_eq!(after(&restored), vec![]);
+
+        let mut kept = restored;
+        assert!(!kept.prune(window() + LEDGER_KEEP), "eight days are kept");
+        assert!(kept.prune(window() + LEDGER_KEEP + TimeDelta::seconds(1)));
+        assert!(kept.is_empty());
+        assert_eq!(
+            serde_json::from_str::<AlertState>("{}").unwrap(),
+            AlertState::default()
+        );
+    }
+
+    #[test]
+    fn an_alert_stays_active_until_rearmed_or_a_new_window() {
+        let count = |readings: &[Report]| {
+            let mut state = AlertState::default();
+            let mut prev = None;
+            readings
+                .iter()
+                .map(|next| {
+                    let events = evaluate(prev, next, &on(), &state, next.checked_at);
+                    state.update(next, &on(), &events, next.checked_at);
+                    prev = Some(next);
+                    state.active(next).count()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            count(&same_window(&[
+                Some(70.0),
+                Some(91.0),
+                Some(87.0),
+                Some(85.0)
+            ])),
+            vec![0, 1, 1, 0]
+        );
+        assert_eq!(
+            count(&series(&[
+                (Some(70.0), window()),
+                (Some(91.0), window()),
+                (Some(10.0), next_window()),
+            ])),
+            vec![0, 1, 0]
+        );
+        // Seen without a notice (first reading): nothing to highlight.
+        assert_eq!(count(&same_window(&[Some(92.0), Some(93.0)])), vec![0, 0]);
+    }
+
+    #[test]
+    fn notice_names_provider_window_threshold_account_metric_and_reset() {
+        let account = |name: &str| Account {
+            name: name.into(),
+            provider: Provider::Claude,
+            ..Account::default()
+        };
+        let (work, home) = (account("Work"), account("Home"));
+        let event = |key: &str, label: &str, window, kind, threshold, resets_at| AlertEvent {
+            account_key: key.into(),
+            label: label.into(),
+            window,
+            kind,
+            threshold,
+            consumed: 0.9,
+            resets_at,
+        };
+        let ninety = event(
+            "claude:Work",
+            "Session (5h)",
+            Some(MetricWindow::Window5h),
+            T,
+            90,
+            Some(t0() + mins(150)),
+        );
+        let week = event(
+            "claude:Work",
+            "Week",
+            Some(MetricWindow::Weekly),
+            X,
+            100,
+            None,
+        );
+        let back = event(
+            "claude:Home",
+            "5h",
+            Some(MetricWindow::Window5h),
+            R,
+            100,
+            Some(t0() + mins(300)),
+        );
+        let premium = event(
+            "claude:Work",
+            "Premium",
+            Some(MetricWindow::Other),
+            T,
+            75,
+            Some(t0() + TimeDelta::days(2)),
+        );
+        let text = |groups: &[(&Account, Vec<AlertEvent>)], locale: &str| {
+            let notice = notice(groups, t0(), &Utc).unwrap();
+            (notice.title.resolve(locale), notice.body.resolve(locale))
+        };
+        let one = [(&work, vec![ninety.clone()])];
+        assert_eq!(
+            text(&one, "en-US"),
+            (
+                "Claude: 90% of the 5-hour window used".into(),
+                "Work: Session (5h) · resets 14:30".into()
+            )
+        );
+        assert_eq!(
+            text(&one, "pt-BR"),
+            (
+                "Claude: 90% da janela de 5 horas usada".into(),
+                "Work: Session (5h) · renova 14:30".into()
+            )
+        );
+        assert_eq!(
+            text(&one, "es").0,
+            "Claude: 90% de la ventana de 5 horas usado"
+        );
+        assert_eq!(
+            text(&[(&work, vec![week.clone()])], "en-US"),
+            ("Claude: weekly quota exhausted".into(), "Work: Week".into())
+        );
+        assert_eq!(
+            text(&[(&home, vec![back.clone()])], "en-US").0,
+            "Claude: 5-hour quota available again"
+        );
+        // No known window: the metric names it; another day shows the date.
+        assert_eq!(
+            text(&[(&work, vec![premium])], "en-US"),
+            (
+                "Claude: 75% of Premium used".into(),
+                "Work: Premium · resets 2026-02-17 12:00".into()
+            )
+        );
+        // One account, several alerts: one notice.
+        let many = [(&work, vec![ninety.clone(), week])];
+        assert_eq!(
+            text(&many, "en-US"),
+            (
+                "Claude: 2 usage alerts".into(),
+                "Work: Session (5h) 90%; Week at the limit".into()
+            )
+        );
+        assert_eq!(
+            text(&many, "pt-BR").1,
+            "Work: Session (5h) 90%; Week no limite"
+        );
+        // Several accounts held by the spacing: one notice for all.
+        let accounts = [
+            (&work, vec![ninety]),
+            (&home, Vec::new()),
+            (&home, vec![back]),
+        ];
+        assert_eq!(
+            text(&accounts, "es"),
+            (
+                "Cuotai: 2 alertas de uso".into(),
+                "Claude Work: Session (5h) 90%; Claude Home: 5h disponible de nuevo".into()
+            )
+        );
+        assert!(notice(&[(&work, Vec::new())], t0(), &Utc).is_none());
     }
 
     fn next_window() -> DateTime<Utc> {
