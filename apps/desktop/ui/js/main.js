@@ -192,6 +192,7 @@ const onSaved = (result) => {
 const detailsContext = {
   reports: () => store.view?.reports ?? [],
   generation: () => store.view?.generation ?? 0,
+  historyEpoch: () => store.view?.history_epoch ?? 0,
   onEdit: (index) => openAccountDialog(index, { onSaved }),
   onRemove: (index, label) =>
     confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),

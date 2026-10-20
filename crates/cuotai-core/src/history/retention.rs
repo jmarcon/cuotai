@@ -510,6 +510,23 @@ impl HistoryStore {
         db.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")?;
         Ok(removed)
     }
+
+    /// RF5.3: bytes the history file takes on disk with its WAL and shared
+    /// memory side files (the whole per-device file, every configuration);
+    /// 0 before anything was recorded. Never creates the file.
+    pub fn size_on_disk(&self) -> Result<u64, HistoryError> {
+        let mut total = 0;
+        for suffix in ["", "-wal", "-shm"] {
+            let mut path = self.path.clone().into_os_string();
+            path.push(suffix);
+            match std::fs::metadata(&path) {
+                Ok(meta) => total += meta.len(),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err(HistoryError::Storage),
+            }
+        }
+        Ok(total)
+    }
 }
 
 #[cfg(test)]
@@ -876,6 +893,52 @@ mod tests {
             Ok(0)
         );
         assert!(!dir.path().join("absent.sqlite3").exists());
+    }
+
+    #[test]
+    fn size_on_disk_counts_the_file_and_its_wal_and_shrinks_after_erasing() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        assert_eq!(history.size_on_disk(), Ok(0), "nothing recorded yet");
+        assert!(!db.exists(), "never created by asking");
+
+        let alpha = config(CONFIG).accounts.remove(0);
+        let reading = |n: i64| {
+            let at = t0() + TimeDelta::minutes(n * 20);
+            history
+                .record(&alpha, at, &[quota("5h", Some(n as f64), Some(1e6))])
+                .unwrap();
+        };
+        reading(0);
+        // Another instance keeps the file open, so the WAL stays beside it.
+        let other = Connection::open(&db).unwrap();
+        other
+            .query_row("SELECT COUNT(*) FROM samples", [], |r| r.get::<_, i64>(0))
+            .unwrap();
+        (1..500).for_each(reading);
+        let size = history.size_on_disk().unwrap();
+        let wal = std::fs::metadata(format!("{}-wal", db.display())).unwrap();
+        assert!(wal.len() > 0);
+        assert!(
+            size >= std::fs::metadata(&db).unwrap().len() + wal.len(),
+            "the WAL counts"
+        );
+        drop(other);
+
+        history.erase_all().unwrap();
+        assert!(history.size_on_disk().unwrap() < size);
+
+        // A path that cannot be inspected is an error, never "empty".
+        #[cfg(unix)]
+        {
+            let blocked = dir.path().join("file");
+            std::fs::write(&blocked, b"").unwrap();
+            assert_eq!(
+                store(&blocked.join("history.sqlite3"), "one").size_on_disk(),
+                Err(HistoryError::Storage)
+            );
+        }
     }
 
     #[test]

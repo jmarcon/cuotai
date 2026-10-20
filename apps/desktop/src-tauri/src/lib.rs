@@ -390,6 +390,36 @@ async fn history_erase(
     b.history_erase(&app, index).await
 }
 
+/// PRD 0006 RF5.3: record new readings on this device or not (saved in
+/// `desktop.json`); off keeps what was recorded. Error: `unwritable`.
+#[tauri::command]
+async fn set_history_recording(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(), String> {
+    b.set_history_recording(&app, on).await
+}
+
+/// PRD 0006 RF5.3: bytes the history file takes on this device.
+#[tauri::command]
+async fn history_size(b: Shared<'_>) -> Result<u64, String> {
+    b.history_size().await
+}
+
+/// PRD 0006 RF5.1: the recorded history of account `index` over `range`
+/// (`day`, `week`, `month`), every metric or only `metric_key`, as the core
+/// computed it, guarded by the `generation` of the `View` the UI read like
+/// the model catalog: a result for another generation fails with `"stale"`
+/// and must be discarded. No secret crosses the IPC.
+#[tauri::command]
+async fn account_history(
+    b: Shared<'_>,
+    index: usize,
+    generation: u64,
+    range: cuotai_core::history::HistoryRange,
+    metric_key: Option<String>,
+) -> Result<backend::HistoryView, String> {
+    b.account_history(index, generation, range, metric_key)
+        .await
+}
+
 /// RF1.2: `path = None` volta ao `cuotai.toml` padrão do SO. Recarrega pelo core e só então
 /// grava a escolha em `desktop.json`. Erros: códigos de `settings` ou o JSON tipado do core.
 #[tauri::command]
@@ -496,6 +526,9 @@ pub fn run() {
             set_history_days,
             history_export,
             history_erase,
+            set_history_recording,
+            history_size,
+            account_history,
             open_settings,
             show_main_window,
             quit_app

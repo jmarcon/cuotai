@@ -29,7 +29,7 @@ mod trend;
 
 pub use recorder::{HistoryRecorder, HistoryStatus};
 pub use retention::{CeilingPrune, ExportFormat, PruneReport, Retention, RetentionError};
-pub use trend::{HistoryRange, MetricHistory, Trend};
+pub use trend::{Chart, ChartPoint, ChartReset, HistoryRange, MetricHistory, Trend};
 
 use crate::config_file::{ConfigFile, ConfigIdentity};
 use crate::models::{account_key, create_private_file, digest};

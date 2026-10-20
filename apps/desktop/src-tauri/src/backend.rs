@@ -9,7 +9,10 @@ use cuotai_core::{
     },
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
     freshness::{assess, clock_adjusted, Freshness},
-    history::{ExportFormat, HistoryStore},
+    history::{
+        Chart, ExportFormat, HistoryError, HistoryRange, HistoryStore, MetricHistory, Trend,
+        WindowUsage,
+    },
     identity::{account_identity, AccountIdentity},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{
@@ -20,7 +23,8 @@ use cuotai_core::{
     oauth::OAuthSession,
     pace::{self, Pace, Point},
     refresh::{Edit, RefreshCycle},
-    Config, EnvironmentCredentials, Metric, Monitor, Provider, Report, Status,
+    Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor, Provider, Report,
+    Status,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -221,6 +225,9 @@ struct Inner {
     /// frente e back usam para casar `PendingLogin` com o que a UI vê.
     next_login_attempt: u64,
     generation: u64,
+    /// PRD 0006 RF5: bumped when the history was erased or recording
+    /// switched, so open account details read it again.
+    history_epoch: u64,
 }
 
 #[derive(Default)]
@@ -394,6 +401,8 @@ pub struct View {
     /// PRD 0006: the history's storage failure, size-ceiling pruning or
     /// dropped readings, to show; `None` when all is well.
     history_warning: Option<cuotai_core::text::Localized>,
+    /// Changes when the history was erased or recording switched (RF5).
+    history_epoch: u64,
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -524,6 +533,7 @@ impl Inner {
                 refresh_seconds: 0,
                 generation: 0,
                 history_warning: None,
+                history_epoch: self.history_epoch,
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -597,6 +607,7 @@ impl Inner {
                 .monitor
                 .history_status()
                 .and_then(|status| status.warning()),
+            history_epoch: self.history_epoch,
         }
     }
 
@@ -646,6 +657,8 @@ impl Inner {
         {
             monitor =
                 monitor.with_history(store.with_retention(crate::settings::history_retention()));
+            // RF5.3: a device that switched recording off keeps it off.
+            monitor.set_history_recording(crate::settings::history_recording());
         }
         let monitor = Arc::new(monitor);
         // Just loaded from the TOML: drop catalogs of accounts gone from it.
@@ -1439,6 +1452,44 @@ impl Backend {
         Ok(())
     }
 
+    /// PRD 0006 RF5.3: record new readings or not on this device (saved in
+    /// `desktop.json`), applied at once; switching off keeps what was
+    /// recorded until the user erases it. Error: `unwritable`.
+    pub async fn set_history_recording(&self, app: &AppHandle, on: bool) -> Result<(), String> {
+        crate::settings::save_history_recording(on).map_err(str::to_owned)?;
+        {
+            let mut g = self.inner.lock().await;
+            if let Some(l) = g.loaded.as_ref() {
+                l.monitor.set_history_recording(on);
+            }
+            g.history_epoch += 1;
+        }
+        self.emit(app).await;
+        Ok(())
+    }
+
+    /// PRD 0006 RF5.3: bytes the history file takes on this device, measured
+    /// once the queued jobs (a prune from a retention change) have run.
+    pub async fn history_size(&self) -> Result<u64, String> {
+        let (store, _) = self.history_scope(None).await?;
+        let monitor = self
+            .inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .map(|l| Arc::clone(&l.monitor));
+        tauri::async_runtime::spawn_blocking(move || {
+            if let Some(monitor) = monitor {
+                monitor.flush_history(HISTORY_FLUSH);
+            }
+            store.size_on_disk()
+        })
+        .await
+        .map_err(|_| l10n_to_json(&HistoryError::Storage.l10n()))?
+        .map_err(|error| l10n_to_json(&error.l10n()))
+    }
+
     /// The history store and the accounts of `index` (every account with
     /// `None`) of the loaded configuration.
     async fn history_scope(
@@ -1510,8 +1561,71 @@ impl Backend {
         .await
         .map_err(|_| l10n_to_json(&cuotai_core::history::HistoryError::Storage.l10n()))?
         .map_err(|error| l10n_to_json(&error.l10n()))?;
+        self.inner.lock().await.history_epoch += 1;
         self.emit(app).await;
         Ok(removed)
+    }
+
+    /// PRD 0006 RF5.1: the recorded history of account `index` of the
+    /// configuration `generation` over `range` (every metric, or only
+    /// `metric_key`), with the chart the core placed. It first waits
+    /// briefly for the readings already queued, so the reading on screen is
+    /// in it. Another generation before or after the read yields [`STALE`]
+    /// (the model catalog's rule: a result of an old identity is never
+    /// attributed to the account now at `index`); an unknown index or a
+    /// storage failure is the core's typed error.
+    pub async fn account_history(
+        &self,
+        index: usize,
+        generation: u64,
+        range: HistoryRange,
+        metric_key: Option<String>,
+    ) -> Result<HistoryView, String> {
+        let monitor = {
+            let g = self.inner.lock().await;
+            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            if l.generation != generation {
+                return Err(STALE.into());
+            }
+            if index >= l.file.config.accounts.len() {
+                return Err(l10n_to_json(&ModelError::InvalidIndex.l10n()));
+            }
+            Arc::clone(&l.monitor)
+        };
+        let storage = || l10n_to_json(&HistoryError::Storage.l10n());
+        if monitor.history().is_none() {
+            return Err(storage());
+        }
+        let to = chrono::Utc::now();
+        let from = range.since(to);
+        let read = tauri::async_runtime::spawn_blocking(move || {
+            monitor.flush_history(HISTORY_FLUSH);
+            let recording = monitor.history_recording();
+            monitor
+                .account_history(index, from..=to)
+                .map(|metrics| (metrics, recording))
+        })
+        .await
+        .map_err(|_| storage())?;
+        let live = self
+            .inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .map(|l| l.generation);
+        if live != Some(generation) {
+            return Err(STALE.into());
+        }
+        let (metrics, recording) = read.map_err(|error| l10n_to_json(&error.l10n()))?;
+        Ok(history_view(
+            range,
+            from,
+            to,
+            recording,
+            metrics,
+            metric_key.as_deref(),
+        ))
     }
 
     /// Persist a shared configuration-order move. `Edit::Move` carries every
@@ -1888,6 +2002,78 @@ impl Backend {
 
 /// Erro estável dos comandos de modelos: a configuração mudou desde a view da UI.
 pub const STALE: &str = "stale";
+
+// ---------- history (PRD 0006 RF5) ----------
+
+/// Time buckets of the details' area chart.
+const HISTORY_CHART_CELLS: usize = 96;
+/// How long a history read waits for the readings already queued.
+const HISTORY_FLUSH: Duration = Duration::from_millis(500);
+
+/// The recorded history of one account over a span, as the details draw
+/// it. Only numbers, metric labels and times: never a credential, an
+/// account name, a URL or provider text.
+#[derive(Serialize, Debug)]
+pub struct HistoryView {
+    range: HistoryRange,
+    from: chrono::DateTime<chrono::Utc>,
+    to: chrono::DateTime<chrono::Utc>,
+    /// New readings enter the history (Settings → History).
+    recording: bool,
+    /// Each recorded metric with samples in the span, in its reported order.
+    metrics: Vec<MetricHistoryView>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct MetricHistoryView {
+    key: String,
+    label: String,
+    unit: String,
+    kind: MetricKind,
+    window: Option<MetricWindow>,
+    limit: Option<f64>,
+    /// Samples with a measured `used` in the span.
+    samples: usize,
+    /// Lowest, highest and last `used`; `None` when nothing was measured.
+    trend: Option<Trend>,
+    /// The area chart of the span (bucket peaks, end point, resets).
+    chart: Chart,
+    /// Window instances: the table read by screen readers.
+    windows: Vec<WindowUsage>,
+}
+
+fn history_view(
+    range: HistoryRange,
+    from: chrono::DateTime<chrono::Utc>,
+    to: chrono::DateTime<chrono::Utc>,
+    recording: bool,
+    metrics: Vec<MetricHistory>,
+    only: Option<&str>,
+) -> HistoryView {
+    let metrics = metrics
+        .into_iter()
+        .filter(|metric| only.is_none_or(|key| metric.key == key))
+        .map(|metric| MetricHistoryView {
+            samples: metric.points.len(),
+            trend: metric.trend(),
+            chart: metric.chart(from, to, HISTORY_CHART_CELLS),
+            key: metric.key,
+            label: metric.label,
+            unit: metric.unit,
+            kind: metric.kind,
+            window: metric.window,
+            limit: metric.limit,
+            windows: metric.windows,
+        })
+        .collect();
+    HistoryView {
+        range,
+        from,
+        to,
+        recording,
+        metrics,
+    }
+}
 
 #[derive(Serialize)]
 pub struct ModelSupport {
@@ -3284,6 +3470,107 @@ mod tests {
         assert!(
             b.models(1, live, state).await.is_err(),
             "only one account left"
+        );
+    }
+
+    // PRD 0006 RF5.1: the details' history comes from the core, carries no
+    // account identity and, like the model catalog, is refused for a view
+    // of another generation.
+    #[tokio::test(flavor = "current_thread")]
+    async fn account_history_serves_the_core_chart_for_the_live_generation_only() {
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("alpha"), plain_account("beta")],
+        )
+        .await;
+        let b = &backend.inner;
+        let day = HistoryRange::Day;
+        // Without a history store: a typed storage error, never "no data".
+        let err = b.account_history(0, 1, day, None).await.unwrap_err();
+        assert!(err.contains("history.error.storage"), "{err}");
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = HistoryStore::new(
+            dir.path().join("history.sqlite3"),
+            &cuotai_core::config_file::ConfigIdentity::Explicit("one".into()),
+        );
+        let alpha = {
+            let mut g = b.inner.lock().await;
+            let l = g.loaded.as_mut().unwrap();
+            let monitor = l.monitor.with_config(l.file.config.clone()).unwrap();
+            l.monitor = Arc::new(monitor.with_history(store.clone()));
+            l.file.config.accounts[0].clone()
+        };
+        let now = chrono::Utc::now();
+        for (hours, used) in [(72, 40.0), (3, 10.0), (2, 60.0), (1, 5.0)] {
+            let at = now - chrono::Duration::hours(hours);
+            store
+                .record(
+                    &alpha,
+                    at,
+                    &[quota("Sessão", used, MetricWindow::Window5h, 1)],
+                )
+                .unwrap();
+        }
+
+        let view = b.account_history(0, 1, day, None).await.unwrap();
+        assert!(view.recording, "on by default");
+        assert_eq!(view.to - view.from, chrono::Duration::hours(24));
+        let [session] = &view.metrics[..] else {
+            panic!("one metric: {}", view.metrics.len());
+        };
+        assert_eq!((session.label.as_str(), session.samples), ("Sessão", 3));
+        assert_eq!(session.trend.map(|t| t.last.used), Some(5.0));
+        assert_eq!(session.chart.heights.len(), HISTORY_CHART_CELLS);
+        assert_eq!(session.chart.resets.len(), 1, "the drop to 5 of 100");
+        assert_eq!(session.chart.last.map(|p| p.y), Some(0.05));
+        let json = serde_json::to_string(&view).unwrap();
+        assert!(
+            !json.contains("alpha") && !json.contains("ALPHA_KEY"),
+            "{json}"
+        );
+        // The week reaches the reading of three days ago.
+        let week = b.account_history(0, 1, HistoryRange::Week, None);
+        assert_eq!(week.await.unwrap().metrics[0].samples, 4);
+        // Only the metric asked for; another account has none.
+        let key = session.key.clone();
+        let only = b.account_history(0, 1, day, Some(key)).await.unwrap();
+        assert_eq!(only.metrics.len(), 1);
+        let other = b.account_history(0, 1, day, Some("x".into())).await;
+        assert!(other.unwrap().metrics.is_empty());
+        assert!(b
+            .account_history(1, 1, day, None)
+            .await
+            .unwrap()
+            .metrics
+            .is_empty());
+        // Switched off: what was recorded still shows, flagged.
+        b.inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .unwrap()
+            .monitor
+            .set_history_recording(false);
+        let off = b.account_history(0, 1, day, None).await.unwrap();
+        assert!(!off.recording);
+        assert_eq!(off.metrics[0].samples, 3);
+
+        let err = b.account_history(9, 1, day, None).await.unwrap_err();
+        assert!(err.contains("models.error.invalid_index"), "{err}");
+        assert_eq!(b.account_history(0, 0, day, None).await.unwrap_err(), STALE);
+        // After a removal the old view's token is stale.
+        b.drive_delete_account(1, false).await.unwrap();
+        assert_eq!(b.account_history(0, 1, day, None).await.unwrap_err(), STALE);
+        let live = b.view().await.generation;
+        assert_eq!(
+            b.account_history(0, live, day, None)
+                .await
+                .unwrap()
+                .metrics
+                .len(),
+            1
         );
     }
 

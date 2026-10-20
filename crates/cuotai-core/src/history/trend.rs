@@ -1,7 +1,8 @@
 //! PRD 0006 RF5/RF6 — what the front ends show of an account's history: the
 //! recorded series of each of its metrics over a span, with the window
-//! instances, the range summary (lowest, highest and last value) and the
-//! levels of a compact chart. Network-free reads of the store only.
+//! instances, the range summary (lowest, highest and last value), the placed
+//! area chart the desktop draws and the levels of the TUI sparkline.
+//! Network-free reads of the store only.
 
 use super::{finite, group_windows, instant, untag, HistoryError, HistoryStore, WindowSample};
 use super::{span, WindowUsage};
@@ -67,6 +68,75 @@ pub struct Trend {
     pub last: Point,
 }
 
+/// Samples at most this far apart draw a continuous area: an unchanged
+/// value is not stored again within 15 minutes (RF2.3) and refreshes may be
+/// hourly. A longer silence (the app closed, the computer off) is a gap.
+const CHART_JOIN: TimeDelta = TimeDelta::hours(1);
+
+/// A compact chart of one metric over a span (RF5.2), already placed: the
+/// front ends only draw it. Horizontal places run from 0 (the start of the
+/// span) to 1 (its end); heights from 0 (`floor`) to 1 (`ceiling`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Chart {
+    /// The value axis: from zero (or the lowest value when negative) to the
+    /// limit (or the highest value when above it) for a metric with a
+    /// limit; from the lowest to the highest value without one. Equal
+    /// bounds (a flat series) put every value on the floor.
+    pub floor: f64,
+    pub ceiling: f64,
+    /// The highest `used` of each equal time bucket (the peak, as the
+    /// resolution reduction keeps it) as a height. An empty bucket between
+    /// two samples at most an hour apart carries the earlier value; any
+    /// other empty bucket is `None` (a gap, never zero).
+    pub heights: Vec<Option<f64>>,
+    /// The last measured point of the span, highlighted.
+    pub last: Option<ChartPoint>,
+    /// Where each window instance after the first began in the span: a
+    /// reset (a reset-sized drop or a new `resets_at`).
+    pub resets: Vec<ChartReset>,
+}
+
+/// A measured point placed on a [`Chart`].
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct ChartPoint {
+    pub taken_at: DateTime<Utc>,
+    pub used: f64,
+    pub x: f64,
+    pub y: f64,
+}
+
+/// A reset placed on a [`Chart`].
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct ChartReset {
+    pub at: DateTime<Utc>,
+    pub x: f64,
+}
+
+/// Where `at` falls in `start..=end`: its millisecond offset and the span's
+/// length, `None` outside it (or for an empty span).
+fn span_offset(at: DateTime<Utc>, start: DateTime<Utc>, end: DateTime<Utc>) -> Option<(i64, i64)> {
+    let total = (end - start).num_milliseconds();
+    let offset = (at - start).num_milliseconds();
+    (total > 0 && (0..=total).contains(&offset)).then_some((offset, total))
+}
+
+/// `at` as a horizontal place in `start..=end` (0 to 1).
+fn place(at: DateTime<Utc>, start: DateTime<Utc>, end: DateTime<Utc>) -> Option<f64> {
+    // Millisecond counts of a span stay far below 2^53, so the casts are exact.
+    span_offset(at, start, end).map(|(offset, total)| offset as f64 / total as f64)
+}
+
+impl Chart {
+    /// `used` as a height on this chart's axis (0 to 1).
+    fn height(&self, used: f64) -> f64 {
+        if self.ceiling > self.floor {
+            ((used - self.floor) / (self.ceiling - self.floor)).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+}
+
 impl MetricHistory {
     /// The range summary; `None` without a measured point.
     pub fn trend(&self) -> Option<Trend> {
@@ -80,14 +150,97 @@ impl MetricHistory {
         Some(Trend { min, max, last })
     }
 
+    /// The chart of `start..=end` in `cells` equal time buckets (see
+    /// [`Chart`]). Only samples within the span count, for the peaks and
+    /// for the scale; with none, every bucket is a gap.
+    pub fn chart(&self, start: DateTime<Utc>, end: DateTime<Utc>, cells: usize) -> Chart {
+        self.plot(start, end, cells, Some(CHART_JOIN))
+    }
+
+    /// [`Self::chart`]; with `join`, the empty buckets between two samples
+    /// at most `join` apart carry the earlier value instead of a gap.
+    fn plot(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        cells: usize,
+        join: Option<TimeDelta>,
+    ) -> Chart {
+        let mut peaks: Vec<Option<f64>> = vec![None; cells];
+        let mut range: Option<(f64, f64)> = None;
+        let mut last = None;
+        let mut previous: Option<(DateTime<Utc>, usize, f64)> = None;
+        for point in &self.points {
+            let Some((offset, total)) = span_offset(point.taken_at, start, end) else {
+                continue;
+            };
+            if cells > 0 {
+                let bucket = usize::try_from(
+                    i128::from(offset) * i128::try_from(cells).unwrap_or(i128::MAX)
+                        / i128::from(total),
+                )
+                .unwrap_or(usize::MAX)
+                .min(cells - 1);
+                if let (Some(join), Some((at, from, used))) = (join, previous) {
+                    if point.taken_at - at <= join {
+                        // Points come in time order, so these buckets are empty.
+                        for peak in peaks.iter_mut().take(bucket).skip(from + 1) {
+                            *peak = Some(used);
+                        }
+                    }
+                }
+                let peak = &mut peaks[bucket];
+                *peak = Some(peak.map_or(point.used, |peak: f64| peak.max(point.used)));
+                previous = Some((point.taken_at, bucket, point.used));
+            }
+            let x = offset as f64 / total as f64;
+            range = Some(range.map_or((point.used, point.used), |(min, max)| {
+                (min.min(point.used), max.max(point.used))
+            }));
+            if last.is_none_or(|(at, _, _)| point.taken_at >= at) {
+                last = Some((point.taken_at, point.used, x));
+            }
+        }
+        let (min, max) = range.unwrap_or((0.0, 0.0));
+        let (floor, ceiling) = match self.limit.filter(|limit| *limit > 0.0) {
+            Some(limit) => (min.min(0.0), limit.max(max)),
+            None => (min, max),
+        };
+        let mut chart = Chart {
+            floor,
+            ceiling,
+            heights: Vec::new(),
+            last: None,
+            resets: self
+                .windows
+                .iter()
+                .skip(1)
+                .filter_map(|window| {
+                    let x = place(window.started_at, start, end)?;
+                    Some(ChartReset {
+                        at: window.started_at,
+                        x,
+                    })
+                })
+                .collect(),
+        };
+        chart.heights = peaks
+            .into_iter()
+            .map(|peak| peak.map(|used| chart.height(used)))
+            .collect();
+        chart.last = last.map(|(taken_at, used, x)| ChartPoint {
+            taken_at,
+            used,
+            x,
+            y: chart.height(used),
+        });
+        chart
+    }
+
     /// Levels of a compact chart of `start..=end` in `cells` equal time
-    /// buckets: each bucket shows its highest `used` (the peak, as the
-    /// resolution reduction keeps it) as a level from `0` to `levels - 1`.
-    /// A metric with a limit is scaled from zero (or its lowest value when
-    /// negative) to the limit (or its highest value when above it); one
-    /// without a limit from its lowest to its highest value, so a growing
-    /// spend shows its trend. `None` for a bucket without a sample (a gap
-    /// is never zero); a flat series without a scale reads the lowest level.
+    /// buckets: each bucket's peak, placed as in [`Chart::heights`], as a
+    /// level from `0` to `levels - 1`; `None` for every bucket without a
+    /// sample (no joining: each cell stands for its own readings).
     pub fn levels(
         &self,
         start: DateTime<Utc>,
@@ -95,45 +248,15 @@ impl MetricHistory {
         cells: usize,
         levels: u8,
     ) -> Vec<Option<u8>> {
-        let mut peaks: Vec<Option<f64>> = vec![None; cells];
-        let total = (end - start).num_milliseconds();
-        if cells == 0 || levels == 0 || total <= 0 {
+        if levels == 0 {
             return vec![None; cells];
         }
-        let (mut min, mut max) = (f64::INFINITY, f64::NEG_INFINITY);
-        for point in &self.points {
-            let offset = (point.taken_at - start).num_milliseconds();
-            if !(0..=total).contains(&offset) {
-                continue;
-            }
-            let bucket = usize::try_from(
-                i128::from(offset) * i128::try_from(cells).unwrap_or(i128::MAX) / i128::from(total),
-            )
-            .unwrap_or(usize::MAX)
-            .min(cells - 1);
-            let peak = &mut peaks[bucket];
-            *peak = Some(peak.map_or(point.used, |peak: f64| peak.max(point.used)));
-            (min, max) = (min.min(point.used), max.max(point.used));
-        }
-        let (floor, ceiling) = match self.limit.filter(|limit| *limit > 0.0) {
-            Some(limit) => (min.min(0.0), limit.max(max)),
-            None => (min, max),
-        };
         let top = f64::from(levels - 1);
-        peaks
+        self.plot(start, end, cells, None)
+            .heights
             .into_iter()
-            .map(|peak| {
-                peak.map(|used| {
-                    if ceiling > floor {
-                        // Bounded by the clamp, so the cast cannot truncate.
-                        ((used - floor) / (ceiling - floor) * top)
-                            .round()
-                            .clamp(0.0, top) as u8
-                    } else {
-                        0
-                    }
-                })
-            })
+            // A height is within 0..=1, so the cast cannot truncate.
+            .map(|height| height.map(|height| (height * top).round() as u8))
             .collect()
     }
 }
@@ -293,6 +416,88 @@ mod tests {
         // Only the span sets the scale.
         let spend = history(&[(-2, 1000.0), (1, 10.0), (3, 20.0)], None);
         assert_eq!(spend.levels(start, end, 2, 8), [Some(0), Some(7)]);
+    }
+
+    #[test]
+    fn chart_places_bucket_peaks_and_the_last_point_on_the_axis() {
+        let start = t0();
+        let end = t0() + TimeDelta::hours(4);
+        // Against the limit: each bucket's peak, a gap, the end highlighted.
+        let chart = history(&[(0, 10.0), (0, 50.0), (2, 100.0), (3, 25.0)], Some(100.0))
+            .chart(start, end, 4);
+        assert_eq!((chart.floor, chart.ceiling), (0.0, 100.0));
+        assert_eq!(chart.heights, [Some(0.5), None, Some(1.0), Some(0.25)]);
+        let last = chart.last.expect("the end point");
+        assert_eq!(
+            (last.taken_at, last.used, last.x, last.y),
+            (t0() + TimeDelta::hours(3), 25.0, 0.75, 0.25)
+        );
+        // A point after the span neither draws nor ends the chart.
+        let outside = history(&[(1, 40.0), (6, 90.0)], Some(100.0)).chart(start, end, 4);
+        assert_eq!(outside.last.map(|p| (p.used, p.x)), Some((40.0, 0.25)));
+        assert_eq!(outside.heights, [None, Some(0.4), None, None]);
+        // Readings an hour apart draw a continuous area (the earlier value
+        // carries on); two hours of silence stay a gap.
+        let joined = history(&[(0, 20.0), (1, 40.0), (3, 60.0)], Some(100.0)).chart(start, end, 8);
+        assert_eq!(
+            joined.heights,
+            [
+                Some(0.2),
+                Some(0.2),
+                Some(0.4),
+                None,
+                None,
+                None,
+                Some(0.6),
+                None
+            ]
+        );
+        // Without a limit the axis runs from the lowest to the highest
+        // value; a lone value sits on the floor.
+        let spend = history(&[(0, 2.0), (4, 4.0)], None).chart(start, end, 2);
+        assert_eq!((spend.floor, spend.ceiling), (2.0, 4.0));
+        assert_eq!(spend.heights, [Some(0.0), Some(1.0)]);
+        let lone = history(&[(1, 7.0)], None).chart(start, end, 2);
+        assert_eq!(lone.heights, [Some(0.0), None]);
+        assert_eq!(lone.last.map(|p| p.y), Some(0.0));
+        // Nothing in the span: only gaps and no end point, never zero.
+        let empty = history(&[(-3, 50.0)], Some(100.0)).chart(start, end, 3);
+        assert_eq!(empty.heights, [None; 3]);
+        assert_eq!((empty.last, empty.floor, empty.ceiling), (None, 0.0, 100.0));
+    }
+
+    #[test]
+    fn chart_marks_each_reset_where_a_new_window_began() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(&dir.path().join("history.sqlite3"), "one");
+        let alpha = &config(CONFIG).accounts[0];
+        for (hours, used) in [(0, 10.0), (1, 60.0), (2, 5.0), (3, 30.0)] {
+            let at = t0() + TimeDelta::hours(hours);
+            history
+                .record(alpha, at, &[quota("Sessão", Some(used), Some(100.0))])
+                .unwrap();
+        }
+        let session = &history.account_history(alpha, ..).unwrap()[0];
+        let chart = session.chart(t0(), t0() + TimeDelta::hours(4), 8);
+        // The drop from 60 to 5 of 100 opened the second window.
+        assert_eq!(
+            chart.resets,
+            [ChartReset {
+                at: t0() + TimeDelta::hours(2),
+                x: 0.5
+            }]
+        );
+        // A reset outside the drawn span is not placed on it.
+        let late = session.chart(t0() + TimeDelta::hours(3), t0() + TimeDelta::hours(4), 8);
+        assert_eq!(late.resets, []);
+        // A single window has no reset.
+        let first = history
+            .account_history(alpha, ..=t0() + TimeDelta::hours(1))
+            .unwrap();
+        assert_eq!(
+            first[0].chart(t0(), t0() + TimeDelta::hours(1), 4).resets,
+            []
+        );
     }
 
     #[test]
