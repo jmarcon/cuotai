@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss version="2.0">
+  <channel>
+    <title>Amazon Web Services Service Status</title>
+    <link>https://status.aws.amazon.com/</link>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 20 Oct 2026 13:06:35 PDT</lastBuildDate>
+    <generator>AWS Service Health Dashboard RSS Generator</generator>
+    <description>Receive the most recent update for events affecting the overall availability of Amazon Web Services. To receive personalized events about your specific AWS accounts and resources, try the aws.health source in EventBridge or the Health API.</description>
+    <ttl>5</ttl>
+
+
+	 <item>
+	  <title>Service disruption: Public incident</title>
+	  <link>https://status.aws.amazon.com/</link>
+	  <pubDate>Tue, 15 Sep 2026 03:27:10 PDT</pubDate>
+	  <guid isPermaLink="false">https://status.aws.amazon.com/#multipleservices-me-central-1_1789468030</guid>
+	  <description>Public incident update.</description>
+	 </item>
+
+	 </channel>
+</rss>

@@ -275,6 +275,88 @@ Verification: `live` = confirmed against a real account; `fixture` = local tests
 | `antigravity` | live query, undocumented | the session's `fetchAvailableModels` (paid plans) | live |
 | `kimchi` | live query, undocumented | GET `llm.kimchi.dev/v1/models/metadata?include_in_cli=true` | fixture |
 
+## Public incident source registry
+
+Since 0.46.0, library consumers can call `cuotai_core::incidents::source(provider)` without an account, credentials, an async runtime or network access (PRD 0011 RF1). It returns a `StatusSource` with the wire format, public endpoint, component selectors and last verification date. `includes_component(id)` performs exact matching, never a page-wide fallback. A source is **not a health reading**; `None` means **unverified**, never “operational” or “no incidents”.
+
+This delivery does not poll status pages or change the TUI, desktop, `--once`, `--json` or `export::v1`. The remaining PRD requirements add that behavior. **Owner decision: incident queries are opt-in, off until enabled; `--no-status` remains an override when polling is delivered.** Even credential-free public requests disclose an IP address and interest in a provider to these domains.
+
+The following endpoints and public-use documentation were fetched on **2026-10-20**, without authentication. All included endpoints returned HTTP 200 with the stated JSON/RSS shape. Component IDs, not display names or overall page indicators, select relevant services. Shared OpenAI, Claude and Google Cloud endpoints remain identical across their provider entries so a future client can coalesce by URL. These are product-level observations, not account-, plan- or region-specific guarantees.
+
+| Identifier | Format | Public source | Verified scope (component IDs in the core) | Verified on |
+|---|---|---|---|---|
+| `open_ai_api` | `JsonCustom(IncidentIoWidget)` | [endpoint](https://status.openai.com/api/v1/summary) | Chat Completions; Responses; Fine-tuning; Embeddings; Images; Batch; Audio; Moderations; Realtime; Files; Login (API) | 2026-10-20 |
+| `anthropic_api` | `StatuspageV2` | [endpoint](https://status.claude.com/api/v2/summary.json) | Claude API (api.anthropic.com); Claude Console (platform.claude.com) | 2026-10-20 |
+| `chat_gpt` | `JsonCustom(IncidentIoWidget)` | [endpoint](https://status.openai.com/api/v1/summary) | Codex in ChatGPT Desktop; Login (ChatGPT); Codex Web; Codex API; CLI; VS Code extension | 2026-10-20 |
+| `claude` | `StatuspageV2` | [endpoint](https://status.claude.com/api/v2/summary.json) | claude.ai; Claude Code; Claude Cowork | 2026-10-20 |
+| `gemini_api` | `JsonCustom(GoogleCloud)` | [endpoint](https://status.cloud.google.com/incidents.json) | Cloud Monitoring (measurement only) | 2026-10-20 |
+| `vertex_ai` | `JsonCustom(GoogleCloud)` | [endpoint](https://status.cloud.google.com/incidents.json) | Vertex Gemini API; Vertex AI Online Prediction; Cloud Monitoring | 2026-10-20 |
+| `aws_bedrock` | `AtomRss(AwsHealth)` | [endpoint](https://status.aws.amazon.com/rss/all.rss) | Amazon Bedrock (all regions in the feed) | 2026-10-20 |
+| `azure_open_ai` | None | — | Not verified (see exclusions below) | — |
+| `cursor` | `StatuspageV2` | [endpoint](https://status.cursor.com/api/v2/summary.json) | cursor.com; IDE; CLI; Cloud Agents | 2026-10-20 |
+| `copilot` | `StatuspageV2` | [endpoint](https://www.githubstatus.com/api/v2/summary.json) | Copilot; Copilot AI Model Providers; API Requests | 2026-10-20 |
+| `windsurf` | `StatuspageV2` | [endpoint](https://status.windsurf.com/api/v2/summary.json) | Cascade; Windsurf Tab | 2026-10-20 |
+| `mini_max` | `StatuspageV2` | [endpoint](https://status.minimax.io/api/v2/summary.json) | Large Language Models (LLM) | 2026-10-20 |
+| `kimi` | `StatuspageV2` | [endpoint](https://status.moonshot.cn/api/v2/summary.json) | Open API; Kimi Code; K3 (Kimi Code); K2.8 Preview (Kimi Code); K2.7 Code Highspeed (Kimi Code) | 2026-10-20 |
+| `qwen` | None | — | Not verified (see exclusions below) | — |
+| `groq` | `JsonCustom(IncidentIoWidget)` | [endpoint](https://groqstatus.com/api/v1/summary) | API | 2026-10-20 |
+| `perplexity` | `JsonCustom(IncidentIoWidget)` | [endpoint](https://status.perplexity.com/api/v1/summary) | API; Computer | 2026-10-20 |
+| `mistral` | None | — | Not verified (see exclusions below) | — |
+| `cloudflare_ai` | `StatuspageV2` | [endpoint](https://www.cloudflarestatus.com/api/v2/summary.json) | Workers AI | 2026-10-20 |
+| `ollama_cloud` | None | — | Not verified (see exclusions below) | — |
+| `xiaomi_mimo` | None | — | Not verified (see exclusions below) | — |
+| `open_code_go` | None | — | Not verified (see exclusions below) | — |
+| `qoder` | None | — | Not verified (see exclusions below) | — |
+| `gemini_ai` | None | — | Not verified (see exclusions below) | — |
+| `grok` | `AtomRss(Xai)` | [endpoint](https://status.x.ai/feed.xml) | Global API; US API; grok.com; Grok Build | 2026-10-20 |
+| `nvidia_nim` | `StatuspageV2` | [endpoint](https://status.ngc.nvidia.com/api/v2/summary.json) | NVIDIA Build; Cloud Functions | 2026-10-20 |
+| `poolside` | None | — | Not verified (see exclusions below) | — |
+| `kiro` | None | — | Not verified (see exclusions below) | — |
+| `cline` | None | — | Not verified (see exclusions below) | — |
+| `code_buddy` | None | — | Not verified (see exclusions below) | — |
+| `zed` | None | — | Not verified (see exclusions below) | — |
+| `alibaba_model_studio` | None | — | Not verified (see exclusions below) | — |
+| `alibaba_coding_plan` | None | — | Not verified (see exclusions below) | — |
+| `alibaba_token_plan` | None | — | Not verified (see exclusions below) | — |
+| `alibaba_cloud` | None | — | Not verified (see exclusions below) | — |
+| `antigravity` | None | — | Not verified (see exclusions below) | — |
+| `kimchi` | None | — | Not verified (see exclusions below) | — |
+
+### Verification, stability and use policy
+
+- **Statuspage v2:** each publisher explicitly documents unauthenticated, programmatic use and the summary's components, incidents and maintenance: [Claude](https://status.claude.com/api), [GitHub](https://www.githubstatus.com/api), [Cursor](https://status.cursor.com/api), [Windsurf](https://status.windsurf.com/api), [MiniMax](https://status.minimax.io/api), [Moonshot](https://status.moonshot.cn/api) and [NVIDIA NGC](https://status.ngc.nvidia.com/api). The canonical Claude and Windsurf hosts replace redirects from `status.anthropic.com` and `status.codeium.com`. Their standard `robots.txt` disallows crawling `/api/` and `/embed/`; this registry uses only the publisher's explicitly documented API, not HTML crawling or indexing. No broader scraping permission is inferred.
+- **Cloudflare:** [API use policy](https://www.cloudflarestatus.com/api) explicitly requests automated API polling instead of HTML scraping, no authentication, and an identifiable User-Agent with a contact URL. Its v2-compatible summary was about 236 KiB at verification; RF2's response-size ceiling must accommodate it. A major page-wide outage with Workers AI operational was observed and retained as a scope-boundary fixture. City outages, Workers KV and unrelated products must not become Workers AI incidents.
+- **OpenAI, Groq and Perplexity:** the enabled [incident.io Widget API](https://docs.incident.io/status-pages/api#widget-api) is a public read-only JSON API intended for embedding status, with caching strongly recommended and high traffic subject to discussion with the operator. `ongoing_incidents`, `in_progress_maintenances` and `scheduled_maintenances` contain `affected_components[].id`. Their compatibility `/api/v2/summary.json` endpoints returned null incident/maintenance lists, so those are **not** used for incident monitoring. The component catalogs were checked separately ([OpenAI](https://status.openai.com/api/v2/components.json), [Groq](https://groqstatus.com/api/v2/components.json), [Perplexity](https://status.perplexity.com/api/v2/components.json)); OpenAI's summary omitted later Codex components, so the complete components endpoint is the verification evidence. Duplicate “Login” labels are separated by IDs. No robots policy was published at these hosts' `/robots.txt` (404).
+- **Google Cloud:** [programmatic consumption guidance](https://docs.cloud.google.com/service-health/docs/service-health-fallback#consume_google_cloud_service_health_data_programmatically), [JSON schema](https://status.cloud.google.com/incidents.schema.json) and [product catalog](https://status.cloud.google.com/products.json) explicitly support the public JSON history file. Use stable `affected_products[].id`, never unstable titles. `robots.txt` permits access. Only broad public incidents are included. `gemini_api` covers **Cloud Monitoring, its measurement dependency only**; the standalone Gemini API is not Vertex Gemini API. `vertex_ai` includes the verified inference products plus the same Monitoring dependency, not every Google product.
+- **AWS:** the [AWS Health Dashboard guide](https://docs.aws.amazon.com/health/latest/ug/aws-health-dashboard-status.html) confirms unauthenticated public health events and available RSS feeds, but warns the format can change and recommends authenticated EventBridge for complete data. The public RSS 2.0 feed declares `ttl=5` (minutes); respect at least that interval. The [Bedrock N. Virginia feed](https://status.aws.amazon.com/rss/bedrock-us-east-1.rss) verifies the `bedrock` service slug; the global feed avoids claiming one region represents all regions. Extract the exact service from the GUID fragment before its region suffix; do not match `multipleservices` to Bedrock without structured evidence. This can miss broad multi-service incidents and is not a Cost Explorer health guarantee. Empty/history-only feeds cannot alone prove current operational status. The undocumented UTF-16 `health.aws.amazon.com/public/currentevents` API is **not** used. No robots policy was returned by the RSS host.
+- **xAI:** the [public status page](https://status.x.ai/) publishes [RSS 2.0](https://status.x.ai/feed.xml); the feed self-link identifies the same URL. Its component is the bracketed title prefix, and categories carry severity and resolution (the captured entries are resolved). Exact component selection excludes unrelated X/mobile/voice incidents. `robots.txt` disallows `/api/`, `/mp/` and `/design`, not this subscription feed. The v2 JSON candidate returned 403 and is not used. No stable JSON API or stronger feed-version promise was verified; history alone must not be interpreted as current operational health.
+
+These checks establish use of expressly public subscription/API interfaces, not an unrestricted content license, an SLA or a guarantee that terms will never change. A future client must identify itself, cache for at least five minutes, honor rate limits, and treat malformed, incomplete, stale or ambiguous responses as unknown. It must neither scrape HTML nor evade a login or bot challenge. Never forward account data, cookies or quota credentials to a status source.
+
+### Explicit exclusions (checked 2026-10-20)
+
+`None` is a deliberate conservative decision, not a claim the vendor has no status page:
+
+| Providers | Verification result / why no reliable scoped source is registered |
+|---|---|
+| `azure_open_ai` | The [public Azure RSS](https://azure.status.microsoft/en-us/status/feed/) responded, but no machine-readable Azure OpenAI component selector was verified in it; whole-cloud incidents are not substituted. |
+| `mistral` | `status.mistral.ai` and its v2 summary returned 403 with a bot challenge, including a browser User-Agent; no bypass or unverifiable URL is registered. |
+| `poolside`, `kimchi` | Public incident.io pages and compatibility summaries responded, but their Widget APIs returned 404. Compatibility summaries have null incident lists. Atom/RSS affected components/state are embedded in HTML prose, not a verified structured component contract, so these are not registered. |
+| `zed` | [Instatus public API](https://status.zed.dev/public-api) exists, but the summary has no component association and the documented v3 components array differed from the observed wrapped response. A Zed page-wide state could alarm for unrelated Delta/Collaboration/Extension Registry components; no scoped incident contract is registered. |
+| `gemini_ai`, `antigravity` | No verified feed for the AI Studio/CLI/Antigravity product scope. The Cloud catalog's Gemini Code Assist is not assumed to cover every Gemini AI mode or Antigravity. |
+| `open_code_go`, `cline` | Public status pages responded with HTML; tried public summary/feed candidates returned 404. No documented machine-readable scoped contract verified. |
+| `qwen`, `alibaba_model_studio`, `alibaba_coding_plan`, `alibaba_token_plan`, `alibaba_cloud` | Alibaba status sites expose HTML applications; no public, documented incident feed with relevant product selectors was verified. |
+| `ollama_cloud`, `xiaomi_mimo`, `qoder`, `code_buddy` | No reliable public status endpoint verified; candidate status hosts failed DNS/network resolution. |
+| `kiro` | Candidate public status host returned 403; Bedrock's AWS service must not stand in for Kiro. |
+
+Moonshot's source is its published Open API/Kimi Code product status, not a claim of parity between domestic and international deployments. MiniMax excludes speech/video; GitHub excludes Actions/Pages; Windsurf excludes Netlify; NGC excludes Fleet Command. Missing components or a source with no relevant scoped incident never justify asserting account health.
+
+### Offline verification fixtures
+
+`crates/cuotai-core/src/incidents/fixtures/` holds minimized, anonymized real captures from the URLs above on the verification date: the Statuspage summaries, complete OpenAI and relevant Groq/Perplexity component catalogs, an empty OpenAI widget response, Google incident/product JSON and AWS/xAI RSS. `widget-maintenance.json` preserves the public [HashiCorp Widget API](https://status.hashicorp.com/api/v1/summary)'s real maintenance shape with populated components (the mapped pages had none at capture); its names, IDs, URLs and prose were anonymized. Public component IDs and names in provider catalogs remain intact because they are matching evidence, not personal data. Incident prose is replaced and long histories are reduced; states, timestamps, structural nulls and selector fields are retained. The AWS example is an unrelated multi-service event and the xAI examples are resolved events, not simulated active outages.
+
+Tests use only these local captures, covering all 36 provider decisions, positive component membership, exact-match boundaries, shared-source isolation, unrelated cloud services and the page-wide-outage/healthy-target case. No live status assertion is a test expectation; RF2 owns normalization, network/cache/error tests and active incident parsing.
+
 ## References
 
 - [OpenAI: organization costs and usage](https://developers.openai.com/api/reference/resources/admin/subresources/organization)

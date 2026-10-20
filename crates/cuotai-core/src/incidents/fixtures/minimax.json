@@ -1,0 +1,62 @@
+{
+  "page": {
+    "id": "01jl8mrfc0rh",
+    "name": "minimax",
+    "url": "https://status.minimax.io",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-10-20T19:54:25.049Z"
+  },
+  "components": [
+    {
+      "id": "pr0d8qr59svt",
+      "name": "Large Language Models (LLM)",
+      "status": "operational",
+      "created_at": "2026-04-21T03:54:19.743Z",
+      "updated_at": "2026-10-20T09:18:49.235Z",
+      "position": 4,
+      "description": "Public status update.",
+      "showcase": true,
+      "start_date": "2026-03-31",
+      "group_id": null,
+      "page_id": "01jl8mrfc0rh",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "jqd3xqhk9v7j",
+      "name": "Text-to-Speech",
+      "status": "operational",
+      "created_at": "2026-04-21T03:55:17.199Z",
+      "updated_at": "2026-10-19T07:32:49.357Z",
+      "position": 5,
+      "description": "Public status update.",
+      "showcase": true,
+      "start_date": "2026-03-31",
+      "group_id": null,
+      "page_id": "01jl8mrfc0rh",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "zvwy77wxk251",
+      "name": "Video Generation",
+      "status": "operational",
+      "created_at": "2026-04-21T04:03:23.420Z",
+      "updated_at": "2026-09-09T01:55:52.105Z",
+      "position": 6,
+      "description": "Public status update.",
+      "showcase": true,
+      "start_date": "2026-03-31",
+      "group_id": null,
+      "page_id": "01jl8mrfc0rh",
+      "group": false,
+      "only_show_if_degraded": false
+    }
+  ],
+  "incidents": [],
+  "scheduled_maintenances": [],
+  "status": {
+    "indicator": "none",
+    "description": "Public status update."
+  }
+}

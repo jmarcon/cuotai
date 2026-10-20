@@ -1,0 +1,20 @@
+{
+  "components": [
+    {
+      "id": "01KZSFD424KQ6VQYV4R0KCA30P",
+      "name": "Website"
+    },
+    {
+      "id": "01KZSFD424NN3EYBS78TMVWNEK",
+      "name": "App"
+    },
+    {
+      "id": "01M0TRMC3ED1PG4GRRXXMVNNZ6",
+      "name": "Computer"
+    },
+    {
+      "id": "01M2R6E5FPASTEW3A3V8TSYHJ0",
+      "name": "API"
+    }
+  ]
+}

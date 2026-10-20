@@ -1,0 +1,91 @@
+[
+  {
+    "id": "example-incident",
+    "number": "1",
+    "begin": "2026-02-27T12:37:00+00:00",
+    "created": "2026-02-27T16:12:30+00:00",
+    "end": "2026-02-27T14:35:00+00:00",
+    "modified": "2026-03-09T05:25:43+00:00",
+    "external_desc": "Public service incident",
+    "updates": [
+      {
+        "created": "2026-03-09T05:25:43+00:00",
+        "modified": "2026-03-09T05:25:43+00:00",
+        "when": "2026-03-09T05:25:43+00:00",
+        "text": "Public incident update.",
+        "status": "AVAILABLE",
+        "affected_locations": []
+      }
+    ],
+    "most_recent_update": {
+      "created": "2026-03-09T05:25:43+00:00",
+      "modified": "2026-03-09T05:25:43+00:00",
+      "when": "2026-03-09T05:25:43+00:00",
+      "text": "Public incident update.",
+      "status": "AVAILABLE",
+      "affected_locations": []
+    },
+    "status_impact": "SERVICE_INFORMATION",
+    "severity": "low",
+    "service_key": "zall",
+    "service_name": "Multiple Products",
+    "affected_products": [
+      {
+        "title": "Agent Assist",
+        "id": "eUntUKqUrHdbBLNcVVXq",
+        "current_title": "Agent Assist"
+      },
+      {
+        "title": "Dialogflow CX",
+        "id": "BnCicQdHSdxaCv8Ya6Vm",
+        "current_title": "Dialogflow CX"
+      },
+      {
+        "title": "Vertex Gemini API",
+        "id": "Z0FZJAMvEB4j3NbCJs6B",
+        "current_title": "Gemini on Agent Platform"
+      },
+      {
+        "title": "Google Cloud Support",
+        "id": "bGThzF7oEGP5jcuDdMuk",
+        "current_title": "Google Cloud Support"
+      }
+    ],
+    "uri": "incidents/example-incident",
+    "currently_affected_locations": [],
+    "previously_affected_locations": [
+      {
+        "title": "Global",
+        "id": "global"
+      },
+      {
+        "title": "Montréal (northamerica-northeast1)",
+        "id": "northamerica-northeast1"
+      },
+      {
+        "title": "São Paulo (southamerica-east1)",
+        "id": "southamerica-east1"
+      },
+      {
+        "title": "Iowa (us-central1)",
+        "id": "us-central1"
+      },
+      {
+        "title": "South Carolina (us-east1)",
+        "id": "us-east1"
+      },
+      {
+        "title": "Northern Virginia (us-east4)",
+        "id": "us-east4"
+      },
+      {
+        "title": "Columbus (us-east5)",
+        "id": "us-east5"
+      },
+      {
+        "title": "Oregon (us-west1)",
+        "id": "us-west1"
+      }
+    ]
+  }
+]

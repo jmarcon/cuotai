@@ -1,0 +1,152 @@
+{
+  "components": [
+    {
+      "id": "01JMXBRMFE6N2NNT7DG6XZQ6PW",
+      "name": "Chat Completions"
+    },
+    {
+      "id": "01JP8CD9JR3HR6Y7G4Q75N4DVW",
+      "name": "Responses"
+    },
+    {
+      "id": "01M3Q6W0264T1RJS1YEM47CAQJ",
+      "name": "Agents"
+    },
+    {
+      "id": "01M3Q6W0262E8VW5DE1MJMMN0T",
+      "name": "Decisions"
+    },
+    {
+      "id": "01JMXBRMFEMZK0HPK19RYET250",
+      "name": "Fine-tuning"
+    },
+    {
+      "id": "01JMXBRMFEV0AJ0VVS68N9CD6R",
+      "name": "Embeddings"
+    },
+    {
+      "id": "01JMXBRMFE4MAP2BHSJNZ787WX",
+      "name": "Images"
+    },
+    {
+      "id": "01JMXBRMFE5ESNNV8JDHVCGSRD",
+      "name": "Batch"
+    },
+    {
+      "id": "01JMXBRMFEKVBWKK82B44QFMCE",
+      "name": "Audio"
+    },
+    {
+      "id": "01JMXBRMFEVZ7E0X9GD9FWR9WX",
+      "name": "Moderations"
+    },
+    {
+      "id": "01JMXBRMFEQW613TFE89F45035",
+      "name": "Realtime"
+    },
+    {
+      "id": "01JMXBRMFESJCBGJR10PDD3WCQ",
+      "name": "Files"
+    },
+    {
+      "id": "01JSM5RTJWHRWDTS6Q604VEW3B",
+      "name": "Login"
+    },
+    {
+      "id": "01M534EG9N1SYV22NNJPRGYESP",
+      "name": "Live"
+    },
+    {
+      "id": "01JMXBNJXGV1T5GT2M9XA83XNG",
+      "name": "Conversations"
+    },
+    {
+      "id": "01JMXBNJXG1S2D9V65P1ZZTD94",
+      "name": "Login"
+    },
+    {
+      "id": "01KX45G1SH21AX5DT93D4HMF0P",
+      "name": "ChatGPT Work"
+    },
+    {
+      "id": "01KMKFAMWKQ81YWSE1Z18R6VHR",
+      "name": "Codex in ChatGPT Desktop"
+    },
+    {
+      "id": "01JNKS9D9S72PMP1938PVFFQN4",
+      "name": "Compliance API"
+    },
+    {
+      "id": "01JMXBNJXGKKP51D4DEJ2HZJ8Q",
+      "name": "Search"
+    },
+    {
+      "id": "01JMXBNJXG1YMQPPCPCQX3MPA2",
+      "name": "File uploads"
+    },
+    {
+      "id": "01JMXBNJXGGT5SR5DB9J7GYY48",
+      "name": "Voice mode"
+    },
+    {
+      "id": "01JSFK5QX36ZRW0TW0ZV0ZYFXQ",
+      "name": "GPTs"
+    },
+    {
+      "id": "01JQ7EKW990MSPSWVXC7VPV2ZJ",
+      "name": "Image Generation"
+    },
+    {
+      "id": "01JSYVYQSWMJ9QG35XHP08BHA7",
+      "name": "Deep Research"
+    },
+    {
+      "id": "01JSG1XMJ9RVJJQ0E85NVSJ2AZ",
+      "name": "Agent"
+    },
+    {
+      "id": "01M3Q6NERHVE2WPPAQRHBAC6XB",
+      "name": "dots"
+    },
+    {
+      "id": "01M3Q6NERHS4BG0HQ85VAR1SRH",
+      "name": "Space"
+    },
+    {
+      "id": "01KX45G1SHQQ9DTAX9S4W7FV8G",
+      "name": "Sites"
+    },
+    {
+      "id": "01K6TVGGGDCP0PPGCHXAG3AQX8",
+      "name": "Connectors/Apps"
+    },
+    {
+      "id": "01JVCV8YSWZFRSM1G5CVP253SK",
+      "name": "Codex Web"
+    },
+    {
+      "id": "01KMP3KP5MGE23B80K1EK4S8PV",
+      "name": "Codex API"
+    },
+    {
+      "id": "01KMKFAMWKNQ84Z1766MV08ZDE",
+      "name": "CLI"
+    },
+    {
+      "id": "01KMP3KP5M8X0EBTVW6KN327EE",
+      "name": "VS Code extension"
+    },
+    {
+      "id": "01KKAD7C71MCCH3FTREMJH4AAS",
+      "name": "FedRAMP"
+    },
+    {
+      "id": "01KTQBYVARFJ5KMCSECM06VKCF",
+      "name": "Ads Manager"
+    },
+    {
+      "id": "01KVR95C58GGWHV7RYBT32NP11",
+      "name": "Ads API"
+    }
+  ]
+}
