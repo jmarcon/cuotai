@@ -7,9 +7,9 @@ import { openDetails, refreshDetails } from "./details-dialog.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
-  moveAccount, noteText, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, staleView, statusLabel, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
-  cardPace, paceHtml,
+  moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
+  currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
+  cardPace, paceHtml, accessHtml, causeText,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -63,7 +63,7 @@ function summaryHtml(r) {
       <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div></div>`;
   }
   if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;
-  return `<p class="sum-note">${esc(r.notes.length ? noteText(r, 0) : statusLabel(r.status))}</p>`;
+  return `<p class="sum-note">${esc(causeText(r))}</p>`;
 }
 
 function card(r, position, ordered, recharging = false) {
@@ -107,8 +107,8 @@ function card(r, position, ordered, recharging = false) {
       </div>
     </div>
     <div class="summary">${stale
-      ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(r.notes.length ? noteText(r, 0) : statusLabel(r.status))}</span></p>`
-      : summaryHtml(r)}${paceLine(r)}</div>
+      ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
+      : summaryHtml(r)}${paceLine(r)}${accessHtml(r)}</div>
     <div class="card-foot">
       ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}

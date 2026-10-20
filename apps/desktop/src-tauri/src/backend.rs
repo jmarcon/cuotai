@@ -308,6 +308,29 @@ pub struct ReportView {
     /// PRD 0007 RF3.2: index (into `metrics`) of the most restrictive metric
     /// that has a pace (the core's binding rule restricted to them).
     pace_index: Option<usize>,
+    /// PRD 0005 RF4: how the account's usage is read.
+    access: ReportAccess,
+}
+
+/// The core's descriptor (`access::describe`, flattened: `level` slug,
+/// `summary`, `reason`, `evidence`…) plus the level's text and, for a
+/// failure the descriptor explains, what replaces the generic one
+/// (`UsageAccess::explain`).
+#[derive(Serialize, Clone)]
+pub struct ReportAccess {
+    #[serde(flatten)]
+    descriptor: cuotai_core::access::UsageAccess,
+    label: cuotai_core::text::Localized,
+    explanation: Option<cuotai_core::text::Localized>,
+}
+
+fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAccess {
+    let descriptor = cuotai_core::access::describe(account);
+    ReportAccess {
+        label: descriptor.level.label(),
+        explanation: descriptor.explain(report),
+        descriptor,
+    }
 }
 
 /// The preserved reading: its original `checked_at` and metrics. The UI always
@@ -400,6 +423,7 @@ fn report_view(
         clock_adjusted: clock_adjusted(report.checked_at, now),
         last_good: None,
         pace_index,
+        access: report_access(account, report),
     }
 }
 
@@ -2348,6 +2372,66 @@ mod tests {
         // The binding is the 95% "credits"; the card's pace line uses the week.
         assert_eq!(view["binding"]["index"], 2);
         assert_eq!(view["pace_index"], 1);
+    }
+
+    /// PRD 0005 RF4: each report carries its account's access descriptor,
+    /// the level's text and the core's explanation of the failure.
+    #[test]
+    fn view_carries_the_access_and_explains_unavailable_or_changed_interfaces() {
+        let failed = |name: &str, provider, status, id: &'static str| Report {
+            provider,
+            status,
+            notes: vec!["x".into()],
+            notes_l10n: vec![cuotai_core::text::Localized::fixed(id, "x")],
+            ..ready(name, Vec::new())
+        };
+        let config = Config {
+            accounts: vec![
+                Account {
+                    provider: Provider::Poolside,
+                    ..plain_account("pool")
+                },
+                Account {
+                    provider: Provider::Zed,
+                    ..plain_account("zed")
+                },
+                plain_account("cloud"),
+            ],
+            ..Config::default()
+        };
+        let reports = [
+            failed(
+                "pool",
+                Provider::Poolside,
+                Status::Unsupported,
+                "query.inference.poolside_no_public_usage",
+            ),
+            failed("zed", Provider::Zed, Status::Error, "query.schema"),
+            ready("cloud", Vec::new()),
+        ];
+        let view = |i: usize| {
+            serde_json::to_value(report_view(i, &reports[i], &config, None, None, 0)).unwrap()
+        };
+        let pool = view(0);
+        assert_eq!(pool["access"]["level"], "unavailable");
+        assert_eq!(pool["access"]["label"]["id"], "access.level.unavailable");
+        assert_eq!(pool["access"]["summary"]["id"], "access.summary.poolside");
+        assert_eq!(pool["access"]["explanation"], pool["access"]["reason"]);
+        assert_eq!(pool["access"]["reason"]["id"], "access.reason.poolside");
+        let zed = view(1);
+        assert_eq!(zed["access"]["level"], "undocumented");
+        assert_eq!(
+            zed["access"]["explanation"]["id"],
+            "access.interface_changed"
+        );
+        assert_eq!(
+            zed["access"]["explanation"]["params"]["evidence"],
+            zed["access"]["evidence"]["url"]
+        );
+        let cloud = view(2);
+        assert_eq!(cloud["access"]["level"], "official");
+        assert_eq!(cloud["access"]["scope"], "whole_cloud");
+        assert!(cloud["access"]["explanation"].is_null());
     }
 
     #[test]

@@ -9,6 +9,7 @@
 use crate::motion::{eighth_bar, Anim};
 use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_locale};
 use chrono::{DateTime, Local, Utc};
+use cuotai_core::access::{self, UsageAccess};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
 use cuotai_core::pace::{self, Pace, PaceStage, PaceTone};
 #[cfg(test)]
@@ -644,14 +645,32 @@ fn render_card(
         rows[..=limit.index].rotate_right(1);
     }
     let class = classification(report);
+    // PRD 0005 RF4.2: with nothing to draw, the core's explanation (the
+    // reason of an Unavailable account, a changed undocumented interface)
+    // takes the place of the generic failure and may use every free row.
+    let access = access::describe(account);
+    let explanation = report
+        .and_then(|report| access.explain(report))
+        .map(|note| resolve_l10n(&note));
     let first_note = if rows.is_empty() {
-        report.and_then(|report| report.notes.first().cloned())
+        explanation
+            .clone()
+            .or_else(|| report.and_then(|report| report.notes.first().cloned()))
     } else {
         None
     };
     let hidden_metrics = rows.len().saturating_sub(METRICS_VISIBLE_IN_CARD);
     let hint_rows = if hidden_metrics > 0 { 1 } else { 0 };
-    let note_rows = note_row_count(first_note.as_deref(), area.width);
+    let note_rows = match (&explanation, rows.is_empty()) {
+        (Some(text), true) => {
+            let free = area.height.saturating_sub(3 + hint_rows as u16);
+            let width = area.width.saturating_sub(2).max(20);
+            textwrap_simple(text, usize::from(width))
+                .len()
+                .min(usize::from(free))
+        }
+        _ => note_row_count(first_note.as_deref(), area.width),
+    };
 
     let border_style = if selected {
         Style::default().fg(CYAN)
@@ -671,7 +690,8 @@ fn render_card(
         .borders(Borders::ALL)
         .border_style(border_style)
         .title_style(title_style)
-        .title(title);
+        .title(title)
+        .title_bottom(access_title(&access, area.width));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     if inner.height == 0 || inner.width == 0 {
@@ -803,6 +823,27 @@ fn class_color(class: AccountClass) -> Color {
         AccountClass::Exhausted => RED,
         AccountClass::Unmeasured => MUTED,
     }
+}
+
+/// PRD 0005 RF4.1: the core's level and summary on the card's bottom border,
+/// muted and cut to the card so it never competes with the quota.
+fn access_title(access: &UsageAccess, width: u16) -> Line<'static> {
+    let text = format!(
+        "{} · {}",
+        resolve_l10n(&access.level.label()),
+        resolve_l10n(&access.summary)
+    );
+    let room = usize::from(width.saturating_sub(4));
+    let text = if text.chars().count() > room {
+        let cut: String = text.chars().take(room.saturating_sub(1)).collect();
+        format!("{}…", cut.trim_end())
+    } else {
+        text
+    };
+    Line::from(Span::styled(
+        format!(" {text} "),
+        Style::default().fg(MUTED).remove_modifier(Modifier::BOLD),
+    ))
 }
 
 fn build_hint(hidden_metrics: usize) -> Line<'static> {
@@ -1145,18 +1186,46 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             ),
         ]));
     }
+    // PRD 0005 RF4: how this account's usage is read and, when the
+    // descriptor explains the failure, that explanation leading the quotas
+    // in place of the generic "no metrics" line; the adapter's notes stay
+    // listed below.
+    let access = access::describe(account);
+    lines.push(Line::from(vec![
+        Span::styled(
+            "  ACESSO  ",
+            Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            resolve_l10n(&access.level.label()),
+            Style::default().fg(FG).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" · {}", resolve_l10n(&access.summary)),
+            Style::default().fg(MUTED),
+        ),
+    ]));
     lines.push(Line::default());
     lines.push(Line::styled(
         "  QUOTAS E CONSUMO",
         Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
     ));
+    let explanation = access.explain(report);
+    if let Some(explanation) = &explanation {
+        lines.push(Line::from(Span::styled(
+            safe(&resolve_l10n(explanation)).into_owned(),
+            Style::default().fg(YELLOW),
+        )));
+    }
 
     let shown = stale.unwrap_or(report);
     if shown.metrics.is_empty() {
-        lines.push(Line::from(Span::styled(
-            "Provedor sem métricas expostas nesta consulta.",
-            Style::default().fg(MUTED),
-        )));
+        if explanation.is_none() {
+            lines.push(Line::from(Span::styled(
+                "Provedor sem métricas expostas nesta consulta.",
+                Style::default().fg(MUTED),
+            )));
+        }
     } else {
         for (index, metric) in shown.metrics.iter().enumerate() {
             let row = metric_row(metric, stale.is_none().then_some(now));
@@ -2251,19 +2320,39 @@ mod tests {
         now: DateTime<Utc>,
         (width, height): (u16, u16),
     ) -> Vec<String> {
-        let accounts = three_accounts();
-        let visible = visible_indices(&accounts, reports, "", true);
+        render_accounts(
+            &three_accounts(),
+            reports,
+            last_good,
+            model_counts,
+            (details, 0),
+            now,
+            (width, height),
+        )
+    }
+
+    /// `(details, selected)`: the details view and the selected position.
+    fn render_accounts(
+        accounts: &[Account],
+        reports: &[Option<Report>],
+        last_good: &[Option<&Report>],
+        model_counts: &[Option<usize>],
+        (details, selected): (bool, usize),
+        now: DateTime<Utc>,
+        (width, height): (u16, u16),
+    ) -> Vec<String> {
+        let visible = visible_indices(accounts, reports, "", true);
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
             .draw(|frame| {
                 draw(
                     frame,
                     View {
-                        accounts: &accounts,
+                        accounts,
                         reports,
                         model_counts,
                         visible: &visible,
-                        selected: Some(0),
+                        selected: Some(selected),
                         details,
                         detail_scroll: 0,
                         show_unmeasured: true,
@@ -2454,5 +2543,107 @@ mod tests {
             local(at_min(0))
         )));
         assert!(text.contains("Antiga") && text.contains("Falha de rede"));
+    }
+
+    /// PRD 0005 RF4: an Unavailable account (Poolside, `Unsupported`), an
+    /// Undocumented one whose response broke the schema (Zed, `Error` with
+    /// `query.schema`) and an Official one whose failure is not explained.
+    fn access_fixture() -> (Vec<Account>, Vec<Option<Report>>) {
+        let account = |name: &str, provider| Account {
+            name: name.into(),
+            provider,
+            credential_env: None,
+            oauth: None,
+            params: Default::default(),
+            refresh_seconds: None,
+        };
+        let failed = |provider, status, id: &'static str, text: &str| Report {
+            provider,
+            notes: vec![text.into()],
+            notes_l10n: vec![cuotai_core::text::Localized::fixed(id, text)],
+            ..report(status, Vec::new())
+        };
+        let accounts = vec![
+            account("pool", Provider::Poolside),
+            account("zed", Provider::Zed),
+            account("openai", Provider::OpenAiApi),
+        ];
+        let reports = vec![
+            Some(failed(
+                Provider::Poolside,
+                Status::Unsupported,
+                "query.inference.poolside_no_public_usage",
+                "Poolside não publica endpoint de uso/saldo por chave.",
+            )),
+            Some(failed(
+                Provider::Zed,
+                Status::Error,
+                "query.schema",
+                "Resposta incompatível com a interface de consulta; nenhum valor foi estimado.",
+            )),
+            Some(failed(
+                Provider::OpenAiApi,
+                Status::Error,
+                "query.transport",
+                "Falha de rede ou tempo limite na consulta.",
+            )),
+        ];
+        (accounts, reports)
+    }
+
+    #[test]
+    fn cards_show_the_access_level_and_explain_unavailable_or_changed_interfaces() {
+        let (accounts, reports) = access_fixture();
+        let rows = render_accounts(
+            &accounts,
+            &reports,
+            &[],
+            &[],
+            (false, 0),
+            at_min(0),
+            (120, 40),
+        )
+        .join("\n");
+        // RF4.1: level and summary on every card, discreetly on the border.
+        assert!(rows.contains("Indisponível · Chave de inferência do Poolside."));
+        assert!(rows.contains("Não documentada · Uso do plano Zed"));
+        assert!(rows.contains("Oficial · Custos e uso da organização"));
+        // RF4.2: the reason replaces the adapter's generic note.
+        assert!(rows.contains("O endpoint de uso conhecido exige um token"));
+        assert!(!rows.contains("Poolside não publica"));
+        // A broken schema on an undocumented interface says it may have changed.
+        assert!(rows.contains("A resposta não segue a interface interna"));
+        assert!(!rows.contains("Resposta incompatível"));
+        // A failure the descriptor does not explain keeps its own note.
+        assert!(rows.contains("Falha de rede ou tempo limite"));
+    }
+
+    #[test]
+    fn details_show_the_access_and_the_explanation_with_the_adapter_notes() {
+        let (accounts, reports) = access_fixture();
+        let details = |selected| {
+            render_accounts(
+                &accounts,
+                &reports,
+                &[],
+                &[],
+                (true, selected),
+                at_min(0),
+                (120, 40),
+            )
+            .join("\n")
+        };
+        let pool = details(0);
+        assert!(pool.contains("ACESSO  Indisponível · Chave de inferência do Poolside."));
+        assert!(pool.contains("O endpoint de uso conhecido exige um token"));
+        assert!(!pool.contains("Provedor sem métricas expostas"));
+        assert!(pool.contains("Poolside não publica"), "adapter note kept");
+        let zed = details(1);
+        assert!(zed.contains("ACESSO  Não documentada · Uso do plano Zed pela interface"));
+        assert!(zed.contains("pode ter mudado sem aviso"));
+        assert!(zed.contains("github.com/decolua/9router"), "{zed}");
+        let openai = details(2);
+        assert!(openai.contains("ACESSO  Oficial"));
+        assert!(openai.contains("Provedor sem métricas expostas"));
     }
 }

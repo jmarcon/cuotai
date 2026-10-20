@@ -58,6 +58,10 @@ impl Data {
     }
 }
 
+/// Note id of [`QueryError::schema`]: the response did not match the
+/// interface the adapter knows (read by `access` for PRD 0005 RF4.2).
+pub(crate) const SCHEMA_NOTE: &str = "query.schema";
+
 /// RF8 structured error: a [`Status`] plus a [`Localized`] note the
 /// frontend translates via the stable id. The Portuguese fallback is what
 /// pre-RF8 callers used to receive as `message`.
@@ -106,7 +110,7 @@ impl QueryError {
         Self {
             status: Status::Error,
             note: Localized::fixed(
-                "query.schema",
+                SCHEMA_NOTE,
                 "Resposta incompatível com a interface de consulta; nenhum valor foi estimado.",
             ),
         }

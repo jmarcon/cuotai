@@ -276,6 +276,15 @@ export const reportKey = (r) => `${r.provider}::${r.account}`;
 /** Resolve the structured note sidecar by the same index as the legacy fallback. */
 export const noteText = (report, index) =>
   report.notes_l10n?.[index] ? tl(report.notes_l10n[index]) : report.notes[index] ?? "";
+/** PRD 0005 RF4.2: what a failed account shows first: the core's explanation (an Unavailable account's reason, a
+ *  changed undocumented interface), else the adapter's first note, else the status. */
+export const causeText = (r) => (r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
+/** Adapter notes still to list after `causeText` (all of them when the core's explanation took the first place). */
+export const restNotes = (r) => r.notes.map((_, index) => noteText(r, index)).slice(r.access?.explanation ? 0 : 1);
+/** PRD 0005 RF4.1: the core's level and summary in one discreet line; `full` wraps instead of cutting. */
+export const accessHtml = (r, { full = false } = {}) => r.access
+  ? `<p class="access-line${full ? " full" : ""}" data-access="${esc(r.access.level)}" title="${esc(tl(r.access.summary))}"><span class="lv">${esc(tl(r.access.label))}</span> · <span>${esc(tl(r.access.summary))}</span></p>`
+  : "";
 export const metricKey = (r, m) => `${reportKey(r)}::${m.label}`;
 
 // ---------- providers ----------
@@ -486,6 +495,10 @@ const demoReports = [
       badges: [{ tone: "accent", text: "IAM Identity Center" }, { tone: "info", text: "us-east-1" }, { tone: "good", text: "ativa" }] } },
   { ...dr("juliano.marcon@gmail.com", "grok", [dm("On-demand", 1, 1, 100, "quota", "monthly")]), identity: { email: "juliano.marcon@gmail.com", badges: [], copy: null } },
   dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false }]),
+  // PRD 0005 RF4.2 fixtures: an Unavailable provider (no query) and an Undocumented one whose response broke the schema.
+  dr("Work", "poolside", [], ["Poolside não publica endpoint de uso/saldo por chave."], "unsupported"),
+  { ...dr("Personal", "zed", [], ["Resposta incompatível com a interface de consulta; nenhum valor foi estimado."], "error"),
+    notes_l10n: [{ id: "query.schema", params: {}, fallback: "Resposta incompatível com a interface de consulta; nenhum valor foi estimado." }] },
 ];
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
@@ -533,11 +546,25 @@ const demoView = () => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
     return { ...r, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics: r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null })), pace_index: paceIndex,
-      next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth };
+      next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r) };
   });
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
     started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation };
 };
+// ponytail: demo mirror of `access::describe` + `UsageAccess::explain` (default modes, generic pt summary and
+// evidence); the app reads both from the core.
+const DEMO_ROUTER = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
+function demoAccess(r) {
+  const level = demoLevelOf(r.provider);
+  const reason = level === "unavailable" ? dl(`access.reason.${r.provider}`, "Não há consulta pública de uso para esta credencial (demo).") : null;
+  const url = level === "undocumented" ? `${DEMO_ROUTER}${r.provider}.js` : "https://example.com/docs (demo)";
+  const changed = level === "undocumented" && r.status === "error" && r.notes_l10n?.some((n) => n.id === "query.schema")
+    ? { id: "access.interface_changed", params: { evidence: url }, fallback: `A resposta não segue a interface interna conhecida: ela pode ter mudado sem aviso. Contrato de referência: ${url}` }
+    : null;
+  return { level, label: demoLevel(level), summary: dl(`access.summary.${r.provider}`, "Consulta de uso de demonstração."), reason,
+    evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
+    explanation: r.status === "ready" ? null : reason ?? changed };
+}
 const demoSettings = { custom: null, config: null, generation: 1 };
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
 // nenhum catálogo inventado é exibido como real.

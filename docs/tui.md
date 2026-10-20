@@ -69,6 +69,7 @@ cargo install --path crates/cuotai-tui --locked
 - Independent queries run in parallel up to `concurrency`; during a refresh the previous data stays visible. The header shows the countdown to the next query of the selected account.
 - Bars represent the **remaining** percentage; used values above 100% are preserved and only the drawing is clamped to the bar width.
 - Costs and balances with no known limit show plain text values, without inventing a percentage or "unlimited". An extra balance of zero does not make a subscription that still has limited quota available count as exhausted.
+- **Usage access level:** each card's bottom border shows, muted, how the account's usage is read (`Oficial · Custos e uso da organização…`, cut to the card), from `cuotai_core::access` in `CUOTAI_LANG`; the details add an `ACESSO` line with the full level and summary. An `Unavailable` account (no usage query exists, such as an AI Studio key) shows its reason on the card and at the top of `QUOTAS E CONSUMO` instead of the generic failure, and an `Undocumented` account whose response no longer matches the known schema says the internal interface may have changed and names the public contract it follows; the adapter's own notes stay under `OBSERVAÇÕES`. `--once` and `--json` are unchanged.
 - Deleting an account removes only the configuration entry: it does not delete environment variables or Keychain entries, and it does not revoke access at the provider.
 
 ### Animations
