@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-20
+
+### Added
+
+- The TUI and `--once` show the consumption pace until the reset: each eligible metric on a dashboard card gets a stage icon (`↓` in reserve, `→` on pace, `↑` above the pace, `✕` limit reached), the details add a line per metric with the stage, whether it lasts until the reset or when it runs out, and the expected use, and `--once` prints a `Ritmo:` line under each eligible metric, in `CUOTAI_LANG`; it is a linear estimate, windows that just opened, have no reset or show a stale reading get none, and `--json` is unchanged (PRD 0007 RF4).
+
 ## [0.31.0] - 2026-10-20
 
 ### Added
 
-- The desktop app shows the consumption pace until the reset: a short line under the card's bar for the most restrictive metric ("Week: 8 points in reserve · lasts until the reset", or "runs out at 16:40, 2h 10m before the reset"), the pace of every metric in the details with an "Expected 47% used" mark drawn over the bar, and the same outlook in the tray tooltip and list; it is a linear estimate, windows that just opened or have no reset show nothing, and Settings → Appearance can hide it (on by default, saved in `desktop.json`) (PRD 0007 RF3).
+- The desktop app shows the consumption pace until the reset: a short line under the card's bar for the most restrictive metric ("Week: 8 points in reserve · lasts until the reset", or "runs out at 16:40, 2h 10m before the reset"), the pace of every metric in the details with an "Expected 47% used" mark drawn over the bar, and the same outlook in the tray tooltip and list; it is a linear estimate, windows that just opened or have no reset show nothing, and Settings → Appearance can hide it (on by default, saved in `desktop.json`) (PRD 0007 RF3, f64f5ba).
 
 ## [0.30.0] - 2026-10-20
 
@@ -324,8 +330,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/571fac3...main
-[0.31.0]: https://github.com/jmarcon/cuotai/compare/571fac3...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/f64f5ba...main
+[0.32.0]: https://github.com/jmarcon/cuotai/compare/f64f5ba...main
+[0.31.0]: https://github.com/jmarcon/cuotai/commit/f64f5ba
 [0.30.0]: https://github.com/jmarcon/cuotai/commit/571fac3
 [0.29.0]: https://github.com/jmarcon/cuotai/commit/8f23ed7
 [0.28.0]: https://github.com/jmarcon/cuotai/commit/4a87dbf

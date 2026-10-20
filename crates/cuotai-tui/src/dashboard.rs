@@ -7,9 +7,10 @@
 //! or stored here.
 
 use crate::motion::{eighth_bar, Anim};
-use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe};
+use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_locale};
 use chrono::{DateTime, Local, Utc};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
+use cuotai_core::pace::{self, Pace, PaceStage, PaceTone};
 #[cfg(test)]
 use cuotai_core::Snapshot;
 use cuotai_core::{Account, Metric, Report, Status};
@@ -178,16 +179,56 @@ struct MetricRow {
     state: MetricState,
     period: Option<String>,
     resets_at: Option<DateTime<Utc>>,
+    /// PRD 0007 RF4: the core's pace; `None` for ineligible metrics, freshly
+    /// opened windows and the preserved (stale) reading.
+    pace: Option<Pace>,
 }
 
-fn metric_row(metric: &Metric) -> MetricRow {
+/// `pace_at` is the clock for the pace; `None` shows no pace.
+fn metric_row(metric: &Metric, pace_at: Option<DateTime<Utc>>) -> MetricRow {
     MetricRow {
         label: metric.label.clone(),
         text: metric_text(metric),
         state: classify_metric(metric),
         period: metric.period.clone(),
         resets_at: metric.resets_at,
+        pace: pace_at.and_then(|now| pace::assess(metric, now, None)),
     }
+}
+
+/// PRD 0007 RF4: the core's pace texts joined as "stage · outlook", with
+/// `at` formatting the projected time and the margin as `11h 10m`.
+pub(crate) fn pace_text(
+    pace: &Pace,
+    locale: &str,
+    at: impl FnOnce(DateTime<Utc>) -> String,
+) -> String {
+    let stage = pace.stage_label().resolve(locale);
+    let margin = |span: chrono::TimeDelta| format_reset_remaining(span.num_seconds().max(0));
+    match pace.outlook_label(at, margin) {
+        Some(outlook) => format!("{stage} · {}", outlook.resolve(locale)),
+        None => stage,
+    }
+}
+
+/// Discreet stage icon: the shape carries the stage, the color only repeats it.
+fn pace_icon(pace: &Pace) -> Span<'static> {
+    let icon = match pace.stage {
+        PaceStage::Reserve => "↓ ",
+        PaceStage::OnPace => "→ ",
+        PaceStage::Ahead => "↑ ",
+        PaceStage::Exhausted => "✕ ",
+    };
+    let color = match pace.tone {
+        PaceTone::Good => GREEN,
+        PaceTone::Neutral => FG,
+        PaceTone::Warn => YELLOW,
+        PaceTone::Bad => RED,
+    };
+    Span::styled(
+        icon,
+        Style::default().fg(color).add_modifier(Modifier::BOLD),
+    )
 }
 
 /// Input to `draw`. Field names match the spec; `selected` is the position
@@ -590,7 +631,12 @@ fn render_card(
     let stale = view.last_good.get(account_index).copied().flatten();
     let mut rows: Vec<(usize, MetricRow)> = stale
         .or(report)
-        .map(|report| report.metrics.iter().map(metric_row).enumerate().collect())
+        .map(|report| {
+            // The preserved reading is old: no pace from today's clock.
+            let pace_at = stale.is_none().then_some(now);
+            let row = |metric| metric_row(metric, pace_at);
+            report.metrics.iter().map(row).enumerate().collect()
+        })
         .unwrap_or_default();
     // PRD 0009 RF3.1: the core's binding metric leads the card; the others
     // keep the adapter order.
@@ -850,10 +896,12 @@ fn render_metric_block(
     let gauge_area = chunks[*chunk_index + 1];
     *chunk_index += 2;
 
-    let mut text_spans = vec![Span::styled(
+    // PRD 0007 RF4: a discreet stage icon before the label on the dashboard.
+    let mut text_spans: Vec<Span> = metric.pace.iter().map(pace_icon).collect();
+    text_spans.push(Span::styled(
         format!("{}: ", safe(&metric.label)),
         Style::default().fg(FG).add_modifier(Modifier::BOLD),
-    )];
+    ));
     text_spans.push(Span::raw(safe(&metric.text)));
     if let Some(period) = &metric.period {
         text_spans.push(Span::styled(
@@ -1111,7 +1159,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         )));
     } else {
         for (index, metric) in shown.metrics.iter().enumerate() {
-            let row = metric_row(metric);
+            let row = metric_row(metric, stale.is_none().then_some(now));
             lines.push(Line::default());
             lines.push(Line::from(vec![
                 Span::styled(
@@ -1142,6 +1190,25 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 .filter(|_| stale.is_none())
                 .map(|anim| (anim, account.name.as_str(), index));
             lines.push(line_bar(&row, body.width.max(20), now, motion));
+            // PRD 0007 RF4: one pace line per metric, labelled a linear
+            // estimate; it wraps at small widths.
+            if let Some(pace) = &row.pace {
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    pace_icon(pace),
+                    Span::styled(
+                        pace_text(pace, tui_locale(), local_time),
+                        Style::default().fg(MUTED),
+                    ),
+                    Span::styled(
+                        format!(
+                            "   ·   esperado {:.0}% usado · estimativa linear",
+                            pace.expected_used_fraction * 100.0
+                        ),
+                        Style::default().fg(MUTED),
+                    ),
+                ]));
+            }
         }
     }
 
@@ -2173,9 +2240,20 @@ mod tests {
         details: bool,
         now: DateTime<Utc>,
     ) -> Vec<String> {
+        render_sized(reports, last_good, model_counts, details, now, (120, 40))
+    }
+
+    fn render_sized(
+        reports: &[Option<Report>],
+        last_good: &[Option<&Report>],
+        model_counts: &[Option<usize>],
+        details: bool,
+        now: DateTime<Utc>,
+        (width, height): (u16, u16),
+    ) -> Vec<String> {
         let accounts = three_accounts();
         let visible = visible_indices(&accounts, reports, "", true);
-        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
             .draw(|frame| {
                 draw(
@@ -2249,6 +2327,64 @@ mod tests {
         assert!(text.contains("Sessao") && text.contains("Diaria"));
         assert!(text.contains("LIMITE  bloqueada até"));
         assert!(text.contains("pela janela semanal"));
+    }
+
+    /// PRD 0007 RF4 at `at_min(0)`: 5 h window 3 h in at 40% (20 points in
+    /// reserve), week 138 h of 168 h in at 88% (ahead, runs out 11h 10m before
+    /// the reset), a daily window opened 5 min ago and an `other` window.
+    fn paced() -> Vec<Option<Report>> {
+        let window = |label: &str, used: f64, window: MetricWindow, resets_in: i64| Metric {
+            window: Some(window),
+            resets_at: Some(at_min(resets_in)),
+            ..metric(label, Some(used), Some(100.0), None)
+        };
+        let mut reports = reports_of(&ready_snapshot());
+        reports[0] = Some(report(
+            Status::Ready,
+            vec![
+                window("Sessao", 40.0, MetricWindow::Window5h, 120),
+                window("Semana", 88.0, MetricWindow::Weekly, 30 * 60),
+                window("Diaria", 1.0, MetricWindow::Daily, 24 * 60 - 5),
+                window("Outra", 50.0, MetricWindow::Other, 60),
+            ],
+        ));
+        reports
+    }
+
+    #[test]
+    fn cards_prefix_eligible_metrics_with_the_pace_stage_icon() {
+        let rows = render_rows(&paced(), false).join("\n");
+        // The binding week leads; the 5 h window follows.
+        assert!(rows.contains("↑ Semana:") && rows.contains("↓ Sessao:"));
+        // Still at a narrow width, without losing the label.
+        let narrow = render_sized(&paced(), &[], &[], false, at_min(0), (45, 18)).join("\n");
+        assert!(narrow.contains("↑ Semana:"), "{narrow}");
+        // A preserved reading is old: no pace for it.
+        let (reports, mut good) = failed_after_success();
+        good.metrics = paced()[0].clone().unwrap().metrics;
+        let rows = render_at(&reports, &[Some(&good), None, None], &[], false, at_min(42));
+        let rows = rows.join("\n");
+        assert!(rows.contains("Semana:") && !rows.contains("↑ Semana:"));
+        assert!(rows.contains("Sessao:") && !rows.contains("↓ Sessao:"));
+    }
+
+    #[test]
+    fn details_show_one_pace_line_per_eligible_metric_only() {
+        let text = render_rows(&paced(), true).join("\n");
+        assert!(text.contains(
+            "↓ 20 pontos de reserva · dura até a renovação   ·   esperado 60% usado · estimativa linear"
+        ));
+        let ahead = format!(
+            "↑ 6 pontos acima do ritmo · acaba às {}, 11h 10m antes da renovação",
+            local_time(at_min(0) + chrono::Duration::seconds(67_745))
+        );
+        assert!(text.contains(&ahead), "{text}");
+        assert!(text.contains("esperado 82% usado"));
+        // Freshly opened and `other` windows invent nothing.
+        assert_eq!(text.matches("estimativa linear").count(), 2);
+        // Narrow details wrap the line instead of cutting the stage.
+        let narrow = render_sized(&paced(), &[], &[], true, at_min(0), (45, 40)).join("\n");
+        assert!(narrow.contains("20 pontos de reserva"), "{narrow}");
     }
 
     /// PRD 0010 RF5.1: a failed query whose cycle preserved the last valid
