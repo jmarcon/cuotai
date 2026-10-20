@@ -1,0 +1,304 @@
+//! PRD 0012 RF4: `cuotai --serve` as a script runs it: the binary in the
+//! background with a fake AWS CLI as the only provider, read over HTTP,
+//! stopped with a signal, judged by its exit code.
+
+#![cfg(unix)]
+
+use std::fs;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
+
+const TOKEN: &str = "cuotai_test-token-0123456789abcdef";
+
+/// A private HOME with a fake `aws` that logs every call and answers by
+/// profile: `dev` with a Cost Explorer total, `broken` with a failure.
+struct Sandbox(PathBuf);
+
+impl Sandbox {
+    fn new(name: &str) -> Self {
+        let dir = std::env::temp_dir().join(format!("cuotai-serve-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("bin")).unwrap();
+        fs::create_dir_all(dir.join("home")).unwrap();
+        let aws = dir.join("bin/aws");
+        fs::write(
+            &aws,
+            format!(
+                r#"#!/bin/sh
+echo "$@" >> '{log}'
+case "$*" in
+  *"--profile broken"*) echo 'boom' >&2; exit 254;;
+  *) echo '{{"ResultsByTime":[{{"Total":{{"UnblendedCost":{{"Amount":"12.34","Unit":"USD"}}}},"Estimated":false}}]}}';;
+esac
+"#,
+                log = dir.join("aws-calls.log").display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&aws, fs::Permissions::from_mode(0o755)).unwrap();
+        Self(dir)
+    }
+
+    fn config(&self, profile: &str) -> PathBuf {
+        let path = self.0.join(format!("{profile}.toml"));
+        fs::write(
+            &path,
+            format!(
+                "[[accounts]]\nname = \"Bedrock\"\nprovider = \"aws_bedrock\"\nparams = {{ profile = \"{profile}\" }}\n"
+            ),
+        )
+        .unwrap();
+        path
+    }
+
+    fn file(&self, name: &str, text: &str) -> PathBuf {
+        let path = self.0.join(name);
+        fs::write(&path, text).unwrap();
+        path
+    }
+
+    fn aws_calls(&self) -> usize {
+        fs::read_to_string(self.0.join("aws-calls.log")).map_or(0, |log| log.lines().count())
+    }
+
+    fn command(&self, args: &[&str]) -> Command {
+        let home = self.0.join("home");
+        let path = format!(
+            "{}:{}",
+            self.0.join("bin").display(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+        let mut command = Command::new(env!("CARGO_BIN_EXE_cuotai"));
+        command
+            .args(args)
+            .env("HOME", &home)
+            .env("XDG_DATA_HOME", home.join("data"))
+            .env("XDG_CONFIG_HOME", home.join("config"))
+            .env("PATH", path)
+            .env_remove("CUOTAI_CONFIG")
+            .env_remove("CUOTAI_STATUS")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::from(
+                fs::File::create(self.0.join("stderr.log")).unwrap(),
+            ));
+        command
+    }
+
+    fn stderr(&self) -> String {
+        fs::read_to_string(self.0.join("stderr.log")).unwrap_or_default()
+    }
+}
+
+impl Drop for Sandbox {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// A running `--serve` and the address it printed on stdout.
+struct Server {
+    child: Child,
+    addr: String,
+}
+
+impl Server {
+    fn start(sandbox: &Sandbox, args: &[&str]) -> Self {
+        let mut child = sandbox.command(args).spawn().unwrap();
+        let mut line = String::new();
+        BufReader::new(child.stdout.take().unwrap())
+            .read_line(&mut line)
+            .unwrap();
+        let addr = line
+            .trim()
+            .strip_prefix("http://")
+            .unwrap_or_else(|| panic!("no address on stdout: {line:?}; {}", sandbox.stderr()))
+            .to_owned();
+        Self { child, addr }
+    }
+
+    fn get(&self, path: &str, extra: &str) -> (u16, String) {
+        let mut stream = TcpStream::connect(&self.addr).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        write!(
+            stream,
+            "GET {path} HTTP/1.1\r\nHost: {}\r\n{extra}Connection: close\r\n\r\n",
+            self.addr
+        )
+        .unwrap();
+        let mut answer = String::new();
+        stream.read_to_string(&mut answer).unwrap();
+        let status = answer
+            .split(' ')
+            .nth(1)
+            .and_then(|code| code.parse().ok())
+            .unwrap_or(0);
+        let body = answer
+            .split_once("\r\n\r\n")
+            .map_or("", |(_, body)| body)
+            .to_owned();
+        (status, body)
+    }
+
+    /// The snapshot once the first sweep landed (`503` until then).
+    fn first_snapshot(&self, extra: &str) -> serde_json::Value {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            let (status, body) = self.get("/v1/snapshot", extra);
+            if status == 200 {
+                return serde_json::from_str(&body).unwrap();
+            }
+            assert_eq!(status, 503, "{body}");
+            assert!(Instant::now() < deadline, "no reading in time");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    fn stop(mut self, signal: &str) -> (ExitStatus, String) {
+        let killed = Command::new("kill")
+            .args([signal, &self.child.id().to_string()])
+            .status()
+            .unwrap();
+        assert!(killed.success());
+        (wait(&mut self.child), self.addr.clone())
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn wait(child: &mut Child) -> ExitStatus {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            return status;
+        }
+        assert!(Instant::now() < deadline, "did not exit in time");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn run(sandbox: &Sandbox, args: &[&str]) -> ExitStatus {
+    let mut child = sandbox.command(args).spawn().unwrap();
+    wait(&mut child)
+}
+
+fn arg(path: &Path) -> &str {
+    path.to_str().unwrap()
+}
+
+#[test]
+fn serves_reads_without_queries_and_exits_0_on_sigterm() {
+    let sandbox = Sandbox::new("healthy");
+    let config = sandbox.config("dev");
+    let token = sandbox.file("token", &format!("{TOKEN}\n"));
+    let server = Server::start(
+        &sandbox,
+        &[
+            "--config",
+            arg(&config),
+            "--serve",
+            "--port",
+            "0",
+            "--token-file",
+            arg(&token),
+        ],
+    );
+    let bearer = format!("Authorization: Bearer {TOKEN}\r\n");
+    let snapshot = server.first_snapshot(&bearer);
+    assert_eq!(snapshot["schema"], 1);
+    assert_eq!(snapshot["accounts"][0]["key"], "aws_bedrock:Bedrock");
+    assert_eq!(snapshot["accounts"][0]["report"]["status"], "ready");
+    // The token file is binding: without it, or with another one, 401.
+    assert_eq!(server.get("/v1/snapshot", "").0, 401);
+    assert_eq!(
+        server
+            .get(
+                "/v1/limits",
+                "Authorization: Bearer cuotai_another-token-0123456789\r\n"
+            )
+            .0,
+        401
+    );
+
+    let queries = sandbox.aws_calls();
+    assert_eq!(queries, 1, "one first sweep");
+    for _ in 0..100 {
+        assert_eq!(server.get("/v1/snapshot", &bearer).0, 200);
+    }
+    assert_eq!(sandbox.aws_calls(), queries, "a read never queries");
+
+    let (status, addr) = server.stop("-TERM");
+    assert_eq!(status.code(), Some(0), "{}", sandbox.stderr());
+    assert!(TcpStream::connect(addr).is_err(), "the port is closed");
+    assert!(
+        !sandbox.stderr().contains(TOKEN),
+        "the log never has the token"
+    );
+}
+
+#[test]
+fn exits_2_on_sigint_when_no_account_was_healthy() {
+    let sandbox = Sandbox::new("failing");
+    let config = sandbox.config("broken");
+    let server = Server::start(
+        &sandbox,
+        &["--config", arg(&config), "--serve", "--port", "0"],
+    );
+    // The failed reading is served (it is the last known state).
+    let snapshot = server.first_snapshot("");
+    assert_eq!(snapshot["accounts"][0]["report"]["status"], "error");
+    let (status, _) = server.stop("-INT");
+    assert_eq!(status.code(), Some(2), "{}", sandbox.stderr());
+}
+
+#[test]
+fn local_errors_exit_1() {
+    let sandbox = Sandbox::new("errors");
+    let config = sandbox.config("dev");
+    let taken = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = taken.local_addr().unwrap().port().to_string();
+    // An explicit port is binding: taken means an error, not another port.
+    let status = run(
+        &sandbox,
+        &["--config", arg(&config), "--serve", "--port", &port],
+    );
+    assert_eq!(status.code(), Some(1));
+    assert!(sandbox.stderr().contains(&port), "{}", sandbox.stderr());
+
+    let short = sandbox.file("short-token", "short\n");
+    let missing = sandbox.0.join("missing-token");
+    let missing_config = sandbox.0.join("missing.toml");
+    for args in [
+        vec![
+            "--config",
+            arg(&config),
+            "--serve",
+            "--token-file",
+            arg(&short),
+        ],
+        vec![
+            "--config",
+            arg(&config),
+            "--serve",
+            "--token-file",
+            arg(&missing),
+        ],
+        vec!["--config", arg(&missing_config), "--serve"],
+        vec!["--config", arg(&config), "--serve", "--port", "65536"],
+        vec!["--config", arg(&config), "--port", "6738"],
+    ] {
+        assert_eq!(run(&sandbox, &args).code(), Some(1), "{args:?}");
+    }
+    assert_eq!(sandbox.aws_calls(), 0, "no query before a local error");
+}

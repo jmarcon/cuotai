@@ -9,10 +9,12 @@ name = "cuotai"
 path = "src/main.rs"
 
 [dependencies]
-cuotai-core = { path = "../cuotai-core" }
+# PRD 0012 RF4: `--serve` runs the core's local server.
+cuotai-core = { path = "../cuotai-core", features = ["serve"] }
 chrono.workspace = true
 serde_json.workspace = true
-tokio.workspace = true
+# `signal`: `--serve` shuts down on SIGINT/SIGTERM.
+tokio = { workspace = true, features = ["signal"] }
 clap = { version = "4", features = ["derive"] }
 ratatui = { version = "0.30", features = ["unstable-rendered-line-info"] }
 crossterm = "0.29"

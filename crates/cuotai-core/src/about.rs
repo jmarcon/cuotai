@@ -138,7 +138,8 @@ static LIBRARIES: &[Library] = &[
         Role::Runtime,
         &[Core],
     ),
-    // Only with the core's `serve` feature (PRD 0012 local server).
+    // Only with the core's `serve` feature (PRD 0012 local server; the TUI
+    // binary turns it on for `cuotai --serve`).
     lib(
         "httparse",
         "MIT OR Apache-2.0",

@@ -1,12 +1,31 @@
 # Local HTTP server (`serve::LocalServer`)
 
-`cuotai-core` can publish the [`export::v1`](export-v1.md) contract over a read-only HTTP server on loopback, so status bars and scripts read the last known state without making Cuotai query a provider on every read (PRD 0012 RF2 and RF3). It lives behind the core's `serve` feature, which is **off by default**; the front ends that offer it turn it on (`cuotai --serve` with PRD 0012 RF4, the desktop's Settings → Integration with RF5), and the server itself stays off until the user starts it.
+`cuotai-core` can publish the [`export::v1`](export-v1.md) contract over a read-only HTTP server on loopback, so status bars and scripts read the last known state without making Cuotai query a provider on every read (PRD 0012 RF2 and RF3). It lives behind the core's `serve` feature, which is **off by default**; the front ends that offer it turn it on (`cuotai --serve` since PRD 0012 RF4, the desktop's Settings → Integration with RF5), and the server itself stays off until the user starts it.
+
+## From the command line (`cuotai --serve`)
+
+```sh
+cuotai --serve                               # http://127.0.0.1:6738 (or one of the next nine ports)
+cuotai --serve --port 7000                   # exactly this port; taken is an error
+cuotai --serve --token-file ~/.cuotai-token  # every request needs Authorization: Bearer <token>
+curl -s http://127.0.0.1:6738/v1/limits
+```
+
+- It runs in the foreground without opening the TUI and without needing a terminal (a service manager, `nohup` or a status bar can start it). It loads the configuration like `--once` (`--config`, `CUOTAI_CONFIG`, `./cuotai.toml`, the OS default), queries every account once at start and then each one on its own interval with the core's backoff, exactly as the dashboard would; requests only read that state. `--status`/`CUOTAI_STATUS` add the providers' public status (`incident`), and the readings enter the local history as with the TUI.
+- Until the first sweep answers, the data routes give `503` (an account restored from the history serves its last reading, `stale`).
+- **Port:** without `--port`, 6738 or, when it is taken (for example by the desktop app's server), the next free one of the nine after it, announced on stderr. `--port N` uses exactly `N` (`0` lets the system choose) and fails when it is taken.
+- **Token:** `--token-file FILE` reads the bearer token from a file you control (trimmed; 16 to 512 characters of `A–Z a–z 0–9 - . _ ~ + /`, for example `printf 'cuotai_%s\n' "$(openssl rand -hex 24)" > ~/.cuotai-token && chmod 600 ~/.cuotai-token`). Without it, only loopback clients that are not web pages are served.
+- **Output:** the address alone on stdout (`http://127.0.0.1:6738`), so a script that started it can read it; on stderr one line per request (time, peer, method, path without query, status, duration), never a header or the token.
+- **Shutdown:** `SIGINT` (Ctrl+C) or `SIGTERM` (on Windows, Ctrl+C or Ctrl+Break) closes the port, cancels queries in flight and lets queued history readings land.
+- **Exit codes:** `0` after a normal shutdown when some account had a healthy (`ready`) reading during the run; `2` when no account was healthy until the shutdown; `1` for a local error before serving (the port, the configuration, the token file or an invalid argument).
+
+`cuotai --json-v1` prints the same `Export` once, after one query, without a server (exit codes as `--json`).
+
+## Starting it (Rust)
 
 ```toml
 cuotai-core = { path = "crates/cuotai-core", features = ["serve"] }
 ```
-
-## Starting it (Rust)
 
 ```rust
 use std::sync::{Arc, Mutex};

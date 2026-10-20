@@ -224,7 +224,8 @@ pub enum ServeError {
     NonLoopback { addr: IpAddr },
     #[error("Um endereço fora do loopback exige um token de acesso ao servidor local.")]
     TokenRequired,
-    #[error("As portas {first} a {last} estão em uso; escolha outra porta para o servidor local.")]
+    /// `first == last` when only the requested port was tried.
+    #[error("{}", port_in_use_text(*.first, *.last))]
     PortInUse { first: u16, last: u16 },
     #[error("Não foi possível abrir a porta {port} do servidor local.")]
     Bind { port: u16 },
@@ -249,6 +250,9 @@ impl ServeError {
                 fallback,
             ),
             Self::TokenRequired => Localized::fixed("serve.error.token_required", fallback),
+            Self::PortInUse { first, last } if first == last => {
+                Localized::with_param("serve.error.port_taken", "port", first, fallback)
+            }
             Self::PortInUse { first, last } => Localized::with_params(
                 "serve.error.port_in_use",
                 params([
@@ -264,6 +268,16 @@ impl ServeError {
             Self::Vault => Localized::fixed("serve.error.vault", fallback),
             Self::Random => Localized::fixed("serve.error.random", fallback),
         }
+    }
+}
+
+fn port_in_use_text(first: u16, last: u16) -> String {
+    if first == last {
+        format!("A porta {first} está em uso; escolha outra porta para o servidor local.")
+    } else {
+        format!(
+            "As portas {first} a {last} estão em uso; escolha outra porta para o servidor local."
+        )
     }
 }
 

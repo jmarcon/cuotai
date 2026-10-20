@@ -39,7 +39,7 @@ cargo build --workspace
 cargo fmt --all -- --check
 ```
 
-Use `--once` instead of `--json` for human-readable, single-refresh output. `--once`/`--json` return 0 for all-ready, 2 for account failures, and 1 for local errors.
+Use `--once` instead of `--json` for human-readable, single-refresh output (`--json-v1` prints the `export::v1` contract). `--once`/`--json`/`--json-v1` return 0 for all-ready, 2 for account failures, and 1 for local errors (invalid arguments included). `cuotai --serve` (`crates/cuotai-tui/src/serve.rs`) runs the core's local server in the foreground over a headless refresh cycle and returns 0 on `SIGINT`/`SIGTERM`, 2 when no account was healthy until shutdown, 1 for local errors.
 
 ## Code Conventions & Common Patterns
 

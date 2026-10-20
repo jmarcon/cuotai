@@ -927,6 +927,11 @@ fn errors_and_warning_are_translated() {
         ServeError::Vault.l10n(),
         ServeError::Random.l10n(),
         allow_browsers_warning(),
+        ServeError::PortInUse {
+            first: 6738,
+            last: 6738,
+        }
+        .l10n(),
     ];
     for locale in ["en-US", "es"] {
         let catalog = core_catalog(locale).unwrap();
@@ -944,4 +949,13 @@ fn errors_and_warning_are_translated() {
     );
     assert!(texts[0].resolve("es").contains("192.0.2.10"));
     assert!(texts[2].text().contains("6738 a 6747"));
+    // Only the requested port was tried: no "6738 to 6738".
+    assert_eq!(
+        texts[8].resolve("en-US"),
+        "Port 6738 is in use; choose another port for the local server."
+    );
+    assert_eq!(
+        texts[8].text(),
+        "A porta 6738 está em uso; escolha outra porta para o servidor local."
+    );
 }

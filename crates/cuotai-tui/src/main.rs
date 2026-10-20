@@ -4,25 +4,28 @@ mod dashboard;
 mod models_view;
 mod motion;
 mod notify;
+mod serve;
 mod ui;
 mod wizard;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use clap::Parser;
 use cuotai_core::{
-    config_file::ConfigFile,
+    config_file::{ConfigFile, ConfigIdentity},
+    export::v1::{Export, Options},
     history::{HistoryStore, MetricHistory, Retention},
     incidents::ProviderStatus,
     metrics,
     oauth::OAuthSession,
     pace::{self, Point},
+    refresh::RefreshCycle,
     Account, Config, EnvironmentCredentials, Monitor, Provider, Report, Snapshot, Status,
 };
 use std::{
     io::{self, IsTerminal, Write},
     path::PathBuf,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 /// How long `--once`/`--json` wait for the readings to reach the history.
@@ -81,6 +84,28 @@ struct Args {
     /// Não consulta as páginas de status, mesmo com --status ou CUOTAI_STATUS.
     #[arg(long)]
     no_status: bool,
+    /// Consulta uma vez e emite o export v1 em JSON: o contrato versionado
+    /// (docs/export-v1.md) com classe, idade, leitura preservada, limite,
+    /// ritmo e acesso por conta, sem credenciais.
+    #[arg(long, conflicts_with_all = ["once", "json", "history", "notify"])]
+    json_v1: bool,
+    /// Servidor HTTP local somente leitura em 127.0.0.1, sem abrir a TUI e
+    /// sem exigir terminal: mantém o ciclo de atualização e serve o export
+    /// v1 (/health, /v1/snapshot, /v1/accounts/{chave}, /v1/limits) sem
+    /// consultar provedores por requisição. SIGINT/SIGTERM encerram. Saída
+    /// 0; 2 se nenhuma conta ficou saudável até o encerramento; 1 em erro
+    /// local (porta, configuração, token).
+    #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
+    serve: bool,
+    /// Porta do --serve, e só ela (ocupada: erro). Sem --port: 6738 ou, se
+    /// ocupada, uma das 9 seguintes.
+    #[arg(long, value_name = "PORTA", requires = "serve")]
+    port: Option<u16>,
+    /// Arquivo com o token que o --serve exige em Authorization: Bearer (16
+    /// a 512 caracteres, sem espaços). Sem ele, só atende o próprio
+    /// computador e recusa páginas web.
+    #[arg(long, value_name = "ARQUIVO", requires = "serve")]
+    token_file: Option<PathBuf>,
 }
 
 /// PRD 0011 RF5: public status queries are opt-in (`--status`, or
@@ -118,7 +143,15 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run() -> Result<u8, Box<dyn std::error::Error>> {
-    let args = Args::parse();
+    let args = match Args::try_parse() {
+        Ok(args) => args,
+        // `--help`/`--version` succeed; an invalid argument is a local error
+        // (1), never the 2 that `--once`/`--json`/`--serve` keep for accounts.
+        Err(error) => {
+            error.print()?;
+            return Ok(u8::from(error.use_stderr()));
+        }
+    };
     if args.list_providers {
         for provider in Provider::ALL {
             println!(
@@ -150,10 +183,12 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         return Ok(history_exit_code(&found));
     }
-    let interactive = !args.once && !args.json;
+    let interactive = !args.once && !args.json && !args.json_v1 && !args.serve;
     let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
-        return Err("A TUI requer terminal interativo. Use --once ou --json.".into());
+        return Err(
+            "A TUI requer terminal interativo. Use --once, --json, --json-v1 ou --serve.".into(),
+        );
     }
     let retention = retention(args.history_days)?;
     let file = ConfigFile::load(args.config, interactive)?;
@@ -165,21 +200,54 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         None => OAuthSession::system()?,
     });
-    if args.once || args.json {
+    if args.once || args.json || args.json_v1 || args.serve {
         let history = history_store(&file, retention);
-        let mut monitor =
-            Monitor::with_oauth(file.config, Arc::new(EnvironmentCredentials), session)?;
+        let mut monitor = Monitor::with_oauth(
+            file.config.clone(),
+            Arc::new(EnvironmentCredentials),
+            session,
+        )?;
         monitor.incidents().set_enabled(status);
         if let Some(store) = history {
             monitor = monitor.with_history(store);
         }
         monitor.mark_history_removed();
+        if args.serve {
+            let serve = serve::ServeArgs {
+                port: args.port,
+                token_file: args.token_file,
+            };
+            return serve::run(file, monitor, serve).await;
+        }
+        // PRD 0010 RF2.3: read before this query's readings are recorded.
+        let restored = if args.json_v1 {
+            monitor.restored_readings()
+        } else {
+            Vec::new()
+        };
         let snapshot = monitor.refresh().await;
         // The readings are queued off the refresh; let them land first.
         monitor.flush_history(HISTORY_FLUSH);
+        let code = if snapshot.reports.iter().all(|r| r.status == Status::Ready) {
+            0
+        } else {
+            2
+        };
         if args.json {
             let mut stdout = io::stdout().lock();
             serde_json::to_writer_pretty(&mut stdout, &snapshot)?;
+            writeln!(stdout)?;
+        } else if args.json_v1 {
+            let export = single_export(
+                &file.config,
+                &file.identity()?,
+                restored,
+                snapshot,
+                &monitor.incident_statuses(),
+                Utc::now(),
+            );
+            let mut stdout = io::stdout().lock();
+            serde_json::to_writer_pretty(&mut stdout, &export)?;
             writeln!(stdout)?;
         } else {
             let now = Utc::now();
@@ -194,17 +262,31 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
             eprintln!("cuotai: {}", warning.resolve(ui::tui_locale()));
         }
-        return Ok(
-            if snapshot.reports.iter().all(|r| r.status == Status::Ready) {
-                0
-            } else {
-                2
-            },
-        );
+        return Ok(code);
     }
     let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
     ui::run(file, session, animations, retention, args.notify, status).await?;
     Ok(0)
+}
+
+/// PRD 0012 RF4.3: the `--json-v1` export of one run: `snapshot` applied to a
+/// new cycle over the `restored` readings (PRD 0010 RF2.3, in account
+/// order), so an account whose query failed carries its last recorded
+/// reading as `last_good` with `stale`, as the server would publish it.
+fn single_export(
+    config: &Config,
+    identity: &ConfigIdentity,
+    restored: Vec<Option<Report>>,
+    snapshot: Snapshot,
+    incidents: &[ProviderStatus],
+    now: DateTime<Utc>,
+) -> Export {
+    let mut cycle = RefreshCycle::new(config, Instant::now());
+    cycle.restore_last_good(restored);
+    if let Some(token) = cycle.begin_full() {
+        cycle.finish_full(Some(snapshot), token, Instant::now());
+    }
+    Export::from_cycle(config, identity, &cycle, incidents, now, Options::default())
 }
 
 fn print_snapshot(
@@ -497,6 +579,47 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
         }
+    }
+
+    /// PRD 0012 RF4.3: `--json-v1` publishes this run's reports and, for an
+    /// account whose query failed, its last recorded reading as stale.
+    #[test]
+    fn json_v1_keeps_the_recorded_reading_of_a_failed_account() {
+        let config = Config::from_toml(
+            "[[accounts]]\nname = \"Claude\"\nprovider = \"claude\"\n\n\
+             [[accounts]]\nname = \"Work\"\nprovider = \"claude\"\n",
+        )
+        .unwrap();
+        let week = || vec![quota(MetricWindow::Weekly, 40.0, None)];
+        let snapshot = Snapshot {
+            started_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            finished_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 1).unwrap(),
+            reports: vec![
+                report("Claude", Status::Ready, week()),
+                report("Work", Status::RateLimited, Vec::new()),
+            ],
+        };
+        let recorded = vec![
+            Some(report("Claude", Status::Ready, Vec::new())),
+            Some(report("Work", Status::Ready, week())),
+        ];
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 10, 0).unwrap();
+        let identity = ConfigIdentity::Explicit("test".into());
+        let export = single_export(&config, &identity, recorded, snapshot, &[], now);
+        let json = serde_json::to_value(&export).unwrap();
+        assert_eq!(json["schema"], 1);
+        let (ready, failed) = (&json["accounts"][0], &json["accounts"][1]);
+        assert_eq!(ready["report"]["status"], "ready");
+        assert_eq!(ready["report"]["metrics"][0]["used"], 40.0);
+        assert_eq!(ready["stale"], false);
+        assert!(ready["last_good"].is_null());
+        assert_eq!(
+            failed["report"]["status"],
+            serde_json::to_value(Status::RateLimited).unwrap()
+        );
+        assert_eq!(failed["stale"], true);
+        assert_eq!(failed["last_good"]["metrics"][0]["used"], 40.0);
+        assert_eq!(failed["last_good"]["age_seconds"], 600);
     }
 
     #[test]

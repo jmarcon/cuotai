@@ -51,7 +51,7 @@ const DRACULA_YELLOW: Color = Color::Rgb(241, 250, 140);
 
 /// PRD 0011 RF5: how often the status loop lets the core read the due
 /// sources (each is read at most once every 5 minutes), as the desktop.
-const STATUS_TICK: Duration = Duration::from_secs(30);
+pub(crate) const STATUS_TICK: Duration = Duration::from_secs(30);
 
 struct Restore;
 impl Drop for Restore {
