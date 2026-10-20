@@ -497,25 +497,32 @@ mod tests {
         }
     }
 
+    /// Value standing for "any non-empty value" in [`MODES`].
+    const SET: &str = "X";
+
+    /// The default account plus every param that may switch the queried
+    /// interface; the native login is walked separately.
+    const MODES: [&[(&str, &str)]; 9] = [
+        &[],
+        &[("product", "cli")],
+        &[("product", "coding")],
+        &[("product", "computer")],
+        &[("query_mode", "personal")],
+        &[("query_mode", "quota")],
+        &[("mode", "org")],
+        &[("session_env", SET)],
+        &[("organization_id", SET)],
+    ];
+
     /// Every interface-switching param and the OAuth login, per provider.
     fn variants() -> Vec<Account> {
-        let modes: [&[(&str, &str)]; 10] = [
-            &[],
-            &[("product", "cli")],
-            &[("product", "coding")],
-            &[("product", "computer")],
-            &[("product", "Computer")],
-            &[("query_mode", "personal")],
-            &[("query_mode", "quota")],
-            &[("mode", "org")],
-            &[("session_env", "X")],
-            &[("organization_id", "X")],
-        ];
+        const CASE: &[(&str, &str)] = &[("product", "Computer")];
         Provider::ALL
             .into_iter()
             .flat_map(|p| {
-                modes
+                MODES
                     .into_iter()
+                    .chain([CASE])
                     .flat_map(move |m| [false, true].map(|oauth| account(p, m, oauth)))
             })
             .collect()
@@ -1061,6 +1068,124 @@ mod tests {
         assert_eq!(
             json(&account(Provider::AwsBedrock, &[], false))["metered"],
             true
+        );
+    }
+
+    const PROVIDERS_DOC: &str = "docs/providers.md";
+    const MATRIX_START: &str =
+        "<!-- access-matrix:start (generated from access::describe; do not edit by hand) -->";
+    const MATRIX_END: &str = "<!-- access-matrix:end -->";
+    const REGENERATE: &str = "CUOTAI_REGENERATE_DOCS";
+
+    /// Level, credential, plan, scope and evidence cells of one descriptor.
+    fn matrix_cells(access: &UsageAccess) -> String {
+        let en = |text: Localized| text.resolve("en-US");
+        let plan = access.plan_requirement.clone().map_or("—".into(), en);
+        let evidence = match access.evidence {
+            Evidence::Documentation(url) => format!("[documentation]({url})"),
+            Evidence::Reference(url) => {
+                let file = url.rsplit('/').next().unwrap_or(url);
+                format!("reference [`{file}`]({url})")
+            }
+        };
+        format!(
+            "{} | {} | {plan} | {} | {evidence}",
+            en(access.level.label()),
+            en(access.credential.label()),
+            en(access.scope.label()),
+        )
+    }
+
+    fn mode_label(params: &[(&str, &str)]) -> String {
+        let label = params
+            .iter()
+            .map(|(key, value)| match *value {
+                SET => format!("`{key}` set"),
+                value => format!("`{key} = \"{value}\"`"),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        if label.is_empty() {
+            "default".into()
+        } else {
+            label
+        }
+    }
+
+    /// PRD 0005 RF5.1: the `docs/providers.md` access matrix, one row per
+    /// provider plus one per mode (param or native login) whose descriptor
+    /// differs from the default; modes with the same cells share a row.
+    fn access_matrix() -> String {
+        use std::fmt::Write;
+        let mut out = String::from(
+            "| Identifier | Mode | Level | Credential | Plan | Scope | Evidence |\n\
+             |---|---|---|---|---|---|---|\n",
+        );
+        for provider in Provider::ALL {
+            let default = matrix_cells(&describe(&account(provider, &[], false)));
+            let mut rows = vec![(vec![mode_label(&[])], default.clone())];
+            let login = crate::oauth::supports_login(provider)
+                .then(|| ("native login".to_string(), account(provider, &[], true)));
+            let modes = MODES[1..]
+                .iter()
+                .map(|params| (mode_label(params), account(provider, params, false)))
+                .chain(login);
+            for (label, mode) in modes {
+                let cells = matrix_cells(&describe(&mode));
+                if cells == default {
+                    continue;
+                }
+                match rows.iter_mut().find(|(_, row)| *row == cells) {
+                    Some((labels, _)) => labels.push(label),
+                    None => rows.push((vec![label], cells)),
+                }
+            }
+            for (labels, cells) in rows {
+                let slug = provider.slug();
+                writeln!(out, "| `{slug}` | {} | {cells} |", labels.join(" or ")).unwrap();
+            }
+        }
+        let metered: Vec<_> = Provider::ALL
+            .into_iter()
+            .filter(|p| describe(&account(*p, &[], false)).metered)
+            .map(|p| format!("`{}`", p.slug()))
+            .collect();
+        write!(
+            out,
+            "\nBilled per query (`metered`): {}.\n",
+            metered.join(", ")
+        )
+        .unwrap();
+        out
+    }
+
+    /// RF5.1: `docs/providers.md` carries the matrix `access::describe`
+    /// produces today; a classification change without the document fails.
+    #[test]
+    fn providers_doc_matrix_matches_the_descriptors() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(PROVIDERS_DOC);
+        // Windows checkouts may convert the document to CRLF.
+        let doc = std::fs::read_to_string(&path)
+            .expect("providers doc")
+            .replace("\r\n", "\n");
+        let (head, rest) = doc
+            .split_once(MATRIX_START)
+            .expect("matrix start marker in docs/providers.md");
+        let (current, tail) = rest
+            .split_once(MATRIX_END)
+            .expect("matrix end marker in docs/providers.md");
+        let expected = format!("\n{}", access_matrix());
+        if std::env::var_os(REGENERATE).is_some() {
+            let updated = format!("{head}{MATRIX_START}{expected}{MATRIX_END}{tail}");
+            std::fs::write(&path, updated).expect("write providers doc");
+            return;
+        }
+        assert_eq!(
+            current, expected,
+            "{PROVIDERS_DOC} is out of date with access::describe. Regenerate it with \
+             `{REGENERATE}=1 cargo test -p cuotai-core providers_doc_matrix` and commit the result."
         );
     }
 }
