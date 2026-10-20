@@ -6,7 +6,7 @@ import { easeOut, motionMs } from "./motion.js";
 import {
   bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
-  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText,
+  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, nextNoticeText,
 } from "./lib.js";
 
 await boot();
@@ -140,6 +140,7 @@ function render() {
       <button class="icon" data-refresh-all title="${te("common.refresh")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
     <div class="pop-body">${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${error && !view?.reports.length ? `<div class="empty">${esc(error)}</div>` : ""}${body}</div>
+    ${nextNoticeText(view) ? `<p class="pop-notice" data-next-notice>${icon("bell")}<span>${esc(nextNoticeText(view))}</span></p>` : ""}
     <footer class="pop-foot">${alertsHtml(view, reports, error) || '<div class="alerts"></div>'}
       <div class="foot-actions">
         <button class="icon" data-open-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>

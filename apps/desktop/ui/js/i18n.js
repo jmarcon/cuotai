@@ -123,6 +123,7 @@ export async function initI18n() {
   await loadUi(current);
   await loadCore(current);
   document.documentElement.lang = current;
+  reportLocale(current);
 }
 
 export async function setLocale(code) {
@@ -132,6 +133,12 @@ export async function setLocale(code) {
   await loadUi(code);
   await loadCore(code);
   document.documentElement.lang = code;
+  reportLocale(code);
+}
+
+/** PRD 0003 RF2.2: the backend sends reset notices in the language chosen here (saved in desktop.json). */
+function reportLocale(code) {
+  window.__TAURI__?.core?.invoke("set_locale", { locale: code }).catch(() => {});
 }
 
 function lookup(key) {

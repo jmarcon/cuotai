@@ -1,7 +1,7 @@
 // Menu do clique direito no ícone da bandeja: texto simples, uma linha por conta ("nome: % disponível").
 // As linhas seguem a mesma ordem e os mesmos filtros do popover; o shell só monta o menu nativo.
 import { t } from "./i18n.js";
-import { ageText, bindingPct, blockedText, brand, disabledAccounts, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
+import { ageText, bindingPct, blockedText, brand, disabledAccounts, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
 
 let last = "";
 
@@ -43,6 +43,8 @@ export function syncTrayMenu(view) {
     settings: t("settings.title"),
     quit: t("common.quit"),
     tooltip: trayTooltip(view.reports ?? []),
+    // PRD 0003 RF3.4: a line above the accounts and a second tooltip line.
+    notice: nextNoticeText(view),
   };
   const key = JSON.stringify(payload);
   if (key === last) return;

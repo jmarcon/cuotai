@@ -1,9 +1,13 @@
 //! Configurações do app desktop (não confundir com o `cuotai.toml` de contas, que é do core).
 //! Arquivo `desktop.json` na pasta padrão de configuração: pasta de temas e idiomas e o
 //! `cuotai.toml` escolhido pelo usuário (só o caminho; nunca dentro do TOML).
-use cuotai_core::history::Retention;
+use cuotai_core::{
+    history::Retention,
+    resets::{NotifyWhen, Prefs},
+};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeSet,
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -30,6 +34,151 @@ struct Stored {
     /// Only `false` is stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     history_recording: Option<bool>,
+    /// Reset notices of this device (PRD 0003 RF3); absent = off. Read
+    /// leniently ([`NotifyPrefs::from_value`]): a hand-edited value of the
+    /// wrong type falls back to its default without invalidating the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    notify: Option<serde_json::Value>,
+    /// The language chosen in the app, which the notices sent by the backend
+    /// use (PRD 0003 RF2.2); absent until the interface first reports it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    locale: Option<String>,
+}
+
+/// Lead times offered, in minutes ("at the time" is 0).
+pub const NOTIFY_LEADS: [u32; 4] = [0, 5, 15, 60];
+/// "When to notify" filters, in the order the interface shows them.
+pub const NOTIFY_WHENS: [&str; 3] = ["used", "exhausted", "always"];
+
+/// PRD 0003 RF3: reset notice preferences of this device. The global switch
+/// is off by default; `off_accounts` holds the `Account::key`s whose bell is
+/// off (a rename changes the key and so loses the choice).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NotifyPrefs {
+    pub enabled: bool,
+    /// One of [`NOTIFY_LEADS`].
+    pub lead_minutes: u32,
+    /// One of [`NOTIFY_WHENS`].
+    pub when: &'static str,
+    pub include_other: bool,
+    pub off_accounts: BTreeSet<String>,
+}
+
+impl Default for NotifyPrefs {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            lead_minutes: 0,
+            when: NOTIFY_WHENS[0],
+            include_other: false,
+            off_accounts: BTreeSet::new(),
+        }
+    }
+}
+
+impl NotifyPrefs {
+    /// Each field on its own: an unknown or mistyped value is its default.
+    fn from_value(value: &serde_json::Value) -> Self {
+        let default = Self::default();
+        let lead = value["lead_minutes"].as_u64();
+        let when = value["when"].as_str();
+        Self {
+            enabled: value["enabled"].as_bool().unwrap_or(default.enabled),
+            lead_minutes: NOTIFY_LEADS
+                .into_iter()
+                .find(|m| lead == Some(u64::from(*m)))
+                .unwrap_or(default.lead_minutes),
+            when: NOTIFY_WHENS
+                .into_iter()
+                .find(|w| when == Some(w))
+                .unwrap_or(default.when),
+            include_other: value["include_other"]
+                .as_bool()
+                .unwrap_or(default.include_other),
+            off_accounts: value["off_accounts"]
+                .as_array()
+                .map(|keys| {
+                    keys.iter()
+                        .filter_map(|key| key.as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
+    }
+
+    /// The core planner's preferences.
+    pub fn planner(&self) -> Prefs {
+        Prefs {
+            lead: chrono::TimeDelta::minutes(i64::from(self.lead_minutes)),
+            when: match self.when {
+                "exhausted" => NotifyWhen::OnlyIfExhausted,
+                "always" => NotifyWhen::Always,
+                _ => NotifyWhen::OnlyIfUsed,
+            },
+            include_other: self.include_other,
+            disabled: self.off_accounts.clone(),
+        }
+    }
+
+    /// Lead time and filter from the interface. Error: `invalid_notify`.
+    pub fn with_choices(
+        &self,
+        lead_minutes: u32,
+        when: &str,
+        include_other: bool,
+    ) -> Result<Self, &'static str> {
+        let lead_minutes = NOTIFY_LEADS
+            .into_iter()
+            .find(|m| *m == lead_minutes)
+            .ok_or("invalid_notify")?;
+        let when = NOTIFY_WHENS
+            .into_iter()
+            .find(|w| *w == when)
+            .ok_or("invalid_notify")?;
+        Ok(Self {
+            lead_minutes,
+            when,
+            include_other,
+            ..self.clone()
+        })
+    }
+}
+
+fn notify_of(stored: &Stored) -> NotifyPrefs {
+    stored
+        .notify
+        .as_ref()
+        .map(NotifyPrefs::from_value)
+        .unwrap_or_default()
+}
+
+/// PRD 0003 RF3: the reset notice preferences stored in `file`.
+pub fn read_notify(file: &Path) -> NotifyPrefs {
+    notify_of(&read(file))
+}
+
+/// PRD 0003 RF2.2: the language last chosen in the app, stored in `file`.
+pub fn read_locale(file: &Path) -> Option<String> {
+    read(file).locale
+}
+
+/// `desktop.json` of this device.
+pub fn settings_path() -> Option<PathBuf> {
+    settings_file()
+}
+
+/// Store the notice preferences in `file`; the defaults remove the key.
+pub fn write_notify(file: &Path, prefs: &NotifyPrefs) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.notify = (*prefs != NotifyPrefs::default())
+            .then(|| serde_json::to_value(prefs).ok())
+            .flatten()
+    })
+}
+
+/// Store the language of the notices in `file`.
+pub fn write_locale(file: &Path, locale: &str) -> Result<(), &'static str> {
+    update(file, |s| s.locale = Some(locale.to_owned()))
 }
 
 /// The history retention stored in `desktop.json`; the core default when
@@ -224,6 +373,10 @@ pub struct SettingsView {
     history_days_max: u16,
     /// New readings enter the history (on by default).
     history_recording: bool,
+    /// PRD 0003 RF3: reset notices (off by default) and the choices offered.
+    notify: NotifyPrefs,
+    notify_leads: [u32; 4],
+    notify_whens: [&'static str; 3],
     version: &'static str,
 }
 
@@ -244,6 +397,9 @@ pub fn view() -> SettingsView {
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,
         history_recording: recording_of(&stored),
+        notify: notify_of(&stored),
+        notify_leads: NOTIFY_LEADS,
+        notify_whens: NOTIFY_WHENS,
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -372,5 +528,49 @@ mod tests {
         // A hand-edited `true` means on, like a removed key.
         fs::write(&file, r#"{"history_recording":true}"#).unwrap();
         assert!(recording_of(&read(&file)));
+    }
+
+    #[test]
+    fn notices_are_off_by_default_round_trip_and_read_leniently() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(read_notify(&file), NotifyPrefs::default());
+        assert!(!read_notify(&file).enabled, "off by default");
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let chosen = NotifyPrefs {
+            enabled: true,
+            ..NotifyPrefs::default()
+        }
+        .with_choices(15, "exhausted", true)
+        .unwrap();
+        write_notify(&file, &chosen).unwrap();
+        assert_eq!(read_notify(&file), chosen);
+        assert_eq!(motion_of(&read(&file)), "off");
+        // Back to the defaults removes the key.
+        write_notify(&file, &NotifyPrefs::default()).unwrap();
+        assert!(!fs::read_to_string(&file).unwrap().contains("notify"));
+        // Hand-edited: each bad field falls back alone; the rest of the file stays.
+        fs::write(
+            &file,
+            r#"{"motion":"off","notify":{"enabled":true,"lead_minutes":7,"when":"never","include_other":"yes","off_accounts":["claude:Work",3]}}"#,
+        )
+        .unwrap();
+        let prefs = read_notify(&file);
+        assert!(prefs.enabled);
+        assert_eq!(
+            (prefs.lead_minutes, prefs.when, prefs.include_other),
+            (0, "used", false)
+        );
+        assert_eq!(
+            prefs.off_accounts,
+            BTreeSet::from(["claude:Work".to_string()])
+        );
+        assert_eq!(motion_of(&read(&file)), "off");
+        let base = NotifyPrefs::default();
+        assert_eq!(base.with_choices(10, "used", false), Err("invalid_notify"));
+        assert_eq!(
+            base.with_choices(5, "sometimes", false),
+            Err("invalid_notify")
+        );
     }
 }

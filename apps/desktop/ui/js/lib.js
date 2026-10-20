@@ -42,6 +42,8 @@ const paths = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
   moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
   monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  bell: '<path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M3.26 15.33A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.67C19.41 13.96 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.41 5.96-2.74 7.33"/>',
+  bellOff: '<path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M17 17H4a1 1 0 0 1-.74-1.67C4.59 13.96 6 12.5 6 8a6 6 0 0 1 .26-1.74"/><path d="M8.67 3.21A6 6 0 0 1 18 8c0 2.43.41 3.94.98 5"/><path d="m2 2 20 20"/>',
 };
 export const icon = (name, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 
@@ -111,6 +113,27 @@ export const historyErase = (index) => call("history_erase", { index });
 export const setHistoryRecording = (on) => call("set_history_recording", { on });
 export const historySize = () => call("history_size");
 export const accountHistory = (index, generation, range, metricKey = null) => call("account_history", { index, generation, range, metricKey });
+// PRD 0003 RF3: reset notices (desktop.json; the backend schedules and sends them). `setNotifyEnabled` asks the
+// system permission when turning on and resolves to `granted`, `denied`, `prompt` or `off`.
+export const setNotifyEnabled = (on) => call("set_notify_enabled", { on });
+export const setNotifyOptions = (leadMinutes, when, includeOther) => call("set_notify_options", { leadMinutes, when, includeOther });
+export const setAccountNotify = (accountKey, on) => call("set_account_notify", { accountKey, on });
+export const sendTestNotification = (title, body) => call("send_test_notification", { title, body });
+/** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
+export function nextNoticeText(view) {
+  const n = view?.notify?.next;
+  if (!n) return null;
+  const key = `card.binding.${n.window}`;
+  const window = t(key) === key ? n.label : t(key);
+  return t("notify.next", { name: `${brand(n.provider).label} ${window}`, when: fmtReset(n.at) });
+}
+/** RF3.2: the account's bell (card and details), only while reset notices are on; `aria-pressed` is its state. */
+export function bellHtml(view, r) {
+  if (!view?.notify?.enabled || !r.account_key) return "";
+  const label = t("notify.bell", { account: r.account });
+  const state = t(r.notify ? "notify.bell.on" : "notify.bell.off");
+  return `<button class="icon bell${r.notify ? " on" : ""}" aria-pressed="${r.notify}" aria-label="${esc(label)}" title="${esc(`${label}: ${state}`)}" data-bell="${esc(r.account_key)}" data-bell-on="${r.notify}">${icon(r.notify ? "bell" : "bellOff")}</button>`;
+}
 /** Native "save as" for an export (`csv` or `json`); null when cancelled. */
 export async function pickExportFile(format) {
   const defaultPath = `cuotai-history.${format}`;
@@ -471,6 +494,8 @@ export function createStore(render) {
   s.refresh = () => refreshAll().catch((e) => { s.error = String(e); render(); });
   // The browser demo has no "snapshot" event: re-read the view after a refresh so its recovery shows.
   s.refreshOne = (i) => refreshAccount(i).then(() => isDesktop || getView().then(set)).catch((e) => { s.error = String(e); render(); });
+  /** Re-read the view now: the browser demo's stand-in for the "snapshot" event after a local change. */
+  s.reload = () => getView().then(set).catch((e) => { s.error = String(e); render(); });
   if (isDesktop) T.event.listen("snapshot", (e) => set(e.payload));
   queueMicrotask(() => getView().then(set).catch((e) => { s.error = String(e); render(); }));
   // Countdowns and the age text (PRD 0010 RF3.1): the view is re-read so the core's freshness, computed when the
@@ -567,7 +592,8 @@ const demoView = () => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
     return { ...r, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics: r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null })), pace_index: paceIndex,
-      next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r) };
+      next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
+      account_key: demoKey(r), notify: !demoSettings.notify.off_accounts.includes(demoKey(r)) };
   });
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
     started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation,
@@ -575,8 +601,22 @@ const demoView = () => {
     history_warning: new URLSearchParams(location.search).has("history-warning")
       ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "O histórico passou de 64 MiB: as 1200 medições mais antigas foram apagadas." }
       : null,
-    history_epoch: demoSettings.historyEpoch };
+    history_epoch: demoSettings.historyEpoch, notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports) } };
 };
+// ponytail: demo mirror of `Account::key` and of the core planner's next notice (first future quota reset with a
+// window, "always" filter, lead applied); the app reads both from the backend.
+const demoKey = (r) => `${r.provider}:${r.account}`;
+function demoNextNotice(reports) {
+  const n = demoSettings.notify;
+  if (!n.enabled) return null;
+  const lead = n.lead_minutes * 60000;
+  const next = reports.filter((r) => r.status === "ready" && r.notify)
+    .flatMap((r) => r.metrics.filter((m) => m.kind === "quota" && m.window && (m.window !== "other" || n.include_other) && m.resets_at)
+      .map((m) => ({ index: r.index, provider: r.provider, account: r.account, window: m.window, label: m.label, resets_at: m.resets_at, at: new Date(new Date(m.resets_at).getTime() - lead).toISOString() })))
+    .filter((e) => new Date(e.at).getTime() > Date.now())
+    .sort((a, b) => a.at.localeCompare(b.at));
+  return next[0] ?? null;
+}
 // ponytail: demo mirror of `access::describe` + `UsageAccess::explain` (default modes, generic pt summary and
 // evidence); the app reads both from the core.
 const DEMO_ROUTER = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
@@ -591,7 +631,8 @@ function demoAccess(r) {
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
     explanation: r.status === "ready" ? null : reason ?? changed };
 }
-const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set() };
+const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(),
+  notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] } };
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
 // nenhum catálogo inventado é exibido como real.
 const demoModels = async ({ index, generation }) => {
@@ -759,7 +800,8 @@ const demo = {
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
-    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, version: "demo" }),
+    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording,
+    notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"], version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -769,6 +811,25 @@ const demo = {
   history_export: async ({ index }) => (index == null ? 42 : 7),
   history_erase: async ({ index }) => { demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
+  // `?notify-denied` plays a system that refuses the permission (PRD 0003 RF3.3).
+  set_notify_enabled: async ({ on }) => {
+    const permission = !on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted";
+    demoSettings.notify.enabled = permission === "granted";
+    return permission;
+  },
+  set_notify_options: async ({ leadMinutes, when, includeOther }) => {
+    if (![0, 5, 15, 60].includes(leadMinutes) || !["used", "exhausted", "always"].includes(when)) throw "invalid_notify";
+    Object.assign(demoSettings.notify, { lead_minutes: leadMinutes, when, include_other: includeOther });
+  },
+  set_account_notify: async ({ accountKey, on }) => {
+    const off = demoSettings.notify.off_accounts.filter((k) => k !== accountKey);
+    demoSettings.notify.off_accounts = on ? off : [...off, accountKey];
+  },
+  set_locale: async () => {},
+  send_test_notification: async ({ title, body }) => {
+    if (!demoSettings.notify.enabled) throw "notify_off";
+    window.__lastTestNotification = { title, body };
+  },
   history_size: async () => (demoSettings.historyErased.has("all") ? 4096 : 1887437),
   account_history: demoHistory,
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },

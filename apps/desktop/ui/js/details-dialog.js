@@ -1,13 +1,13 @@
 // Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, histórico, notas, selos e ações.
 import { te, tl } from "./i18n.js";
-import { brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
+import { bellHtml, brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { mountHistory } from "./history.js";
 import { showDialog } from "./motion.js";
 
 let dlg = null;
 let currentKey = null;
-let ctx = null; // { reports(), generation(), historyEpoch(), onEdit(index), onRemove(index, label), onChange() }
+let ctx = null; // { reports(), generation(), historyEpoch(), view(), onEdit(index), onRemove(index, label), onChange(), onBell(key, on) }
 let models = null; // seção de modelos montada uma vez por diálogo; sobrevive aos redesenhos
 let history = null; // PRD 0006 RF5.2: idem, para o histórico
 
@@ -31,6 +31,7 @@ function render() {
       <div class="who"><h2>${esc(brand(r.provider).label)}</h2><p>${esc(r.account)}</p>${id.email && id.email !== r.account ? `<p class="sub2">${esc(id.email)}</p>` : ""}${badges(id.badges)}</div>
       ${r.status !== "ready" ? `<span class="pill st-${r.status}">${esc(statusLabel(r.status))}</span>` : ""}
       <div class="actions">
+        ${bellHtml(ctx.view(), r)}
         <button class="icon" data-edit title="${te("common.edit")}" aria-label="${te("common.edit")}">${icon("edit")}</button>
         <button class="icon danger" data-remove title="${te("common.remove")}" aria-label="${te("common.remove")}">${icon("trash")}</button>
       </div>
@@ -56,6 +57,8 @@ export function openDetails(key, context, from = null) {
       const t = e.target;
       const r = () => ctx.reports().find((x) => reportKey(x) === currentKey);
       if (t.closest("[data-close]")) return dlg.close();
+      const bell = t.closest("[data-bell]");
+      if (bell) return ctx.onBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
       const hide = t.closest("[data-hide]");
       if (hide) { hiddenMetrics.toggle(hide.dataset.hide); render(); return ctx.onChange(); }
       const cp = t.closest("[data-copy]");

@@ -377,7 +377,7 @@ impl Binding {
     /// `binding.tightest`). `at` formats `blocked_until` in the caller's
     /// clock and style (e.g. local `HH:MM`).
     pub fn summary(&self, at: impl FnOnce(DateTime<Utc>) -> String) -> Localized {
-        let (window, window_pt) = self.window_param();
+        let (window, window_pt) = window_param(self.window, &self.label);
         match (self.reason, self.blocked_until) {
             (BindingReason::Exhausted, Some(until)) => {
                 let at = at(until);
@@ -399,20 +399,19 @@ impl Binding {
             }
         }
     }
+}
 
-    /// Known windows travel as `metric_window.*`; others use the label.
-    fn window_param(&self) -> (ParamValue, String) {
-        let (id, pt) = match self.window {
-            Some(MetricWindow::Window5h) => ("metric_window.window_5h", "de 5 horas"),
-            Some(MetricWindow::Daily) => ("metric_window.daily", "diária"),
-            Some(MetricWindow::Weekly) => ("metric_window.weekly", "semanal"),
-            Some(MetricWindow::Monthly) => ("metric_window.monthly", "mensal"),
-            Some(MetricWindow::Other) | None => {
-                return (self.label.as_str().into(), self.label.clone())
-            }
-        };
-        (ParamValue::l10n(Localized::fixed(id, pt)), pt.to_string())
-    }
+/// Known windows travel as `metric_window.*`; others use the metric label.
+/// Returns the parameter and its Portuguese rendering.
+pub(crate) fn window_param(window: Option<MetricWindow>, label: &str) -> (ParamValue, String) {
+    let (id, pt) = match window {
+        Some(MetricWindow::Window5h) => ("metric_window.window_5h", "de 5 horas"),
+        Some(MetricWindow::Daily) => ("metric_window.daily", "diária"),
+        Some(MetricWindow::Weekly) => ("metric_window.weekly", "semanal"),
+        Some(MetricWindow::Monthly) => ("metric_window.monthly", "mensal"),
+        Some(MetricWindow::Other) | None => return (label.into(), label.to_string()),
+    };
+    (ParamValue::l10n(Localized::fixed(id, pt)), pt.to_string())
 }
 
 #[cfg(test)]

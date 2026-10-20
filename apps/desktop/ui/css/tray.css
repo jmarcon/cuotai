@@ -272,3 +272,17 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* PRD 0003 RF3.4: the next reset notice, above the footer. */
+.pop-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.pop-notice .i { width: 14px; height: 14px; color: var(--accent); flex: 0 0 auto; }
+.pop-notice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

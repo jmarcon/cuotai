@@ -1,6 +1,6 @@
 [package]
 name = "cuotai-desktop"
-version = "0.40.0"
+version = "0.41.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -25,8 +25,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "6"
 tauri-plugin-dialog = "2"
+# PRD 0003 RF2.2: reset notices (2.x line, compatible with Tauri 2.12).
+tauri-plugin-notification = "=2.7.0"
 chrono = { version = "0.4", features = ["serde"] }
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "sync", "macros"] }
 
 [dev-dependencies]
 tempfile = "3"
