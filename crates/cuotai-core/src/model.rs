@@ -226,7 +226,18 @@ impl Account {
     /// are unique per configuration and slugs carry no `:`, so it is
     /// unambiguous.
     pub fn key(&self) -> String {
-        format!("{}:{}", self.provider.slug(), self.name)
+        account_key(self.provider, &self.name)
+    }
+}
+
+fn account_key(provider: Provider, name: &str) -> String {
+    format!("{}:{name}", provider.slug())
+}
+
+impl Report {
+    /// [`Account::key`] of the account this report belongs to.
+    pub fn account_key(&self) -> String {
+        account_key(self.provider, &self.account)
     }
 }
 

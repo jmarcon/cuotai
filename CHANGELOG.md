@@ -13,12 +13,18 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-20
+
+### Added
+
+- `cuotai-core` exposes `alerts::evaluate`, which decides from the readings already taken (no extra query) when a quota's consumption deserves a notice: crossing a threshold chosen between 10 and 99% (75 and 90 by default), exhaustion, and slack again in the next window after a notified exhaustion; only quotas with a cap count (never balance, credits, spend, usage, rate limits or missing values), each threshold fires once per window (a query crossing several reports only the highest, `resets_at` drifting up to 2 minutes is the same window), re-arms only after falling 5 points below it or in a new window, and nothing crossed in the past fires on the first reading after opening unless the previous recorded reading is at most 10 minutes older and was still below it; `alerts::AlertState` remembers it with digests and dates only (PRD 0008 RF1).
+
 ## [0.41.0] - 2026-10-20
 
 ### Added
 
-- The desktop app sends a system notification when a quota resets, at the time the provider reported or a chosen lead time before it, scheduled by the app itself so it arrives with the window hidden in the tray: one notice per reset (several metrics of an account resetting together, or everything due after a suspension or a clock change, become one), never repeated after a restart (`<OS data dir>/cuotai/notified.json` keeps only digests and dates for 8 days), a reset missed by more than 10 minutes while the app was closed is not notified late, a postponed reset replaces the pending notice, and no provider is queried for it; the text names only the provider, the account and the metrics, in the language chosen in the app (PRD 0003 RF2).
-- **Settings → Notifications** turns quota reset notices on (off by default, asking the system permission first and explaining how to allow it when refused), chooses the lead time (at the time, 5, 15 or 60 min), the filter (only if used, only if exhausted, always) and whether "other" windows count, and sends a test notification; each account gets a bell on its card and in its details, kept per provider and account name in `desktop.json` (a rename turns it back on), and the tray menu, its tooltip and the tray popover show the next notice (PRD 0003 RF3).
+- The desktop app sends a system notification when a quota resets, at the time the provider reported or a chosen lead time before it, scheduled by the app itself so it arrives with the window hidden in the tray: one notice per reset (several metrics of an account resetting together, or everything due after a suspension or a clock change, become one), never repeated after a restart (`<OS data dir>/cuotai/notified.json` keeps only digests and dates for 8 days), a reset missed by more than 10 minutes while the app was closed is not notified late, a postponed reset replaces the pending notice, and no provider is queried for it; the text names only the provider, the account and the metrics, in the language chosen in the app (PRD 0003 RF2, 29dc2cc).
+- **Settings → Notifications** turns quota reset notices on (off by default, asking the system permission first and explaining how to allow it when refused), chooses the lead time (at the time, 5, 15 or 60 min), the filter (only if used, only if exhausted, always) and whether "other" windows count, and sends a test notification; each account gets a bell on its card and in its details, kept per provider and account name in `desktop.json` (a rename turns it back on), and the tray menu, its tooltip and the tray popover show the next notice (PRD 0003 RF3, 29dc2cc).
 
 ## [0.40.0] - 2026-10-20
 
@@ -391,8 +397,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/e522b44...main
-[0.41.0]: https://github.com/jmarcon/cuotai/compare/e522b44...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/29dc2cc...main
+[0.42.0]: https://github.com/jmarcon/cuotai/compare/29dc2cc...main
+[0.41.0]: https://github.com/jmarcon/cuotai/commit/29dc2cc
 [0.40.0]: https://github.com/jmarcon/cuotai/commit/e522b44
 [0.39.0]: https://github.com/jmarcon/cuotai/commit/b955116
 [0.38.0]: https://github.com/jmarcon/cuotai/commit/e743686
