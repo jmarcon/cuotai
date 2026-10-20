@@ -302,7 +302,7 @@ pub struct ModelCache {
     config_key: String,
 }
 
-fn digest(bytes: &[u8]) -> String {
+pub(crate) fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
@@ -313,8 +313,9 @@ const DISPLAY_PARAMS: [&str; 2] = ["models", "billing_cycle"];
 /// Provider, name, credential reference (env name or OAuth config) and the
 /// params selecting credential, product, region or profile; refresh cadence
 /// and [`DISPLAY_PARAMS`] are excluded. Any other edit or a rename yields a
-/// new key (conservative); the account index never takes part.
-fn account_key(account: &Account) -> String {
+/// new key (conservative); the account index never takes part. Shared with
+/// [`crate::history`] so both stores isolate accounts the same way.
+pub(crate) fn account_key(account: &Account) -> String {
     let params: std::collections::BTreeMap<_, _> = account
         .params
         .iter()
@@ -333,24 +334,46 @@ fn account_key(account: &Account) -> String {
 
 /// Drop group/other permission bits of our directory or database file.
 #[cfg(unix)]
-fn private(path: &Path, dir: bool) -> Result<(), ModelError> {
+fn private(path: &Path, dir: bool) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    let meta = std::fs::metadata(path).map_err(|_| ModelError::Storage)?;
+    let meta = std::fs::metadata(path)?;
     if meta.is_dir() != dir {
-        return Err(ModelError::Storage);
+        return Err(std::io::Error::other("unexpected file type"));
     }
     let mode = meta.permissions().mode();
     if mode & 0o077 != 0 {
         let owner = if dir { 0o700 } else { 0o600 };
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & owner))
-            .map_err(|_| ModelError::Storage)?;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & owner))?;
     }
     Ok(())
 }
 
 #[cfg(not(unix))]
-fn private(_: &Path, _: bool) -> Result<(), ModelError> {
+fn private(_: &Path, _: bool) -> std::io::Result<()> {
     Ok(())
+}
+
+/// Create (or keep) a database file whose parent directory is restricted to
+/// the owner (0700) and the file to 0600 on Unix, even when they already
+/// existed; give each store a directory of its own.
+pub(crate) fn create_private_file(path: &Path) -> std::io::Result<()> {
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+        private(parent, true)?;
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    match options.open(path) {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e),
+    }
+    private(path, false)
 }
 
 fn encode<T: Serialize>(value: &T) -> Result<String, ModelError> {
@@ -378,27 +401,9 @@ impl ModelCache {
         ))
     }
 
-    /// Open (creating privately) the store. The parent directory is
-    /// restricted to the owner (0700) and the file to 0600 on Unix, even
-    /// when they already existed; give the store a directory of its own.
+    /// Open (creating privately, see [`create_private_file`]) the store.
     fn open(&self) -> Result<Connection, ModelError> {
-        if let Some(parent) = self.path.parent().filter(|p| !p.as_os_str().is_empty()) {
-            std::fs::create_dir_all(parent).map_err(|_| ModelError::Storage)?;
-            private(parent, true)?;
-        }
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        match options.open(&self.path) {
-            Ok(_) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(_) => return Err(ModelError::Storage),
-        }
-        private(&self.path, false)?;
+        create_private_file(&self.path).map_err(|_| ModelError::Storage)?;
         let mut db = Connection::open(&self.path)?;
         db.busy_timeout(Duration::from_secs(5))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;

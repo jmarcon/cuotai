@@ -1,0 +1,1254 @@
+//! PRD 0006 RF1/RF3 — local measurement history.
+//!
+//! [`HistoryStore`] keeps successful readings per account and metric in
+//! `history.sqlite3`, a file of its own (never the model catalog, the TOML or
+//! a credential store). Rows hold only digests, numbers and window metadata:
+//! the SHA-256 of [`ConfigIdentity`] and of the account identity (the same
+//! derivation as the model catalog), the metric label, unit, kind, window and
+//! `resets_at`. Never a secret, an HTTP body, a URL, a note or the account
+//! name. A missing value is `NULL`, never zero.
+//!
+//! The store is opened per operation (cheap, so building one never touches
+//! disk) in WAL mode with a busy timeout, so the TUI, the desktop app and the
+//! CLI pointing at the same TOML write to it concurrently; a write is
+//! idempotent per `(account, metric, taken_at)`. Every open, read or write
+//! failure surfaces as [`HistoryError::Storage`], never as success.
+//!
+//! The queries ([`HistoryStore::latest`], [`HistoryStore::series`],
+//! [`HistoryStore::windows`], [`HistoryStore::bounds`]) read the file only;
+//! nothing here touches the network.
+
+use crate::config_file::{ConfigFile, ConfigIdentity};
+use crate::models::{account_key, create_private_file, digest};
+use crate::pace::Point;
+use crate::resets::DRIFT_TOLERANCE;
+use crate::text::Localized;
+use crate::{Account, Config, Metric, MetricKind, MetricWindow};
+use chrono::{DateTime, Utc};
+use rusqlite::{Connection, TransactionBehavior};
+use std::ops::{Bound, RangeBounds};
+use std::path::PathBuf;
+use std::time::Duration;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum HistoryError {
+    #[error("Falha ao ler ou gravar o histórico local de medições.")]
+    Storage,
+}
+
+impl HistoryError {
+    pub fn l10n(&self) -> Localized {
+        Localized::fixed("history.error.storage", self.to_string())
+    }
+}
+
+impl From<rusqlite::Error> for HistoryError {
+    fn from(_: rusqlite::Error) -> Self {
+        Self::Storage
+    }
+}
+
+/// A drop in `used` above this fraction of `limit` ends the window (a reset).
+const RESET_DROP: f64 = 0.2;
+const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Forward migrations: entry `n` takes `PRAGMA user_version` from `n` to
+/// `n + 1`. Append new steps, never edit a shipped one.
+///
+/// `series` names each metric of an account (the label `latest` shows), its
+/// position and the newest reading that carried it (`seen_at`); `removed_at`
+/// marks the series of an account gone from the configuration for pruning.
+/// Times are UTC unix milliseconds.
+const MIGRATIONS: [&str; 1] = ["CREATE TABLE series (
+    config_key TEXT NOT NULL,
+    account_digest TEXT NOT NULL,
+    metric_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    seen_at INTEGER NOT NULL,
+    removed_at INTEGER,
+    PRIMARY KEY (config_key, account_digest, metric_key)
+) WITHOUT ROWID;
+CREATE TABLE samples (
+    config_key TEXT NOT NULL,
+    account_digest TEXT NOT NULL,
+    metric_key TEXT NOT NULL,
+    taken_at INTEGER NOT NULL,
+    used REAL,
+    \"limit\" REAL,
+    remaining REAL,
+    unit TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    \"window\" TEXT,
+    resets_at INTEGER,
+    PRIMARY KEY (config_key, account_digest, metric_key, taken_at)
+) WITHOUT ROWID;
+CREATE INDEX samples_by_time ON samples (config_key, taken_at);"];
+
+/// Measurement history of one configuration. Holds only the database path
+/// and the configuration digest; errors surface on use.
+#[derive(Debug, Clone)]
+pub struct HistoryStore {
+    path: PathBuf,
+    config_key: String,
+}
+
+/// Stable identity of a metric's series: the digest of its kind, window,
+/// label and unit. A label that changes between adapter versions starts a
+/// new series.
+pub fn metric_key(metric: &Metric) -> String {
+    let identity = serde_json::to_vec(&(metric.kind, metric.window, &metric.label, &metric.unit))
+        .expect("metric identity serializes");
+    digest(&identity)
+}
+
+/// The last recorded reading of an account.
+#[derive(Debug, Clone)]
+pub struct StoredReport {
+    /// When the last recorded reading was taken: its original time, never
+    /// the time it was read back (age it with [`crate::freshness::age`]).
+    pub checked_at: DateTime<Utc>,
+    /// The metrics of that reading in their reported order.
+    pub metrics: Vec<StoredMetric>,
+}
+
+/// The last sample of one metric. `metric.period` is not stored (`None`).
+#[derive(Debug, Clone)]
+pub struct StoredMetric {
+    /// [`metric_key`] of the metric.
+    pub key: String,
+    /// When this value was sampled; never after [`StoredReport::checked_at`].
+    pub taken_at: DateTime<Utc>,
+    pub metric: Metric,
+}
+
+/// Use of a metric over one window instance: consecutive samples with the
+/// same `resets_at` (within [`DRIFT_TOLERANCE`]) and no reset-sized drop.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowUsage {
+    /// First and last sample of the window in the queried range.
+    pub started_at: DateTime<Utc>,
+    pub ended_at: DateTime<Utc>,
+    /// Last `resets_at` reported in the window, if any.
+    pub resets_at: Option<DateTime<Utc>>,
+    /// Last finite `limit` reported in the window, if any.
+    pub limit: Option<f64>,
+    pub initial_used: f64,
+    pub final_used: f64,
+    pub peak_used: f64,
+    pub peak_at: DateTime<Utc>,
+    pub samples: usize,
+}
+
+/// First and last recorded sample times of the configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bounds {
+    pub first: DateTime<Utc>,
+    pub last: DateTime<Utc>,
+}
+
+/// One stored sample as the window grouping reads it.
+#[derive(Debug, Clone, Copy)]
+struct WindowSample {
+    taken_at: DateTime<Utc>,
+    used: Option<f64>,
+    limit: Option<f64>,
+    resets_at: Option<DateTime<Utc>>,
+}
+
+fn millis(at: DateTime<Utc>) -> i64 {
+    at.timestamp_millis()
+}
+
+fn instant(ms: i64) -> rusqlite::Result<DateTime<Utc>> {
+    DateTime::from_timestamp_millis(ms).ok_or(rusqlite::Error::IntegralValueOutOfRange(0, ms))
+}
+
+fn finite(value: Option<f64>) -> Option<f64> {
+    value.filter(|v| v.is_finite())
+}
+
+/// The serde name of a `kind`/`window` value (`quota`, `window_5h`, …).
+fn tag<T: serde::Serialize>(value: T) -> String {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(tag)) => tag,
+        _ => unreachable!("unit enums serialize as strings"),
+    }
+}
+
+fn untag<T: serde::de::DeserializeOwned>(tag: String) -> rusqlite::Result<T> {
+    serde_json::from_value(serde_json::Value::String(tag)).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, e.into())
+    })
+}
+
+/// Inclusive millisecond span of `range`.
+fn span(range: impl RangeBounds<DateTime<Utc>>) -> (i64, i64) {
+    let start = match range.start_bound() {
+        Bound::Included(at) => millis(*at),
+        Bound::Excluded(at) => millis(*at).saturating_add(1),
+        Bound::Unbounded => i64::MIN,
+    };
+    let end = match range.end_bound() {
+        Bound::Included(at) => millis(*at),
+        Bound::Excluded(at) => millis(*at).saturating_sub(1),
+        Bound::Unbounded => i64::MAX,
+    };
+    (start, end)
+}
+
+/// Switch the file to WAL (persistent, so once per file). SQLite answers a
+/// journal-mode change racing another first open with `BUSY` without
+/// consulting the busy handler, so retry it within [`BUSY_TIMEOUT`].
+fn wal(db: &Connection) -> rusqlite::Result<()> {
+    let mode =
+        |db: &Connection| db.query_row("PRAGMA journal_mode", [], |row| row.get::<_, String>(0));
+    if mode(db)?.eq_ignore_ascii_case("wal") {
+        return Ok(());
+    }
+    let deadline = std::time::Instant::now() + BUSY_TIMEOUT;
+    loop {
+        match db.pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get::<_, String>(0))
+        {
+            Err(rusqlite::Error::SqliteFailure(e, _))
+                if e.code == rusqlite::ErrorCode::DatabaseBusy
+                    && std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            other => return other.map(drop),
+        }
+    }
+}
+
+/// Apply the steps of `migrations` the file has not seen yet, inside one
+/// `BEGIN IMMEDIATE` so concurrent first opens migrate once. A file from a
+/// newer Cuotai (a higher `user_version`) is rejected, never guessed at.
+fn migrate(db: &mut Connection, migrations: &[&str]) -> Result<(), HistoryError> {
+    let latest = i64::try_from(migrations.len()).map_err(|_| HistoryError::Storage)?;
+    let version =
+        |db: &Connection| db.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0));
+    if version(db)? == latest {
+        return Ok(());
+    }
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let current = version(&tx)?;
+    if !(0..=latest).contains(&current) {
+        return Err(HistoryError::Storage);
+    }
+    for (done, step) in (current..).zip(&migrations[current as usize..]) {
+        tx.execute_batch(step)?;
+        tx.pragma_update(None, "user_version", done + 1)?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// Group samples (in time order) into window instances. Samples without a
+/// finite `used` are skipped; a non-finite `limit` counts as missing.
+fn group_windows(samples: impl IntoIterator<Item = WindowSample>) -> Vec<WindowUsage> {
+    let mut windows: Vec<WindowUsage> = Vec::new();
+    let mut previous: Option<(f64, Option<f64>)> = None;
+    for sample in samples {
+        let Some(used) = finite(sample.used) else {
+            continue;
+        };
+        let limit = finite(sample.limit);
+        let current =
+            windows
+                .last_mut()
+                .zip(previous)
+                .filter(|(window, (last_used, last_limit))| {
+                    let dropped = limit
+                        .or(*last_limit)
+                        .filter(|limit| *limit > 0.0)
+                        .is_some_and(|limit| last_used - used > RESET_DROP * limit);
+                    let moved = matches!(
+                        (window.resets_at, sample.resets_at),
+                        (Some(known), Some(next)) if (next - known).abs() > DRIFT_TOLERANCE
+                    );
+                    !dropped && !moved
+                });
+        match current {
+            Some((window, _)) => {
+                window.ended_at = sample.taken_at;
+                window.final_used = used;
+                window.samples += 1;
+                window.resets_at = sample.resets_at.or(window.resets_at);
+                window.limit = limit.or(window.limit);
+                if used > window.peak_used {
+                    window.peak_used = used;
+                    window.peak_at = sample.taken_at;
+                }
+            }
+            None => windows.push(WindowUsage {
+                started_at: sample.taken_at,
+                ended_at: sample.taken_at,
+                resets_at: sample.resets_at,
+                limit,
+                initial_used: used,
+                final_used: used,
+                peak_used: used,
+                peak_at: sample.taken_at,
+                samples: 1,
+            }),
+        }
+        previous = Some((used, limit));
+    }
+    windows
+}
+
+impl HistoryStore {
+    /// Store at `path`, isolated by `config` (only its digest is written).
+    pub fn new(path: PathBuf, config: &ConfigIdentity) -> Self {
+        Self {
+            path,
+            config_key: config.digest(),
+        }
+    }
+
+    /// `<OS local data dir>/cuotai/history/history.sqlite3` keyed by
+    /// [`ConfigFile::identity`]; front ends sharing a TOML share series.
+    pub fn in_data_dir(file: &ConfigFile) -> Result<Self, HistoryError> {
+        let identity = file.identity().map_err(|_| HistoryError::Storage)?;
+        let dir = dirs::data_local_dir().ok_or(HistoryError::Storage)?;
+        Ok(Self::new(
+            dir.join("cuotai").join("history").join("history.sqlite3"),
+            &identity,
+        ))
+    }
+
+    /// Open (creating privately: directory 0700, file 0600 on Unix) and
+    /// migrate the store.
+    fn open(&self) -> Result<Connection, HistoryError> {
+        create_private_file(&self.path).map_err(|_| HistoryError::Storage)?;
+        let mut db = Connection::open(&self.path)?;
+        db.busy_timeout(BUSY_TIMEOUT)?;
+        wal(&db)?;
+        migrate(&mut db, &MIGRATIONS)?;
+        Ok(db)
+    }
+
+    /// Record the reading of `account` taken at `taken_at`: one sample per
+    /// metric, in one transaction. Non-finite values are stored as `NULL`.
+    /// A sample already stored for the same account, metric and time (to
+    /// the millisecond) is kept as is. Returns how many samples were new.
+    pub fn record(
+        &self,
+        account: &Account,
+        taken_at: DateTime<Utc>,
+        metrics: &[Metric],
+    ) -> Result<usize, HistoryError> {
+        let account_digest = account_key(account);
+        let at = millis(taken_at);
+        let mut db = self.open()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut added = 0;
+        {
+            let mut series = tx.prepare(
+                "INSERT INTO series (config_key, account_digest, metric_key, label, position, seen_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT (config_key, account_digest, metric_key) DO UPDATE SET
+                    label = excluded.label,
+                    position = CASE WHEN excluded.seen_at >= seen_at
+                        THEN excluded.position ELSE position END,
+                    seen_at = MAX(seen_at, excluded.seen_at),
+                    removed_at = NULL",
+            )?;
+            let mut sample = tx.prepare(
+                "INSERT OR IGNORE INTO samples (config_key, account_digest, metric_key, taken_at,
+                    used, \"limit\", remaining, unit, kind, \"window\", resets_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            )?;
+            for (position, metric) in metrics.iter().enumerate() {
+                let key = metric_key(metric);
+                let position = i64::try_from(position).map_err(|_| HistoryError::Storage)?;
+                series.execute(rusqlite::params![
+                    self.config_key,
+                    account_digest,
+                    key,
+                    metric.label,
+                    position,
+                    at
+                ])?;
+                added += sample.execute(rusqlite::params![
+                    self.config_key,
+                    account_digest,
+                    key,
+                    at,
+                    finite(metric.used),
+                    finite(metric.limit),
+                    finite(metric.remaining),
+                    metric.unit,
+                    tag(metric.kind),
+                    metric.window.map(tag),
+                    metric.resets_at.map(millis),
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(added)
+    }
+
+    /// Mark for pruning the series of this configuration whose account
+    /// identity is not in `saved` (removed, renamed or with another
+    /// credential, product or region), and clear the mark of those that are
+    /// (an identity that came back). Data stays until it is pruned. Pass
+    /// only the configuration just loaded from or saved to the TOML.
+    pub fn mark_removed(&self, saved: &Config, now: DateTime<Utc>) -> Result<(), HistoryError> {
+        // Nothing stored yet: do not create the store just to mark it.
+        if !self.path.try_exists().map_err(|_| HistoryError::Storage)? {
+            return Ok(());
+        }
+        let keep =
+            serde_json::to_string(&saved.accounts.iter().map(account_key).collect::<Vec<_>>())
+                .map_err(|_| HistoryError::Storage)?;
+        let mut db = self.open()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute(
+            "UPDATE series SET removed_at = ?3 WHERE config_key = ?1 AND removed_at IS NULL
+             AND account_digest NOT IN (SELECT value FROM json_each(?2))",
+            rusqlite::params![self.config_key, keep, millis(now)],
+        )?;
+        tx.execute(
+            "UPDATE series SET removed_at = NULL WHERE config_key = ?1 AND removed_at IS NOT NULL
+             AND account_digest IN (SELECT value FROM json_each(?2))",
+            rusqlite::params![self.config_key, keep],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// The metrics of the last recorded reading of `account`, each with its
+    /// last stored sample; `None` when nothing was recorded.
+    pub fn latest(&self, account: &Account) -> Result<Option<StoredReport>, HistoryError> {
+        let account_digest = account_key(account);
+        let db = self.open()?;
+        let Some(seen_at) = db.query_row(
+            "SELECT MAX(seen_at) FROM series WHERE config_key = ?1 AND account_digest = ?2",
+            [&self.config_key, &account_digest],
+            |row| row.get::<_, Option<i64>>(0),
+        )?
+        else {
+            return Ok(None);
+        };
+        let mut query = db.prepare(
+            "SELECT s.metric_key, s.label, x.taken_at, x.used, x.\"limit\", x.remaining,
+                    x.unit, x.kind, x.\"window\", x.resets_at
+             FROM series s JOIN samples x
+               ON x.config_key = s.config_key AND x.account_digest = s.account_digest
+              AND x.metric_key = s.metric_key
+             WHERE s.config_key = ?1 AND s.account_digest = ?2 AND s.seen_at = ?3
+               AND x.taken_at = (SELECT MAX(taken_at) FROM samples
+                    WHERE config_key = s.config_key AND account_digest = s.account_digest
+                      AND metric_key = s.metric_key)
+             ORDER BY s.position",
+        )?;
+        let metrics = query
+            .query_map(
+                rusqlite::params![self.config_key, account_digest, seen_at],
+                |row| {
+                    Ok(StoredMetric {
+                        key: row.get(0)?,
+                        taken_at: instant(row.get(2)?)?,
+                        metric: Metric {
+                            label: row.get(1)?,
+                            used: finite(row.get(3)?),
+                            limit: finite(row.get(4)?),
+                            remaining: finite(row.get(5)?),
+                            unit: row.get(6)?,
+                            kind: untag::<MetricKind>(row.get(7)?)?,
+                            window: row
+                                .get::<_, Option<String>>(8)?
+                                .map(untag::<MetricWindow>)
+                                .transpose()?,
+                            period: None,
+                            resets_at: row.get::<_, Option<i64>>(9)?.map(instant).transpose()?,
+                        },
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(Some(StoredReport {
+            checked_at: instant(seen_at)?,
+            metrics,
+        }))
+    }
+
+    /// Samples of one metric within `range` (any `RangeBounds`, compared to
+    /// the millisecond) in time order. Samples without a finite `used` are
+    /// left out.
+    pub fn series(
+        &self,
+        account: &Account,
+        metric_key: &str,
+        range: impl RangeBounds<DateTime<Utc>>,
+    ) -> Result<Vec<Point>, HistoryError> {
+        Ok(self
+            .samples(account, metric_key, range)?
+            .into_iter()
+            .filter_map(|sample| {
+                finite(sample.used).map(|used| Point {
+                    taken_at: sample.taken_at,
+                    used,
+                })
+            })
+            .collect())
+    }
+
+    /// Window instances of one metric within `range`, in time order. A
+    /// window ends when `used` drops by more than 20% of `limit` or when
+    /// `resets_at` moves beyond [`DRIFT_TOLERANCE`]; a metric without a
+    /// finite positive `limit` only splits on `resets_at`. Non-finite or
+    /// missing values are ignored.
+    pub fn windows(
+        &self,
+        account: &Account,
+        metric_key: &str,
+        range: impl RangeBounds<DateTime<Utc>>,
+    ) -> Result<Vec<WindowUsage>, HistoryError> {
+        Ok(group_windows(self.samples(account, metric_key, range)?))
+    }
+
+    fn samples(
+        &self,
+        account: &Account,
+        metric_key: &str,
+        range: impl RangeBounds<DateTime<Utc>>,
+    ) -> Result<Vec<WindowSample>, HistoryError> {
+        let (start, end) = span(range);
+        let db = self.open()?;
+        let mut query = db.prepare(
+            "SELECT taken_at, used, \"limit\", resets_at FROM samples
+             WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
+               AND taken_at BETWEEN ?4 AND ?5
+             ORDER BY taken_at",
+        )?;
+        let samples = query
+            .query_map(
+                rusqlite::params![
+                    self.config_key,
+                    account_key(account),
+                    metric_key,
+                    start,
+                    end
+                ],
+                |row| {
+                    Ok(WindowSample {
+                        taken_at: instant(row.get(0)?)?,
+                        used: row.get(1)?,
+                        limit: row.get(2)?,
+                        resets_at: row.get::<_, Option<i64>>(3)?.map(instant).transpose()?,
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(samples)
+    }
+
+    /// First and last sample times of this configuration; `None` when empty.
+    pub fn bounds(&self) -> Result<Option<Bounds>, HistoryError> {
+        let db = self.open()?;
+        let (first, last) = db.query_row(
+            "SELECT MIN(taken_at), MAX(taken_at) FROM samples WHERE config_key = ?1",
+            [&self.config_key],
+            |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, Option<i64>>(1)?)),
+        )?;
+        match (first, last) {
+            (Some(first), Some(last)) => Ok(Some(Bounds {
+                first: instant(first)?,
+                last: instant(last)?,
+            })),
+            _ => Ok(None),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeDelta, TimeZone};
+    use std::path::Path;
+
+    const CONFIG: &str = r#"
+[[accounts]]
+name = "alpha"
+provider = "groq"
+credential_env = "GROQ_KEY_ALPHA"
+[[accounts]]
+name = "beta"
+provider = "groq"
+credential_env = "GROQ_KEY_BETA"
+"#;
+
+    fn config(toml: &str) -> Config {
+        Config::from_toml(toml).unwrap()
+    }
+
+    fn groq(name: &str, env: &str, extra: &str) -> String {
+        format!("[[accounts]]\nname = \"{name}\"\nprovider = \"groq\"\ncredential_env = \"{env}\"\n{extra}\n")
+    }
+
+    fn t0() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 10, 1, 12, 0, 0).unwrap()
+    }
+
+    fn mins(n: i64) -> TimeDelta {
+        TimeDelta::minutes(n)
+    }
+
+    fn store(path: &Path, config: &str) -> HistoryStore {
+        HistoryStore::new(path.to_path_buf(), &ConfigIdentity::Explicit(config.into()))
+    }
+
+    fn quota(label: &str, used: Option<f64>, limit: Option<f64>) -> Metric {
+        Metric {
+            label: label.into(),
+            used,
+            limit,
+            remaining: None,
+            unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(MetricWindow::Window5h),
+            period: Some("5h".into()),
+            resets_at: Some(t0() + TimeDelta::hours(5)),
+        }
+    }
+
+    fn raw(path: &Path) -> Connection {
+        Connection::open(path).unwrap()
+    }
+
+    fn count(path: &Path, filter: &str) -> i64 {
+        raw(path)
+            .query_row(
+                &format!("SELECT COUNT(*) FROM samples WHERE {filter}"),
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+    }
+
+    /// Number of series rows of `config` marked for pruning.
+    fn marked(path: &Path, config: &str) -> i64 {
+        raw(path)
+            .query_row(
+                "SELECT COUNT(*) FROM series WHERE config_key = ?1 AND removed_at IS NOT NULL",
+                [ConfigIdentity::Explicit(config.into()).digest()],
+                |r| r.get(0),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn creates_the_schema_migrates_forward_and_rejects_a_newer_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        assert_eq!(history.bounds(), Ok(None), "a fresh store is empty");
+        let version = |path: &Path| {
+            raw(path)
+                .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+                .unwrap()
+        };
+        assert_eq!(version(&db), 1);
+        let mode: String = raw(&db)
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
+
+        // An empty database left at version 0 is migrated on first use.
+        let empty = dir.path().join("empty.sqlite3");
+        raw(&empty)
+            .execute_batch("PRAGMA user_version = 0")
+            .unwrap();
+        let config = config(CONFIG);
+        let alpha = &config.accounts[0];
+        store(&empty, "one")
+            .record(alpha, t0(), &[quota("5h", Some(10.0), Some(100.0))])
+            .unwrap();
+        assert_eq!(version(&empty), 1);
+
+        // A later step runs alone on a version-1 file and keeps its data.
+        let mut db_v1 = raw(&empty);
+        migrate(
+            &mut db_v1,
+            &[
+                MIGRATIONS[0],
+                "ALTER TABLE samples ADD COLUMN note_free INTEGER",
+            ],
+        )
+        .unwrap();
+        assert_eq!(version(&empty), 2);
+        assert_eq!(count(&empty, "used = 10.0"), 1);
+
+        // Written by a newer Cuotai: every operation fails, nothing is guessed.
+        for op in [
+            store(&empty, "one").bounds().map(drop),
+            store(&empty, "one").latest(alpha).map(drop),
+            store(&empty, "one")
+                .record(alpha, t0() + mins(5), &[quota("5h", Some(11.0), None)])
+                .map(drop),
+        ] {
+            assert_eq!(op, Err(HistoryError::Storage));
+        }
+        assert_eq!(count(&empty, "1"), 1, "the newer file is untouched");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn store_dir_and_files_are_private_even_when_preexisting() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let alpha = config(CONFIG).accounts.remove(0);
+        let fresh = dir.path().join("history").join("history.sqlite3");
+        store(&fresh, "one")
+            .record(&alpha, t0(), &[quota("5h", Some(1.0), None)])
+            .unwrap();
+        assert_eq!(
+            (mode(fresh.parent().unwrap()), mode(&fresh)),
+            (0o700, 0o600)
+        );
+        // While another instance has the file open, its WAL and shared
+        // memory files exist and carry the file's mode.
+        let reader = raw(&fresh);
+        reader
+            .query_row("SELECT COUNT(*) FROM samples", [], |r| r.get::<_, i64>(0))
+            .unwrap();
+        store(&fresh, "one")
+            .record(&alpha, t0() + mins(1), &[quota("5h", Some(2.0), None)])
+            .unwrap();
+        for suffix in ["-wal", "-shm"] {
+            let side = fresh.with_file_name(format!("history.sqlite3{suffix}"));
+            assert_eq!(mode(&side), 0o600, "{suffix} follows the file");
+        }
+        drop(reader);
+
+        let open = dir.path().join("open");
+        std::fs::create_dir(&open).unwrap();
+        std::fs::set_permissions(&open, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let db = open.join("history.sqlite3");
+        std::fs::write(&db, b"").unwrap();
+        std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o644)).unwrap();
+        store(&db, "one").bounds().unwrap();
+        assert_eq!((mode(&open), mode(&db)), (0o700, 0o600));
+    }
+
+    #[test]
+    fn two_instances_write_concurrently_and_writes_are_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let alpha = config(CONFIG).accounts.remove(0);
+        // TUI and desktop: independent handles on one file, overlapping in
+        // half of their readings.
+        let barrier = std::sync::Barrier::new(2);
+        let added: Vec<usize> = std::thread::scope(|scope| {
+            let writers: Vec<_> = [0, 20]
+                .into_iter()
+                .map(|offset| {
+                    let (history, alpha, barrier) = (store(&db, "one"), &alpha, &barrier);
+                    scope.spawn(move || {
+                        barrier.wait();
+                        (offset..offset + 40)
+                            .map(|n| {
+                                let metrics = [
+                                    quota("5h", Some(n as f64), Some(100.0)),
+                                    quota("7d", Some(n as f64 / 2.0), Some(100.0)),
+                                ];
+                                history.record(alpha, t0() + mins(n), &metrics).unwrap()
+                            })
+                            .sum()
+                    })
+                })
+                .collect();
+            writers.into_iter().map(|w| w.join().unwrap()).collect()
+        });
+        assert_eq!(
+            added.iter().sum::<usize>(),
+            2 * 60,
+            "each sample stored once"
+        );
+        let history = store(&db, "one");
+        let five_h = metric_key(&quota("5h", None, None));
+        let points = history.series(&alpha, &five_h, ..).unwrap();
+        assert_eq!(points.len(), 60);
+        assert!(points.windows(2).all(|p| p[0].taken_at < p[1].taken_at));
+        assert_eq!(
+            raw(&db)
+                .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
+                .unwrap(),
+            "ok"
+        );
+
+        // Replaying a reading adds nothing and keeps the first values.
+        let replay = [quota("5h", Some(99.0), Some(100.0))];
+        assert_eq!(history.record(&alpha, t0(), &replay), Ok(0));
+        assert_eq!(
+            history.series(&alpha, &five_h, ..=t0()).unwrap()[0].used,
+            0.0
+        );
+    }
+
+    #[test]
+    fn missing_and_non_finite_values_are_null_never_zero() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = config(CONFIG).accounts.remove(0);
+        let unknown = quota("5h", None, Some(100.0));
+        let mut odd = quota("7d", Some(f64::NAN), Some(f64::INFINITY));
+        odd.remaining = Some(f64::NEG_INFINITY);
+        odd.window = None;
+        odd.resets_at = None;
+        history
+            .record(&alpha, t0(), &[unknown.clone(), odd])
+            .unwrap();
+
+        assert_eq!(count(&db, "used IS NULL AND remaining IS NULL"), 2);
+        assert_eq!(
+            count(&db, "\"limit\" IS NULL"),
+            1,
+            "an infinite limit is unknown"
+        );
+        assert_eq!(count(&db, "\"window\" IS NULL AND resets_at IS NULL"), 1);
+        let latest = history.latest(&alpha).unwrap().unwrap();
+        let values: Vec<_> = latest
+            .metrics
+            .iter()
+            .map(|m| (m.metric.used, m.metric.limit, m.metric.remaining))
+            .collect();
+        assert_eq!(values, [(None, Some(100.0), None), (None, None, None)]);
+        assert_eq!(
+            history.series(&alpha, &metric_key(&unknown), ..),
+            Ok(vec![]),
+            "a reading without `used` is not a point"
+        );
+    }
+
+    #[test]
+    fn identity_follows_moves_and_starts_over_on_rename_or_new_credential() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let original = config(CONFIG);
+        for account in &original.accounts {
+            history
+                .record(account, t0(), &[quota("5h", Some(10.0), Some(100.0))])
+                .unwrap();
+        }
+        store(&db, "two")
+            .record(
+                &original.accounts[0],
+                t0(),
+                &[quota("5h", Some(70.0), None)],
+            )
+            .unwrap();
+        let found = |toml: &str, index: usize| {
+            history
+                .latest(&config(toml).accounts[index])
+                .unwrap()
+                .is_some()
+        };
+        let alpha = groq("alpha", "GROQ_KEY_ALPHA", "");
+        let beta = groq("beta", "GROQ_KEY_BETA", "");
+        assert!(found(&(beta.clone() + &alpha), 1), "moved: same series");
+        assert!(
+            found(
+                &groq("alpha", "GROQ_KEY_ALPHA", "params = { models = \"llama\" }"),
+                0
+            ),
+            "display params do not change the identity"
+        );
+        for (case, edited) in [
+            ("renamed", groq("alpha2", "GROQ_KEY_ALPHA", "")),
+            ("new credential", groq("alpha", "GROQ_KEY_OTHER", "")),
+            (
+                "new region",
+                groq("alpha", "GROQ_KEY_ALPHA", "params = { region = \"eu\" }"),
+            ),
+        ] {
+            assert!(!found(&edited, 0), "{case}: new series");
+        }
+
+        // Saved without alpha: alpha's series of this configuration are
+        // marked for pruning, kept until then; other configurations untouched.
+        history.mark_removed(&config(&beta), t0()).unwrap();
+        assert_eq!((marked(&db, "one"), marked(&db, "two")), (1, 0));
+        assert!(found(&alpha, 0), "marked data stays until pruned");
+        history
+            .mark_removed(&config(&(alpha + &beta)), t0())
+            .unwrap();
+        assert_eq!(
+            marked(&db, "one"),
+            0,
+            "an identity that comes back is unmarked"
+        );
+        history.mark_removed(&config(&beta), t0()).unwrap();
+        history
+            .record(
+                &original.accounts[0],
+                t0() + mins(5),
+                &[quota("5h", Some(11.0), None)],
+            )
+            .unwrap();
+        assert_eq!(marked(&db, "one"), 0, "recording unmarks too");
+
+        // Marking never creates a store.
+        let absent = dir.path().join("absent.sqlite3");
+        store(&absent, "one").mark_removed(&original, t0()).unwrap();
+        assert!(!absent.exists());
+    }
+
+    #[test]
+    fn storage_failures_are_errors_never_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let alpha = config(CONFIG).accounts.remove(0);
+        let metrics = [quota("5h", Some(10.0), Some(100.0))];
+        let file = dir.path().join("file");
+        std::fs::write(&file, b"").unwrap();
+        let corrupt = dir.path().join("corrupt.sqlite3");
+        std::fs::write(&corrupt, vec![0x5a; 8192]).unwrap();
+        let as_dir = dir.path().join("dir.sqlite3");
+        std::fs::create_dir(&as_dir).unwrap();
+        for (case, path) in [
+            ("path is a directory", as_dir),
+            ("parent is a file", file.join("history.sqlite3")),
+            ("not a database", corrupt),
+        ] {
+            let broken = store(&path, "one");
+            assert_eq!(
+                broken.record(&alpha, t0(), &metrics),
+                Err(HistoryError::Storage),
+                "{case}"
+            );
+            assert_eq!(
+                broken.latest(&alpha).map(drop),
+                Err(HistoryError::Storage),
+                "{case}"
+            );
+            assert_eq!(broken.bounds(), Err(HistoryError::Storage), "{case}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_write_is_reported_and_keeps_the_stored_data() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = config(CONFIG).accounts.remove(0);
+        history
+            .record(&alpha, t0(), &[quota("5h", Some(10.0), Some(100.0))])
+            .unwrap();
+        // The disk refuses writes (read-only file, as on a full or remounted volume).
+        std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o400)).unwrap();
+        let later = [quota("5h", Some(20.0), Some(100.0))];
+        assert_eq!(
+            history.record(&alpha, t0() + mins(5), &later),
+            Err(HistoryError::Storage)
+        );
+        std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let five_h = metric_key(&later[0]);
+        assert_eq!(
+            history.series(&alpha, &five_h, ..).unwrap(),
+            [Point {
+                taken_at: t0(),
+                used: 10.0
+            }]
+        );
+    }
+
+    #[test]
+    fn the_file_holds_no_secret_name_or_note() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let mut alpha = config(CONFIG).accounts.remove(0);
+        alpha
+            .params
+            .insert("region".into(), "us-east-sekrit".into());
+        store(&db, "secret-config-id")
+            .record(&alpha, t0(), &[quota("5h", Some(10.0), Some(100.0))])
+            .unwrap();
+        let mut bytes = std::fs::read(&db).unwrap();
+        bytes.extend(std::fs::read(db.with_file_name("history.sqlite3-wal")).unwrap_or_default());
+        let bytes = String::from_utf8_lossy(&bytes);
+        for raw in [
+            "alpha",
+            "GROQ_KEY",
+            "sekrit",
+            "secret-config-id",
+            "groq",
+            "5h\u{0}",
+        ] {
+            assert!(!bytes.contains(raw), "{raw} stored in the history");
+        }
+    }
+
+    #[test]
+    fn latest_returns_the_last_reading_per_metric_with_its_original_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(&dir.path().join("history.sqlite3"), "one");
+        let config = config(CONFIG);
+        let (alpha, beta) = (&config.accounts[0], &config.accounts[1]);
+        assert!(history.latest(alpha).unwrap().is_none());
+        let mut week = quota("7d", Some(30.0), Some(100.0));
+        week.window = Some(MetricWindow::Weekly);
+        history
+            .record(
+                alpha,
+                t0(),
+                &[
+                    quota("5h", Some(10.0), Some(100.0)),
+                    week.clone(),
+                    quota("old", Some(1.0), None),
+                ],
+            )
+            .unwrap();
+        // The next reading drops "old" and reorders the rest.
+        week.used = Some(35.0);
+        let later = t0() + mins(10);
+        history
+            .record(alpha, later, &[week, quota("5h", Some(12.0), Some(100.0))])
+            .unwrap();
+        history
+            .record(beta, later + mins(1), &[quota("5h", Some(90.0), None)])
+            .unwrap();
+
+        let stored = history.latest(alpha).unwrap().unwrap();
+        assert_eq!(
+            stored.checked_at, later,
+            "original time, not when it was read back"
+        );
+        let summary: Vec<_> = stored
+            .metrics
+            .iter()
+            .map(|m| {
+                (
+                    m.metric.label.as_str(),
+                    m.metric.used,
+                    m.taken_at,
+                    m.metric.window,
+                )
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                ("7d", Some(35.0), later, Some(MetricWindow::Weekly)),
+                ("5h", Some(12.0), later, Some(MetricWindow::Window5h)),
+            ]
+        );
+        let five_h = &stored.metrics[1];
+        assert_eq!(five_h.key, metric_key(&five_h.metric));
+        assert_eq!(five_h.metric.resets_at, Some(t0() + TimeDelta::hours(5)));
+        assert_eq!(
+            (five_h.metric.kind, five_h.metric.period.as_deref()),
+            (MetricKind::Quota, None)
+        );
+        assert_eq!(five_h.metric.unit, "%");
+        assert_eq!(
+            crate::freshness::age(stored.checked_at, later + mins(30)),
+            Duration::from_secs(30 * 60)
+        );
+    }
+
+    #[test]
+    fn series_and_bounds_honour_the_range_and_the_configuration() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let config = config(CONFIG);
+        let (alpha, beta) = (&config.accounts[0], &config.accounts[1]);
+        for n in 0..5 {
+            let used = if n == 2 { f64::INFINITY } else { n as f64 };
+            history
+                .record(
+                    alpha,
+                    t0() + mins(10 * n),
+                    &[quota("5h", Some(used), Some(100.0))],
+                )
+                .unwrap();
+        }
+        history
+            .record(beta, t0() - mins(30), &[quota("5h", Some(1.0), None)])
+            .unwrap();
+        store(&db, "two")
+            .record(
+                alpha,
+                t0() - TimeDelta::days(9),
+                &[quota("5h", Some(1.0), None)],
+            )
+            .unwrap();
+
+        let key = metric_key(&quota("5h", None, None));
+        let used = |range: (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>)| -> Vec<f64> {
+            history
+                .series(alpha, &key, range)
+                .unwrap()
+                .iter()
+                .map(|p| p.used)
+                .collect()
+        };
+        use Bound::{Excluded, Included, Unbounded};
+        assert_eq!(
+            used((Unbounded, Unbounded)),
+            [0.0, 1.0, 3.0, 4.0],
+            "non-finite skipped"
+        );
+        assert_eq!(
+            used((Included(t0() + mins(10)), Included(t0() + mins(30)))),
+            [1.0, 3.0]
+        );
+        assert_eq!(
+            used((Excluded(t0() + mins(10)), Excluded(t0() + mins(40)))),
+            [3.0]
+        );
+        assert_eq!(
+            used((Included(t0() + mins(41)), Unbounded)),
+            Vec::<f64>::new()
+        );
+        assert!(history.series(alpha, "unknown", ..).unwrap().is_empty());
+        assert_eq!(
+            history.windows(alpha, &key, t0()..).unwrap().len(),
+            1,
+            "one window, the non-finite sample ignored"
+        );
+
+        assert_eq!(
+            history.bounds(),
+            Ok(Some(Bounds {
+                first: t0() - mins(30),
+                last: t0() + mins(40)
+            })),
+            "every account of this configuration, no other"
+        );
+    }
+
+    #[test]
+    fn windows_group_samples_by_instance() {
+        let reset = t0() + TimeDelta::hours(5);
+        let sample = |at: i64, used: f64, limit: Option<f64>, resets: Option<i64>| WindowSample {
+            taken_at: t0() + mins(at),
+            used: Some(used),
+            limit,
+            resets_at: resets.map(|r| reset + mins(r)),
+        };
+        let cap = Some(100.0);
+        let day = 24 * 60;
+        /// (initial, final, peak, samples) of one window.
+        type Summary = (f64, f64, f64, usize);
+        let cases: Vec<(&str, Vec<WindowSample>, Vec<Summary>)> = vec![
+            (
+                "increasing",
+                vec![
+                    sample(0, 10.0, cap, Some(0)),
+                    sample(60, 20.0, cap, Some(0)),
+                    sample(120, 35.0, cap, Some(0)),
+                ],
+                vec![(10.0, 35.0, 35.0, 3)],
+            ),
+            (
+                "reset: drop above 20% of the limit",
+                vec![
+                    sample(0, 80.0, cap, Some(0)),
+                    sample(60, 90.0, cap, Some(0)),
+                    sample(120, 5.0, cap, Some(0)),
+                ],
+                vec![(80.0, 90.0, 90.0, 2), (5.0, 5.0, 5.0, 1)],
+            ),
+            (
+                "a drop up to 20% stays in the window",
+                vec![
+                    sample(0, 50.0, cap, None),
+                    sample(60, 30.0, cap, None),
+                    sample(90, 40.0, cap, None),
+                ],
+                vec![(50.0, 40.0, 50.0, 3)],
+            ),
+            (
+                "resets_at drift within the tolerance",
+                vec![
+                    sample(0, 10.0, cap, Some(0)),
+                    sample(10, 12.0, cap, Some(2)),
+                    sample(20, 14.0, cap, Some(4)),
+                    sample(30, 16.0, cap, Some(6)),
+                ],
+                vec![(10.0, 16.0, 16.0, 4)],
+            ),
+            (
+                "resets_at advances beyond the tolerance",
+                vec![
+                    sample(0, 10.0, cap, Some(0)),
+                    sample(10, 12.0, cap, Some(3)),
+                    sample(20, 14.0, cap, Some(3)),
+                ],
+                vec![(10.0, 10.0, 10.0, 1), (12.0, 14.0, 14.0, 2)],
+            ),
+            (
+                "gaps of days",
+                vec![
+                    sample(0, 10.0, cap, Some(20 * day)),
+                    sample(3 * day, 30.0, cap, Some(20 * day)),
+                    sample(15 * day, 60.0, cap, Some(20 * day)),
+                    sample(22 * day, 70.0, cap, Some(50 * day)),
+                    sample(25 * day, 72.0, cap, None),
+                ],
+                vec![(10.0, 60.0, 60.0, 3), (70.0, 72.0, 72.0, 2)],
+            ),
+            (
+                "no limit: a drop alone never resets",
+                vec![
+                    sample(0, 100.0, None, None),
+                    sample(60, 150.0, None, None),
+                    sample(120, 20.0, None, None),
+                ],
+                vec![(100.0, 20.0, 150.0, 3)],
+            ),
+            (
+                "no limit: resets_at still splits",
+                vec![
+                    sample(0, 100.0, None, Some(0)),
+                    sample(60, 150.0, None, Some(0)),
+                    sample(120, 20.0, None, Some(day)),
+                ],
+                vec![(100.0, 150.0, 150.0, 2), (20.0, 20.0, 20.0, 1)],
+            ),
+            (
+                "non-finite values are ignored",
+                vec![
+                    sample(0, 80.0, Some(f64::INFINITY), None),
+                    sample(30, f64::NAN, cap, None),
+                    sample(40, f64::INFINITY, cap, None),
+                    sample(60, 5.0, Some(f64::NAN), None),
+                ],
+                vec![(80.0, 5.0, 80.0, 2)],
+            ),
+        ];
+        for (case, samples, expected) in cases {
+            let got: Vec<_> = group_windows(samples)
+                .iter()
+                .map(|w| (w.initial_used, w.final_used, w.peak_used, w.samples))
+                .collect();
+            assert_eq!(got, expected, "{case}");
+        }
+
+        let windows = group_windows([
+            sample(0, 10.0, None, Some(0)),
+            sample(30, 60.0, cap, Some(1)),
+            sample(60, 50.0, None, Some(2)),
+        ]);
+        assert_eq!(windows.len(), 1);
+        let window = &windows[0];
+        assert_eq!(
+            (window.started_at, window.ended_at, window.peak_at),
+            (t0(), t0() + mins(60), t0() + mins(30))
+        );
+        assert_eq!(
+            (window.limit, window.resets_at),
+            (cap, Some(reset + mins(2)))
+        );
+        assert!(group_windows([]).is_empty());
+    }
+}

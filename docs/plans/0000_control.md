@@ -5,8 +5,8 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-20 |
-| Cuotai version at that date | 0.36.0 |
-| Plans | 19 (7 implemented, 3 in progress, 9 proposed) |
+| Cuotai version at that date | 0.37.0 |
+| Plans | 19 (7 implemented, 4 in progress, 8 proposed) |
 
 ## 1. How to maintain it
 
@@ -27,7 +27,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0003](0003_quota-reset-notifications.md) | Quota reset notifications | In progress | RF1 (0.24.0) | — | — | RF1 delivered: the pure `resets::upcoming` planner and `Account::key` (provider slug + name, reused by 0012 RF1.1) in the core. Defines `Notifier`, permission and `notified.json`, reused by 0008. |
 | [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | Implemented | RF1 (0.17.0, `6725548`), RF2 (0.18.0, `d89c1b1`), RF3 (0.19.0, `59f9f22`), RF4 (0.20.0) | — | — | Motion tokens, dashboard effects, dialogs, tray and the TUI animation engine. |
 | [0005](0005_usage-access-level.md) | Usage access level | Implemented | RF1, RF2 (0.33.0), RF3 (0.34.0), RF4 (0.35.0), RF5 (0.35.1) | — | — | Prerequisite of 0015, 0016 and 0017. RF1 and RF2 delivered in the core: `access::describe` (level, credential class, plan, scope, `metered`, evidence with `verified_on`, localized summary/hint/risk/reason) for the 36 providers and their switching modes, exhaustive on `Provider`, with `access.*` texts in `en-US`/`es`. RF3: the TUI wizard and the desktop dialog show the level in the picker, the credential notes under the credential help, the cost warning from the descriptor (`Provider::cost_advisory` removed) and a "Save anyway" confirmation for `Unavailable`, all from `account_edit::draft_access`. RF4: TUI and desktop cards and details show "level · summary" and the core's `UsageAccess::explain` (an `Unavailable` reason, a changed undocumented interface with its reference) in place of the generic failure; `UsageAccess` serializes for `export::v1`, where it enters as `access` with 0012 RF1.1; `--json` unchanged. RF5: `docs/providers.md` carries the usage access matrix (level, credential, plan, scope, evidence per provider and mode) generated from `access::describe` by a core test that fails on drift with regeneration instructions (`CUOTAI_REGENERATE_DOCS=1`); the new-provider guides in `AGENTS.md`, `docs/architecture.md` and `CONTRIBUTING.md` list the access descriptor as mandatory. |
-| [0006](0006_local-measurement-history.md) | Local measurement history | Proposed | — | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. |
+| [0006](0006_local-measurement-history.md) | Local measurement history | In progress | RF1, RF3 (0.37.0) | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. RF1 and RF3 delivered in the core: `history::HistoryStore` in its own private `history.sqlite3` (WAL, busy timeout, schema v1 with forward migrations, idempotent writes, digests of the configuration and of the model catalog's account identity, `NULL` for missing values, `mark_removed` for accounts gone from the TOML, every storage failure an error) and the network-free `latest`, `series` (`pace::Point`), `windows` (20% drop or `resets_at` beyond 2 minutes ends a window) and `bounds`. Nothing records yet: RF2 wires it into the `Monitor`; RF4 to RF6 pending. |
 | [0007](0007_pace-until-reset.md) | Pace until the reset | Implemented | RF1, RF2 (0.23.0), RF3 (0.31.0), RF4 (0.32.0) | — | 0006 | RF1 and RF2 delivered: `pace::assess` and its localized labels in the core; `pace::Point` is the sample 0006 RF3 returns. Without history it uses the average since the start of the window. RF3: the desktop shows the pace under the card bar, per metric in the details (expected mark over the bar) and in the tray, with an on-by-default switch in Settings → Appearance. RF4: the TUI cards show a stage icon per eligible metric, the details a pace line per metric, and `--once` a `Ritmo:` line; `--json` is unchanged and pace enters `export::v1` with 0012. |
 | [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | Proposed | — | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. |
 | [0009](0009_binding-limit-indicator.md) | Binding limit indicator | Implemented | RF1, RF4 (0.22.0), RF2 (0.26.0), RF3 (0.27.0) | — | — | `metrics::binding` and its localized summary in the core, read by the desktop (ring, list, card chip, highlighted metric, opt-in "most restrictive first" order) and by the TUI (card leads with the binding metric, details marker) and `--once` (one summary line per account). Consumed by 0007, 0012 and 0014; 0012 RF1.1 adds it to `export::v1`. |
@@ -81,6 +81,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.35.0 | 0005 | RF4 (TUI and desktop cards and details: discreet level and summary, the reason of an `Unavailable` account and "the interface may have changed" with its reference for an `Undocumented` schema mismatch in place of the generic failure; serializable descriptor for `export::v1`; `--json` unchanged). |
 | 0.35.1 | 0005 | RF5 (generated `docs/providers.md` usage access matrix verified against `access::describe` by a drift test; access descriptor listed as a mandatory step in the new-provider guides). |
 | 0.36.0 | 0012 | RF1 (core `export::v1` contract built from the `RefreshCycle` without queries: key, class, current report, age and freshness, preserved stale reading, binding metric, pace per metric and access descriptor; redacted notes and source, e-mail only with "include identity", `null` for missing values; `docs/export-v1.md`, JSON Schema and reference-output tests). |
+| 0.37.0 | 0006 | RF1 and RF3 (core measurement history: private `history.sqlite3` in WAL with a busy timeout, versioned forward-migrated schema, idempotent per account, metric and time, isolated by configuration and account-identity digests, `NULL` for missing values, removed accounts marked for pruning, storage errors exposed; network-free `latest` with the original time, `series`, `windows` with reset detection and `bounds`). |
 
 ## 4. Dependency graph
 
@@ -97,7 +98,7 @@ graph LR
   P3["0003 Reset notifications"]:::wip
   P4["0004 Animations"]:::done
   P5["0005 Access level"]:::done
-  P6["0006 History"]:::todo
+  P6["0006 History"]:::wip
   P7["0007 Pace"]:::done
   P8["0008 Threshold alerts"]:::todo
   P9["0009 Binding limit"]:::done
@@ -211,3 +212,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-20 | PRD 0005 RF4 delivered in 0.35.0; plan 0005 stays in progress (RF5 pending). |
 | 2026-10-20 | PRD 0005 RF5 delivered in 0.35.1; plan 0005 implemented. |
 | 2026-10-20 | PRD 0012 RF1 delivered in 0.36.0; plan 0012 in progress (RF2 to RF5 pending); local server decision recorded (off by default, loopback only, port 6738). |
+| 2026-10-20 | PRD 0006 RF1 and RF3 delivered in 0.37.0; plan 0006 in progress (RF2 and RF4 to RF6 pending). |

@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-20
+
+### Added
+
+- `cuotai-core` exposes `history::HistoryStore`, a local measurement history in its own private SQLite file (`<OS local data dir>/cuotai/history/history.sqlite3`, directory `0700` and file `0600` on Unix) shared by every front end pointing at the same TOML: it records per account and metric only numbers and window metadata (never secrets, account names, URLs or notes; a missing value stays `NULL`), keeps an account's series when it is moved and starts a new one when it is renamed or gets another credential, product or region, marks removed accounts for pruning, writes safely from two instances at once, reports every storage failure as an error, and answers `latest` (the last reading per metric with its original time), `series`, `windows` (use per window instance with reset detection) and `bounds` without any network; nothing records into it yet (PRD 0006 RF1, RF3).
+
 ## [0.36.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes the versioned `export::v1` contract (`Export::from_cycle`), built from the state a `RefreshCycle` already holds without querying any provider: per account its stable key, class, current report, age, freshness, the preserved stale reading, binding metric, pace per metric and usage access descriptor, with credential variable names, URL credentials and (unless "include identity" is on) e-mails redacted and `null` for every missing value, documented in `docs/export-v1.md` with a JSON Schema and a reference output that tests guard against accidental changes (PRD 0012 RF1).
+- `cuotai-core` exposes the versioned `export::v1` contract (`Export::from_cycle`), built from the state a `RefreshCycle` already holds without querying any provider: per account its stable key, class, current report, age, freshness, the preserved stale reading, binding metric, pace per metric and usage access descriptor, with credential variable names, URL credentials and (unless "include identity" is on) e-mails redacted and `null` for every missing value, documented in `docs/export-v1.md` with a JSON Schema and a reference output that tests guard against accidental changes (PRD 0012 RF1, ed5f027).
 
 ## [0.35.1] - 2026-10-20
 
@@ -360,8 +366,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/40bbc64...main
-[0.36.0]: https://github.com/jmarcon/cuotai/compare/40bbc64...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/ed5f027...main
+[0.37.0]: https://github.com/jmarcon/cuotai/compare/ed5f027...main
+[0.36.0]: https://github.com/jmarcon/cuotai/commit/ed5f027
 [0.35.1]: https://github.com/jmarcon/cuotai/commit/40bbc64
 [0.35.0]: https://github.com/jmarcon/cuotai/commit/594aa92
 [0.34.0]: https://github.com/jmarcon/cuotai/commit/6e448ea
