@@ -146,6 +146,9 @@ pub struct Monitor {
     models: Option<models::ModelCache>,
     /// PRD 0006 RF2: measurement history recorder; `None` records nothing.
     history: Option<history::HistoryRecorder>,
+    /// PRD 0011 RF2: opt-in public status queries and their cache; off
+    /// until a frontend enables it. Shared by [`Monitor::with_config`].
+    incidents: incidents::IncidentMonitor,
     /// Test-only fixed clock for `checked_at`, so recording tests control
     /// the time between readings.
     #[cfg(test)]
@@ -192,6 +195,7 @@ impl Monitor {
             groq_url: None,
             models: None,
             history: None,
+            incidents: incidents::IncidentMonitor::new(),
             #[cfg(test)]
             clock: None,
         })
@@ -235,6 +239,7 @@ impl Monitor {
             groq_url: self.groq_url.clone(),
             models: self.models.clone(),
             history: self.history.clone(),
+            incidents: self.incidents.clone(),
             #[cfg(test)]
             clock: self.clock.clone(),
         })
@@ -371,6 +376,92 @@ impl Monitor {
             .inspect_err(|error| recorder.note_error(*error))
     }
 
+    /// PRD 0011 RF2: the status preference and cache this monitor uses;
+    /// [`incidents::IncidentMonitor::set_enabled`] turns queries on or off.
+    pub fn incidents(&self) -> &incidents::IncidentMonitor {
+        &self.incidents
+    }
+
+    /// Use `incidents` (its preference and cached readings), e.g. to carry
+    /// them into a monitor rebuilt from scratch. [`Monitor::with_config`]
+    /// keeps them without this call.
+    pub fn with_incidents(mut self, incidents: incidents::IncidentMonitor) -> Self {
+        self.incidents = incidents;
+        self
+    }
+
+    /// Providers of the configured accounts that have a verified source, in
+    /// configuration order, once each.
+    fn status_sources(&self) -> Vec<(Provider, incidents::StatusSource)> {
+        let mut seen = Vec::new();
+        self.config
+            .accounts
+            .iter()
+            .filter_map(|account| {
+                let provider = account.provider;
+                if seen.contains(&provider) {
+                    return None;
+                }
+                seen.push(provider);
+                incidents::source(provider).map(|source| (provider, source))
+            })
+            .collect()
+    }
+
+    /// PRD 0011 RF2: query each due source of the configured providers once
+    /// (coalesced by URL, cached for [`incidents::CACHE_TTL`], under this
+    /// monitor's query slots) and return their statuses. Makes no request
+    /// and returns nothing while the feature is off. A failed status query
+    /// keeps the last known reading, marked stale.
+    pub async fn refresh_incidents(&self) -> Vec<incidents::ProviderStatus> {
+        if !self.incidents.is_enabled() {
+            return Vec::new();
+        }
+        let sources = self.status_sources();
+        let mut urls = HashSet::new();
+        futures_util::future::join_all(
+            sources
+                .iter()
+                .filter(|(_, source)| urls.insert(source.url))
+                .map(|(_, source)| {
+                    self.incidents
+                        .ensure(*source, &self.http, &self.query_slots)
+                }),
+        )
+        .await;
+        sources
+            .into_iter()
+            .map(|(provider, source)| self.incidents.status(provider, source))
+            .collect()
+    }
+
+    /// The cached statuses of the configured providers with a verified
+    /// source, without network; empty while the feature is off. Providers
+    /// without a source never appear (they are not "operational").
+    pub fn incident_statuses(&self) -> Vec<incidents::ProviderStatus> {
+        if !self.incidents.is_enabled() {
+            return Vec::new();
+        }
+        self.status_sources()
+            .into_iter()
+            .map(|(provider, source)| self.incidents.status(provider, source))
+            .collect()
+    }
+
+    /// RF3: the provider's current state for a failed query, reusing (or
+    /// waiting for) the cycle's single status query. `None` while off or
+    /// without a verified source.
+    async fn incident_state(&self, provider: Provider) -> Option<incidents::IncidentState> {
+        if !self.incidents.is_enabled() {
+            return None;
+        }
+        let source = incidents::source(provider)?;
+        self.incidents
+            .ensure(source, &self.http, &self.query_slots)
+            .await;
+        Some(self.incidents.status(provider, source).state)
+    }
+
     fn now(&self) -> chrono::DateTime<Utc> {
         #[cfg(test)]
         if let Some(clock) = &self.clock {
@@ -379,13 +470,16 @@ impl Monitor {
         Utc::now()
     }
 
+    /// Refresh every account and, when enabled, the provider statuses
+    /// ([`Monitor::refresh_incidents`]) concurrently. A status failure never
+    /// delays or changes a quota reading beyond its own short timeout.
     pub async fn refresh(&self) -> Snapshot {
         let started_at = self.now();
-        let mut indexed = stream::iter(0..self.config.accounts.len())
+        let accounts = stream::iter(0..self.config.accounts.len())
             .map(|index| async move { (index, self.refresh_account(index).await) })
             .buffer_unordered(self.config.concurrency)
-            .collect::<Vec<_>>()
-            .await;
+            .collect::<Vec<_>>();
+        let (mut indexed, _) = tokio::join!(accounts, self.refresh_incidents());
         indexed.sort_unstable_by_key(|(index, _)| *index);
         Snapshot {
             started_at,
@@ -424,7 +518,12 @@ impl Monitor {
                 data.source,
             ),
             Err(error) => {
-                let (plain, l10n) = crate::text::Notes::one(error.note).finish();
+                let mut notes = crate::text::Notes::one(error.note);
+                // PRD 0011 RF3: context only; the status stays as queried.
+                if let Some(state) = self.incident_state(account.provider).await {
+                    notes.extend(incidents::failure_notes(error.status, state));
+                }
+                let (plain, l10n) = notes.finish();
                 (error.status, Vec::new(), plain, l10n, String::new())
             }
         };

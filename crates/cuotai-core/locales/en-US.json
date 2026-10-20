@@ -516,6 +516,8 @@
   "note.cursor_personal.no_numeric_usage": "No numeric block returned by the personal API; absent does not mean unlimited.",
   "note.cursor_personal.personal_endpoint": "Personal cursor.com/api/usage-summary endpoint; not the team Admin API.",
   "note.cursor_personal.user_name": "User: {name}.",
+  "note.incident.auth_wait": "While the incident lasts, consider waiting before signing in again; reauthenticating is still available.",
+  "note.incident.ongoing": "The provider reports an ongoing incident; the failure may not be from your account.",
   "note.inference.grok_cycle_total_unusable": "Current cycle preview without usable numeric total.",
   "note.inference.grok_management_api": "Management API (`management-api.x.ai`) is distinct from the inference API (`api.x.ai`) and the X social API (`api.x.com`); the key used is the Management Key generated at console.x.ai → Settings → Team.",
   "note.inference.grok_prepaid_no_monthly_expiration": "Prepaid credits: the `prepaid_credits_total` preview does not have a monthly expiration; monthly_spend caps apply only to the cycle window.",

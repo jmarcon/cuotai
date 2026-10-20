@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-10-20
+
+### Added
+
+- `cuotai-core` can read the public status of the configured providers, off until the frontend enables it through `Monitor::incidents()`: each verified source is queried once per five minutes through the monitor's own HTTP client and query limit, with no credentials, an identified User-Agent, a 5-second timeout and a 1 MiB cap, and `Monitor::refresh_incidents`/`incident_statuses` report each provider as operational, degraded, partial or major outage, maintenance or unknown, with the active incident's cleaned-up title, start and public link; a failed status query keeps the last reading marked stale and never changes the quota reading, and while the provider reports an incident a failed query (error, rate limit or authentication) gains a note that the failure may not be from the account, plus a suggestion to wait before signing in again for authentication failures, without changing its status (PRD 0011 RF2, RF3).
+
 ## [0.46.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `incidents::source` with verified public status endpoints, wire formats, component filters and verification dates for 17 providers, sharing endpoints across related products and explicitly returning no source for the other 19 rather than implying they are operational; the provider guide records source policies and coverage limits, and looking up a source makes no network request or change to the CLI, TUI or desktop (PRD 0011 RF1).
+- `cuotai-core` exposes `incidents::source` with verified public status endpoints, wire formats, component filters and verification dates for 17 providers, sharing endpoints across related products and explicitly returning no source for the other 19 rather than implying they are operational; the provider guide records source policies and coverage limits, and looking up a source makes no network request or change to the CLI, TUI or desktop (PRD 0011 RF1, 074966d).
 
 ## [0.45.0] - 2026-10-20
 
@@ -426,8 +432,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/e421c1b...main
-[0.46.0]: https://github.com/jmarcon/cuotai/compare/e421c1b...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/074966d...main
+[0.47.0]: https://github.com/jmarcon/cuotai/compare/074966d...main
+[0.46.0]: https://github.com/jmarcon/cuotai/commit/074966d
 [0.45.0]: https://github.com/jmarcon/cuotai/commit/e421c1b
 [0.44.0]: https://github.com/jmarcon/cuotai/commit/e5f1573
 [0.43.0]: https://github.com/jmarcon/cuotai/commit/816ce15
