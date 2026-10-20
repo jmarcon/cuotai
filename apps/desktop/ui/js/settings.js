@@ -2,7 +2,7 @@
 import { te, t, tl, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, currentSort, getSettings, groupingRecharging, historyErase, historyExport, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, setConfigFile, setGroupRecharging, setHistoryDays, setMotion, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setRefreshSeconds, setShowPace, setSort, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -48,6 +48,10 @@ export async function openSettings(extra = {}) {
       </section>
       <section class="set-sec" data-history><h3>${te("settings.history.title")}</h3>
         <p class="hint">${te("settings.history.help")}</p>
+        <label class="check"><input id="history-recording" type="checkbox" ${s.history_recording !== false ? "checked" : ""} /> ${te("settings.history.record")}</label>
+        <p class="hint">${te("settings.history.recordHelp")}</p>
+        <p class="err" id="history-recording-msg" role="alert"></p>
+        <p class="hint" id="history-size">${te("common.loading")}</p>
         <label class="f"><span>${te("settings.history.days")}</span>
           <input id="history-days" type="number" inputmode="numeric" min="${s.history_days_min}" max="${s.history_days_max}" step="1" value="${esc(s.history_days)}" />
           <small>${te("settings.history.range", { min: s.history_days_min, max: s.history_days_max })}</small></label>
@@ -152,7 +156,11 @@ export async function openSettings(extra = {}) {
 /** Accounts of the loaded configuration that have a report, as `[index, label]` for the history scope. */
 const historyAccounts = (view) => (view?.reports ?? []).map((r) => [r.index, `${brand(r.provider).label} · ${r.account}`]);
 
-/** PRD 0006 RF4: retention (`desktop.json`), export and erasure, all done by the core; erasing always asks first. */
+/** "1.8 MiB" / "12.5 KiB": the size of the history file (binary units, as the 64 MiB ceiling). */
+const fmtBytes = (bytes) => (bytes < 1 << 20 ? `${fmtNumber(bytes / 1024, 1)} KiB` : `${fmtNumber(bytes / (1 << 20), 1)} MiB`);
+
+/** PRD 0006 RF4/RF5.3: recording switch and retention (`desktop.json`), size on disk, export and erasure, all done
+ *  by the core; erasing always asks first. */
 function bindHistory(dlg) {
   const days = dlg.querySelector("#history-days");
   const msg = dlg.querySelector("#history-msg");
@@ -162,12 +170,22 @@ function bindHistory(dlg) {
   const period = () => { const v = dlg.querySelector("#history-period").value; return v === "" ? null : Number(v); };
   const confirm = dlg.querySelector("#history-confirm");
   const report = (text, ok) => { dataMsg.classList.toggle("ok", ok); dataMsg.textContent = text; };
+  const size = dlg.querySelector("#history-size");
+  const showSize = () => historySize().then(
+    (bytes) => { size.textContent = t("settings.history.size", { size: fmtBytes(bytes) }); },
+    (e) => { size.textContent = t("settings.history.sizeUnknown", { error: l10nError(e) }); });
+  showSize();
+  // Off stops recording at once and keeps the data; on failure the box goes back to the saved value.
+  dlg.querySelector("#history-recording").onchange = (e) => setHistoryRecording(e.target.checked).then(
+    () => { dlg.querySelector("#history-recording-msg").textContent = ""; },
+    (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#history-recording-msg").textContent = errorText(x); });
   dlg.querySelector("[data-apply-history]").onclick = async () => {
     msg.classList.remove("ok");
     try {
       await setHistoryDays(Number(days.value));
       msg.classList.add("ok");
       msg.textContent = t("settings.history.saved", { days: Number(days.value) });
+      showSize(); // the new retention prunes at once
     } catch (e) { msg.textContent = errorText(e); }
   };
   for (const button of dlg.querySelectorAll("[data-export]")) button.onclick = async () => {
@@ -192,6 +210,7 @@ function bindHistory(dlg) {
     confirm.hidden = true;
     try { report(t("settings.history.erased", { count: await historyErase(scope) }), true); }
     catch (e) { report(l10nError(e), false); }
+    showSize();
   };
 }
 

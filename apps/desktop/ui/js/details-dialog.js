@@ -1,23 +1,29 @@
-// Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, notas, selos e ações.
+// Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, histórico, notas, selos e ações.
 import { te, tl } from "./i18n.js";
 import { brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
+import { mountHistory } from "./history.js";
 import { showDialog } from "./motion.js";
 
 let dlg = null;
 let currentKey = null;
-let ctx = null; // { reports(), generation(), onEdit(index), onRemove(index, label), onChange() }
+let ctx = null; // { reports(), generation(), historyEpoch(), onEdit(index), onRemove(index, label), onChange() }
 let models = null; // seção de modelos montada uma vez por diálogo; sobrevive aos redesenhos
+let history = null; // PRD 0006 RF5.2: idem, para o histórico
 
 const badges = (list) =>
   list.length ? `<div class="badges">${list.map((b) => `<span class="badge ${esc(b.tone)}">${esc(tl(b.text))}</span>`).join("")}</div>` : "";
+/** What makes the history worth reading again: a new reading, an erasure or the recording switch. */
+const historyStamp = (r) => `${r.checked_at}|${ctx.historyEpoch()}`;
 
 function render() {
   const r = ctx.reports().find((x) => reportKey(x) === currentKey);
   if (!r) return dlg.close(); // a conta foi removida ou mudou de identidade
   models ??= mountModels({ key: currentKey, index: r.index, generation: ctx.generation() });
   models.update(r.index, ctx.generation());
-  const focus = models.focused();
+  history ??= mountHistory({ key: currentKey, index: r.index, generation: ctx.generation(), stamp: historyStamp(r) });
+  history.update(r.index, ctx.generation(), historyStamp(r));
+  const focus = models.focused() ?? history.focused();
   const id = r.identity;
   dlg.innerHTML = `<div class="dlg-body">
     <div class="det-head">
@@ -30,9 +36,10 @@ function render() {
       </div>
     </div>
     ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
-    <div class="det-body">${detailHtml(r, { eye: true })}<div data-models-slot></div></div>
+    <div class="det-body">${detailHtml(r, { eye: true })}<div data-history-slot></div><div data-models-slot></div></div>
     <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;
+  history.attach(dlg);
   models.attach(dlg, focus);
 }
 
@@ -44,7 +51,7 @@ export function openDetails(key, context, from = null) {
     dlg = document.createElement("dialog");
     dlg.className = "dlg details";
     document.body.append(dlg);
-    dlg.addEventListener("close", () => { models?.dispose(); models = null; dlg = null; });
+    dlg.addEventListener("close", () => { models?.dispose(); models = null; history?.dispose(); history = null; dlg = null; });
     dlg.addEventListener("click", (e) => {
       const t = e.target;
       const r = () => ctx.reports().find((x) => reportKey(x) === currentKey);

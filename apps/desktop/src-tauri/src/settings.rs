@@ -26,6 +26,10 @@ struct Stored {
     /// = the core default (90). A value out of range reads as the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     history_days: Option<u32>,
+    /// Recording of the measurement history (PRD 0006 RF5.3); absent = on.
+    /// Only `false` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    history_recording: Option<bool>,
 }
 
 /// The history retention stored in `desktop.json`; the core default when
@@ -40,6 +44,16 @@ fn retention_of(stored: &Stored) -> Retention {
 /// PRD 0006 RF4.1: the measurement history retention of this device.
 pub fn history_retention() -> Retention {
     retention_of(&load())
+}
+
+/// On unless `desktop.json` says `false`.
+fn recording_of(stored: &Stored) -> bool {
+    stored.history_recording != Some(false)
+}
+
+/// PRD 0006 RF5.3: whether this device records new readings.
+pub fn history_recording() -> bool {
+    recording_of(&load())
 }
 
 /// Valores aceitos para `motion`, na ordem exibida pela UI.
@@ -181,6 +195,12 @@ pub fn save_history_days(days: u32) -> Result<Retention, &'static str> {
     Ok(retention)
 }
 
+/// Records new readings or not; `true` (the default) removes the key.
+pub fn save_history_recording(on: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| s.history_recording = (!on).then_some(false))
+}
+
 #[derive(Serialize)]
 pub struct SettingsView {
     /// Pasta em uso agora.
@@ -202,6 +222,8 @@ pub struct SettingsView {
     history_days: u16,
     history_days_min: u16,
     history_days_max: u16,
+    /// New readings enter the history (on by default).
+    history_recording: bool,
     version: &'static str,
 }
 
@@ -221,6 +243,7 @@ pub fn view() -> SettingsView {
         history_days: retention_of(&stored).keep_days(),
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,
+        history_recording: recording_of(&stored),
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -334,5 +357,20 @@ mod tests {
         }
         assert_eq!(save_history_days(6), Err("invalid_history_days"));
         assert_eq!(save_history_days(400), Err("invalid_history_days"));
+    }
+
+    #[test]
+    fn history_recording_is_on_unless_turned_off_and_keeps_other_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert!(recording_of(&read(&file)), "on by default");
+        update(&file, |s| s.history_days = Some(30)).unwrap();
+        update(&file, |s| s.history_recording = Some(false)).unwrap();
+        let stored = read(&file);
+        assert!(!recording_of(&stored));
+        assert_eq!(retention_of(&stored).keep_days(), 30);
+        // A hand-edited `true` means on, like a removed key.
+        fs::write(&file, r#"{"history_recording":true}"#).unwrap();
+        assert!(recording_of(&read(&file)));
     }
 }

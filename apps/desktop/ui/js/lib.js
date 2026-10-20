@@ -106,6 +106,11 @@ export const openUserDir = () => call("open_user_dir");
 export const setHistoryDays = (days) => call("set_history_days", { days });
 export const historyExport = (index, days, format, path) => call("history_export", { index, days, format, path });
 export const historyErase = (index) => call("history_erase", { index });
+// PRD 0006 RF5: the recording switch (desktop.json), the file's size on disk and an account's recorded history
+// (`range`: day, week or month; `metricKey` null = every metric), bound to the view's `generation` like the models.
+export const setHistoryRecording = (on) => call("set_history_recording", { on });
+export const historySize = () => call("history_size");
+export const accountHistory = (index, generation, range, metricKey = null) => call("account_history", { index, generation, range, metricKey });
 /** Native "save as" for an export (`csv` or `json`); null when cancelled. */
 export async function pickExportFile(format) {
   const defaultPath = `cuotai-history.${format}`;
@@ -178,6 +183,8 @@ export function fmtAmount(m) {
   if (m.limit == null) return m.used == null ? "—" : `${fmtNumber(m.used)}${unitSuffix(m)}`;
   return `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m)}`;
 }
+/** One recorded value of a metric with `unit` (history): "60%", "12.5 USD", or a bare count. */
+export const fmtValue = (v, unit) => (unit === "%" ? `${fmtNumber(v)}%` : `${fmtNumber(v)}${unitSuffix({ unit })}`);
 /** Métrica sem limite utilizável: texto no lugar da barra (nunca inventa "100% livre"). */
 export function textualMetric(m) {
   if (m.state === "exhausted" && m.no_cap) return t("metric.exhausted");
@@ -567,7 +574,8 @@ const demoView = () => {
     // `?history-warning` shows the size-ceiling warning (PRD 0006 RF4.3) the core would send.
     history_warning: new URLSearchParams(location.search).has("history-warning")
       ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "O histórico passou de 64 MiB: as 1200 medições mais antigas foram apagadas." }
-      : null };
+      : null,
+    history_epoch: demoSettings.historyEpoch };
 };
 // ponytail: demo mirror of `access::describe` + `UsageAccess::explain` (default modes, generic pt summary and
 // evidence); the app reads both from the core.
@@ -583,13 +591,81 @@ function demoAccess(r) {
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
     explanation: r.status === "ready" ? null : reason ?? changed };
 }
-const demoSettings = { custom: null, config: null, generation: 1 };
+const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set() };
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
 // nenhum catálogo inventado é exibido como real.
 const demoModels = async ({ index, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
   if (!demoReports[index]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Conta inexistente nesta configuração." });
   return { state: "unsupported", reason: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } };
+};
+// ponytail: demo mirror of `HistoryStore::account_history` + `MetricHistory::{trend, chart}` over synthetic samples:
+// every 20 minutes for 10 days with a day missing (days 6 to 5 ago), 5-hour windows that refill, weekly and longer
+// windows that only grow. Accounts without metrics (Groq) have none: the empty state. The app reads the real file.
+const DEMO_HISTORY_CELLS = 96;
+const SPANS = { day: 1, week: 7, month: 30 };
+const DAY_MS = 864e5;
+const demoWave = (seed) => 0.55 + 0.45 * Math.sin(seed * 12.9898) * Math.sin(seed * 78.233);
+function demoSamples(m, metricIndex, now) {
+  if (m.used == null) return [];
+  const limit = m.limit || 100, out = [];
+  const windowMs = { window_5h: 5 * 36e5, weekly: 7 * DAY_MS, monthly: 30 * DAY_MS }[m.window] ?? 30 * DAY_MS;
+  for (let at = now - 10 * DAY_MS; at <= now; at += 20 * 6e4) {
+    if (at > now - 6 * DAY_MS && at < now - 5 * DAY_MS) continue; // the computer was off
+    const start = Math.floor(at / windowMs) * windowMs;
+    const peak = Math.min(1, demoWave(start / windowMs + metricIndex)) * limit;
+    out.push({ taken_at: at, used: Math.round(peak * ((at - start) / windowMs) * 10) / 10 });
+  }
+  return out;
+}
+function demoChart(points, limit, from, to, windows) {
+  const span = to - from, heights = new Array(DEMO_HISTORY_CELLS).fill(null);
+  const used = points.map((p) => p.used);
+  const [min, max] = used.length ? [Math.min(...used), Math.max(...used)] : [0, 0];
+  const [floor, ceiling] = limit > 0 ? [Math.min(min, 0), Math.max(limit, max)] : [min, max];
+  const height = (v) => (ceiling > floor ? Math.min(1, Math.max(0, (v - floor) / (ceiling - floor))) : 0);
+  let previous = null; // readings at most an hour apart carry the earlier value across empty cells, as the core
+  for (const p of points) {
+    const cell = Math.min(DEMO_HISTORY_CELLS - 1, Math.floor(((p.taken_at - from) * DEMO_HISTORY_CELLS) / span));
+    if (previous && p.taken_at - previous.at <= 36e5) for (let c = previous.cell + 1; c < cell; c++) heights[c] = height(previous.used);
+    heights[cell] = Math.max(heights[cell] ?? -Infinity, height(p.used));
+    previous = { at: p.taken_at, cell, used: p.used };
+  }
+  const last = points.at(-1);
+  return { floor, ceiling, heights,
+    last: last ? { taken_at: new Date(last.taken_at).toISOString(), used: last.used, x: (last.taken_at - from) / span, y: height(last.used) } : null,
+    resets: windows.slice(1).map((w) => ({ at: w.started_at, x: (Date.parse(w.started_at) - from) / span })) };
+}
+function demoWindows(points, limit) {
+  const windows = [];
+  for (const p of points) {
+    const w = windows.at(-1);
+    const iso = new Date(p.taken_at).toISOString();
+    if (!w || (limit > 0 && w.final_used - p.used > 0.2 * limit)) {
+      windows.push({ started_at: iso, ended_at: iso, resets_at: null, limit, initial_used: p.used, final_used: p.used, peak_used: p.used, peak_at: iso, samples: 1 });
+      continue;
+    }
+    Object.assign(w, { ended_at: iso, final_used: p.used, samples: w.samples + 1 });
+    if (p.used > w.peak_used) Object.assign(w, { peak_used: p.used, peak_at: iso });
+  }
+  return windows;
+}
+const demoHistory = async ({ index, generation, range, metricKey }) => {
+  if (generation !== demoSettings.generation) throw STALE;
+  const r = demoReports[index];
+  if (!r) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Conta inexistente nesta configuração." });
+  const to = Date.now(), from = to - SPANS[range] * DAY_MS;
+  const erased = demoSettings.historyErased.has("all") || demoSettings.historyErased.has(index);
+  const metrics = erased ? [] : (r.metrics.length ? r.metrics : r.last_good?.metrics ?? []).map((m, i) => {
+    const points = demoSamples(m, i, to).filter((p) => p.taken_at >= from);
+    const limit = m.limit ?? null, windows = demoWindows(points, limit);
+    const used = points.map((p) => p.used);
+    return { key: `${r.provider}-${i}`, label: m.label, unit: m.unit, kind: m.kind, window: m.window, limit, samples: points.length,
+      trend: points.length ? { min: Math.min(...used), max: Math.max(...used), last: { taken_at: new Date(points.at(-1).taken_at).toISOString(), used: points.at(-1).used } } : null,
+      chart: demoChart(points, limit, from, to, windows), windows };
+  });
+  return { range, from: new Date(from).toISOString(), to: new Date(to).toISOString(), recording: demoSettings.historyRecording,
+    metrics: metricKey == null ? metrics : metrics.filter((m) => m.key === metricKey) };
 };
 const demo = {
   get_view: async () => demoView(),
@@ -683,14 +759,18 @@ const demo = {
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
-    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, version: "demo" }),
+    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
-  // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven.
+  // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
+  // erased account (or everything) leaves the synthetic history of `account_history`.
   history_export: async ({ index }) => (index == null ? 42 : 7),
-  history_erase: async ({ index }) => (index == null ? 42 : 7),
+  history_erase: async ({ index }) => { demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
+  set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
+  history_size: async () => (demoSettings.historyErased.has("all") ? 4096 : 1887437),
+  account_history: demoHistory,
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
   // Demonstração: amostra da lista real (no app, a lista completa vem do core).

@@ -5,11 +5,14 @@
 //! the reading, counted in [`HistoryStatus::dropped`]. The worker also
 //! prunes by [`Retention`] when it starts and then every 24 hours (RF4.1).
 //! Every storage failure lands in [`HistoryStatus`], which front ends show.
+//! Recording can be switched off (RF5.3): readings are then ignored while
+//! what was recorded stays, still pruned by the retention.
 
 use super::{CeilingPrune, HistoryError, HistoryStore, Retention};
 use crate::text::{params, Localized};
 use crate::{Account, Config, Metric, Report, Status};
 use chrono::{DateTime, Utc};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -77,6 +80,8 @@ impl HistoryStatus {
 struct Shared {
     store: Mutex<HistoryStore>,
     status: Mutex<HistoryStatus>,
+    /// RF5.3: `false` ignores new readings (on by default).
+    recording: AtomicBool,
 }
 
 impl Shared {
@@ -163,6 +168,7 @@ impl HistoryRecorder {
         let shared = Arc::new(Shared {
             store: Mutex::new(store),
             status: Mutex::new(HistoryStatus::default()),
+            recording: AtomicBool::new(true),
         });
         let worker = Arc::clone(&shared);
         let spawned = std::thread::Builder::new()
@@ -202,12 +208,24 @@ impl HistoryRecorder {
         }
     }
 
+    /// RF5.3: record new readings (`true`, the default) or ignore them
+    /// (`false`); what was recorded stays until erased and is still pruned
+    /// by the retention. Shared by every clone.
+    pub fn set_recording(&self, on: bool) {
+        self.shared.recording.store(on, Ordering::Relaxed);
+    }
+
+    pub fn is_recording(&self) -> bool {
+        self.shared.recording.load(Ordering::Relaxed)
+    }
+
     /// RF2.2: queue `report` of `account` when it is `Ready`, with its
     /// metrics that carry a finite `used` or `remaining` (taken at its
-    /// `checked_at`). Any other status, or no such metric, records nothing.
-    /// Never waits: a full queue drops the reading (RF2.4).
+    /// `checked_at`). Any other status, no such metric, or recording
+    /// switched off records nothing. Never waits: a full queue drops the
+    /// reading (RF2.4).
     pub fn submit(&self, account: &Account, report: &Report) {
-        if report.status != Status::Ready {
+        if report.status != Status::Ready || !self.is_recording() {
             return;
         }
         let measured = |value: Option<f64>| value.is_some_and(f64::is_finite);
@@ -334,6 +352,46 @@ mod tests {
             .collect();
         assert_eq!(labels, ["5h", "left"]);
         assert_eq!(recorder.status().warning(), None);
+    }
+
+    #[test]
+    fn switched_off_records_nothing_and_keeps_what_was_recorded() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(&dir.path().join("history.sqlite3"), "one");
+        let alpha = config(CONFIG).accounts.remove(0);
+        let recorder = HistoryRecorder::spawn(history.clone());
+        let reading = |minutes: i64, used: f64| Report {
+            checked_at: t0() + chrono::TimeDelta::minutes(minutes),
+            ..report(Status::Ready, vec![quota("5h", Some(used), Some(100.0))])
+        };
+        let used = || -> Vec<f64> {
+            history
+                .series(
+                    &alpha,
+                    &history.latest(&alpha).unwrap().unwrap().metrics[0].key,
+                    ..,
+                )
+                .unwrap()
+                .iter()
+                .map(|p| p.used)
+                .collect()
+        };
+        assert!(recorder.is_recording(), "on by default");
+        recorder.submit(&alpha, &reading(0, 10.0));
+        assert!(recorder.flush(Duration::from_secs(10)));
+
+        // Off through a clone (the monitor's copies share the switch).
+        recorder.clone().set_recording(false);
+        assert!(!recorder.is_recording());
+        recorder.submit(&alpha, &reading(20, 30.0));
+        assert!(recorder.flush(Duration::from_secs(10)));
+        assert_eq!(used(), [10.0], "nothing new, the old sample stays");
+        assert_eq!(recorder.status().dropped, 0, "ignored, not dropped");
+
+        recorder.set_recording(true);
+        recorder.submit(&alpha, &reading(40, 50.0));
+        assert!(recorder.flush(Duration::from_secs(10)));
+        assert_eq!(used(), [10.0, 50.0]);
     }
 
     #[test]

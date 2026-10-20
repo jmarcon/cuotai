@@ -275,6 +275,21 @@ impl Monitor {
         }
     }
 
+    /// RF5.3: record new readings (the default) or ignore them; what was
+    /// recorded stays until erased. Kept by [`Monitor::with_config`].
+    pub fn set_history_recording(&self, on: bool) {
+        if let Some(recorder) = &self.history {
+            recorder.set_recording(on);
+        }
+    }
+
+    /// Whether new readings enter the history; `false` without one.
+    pub fn history_recording(&self) -> bool {
+        self.history
+            .as_ref()
+            .is_some_and(history::HistoryRecorder::is_recording)
+    }
+
     /// Mark for pruning the series of accounts gone from this monitor's
     /// configuration; call it with the configuration just loaded from or
     /// saved to the TOML (as [`Monitor::prune_models`]). Queued, never blocks.

@@ -264,3 +264,147 @@
   font-family: var(--font-mono);
   font-size: 12px;
 }
+/* Visually hidden, still read by screen readers (the history table). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Histórico (PRD 0006 RF5.2): um gráfico de área compacto por métrica, no diálogo de detalhes. */
+.history {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.history-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.history-head h3 {
+  font-size: 14px;
+  font-weight: 650;
+}
+.history-ranges {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.history-ranges button {
+  padding: 3px 10px;
+  border: 0;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.history-ranges button + button {
+  border-left: 1px solid var(--border);
+}
+.history-ranges button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 650;
+}
+.history-ranges button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.history-status {
+  margin: 8px 0 0;
+}
+.history-status:empty {
+  display: none;
+}
+.hist-metric {
+  margin: 10px 0 0;
+}
+.hist-metric figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.hist-label {
+  font-weight: 600;
+}
+.hist-chart {
+  position: relative;
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+}
+.hist-chart svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.hist-area {
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.hist-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+/* Reset: a dashed vertical rule (shape, not color alone; the legend names it). */
+.hist-reset,
+.hist-key i {
+  border-left: 1px dashed var(--fg-muted);
+}
+.hist-reset {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.hist-end {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.hist-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 11px;
+}
+.hist-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hist-key i {
+  height: 10px;
+}
+/* Entrance once per answer; `--motion-slow` is 0 with reduced motion (app option or `prefers-reduced-motion`). */
+.hist-enter .hist-area,
+.hist-enter .hist-line {
+  animation: hist-in var(--motion-slow) var(--ease-out) both;
+}
+@keyframes hist-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
