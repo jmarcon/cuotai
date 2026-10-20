@@ -23,10 +23,13 @@ pub fn view() -> AboutView {
     }
 }
 
-/// Só endereços que o próprio Cuotai publica (o projeto e a lista do core) podem ser abertos:
-/// a UI nunca escolhe o destino, então um texto qualquer vindo dela não vira um comando.
+/// Só endereços que o próprio Cuotai publica (o projeto e a lista do core) ou, PRD 0011 RF4.1, as
+/// páginas públicas de status das fontes verificadas do core podem ser abertos: a UI nunca escolhe
+/// o destino, então um texto qualquer vindo dela não vira um comando.
 pub fn is_listed(url: &str) -> bool {
-    url == about::PROJECT_REPOSITORY || about::libraries().iter().any(|l| l.repository == url)
+    url == about::PROJECT_REPOSITORY
+        || about::libraries().iter().any(|l| l.repository == url)
+        || cuotai_core::incidents::is_status_link(url)
 }
 
 /// Abre `url` no navegador padrão do sistema, se estiver na lista.
@@ -66,6 +69,19 @@ mod tests {
         ] {
             assert!(!is_listed(url), "{url}");
             assert_eq!(open_external(url), Err("not_listed"));
+        }
+    }
+
+    #[test]
+    fn status_pages_of_verified_sources_open_and_look_alikes_do_not() {
+        assert!(is_listed("https://status.claude.com/"));
+        assert!(is_listed("https://status.claude.com/incidents/abc123xyz"));
+        for url in [
+            "https://status.claude.com.example.com/",
+            "http://status.claude.com/",
+            "https://status.claude.com/?next=https://example.com",
+        ] {
+            assert_eq!(open_external(url), Err("not_listed"), "{url}");
         }
     }
 

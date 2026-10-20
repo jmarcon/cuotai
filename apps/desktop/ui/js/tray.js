@@ -7,6 +7,7 @@ import {
   bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
   bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, nextNoticeText,
+  incidentBadge, incidentHtml, bindStatusLinks,
 } from "./lib.js";
 
 await boot();
@@ -31,6 +32,7 @@ function row(r) {
       <div class="row-sub">${esc(r.account)}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
       ${r.usage_alerts?.length ? `<div class="row-alert">${icon("bell")}<span>${esc(ALERTS.find((c) => c.id === "usage").label(r))}</span></div>` : ""}
       <div class="row-age">${ageHtml(r)}</div>
+      ${incidentHtml(r, { link: false })}
       ${trayPace(r, (p, label) => paceHtml(p, { label, short: true }))}
       <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
     </div>${icon("chev", "chev")}</button>`;
@@ -71,6 +73,7 @@ function tile(r) {
   const pct = bindingPct(r);
   const lv = level(pct);
   const w = windowsOf(r);
+  const incident = incidentBadge(r);
   const tip = [`${brand(r.provider).label} (${r.account})`,
     alert ? alert.label(r) : pct != null ? te2("metric.level." + lv, { pct: Math.round(pct) }) : "",
     blockedText(r) ?? "",
@@ -78,10 +81,11 @@ function tile(r) {
     ageText(r),
     trayPace(r, (p, label) => paceText(p, { label, short: true })),
     ...(w.h5 ? [`${t("card.window.h5")}: ${Math.round(w.h5.pct)}%`] : []),
-    ...(w.week ? [`${t("card.window.week")}: ${Math.round(w.week.pct)}%`] : [])].filter(Boolean);
+    ...(w.week ? [`${t("card.window.week")}: ${Math.round(w.week.pct)}%`] : []),
+    incident?.text ?? ""].filter(Boolean);
   const center = alert ? icon(alert.icon) : pct != null ? `${Math.round(pct)}%` : "—";
   const tone = alert ? alert.tone : lv;
-  return `<button class="tile${r.usage_alerts?.length ? " usage-alert" : ""}" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}" data-binding="${esc(r.binding?.window ?? "")}">
+  return `<button class="tile${r.usage_alerts?.length ? " usage-alert" : ""}${incident ? ` incident ${incident.tone}` : ""}" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}" data-binding="${esc(r.binding?.window ?? "")}">
     ${donutHtml(alert && pct == null ? 100 : pct, tone, center)}
     <span class="tile-name">${logo(r.provider, 14)}<b>${esc(brand(r.provider).label)}</b></span>
     <span class="tile-acct">${esc(r.account)}</span>${ageHtml(r)}</button>`;
@@ -105,7 +109,8 @@ function alertsHtml(view, reports, error) {
   if (error) return `<div class="alerts">${chip("bad", "alert", null, [t("tray.error"), error], t("tray.error"))}</div>`;
   if (!view || !reports.length) return ""; // carregando ou sem contas: nada a avisar
   const groups = ALERTS.map((c) => ({ c, items: reports.filter(c.match) })).filter((g) => g.items.length);
-  if (!groups.length)
+  const incidents = incidentsChip(reports, chip, last);
+  if (!groups.length && !incidents)
     return `<div class="alerts">${chip("good", "check", null, [t("tray.allOkTitle", { count: reports.length }), last].filter(Boolean), t("tray.ok"))}</div>`;
   return `<div class="alerts" role="group" aria-label="${te("tray.attention")}">${groups.map(({ c, items }) => {
     const lines = [t("tray.catTitle", { label: c.label(), count: items.length }),
@@ -113,7 +118,19 @@ function alertsHtml(view, reports, error) {
     if (items.length > 8) lines.push(t("tray.more", { count: items.length - 8 }));
     if (last) lines.push(last);
     return chip(c.tone, c.icon, items.length, lines, c.label());
-  }).join("")}</div>`;
+  }).join("")}${incidents}</div>`;
+}
+
+const TONE_RANK = ["muted", "info", "warn", "bad"];
+/** PRD 0011 RF4.2: one chip for the providers whose public status the cards flag, with each in the tooltip. */
+function incidentsChip(reports, chip, last) {
+  const byProvider = new Map();
+  for (const r of reports) { const b = incidentBadge(r); if (b && !byProvider.has(r.provider)) byProvider.set(r.provider, b); }
+  if (!byProvider.size) return "";
+  const badges = [...byProvider.values()];
+  const tone = badges.map((b) => b.tone).reduce((a, b) => (TONE_RANK.indexOf(b) > TONE_RANK.indexOf(a) ? b : a));
+  const lines = [t("incident.trayTitle"), ...[...byProvider].map(([provider, b]) => `• ${brand(provider).label}: ${short(b.text)}`), last].filter(Boolean);
+  return chip(tone, "alert", byProvider.size, lines, t("incident.trayTitle"));
 }
 
 function render() {
@@ -165,6 +182,8 @@ root.addEventListener("click", (e) => {
   if (t.closest("[data-open-settings]")) return openSettingsWindow();
   if (t.closest("[data-quit]")) return quitApp();
 });
+// PRD 0011 RF4.1: "Open status page" in an account's details.
+bindStatusLinks(root);
 onHiddenChange(render);
 // RF3.2: o shell mostra o popover com `show()` + `set_focus()` e o esconde ao perder o foco. A cada abertura ele
 // entra com fade + 6 px vindo do lado do ícone (no topo da tela no macOS, na base no Windows/Linux).

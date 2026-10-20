@@ -16,6 +16,7 @@ use cuotai_core::{
         WindowUsage,
     },
     identity::{account_identity, AccountIdentity},
+    incidents::{IncidentMonitor, ProviderStatus},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{
         binding, binding_where, classify_metric, classify_report, cmp_binding, AccountClass,
@@ -34,7 +35,10 @@ use std::{
     future::Future,
     ops::Bound,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 use tauri::{async_runtime::Mutex, AppHandle, Emitter};
@@ -102,6 +106,10 @@ fn refresh_edit_error(error: &cuotai_core::refresh::EditError) -> cuotai_core::t
 const TICK: Duration = Duration::from_secs(5);
 /// Longest sleep of the reset notice timer while a notice is ahead.
 const NOTICE_NAP: Duration = Duration::from_secs(60);
+/// PRD 0011 RF4: how often the status loop looks at the sources. The core
+/// queries one only when its 5-minute cache expired, so this only bounds
+/// how soon a due source is read.
+const STATUS_TICK: Duration = Duration::from_secs(30);
 pub const EVENT: &str = "snapshot";
 
 /// Canal de eventos do login (RF2): somente `LoginEvent` serializável do
@@ -234,6 +242,9 @@ struct Inner {
     history_epoch: u64,
     /// PRD 0003: reset notice preferences, ledger and language.
     notices: Notices,
+    /// PRD 0011 RF4.3: the status preference and cache, shared by every
+    /// monitor this backend installs (a reload keeps both).
+    incidents: IncidentMonitor,
 }
 
 #[derive(Default)]
@@ -242,6 +253,10 @@ pub struct Backend {
     /// Wakes the reset notice timer (PRD 0003 RF2.1) after a refresh, a
     /// configuration change or a preference change.
     notice_nudge: tokio::sync::Notify,
+    /// PRD 0011 RF4: wakes the status loop when the preference changes.
+    status_nudge: tokio::sync::Notify,
+    /// PRD 0011 RF4.2: the tray icon currently shows the outage indicator.
+    tray_outage: AtomicBool,
 }
 
 // ---------- DTOs (somente leitura para a UI) ----------
@@ -365,6 +380,50 @@ pub struct ReportView {
     /// PRD 0008 RF3.4: labels of the metrics with an active usage alert
     /// (empty when none); the card and the tray highlight the account.
     usage_alerts: Vec<String>,
+    /// PRD 0011 RF4.1: the provider's public status, while status queries
+    /// are on and the provider has a verified source.
+    incident: Option<IncidentView>,
+}
+
+/// The core's provider status plus its state's text.
+#[derive(Serialize, Clone)]
+pub struct IncidentView {
+    #[serde(flatten)]
+    status: ProviderStatus,
+    label: cuotai_core::text::Localized,
+}
+
+/// PRD 0011 RF4.3: whether status queries are on, the domains they reach
+/// for the configured providers (also while off, for Settings → Privacy)
+/// and, RF4.2, whether a provider reports a partial outage or worse.
+#[derive(Serialize, Clone, Default)]
+pub struct StatusView {
+    enabled: bool,
+    domains: Vec<&'static str>,
+    outage: bool,
+}
+
+/// The status shown on an account of `provider`, if any.
+fn incident_view(statuses: &[ProviderStatus], provider: Provider) -> Option<IncidentView> {
+    statuses
+        .iter()
+        .find(|status| status.provider == provider)
+        .map(|status| IncidentView {
+            label: status.state.label(),
+            status: status.clone(),
+        })
+}
+
+fn status_view(
+    enabled: bool,
+    domains: Vec<&'static str>,
+    statuses: &[ProviderStatus],
+) -> StatusView {
+    StatusView {
+        enabled,
+        domains,
+        outage: statuses.iter().any(|status| status.state.is_outage()),
+    }
 }
 
 /// PRD 0003 RF3: whether reset notices are on and, then, the next one
@@ -454,6 +513,7 @@ pub struct View {
     /// Changes when the history was erased or recording switched (RF5).
     history_epoch: u64,
     notify: NotifyView,
+    status: StatusView,
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -520,6 +580,7 @@ fn report_view(
         account_key: account.key(),
         notify: true,
         usage_alerts: Vec::new(),
+        incident: None,
     }
 }
 
@@ -671,6 +732,10 @@ impl Inner {
                     next: None,
                     alerts: self.notices.alerts().enabled,
                 },
+                status: StatusView {
+                    enabled: self.incidents.is_enabled(),
+                    ..StatusView::default()
+                },
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -696,6 +761,8 @@ impl Inner {
         let finished_at = l.cycle.snapshot().map(|snapshot| snapshot.finished_at);
         let ranks = binding_ranks(&slot_reports);
         let clock = chrono::Utc::now();
+        // PRD 0011 RF4: cached readings only (empty while off), no network.
+        let statuses = l.monitor.incident_statuses();
         let reports: Vec<ReportView> = slot_reports
             .iter()
             .enumerate()
@@ -722,6 +789,7 @@ impl Inner {
                 };
                 view.last_good = last_good.map(last_good_view);
                 view.notify = self.notices.account_on(&view.account_key);
+                view.incident = incident_view(&statuses, view.provider);
                 Some(view)
             })
             .collect();
@@ -758,6 +826,11 @@ impl Inner {
                 next,
                 alerts: self.notices.alerts().enabled,
             },
+            status: status_view(
+                self.incidents.is_enabled(),
+                l.monitor.status_domains(),
+                &statuses,
+            ),
         }
     }
 
@@ -815,7 +888,10 @@ impl Inner {
                         .into_owned()
                 },
             )
-        })?;
+        })?
+        // PRD 0011 RF4.3: the device's status preference and cached readings
+        // survive a reload or a switch to another file.
+        .with_incidents(self.incidents.clone());
         // Keyed by `ConfigFile::identity()` in the OS data dir; no data dir
         // leaves model operations as `NoCache` while quotas keep working.
         let mut monitor = match cuotai_core::models::ModelCache::in_data_dir(&file) {
@@ -892,23 +968,71 @@ impl Inner {
 }
 
 impl Backend {
-    /// The app's backend with this device's reset notice state (PRD 0003).
-    pub fn new(notices: Notices) -> Self {
+    /// The app's backend with this device's reset notice state (PRD 0003)
+    /// and status preference (PRD 0011 RF4.3, off until the user opts in).
+    pub fn new(notices: Notices, status_queries: bool) -> Self {
+        let incidents = IncidentMonitor::new();
+        incidents.set_enabled(status_queries);
         Self {
             inner: Mutex::new(Inner {
                 notices,
+                incidents,
                 ..Inner::default()
             }),
-            notice_nudge: tokio::sync::Notify::new(),
+            ..Self::default()
         }
     }
 
-    /// Every state change ends here: the UI gets the view and the reset
-    /// notice timer recomputes (PRD 0003 RF2.1).
+    /// Every state change ends here: the UI gets the view, the reset
+    /// notice timer recomputes (PRD 0003 RF2.1) and the tray icon follows
+    /// the providers' outages (PRD 0011 RF4.2).
     async fn emit(&self, app: &AppHandle) {
         let view = self.inner.lock().await.view();
+        let outage = view.status.outage;
+        if self.tray_outage.swap(outage, Ordering::Relaxed) != outage {
+            crate::show_tray_outage(app, outage);
+        }
         let _ = app.emit(EVENT, view);
         self.notice_nudge.notify_one();
+    }
+
+    /// PRD 0011 RF4.3: turn the public status queries on or off (saved in
+    /// `desktop.json`). On reads the sources at once; off stops every
+    /// status request and hides the badges. Error: `unwritable`.
+    pub async fn set_status_enabled(&self, app: &AppHandle, on: bool) -> Result<(), String> {
+        crate::settings::save_status_queries(on).map_err(str::to_owned)?;
+        self.inner.lock().await.incidents.set_enabled(on);
+        self.status_nudge.notify_one();
+        self.emit(app).await;
+        Ok(())
+    }
+
+    /// PRD 0011 RF4: the status loop, beside [`Self::run_scheduler`]. While
+    /// status queries are on it lets the core read each due source of the
+    /// configured providers (cached for five minutes, coalesced per URL,
+    /// never touching a quota query) and shows a changed status. While off
+    /// it makes no request.
+    pub async fn run_incidents(self: Arc<Self>, app: AppHandle) {
+        loop {
+            let monitor = {
+                let g = self.inner.lock().await;
+                g.loaded
+                    .as_ref()
+                    .filter(|_| g.incidents.is_enabled())
+                    .map(|l| Arc::clone(&l.monitor))
+            };
+            if let Some(monitor) = monitor {
+                let before = monitor.incident_statuses();
+                if monitor.refresh_incidents().await != before {
+                    self.emit(&app).await;
+                }
+            }
+            let nudged = self.status_nudge.notified();
+            tokio::select! {
+                () = tokio::time::sleep(STATUS_TICK) => {}
+                () = nudged => {}
+            }
+        }
     }
 
     /// PRD 0003 RF2.1: the reset notice timer, beside [`Self::run_scheduler`].
@@ -2937,6 +3061,91 @@ mod tests {
             view["binding"]["blocked_until"],
             serde_json::to_value(until).unwrap()
         );
+    }
+
+    fn provider_status(
+        provider: Provider,
+        state: cuotai_core::incidents::IncidentState,
+    ) -> ProviderStatus {
+        ProviderStatus {
+            provider,
+            state,
+            incident: state
+                .is_incident()
+                .then(|| cuotai_core::incidents::Incident {
+                    title: "Elevated errors".into(),
+                    started_at: None,
+                    url: "https://status.claude.com/incidents/abc".into(),
+                }),
+            page_url: "https://status.claude.com/".into(),
+            read_at: Some(chrono::Utc::now()),
+            stale: false,
+        }
+    }
+
+    /// PRD 0011 RF4.1/RF4.2: an account shows its own provider's status
+    /// (never another's, never one for a provider without a reading) and
+    /// the tray indicator needs a partial outage or worse.
+    #[test]
+    fn accounts_show_their_providers_status_and_outages_mark_the_tray() {
+        use cuotai_core::incidents::IncidentState::*;
+        let statuses = [
+            provider_status(Provider::Claude, PartialOutage),
+            provider_status(Provider::Groq, Degraded),
+        ];
+        let claude =
+            serde_json::to_value(incident_view(&statuses, Provider::Claude).unwrap()).unwrap();
+        assert_eq!(claude["provider"], "claude");
+        assert_eq!(claude["state"], "partial_outage");
+        assert_eq!(claude["label"]["id"], "incident.state.partial_outage");
+        assert_eq!(
+            claude["incident"]["url"],
+            "https://status.claude.com/incidents/abc"
+        );
+        assert_eq!(claude["stale"], false);
+        assert!(incident_view(&statuses, Provider::Kiro).is_none());
+
+        assert!(status_view(true, vec![], &statuses).outage);
+        for calm in [Degraded, Maintenance, Unknown, Operational] {
+            let only = [provider_status(Provider::Claude, calm)];
+            assert!(!status_view(true, vec![], &only).outage, "{calm:?}");
+        }
+        assert!(!status_view(false, vec![], &[]).outage);
+    }
+
+    /// PRD 0011 RF4.3: off by default with the domains already listed, and
+    /// the preference reaches every monitor the backend installs.
+    #[tokio::test(flavor = "current_thread")]
+    async fn status_queries_start_off_list_domains_and_survive_a_reload() {
+        let backend = build_backend(Arc::new(MemoryStore::default()), vec![]).await;
+        let groq = Account {
+            provider: Provider::Groq,
+            ..plain_account("groq")
+        };
+        let config = Config {
+            accounts: vec![groq, plain_account("alibaba")],
+            ..Config::default()
+        };
+        backend.reinstall_for_test(config.clone()).await.unwrap();
+        let view = serde_json::to_value(backend.inner.inner.lock().await.view()).unwrap();
+        assert_eq!(
+            view["status"],
+            serde_json::json!({ "enabled": false, "domains": ["groqstatus.com"], "outage": false })
+        );
+
+        backend.inner.inner.lock().await.incidents.set_enabled(true);
+        backend.reinstall_for_test(config).await.unwrap();
+        let g = backend.inner.inner.lock().await;
+        let monitor = &g.loaded.as_ref().unwrap().monitor;
+        assert!(monitor.incidents().is_enabled());
+        // Before any reading the provider is unknown, never operational.
+        let statuses = monitor.incident_statuses();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(
+            statuses[0].state,
+            cuotai_core::incidents::IncidentState::Unknown
+        );
+        assert!(g.view().status.enabled);
     }
 
     #[tokio::test(flavor = "current_thread")]

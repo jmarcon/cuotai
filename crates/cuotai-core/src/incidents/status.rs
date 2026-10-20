@@ -10,7 +10,7 @@
 
 use super::parse::{self, Baseline, Event, Reading};
 use super::{Format, StatusSource};
-use crate::text::Notes;
+use crate::text::{Localized, Notes};
 use crate::{Provider, Status};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -58,6 +58,32 @@ impl IncidentState {
     /// `PartialOutage` or worse.
     pub fn is_outage(self) -> bool {
         matches!(self, Self::PartialOutage | Self::MajorOutage)
+    }
+
+    /// The serialized name (`partial_outage`).
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::Operational => "operational",
+            Self::Degraded => "degraded",
+            Self::PartialOutage => "partial_outage",
+            Self::MajorOutage => "major_outage",
+            Self::Maintenance => "maintenance",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// `incident.state.*`: short label for badges. `Unknown` never reads
+    /// as healthy.
+    pub fn label(self) -> Localized {
+        let pt = match self {
+            Self::Operational => "Operacional",
+            Self::Degraded => "Desempenho degradado",
+            Self::PartialOutage => "Interrupção parcial",
+            Self::MajorOutage => "Interrupção grave",
+            Self::Maintenance => "Em manutenção",
+            Self::Unknown => "Status desconhecido",
+        };
+        Localized::fixed(format!("incident.state.{}", self.slug()), pt)
     }
 
     fn rank(self) -> u8 {
@@ -219,7 +245,7 @@ impl IncidentMonitor {
             slots,
             &self.endpoint(source.url),
             source.format,
-            host(source.url),
+            source.host(),
             self.timeout(),
         )
         .await;
@@ -302,14 +328,8 @@ async fn fetch(
         .unwrap_or(Err(parse::Invalid))
 }
 
-/// Host of a registry URL (all are `https://host/path` constants).
-fn host(url: &'static str) -> &'static str {
-    let rest = url.strip_prefix("https://").unwrap_or(url);
-    rest.split('/').next().unwrap_or(rest)
-}
-
 fn page_url(source: StatusSource) -> String {
-    format!("https://{}/", host(source.url))
+    format!("https://{}/", source.host())
 }
 
 /// Keep a provider link only when it is a plain `https` URL on the source
@@ -317,7 +337,7 @@ fn page_url(source: StatusSource) -> String {
 fn public_link(candidate: &str, source: StatusSource) -> Option<String> {
     let mut url = url::Url::parse(candidate).ok()?;
     let valid = url.scheme() == "https"
-        && url.host_str() == Some(host(source.url))
+        && url.host_str() == Some(source.host())
         && url.port().is_none()
         && url.username().is_empty()
         && url.password().is_none();

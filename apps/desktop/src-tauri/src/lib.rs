@@ -335,7 +335,8 @@ fn about_info() -> about::AboutView {
     about::view()
 }
 
-/// Abre no navegador um repositório da lista do "Sobre"; qualquer outro endereço é recusado.
+/// Abre no navegador um repositório da lista do "Sobre" ou uma página pública de status de uma fonte
+/// verificada (PRD 0011 RF4.1); qualquer outro endereço é recusado.
 #[tauri::command]
 fn open_external(url: String) -> Result<(), String> {
     about::open_external(&url).map_err(str::to_owned)
@@ -414,6 +415,13 @@ async fn history_erase(
 #[tauri::command]
 async fn set_history_recording(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(), String> {
     b.set_history_recording(&app, on).await
+}
+
+/// PRD 0011 RF4.3: turn the public provider status queries on or off
+/// (saved in `desktop.json`, off by default). Error: `unwritable`.
+#[tauri::command]
+async fn set_status_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(), String> {
+    b.set_status_enabled(&app, on).await
 }
 
 /// PRD 0003 RF3.3: turn reset notices on or off. On asks the operating system
@@ -636,8 +644,56 @@ fn tray_tooltip(p: &TrayMenuPayload) -> String {
     }
 }
 
+const TRAY_PNG: &[u8] = include_bytes!("../icons/tray.png");
+
+/// PRD 0011 RF4.2: paint the outage indicator on the tray icon's RGBA
+/// pixels: a red dot with a light ring in the bottom-right corner, a third
+/// of the icon wide, so it reads on light and dark menu bars.
+fn paint_outage_dot(rgba: &mut [u8], width: u32, height: u32) {
+    let size = width.min(height) as f32;
+    let radius = size / 6.0;
+    let ring = (size / 22.0).max(1.0);
+    let (cx, cy) = (width as f32 - radius - ring, height as f32 - radius - ring);
+    for y in 0..height {
+        for x in 0..width {
+            let distance = (x as f32 + 0.5 - cx).hypot(y as f32 + 0.5 - cy);
+            let color = if distance <= radius {
+                [0xe5, 0x48, 0x4d, 0xff]
+            } else if distance <= radius + ring {
+                [0xff, 0xff, 0xff, 0xff]
+            } else {
+                continue;
+            };
+            let at = ((y * width + x) * 4) as usize;
+            rgba[at..at + 4].copy_from_slice(&color);
+        }
+    }
+}
+
+/// The tray icon, with the outage indicator when `outage`.
+fn tray_icon(outage: bool) -> tauri::Result<tauri::image::Image<'static>> {
+    let icon = tauri::image::Image::from_bytes(TRAY_PNG)?;
+    if !outage {
+        return Ok(icon);
+    }
+    let (width, height) = (icon.width(), icon.height());
+    let mut rgba = icon.rgba().to_vec();
+    paint_outage_dot(&mut rgba, width, height);
+    Ok(tauri::image::Image::new_owned(rgba, width, height))
+}
+
+/// PRD 0011 RF4.2: show or clear the outage indicator on the tray icon.
+pub(crate) fn show_tray_outage(app: &AppHandle, outage: bool) {
+    if let (Some(tray), Ok(icon)) = (app.tray_by_id("cuotai"), tray_icon(outage)) {
+        let _ = tray.set_icon(Some(icon));
+    }
+}
+
 pub fn run() {
-    let backend = Arc::new(Backend::new(notify::Notices::load()));
+    let backend = Arc::new(Backend::new(
+        notify::Notices::load(),
+        settings::status_queries(),
+    ));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -681,6 +737,7 @@ pub fn run() {
             history_export,
             history_erase,
             set_history_recording,
+            set_status_enabled,
             history_size,
             account_history,
             set_notify_enabled,
@@ -699,7 +756,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
-            let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+            let icon = tray_icon(false)?;
             TrayIconBuilder::with_id("cuotai")
                 .icon(icon)
                 .icon_as_template(false)
@@ -763,6 +820,7 @@ pub fn run() {
             }
             tauri::async_runtime::spawn(Arc::clone(&backend).run_scheduler(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_notices(app.handle().clone()));
+            tauri::async_runtime::spawn(Arc::clone(&backend).run_incidents(app.handle().clone()));
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -771,7 +829,26 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::clean_menu_line;
+    use super::{clean_menu_line, paint_outage_dot};
+
+    #[test]
+    fn outage_dot_marks_only_the_bottom_right_corner() {
+        let (width, height) = (44, 44);
+        let blank = vec![0u8; (width * height * 4) as usize];
+        let mut rgba = blank.clone();
+        paint_outage_dot(&mut rgba, width, height);
+        let pixel = |x: u32, y: u32| {
+            let at = ((y * width + x) * 4) as usize;
+            <[u8; 4]>::try_from(&rgba[at..at + 4]).unwrap()
+        };
+        // Red in the dot, a light ring around it, the logo untouched.
+        assert_eq!(pixel(35, 35), [0xe5, 0x48, 0x4d, 0xff]);
+        assert_eq!(pixel(43, 35)[..3], [0xff, 0xff, 0xff]);
+        for (x, y) in [(0, 0), (22, 22), (43, 0), (0, 43), (22, 30)] {
+            assert_eq!(pixel(x, y), [0, 0, 0, 0], "({x}, {y})");
+        }
+        assert_ne!(rgba, blank);
+    }
 
     #[test]
     fn menu_lines_are_trimmed_stripped_of_controls_and_capped() {

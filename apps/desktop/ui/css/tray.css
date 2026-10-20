@@ -301,3 +301,17 @@ body {
 }
 .row-alert .i { width: 12px; height: 12px; flex: 0 0 auto; }
 .row-alert span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* PRD 0011 RF4.2: a provider incident on a row (one line) and on a tile (a bottom stripe in its tone). */
+.row .incident-line {
+  margin: 2px 0 0;
+  font-size: 11px;
+}
+.row .incident-line svg.i { width: 12px; height: 12px; }
+.row .incident-line .incident-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile.incident.bad { box-shadow: inset 0 -3px 0 var(--bad); }
+.tile.incident.warn { box-shadow: inset 0 -3px 0 var(--warn); }
+.tile.incident.info { box-shadow: inset 0 -3px 0 var(--info); }
+.tile.incident.muted { box-shadow: inset 0 -3px 0 var(--fg-muted); }
+.tile.usage-alert.incident.bad { box-shadow: inset 3px 0 0 var(--warn), inset 0 -3px 0 var(--bad); }
+.tile.usage-alert.incident.warn { box-shadow: inset 3px 0 0 var(--warn), inset 0 -3px 0 var(--warn); }

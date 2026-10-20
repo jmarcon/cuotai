@@ -362,5 +362,20 @@
   "about.role.reference.note": "Lógica y contratos adaptados a Rust; el código original no se ejecuta.",
   "about.component.core": "núcleo",
   "about.component.tui": "terminal",
-  "about.component.desktop": "escritorio"
+  "about.component.desktop": "escritorio",
+  "incident.title": "Estado del proveedor",
+  "incident.open": "Abrir página de estado",
+  "incident.openFailed": "No se pudo abrir la página de estado.",
+  "incident.unavailable": "Página de estado no disponible",
+  "incident.lastKnown": "última lectura",
+  "incident.since": "Desde {time}",
+  "incident.checked": "Leído {age}",
+  "incident.notRead": "Aún no leído",
+  "incident.stale": "La última consulta de estado falló; esta es la lectura anterior.",
+  "incident.trayTitle": "Estado de los proveedores",
+  "settings.privacy.title": "Privacidad",
+  "settings.status.on": "Consultar las páginas públicas de estado de los proveedores",
+  "settings.status.help": "Desactivado por defecto. Activado, Cuotai hace solicitudes públicas a las páginas de estado de los proveedores configurados, como máximo una cada 5 minutos por página, sin credenciales, cookies ni datos de la cuenta. Esos sitios pueden ver tu dirección IP y que usas el proveedor. Los incidentes aparecen en las tarjetas y en el icono de la bandeja.",
+  "settings.status.domains": "Dominios consultados:",
+  "settings.status.none": "Ningún proveedor configurado tiene una página de estado verificada; no se consultaría nada."
 }

@@ -362,5 +362,20 @@
   "about.role.reference.note": "Logic and contracts adapted to Rust; the original code is not run.",
   "about.component.core": "core",
   "about.component.tui": "terminal",
-  "about.component.desktop": "desktop"
+  "about.component.desktop": "desktop",
+  "incident.title": "Provider status",
+  "incident.open": "Open status page",
+  "incident.openFailed": "Could not open the status page.",
+  "incident.unavailable": "Status page unavailable",
+  "incident.lastKnown": "last reading",
+  "incident.since": "Since {time}",
+  "incident.checked": "Read {age}",
+  "incident.notRead": "Not read yet",
+  "incident.stale": "The latest status query failed; this is the previous reading.",
+  "incident.trayTitle": "Provider status",
+  "settings.privacy.title": "Privacy",
+  "settings.status.on": "Check the providers' public status pages",
+  "settings.status.help": "Off by default. When on, Cuotai makes public requests to the status pages of the providers you configured, at most once every 5 minutes per page, without credentials, cookies or account data. Those sites can see your IP address and that you use the provider. Incidents appear on the cards and on the tray icon.",
+  "settings.status.domains": "Domains queried:",
+  "settings.status.none": "None of your configured providers has a verified status page; nothing would be queried."
 }

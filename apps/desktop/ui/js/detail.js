@@ -2,7 +2,7 @@
 // Critério único: percentual DISPONÍVEL, barra = disponível, quantidade = usado / limite; métricas sem limite viram texto.
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
-  STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, isBindingMetric, isMetricHidden, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
+  STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
   paceHtml, paceOf, remainingPct, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
@@ -39,10 +39,11 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
 
 /** Lista de quotas + notas. Sem `eye` (popover), as ocultas não aparecem. PRD 0010 RF3: the age leads; a failure
  *  with a preserved reading lists the old metrics dimmed under the cause of the failure. PRD 0005 RF4: the core's
- *  access level and summary follow the age, and its explanation, when there is one, is the cause. */
+ *  access level and summary follow the age, and its explanation, when there is one, is the cause. PRD 0011 RF4.1:
+ *  the provider's public status follows, while status queries are on. */
 export function detailHtml(r, { eye = false } = {}) {
   const notes = r.notes.map((_, index) => noteText(r, index));
-  const head = `<div class="det-age">${ageHtml(r)}</div>${accessHtml(r, { full: true })}`;
+  const head = `<div class="det-age">${ageHtml(r)}</div>${accessHtml(r, { full: true })}${incidentDetailHtml(r)}`;
   const rest = restNotes(r).map((n) => `<p class="note">${esc(n)}</p>`).join("");
   if (isStaleReading(r)) {
     const s = staleView(r);

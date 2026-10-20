@@ -124,6 +124,8 @@ export const sendTestNotification = (title, body) => call("send_test_notificatio
 export const setAlertsEnabled = (on) => call("set_alerts_enabled", { on });
 export const setAlertOptions = (thresholds, exhaustion, recovery) => call("set_alert_options", { thresholds, exhaustion, recovery });
 export const setMetricAlert = (accountKey, label, on) => call("set_metric_alert", { accountKey, label, on });
+// PRD 0011 RF4.3: public provider status queries (desktop.json, off by default; the backend asks the core).
+export const setStatusEnabled = (on) => call("set_status_enabled", { on });
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
   const n = view?.notify?.next;
@@ -341,6 +343,52 @@ export const restNotes = (r) => r.notes.map((_, index) => noteText(r, index)).sl
 export const accessHtml = (r, { full = false } = {}) => r.access
   ? `<p class="access-line${full ? " full" : ""}" data-access="${esc(r.access.level)}" title="${esc(tl(r.access.summary))}"><span class="lv">${esc(tl(r.access.label))}</span> · <span>${esc(tl(r.access.summary))}</span></p>`
   : "";
+// ---------- PRD 0011 RF4: the provider's public status ----------
+// Tone and icon per core state (never color alone: the text is the core's label).
+const INCIDENT_LOOK = { degraded: ["warn", "warn"], partial_outage: ["bad", "alert"], major_outage: ["bad", "xcircle"],
+  maintenance: ["info", "wrench"], operational: ["good", "check"], unknown: ["muted", "clock"] };
+const isNotice = (s) => s.state !== "operational" && s.state !== "unknown";
+/** What the card and the tray flag: an incident or maintenance (also as last known) or a status page the last
+ *  query could not read; null otherwise. An unknown reading never reads as healthy, but shows no badge either. */
+export function incidentBadge(r) {
+  const s = r.incident;
+  if (!s || (!isNotice(s) && !s.stale)) return null;
+  const [tone, glyph] = isNotice(s) ? INCIDENT_LOOK[s.state] : ["muted", "warn"];
+  const text = isNotice(s)
+    ? [tl(s.label), s.incident?.title ?? "", s.stale ? t("incident.lastKnown") : ""].filter(Boolean).join(" · ")
+    : t("incident.unavailable");
+  return { tone, glyph, text, url: s.incident?.url ?? s.page_url, outage: s.state === "partial_outage" || s.state === "major_outage" };
+}
+/** "Open status page": the shell opens only the core's verified status hosts (`open_external`). */
+const statusLinkHtml = (url) => `<button class="status-link" type="button" data-status-url="${esc(url)}">${icon("chev")}<span>${te("incident.open")}</span></button><span class="status-err" data-status-err role="alert"></span>`;
+/** Card badge (color, icon and text) with the status page link; `link: false` inside a clickable row. */
+export function incidentHtml(r, { link = true } = {}) {
+  const b = incidentBadge(r);
+  if (!b) return "";
+  return `<div class="incident-line ${b.tone}" data-incident="${esc(r.incident.state)}" title="${esc(b.text)}">${icon(b.glyph)}<span class="incident-t">${esc(b.text)}</span>${link ? statusLinkHtml(b.url) : ""}</div>`;
+}
+/** Details: the provider's full status (operational and unknown too), its incident, when it was read and the link. */
+export function incidentDetailHtml(r) {
+  const s = r.incident;
+  if (!s) return "";
+  const [tone, glyph] = INCIDENT_LOOK[s.state] ?? INCIDENT_LOOK.unknown;
+  const facts = [s.incident?.started_at ? t("incident.since", { time: fmtReset(s.incident.started_at) }) : "",
+    s.read_at ? t("incident.checked", { age: fmtAge(s.read_at) }) : t("incident.notRead"), s.stale ? t("incident.stale") : ""].filter(Boolean);
+  return `<div class="incident-detail" data-incident="${esc(s.state)}"><h4>${te("incident.title")}</h4>
+    <p class="incident-line ${tone}">${icon(glyph)}<span class="incident-t"><b>${esc(tl(s.label))}</b>${s.incident?.title ? ` · ${esc(s.incident.title)}` : ""}</span></p>
+    <p class="hint">${esc(facts.join(" · "))}</p><p class="incident-link">${statusLinkHtml(s.incident?.url ?? s.page_url)}</p></div>`;
+}
+/** Clicks on "Open status page" inside `root`; a refusal shows next to the link. */
+export function bindStatusLinks(root) {
+  root.addEventListener("click", (e) => {
+    const link = e.target.closest?.("[data-status-url]");
+    if (!link) return;
+    const slot = link.parentElement.querySelector("[data-status-err]");
+    slot.textContent = "";
+    openExternal(link.dataset.statusUrl).catch(() => { slot.textContent = t("incident.openFailed"); });
+  });
+}
+
 export const metricKey = (r, m) => `${reportKey(r)}::${m.label}`;
 
 // ---------- providers ----------
@@ -607,10 +655,14 @@ const demoView = () => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
     const notify = !demoSettings.notify.off_accounts.includes(demoKey(r));
     const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, alert: demoMetricAlert(r, m, notify) }));
+    const incident = demoIncident(r);
+    // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
+    const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;
     return { ...r, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics, pace_index: paceIndex,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
-      account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label) };
+      account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label), incident,
+      ...(note ? { notes: [...r.notes, note.fallback], notes_l10n: [...r.notes.map((n, i) => r.notes_l10n?.[i] ?? null), note] } : {}) };
   });
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
     started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation,
@@ -619,8 +671,34 @@ const demoView = () => {
       ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "O histórico passou de 64 MiB: as 1200 medições mais antigas foram apagadas." }
       : null,
     history_epoch: demoSettings.historyEpoch,
-    notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled } };
+    notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
+    status: { enabled: demoSettings.statusQueries, domains: [...new Set(demoReports.map((r) => DEMO_STATUS_HOSTS[r.provider]).filter(Boolean))],
+      outage: reports.some((r) => ["partial_outage", "major_outage"].includes(r.incident?.state)) } };
 };
+// ponytail: demo mirror of the core's provider statuses (PRD 0011 RF4); the app reads them from the backend. `?status`
+// starts with the queries on and incidents simulated; `?status=offline` plays sources that could not be read.
+const DEMO_STATUS = new URLSearchParams(location.search).get("status");
+const DEMO_STATUS_HOSTS = { claude: "status.claude.com", anthropic_api: "status.claude.com", chat_gpt: "status.openai.com",
+  copilot: "www.githubstatus.com", groq: "groqstatus.com", mini_max: "status.minimax.io", kimi: "status.moonshot.cn",
+  cursor: "status.cursor.com", windsurf: "status.windsurf.com", grok: "status.x.ai" };
+const DEMO_STATE_PT = { operational: "Operacional", degraded: "Desempenho degradado", partial_outage: "Interrupção parcial",
+  major_outage: "Interrupção grave", maintenance: "Em manutenção", unknown: "Status desconhecido" };
+const DEMO_INCIDENTS = {
+  claude: ["partial_outage", "Elevated errors on claude.ai & Claude Code", "https://status.claude.com/incidents/demo1", 0.8],
+  cursor: ["major_outage", "Cursor IDE requests failing", "https://status.cursor.com/incidents/demo2", 0.3],
+  groq: ["degraded", "Increased latency on the API", "https://groqstatus.com/incident/demo3", 2],
+  kimi: ["maintenance", "Scheduled database maintenance", "https://status.moonshot.cn/incidents/demo4", 0.5],
+  grok: ["unknown"],
+};
+const DEMO_INCIDENT_NOTE = { id: "note.incident.ongoing", params: {}, fallback: "O provedor informa um incidente em andamento; a falha pode não ser da sua conta." };
+function demoIncident(r) {
+  const host = DEMO_STATUS_HOSTS[r.provider];
+  if (!demoSettings.statusQueries || !host) return null;
+  const offline = DEMO_STATUS === "offline";
+  const [state, title, url, startedH] = offline ? ["unknown"] : DEMO_INCIDENTS[r.provider] ?? ["operational"];
+  return { provider: r.provider, state, label: dl(`incident.state.${state}`, DEMO_STATE_PT[state]), page_url: `https://${host}/`,
+    incident: title ? { title, started_at: h(-startedH), url } : null, read_at: offline ? null : ago(2), stale: offline };
+}
 // ponytail: demo mirror of `alerts::eligible` and of an active alert (a capped quota at or above the lowest
 // threshold, bell and metric not muted); the app reads both from the backend's alert state.
 function demoMetricAlert(r, m, notify) {
@@ -661,7 +739,7 @@ function demoAccess(r) {
 }
 const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
-  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} } };
+  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} }, statusQueries: DEMO_STATUS != null };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
 // nenhum catálogo inventado é exibido como real.
@@ -830,7 +908,7 @@ const demo = {
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
-    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording,
+    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
@@ -842,6 +920,7 @@ const demo = {
   history_export: async ({ index }) => (index == null ? 42 : 7),
   history_erase: async ({ index }) => { demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
+  set_status_enabled: async ({ on }) => { demoSettings.statusQueries = on; },
   // `?notify-denied` plays a system that refuses the permission (PRD 0003 RF3.3, reused by PRD 0008 RF3.3).
   set_notify_enabled: async ({ on }) => {
     const permission = demoPermission(on);

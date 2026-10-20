@@ -210,3 +210,35 @@ fn widget_and_feed_component_selectors_are_not_page_rollups() {
             .includes_component(component));
     }
 }
+
+/// RF4.1: only plain `https` pages on a verified source's host can be
+/// opened; look-alike hosts, other schemes and decorated URLs cannot.
+#[test]
+fn status_links_are_limited_to_plain_pages_on_verified_hosts() {
+    for url in [
+        "https://status.claude.com/",
+        "https://status.claude.com/incidents/abc123xyz",
+        "https://status.aws.amazon.com/",
+        "https://status.x.ai/grok-com/ps_1",
+    ] {
+        assert!(is_status_link(url), "{url}");
+    }
+    for url in [
+        "",
+        "status.claude.com",
+        "http://status.claude.com/",
+        "https://status.claude.com",
+        "HTTPS://STATUS.CLAUDE.COM/",
+        "https://status.claude.com:8443/",
+        "https://user@status.claude.com/",
+        "https://status.claude.com/?next=https://example.com",
+        "https://status.claude.com/#x",
+        "https://status.claude.com.example.com/",
+        "https://example.com/status.claude.com/",
+        "https://status.mistral.ai/",
+        "javascript:alert(1)",
+        "file:///etc/passwd",
+    ] {
+        assert!(!is_status_link(url), "{url}");
+    }
+}
