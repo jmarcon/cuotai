@@ -3,13 +3,20 @@
 | Field | Value |
 |---|---|
 | ID | 0005 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui` (`wizard.rs`, `dashboard.rs`), `apps/desktop` (`account-dialog.js`, cards) |
 | Depends on | none (it is a prerequisite of PRDs 0016 and 0017) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-20)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.33.0 | `cuotai_core::access::describe(&Account) -> UsageAccess` (pure, no network, no credential read) with `level` (`Official`/`Undocumented`/`Derived`/`Unavailable`), `credential`, `plan_requirement`, `scope`, `metered` (from `Provider::is_metered`), `evidence` (`Documentation` URL or `Reference` file) with `verified_on`, `summary`, `credential_hint`, `risk` and `reason` (`Some` exactly for `Unavailable`). Exhaustive `match` on `Provider` with no wildcard. Variants: personal Cursor (`query_mode = personal` or login) vs Teams, Copilot `quota` (or login) vs billing (`mode = org` widens the scope), Kimi `coding` (or login), Grok `cli` (or login), Gemini AI `cli` (or login), Perplexity `computer`, Qwen OAuth, Cline organization, Alibaba Coding/Token Plan `session_env`. Every `Official` URL was checked against the vendor page on 2026-10-20. Deviations from the RF1.4 draft, following the adapters and the docs: Cline is `Official` (its balance endpoint is in the public Enterprise API reference); Perplexity Sonar (no `product = computer`) and Qwen OAuth are `Unavailable`; Mistral, like Windsurf and Perplexity Computer, carries the `Enterprise` plan requirement (the Admin API is Enterprise-only). Table tests cover the 36 providers and the switching modes, the `Unavailable`-has-reason and `Official`-has-documentation invariants, and that no text or URL carries credentials. |
+| RF2 | 0.33.0 | Ids `access.level.*`, `access.credential.*`, `access.credential_hint.*`, `access.scope.*`, `access.risk.*`, `access.plan.*`, `access.reason.<slug>` and `access.summary.<slug>` (one per provider/mode) in `crates/cuotai-core/locales/en-US.json` and `es.json`; Portuguese stays in the fallback. Evidence is a public documentation URL or the name of the 9router/community-client file. A test resolves every emitted text in pt, en-US and es and fails if a desktop `ui/locales` catalog defines an `access.*` id. |
 
 ## 1. Context
 
