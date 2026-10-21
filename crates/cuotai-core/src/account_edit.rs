@@ -4276,7 +4276,7 @@ mod tests {
         let outcome = remove_account(&mut file, &session, 0, true).await.unwrap();
         let removed = match outcome {
             RemoveOutcome::PartialFailure { account, .. } => account,
-            other => panic!("expected PartialFailure, got {other:?}"),
+            other => panic!("expected PartialFailure, got {}", outcome_variant(&other)),
         };
         // Retry using the recovery primitive. The vault still holds the
         // entry and the second call should succeed (the live config
