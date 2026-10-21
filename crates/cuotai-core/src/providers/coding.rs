@@ -356,7 +356,7 @@ mod tests {
         acct.params
             .insert("organization_id".into(), "../etc/passwd".into());
         let client = reqwest::Client::new();
-        let err = cline(&acct, &context(&client), "http://unused")
+        let err = cline(&acct, &context(&client), "https://unused.invalid")
             .await
             .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
