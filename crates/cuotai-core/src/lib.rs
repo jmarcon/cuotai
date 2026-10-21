@@ -7,6 +7,7 @@ pub mod account_edit;
 pub mod alerts;
 pub mod config_file;
 pub mod edit_error;
+pub mod events;
 pub mod export;
 pub mod freshness;
 pub mod history;
@@ -633,7 +634,7 @@ impl Monitor {
         };
         tokio::time::timeout(timeout, fetch)
             .await
-            .unwrap_or_else(|_| Err(providers::QueryError::transport()))
+            .unwrap_or_else(|_| Err(providers::QueryError::timeout()))
     }
 
     async fn dispatch(
@@ -961,6 +962,50 @@ credential_env = "GROQ_KEY_GAMMA"
         let mut monitor = Monitor::with_oauth(config, creds, session).unwrap();
         monitor.groq_url = Some(server.uri());
         (server, monitor)
+    }
+
+    /// PRD 0013 RF1.3: a query that runs out of time and one that cannot
+    /// reach the provider fail with distinct event categories.
+    #[tokio::test]
+    async fn deadline_and_unreachable_provider_fail_as_timeout_and_offline() {
+        use crate::events::FailureCategory;
+        let config = Config::from_toml(
+            r#"
+timeout_seconds = 1
+
+[[accounts]]
+name = "alpha"
+provider = "groq"
+credential_env = "GROQ_KEY_ALPHA"
+"#,
+        )
+        .unwrap();
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "data": [] }))
+                    .set_delay(Duration::from_secs(5)),
+            )
+            .mount(&server)
+            .await;
+        let creds: Arc<dyn Credentials> = Arc::new(GroqKeys);
+        let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
+        let session = Arc::new(oauth::OAuthSession::new(store, Arc::clone(&creds)).unwrap());
+        let mut monitor = Monitor::with_oauth(config, creds, session).unwrap();
+        monitor.groq_url = Some(server.uri());
+        let slow = monitor.refresh_account(0).await;
+        assert_eq!(FailureCategory::of(&slow), Some(FailureCategory::Timeout));
+
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = closed.local_addr().unwrap();
+        drop(closed);
+        monitor.groq_url = Some(format!("http://{address}"));
+        let unreachable = monitor.refresh_account(0).await;
+        assert_eq!(
+            FailureCategory::of(&unreachable),
+            Some(FailureCategory::Offline)
+        );
     }
 
     /// HTTP requests received so far, by account (`ALPHA`, `BETA`, `GAMMA`).

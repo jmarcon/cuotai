@@ -941,6 +941,7 @@
   "query.subscriptions.invalid_slug": "The GitHub slug for the {kind} '{slug}' is invalid.",
   "query.subscriptions.unsupported_provider": "{provider} is handled by another adapter.",
   "query.transport": "Network failure or query timeout.",
+  "query.timeout": "The query timed out.",
   "query.insecure_transport": "Endpoint refused: credentials are only sent over HTTPS. Nothing was sent.",
   "resets.body": "{account}: {metrics}. Per the time the provider reported; the new balance shows on the next refresh.",
   "resets.title.reset": "{provider}: {window} quota reset",

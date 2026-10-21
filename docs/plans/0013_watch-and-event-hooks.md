@@ -3,11 +3,17 @@
 | Field | Value |
 |---|---|
 | ID | 0013 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (event engine and hooks), TUI/CLI and desktop |
 | Consumers | `crates/cuotai-tui` (`--watch`), `apps/desktop` (Settings → Integration), user scripts |
 | Depends on | PRD 0012 (RF1: the `export::v1` contract); it uses PRDs 0003, 0008, 0009 and 0011 when they exist |
 | Date | 2026-10-19 |
+
+## Implementation status (2026-10-21)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.53.0 | `cuotai_core::events` ([`docs/events.md`](../events.md)). RF1.1: `diff(prev: &AccountExport, next: &AccountExport, state: &mut EventState, now) -> Vec<Event>`, pure (injected clock, no query); `prev` decides whether `next.report` is a new reading (same key and `checked_at` = none). It reuses `alerts::evaluate`/`AlertState` (PRD 0008: once per window instance, highest of several, 5-point hysteresis; `EventState::new(thresholds)`, 75/90 by default) for `quota_threshold_crossed`/`quota_exhausted`/`quota_recovered`; the new `resets::passed(prev, next)` (PRD 0003 eligibility with `Always` and `other` windows, `DRIFT_TOLERANCE` identity: the old `resets_at` came and the new one lies beyond the tolerance, a postponement is no reset) for `quota_reset`; `export::v1`'s `binding` (`metrics::binding`, PRD 0009) for `account_blocked`/`account_unblocked`; and `export::v1`'s `incident` (PRD 0011) for `provider_incident`. RF1.2: the eleven names as `EventKind` in `snake_case`. RF1.3: `Event { schema: 1, event, occurred_at, account_key, account_name, provider, metric: {label, window} \| null, current, previous }` with `Values` holding only the applicable known fields (`status`, `category`, `threshold`, `used`, `limit`, `remaining`, `unit`, `used_ratio`, `resets_at`, `blocked_until`, `incident`, `metrics`); `FailureCategory::of(report)` from the status and note id (`NeedsConfiguration` → `auth_required`, `Unsupported` → `provider_error`); to tell `timeout` from `offline` the core now reports a deadline (the account deadline, a `reqwest` timeout, the AWS/`bl` CLI wait) as the new `query.timeout` note instead of `query.transport`. RF1.4: the first reading of an account (and the first `Ready` one after failures, and the first known provider status) is only a baseline; failures fire `refresh_failed` once whatever the category changes, `auth_required` when the category becomes it, `refresh_recovered` on the next success; the last `Ready` reading is kept across failures so a crossing during an outage shows on recovery; an exhaustion held in the baseline counts as reported, so its recovery fires; `usage_updated` when `used`/`limit`/`remaining` changed since the last one, at most once per `USAGE_SPACING` (600 s) per account. RF1.5: `EventState` lives in memory only (`retain_accounts` forgets removed accounts); a restart builds new baselines, documented in `docs/events.md`. Tests: reading-sequence table (first reading, rise, jump, fall, oscillation, re-arm, reset after exhaustion, baseline exhaustion, idle reset, error and recovery, authentication, failed first reading, crossing during a failure), same-report, restart/forget, the 600 s throttle boundary, incident edges, category table, the payload shape, a no-leak test over all eleven kinds with credentials, e-mail, URLs and raw messages in the readings, `resets::passed` boundaries, and a `wiremock` deadline/closed-port test for `timeout`/`offline`. |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 

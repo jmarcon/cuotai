@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-10-21
+
+### Added
+
+- `cuotai-core` exposes the `events` engine: `events::diff` compares two consecutive `export::v1` readings of an account and returns edge events with stable names (`quota_threshold_crossed`, `quota_exhausted`, `quota_recovered`, `quota_reset`, `account_blocked`, `account_unblocked`, `refresh_failed`, `refresh_recovered`, `auth_required`, `provider_incident`, `usage_updated`), reusing the usage alert, reset, binding metric and provider status rules without any extra query: the first reading only sets a baseline, a condition that persists never repeats, `usage_updated` fires at most once per 600 s per account, the state lives in memory only (a restart builds new baselines), and a payload carries the account, the metric, its current and previous values and, for a failure, only a category (`timeout`, `offline`, `auth_required`, `rate_limited`, `schema_changed`, `provider_error`), never credentials, URLs, notes or raw messages, as documented in `docs/events.md`; a query that runs out of time now reports "The query timed out." instead of the generic network failure (PRD 0013 RF1).
+
 ## [0.52.0] - 2026-10-20
 
 ### Added
 
-- The desktop app can run the read-only local server from **Settings → Integration**, off until you turn it on: it serves the app's own readings on `127.0.0.1` at exactly the port you choose (6738 by default) without ever querying a provider per request, shows the effective address or why it is not serving (naming another Cuotai server such as `cuotai --serve` when it holds the port, also in a banner on the main window), can generate a bearer token kept in the system vault and require it, copy it without showing it, replace it or revoke it, turns on "allow browsers" only after you confirm its warning, and closes the port when turned off; `cuotai-core` adds `serve::is_cuotai_server` to recognise a Cuotai server on a port (PRD 0012 RF5).
+- The desktop app can run the read-only local server from **Settings → Integration**, off until you turn it on: it serves the app's own readings on `127.0.0.1` at exactly the port you choose (6738 by default) without ever querying a provider per request, shows the effective address or why it is not serving (naming another Cuotai server such as `cuotai --serve` when it holds the port, also in a banner on the main window), can generate a bearer token kept in the system vault and require it, copy it without showing it, replace it or revoke it, turns on "allow browsers" only after you confirm its warning, and closes the port when turned off; `cuotai-core` adds `serve::is_cuotai_server` to recognise a Cuotai server on a port (PRD 0012 RF5, 4795a15).
 
 ## [0.51.0] - 2026-10-20
 
@@ -462,8 +468,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/2d9cf48...main
-[0.52.0]: https://github.com/jmarcon/cuotai/compare/2d9cf48...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/4795a15...main
+[0.53.0]: https://github.com/jmarcon/cuotai/compare/4795a15...main
+[0.52.0]: https://github.com/jmarcon/cuotai/commit/4795a15
 [0.51.0]: https://github.com/jmarcon/cuotai/commit/2d9cf48
 [0.50.0]: https://github.com/jmarcon/cuotai/commit/75f79e9
 [0.49.0]: https://github.com/jmarcon/cuotai/commit/9694b24

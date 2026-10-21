@@ -941,6 +941,7 @@
   "query.subscriptions.invalid_slug": "El slug de GitHub para {kind} '{slug}' es inválido.",
   "query.subscriptions.unsupported_provider": "{provider} es atendido por otro adaptador.",
   "query.transport": "Fallo de red o tiempo de espera agotado en la consulta.",
+  "query.timeout": "Se agotó el tiempo de espera de la consulta.",
   "query.insecure_transport": "Endpoint rechazado: las credenciales solo viajan por HTTPS. No se envió nada.",
   "resets.body": "{account}: {metrics}. Según la hora informada por el proveedor; el nuevo saldo aparece en la próxima actualización.",
   "resets.title.reset": "{provider}: cuota {window} renovada",
