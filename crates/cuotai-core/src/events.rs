@@ -128,6 +128,8 @@ pub enum FailureCategory {
     RateLimited,
     /// The answer did not match the interface Cuotai knows.
     SchemaChanged,
+    /// An extension's output broke the output contract (PRD 0017 RF2).
+    InvalidOutput,
     /// Any other failure, including a provider that does not support the
     /// query.
     ProviderError,
@@ -146,6 +148,7 @@ impl FailureCategory {
             Status::Error if noted(TIMEOUT_NOTE) => Self::Timeout,
             Status::Error if noted(TRANSPORT_NOTE) || noted(OAUTH_NETWORK_NOTE) => Self::Offline,
             Status::Error if noted(SCHEMA_NOTE) => Self::SchemaChanged,
+            Status::Error if noted(crate::extensions::output::INVALID_NOTE) => Self::InvalidOutput,
             Status::Error => Self::ProviderError,
         })
     }
@@ -158,6 +161,7 @@ impl FailureCategory {
             Self::AuthRequired => "auth_required",
             Self::RateLimited => "rate_limited",
             Self::SchemaChanged => "schema_changed",
+            Self::InvalidOutput => "invalid_output",
             Self::ProviderError => "provider_error",
         }
     }
@@ -170,6 +174,7 @@ impl FailureCategory {
             Self::AuthRequired => "autenticação necessária",
             Self::RateLimited => "limite de consultas",
             Self::SchemaChanged => "resposta em formato desconhecido",
+            Self::InvalidOutput => "saída da extensão fora do contrato",
             Self::ProviderError => "erro do provedor",
         };
         Localized::fixed(format!("events.category.{}", self.name()), pt)

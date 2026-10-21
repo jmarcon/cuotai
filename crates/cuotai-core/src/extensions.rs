@@ -14,6 +14,12 @@
 //! the others nor anything else from loading. [`Discovery::catalog`] gives
 //! the account types the editors offer ("Extensão: {name}", the
 //! [`Level::Extension`] access level and its warning).
+//!
+//! RF2: [`output::check`] reads what one run printed against the output
+//! contract and gives the normalized reading (`source` `extension:<id>`)
+//! with every contract violation.
+
+pub mod output;
 
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
