@@ -4059,7 +4059,7 @@ mod tests {
                 assert_eq!(removed.provider, Provider::ChatGpt);
                 assert_eq!(removed.storage_key.as_deref(), Some(key.as_str()));
             }
-            other => panic!("expected RemovedFromVault, got {other:?}"),
+            other => panic!("expected RemovedFromVault, got {}", outcome_variant(&other)),
         }
         assert_eq!(file.config.accounts.len(), 0);
         assert!(
