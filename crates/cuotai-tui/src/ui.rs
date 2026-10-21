@@ -135,8 +135,7 @@ impl AccountRefresh {
             return;
         }
         rotate_span(&mut self.jobs, from, to);
-        let token = self.tokens.remove(from);
-        self.tokens.insert(to, token);
+        rotate_span(&mut self.tokens, from, to);
     }
     fn clear_slot(&mut self, index: usize) {
         if let Some(slot) = self.jobs.get_mut(index) {
