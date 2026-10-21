@@ -92,12 +92,18 @@ Notes and limits:
 - **`aarch64-unknown-linux-musl` is not produced**: the Ubuntu runners ship
   no aarch64 musl cross toolchain, and downloading an external toolchain was
   rejected on supply-chain grounds. Revisit when a hosted toolchain exists.
-- **ARM64 legs are optional** (RF2.5): supported hosted ARM runners are used,
-  every optional job/matrix row has job-level failure tolerance, and assembly
-  runs with an explicit mandatory-job gate. Missing optional artifacts are
-  listed in `manifest.json` (`missing_optional`) and in the release notes;
-  checkout, tool-install, packaging, or runner failures in these legs do not
-  block mandatory release assembly.
+- **ARM64 legs are optional** (RF2.5): hosted ARM runners are used with job-
+  level `continue-on-error`, and the assembly job runs under `always()` while
+  requiring only the mandatory jobs (`check`, `desktop-macos`, `desktop-
+  windows`, `desktop-linux`, `sbom`). The `cli` matrix row is listed under
+  `needs` but its aggregate result does **not** gate the assemble job, so a
+  single unavailable ARM runner (or a partial `cli` failure such as run
+  39673307029) cannot skip assembly. The authoritative required-artifact gate
+  is `xtask release-manifest`: a missing mandatory x64/macOS/musl/Windows CLI
+  artifact fails the job; missing optional artifacts are listed in
+  `manifest.json` (`missing_optional`) and in the release notes. Checkout,
+  tool-install, packaging, collection and signing failures on any required
+  job still fail `assemble` the same way as before.
 - Every build uses `--locked` (the desktop additionally verifies its lockfile
   with `cargo metadata --locked` before `cargo tauri build`, whose trailing
   args are passed to Cargo: `cargo tauri build … -- --locked`), the exact Rust
@@ -238,6 +244,22 @@ script checks presence first and degrades to the honest unsigned state.
 3. Check `signing-state.json` in the `release-assembly` artifact: everything
    unsigned, checksum signature absent (dry run) or Sigstore-signed (tag
    run), updater unavailable.
+
+### Release-script harness
+
+`scripts/release/collect-linux.sh` selects exactly one final regular
+non-symlink package by expected extension in each Tauri bundle directory
+(`*.AppImage`, `*.deb`, `*.rpm`), ignoring Tauri's linuxdeploy `Cuotai.AppDir`
+staging tree and unrelated entries. A runnable shell test,
+`scripts/release/test-collect-linux.sh`, asserts the green path (one valid
+package plus an `AppDir` staging tree and an unrelated extension sibling
+collect the right files into `dist/` with the exact stable names) and three
+red paths (zero matching files, duplicate same-extension matches, and a
+symlink package). Run it locally before pushing a desktop-related change:
+
+```sh
+bash scripts/release/test-collect-linux.sh
+```
 
 ## Manual desktop checklist per release
 
