@@ -52,6 +52,10 @@ struct Stored {
     /// owner's opt-in decision. Only `true` is stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     status_queries: Option<bool>,
+    /// The local server (PRD 0012 RF5.1); absent = off, the owner's
+    /// decision. Read leniently like `notify` ([`ServePrefs::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    serve: Option<serde_json::Value>,
 }
 
 /// Lead times offered, in minutes ("at the time" is 0).
@@ -301,6 +305,103 @@ pub fn write_alerts(file: &Path, alerts: &AlertSettings) -> Result<(), &'static 
             .then(|| serde_json::to_value(alerts).ok())
             .flatten()
     })
+}
+
+/// Ports the desktop server accepts: unprivileged ones, so a choice never
+/// depends on running as an administrator.
+pub const SERVE_PORTS: std::ops::RangeInclusive<u16> = 1024..=u16::MAX;
+
+/// PRD 0012 RF5.1: the local server of this device. Off by default, on the
+/// core's suggested port, refusing web pages and without a token; the token
+/// itself lives in the OS vault, `token` only says one is required.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct ServePrefs {
+    pub enabled: bool,
+    /// One of [`SERVE_PORTS`]; bound exactly, never moved to another one.
+    pub port: u16,
+    pub allow_browsers: bool,
+    pub token: bool,
+}
+
+impl Default for ServePrefs {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            port: cuotai_core::serve::DEFAULT_PORT,
+            allow_browsers: false,
+            token: false,
+        }
+    }
+}
+
+impl ServePrefs {
+    /// Each field on its own: an unknown or mistyped value is its default.
+    fn from_value(value: &serde_json::Value) -> Self {
+        let default = Self::default();
+        let flag = |key: &str, default: bool| value[key].as_bool().unwrap_or(default);
+        Self {
+            enabled: flag("enabled", default.enabled),
+            port: value["port"]
+                .as_u64()
+                .and_then(|port| u16::try_from(port).ok())
+                .filter(|port| SERVE_PORTS.contains(port))
+                .unwrap_or(default.port),
+            allow_browsers: flag("allow_browsers", default.allow_browsers),
+            token: flag("token", default.token),
+        }
+    }
+
+    /// The switch, port and browser choice from the interface, keeping the
+    /// token requirement. Error: `invalid_port`.
+    pub fn with_choices(
+        self,
+        enabled: bool,
+        port: u16,
+        allow_browsers: bool,
+    ) -> Result<Self, &'static str> {
+        if !SERVE_PORTS.contains(&port) {
+            return Err("invalid_port");
+        }
+        Ok(Self {
+            enabled,
+            port,
+            allow_browsers,
+            ..self
+        })
+    }
+}
+
+fn serve_of(stored: &Stored) -> ServePrefs {
+    stored
+        .serve
+        .as_ref()
+        .map(ServePrefs::from_value)
+        .unwrap_or_default()
+}
+
+/// PRD 0012 RF5.1: the local server preferences stored in `file`.
+pub fn read_serve(file: &Path) -> ServePrefs {
+    serve_of(&read(file))
+}
+
+/// Store the local server preferences in `file`; the defaults remove the key.
+pub fn write_serve(file: &Path, prefs: &ServePrefs) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.serve = (*prefs != ServePrefs::default())
+            .then(|| serde_json::to_value(prefs).ok())
+            .flatten()
+    })
+}
+
+/// PRD 0012 RF5.1: the local server preferences of this device.
+pub fn serve_prefs() -> ServePrefs {
+    settings_file().map(|f| read_serve(&f)).unwrap_or_default()
+}
+
+/// Store the local server preferences of this device. Error: `unwritable`.
+pub fn save_serve(prefs: &ServePrefs) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    write_serve(&file, prefs)
 }
 
 /// PRD 0003 RF3: the reset notice preferences stored in `file`.
@@ -726,6 +827,55 @@ mod tests {
             .contains("status_queries"));
         fs::write(&file, r#"{"status_queries":false}"#).unwrap();
         assert!(!status_queries_of(&read(&file)));
+    }
+
+    #[test]
+    fn local_server_is_off_on_6738_by_default_round_trips_and_reads_leniently() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let default = read_serve(&file);
+        assert_eq!(
+            default,
+            ServePrefs {
+                enabled: false,
+                port: 6738,
+                allow_browsers: false,
+                token: false,
+            }
+        );
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let on = ServePrefs {
+            token: true,
+            ..default.with_choices(true, 7001, true).unwrap()
+        };
+        write_serve(&file, &on).unwrap();
+        assert_eq!(read_serve(&file), on);
+        assert_eq!(motion_of(&read(&file)), "off", "other fields kept");
+        // Back to the defaults removes the key.
+        write_serve(&file, &default).unwrap();
+        assert!(!fs::read_to_string(&file).unwrap().contains("serve"));
+        // A privileged or impossible port is refused and keeps the choice.
+        for port in [0, 80, 1023] {
+            assert_eq!(on.with_choices(true, port, false), Err("invalid_port"));
+        }
+        assert_eq!(on.with_choices(false, 1024, false).unwrap().port, 1024);
+        // A hand-edited value of the wrong type is its default, alone.
+        fs::write(
+            &file,
+            r#"{"serve":{"enabled":true,"port":"7000","allow_browsers":1,"token":true},"motion":"off"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_serve(&file),
+            ServePrefs {
+                enabled: true,
+                token: true,
+                ..ServePrefs::default()
+            }
+        );
+        fs::write(&file, r#"{"serve":{"enabled":true,"port":80}}"#).unwrap();
+        assert_eq!(read_serve(&file).port, 6738);
+        assert_eq!(motion_of(&read(&file)), "system");
     }
 
     #[test]

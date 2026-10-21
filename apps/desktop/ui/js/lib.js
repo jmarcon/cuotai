@@ -126,6 +126,13 @@ export const setAlertOptions = (thresholds, exhaustion, recovery) => call("set_a
 export const setMetricAlert = (accountKey, label, on) => call("set_metric_alert", { accountKey, label, on });
 // PRD 0011 RF4.3: public provider status queries (desktop.json, off by default; the backend asks the core).
 export const setStatusEnabled = (on) => call("set_status_enabled", { on });
+// PRD 0012 RF5: the local server (desktop.json, off by default); the backend runs the core's server over this app's
+// own refresh cycle. Each call answers the server's new state; the token never comes back except to be copied.
+export const serveStatus = () => call("serve_status");
+export const setServe = (enabled, port, allowBrowsers) => call("set_serve", { enabled, port, allowBrowsers });
+export const generateServeToken = () => call("generate_serve_token");
+export const revokeServeToken = () => call("revoke_serve_token");
+export const copyServeToken = () => call("copy_serve_token");
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
   const n = view?.notify?.next;
@@ -673,8 +680,22 @@ const demoView = () => {
     history_epoch: demoSettings.historyEpoch,
     notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
     status: { enabled: demoSettings.statusQueries, domains: [...new Set(demoReports.map((r) => DEMO_STATUS_HOSTS[r.provider]).filter(Boolean))],
-      outage: reports.some((r) => ["partial_outage", "major_outage"].includes(r.incident?.state)) } };
+      outage: reports.some((r) => ["partial_outage", "major_outage"].includes(r.incident?.state)) },
+    serve: demoServeView() };
 };
+// ponytail: demo mirror of the backend's local server state (PRD 0012 RF5); nothing listens in the browser.
+// `?serve=taken` plays port 6738 held by a `cuotai --serve` instance (the core's probe says so in the app).
+const DEMO_SERVE_TAKEN = new URLSearchParams(location.search).get("serve") === "taken";
+function demoServeView() {
+  const s = demoSettings.serve;
+  const taken = s.enabled && DEMO_SERVE_TAKEN && s.port === 6738;
+  const state = !s.enabled ? "off" : taken ? "error" : "on";
+  return { state, enabled: s.enabled, port: s.port, allow_browsers: s.allow_browsers, token: s.secret != null,
+    url: state === "on" ? `http://127.0.0.1:${s.port}` : null,
+    error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `A porta ${s.port} está em uso; escolha outra porta para o servidor local.` } : null,
+    cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
+    browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "Com navegadores permitidos, qualquer página aberta no navegador pode ler seu uso no servidor local (com token, qualquer página que o conheça). Ative só se uma página sua precisa desses dados." } };
+}
 // ponytail: demo mirror of the core's provider statuses (PRD 0011 RF4); the app reads them from the backend. `?status`
 // starts with the queries on and incidents simulated; `?status=offline` plays sources that could not be read.
 const DEMO_STATUS = new URLSearchParams(location.search).get("status");
@@ -739,7 +760,8 @@ function demoAccess(r) {
 }
 const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
-  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} }, statusQueries: DEMO_STATUS != null };
+  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} }, statusQueries: DEMO_STATUS != null,
+  serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
 // nenhum catálogo inventado é exibido como real.
@@ -921,6 +943,18 @@ const demo = {
   history_erase: async ({ index }) => { demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
   set_status_enabled: async ({ on }) => { demoSettings.statusQueries = on; },
+  serve_status: async () => demoServeView(),
+  set_serve: async ({ enabled, port, allowBrowsers }) => {
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) throw "invalid_port";
+    Object.assign(demoSettings.serve, { enabled, port, allow_browsers: allowBrowsers });
+    return demoServeView();
+  },
+  generate_serve_token: async () => { demoSettings.serve.secret = `cuotai_demo_${crypto.randomUUID().replaceAll("-", "")}`; return demoServeView(); },
+  revoke_serve_token: async () => { demoSettings.serve.secret = null; return demoServeView(); },
+  copy_serve_token: async () => {
+    if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token." });
+    return demoSettings.serve.secret;
+  },
   // `?notify-denied` plays a system that refuses the permission (PRD 0003 RF3.3, reused by PRD 0008 RF3.3).
   set_notify_enabled: async ({ on }) => {
     const permission = demoPermission(on);

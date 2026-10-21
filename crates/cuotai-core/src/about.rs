@@ -139,7 +139,7 @@ static LIBRARIES: &[Library] = &[
         &[Core],
     ),
     // Only with the core's `serve` feature (PRD 0012 local server; the TUI
-    // binary turns it on for `cuotai --serve`).
+    // turns it on for `cuotai --serve`, the desktop for Settings → Integration).
     lib(
         "httparse",
         "MIT OR Apache-2.0",

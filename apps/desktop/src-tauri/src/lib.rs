@@ -2,6 +2,7 @@
 //! Somente consome `cuotai-core` (via `backend.rs`); não contém lógica de provider.
 mod about;
 mod backend;
+mod local_server;
 mod notify;
 mod settings;
 mod user_content;
@@ -424,6 +425,52 @@ async fn set_status_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(
     b.set_status_enabled(&app, on).await
 }
 
+/// PRD 0012 RF5.2: the local server's state and choices (off, on at its
+/// address, or why it is not serving).
+#[tauri::command]
+async fn serve_status(b: Shared<'_>) -> Result<local_server::ServeView, String> {
+    Ok(b.serve_view().await)
+}
+
+/// PRD 0012 RF5.1: turn the local server on or off (off by default), its
+/// port (bound exactly) and "allow browsers", saved in `desktop.json`; the
+/// server restarts with them. Errors: `invalid_port`, `unwritable`.
+#[tauri::command]
+async fn set_serve(
+    app: AppHandle,
+    b: Shared<'_>,
+    enabled: bool,
+    port: u16,
+    allow_browsers: bool,
+) -> Result<local_server::ServeView, String> {
+    b.set_serve(&app, enabled, port, allow_browsers).await
+}
+
+/// PRD 0012 RF5.1: generate the server's token into the OS vault (a new
+/// one invalidates the previous) and require it.
+#[tauri::command]
+async fn generate_serve_token(
+    app: AppHandle,
+    b: Shared<'_>,
+) -> Result<local_server::ServeView, String> {
+    b.generate_serve_token(&app).await
+}
+
+/// PRD 0012 RF5.1: revoke the server's token (removed from the vault).
+#[tauri::command]
+async fn revoke_serve_token(
+    app: AppHandle,
+    b: Shared<'_>,
+) -> Result<local_server::ServeView, String> {
+    b.revoke_serve_token(&app).await
+}
+
+/// PRD 0012 RF5.1: the token, only for the "Copy token" button.
+#[tauri::command]
+async fn copy_serve_token(b: Shared<'_>) -> Result<String, String> {
+    b.copy_serve_token().await
+}
+
 /// PRD 0003 RF3.3: turn reset notices on or off. On asks the operating system
 /// for permission first and stays off unless it is `granted`; returns the
 /// permission (`granted`, `denied`, `prompt`) or `off`. Error: `unwritable`.
@@ -693,6 +740,7 @@ pub fn run() {
     let backend = Arc::new(Backend::new(
         notify::Notices::load(),
         settings::status_queries(),
+        settings::serve_prefs(),
     ));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -738,6 +786,11 @@ pub fn run() {
             history_erase,
             set_history_recording,
             set_status_enabled,
+            serve_status,
+            set_serve,
+            generate_serve_token,
+            revoke_serve_token,
+            copy_serve_token,
             history_size,
             account_history,
             set_notify_enabled,
@@ -821,6 +874,7 @@ pub fn run() {
             tauri::async_runtime::spawn(Arc::clone(&backend).run_scheduler(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_notices(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_incidents(app.handle().clone()));
+            tauri::async_runtime::spawn(Arc::clone(&backend).start_serve(app.handle().clone()));
             Ok(())
         })
         .run(tauri::generate_context!())

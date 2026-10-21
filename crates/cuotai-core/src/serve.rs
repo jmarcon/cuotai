@@ -54,6 +54,16 @@ pub const PORT_ATTEMPTS: u16 = 10;
 /// `Retry-After` of a data route before the first reading.
 pub const RETRY_AFTER_SECONDS: u64 = 5;
 
+/// How long [`is_cuotai_server`] waits for an answer.
+pub const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
+
+/// Bytes of an answer [`is_cuotai_server`] reads at most.
+const PROBE_MAX_BYTES: u64 = 4 * 1024;
+
+/// The `WWW-Authenticate` of a `401`, which also tells [`is_cuotai_server`]
+/// that a server needing a token is Cuotai's.
+const BEARER_CHALLENGE: &str = "Bearer realm=\"cuotai\"";
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The body of `/health`, in its documented field order.
@@ -237,6 +247,11 @@ pub enum ServeError {
     Vault,
     #[error("O gerador aleatório do sistema está indisponível; o token não foi criado.")]
     Random,
+    /// A front end expected its stored token and the vault has none.
+    #[error(
+        "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token."
+    )]
+    TokenMissing,
 }
 
 impl ServeError {
@@ -267,6 +282,7 @@ impl ServeError {
             Self::InvalidToken => Localized::fixed("serve.error.invalid_token", fallback),
             Self::Vault => Localized::fixed("serve.error.vault", fallback),
             Self::Random => Localized::fixed("serve.error.random", fallback),
+            Self::TokenMissing => Localized::fixed("serve.error.token_missing", fallback),
         }
     }
 }
@@ -368,6 +384,35 @@ async fn bind(ip: IpAddr, port: u16, fallback: bool) -> Result<TcpListener, Serv
         }
     }
     Err(ServeError::PortInUse { first: port, last })
+}
+
+/// PRD 0012 RF5.2: whether the program listening on `127.0.0.1:port` is a
+/// Cuotai local server (`cuotai --serve` or the desktop app), so a front end
+/// whose port is taken can name the conflict. It asks `/health` once,
+/// without a token, waits at most [`PROBE_TIMEOUT`] and recognises the
+/// documented answer or, when that server needs a token, its `401` with
+/// Cuotai's bearer realm. Nothing else is read.
+pub async fn is_cuotai_server(port: u16) -> bool {
+    tokio::time::timeout(PROBE_TIMEOUT, probe(port))
+        .await
+        .unwrap_or(false)
+}
+
+async fn probe(port: u16) -> bool {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let Ok(mut stream) = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await else {
+        return false;
+    };
+    let request = format!(
+        "GET /health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAccept: application/json\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(request.as_bytes()).await.is_err() {
+        return false;
+    }
+    let mut answer = Vec::new();
+    // The server closes after answering; a partial read is judged as is.
+    let _ = stream.take(PROBE_MAX_BYTES).read_to_end(&mut answer).await;
+    http::is_cuotai_health(&answer, BEARER_CHALLENGE)
 }
 
 struct State {
@@ -481,7 +526,7 @@ impl State {
                 .is_some_and(|presented| token.matches(presented))
             {
                 return Response::error(401, "unauthorized")
-                    .header("WWW-Authenticate", "Bearer realm=\"cuotai\"");
+                    .header("WWW-Authenticate", BEARER_CHALLENGE);
             }
         }
         if head.method != "GET" {

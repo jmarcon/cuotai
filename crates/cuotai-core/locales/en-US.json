@@ -980,5 +980,6 @@
   "serve.error.invalid_token": "Invalid local server token: use 16 to 512 characters without spaces (letters, digits and - . _ ~ + /).",
   "serve.error.vault": "The system vault is unavailable or denied access to the local server token.",
   "serve.error.random": "The system random generator is unavailable; the token was not created.",
+  "serve.error.token_missing": "The local server token is no longer in the system vault; generate a new one or revoke the token.",
   "serve.allow_browsers.warning": "With browsers allowed, any page open in your browser can read your usage from the local server (with a token, any page that knows it). Turn it on only if a page of yours needs this data."
 }

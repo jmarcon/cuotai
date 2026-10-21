@@ -980,5 +980,6 @@
   "serve.error.invalid_token": "Token del servidor local no válido: usa de 16 a 512 caracteres sin espacios (letras, números y - . _ ~ + /).",
   "serve.error.vault": "El almacén del sistema no está disponible o denegó el acceso al token del servidor local.",
   "serve.error.random": "El generador aleatorio del sistema no está disponible; no se creó el token.",
+  "serve.error.token_missing": "El token del servidor local ya no está en el almacén del sistema; genera uno nuevo o revoca el token.",
   "serve.allow_browsers.warning": "Con los navegadores permitidos, cualquier página abierta en el navegador puede leer tu uso en el servidor local (con token, cualquier página que lo conozca). Actívalo solo si una página tuya necesita estos datos."
 }
