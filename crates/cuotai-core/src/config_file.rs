@@ -670,6 +670,9 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
     if account.oauth.is_none() {
         table.remove("oauth");
     }
+    if account.session.is_none() {
+        table.remove("session");
+    }
     if account.params.is_empty() {
         table.remove("params");
     }
@@ -691,6 +694,7 @@ mod tests {
             name: name.into(),
             provider: crate::Provider::OpenAiApi,
             credential_env: env.map(str::to_string),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

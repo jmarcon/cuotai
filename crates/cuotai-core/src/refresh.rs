@@ -997,6 +997,7 @@ mod tests {
             name: name.into(),
             provider: Provider::OpenAiApi,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds,

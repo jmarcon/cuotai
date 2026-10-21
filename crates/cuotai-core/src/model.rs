@@ -198,6 +198,9 @@ pub struct Account {
     pub credential_env: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth: Option<crate::oauth::OAuthConfig>,
+    /// PRD 0016 RF1: vault reference of the user-supplied web sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<crate::user_session::SessionConfig>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, String>,
     /// Per-account override for the global `Config::refresh_seconds`. When
@@ -296,6 +299,7 @@ impl Default for Account {
             provider: Provider::OpenAiApi,
             credential_env: None,
             oauth: None,
+            session: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
         }
@@ -315,6 +319,7 @@ impl Default for Config {
                     provider,
                     credential_env: None,
                     oauth: None,
+                    session: None,
                     params: BTreeMap::new(),
                     refresh_seconds: None,
                 })

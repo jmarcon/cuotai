@@ -13,6 +13,7 @@ use cuotai_core::access::UsageAccess;
 use cuotai_core::account_edit as edit;
 use cuotai_core::login::{self, LoginCredentialStore, LoginMode, LoginOption, LoginRequest};
 use cuotai_core::oauth::OAuthConfig;
+use cuotai_core::user_session;
 use cuotai_core::{Account, Config, Provider};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -67,6 +68,11 @@ pub(crate) enum Action {
     /// RF5.1: open the Models section of an already-configured account,
     /// chosen explicitly in the provider step (index into the base config).
     Models {
+        index: usize,
+    },
+    /// PRD 0016 RF1.2: the user confirmed moving the saved account's
+    /// `session_env`-style variables into the system vault.
+    MigrateSession {
         index: usize,
     },
 }
@@ -243,6 +249,9 @@ pub(crate) struct Wizard {
     /// `Unavailable` account; the next Enter saves anyway, any other key
     /// clears it.
     confirm_save: bool,
+    /// PRD 0016 RF1.2: set by the first F3 on the summary, which shows what
+    /// the migration does; the next F3 confirms it, any other key clears it.
+    confirm_migrate: bool,
 }
 
 impl Wizard {
@@ -306,6 +315,7 @@ impl Wizard {
             oauth_login_params: BTreeMap::new(),
             models_pick: None,
             confirm_save: false,
+            confirm_migrate: false,
         }
     }
 
@@ -446,6 +456,48 @@ impl Wizard {
     /// the disk version.
     pub(crate) fn replace_base(&mut self, config: &Config) {
         self.base = config.clone();
+    }
+
+    /// The saved account being edited, while the draft keeps its provider.
+    fn saved_account(&self) -> Option<&Account> {
+        self.editing
+            .and_then(|i| self.base.accounts.get(i))
+            .filter(|account| account.provider == self.provider)
+    }
+
+    /// PRD 0016 RF1: session slots the edited account keeps in the vault.
+    fn stored_slots(&self) -> Vec<String> {
+        self.saved_account()
+            .and_then(|account| account.session.as_ref())
+            .map(|session| session.slots.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// PRD 0016 RF1.2: sessions the saved account still reads from a
+    /// variable and could move to the vault.
+    fn migration_candidates(&self) -> Vec<user_session::MigrationCandidate> {
+        self.saved_account()
+            .map(user_session::migration_candidates)
+            .unwrap_or_default()
+    }
+
+    /// After a migration was saved: the base is the new file and the draft
+    /// no longer names the migrated variables, so saving the draft later
+    /// does not bring them back.
+    pub(crate) fn session_migrated(&mut self, config: &Config) {
+        let migrated = self.migration_candidates();
+        self.replace_base(config);
+        for candidate in migrated {
+            if let Some(Field {
+                kind: FieldKind::Text(text),
+                ..
+            }) = self.fields.iter_mut().find(|f| f.key == candidate.slot)
+            {
+                text.clear();
+            }
+        }
+        self.error = None;
+        self.notice = Some(crate::ui::resolve_l10n(&user_session::migrated_notice()));
     }
 
     /// Borrowed view of the wizard's editing identity for callers
@@ -940,6 +992,23 @@ impl Wizard {
         self.notice = None;
         // RF3.4: any key other than the confirming Enter cancels "save anyway".
         let confirmed = std::mem::take(&mut self.confirm_save);
+        // PRD 0016 RF1.2: F3 on the summary first shows what the migration
+        // does; only a second F3 moves the session. Any other key cancels.
+        let migrate_confirmed = std::mem::take(&mut self.confirm_migrate);
+        if self.step == Step::Summary && key.code == KeyCode::F(3) {
+            let Some(index) = self
+                .editing
+                .filter(|_| !self.migration_candidates().is_empty())
+            else {
+                return Action::Continue;
+            };
+            if migrate_confirmed {
+                return Action::MigrateSession { index };
+            }
+            self.error = None;
+            self.confirm_migrate = true;
+            return Action::Continue;
+        }
         // Any selected core mode uses the same field navigation and F2 action.
         if self.step == Step::Credential && self.selected_mode().is_some() {
             match key.code {
@@ -1395,7 +1464,12 @@ impl Wizard {
 
     /// PRD 0005 RF3: how the draft's usage will be read, from the core.
     fn access(&self) -> UsageAccess {
-        edit::draft_access(self.provider, &self.auth_mode, &self.draft_fields())
+        edit::draft_access(
+            self.provider,
+            &self.auth_mode,
+            &self.draft_fields(),
+            &self.stored_slots(),
+        )
     }
 
     fn build_config(&self) -> Result<Config, String> {
@@ -1531,6 +1605,36 @@ impl Wizard {
             Span::styled("Arquivo de destino: ", dim),
             Span::raw(path.display().to_string()),
         ]));
+        // PRD 0016 RF1: sessions kept in the vault and, for sessions still
+        // read from a variable, the explicit two-step move to the vault.
+        if let Some(session) = self.saved_account().and_then(|a| a.session.as_ref()) {
+            for slot in &session.slots {
+                if let Some(descriptor) = user_session::descriptor(self.provider, slot) {
+                    lines.push(Line::from(vec![
+                        Span::styled("Sessão no cofre do sistema: ", dim),
+                        Span::raw(crate::ui::resolve_l10n(&descriptor.label())),
+                    ]));
+                }
+            }
+        }
+        let candidates = self.migration_candidates();
+        if !candidates.is_empty() {
+            let warn = Style::default().fg(DRACULA_YELLOW);
+            for candidate in &candidates {
+                lines.push(Line::from(Span::styled(
+                    crate::ui::resolve_l10n(&candidate.consent),
+                    warn,
+                )));
+            }
+            lines.push(Line::from(Span::styled(
+                if self.confirm_migrate {
+                    "F3 de novo confirma a migração para o cofre; qualquer outra tecla cancela."
+                } else {
+                    "F3 migra a sessão para o cofre do sistema (pede confirmação)."
+                },
+                warn,
+            )));
+        }
         // PRD 0005 RF3.3/RF3.4: cost and "no query" warnings come from the
         // same core descriptor; an Unavailable account shows its reason here,
         // before the save that needs a second, explicit Enter.
@@ -1665,6 +1769,9 @@ impl Wizard {
             Step::Provider => " ↑↓ navegar  Enter selecionar  m Modelos  Esc cancelar",
             Step::Params => {
                 " Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
+            }
+            Step::Summary if !self.migration_candidates().is_empty() => {
+                " Enter GRAVAR  F3 sessão → cofre  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
             }
             Step::Summary => {
                 " Enter GRAVAR no arquivo  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
@@ -2194,6 +2301,7 @@ mod tests {
             name: name.into(),
             provider: Provider::OpenAiApi,
             credential_env: Some(env.into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -2241,6 +2349,50 @@ mod tests {
         let mut wiz = Wizard::new(&config, Some(0));
         wiz.interval = interval.into();
         wiz
+    }
+
+    #[test]
+    fn session_migration_needs_a_second_f3_and_leaves_no_variable_in_the_draft() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut legacy = account("MiMo", "XIAOMI_MIMO_API_KEY");
+        legacy.provider = Provider::XiaomiMimo;
+        legacy
+            .params
+            .insert("platform_session_env".into(), "MIMO_COOKIE".into());
+        let config = Config {
+            accounts: vec![legacy.clone()],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Summary;
+        // First F3 only explains; any other key withdraws it.
+        assert!(matches!(press(&mut wiz, KeyCode::F(3)), Action::Continue));
+        assert!(matches!(press(&mut wiz, KeyCode::Down), Action::Continue));
+        assert!(matches!(press(&mut wiz, KeyCode::F(3)), Action::Continue));
+        assert!(matches!(
+            press(&mut wiz, KeyCode::F(3)),
+            Action::MigrateSession { index: 0 }
+        ));
+        // The core migrated it: the saved draft keeps the vault reference and
+        // no longer names the variable, and F3 has nothing left to offer.
+        let mut migrated = legacy;
+        migrated.params.remove("platform_session_env");
+        migrated.session = Some(user_session::SessionConfig {
+            credential_ref: "6f1d3c1e-8a52-4a3c-9f7e-2a8b5b1c0d11".into(),
+            slots: ["platform_session_env".to_string()].into(),
+        });
+        let saved = Config {
+            accounts: vec![migrated.clone()],
+            ..Config::default()
+        };
+        wiz.session_migrated(&saved);
+        let rebuilt = wiz.build_config().expect("draft still saves");
+        assert_eq!(rebuilt.accounts[0].session, migrated.session);
+        assert!(!rebuilt.accounts[0]
+            .params
+            .contains_key("platform_session_env"));
+        assert!(matches!(press(&mut wiz, KeyCode::F(3)), Action::Continue));
+        assert!(matches!(press(&mut wiz, KeyCode::F(3)), Action::Continue));
     }
 
     #[test]
@@ -2345,6 +2497,7 @@ mod tests {
                 name: "Qwen Cloud".into(),
                 provider: Provider::AlibabaTokenPlan,
                 credential_env: None,
+                session: None,
                 oauth: None,
                 params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
                 refresh_seconds: None,
@@ -2388,6 +2541,7 @@ mod tests {
                 name: "Kiro".into(),
                 provider: Provider::Kiro,
                 credential_env: None,
+                session: None,
                 oauth: Some(oauth),
                 params: BTreeMap::new(),
                 refresh_seconds: None,
@@ -2500,6 +2654,7 @@ mod tests {
                     name: "Other".into(),
                     provider: Provider::AnthropicApi,
                     credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
+                    session: None,
                     oauth: None,
                     params: BTreeMap::new(),
                     refresh_seconds: Some(45),
@@ -2508,6 +2663,7 @@ mod tests {
                     name: "OpenAI".into(),
                     provider: Provider::OpenAiApi,
                     credential_env: Some("OPENAI_ADMIN_KEY".into()),
+                    session: None,
                     oauth: None,
                     params: BTreeMap::new(),
                     refresh_seconds: Some(60),
@@ -2532,6 +2688,7 @@ mod tests {
                 name: "Prod".into(),
                 provider: Provider::AwsBedrock,
                 credential_env: None,
+                session: None,
                 oauth: None,
                 params: BTreeMap::from([("profile".into(), "default".into())]),
                 refresh_seconds: None,
@@ -2561,6 +2718,7 @@ mod tests {
                 name: "Qwen".into(),
                 provider: Provider::AlibabaTokenPlan,
                 credential_env: None,
+                session: None,
                 oauth: None,
                 params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
                 refresh_seconds: None,
@@ -2582,6 +2740,7 @@ mod tests {
                     name: "Test".into(),
                     provider,
                     credential_env: None,
+                    session: None,
                     oauth: None,
                     params: BTreeMap::new(),
                     refresh_seconds: None,
@@ -2614,6 +2773,7 @@ mod tests {
                 name: "Kiro".into(),
                 provider: Provider::Kiro,
                 credential_env: None,
+                session: None,
                 oauth: Some(OAuthConfig::new(String::new())),
                 params: BTreeMap::from([("auth_method".into(), "builder-id".into())]),
                 refresh_seconds: None,
@@ -2651,6 +2811,7 @@ mod tests {
                 name: "Kiro".into(),
                 provider: Provider::Kiro,
                 credential_env: Some("KIRO_ACCESS_TOKEN".into()),
+                session: None,
                 oauth: None,
                 params: BTreeMap::new(),
                 refresh_seconds: None,

@@ -3,13 +3,21 @@
 | Field | Value |
 |---|---|
 | ID | 0016 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui` (`wizard.rs`), `apps/desktop` (`account-dialog.js`) |
 | Depends on | PRD 0005 (RF1: the `UserSession` level) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-21)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.60.0 | `cuotai_core::user_session`. RF1.1: `descriptors(provider)` declares each session slot (`SessionDescriptor`: `slot`, the legacy parameter it supersedes; `required` and `optional` cookie names; the only `hosts`; `delivery` `cookie_header`; a localized `label`) for Xiaomi MiMo (`session_env`: `serviceToken` plus the `userId`/`mimo<region>_ph`/`_slh` cookies 9router keeps, the five `mimo-server-*.xiaomimimo.com` hosts; `platform_session_env`: `api-platform_serviceToken` and `userId`, `platform.xiaomimimo.com`), Alibaba Coding Plan (`session_env`, the four console hosts) and Alibaba Token Plan (`session_env`, `home.qwencloud.com` and `cs-data.qwencloud.com`); front ends never branch on the provider. `access::describe` and `account_edit::draft_access` (new `stored_slots` argument) count a vault slot as set, so a migrated account keeps the `UserSession` class; `account_edit::build_account` keeps the account's session reference on edits and drops it on a provider switch. RF1.2: `[accounts.session]` (`SessionConfig`: a random UUID `credential_ref` and the stored `slots`), validated by `Config::validate` (`ConfigError::Session` for an invalid UUID, an empty or undeclared slot, or a reference shared by two accounts); `migration_candidates` lists the `session_env`-style variables of a saved account with a localized `consent` text, and `stage_migration` reads them through `Credentials` (refusing, without writing anything, when one is unset or empty and naming only the variable), writes the vault, removes the parameters and adds the reference; the front end persists `StagedMigration::config` and calls `rollback_migration` when that fails. TUI: F3 on the wizard summary shows the consent and a second F3 migrates (any other key cancels), then the draft no longer names the variable; desktop: the account dialog's "Web session" box with "Move to the vault" clicked twice, the `migrate_session` command and `get_account`'s `session_slots`/`session_migration`. RF1.3: the vault entry uses the `TokenStore` of OAuth tokens (Keychain, Credential Manager, Secret Service, or the debug-only SQLite store with its warning; release builds refuse it), keyed by a UUID v5 of the reference, the provider and the slot, so a reference copied to another provider or slot finds nothing; `Monitor` loads the account's slots for each query and the adapter reads them through the query's `Credentials` under the slot's parameter, so accounts that keep `session_env` work unchanged. A reference without its vault entry is `NeedsConfiguration` (`user_session.not_found`). Tests: storage and read through `Credentials`, the migration (TOML without the value or the variable, reference reloaded, rollback on a failed vault write and on a refused save in the desktop backend), the development store across reopen, and the value absent from the TOML, `Debug`, errors and `Report`. |
+
+**Decision (2026-10-21, owner):** sessions are pasted manually only; Cuotai never imports cookies from browsers. The Alibaba cookie names are the ones the adapters read plus the Aliyun login family, none marked required; RF2/RF5 must confirm them against a live session before extraction filters a paste by them.
 
 ## 1. Context
 

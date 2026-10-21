@@ -30,8 +30,8 @@ use cuotai_core::{
     oauth::OAuthSession,
     pace::{self, Pace, Point},
     refresh::{Edit, RefreshCycle},
-    Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor, Provider, Report,
-    Status,
+    user_session, Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor,
+    Provider, Report, Status,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -2435,7 +2435,88 @@ impl Backend {
             auth_options,
             auth_registration,
             fields,
+            session_slots: a
+                .session
+                .iter()
+                .flat_map(|session| session.slots.iter().cloned())
+                .collect(),
+            session_migration: user_session::migration_candidates(a),
         })
+    }
+
+    /// PRD 0016 RF1.2: after the dialog's explicit confirmation, move the
+    /// saved account's `session_env`-style variables into the system vault.
+    /// Returns the account's refreshed form.
+    pub async fn migrate_session(
+        &self,
+        app: &AppHandle,
+        index: usize,
+    ) -> Result<AccountForm, String> {
+        self.ensure_loaded().await;
+        let refresh_target = self.drive_migrate_session(index).await?;
+        self.emit(app).await;
+        if let Some(target) = refresh_target {
+            self.refresh_account(app, target).await?;
+        }
+        self.get_account(index).await
+    }
+
+    /// Testable half of [`Backend::migrate_session`]: the core writes the
+    /// vault, the runtime is staged, then the TOML is saved; any failure
+    /// after the vault write removes the new entries again.
+    pub(crate) async fn drive_migrate_session(
+        &self,
+        index: usize,
+    ) -> Result<Option<usize>, String> {
+        let mut g = self.inner.lock().await;
+        let Inner {
+            loaded,
+            session,
+            generation,
+            notices,
+            ..
+        } = &mut *g;
+        let session = session.clone().ok_or("Sessão OAuth não inicializada.")?;
+        let l = loaded.as_mut().ok_or("Configuração não carregada.")?;
+        let prev = l.file.config.clone();
+        let staged = user_session::stage_migration(&session, &EnvironmentCredentials, &prev, index)
+            .await
+            .map_err(|note| l10n_to_json(&note))?;
+        let updated = staged.config().clone();
+        let mut staged_cycle = l.cycle.clone_state_for_edit();
+        let runtime = staged_cycle
+            .apply_edit(&prev, &updated, Edit::Upsert(index), Instant::now())
+            .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))
+            .and_then(|due| {
+                l.monitor
+                    .with_config(updated.clone())
+                    .map(|monitor| (due, Arc::new(monitor)))
+                    .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))
+            })
+            .and_then(|runtime| {
+                l.file
+                    .save(updated.clone())
+                    .map(|()| runtime)
+                    .map_err(|e| edit_error_to_json(&e))
+            });
+        let (due, new_monitor) = match runtime {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                let _ = user_session::rollback_migration(&session, staged).await;
+                return Err(error);
+            }
+        };
+        l.cycle = staged_cycle;
+        l.monitor = new_monitor;
+        let _ = l.monitor.prune_models();
+        l.monitor.mark_history_removed();
+        let _ = notices.keep_accounts(&l.file.config);
+        if let Some(slot) = l.tokens.get_mut(index) {
+            *slot = None;
+        }
+        l.generation += 1;
+        *generation = l.generation;
+        Ok(due.first().copied())
     }
 
     // ---------- login (RF2: orquestração no core; aqui só estado e repasse) ----------
@@ -2866,6 +2947,11 @@ pub struct AccountForm {
     auth_options: BTreeMap<String, String>,
     auth_registration: BTreeMap<String, String>,
     fields: Vec<FieldValue>,
+    /// PRD 0016 RF1: session slots this account keeps in the vault.
+    session_slots: Vec<String>,
+    /// PRD 0016 RF1.2: sessions still read from a variable, offered for
+    /// migration to the vault.
+    session_migration: Vec<user_session::MigrationCandidate>,
 }
 
 #[derive(Serialize)]
@@ -2918,8 +3004,18 @@ pub struct AccessView {
     save_confirmation: Option<cuotai_core::text::Localized>,
 }
 
-pub fn draft_access(provider: Provider, auth_mode: &str, fields: &[FieldValue]) -> AccessView {
-    let access = account_edit::draft_access(provider, auth_mode, &draft_fields(provider, fields));
+pub fn draft_access(
+    provider: Provider,
+    auth_mode: &str,
+    fields: &[FieldValue],
+    session_slots: &[String],
+) -> AccessView {
+    let access = account_edit::draft_access(
+        provider,
+        auth_mode,
+        &draft_fields(provider, fields),
+        session_slots,
+    );
     AccessView {
         level: access.level.label(),
         notes: access.notes(),
@@ -3879,6 +3975,7 @@ mod tests {
             name: name.into(),
             provider,
             credential_env: None,
+            session: None,
             oauth: Some(oauth_config_for(provider)),
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -3894,6 +3991,7 @@ mod tests {
             name: "probe".into(),
             provider,
             credential_env: None,
+            session: None,
             oauth: Some(oauth.clone()),
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -4086,6 +4184,7 @@ mod tests {
                     name: "solo".into(),
                     provider: Provider::ChatGpt,
                     credential_env: None,
+                    session: None,
                     oauth: Some(oauth.clone()),
                     params: BTreeMap::new(),
                     refresh_seconds: None,
@@ -4223,6 +4322,81 @@ mod tests {
             g.install(file).expect("install");
             new_config
         }
+    }
+
+    /// A MiMo account reading its platform session from `env`.
+    fn session_env_account(env: &str) -> Account {
+        Account {
+            name: "MiMo".into(),
+            provider: Provider::XiaomiMimo,
+            params: BTreeMap::from([("platform_session_env".to_string(), env.to_string())]),
+            ..Default::default()
+        }
+    }
+
+    // PRD 0016 RF1.2: the dialog's confirmed migration moves the variable's
+    // value into the vault and leaves only the reference in the TOML.
+    #[tokio::test(flavor = "current_thread")]
+    async fn migrate_session_moves_the_variable_into_the_vault() {
+        let env = "CUOTAI_TEST_DESKTOP_MIGRATE_SESSION";
+        std::env::set_var(env, "api-platform_serviceToken=DESKTOP-SECRET; userId=1");
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![session_env_account(env)]).await;
+        let before = backend.inner.get_account(0).await.unwrap();
+        assert_eq!(before.session_migration.len(), 1);
+
+        backend.inner.drive_migrate_session(0).await.unwrap();
+        std::env::remove_var(env);
+
+        let values: Vec<_> = store
+            .entries
+            .lock()
+            .values()
+            .map(|token| token.access_token.clone())
+            .collect();
+        assert_eq!(
+            values,
+            ["api-platform_serviceToken=DESKTOP-SECRET; userId=1"]
+        );
+        let text = std::fs::read_to_string(backend.file_path().await).unwrap();
+        assert!(
+            !text.contains("DESKTOP-SECRET") && !text.contains(env),
+            "{text}"
+        );
+        let after = backend.inner.get_account(0).await.unwrap();
+        assert!(after.session_migration.is_empty());
+        assert_eq!(after.session_slots, ["platform_session_env"]);
+    }
+
+    // A save refused after the vault write (the file changed on disk) leaves
+    // neither a vault entry nor a changed configuration.
+    #[tokio::test(flavor = "current_thread")]
+    async fn migrate_session_undoes_the_vault_write_when_the_save_fails() {
+        let env = "CUOTAI_TEST_DESKTOP_MIGRATE_CONFLICT";
+        std::env::set_var(env, "api-platform_serviceToken=x; userId=1");
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![session_env_account(env)]).await;
+        let path = backend.file_path().await;
+        let external = format!(
+            "{}\n# edited elsewhere\n",
+            std::fs::read_to_string(&path).unwrap()
+        );
+        std::fs::write(&path, external).unwrap();
+
+        let error = backend.inner.drive_migrate_session(0).await.unwrap_err();
+        std::env::remove_var(env);
+
+        assert!(error.contains("edit_error.conflict"), "{error}");
+        assert!(store.entries.lock().is_empty());
+        let config = backend.loaded_config().await;
+        assert!(config.accounts[0].session.is_none());
+        assert_eq!(
+            config.accounts[0]
+                .params
+                .get("platform_session_env")
+                .map(String::as_str),
+            Some(env)
+        );
     }
 
     // RF1.2: desktop precedence env > chosen > OS, never `./cuotai.toml`;
@@ -4437,6 +4611,7 @@ mod tests {
             name: name.into(),
             provider: Provider::AlibabaCloud,
             credential_env: Some(format!("{}_KEY", name.to_uppercase())),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

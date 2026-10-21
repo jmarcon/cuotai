@@ -492,6 +492,7 @@ mod tests {
             name: "conta".to_string(),
             provider,
             credential_env: Some("TEST_ADMIN_KEY".to_string()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

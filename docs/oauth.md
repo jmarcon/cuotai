@@ -62,7 +62,7 @@ When the page shows **Authentication Code / Paste this into MiMo Code**, go back
 
 The code is encrypted to that attempt's ephemeral key. The automatic callback is still accepted in parallel. The typed code is never persisted; only the decoded token is written to the vault after the final confirmation.
 
-**Authorization by code is not a quota session:** the code delivers an inference key (`sk-`), not console cookies. For the balance and the monthly Token Plan, set `params.platform_session_env` to the **name** of the variable holding the `platform.xiaomimimo.com` Cookie (`api-platform_serviceToken` and `userId`). The MiMo Desktop weekly quota stays separate in `session_env`/`region`; if both fields are filled in, the Desktop mode takes precedence.
+**Authorization by code is not a quota session:** the code delivers an inference key (`sk-`), not console cookies. For the balance and the monthly Token Plan, set `params.platform_session_env` to the **name** of the variable holding the `platform.xiaomimimo.com` Cookie (`api-platform_serviceToken` and `userId`). The MiMo Desktop weekly quota stays separate in `session_env`/`region`; if both fields are filled in, the Desktop mode takes precedence. Either session can then move into the system vault with explicit confirmation, after which the TOML keeps only `[accounts.session]` (see "Web sessions in the vault" in [providers.md](providers.md)).
 
 ### Qwen Code OAuth
 

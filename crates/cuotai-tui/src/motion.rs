@@ -356,6 +356,7 @@ mod tests {
             name: "a".into(),
             provider: Provider::Groq,
             credential_env: None,
+            session: None,
             oauth: None,
             params: Default::default(),
             refresh_seconds: None,

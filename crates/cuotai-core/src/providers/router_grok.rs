@@ -665,6 +665,7 @@ mod tests {
             name: "test".into(),
             provider: Provider::Grok,
             credential_env: None,
+            session: None,
             oauth: None,
             params: params
                 .iter()

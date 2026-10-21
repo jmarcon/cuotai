@@ -1696,6 +1696,7 @@ mod tests {
             name: "conta".into(),
             provider,
             credential_env: Some(env.into()),
+            session: None,
             oauth: None,
             params,
             refresh_seconds: None,

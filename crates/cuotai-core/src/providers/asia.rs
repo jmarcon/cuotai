@@ -369,6 +369,7 @@ mod tests {
             name: "conta".into(),
             provider,
             credential_env: Some(env.into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

@@ -607,6 +607,7 @@ mod tests {
             name: "cursor-personal".into(),
             provider: Provider::Cursor,
             credential_env: Some("CURSOR_ACCESS_TOKEN".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

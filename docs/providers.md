@@ -20,6 +20,14 @@ The Cuotai catalog contains **36 providers**, combining billing admin APIs, Clou
 
 A generation key does not replace an admin key or a subscription token. No cookie, Keychain entry or credential file of another app is extracted automatically; only Cuotai's own entries are read from the vault.
 
+### Web sessions in the vault (PRD 0016)
+
+Xiaomi MiMo (`session_env`, `platform_session_env`), Alibaba Coding Plan and Alibaba Token Plan (`session_env`) read a web session you export yourself. The core declares, per session slot, the cookie names it accepts, the only hosts that may receive it (HTTPS) and that it travels as the `Cookie` header (`cuotai_core::user_session::descriptors`). A slot can live in an environment variable named by its parameter, as before, or in the system vault:
+
+- **Stored:** the session goes to a Cuotai vault entry (Keychain, Credential Manager or Secret Service; the debug-only `--dev-credentials-sqlite` store keeps its plaintext warning and release builds refuse it). The TOML keeps only `[accounts.session]` with a random `credential_ref` and the stored `slots`; the entry is bound to that reference, the provider and the slot, so a reference copied to another account, provider or slot finds nothing and two accounts cannot share one.
+- **Migration:** an account that still names a variable is offered the move on its summary (TUI: F3, then F3 again to confirm) or in the account dialog (desktop: **Move to the vault**, then **Confirm the move**). Cuotai copies the variable's current value into the vault, removes the parameter from the TOML and leaves the variable in your environment for you to remove; nothing moves when a variable is unset or empty, and a refused save undoes the vault write (a new entry is removed, a replaced session comes back). Accounts that keep the variable work unchanged.
+- **What is never shown:** the session value never enters the TOML, `Debug` output, error messages or reports; a reference without its vault entry asks for the session again.
+
 ## Usage access matrix
 
 How each account's usage is read, as `cuotai_core::access::describe` classifies it (PRD 0005) and as the wizard, the desktop dialog and the cards show it. A provider has one row for its default configuration plus one per mode (a `params` value or the native login) that changes the queried interface; modes with the same classification share a row.

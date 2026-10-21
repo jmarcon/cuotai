@@ -680,6 +680,7 @@ mod tests {
             name: "a".into(),
             provider,
             credential_env: Some("T".into()),
+            session: None,
             oauth: None,
             params: params
                 .iter()

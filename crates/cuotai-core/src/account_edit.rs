@@ -1994,10 +1994,13 @@ pub fn suggested_credential(provider: Provider) -> &'static str {
 /// full descriptor). Front ends render the picker label, the credential
 /// notes, the cost advisory and the save confirmation from it, never from
 /// the provider. Fields the provider does not declare are ignored.
+/// `stored_slots` are the session slots the edited account already keeps
+/// in the vault (PRD 0016 RF1), which [`build_account`] preserves.
 pub fn draft_access(
     provider: Provider,
     auth_mode: &str,
     fields: &[DraftField],
+    stored_slots: &[String],
 ) -> crate::access::UsageAccess {
     let params = fields
         .iter()
@@ -2015,7 +2018,7 @@ pub fn draft_access(
     crate::access::classify(
         provider,
         auth_mode == crate::oauth::login::MODE_OAUTH,
-        &params,
+        &crate::access::with_vault_slots(&params, stored_slots.iter()),
     )
 }
 
@@ -2115,11 +2118,18 @@ pub fn build_account(
     let refresh_seconds = parse_refresh_seconds(interval_text)
         .map_err(|message| build_account_field_error("interval", message))?;
 
+    // PRD 0016 RF1: the vault reference stays with its account; the form
+    // never edits it and a provider switch starts without one.
+    let session = editing_account
+        .filter(|account| account.provider == *provider)
+        .and_then(|account| account.session.clone());
+
     Ok(Account {
         name,
         provider: *provider,
         credential_env,
         oauth,
+        session,
         params,
         refresh_seconds,
     })
@@ -2605,6 +2615,7 @@ mod tests {
             name: name.into(),
             provider,
             credential_env: Some(env.into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -2740,6 +2751,7 @@ mod tests {
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: Some(120),
@@ -2761,6 +2773,7 @@ mod tests {
             name: "Anthropic".into(),
             provider: Provider::AnthropicApi,
             credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -2781,6 +2794,7 @@ mod tests {
             name: "OpenAI".into(),
             provider: Provider::AnthropicApi,
             credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -2986,6 +3000,7 @@ mod tests {
             name: "Multi".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::from([("project_ids".into(), "kept".into())]),
             refresh_seconds: None,
@@ -3019,6 +3034,7 @@ mod tests {
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::from([
                 ("kept".into(), "yes".into()),
@@ -3208,6 +3224,7 @@ mod tests {
             name: "Kiro".into(),
             provider: Provider::Kiro,
             credential_env: None,
+            session: None,
             oauth: Some(existing_oauth.clone()),
             params: BTreeMap::from([
                 ("auth_method".into(), "idc".into()),
@@ -3447,6 +3464,7 @@ mod tests {
             name: "Prod".into(),
             provider: Provider::AwsBedrock,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::from([("profile".into(), "default".into())]),
             refresh_seconds: None,
@@ -3458,6 +3476,7 @@ mod tests {
             name: "Prod".into(),
             provider: Provider::AwsBedrock,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -3474,6 +3493,7 @@ mod tests {
             name: "Qwen".into(),
             provider: Provider::AlibabaTokenPlan,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
             refresh_seconds: None,
@@ -3484,6 +3504,7 @@ mod tests {
             name: "Qwen".into(),
             provider: Provider::AlibabaTokenPlan,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -3500,6 +3521,7 @@ mod tests {
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -3511,6 +3533,7 @@ mod tests {
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some(String::new()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -3523,6 +3546,7 @@ mod tests {
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -3542,6 +3566,7 @@ mod tests {
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::from([("profile".into(), "stale".into())]),
             refresh_seconds: None,
@@ -3810,6 +3835,7 @@ mod tests {
             name: "oPeNaI".into(),
             provider: Provider::AnthropicApi,
             credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -3895,6 +3921,7 @@ mod tests {
             name: name.into(),
             provider,
             credential_env: None,
+            session: None,
             oauth: Some(oauth_config_for(provider)),
             params: BTreeMap::new(),
             refresh_seconds: None,
@@ -4281,6 +4308,7 @@ mod tests {
                     name: "replacement".into(),
                     provider: Provider::ChatGpt,
                     credential_env: None,
+                    session: None,
                     oauth: Some(original_oauth.clone()),
                     params: BTreeMap::new(),
                     refresh_seconds: None,

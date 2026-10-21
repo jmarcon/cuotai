@@ -300,9 +300,28 @@ impl UsageAccess {
 }
 
 /// How `account`'s usage is obtained. Pure: reads only the provider, the
-/// authentication type and the `params` that switch the queried interface.
+/// authentication type and the `params` that switch the queried interface;
+/// a session slot held in the vault (PRD 0016) counts as a set parameter.
 pub fn describe(account: &Account) -> UsageAccess {
-    classify(account.provider, account.oauth.is_some(), &account.params)
+    let slots = account.session.iter().flat_map(|s| s.slots.iter());
+    classify(
+        account.provider,
+        account.oauth.is_some(),
+        &with_vault_slots(&account.params, slots),
+    )
+}
+
+/// `params` plus a placeholder for every slot stored in the vault, standing
+/// for the session the query reads from there.
+pub(crate) fn with_vault_slots<'a>(
+    params: &BTreeMap<String, String>,
+    slots: impl Iterator<Item = &'a String>,
+) -> BTreeMap<String, String> {
+    let mut params = params.clone();
+    for slot in slots {
+        params.insert(slot.clone(), "vault".into());
+    }
+    params
 }
 
 /// [`describe`] from its inputs, so an account still being edited (see
@@ -951,12 +970,32 @@ mod tests {
         ];
         for (provider, mode, fields, params, oauth) in cases {
             assert_eq!(
-                draft_access(provider, mode, &fields),
+                draft_access(provider, mode, &fields, &[]),
                 describe(&account(provider, params, oauth)),
                 "{provider:?} {mode}"
             );
         }
-        let empty = |p| draft_access(p, "credential", &[]);
+        // PRD 0016 RF1: a session moved to the vault keeps the account a
+        // user-session one although `session_env` is gone from the form.
+        let mut migrated = account(AlibabaCodingPlan, &[], false);
+        migrated.session = Some(crate::user_session::SessionConfig {
+            credential_ref: "6f1d3c1e-8a52-4a3c-9f7e-2a8b5b1c0d11".into(),
+            slots: ["session_env".to_string()].into(),
+        });
+        let stored = ["session_env".to_string()];
+        let draft = draft_access(
+            AlibabaCodingPlan,
+            "credential",
+            &[text("session_env", "")],
+            &stored,
+        );
+        assert_eq!(draft.credential, C::UserSession);
+        assert_eq!(draft, describe(&migrated));
+        assert_eq!(
+            describe(&account(AlibabaCodingPlan, &[], false)).credential,
+            C::InferenceKey
+        );
+        let empty = |p| draft_access(p, "credential", &[], &[]);
         assert!(empty(AwsBedrock).cost_advisory().is_some());
         assert!(empty(OpenAiApi).cost_advisory().is_none());
         let windsurf: Vec<_> = empty(Windsurf).notes().into_iter().map(|n| n.id).collect();

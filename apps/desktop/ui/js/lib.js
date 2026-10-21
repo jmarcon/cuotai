@@ -59,7 +59,7 @@ export const formSchema = (provider) => call("form_schema", { provider });
 export const visibleFields = (provider, choices, authMode, loginParams = {}) => call("visible_fields", { provider, choices, authMode, loginParams });
 export const fieldChoices = (provider, choices, authMode) => call("field_choices", { provider, choices, authMode });
 /** PRD 0005 RF3: how the draft's usage is read (level, notes, cost warning, save confirmation), from the core. */
-export const draftAccess = (provider, authMode, fields) => call("draft_access", { provider, authMode, fields });
+export const draftAccess = (provider, authMode, fields, sessionSlots = []) => call("draft_access", { provider, authMode, fields, sessionSlots });
 // RF2: login orquestrado pelo core; a UI só renderiza eventos e envia entradas.
 export const loginStart = (request) => call("login_start", { request });
 export const loginSubmitCode = (code) => call("login_submit_code", { code });
@@ -73,6 +73,8 @@ export const onLogin = (cb) => {
 };
 const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
+/** PRD 0016 RF1.2: move the account's session variables into the system vault (after an explicit confirmation). */
+export const migrateSession = (index) => call("migrate_session", { index });
 export const saveAccount = (input) => call("save_account", { input });
 export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
 /// RF4: re-read the configuration from disk and rebuild the live
@@ -638,6 +640,8 @@ const demoReports = [
   // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
   { ...dr("Restored", "chat_gpt", []), pending: true, class: "unmeasured", checked_at: ago(180),
     last_good: { checked_at: ago(180), metrics: [dm("5h", 30, 100, 2, "quota", "window_5h", "%")] } },
+  // PRD 0016 RF1.2 fixture: a session still read from an environment variable, offered for the vault.
+  dr("Personal", "xiaomi_mimo", [dm("Weekly", 6, 100, 96, "quota", "weekly", "%")]),
 ];
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
@@ -828,7 +832,7 @@ function demoAccess(r) {
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
     explanation: r.status === "ready" ? null : reason ?? changed };
 }
-const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(),
+const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} }, statusQueries: DEMO_STATUS != null,
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null } };
@@ -1063,8 +1067,24 @@ const demo = {
       };
     });
   },
-  get_account: async ({ index }) => ({ name: demoReports[index].account, provider: demoReports[index].provider, credential: "DEMO_API_KEY",
-    interval: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }] }),
+  get_account: async ({ index }) => {
+    const r = demoReports[index];
+    // PRD 0016 RF1.2 demo: the MiMo account reads its platform session from a variable until it is migrated.
+    const migrated = demoSettings.sessionMigrated.has(r);
+    const sessionOffer = r.provider === "xiaomi_mimo" && !migrated;
+    const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" };
+    const hosts = ["platform.xiaomimimo.com"];
+    return { name: r.account, provider: r.provider, credential: "DEMO_API_KEY",
+      interval: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
+      session_slots: r.provider === "xiaomi_mimo" && migrated ? ["platform_session_env"] : [],
+      session_migration: sessionOffer ? [{ slot: "platform_session_env", env: "MIMO_COOKIE", label, hosts,
+        consent: { id: "user_session.migrate.consent", params: { label, env: "MIMO_COOKIE", hosts: hosts.join(", ") },
+          fallback: `${label.fallback}: copiar o valor de MIMO_COOKIE para o cofre do sistema e tirar MIMO_COOKIE do TOML. A sessão só é enviada a ${hosts.join(", ")}; a variável continua no seu ambiente até você removê-la.` } }] : [] };
+  },
+  migrate_session: async ({ index }) => {
+    demoSettings.sessionMigrated.add(demoReports[index]);
+    return demo.get_account({ index });
+  },
   save_account: async ({ input }) => {
     window.__lastSaveRequest = input;
     if (!input.name.trim()) throw "Informe um nome para a conta.";

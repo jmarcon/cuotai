@@ -513,6 +513,7 @@ mod tests {
             name: "test".into(),
             provider,
             credential_env: None,
+            session: None,
             oauth: None,
             params: params
                 .iter()

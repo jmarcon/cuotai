@@ -769,6 +769,7 @@ mod tests {
             name: "conta".to_string(),
             provider,
             credential_env: env.map(str::to_string),
+            session: None,
             oauth: None,
             params,
             refresh_seconds: None,

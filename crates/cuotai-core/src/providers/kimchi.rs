@@ -407,6 +407,7 @@ mod tests {
             name: "Kimchi".into(),
             provider: Provider::Kimchi,
             credential_env: Some("TEST_KIMCHI_KEY".into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
