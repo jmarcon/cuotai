@@ -740,8 +740,7 @@ mod tests {
         }
         assert!(
             data.notes.iter().any(|n| n.contains("não expõe mais")),
-            "{:?}",
-            data.notes
+            "the usage-only note is missing"
         );
     }
 
