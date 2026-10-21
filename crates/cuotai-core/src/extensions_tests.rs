@@ -64,6 +64,58 @@ fn rejection(root: &Path) -> String {
     discovery.rejected[0].reason.id.to_string()
 }
 
+/// RF5.19: a program the operating system would hand to `cmd.exe` or
+/// PowerShell is refused in every spelling, because those re-parse the exact
+/// argument vector this contract fixes. A directly executed file (`.exe`,
+/// or a Unix script with the executable bit) is still accepted.
+#[test]
+fn an_interpreted_wrapper_is_refused_and_a_direct_executable_is_not() {
+    let root = tempfile::tempdir().unwrap();
+    for name in [
+        "quota.cmd",
+        "quota.CMD",
+        "quota.bat",
+        "quota.Bat",
+        "quota.ps1",
+        "quota.vbs",
+        "quota.com",
+    ] {
+        let dir = root.path().join("proxy");
+        fs::create_dir_all(&dir).unwrap();
+        let manifest = VALID.replace("\"./run.sh\", \"--json\"", &format!("\"./{name}\""));
+        fs::write(dir.join(MANIFEST_FILE), manifest).unwrap();
+        script(&dir.join(name));
+        assert_eq!(
+            rejection(root.path()),
+            "extensions.error.interpreted",
+            "{name} must be refused"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    let dir = extension(root.path(), "proxy", VALID);
+    script(&dir.join("quota.exe"));
+    let discovery = discover(root.path());
+    assert!(discovery.rejected.is_empty(), "{:?}", discovery.rejected);
+    assert!(discovery.get("proxy").is_some());
+}
+
+/// The suffix check runs on the **resolved** program: a symlink named
+/// `run.exe` pointing at `script.cmd` would be handed to `cmd.exe` with our
+/// exact argv, so it is refused too.
+#[cfg(unix)]
+#[test]
+fn a_symlink_to_a_wrapper_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path().join("proxy");
+    fs::create_dir_all(&dir).unwrap();
+    let manifest = VALID.replace("\"./run.sh\", \"--json\"", "\"./run.exe\"");
+    fs::write(dir.join(MANIFEST_FILE), manifest).unwrap();
+    script(&dir.join("script.cmd"));
+    std::os::unix::fs::symlink(dir.join("script.cmd"), dir.join("run.exe")).unwrap();
+    assert_eq!(rejection(root.path()), "extensions.error.interpreted");
+}
+
 #[test]
 fn a_valid_manifest_is_discovered_with_its_fields_and_defaults() {
     let root = tempfile::tempdir().unwrap();

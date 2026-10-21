@@ -13,6 +13,13 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-10-21
+
+### Added
+
+- Script extensions are now complete across the core, TUI and desktop: users can list, create, enable, disable, test and remove extension accounts, see their exact `Extension` access disclosure and disabled, changed, invalid or missing lifecycle state on cards, and keep the last run and safe error visible; the shared runner never receives Cuotai credentials, preserves consent and integrity checks, revokes changed or invalid extensions, isolates provider refreshes and applies the common backoff (PRD 0017 RF5).
+- Extension authoring is documented with the manifest and output schemas, examples, security and schema-compatibility rules, including Windows executable guidance; three-locale lifecycle/card coverage and a real CLI smoke test verify the flow (PRD 0017 RF5).
+
 ## [0.66.0] - 2026-10-21
 
 ### Added
@@ -548,7 +555,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/main...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/0.67.0...HEAD
+[0.67.0]: https://github.com/jmarcon/cuotai/compare/0.66.0...0.67.0
 [0.66.0]: https://github.com/jmarcon/cuotai/compare/44b1f0f...main
 [0.65.0]: https://github.com/jmarcon/cuotai/commit/44b1f0f
 [0.64.0]: https://github.com/jmarcon/cuotai/commit/fb83951

@@ -509,3 +509,80 @@ dialog.libs {
   margin: 12px 0 4px;
   font-size: 12px;
 }
+
+/* PRD 0017 RF5: discovered executable extensions. */
+dialog.extensions-dlg {
+  width: min(680px, calc(100vw - 32px));
+  padding: 20px;
+}
+.extensions-dlg .dlg-head,
+.extension-title,
+.extension-actions,
+.extension-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.extensions-dlg .dlg-head h2 {
+  flex: 1;
+  font-size: 18px;
+}
+.extensions-dlg > .help,
+.extensions-dlg .ext-status {
+  margin: 8px 0;
+  color: var(--fg-muted);
+}
+.extension-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.extension-row,
+.extension-consent {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.extension-row p,
+.extension-consent p {
+  margin: 6px 0;
+}
+.extension-title strong {
+  flex: 1;
+}
+.extension-title code,
+.extension-state {
+  font-size: 12px;
+}
+.extension-state.enabled {
+  color: var(--good);
+}
+.extension-state.changed,
+.extension-state.invalid,
+.extension-state.error {
+  color: var(--bad);
+}
+.extension-runtime {
+  color: var(--fg-muted);
+}
+.extension-runtime-error {
+  color: var(--bad);
+}
+.extension-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.extension-consent {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+}
+.extension-consent p {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.extension-confirm {
+  margin-top: 12px;
+  font-weight: 600;
+}

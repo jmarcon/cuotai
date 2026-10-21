@@ -69,6 +69,7 @@ pub fn default_env(provider: Provider) -> &'static str {
         Provider::AlibabaCloud => "ALIBABA_CLOUD_ACCESS_KEY_ID",
         Provider::Antigravity => "ANTIGRAVITY_ACCESS_TOKEN",
         Provider::Kimchi => "KIMCHI_API_KEY",
+        Provider::Extension => "",
     }
 }
 
@@ -1475,7 +1476,8 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         | Provider::OpenCodeGo
         | Provider::CloudflareAi
         | Provider::OllamaCloud
-        | Provider::Kimchi => &EMPTY,
+        | Provider::Kimchi
+        | Provider::Extension => &EMPTY,
         Provider::GeminiApi | Provider::VertexAi => &GEMINI_CLOUD,
         Provider::AzureOpenAi => &AZURE,
         Provider::Copilot => &COPILOT,
@@ -1950,7 +1952,7 @@ pub enum CredentialKind {
 pub fn credential_kind(provider: Provider) -> CredentialKind {
     match provider {
         Provider::AwsBedrock => CredentialKind::AwsProfile,
-        Provider::AlibabaTokenPlan => CredentialKind::None,
+        Provider::AlibabaTokenPlan | Provider::Extension => CredentialKind::None,
         _ => CredentialKind::EnvVar,
     }
 }

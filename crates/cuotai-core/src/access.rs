@@ -475,7 +475,16 @@ pub(crate) fn classify(
         Provider::Kimchi => entry(Undocumented, InferenceKey, Scope::Account,
             Evidence::Reference("https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts"),
             "kimchi", "Saldo em USD e orçamentos do Kimchi pelo contrato do cliente oficial."),
+        Provider::Extension => entry(Extension, LocalCli, Scope::Account,
+            doc("https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md"),
+            "extension", "Uso informado por uma extensão local aprovada pelo usuário."),
     };
+    if provider == Provider::Extension {
+        access.credential_hint = Localized::fixed(
+            "access.credential_hint.extension",
+            "Recebe somente as variáveis de ambiente pedidas no manifesto e aprovadas pelo usuário.",
+        );
+    }
     access.metered = provider.is_metered();
     access
 }

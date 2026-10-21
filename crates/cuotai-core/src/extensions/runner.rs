@@ -38,6 +38,8 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::io;
 use std::process::Stdio;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -47,7 +49,7 @@ use tokio::io::AsyncRead;
 use tokio::process::Command;
 use tokio::sync::Semaphore;
 
-use super::consent::Approved;
+use super::consent::{self, Approved, Consent};
 use super::output;
 use crate::refresh::RefreshCycle;
 use crate::text::Localized;
@@ -60,6 +62,8 @@ pub const MAX_RUNNING: usize = 2;
 /// the approved manifest ones and `SystemRoot` on Windows).
 pub const INHERITED_ENV: [&str; 3] = ["PATH", "HOME", "LANG"];
 
+/// Note id of a run whose approval was revoked before its process started.
+pub(crate) const REVOKED_NOTE: &str = "extensions.run.revoked";
 /// Note id of a run refused because the files changed since the approval.
 pub(crate) const CHANGED_NOTE: &str = "extensions.run.changed";
 /// Note id of a run whose program could not be started.
@@ -87,6 +91,8 @@ pub enum Outcome {
     /// The manifest or the program changed since the approval; nothing
     /// ran.
     Changed,
+    /// The approval was revoked before the process started; nothing ran.
+    Revoked,
 }
 
 /// One run of one extension.
@@ -120,6 +126,11 @@ impl Run {
             return output::check(&self.id, &self.stdout);
         }
         let note = match (self.outcome, self.exit_code) {
+            (Outcome::Revoked, _) => Localized::fixed(
+                REVOKED_NOTE,
+                "A aprovação da extensão foi revogada antes de a execução começar; nada foi \
+                 executado.",
+            ),
             (Outcome::Changed, _) => Localized::fixed(
                 CHANGED_NOTE,
                 "O manifesto ou o programa da extensão mudou desde a aprovação; ela não foi \
@@ -203,21 +214,47 @@ pub struct Runner {
     slots: Arc<Semaphore>,
     parent: Arc<BTreeMap<OsString, OsString>>,
     schedules: Arc<Mutex<BTreeMap<String, Schedule>>>,
+    admission: Arc<consent::Shared>,
+    /// How many runs are waiting for a permit right now. Test-only
+    /// instrumentation: it does not exist in a release build, so no
+    /// production path pays an atomic.
+    #[cfg(test)]
+    waiting: Arc<AtomicUsize>,
 }
 
 impl Runner {
-    pub fn new() -> Self {
-        Self::with_parent_env(std::env::vars_os())
+    /// A runner admitting approvals issued under `consent` (RF4.5) and
+    /// inheriting the process environment.
+    pub(crate) fn with_consent(consent: &Consent) -> Self {
+        Self::build(std::env::vars_os(), consent)
     }
 
-    /// [`Self::new`] reading the parent environment from `parent` instead
-    /// of the process environment.
-    fn with_parent_env(parent: impl IntoIterator<Item = (OsString, OsString)>) -> Self {
+    /// [`Self::with_consent`] reading the parent environment from `parent`
+    /// instead of the process environment.
+    #[cfg(test)]
+    fn with_parent_env(
+        parent: impl IntoIterator<Item = (OsString, OsString)>,
+        consent: &Consent,
+    ) -> Self {
+        Self::build(parent, consent)
+    }
+
+    fn build(parent: impl IntoIterator<Item = (OsString, OsString)>, consent: &Consent) -> Self {
         Self {
             slots: Arc::new(Semaphore::new(MAX_RUNNING)),
             parent: Arc::new(parent.into_iter().collect()),
             schedules: Arc::new(Mutex::new(BTreeMap::new())),
+            admission: Arc::clone(consent.shared()),
+            #[cfg(test)]
+            waiting: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    /// How many runs are waiting for one of the [`MAX_RUNNING`] permits
+    /// (tests synchronize on this instead of sleeping).
+    #[cfg(test)]
+    pub(crate) fn waiting(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.waiting)
     }
 
     /// RF3.4: how long until `id` may run again at `now` (zero for a
@@ -231,16 +268,30 @@ impl Runner {
             .map_or(Duration::ZERO, |schedule| schedule.next_in(now))
     }
 
+    /// Forget `id`'s failures: the next run is due immediately. A fresh
+    /// approval (RF4.1) uses this so a re-approved extension is not made to
+    /// wait out the backoff of the version that failed.
+    pub fn forget(&self, id: &str) {
+        self.schedules
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(id);
+    }
+
     /// Run `approved` once under the RF3 limits and check its output
     /// against the contract. Waits for a free slot (never longer than the
     /// runs ahead of it allow) and records the outcome in the extension's
     /// own schedule.
     pub async fn run(&self, approved: &Approved) -> Reading {
+        #[cfg(test)]
+        self.waiting.fetch_add(1, Ordering::SeqCst);
         let permit = Arc::clone(&self.slots)
             .acquire_owned()
             .await
             .expect("the runner semaphore stays open");
-        let run = execute(approved, &self.parent).await;
+        #[cfg(test)]
+        self.waiting.fetch_sub(1, Ordering::SeqCst);
+        let run = execute(approved, &self.parent, &self.admission).await;
         let checked = run.checked();
         let ok = checked.status == Status::Ready;
         let interval = Duration::from_secs(approved.manifest().interval_seconds);
@@ -252,12 +303,6 @@ impl Runner {
             .finish(interval, ok, Instant::now());
         drop(permit);
         Reading { run, checked }
-    }
-}
-
-impl Default for Runner {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -450,7 +495,11 @@ enum Waited {
     TimedOut,
 }
 
-async fn execute(approved: &Approved, parent: &BTreeMap<OsString, OsString>) -> Run {
+async fn execute(
+    approved: &Approved,
+    parent: &BTreeMap<OsString, OsString>,
+    admission: &Arc<consent::Shared>,
+) -> Run {
     let manifest = approved.manifest();
     let started_at = Utc::now();
     let started = Instant::now();
@@ -463,7 +512,14 @@ async fn execute(approved: &Approved, parent: &BTreeMap<OsString, OsString>) -> 
         stdout: captured.bytes,
         truncated: captured.truncated,
     };
-    // RF4.2: never start over files that changed since the approval.
+    // RF4.2: never start over files that changed since the approval, and
+    // RF4.5: never start after the approval was revoked. Both checks and the
+    // spawn itself happen under the admission guard, so a revocation cannot
+    // interleave between them.
+    let _admitted = match approved.admit(admission) {
+        Some(guard) => guard,
+        None => return run(Outcome::Revoked, None, Captured::default()),
+    };
     if !approved.verify() {
         return run(Outcome::Changed, None, Captured::default());
     }
@@ -504,7 +560,12 @@ async fn execute(approved: &Approved, parent: &BTreeMap<OsString, OsString>) -> 
         command.env("SystemRoot", root);
     }
     let mut child = match command.spawn() {
-        Ok(child) => child,
+        Ok(child) => {
+            // The process exists: from here the run is like any other
+            // in-flight query and no longer blocks a revocation.
+            drop(_admitted);
+            child
+        }
         Err(_) => return run(Outcome::NotStarted, None, Captured::default()),
     };
     let tree = Tree::new(&child);

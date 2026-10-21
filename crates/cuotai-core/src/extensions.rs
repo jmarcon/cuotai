@@ -29,6 +29,7 @@
 //! approval, and only an [`consent::Approved`] can be run.
 
 pub mod consent;
+pub mod management;
 pub mod output;
 pub mod runner;
 
@@ -106,6 +107,10 @@ pub struct Manifest {
     pub dir: PathBuf,
     /// The program `command[0]` names, resolved inside [`Self::dir`].
     pub program: PathBuf,
+    /// The exact `manifest.toml` text this struct was parsed from. It is
+    /// the version the user is shown and the one consent hashes, so parsing
+    /// and approving can never straddle two different files.
+    pub source: String,
 }
 
 /// A folder of the extensions directory that is not a valid extension.
@@ -236,7 +241,7 @@ fn load(dir: &Path) -> Result<Manifest, (Option<String>, Localized)> {
     }
     let raw: RawManifest =
         toml::from_str(&text).map_err(|error| fail(toml_error(&text, &error)))?;
-    validate(dir, raw).map_err(fail)
+    validate(dir, raw, &text).map_err(fail)
 }
 
 fn read_manifest(path: &Path) -> Result<String, Localized> {
@@ -287,7 +292,7 @@ struct RawManifest {
     env: Vec<String>,
 }
 
-fn validate(dir: &Path, raw: RawManifest) -> Result<Manifest, Localized> {
+fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Localized> {
     if !valid_id(&raw.id) {
         return Err(Localized::with_param(
             "extensions.error.id",
@@ -356,10 +361,11 @@ fn validate(dir: &Path, raw: RawManifest) -> Result<Manifest, Localized> {
         env,
         dir,
         program,
+        source: source.to_owned(),
     })
 }
 
-fn valid_id(id: &str) -> bool {
+pub(crate) fn valid_id(id: &str) -> bool {
     let mut chars = id.chars();
     chars
         .next()
@@ -435,6 +441,40 @@ fn valid_env(names: Vec<String>) -> Result<Vec<String>, Localized> {
     Ok(env)
 }
 
+/// The file extensions the operating system hands to a command interpreter
+/// instead of executing directly (Windows' `cmd.exe`, PowerShell, VBScript).
+/// Those would re-parse the arguments this contract fixes exactly, so they
+/// are refused whatever the platform — including case variants such as
+/// `.CMD`. A shebang script with the executable bit (`.sh`, `.py`) is not one
+/// of these: the kernel executes it directly and never re-parses `argv`.
+const INTERPRETED_SUFFIXES: [&str; 5] = ["cmd", "bat", "com", "ps1", "vbs"];
+
+/// The lowercased suffix of `program` when it is an interpreted wrapper.
+fn interpreted_suffix(program: &str) -> Option<String> {
+    let suffix = Path::new(program)
+        .extension()
+        .map(|suffix| suffix.to_string_lossy().to_ascii_lowercase())?;
+    INTERPRETED_SUFFIXES
+        .iter()
+        .any(|known| *known == suffix)
+        .then_some(suffix)
+}
+
+/// `extensions.error.interpreted`: the program would be parsed by an
+/// interpreter instead of executed as written.
+fn interpreted_program(suffix: String) -> Localized {
+    Localized::with_param(
+        "extensions.error.interpreted",
+        "suffix",
+        suffix.as_str(),
+        format!(
+            "O programa do command termina em .{} e seria interpretado por um shell; \
+             use um executável como command[0].",
+            suffix
+        ),
+    )
+}
+
 /// The folder and the program of `command`, both with links resolved: the
 /// program is a relative path without `..` that names a file inside the
 /// folder (an executable one on Unix), never a name looked up in `PATH`.
@@ -444,6 +484,9 @@ fn resolve_program(dir: &Path, command: &[String]) -> Result<(PathBuf, PathBuf),
     };
     if program.is_empty() || command.iter().any(|arg| arg.contains('\0')) {
         return Err(command_shape());
+    }
+    if let Some(suffix) = interpreted_suffix(program) {
+        return Err(interpreted_program(suffix));
     }
     let relative = Path::new(program);
     let inside = relative
@@ -465,6 +508,12 @@ fn resolve_program(dir: &Path, command: &[String]) -> Result<(PathBuf, PathBuf),
     }
     if !resolved.is_file() {
         return Err(program_missing(program));
+    }
+    // The suffix check runs again on the **resolved** path: a symlink (or a
+    // Windows extension-less alias) pointing at `script.cmd` would be handed
+    // to `cmd.exe` with our exact argv, whatever the manifest spelled.
+    if let Some(suffix) = interpreted_suffix(&resolved.to_string_lossy()) {
+        return Err(interpreted_program(suffix));
     }
     #[cfg(unix)]
     {

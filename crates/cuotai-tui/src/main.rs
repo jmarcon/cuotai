@@ -3,6 +3,7 @@ mod auth_ui;
 mod cost;
 mod dashboard;
 mod extension_check;
+mod extensions_view;
 mod headless;
 mod models_view;
 mod motion;

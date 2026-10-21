@@ -680,24 +680,21 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
     }
     let provider = match raw.provider {
         None => None,
-        Some(slug) => Some(
-            Provider::ALL
-                .into_iter()
-                .find(|provider| provider.slug() == slug.trim())
-                .ok_or_else(|| {
-                    Localized::with_params(
-                        "hooks.error.provider",
-                        params([
-                            ("name", name.as_str().into()),
-                            ("provider", slug.as_str().into()),
-                        ]),
-                        format!(
-                            "A regra \"{name}\" filtra pelo provedor desconhecido \"{slug}\" \
-                             (use o identificador, como em cuotai --list-providers)."
-                        ),
-                    )
-                })?,
-        ),
+        // Every serialized provider is accepted, `extension` included: its
+        // accounts exist, so a rule must be able to filter on them.
+        Some(slug) => Some(Provider::from_slug(&slug).ok_or_else(|| {
+            Localized::with_params(
+                "hooks.error.provider",
+                params([
+                    ("name", name.as_str().into()),
+                    ("provider", slug.as_str().into()),
+                ]),
+                format!(
+                    "A regra \"{name}\" filtra pelo provedor desconhecido \"{slug}\" \
+                     (use o identificador, como em cuotai --list-providers)."
+                ),
+            )
+        })?),
     };
     if raw
         .account
