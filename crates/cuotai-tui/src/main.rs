@@ -178,6 +178,12 @@ struct Args {
     /// erro local.
     #[arg(long, group = "cost")]
     cost_scan: bool,
+    /// Mostra os preços (USD por milhão de tokens) que a estimativa de
+    /// custo local usa: a tabela embutida, com data e fonte, sob o seu
+    /// pricing.json (revisado à mão, nunca baixado); com --json, em JSON.
+    /// Saída 0; 1 se o pricing.json é inválido (fica ignorado). Não lê logs.
+    #[arg(long, group = "cost")]
+    cost_prices: bool,
     /// Período do custo local mostrado: today, last_7_days (padrão),
     /// last_30_days, current_month ou all.
     #[arg(long, value_name = "PERÍODO", conflicts_with_all = COST_OPTION_CONFLICTS)]
@@ -210,6 +216,9 @@ fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
     }
     if args.cost_scan {
         return Some(CostAction::Scan);
+    }
+    if args.cost_prices {
+        return Some(CostAction::Prices);
     }
     (args.cost_period.is_some() || args.cost_retention_days.is_some()).then(|| {
         CostAction::Options {

@@ -1064,5 +1064,14 @@
   "cost.disabled": "{source} desactivado; {removed} registro(s) derivado(s) borrado(s).",
   "cost.enabled": "{source} activado. Los registros se leen en segundo plano mientras la TUI o la app de escritorio están abiertas, o ahora con cuotai --cost-scan.",
   "cost.erased": "Índice de costo local borrado: {removed} registro(s).",
-  "cost.error.unknown_period": "Período desconocido: {name}. Períodos: {known}."
+  "cost.error.unknown_period": "Período desconocido: {name}. Períodos: {known}.",
+  "cost.estimate.notice": "Estimación a precios de API, no es un cargo; importes en USD.",
+  "cost.pricing.error.currency": "pricing.json solo acepta precios en USD.",
+  "cost.pricing.error.duplicate": "pricing.json repite el modelo {model}.",
+  "cost.pricing.error.model": "pricing.json tiene un nombre de modelo inválido: usa de 1 a 96 letras, dígitos o .-_:/@+ (y no \"unknown\").",
+  "cost.pricing.error.rate": "Precio inválido en {model} ({field}): usa un número de 0 a 10000 dólares por millón de tokens, con hasta seis decimales.",
+  "cost.pricing.error.source": "pricing.json tiene una fuente (source) de más de 300 caracteres o con caracteres de control.",
+  "cost.pricing.error.syntax": "pricing.json inválido en la línea {line}, columna {column}.",
+  "cost.pricing.error.unreadable": "No se pudo leer pricing.json.",
+  "cost.pricing.ignored": "{error} Solo se usa la tabla integrada hasta que se corrija el archivo."
 }

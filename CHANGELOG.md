@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-10-21
+
+### Added
+
+- The local cost estimate has its prices: a per-model table of API prices in USD per million tokens (input, output, cache read and cache write) is embedded with the date it took effect and its source, and you can review or override it model by model in your own `pricing.json` beside the local cost preferences (never downloaded); `cuotai --cost-prices [--json]` lists the prices in effect and whether your file is used or ignored (exit 1 when it is invalid), a model without a known price stays "cost unknown" rather than zero, and every estimate says it is at API prices, not a charge (PRD 0015 RF3).
+
 ## [0.57.0] - 2026-10-21
 
 ### Added
 
-- Cuotai can follow the local session logs of Claude Code and Codex CLI to count tokens per day and per model, off until you turn a source on: `cuotai --cost-enable claude_code|codex_cli` (or the switch in the desktop's new **Settings → Local cost**) first shows exactly which directories are read, what for and that only numbers (time, model, token counts and an anonymous session digest) are extracted, and reads nothing before you confirm; the logs are indexed incrementally into a private `cost.sqlite3` by a low-priority background scan with limits per cycle that pauses in energy-saving mode and never delays the quota refresh, directories without access become a "no access" state, invalid lines are skipped and counted, conversation content is never read into the index, `--cost-sources`, `--cost-scan`, `--cost-period` and `--cost-retention-days` (120 days by default) list, scan and configure it, and `--cost-disable` or `--cost-erase` remove everything derived (PRD 0015 RF1, RF2).
+- Cuotai can follow the local session logs of Claude Code and Codex CLI to count tokens per day and per model, off until you turn a source on: `cuotai --cost-enable claude_code|codex_cli` (or the switch in the desktop's new **Settings → Local cost**) first shows exactly which directories are read, what for and that only numbers (time, model, token counts and an anonymous session digest) are extracted, and reads nothing before you confirm; the logs are indexed incrementally into a private `cost.sqlite3` by a low-priority background scan with limits per cycle that pauses in energy-saving mode and never delays the quota refresh, directories without access become a "no access" state, invalid lines are skipped and counted, conversation content is never read into the index, `--cost-sources`, `--cost-scan`, `--cost-period` and `--cost-retention-days` (120 days by default) list, scan and configure it, and `--cost-disable` or `--cost-erase` remove everything derived (PRD 0015 RF1, RF2, 83b6d95).
 
 ## [0.56.0] - 2026-10-21
 
@@ -492,8 +498,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/050c86a...main
-[0.57.0]: https://github.com/jmarcon/cuotai/compare/050c86a...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/83b6d95...main
+[0.58.0]: https://github.com/jmarcon/cuotai/compare/83b6d95...main
+[0.57.0]: https://github.com/jmarcon/cuotai/commit/83b6d95
 [0.56.0]: https://github.com/jmarcon/cuotai/commit/050c86a
 [0.55.0]: https://github.com/jmarcon/cuotai/commit/5ea7bd1
 [0.54.0]: https://github.com/jmarcon/cuotai/commit/f6b3272
