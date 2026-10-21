@@ -26,7 +26,7 @@ use cuotai_core::{
     oauth::OAuthSession,
     pace::Point,
     refresh::{Edit, RefreshCycle},
-    Account, Config, EnvironmentCredentials, Metric, Monitor, Snapshot,
+    user_session, Account, Config, EnvironmentCredentials, Metric, Monitor, Snapshot,
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -527,6 +527,81 @@ pub async fn run(
                                     "Conta alterada no arquivo; reabra o assistente.".into(),
                                 );
                             }
+                        }
+                    }
+                }
+                Action::MigrateSession { index } => {
+                    // PRD 0016 RF1.2: vault first, then the TOML through the
+                    // same staged edit as a save; a failed save removes the
+                    // vault entries again.
+                    let base = wizard.as_ref().and_then(|w| w.base_account(index));
+                    if base.is_none() || base != file.config.accounts.get(index) {
+                        if let Some(active) = &mut wizard {
+                            active.set_error(
+                                "Conta alterada no arquivo; reabra o assistente.".into(),
+                            );
+                        }
+                    } else {
+                        match user_session::stage_migration(
+                            session.as_ref(),
+                            &EnvironmentCredentials,
+                            &file.config,
+                            index,
+                        )
+                        .await
+                        {
+                            Err(note) => {
+                                if let Some(active) = &mut wizard {
+                                    active.set_error(resolve_l10n(&note));
+                                }
+                            }
+                            Ok(staged) => match apply_edit_to_config(
+                                &mut file,
+                                &monitor,
+                                &mut refresh_cycle,
+                                &mut account_refresh,
+                                &mut state,
+                                staged.config().clone(),
+                                Some(index),
+                                None,
+                            ) {
+                                Ok((new_monitor, refresh_target)) => {
+                                    monitor = new_monitor;
+                                    if let Some(active) = &mut wizard {
+                                        active.session_migrated(&file.config);
+                                    }
+                                    if let Some(index) = refresh_target {
+                                        if index < account_refresh.len()
+                                            && account_refresh.slot(index).is_none()
+                                        {
+                                            if let Some(token) = refresh_cycle.begin(index) {
+                                                account_refresh.install(
+                                                    index,
+                                                    start_account_refresh(&monitor, index),
+                                                    token,
+                                                );
+                                            }
+                                        }
+                                    }
+                                    dirty = true;
+                                }
+                                Err(error) => {
+                                    let rollback =
+                                        user_session::rollback_migration(session.as_ref(), staged)
+                                            .await;
+                                    if let Some(active) = &mut wizard {
+                                        let mut message = error.message();
+                                        if let Err(note) = rollback {
+                                            message = format!("{message} {}", resolve_l10n(&note));
+                                        }
+                                        if error.is_conflict() {
+                                            active.set_conflict(message);
+                                        } else {
+                                            active.set_error(message);
+                                        }
+                                    }
+                                }
+                            },
                         }
                     }
                 }
@@ -2357,6 +2432,7 @@ mod tests {
             name: name.into(),
             provider,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

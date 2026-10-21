@@ -75,8 +75,14 @@ fn draft_access(
     provider: Provider,
     auth_mode: String,
     fields: Vec<backend::FieldValue>,
+    session_slots: Option<Vec<String>>,
 ) -> backend::AccessView {
-    backend::draft_access(provider, &auth_mode, &fields)
+    backend::draft_access(
+        provider,
+        &auth_mode,
+        &fields,
+        session_slots.as_deref().unwrap_or_default(),
+    )
 }
 
 #[tauri::command]
@@ -102,6 +108,17 @@ async fn login_cancel(b: Shared<'_>, attempt: Option<u64>) -> Result<(), String>
 #[tauri::command]
 async fn get_account(b: Shared<'_>, index: usize) -> Result<AccountForm, String> {
     b.get_account(index).await
+}
+
+/// PRD 0016 RF1.2: move the account's session variables into the vault,
+/// called only after the dialog's explicit confirmation.
+#[tauri::command]
+async fn migrate_session(
+    app: AppHandle,
+    b: Shared<'_>,
+    index: usize,
+) -> Result<AccountForm, String> {
+    b.migrate_session(&app, index).await
 }
 
 #[tauri::command]
@@ -894,6 +911,7 @@ pub fn run() {
             field_choices,
             draft_access,
             get_account,
+            migrate_session,
             save_account,
             delete_account,
             retry_purge,

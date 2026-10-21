@@ -152,6 +152,25 @@ label.mode-off {
 .login-panel[hidden] {
   display: none;
 }
+/* PRD 0016 RF1.2: the account's web session and its move to the vault. */
+.session-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.session-box[hidden] {
+  display: none;
+}
+.session-box h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.session-box p {
+  margin: 0;
+}
 .login-log {
   max-height: 6.5em;
   overflow-y: auto;

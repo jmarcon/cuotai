@@ -978,6 +978,7 @@ mod tests {
             name: "alibaba".into(),
             provider: Provider::AlibabaCloud,
             credential_env: None,
+            session: None,
             oauth: None,
             params,
             refresh_seconds: None,

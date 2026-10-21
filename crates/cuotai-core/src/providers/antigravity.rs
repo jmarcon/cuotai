@@ -988,6 +988,7 @@ mod tests {
             name: "ag".into(),
             provider: Provider::Antigravity,
             credential_env: Some(DEFAULT_CREDENTIAL_ENV.into()),
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

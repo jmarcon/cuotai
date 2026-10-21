@@ -178,6 +178,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::AccountNames => "edit_error.config_account_names",
         crate::ConfigError::Client => "edit_error.config_client",
         crate::ConfigError::OAuth => "edit_error.config_oauth",
+        crate::ConfigError::Session => "edit_error.config_session",
     };
     Localized::fixed(id, error.to_string())
 }
@@ -275,6 +276,7 @@ mod tests {
             ),
             (crate::ConfigError::Client, "edit_error.config_client"),
             (crate::ConfigError::OAuth, "edit_error.config_oauth"),
+            (crate::ConfigError::Session, "edit_error.config_session"),
         ] {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);

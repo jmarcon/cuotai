@@ -284,6 +284,7 @@ mod tests {
             name: "test".into(),
             provider,
             credential_env: None,
+            session: None,
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,

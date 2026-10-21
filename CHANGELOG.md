@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-10-21
+
+### Added
+
+- Web sessions can now live in the system vault instead of an environment variable: `[accounts.session]` keeps only a `credential_ref` and the stored slots, the session itself goes to the Keychain, Credential Manager or Secret Service (or the debug-only SQLite store), and an account that reads its Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan session from `session_env` or `platform_session_env` keeps working and is offered "move to the vault" after an explicit confirmation, F3 twice on the TUI wizard summary or "Move to the vault" twice in the desktop account dialog, which copies the variable's value into the vault and removes the variable from the TOML; `cuotai-core` exposes the per-provider `user_session` descriptors (accepted cookie names, hosts, delivery) and the session never appears in the TOML, `Debug`, errors or reports (PRD 0016 RF1).
+
 ## [0.59.0] - 2026-10-21
 
 ### Added
 
-- The local cost estimate is now shown: with a source on, the desktop shows a "Local usage" block (today, yesterday and the saved period, in USD at API prices) in the same place on every Claude or ChatGPT / Codex card, or a card of its own when no account of the tool is configured, and the details break it down by day (an accessible bar chart with its table) and by model, with models without a price shown as "cost unknown"; Settings → Local cost now also chooses each source's directories and shows the prices in effect; the TUI account details carry the same section, `cuotai --cost [--days N] [--json]` prints the estimate after reading what grew in the logs (exit 0, 2 when no source is on or one has no logs or access, 1 for local errors), and `export::v1` (`--json-v1`, `--serve` and the desktop's local server) publishes it as `local_cost`, apart from the providers' reports (PRD 0015 RF4).
+- The local cost estimate is now shown: with a source on, the desktop shows a "Local usage" block (today, yesterday and the saved period, in USD at API prices) in the same place on every Claude or ChatGPT / Codex card, or a card of its own when no account of the tool is configured, and the details break it down by day (an accessible bar chart with its table) and by model, with models without a price shown as "cost unknown"; Settings → Local cost now also chooses each source's directories and shows the prices in effect; the TUI account details carry the same section, `cuotai --cost [--days N] [--json]` prints the estimate after reading what grew in the logs (exit 0, 2 when no source is on or one has no logs or access, 1 for local errors), and `export::v1` (`--json-v1`, `--serve` and the desktop's local server) publishes it as `local_cost`, apart from the providers' reports (PRD 0015 RF4, fbbef8f).
 
 ## [0.58.0] - 2026-10-21
 
@@ -504,8 +510,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/73781dd...main
-[0.59.0]: https://github.com/jmarcon/cuotai/compare/73781dd...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/fbbef8f...main
+[0.60.0]: https://github.com/jmarcon/cuotai/compare/fbbef8f...main
+[0.59.0]: https://github.com/jmarcon/cuotai/commit/fbbef8f
 [0.58.0]: https://github.com/jmarcon/cuotai/commit/73781dd
 [0.57.0]: https://github.com/jmarcon/cuotai/commit/83b6d95
 [0.56.0]: https://github.com/jmarcon/cuotai/commit/050c86a

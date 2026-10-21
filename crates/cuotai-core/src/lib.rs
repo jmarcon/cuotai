@@ -29,6 +29,7 @@ pub mod resets;
 pub mod serve;
 pub mod text;
 mod transport;
+pub mod user_session;
 pub mod watch;
 
 /// RF2 shared login driver, re-exported for convenience.
@@ -70,6 +71,8 @@ pub enum ConfigError {
     Client,
     #[error("Configuração OAuth inválida ou combinada com credential_env; confira o registro do aplicativo.")]
     OAuth,
+    #[error("Referência de sessão inválida ou repetida em [accounts.session]; informe a sessão novamente no assistente da conta.")]
+    Session,
 }
 
 impl Config {
@@ -129,6 +132,21 @@ impl Config {
                     return Err(ConfigError::OAuth);
                 }
             }
+            if let Some(session) = &account.session {
+                if !session.is_valid(account.provider) {
+                    return Err(ConfigError::Session);
+                }
+            }
+        }
+        // A vault session belongs to exactly one account.
+        let mut references = HashSet::new();
+        if self
+            .accounts
+            .iter()
+            .filter_map(|a| a.session.as_ref())
+            .any(|session| !references.insert(session.credential_ref.as_str()))
+        {
+            return Err(ConfigError::Session);
         }
         Ok(())
     }
@@ -600,7 +618,16 @@ impl Monitor {
                 ),
                 None => None,
             };
+            // PRD 0016 RF1: a vault session supersedes the variable its slot
+            // names; the adapter reads it through the query's credentials.
+            let sessions = user_session::load(&self.oauth, account).await?;
             let mut effective = Cow::Borrowed(account);
+            for (slot, _) in &sessions {
+                effective
+                    .to_mut()
+                    .params
+                    .insert((*slot).to_string(), format!("{USER_SESSION}{slot}"));
+            }
             if let (Some(config), Some(token)) = (&account.oauth, &access) {
                 let effective = effective.to_mut();
                 effective.params.extend(oauth::account_params(
@@ -628,6 +655,7 @@ impl Monitor {
             let credentials = QueryCredentials {
                 external: self.credentials.as_ref(),
                 access: access.map(|token| token.access_token),
+                sessions,
             };
             let ctx = providers::Context {
                 http: &self.http,
@@ -721,13 +749,23 @@ impl Monitor {
 
 const OAUTH_ACCESS: &str = "__CUOTAI_OAUTH_ACCESS";
 const NO_API_KEY: &str = "__CUOTAI_NO_API_KEY";
+/// Prefix of the name a vault session slot is read under.
+const USER_SESSION: &str = "__CUOTAI_USER_SESSION:";
 
 struct QueryCredentials<'a> {
     external: &'a dyn Credentials,
     access: Option<String>,
+    sessions: Vec<(&'static str, String)>,
 }
 impl Credentials for QueryCredentials<'_> {
     fn get(&self, name: &str) -> Option<String> {
+        if let Some(slot) = name.strip_prefix(USER_SESSION) {
+            return self
+                .sessions
+                .iter()
+                .find(|(stored, _)| *stored == slot)
+                .map(|(_, value)| value.clone());
+        }
         match name {
             OAUTH_ACCESS => self.access.clone(),
             NO_API_KEY => None,

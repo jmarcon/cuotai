@@ -3,7 +3,7 @@
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
   configChangedOnDisk, deleteAccount, draftAccess, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
-  loginCancel, loginStart, loginSubmitCode, modelSupport, onLogin, reloadConfig,
+  loginCancel, loginStart, loginSubmitCode, migrateSession, modelSupport, onLogin, reloadConfig,
   reportKey, saveAccount, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
@@ -39,7 +39,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   }
   const editing = index != null;
   const providers = (await listProviders()).sort((a, b) => a.label.localeCompare(b.label, currentLocale(), { sensitivity: "base" }));
-  const existing = editing ? await getAccount(index) : null;
+  let existing = editing ? await getAccount(index) : null;
   let provider = existing?.provider ?? providers[0].id;
   let schema = await formSchema(provider);
   // Valores correntes por chave: { text } ou { choice }.
@@ -83,6 +83,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       <div class="dlg-actions"><button type="button" class="btn" id="login-cancel">${te("dialog.login.cancel")}</button></div>
     </div>
     <div id="dyn-fields"></div></div>
+    <div class="session-box" id="session-box" hidden></div>
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
@@ -320,7 +321,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   let accessSeq = 0;
   async function renderAccess() {
     const seq = ++accessSeq;
-    const access = await draftAccess(provider, authMode, draftFields());
+    const access = await draftAccess(provider, authMode, draftFields(), sessionSlots());
     if (seq !== accessSeq) return; // a newer change is already being described
     confirmUnavailable = false; // any change withdraws a pending "Save anyway"
     dlg.querySelector("#ok").textContent = t("common.save");
@@ -329,6 +330,48 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     const notes = dyn.querySelector("#access-notes");
     if (notes) notes.innerHTML = access.notes.map((n) => `<small>${esc(tl(n))}</small>`).join("");
   }
+  // PRD 0016 RF1: slots the saved account keeps in the vault (the provider cannot change while editing).
+  const sessionSlots = () => existing?.session_slots ?? [];
+  // PRD 0016 RF1.2: a session still read from a variable moves to the vault only after a second, explicit click.
+  const sessionBox = dlg.querySelector("#session-box");
+  let confirmMigrate = false;
+  function renderSession(status = "") {
+    const offers = existing?.session_migration ?? [];
+    const stored = sessionSlots();
+    sessionBox.hidden = !editing || (!offers.length && !stored.length && !status);
+    if (sessionBox.hidden) return;
+    confirmMigrate = false;
+    sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>`
+      + (stored.length ? `<p class="hint">${te("dialog.session.stored")}</p>` : "")
+      + offers.map((c) => `<p class="hint">${esc(tl(c.consent))}</p>`).join("")
+      + (offers.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-migrate">${te("dialog.session.migrate")}</button></div>` : "")
+      + `<p class="hint" id="session-status" role="status" aria-live="polite">${esc(status)}</p>`;
+    const btn = sessionBox.querySelector("#session-migrate");
+    btn?.addEventListener("click", async () => {
+      const statusEl = sessionBox.querySelector("#session-status");
+      if (!confirmMigrate) {
+        confirmMigrate = true;
+        btn.textContent = t("dialog.session.confirm");
+        statusEl.textContent = t("dialog.session.confirmHint");
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const migrated = offers.map((c) => c.slot);
+        existing = await migrateSession(index);
+        // The saved account no longer names the variables; the draft must not bring them back on save.
+        for (const slot of migrated) values.set(slot, { key: slot, text: "", choice: null });
+        renderSession(t("dialog.session.migrated"));
+        await renderDynamic();
+      } catch (x) {
+        btn.disabled = false;
+        confirmMigrate = false;
+        btn.textContent = t("dialog.session.migrate");
+        statusEl.textContent = errText(x);
+      }
+    });
+  }
+  renderSession();
   function copyText(text, btn) {
     navigator.clipboard?.writeText(text).then(
       () => { const prev = btn.textContent; btn.textContent = t("dialog.copied"); setTimeout(() => (btn.textContent = prev), 1500); },
@@ -697,7 +740,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       }
     }
     // RF3.4: an Unavailable account shows the core's reason first and needs a second, explicit "Save anyway".
-    const latest = await draftAccess(provider, authMode, draftFields());
+    const latest = await draftAccess(provider, authMode, draftFields(), sessionSlots());
     if (latest.save_confirmation && !confirmUnavailable) {
       confirmUnavailable = true;
       err.textContent = tl(latest.save_confirmation);

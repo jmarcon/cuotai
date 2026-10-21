@@ -508,6 +508,18 @@ mod tests {
                 ids.push(models.id.to_string());
             }
             ids.push(edit::credential_help(provider).id.to_string());
+            for session in crate::user_session::descriptors(provider) {
+                ids.push(session.label().id.to_string());
+                let legacy = crate::Account {
+                    provider,
+                    params: [(session.slot.to_string(), "VAR".to_string())].into(),
+                    ..Default::default()
+                };
+                for candidate in crate::user_session::migration_candidates(&legacy) {
+                    ids.push(candidate.consent.id.to_string());
+                }
+            }
+            ids.push(crate::user_session::migrated_notice().id.to_string());
             for d in edit::field_descriptors(provider) {
                 ids.push(edit::field_label_id(provider, d.key));
                 ids.push(edit::field_help_id(provider, d.key));
