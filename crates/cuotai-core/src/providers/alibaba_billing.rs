@@ -317,6 +317,9 @@ fn canonical_string(method: &str, params: &std::collections::BTreeMap<String, St
 /// `SignatureNonce`, `AccessKeyId`, `RegionId`, `SecurityToken?`) entram
 /// em `query_overrides` para garantir precedência sobre nomes colidentes.
 ///
+/// `request_uuid` is the per-request unique value sent as `SignatureNonce`
+/// (SDK vocabulary); production passes a fresh random UUID v4.
+///
 /// `version` permite passar `""` para reproduzir vetores oficiais do SDK
 /// Go (request sem `InitWithApiInfo`); em produção é sempre `VERSION`.
 #[allow(clippy::too_many_arguments)] // RPC signature includes every signed protocol field.
@@ -328,7 +331,7 @@ fn sign(
     region: &str,
     action: &str,
     version: &str,
-    nonce: &str,
+    request_uuid: &str,
     timestamp: &str,
     form_params: &[(&str, &str)],
 ) -> String {
@@ -343,7 +346,7 @@ fn sign(
     params.insert("SignatureMethod".into(), SIGNATURE_METHOD.into());
     params.insert("SignatureVersion".into(), SIGNATURE_VERSION.into());
     params.insert("SignatureType".into(), SIGNATURE_TYPE.into());
-    params.insert("SignatureNonce".into(), nonce.into());
+    params.insert("SignatureNonce".into(), request_uuid.into());
     params.insert("AccessKeyId".into(), access_key_id.into());
     params.insert("RegionId".into(), region.into());
     if let Some(token) = security_token {
