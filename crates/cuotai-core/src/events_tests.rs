@@ -587,3 +587,84 @@ fn no_payload_carries_credentials_urls_or_raw_messages() {
         Some(FailureCategory::ProviderError)
     );
 }
+
+/// PRD 0013 RF2.3: the readable line of every event and category is
+/// translated (no event falls back to Portuguese) and fully interpolated.
+#[test]
+fn every_summary_reads_in_each_catalog() {
+    let reading = MetricReading {
+        label: LABEL.into(),
+        window: Some(MetricWindow::Window5h),
+        used: Some(42.0),
+        limit: Some(100.0),
+        remaining: Some(58.0),
+        unit: "%".into(),
+        used_ratio: Some(0.42),
+        resets_at: None,
+    };
+    for kind in EventKind::ALL {
+        let event = Event {
+            schema: SCHEMA,
+            event: kind,
+            occurred_at: t0(),
+            account_key: "claude:Work".into(),
+            account_name: "Work".into(),
+            provider: Provider::Claude,
+            metric: Some(MetricRef {
+                label: LABEL.into(),
+                window: Some(MetricWindow::Window5h),
+            }),
+            current: Values {
+                threshold: Some(90),
+                category: Some(FailureCategory::Timeout),
+                incident: Some(IncidentState::Degraded),
+                metrics: vec![reading.clone()],
+                ..Values::default()
+            },
+            previous: None,
+        };
+        let summary = event.summary();
+        assert!(!summary.fallback.contains('{'), "{kind:?}");
+        for locale in ["en-US", "es"] {
+            let text = summary.resolve(locale);
+            assert_ne!(text, summary.fallback, "{kind:?} in {locale}");
+            assert!(!text.contains('{'), "{text}");
+        }
+    }
+    assert_eq!(
+        Event {
+            schema: SCHEMA,
+            event: UsageUpdated,
+            occurred_at: t0(),
+            account_key: "claude:Work".into(),
+            account_name: "Work".into(),
+            provider: Provider::Claude,
+            metric: None,
+            current: Values {
+                metrics: vec![reading],
+                ..Values::default()
+            },
+            previous: None,
+        }
+        .summary()
+        .resolve("en-US"),
+        format!("Usage updated: {LABEL} 42%")
+    );
+    for category in [
+        FailureCategory::Timeout,
+        FailureCategory::Offline,
+        FailureCategory::AuthRequired,
+        FailureCategory::RateLimited,
+        FailureCategory::SchemaChanged,
+        FailureCategory::ProviderError,
+    ] {
+        let label = category.label();
+        assert_eq!(
+            serde_json::to_value(category).unwrap(),
+            serde_json::Value::from(category.name())
+        );
+        for locale in ["en-US", "es"] {
+            assert_ne!(label.resolve(locale), label.fallback, "{category:?}");
+        }
+    }
+}

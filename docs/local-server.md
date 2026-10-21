@@ -18,6 +18,7 @@ curl -s http://127.0.0.1:6738/v1/limits
 - **Output:** the address alone on stdout (`http://127.0.0.1:6738`), so a script that started it can read it; on stderr one line per request (time, peer, method, path without query, status, duration), never a header or the token.
 - **Shutdown:** `SIGINT` (Ctrl+C) or `SIGTERM` (on Windows, Ctrl+C or Ctrl+Break) closes the port, cancels queries in flight and lets queued history readings land.
 - **Exit codes:** `0` after a normal shutdown when some account had a healthy (`ready`) reading during the run; `2` when no account was healthy until the shutdown; `1` for a local error before serving (the port, the configuration, the token file or an invalid argument).
+- **With `--watch`** (PRD 0013 RF2): `cuotai --serve --watch` serves and streams events from one refresh cycle, so a reading is queried once for both. stdout then belongs to the events, so the address goes to stderr (`cuotai: servidor local em http://…`), `SIGHUP` also stops it, and the exit code is `2` when either rule applies (no healthy account, or an account whose latest reading failed). See [`events.md`](events.md).
 
 `cuotai --json-v1` prints the same `Export` once, after one query, without a server (exit codes as `--json`).
 

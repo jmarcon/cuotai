@@ -1,11 +1,13 @@
 mod about_view;
 mod auth_ui;
 mod dashboard;
+mod headless;
 mod models_view;
 mod motion;
 mod notify;
 mod serve;
 mod ui;
+mod watch;
 mod wizard;
 
 use chrono::{DateTime, TimeDelta, Utc};
@@ -106,6 +108,30 @@ struct Args {
     /// computador e recusa páginas web.
     #[arg(long, value_name = "ARQUIVO", requires = "serve")]
     token_file: Option<PathBuf>,
+    /// Acompanha as contas sem abrir a TUI e sem exigir terminal: mantém o
+    /// ciclo de atualização e emite um evento por transição real (cota
+    /// cruzou um limiar, esgotou, renovou, conta bloqueou, consulta falhou
+    /// ou voltou, autenticação necessária, status do provedor, uso
+    /// atualizado no máximo a cada 10 min). A primeira leitura de cada
+    /// conta é só a base. Combina com --serve no mesmo ciclo.
+    /// SIGINT/SIGTERM/SIGHUP encerram. Saída 0; 2 se alguma conta terminou
+    /// em falha; 1 em erro local.
+    #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
+    watch: bool,
+    /// Intervalo do --watch em segundos (60 a 86400; menor é erro, nunca
+    /// ajustado): substitui o refresh_seconds global nesta execução; contas
+    /// com refresh_seconds próprio o mantêm e AWS Bedrock nunca abaixo de
+    /// 300.
+    #[arg(long, value_name = "SEGUNDOS", requires = "watch")]
+    interval: Option<u64>,
+    /// Só estes eventos no --watch, separados por vírgula (padrão: todos),
+    /// p. ex. quota_threshold_crossed,refresh_failed.
+    #[arg(long, value_name = "LISTA", value_delimiter = ',', requires = "watch")]
+    events: Option<Vec<String>>,
+    /// Com --watch, um evento JSON por linha (NDJSON) no stdout;
+    /// mensagens e diagnósticos vão ao stderr.
+    #[arg(long, requires = "watch")]
+    jsonl: bool,
 }
 
 /// PRD 0011 RF5: public status queries are opt-in (`--status`, or
@@ -183,13 +209,21 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         return Ok(history_exit_code(&found));
     }
-    let interactive = !args.once && !args.json && !args.json_v1 && !args.serve;
+    let interactive = !args.once && !args.json && !args.json_v1 && !args.serve && !args.watch;
     let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err(
-            "A TUI requer terminal interativo. Use --once, --json, --json-v1 ou --serve.".into(),
+            "A TUI requer terminal interativo. Use --once, --json, --json-v1, --serve ou --watch."
+                .into(),
         );
     }
+    let locale = ui::tui_locale();
+    let events = args
+        .events
+        .as_ref()
+        .map(|names| cuotai_core::watch::parse_events(names.iter().map(String::as_str)))
+        .transpose()
+        .map_err(|error| error.resolve(locale))?;
     let retention = retention(args.history_days)?;
     let file = ConfigFile::load(args.config, interactive)?;
     let session = Arc::new(match args.dev_credentials_sqlite {
@@ -200,24 +234,31 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         None => OAuthSession::system()?,
     });
-    if args.once || args.json || args.json_v1 || args.serve {
+    if args.once || args.json || args.json_v1 || args.serve || args.watch {
+        // PRD 0013 RF2.1: `--interval` holds for this run only.
+        let config = match args.interval {
+            Some(seconds) => cuotai_core::watch::with_interval(&file.config, seconds)
+                .map_err(|error| error.resolve(locale))?,
+            None => file.config.clone(),
+        };
         let history = history_store(&file, retention);
-        let mut monitor = Monitor::with_oauth(
-            file.config.clone(),
-            Arc::new(EnvironmentCredentials),
-            session,
-        )?;
+        let mut monitor =
+            Monitor::with_oauth(config.clone(), Arc::new(EnvironmentCredentials), session)?;
         monitor.incidents().set_enabled(status);
         if let Some(store) = history {
             monitor = monitor.with_history(store);
         }
         monitor.mark_history_removed();
-        if args.serve {
-            let serve = serve::ServeArgs {
+        if args.serve || args.watch {
+            let serve = args.serve.then_some(serve::ServeArgs {
                 port: args.port,
                 token_file: args.token_file,
-            };
-            return serve::run(file, monitor, serve).await;
+            });
+            let watch = args.watch.then_some(watch::WatchArgs {
+                events,
+                jsonl: args.jsonl,
+            });
+            return headless::run(config, file.identity()?, monitor, serve, watch).await;
         }
         // PRD 0010 RF2.3: read before this query's readings are recorded.
         let restored = if args.json_v1 {

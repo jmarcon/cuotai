@@ -30,6 +30,7 @@ use crate::export::v1::AccountExport;
 use crate::incidents::IncidentState;
 use crate::metrics::{self, Binding, BindingReason, MetricState};
 use crate::providers::{SCHEMA_NOTE, TIMEOUT_NOTE, TRANSPORT_NOTE};
+use crate::text::{params, Localized, ParamValue};
 use crate::{resets, Metric, MetricWindow, Provider, Report, Status};
 
 /// Version of the event payload; removing a field or changing its meaning
@@ -72,6 +73,45 @@ pub enum EventKind {
     UsageUpdated,
 }
 
+impl EventKind {
+    /// Every event, in the documented order.
+    pub const ALL: [Self; 11] = [
+        Self::QuotaThresholdCrossed,
+        Self::QuotaExhausted,
+        Self::QuotaRecovered,
+        Self::QuotaReset,
+        Self::AccountBlocked,
+        Self::AccountUnblocked,
+        Self::RefreshFailed,
+        Self::RefreshRecovered,
+        Self::AuthRequired,
+        Self::ProviderIncident,
+        Self::UsageUpdated,
+    ];
+
+    /// The stable name, as serialized in the payload's `event`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::QuotaThresholdCrossed => "quota_threshold_crossed",
+            Self::QuotaExhausted => "quota_exhausted",
+            Self::QuotaRecovered => "quota_recovered",
+            Self::QuotaReset => "quota_reset",
+            Self::AccountBlocked => "account_blocked",
+            Self::AccountUnblocked => "account_unblocked",
+            Self::RefreshFailed => "refresh_failed",
+            Self::RefreshRecovered => "refresh_recovered",
+            Self::AuthRequired => "auth_required",
+            Self::ProviderIncident => "provider_incident",
+            Self::UsageUpdated => "usage_updated",
+        }
+    }
+
+    /// The event named `name` ([`Self::name`]); `None` for any other text.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+}
+
 /// Coarse cause of a failed reading: the only failure detail an event
 /// carries, never the provider's message, URL or body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -109,6 +149,31 @@ impl FailureCategory {
             Status::Error => Self::ProviderError,
         })
     }
+
+    /// The stable name, as serialized in the payload's `category`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Timeout => "timeout",
+            Self::Offline => "offline",
+            Self::AuthRequired => "auth_required",
+            Self::RateLimited => "rate_limited",
+            Self::SchemaChanged => "schema_changed",
+            Self::ProviderError => "provider_error",
+        }
+    }
+
+    /// `events.category.<name>`: a short description for people.
+    pub fn label(self) -> Localized {
+        let pt = match self {
+            Self::Timeout => "tempo esgotado",
+            Self::Offline => "provedor inacessível",
+            Self::AuthRequired => "autenticação necessária",
+            Self::RateLimited => "limite de consultas",
+            Self::SchemaChanged => "resposta em formato desconhecido",
+            Self::ProviderError => "erro do provedor",
+        };
+        Localized::fixed(format!("events.category.{}", self.name()), pt)
+    }
 }
 
 /// One transition of one account.
@@ -130,6 +195,90 @@ pub struct Event {
     pub current: Values,
     /// The same values before it; `null` when nothing earlier is known.
     pub previous: Option<Values>,
+}
+
+impl Event {
+    /// `events.summary.<event>`: one line for people describing the
+    /// transition (the account is not part of it), as `cuotai --watch`
+    /// prints it without `--jsonl`. Carries only the payload's data.
+    pub fn summary(&self) -> Localized {
+        let metric = self
+            .metric
+            .as_ref()
+            .map_or_else(String::new, |metric| metric.label.clone());
+        let id = format!("events.summary.{}", self.event.name());
+        let with_metric =
+            |pt: String| Localized::with_param(id.clone(), "metric", metric.as_str(), pt);
+        match self.event {
+            EventKind::QuotaThresholdCrossed => {
+                let threshold = self.current.threshold.unwrap_or_default();
+                Localized::with_params(
+                    id,
+                    params([
+                        ("metric", ParamValue::from(metric.as_str())),
+                        ("threshold", ParamValue::from(u64::from(threshold))),
+                    ]),
+                    format!("{metric}: {threshold}% usado"),
+                )
+            }
+            EventKind::QuotaExhausted => with_metric(format!("{metric}: cota esgotada")),
+            EventKind::QuotaRecovered => with_metric(format!("{metric}: cota disponível de novo")),
+            EventKind::QuotaReset => with_metric(format!("{metric}: janela renovada")),
+            EventKind::AccountBlocked => with_metric(format!("Conta bloqueada por {metric}")),
+            EventKind::AccountUnblocked => with_metric(format!("Conta desbloqueada ({metric})")),
+            EventKind::RefreshFailed => {
+                let category = self
+                    .current
+                    .category
+                    .unwrap_or(FailureCategory::ProviderError)
+                    .label();
+                let pt = format!("Falha na consulta: {}", category.text());
+                Localized::with_param(id, "category", category, pt)
+            }
+            EventKind::RefreshRecovered => Localized::fixed(id, "Consulta voltou a funcionar"),
+            EventKind::AuthRequired => Localized::fixed(id, "Autenticação necessária"),
+            EventKind::ProviderIncident => {
+                let state = self
+                    .current
+                    .incident
+                    .unwrap_or(IncidentState::Unknown)
+                    .label();
+                let pt = format!("Status do provedor: {}", state.text());
+                Localized::with_param(id, "state", state, pt)
+            }
+            EventKind::UsageUpdated => {
+                let usage = usage_text(&self.current.metrics);
+                let pt = format!("Uso atualizado: {usage}");
+                Localized::with_param(id, "usage", usage, pt)
+            }
+        }
+    }
+}
+
+/// `Label 42%` per metric with a cap (`Label 3.5 USD` without one), joined
+/// by commas; `-` when no metric has a known value.
+fn usage_text(metrics: &[MetricReading]) -> String {
+    let parts: Vec<String> = metrics
+        .iter()
+        .filter_map(|metric| match (metric.used_ratio, metric.used) {
+            (Some(ratio), _) => Some(format!("{} {:.0}%", metric.label, ratio * 100.0)),
+            (None, Some(used)) => {
+                let value = format!("{used:.2}");
+                let value = value.trim_end_matches('0').trim_end_matches('.');
+                Some(
+                    format!("{} {value} {}", metric.label, metric.unit)
+                        .trim_end()
+                        .to_owned(),
+                )
+            }
+            (None, None) => None,
+        })
+        .collect();
+    if parts.is_empty() {
+        "-".to_owned()
+    } else {
+        parts.join(", ")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
