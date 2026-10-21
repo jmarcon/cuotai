@@ -4135,7 +4135,7 @@ mod tests {
                     "vault_error should mention the failure"
                 );
             }
-            other => panic!("expected PartialFailure, got {other:?}"),
+            other => panic!("expected PartialFailure, got {}", outcome_variant(&other)),
         }
         assert_eq!(
             file.config.accounts.len(),
