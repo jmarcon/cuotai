@@ -1141,11 +1141,18 @@ credential_env = "GROQ_KEY_ALPHA"
         let slow = monitor.refresh_account(0).await;
         assert_eq!(FailureCategory::of(&slow), Some(FailureCategory::Timeout));
 
-        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = closed.local_addr().unwrap();
-        drop(closed);
+        // Keep a listener alive long enough to accept the request, then close
+        // without an HTTP response. A released port may be dropped by a
+        // Windows firewall until the account deadline and look like a timeout.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let disconnect = tokio::spawn(async move {
+            let (connection, _) = listener.accept().await.unwrap();
+            drop(connection);
+        });
         monitor.groq_url = Some(format!("http://{address}"));
         let unreachable = monitor.refresh_account(0).await;
+        disconnect.await.unwrap();
         assert_eq!(
             FailureCategory::of(&unreachable),
             Some(FailureCategory::Offline)

@@ -54,7 +54,7 @@ events = ["quota_exhausted", "quota_threshold_crossed", "quota_exhausted"]
 provider = "claude"
 account = "Work"
 min_threshold = 90
-command = ["/usr/bin/afplay", "Glass.aiff"]
+command = ["afplay", "Glass.aiff"]
 
 [[hooks]]
 name = "log"
@@ -72,7 +72,7 @@ timeout_seconds = 60
                 provider: Some(Provider::Claude),
                 account: Some("Work".into()),
                 min_threshold: Some(90),
-                command: vec!["/usr/bin/afplay".into(), "Glass.aiff".into()],
+                command: vec!["afplay".into(), "Glass.aiff".into()],
                 timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
             },
             Rule {
@@ -94,13 +94,13 @@ timeout_seconds = 60
 #[test]
 fn invalid_files_are_rejected_with_their_reason() {
     let rule = |extra: &str| {
-        format!("[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\n{extra}")
+        format!("[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n{extra}")
     };
     let cases: Vec<(String, &str)> = vec![
         (String::new(), "hooks.error.empty"),
         ("not toml =".into(), "hooks.error.toml"),
         (
-            "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = \"/bin/true; rm -rf ~\"\n".into(),
+            "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = \"true; rm -rf ~\"\n".into(),
             "hooks.error.toml",
         ),
         (rule("env = { TOKEN = \"x\" }"), "hooks.error.toml"),
@@ -112,19 +112,19 @@ fn invalid_files_are_rejected_with_their_reason() {
         (rule("account = \" \""), "hooks.error.account"),
         (format!("{}{}", rule(""), rule("")), "hooks.error.duplicate"),
         (
-            "[[hooks]]\nname = \"a\"\nevents = []\ncommand = [\"/bin/true\"]\n".into(),
+            "[[hooks]]\nname = \"a\"\nevents = []\ncommand = [\"true\"]\n".into(),
             "hooks.error.no_events",
         ),
         (
-            "[[hooks]]\nname = \"a\"\nevents = [\"nope\"]\ncommand = [\"/bin/true\"]\n".into(),
+            "[[hooks]]\nname = \"a\"\nevents = [\"nope\"]\ncommand = [\"true\"]\n".into(),
             "hooks.error.unknown_event",
         ),
         (
-            "[[hooks]]\nname = \"\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\n".into(),
+            "[[hooks]]\nname = \"\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n".into(),
             "hooks.error.name",
         ),
         (
-            "[[hooks]]\nname = \"a\\u001b\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\n".into(),
+            "[[hooks]]\nname = \"a\\u001b\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n".into(),
             "hooks.error.name",
         ),
     ];
@@ -152,7 +152,7 @@ fn invalid_files_are_rejected_with_their_reason() {
 fn filters_narrow_the_events_a_rule_runs_on() {
     let rule = |extra: &str| {
         hooks(&format!(
-            "[[hooks]]\nname = \"a\"\nevents = [\"quota_threshold_crossed\", \"refresh_failed\"]\ncommand = [\"/bin/true\"]\n{extra}"
+            "[[hooks]]\nname = \"a\"\nevents = [\"quota_threshold_crossed\", \"refresh_failed\"]\ncommand = [\"true\"]\n{extra}"
         ))
         .rules()[0]
         .clone()
@@ -225,7 +225,7 @@ fn a_damaged_consent_record_confirms_nothing() {
     std::fs::write(&file, "{not json").unwrap();
     let hooks = Hooks::from_toml(
         dir.path().join("hooks.toml"),
-        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n",
     )
     .unwrap();
     let consent = Consent::at(&file);
@@ -244,7 +244,7 @@ name = "notify"
 events = ["quota_exhausted", "refresh_failed"]
 account = "Work \"main\""
 min_threshold = 90
-command = ["/usr/local/bin/notify", "it's \"done\"; rm -rf ~", "$(id)"]
+command = ["notify", "it's \"done\"; rm -rf ~", "$(id)"]
 "#,
     );
     let lines: Vec<String> = hooks
@@ -260,7 +260,7 @@ command = ["/usr/local/bin/notify", "it's \"done\"; rm -rf ~", "$(id)"]
             "events: quota_exhausted, refresh_failed",
             "filters: account = \"Work \\\"main\\\"\", min_threshold = 90",
             "time limit: 10 s",
-            r#"command: ["/usr/local/bin/notify","it's \"done\"; rm -rf ~","$(id)"]"#,
+            r#"command: ["notify","it's \"done\"; rm -rf ~","$(id)"]"#,
         ]
     );
 }
@@ -268,7 +268,7 @@ command = ["/usr/local/bin/notify", "it's \"done\"; rm -rf ~", "$(id)"]
 #[test]
 fn every_message_reads_in_each_catalog() {
     let hooks = hooks(
-        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nprovider = \"claude\"\ncommand = [\"/bin/true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nprovider = \"claude\"\ncommand = [\"true\"]\n",
     );
     let run = |outcome, exit_code| Run {
         rule: "a".into(),
@@ -297,15 +297,15 @@ fn every_message_reads_in_each_catalog() {
     let invalid = [
         "",
         "x =",
-        "[[hooks]]\nname = \"\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\n",
-        "[[hooks]]\nname = \"a\"\nevents = []\ncommand = [\"/bin/true\"]\n",
-        "[[hooks]]\nname = \"a\"\nevents = [\"x\"]\ncommand = [\"/bin/true\"]\n",
-        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nprovider = \"x\"\ncommand = [\"/bin/true\"]\n",
-        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\naccount = \"\"\ncommand = [\"/bin/true\"]\n",
-        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nmin_threshold = 0\ncommand = [\"/bin/true\"]\n",
+        "[[hooks]]\nname = \"\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = []\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"x\"]\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nprovider = \"x\"\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\naccount = \"\"\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nmin_threshold = 0\ncommand = [\"true\"]\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = []\n",
-        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\ntimeout_seconds = 0\n",
-        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\n[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\ntimeout_seconds = 0\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n",
     ];
     messages.extend(
         invalid
@@ -326,7 +326,7 @@ fn every_message_reads_in_each_catalog() {
     let valid = vec![RuleDraft {
         name: "a".into(),
         events: vec!["quota_exhausted".into()],
-        command: vec!["/bin/true".into()],
+        command: vec!["true".into()],
         ..RuleDraft::default()
     }];
     messages.push(Document::save(&blocked.join("hooks.toml"), None, valid).unwrap_err());
@@ -435,8 +435,8 @@ fn a_sample_passes_its_rule_and_says_it_is_one() {
     let hooks = hooks(concat!(
         "[[hooks]]\nname = \"filtered\"\n",
         "events = [\"quota_threshold_crossed\", \"refresh_failed\"]\n",
-        "provider = \"groq\"\naccount = \"Work\"\nmin_threshold = 95\ncommand = [\"/bin/true\"]\n",
-        "[[hooks]]\nname = \"plain\"\nevents = [\"provider_incident\"]\ncommand = [\"/bin/true\"]\n",
+        "provider = \"groq\"\naccount = \"Work\"\nmin_threshold = 95\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"plain\"\nevents = [\"provider_incident\"]\ncommand = [\"true\"]\n",
     ));
     let now = Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap();
     let [filtered, plain] = hooks.rules() else {
@@ -518,7 +518,7 @@ fn the_editor_saves_only_over_the_revision_it_read() {
     let edited = format!("# mine\n{}", std::fs::read_to_string(&path).unwrap());
     std::fs::write(&path, &edited).unwrap();
     for stale in [saved.revision(), None] {
-        let error = Document::save(&path, stale, vec![draft("x", &["/bin/true"])]).unwrap_err();
+        let error = Document::save(&path, stale, vec![draft("x", &["true"])]).unwrap_err();
         assert_eq!(error.id, "hooks.error.changed");
     }
     let current = Document::read(&path);
@@ -526,7 +526,7 @@ fn the_editor_saves_only_over_the_revision_it_read() {
         (vec![draft("bad", &["bin/run"])], "hooks.error.command"),
         (vec![], "hooks.error.empty"),
         (
-            vec![draft("a", &["/bin/true"]), draft("a", &["/bin/true"])],
+            vec![draft("a", &["true"]), draft("a", &["true"])],
             "hooks.error.duplicate",
         ),
     ] {
@@ -550,8 +550,8 @@ fn saving_keeps_the_comments_of_the_rules_it_keeps() {
     let text = concat!(
         "# My hooks.\n\n# Plays a sound.\n[[hooks]]\nname = \"sound\"\n",
         "events = [\"quota_exhausted\"] # when it runs out\nprovider = \"claude\"\n",
-        "command = [\"/usr/bin/afplay\", \"Glass.aiff\"]\n\n",
-        "# Gone soon.\n[[hooks]]\nname = \"old\"\nevents = [\"refresh_failed\"]\ncommand = [\"/bin/true\"]\n",
+        "command = [\"afplay\", \"Glass.aiff\"]\n\n",
+        "# Gone soon.\n[[hooks]]\nname = \"old\"\nevents = [\"refresh_failed\"]\ncommand = [\"true\"]\n",
     );
     std::fs::write(&path, text).unwrap();
     let read = Document::read(&path);

@@ -432,11 +432,12 @@ mod tests {
         let store = SettingsStore::at(dir.path().join("settings.json"));
         let env = env("/home/ana");
         let chosen = vec![PathBuf::from("~/archive/claude")];
+        let expanded = PathBuf::from("/home/ana").join("archive/claude");
         let disclosure = Disclosure::new(SourceId::ClaudeCode, &chosen, &env);
         assert!(disclosure.custom);
         assert_eq!(
-            disclosure.directories,
-            [PathBuf::from("/home/ana/archive/claude")]
+            disclosure.directories.as_slice(),
+            std::slice::from_ref(&expanded)
         );
         let lines: Vec<String> = disclosure
             .lines()
@@ -444,7 +445,7 @@ mod tests {
             .map(|l| l.resolve("en-US"))
             .collect();
         assert!(
-            lines.iter().any(|line| line == "/home/ana/archive/claude"),
+            lines.iter().any(|line| line == &expanded.to_string_lossy()),
             "{lines:?}"
         );
         let on = store
@@ -456,10 +457,7 @@ mod tests {
                 Utc::now(),
             )
             .unwrap();
-        assert_eq!(
-            on.roots(SourceId::ClaudeCode, &env),
-            [PathBuf::from("/home/ana/archive/claude")]
-        );
+        assert_eq!(on.roots(SourceId::ClaudeCode, &env), [expanded]);
         assert!(on.enabled(SourceId::ClaudeCode, &env));
     }
 
