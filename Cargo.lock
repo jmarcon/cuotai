@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "cuotai-core"
-version = "0.65.0"
+version = "0.66.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -764,6 +764,7 @@ dependencies = [
  "hmac 0.12.1",
  "httparse",
  "keyring",
+ "libc",
  "parking_lot",
  "rand 0.8.8",
  "reqwest",
@@ -780,13 +781,14 @@ dependencies = [
  "toml_edit 0.22.27",
  "url",
  "uuid",
+ "windows-sys 0.61.2",
  "wiremock",
  "x25519-dalek",
 ]
 
 [[package]]
 name = "cuotai-tui"
-version = "0.65.0"
+version = "0.66.0"
 dependencies = [
  "chrono",
  "clap",

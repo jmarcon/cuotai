@@ -13,6 +13,14 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-10-21
+
+### Added
+
+- Script extensions can now run through a bounded runner: the manifest argument vector is executed without a shell in the extension directory, with closed stdin, a reduced environment and a process-tree timeout; output remains capped and at most two extensions run at once. This is limited execution, not an operating-system sandbox, and network and file access remain the extension's responsibility (PRD 0017 RF3).
+- Each extension starts disabled and requires explicit consent showing its command, directory, requested environment and interval; approval records manifest and executable digests and any change disables the extension until it is approved again (PRD 0017 RF4).
+- `cuotai --extension-check <id>` runs one approved extension and prints its normalized report plus contract violations, using the existing schema-1 output validation and `source = "extension:<id>"` (PRD 0017 RF2.4).
+
 ## [0.65.0] - 2026-10-21
 
 ### Added
@@ -540,8 +548,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/fb83951...main
-[0.65.0]: https://github.com/jmarcon/cuotai/compare/fb83951...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/main...HEAD
+[0.66.0]: https://github.com/jmarcon/cuotai/compare/44b1f0f...main
+[0.65.0]: https://github.com/jmarcon/cuotai/commit/44b1f0f
 [0.64.0]: https://github.com/jmarcon/cuotai/commit/fb83951
 [0.63.0]: https://github.com/jmarcon/cuotai/commit/ec68e4e
 [0.62.0]: https://github.com/jmarcon/cuotai/commit/a525ced

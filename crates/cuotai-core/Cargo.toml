@@ -31,6 +31,20 @@ dirs = "6"
 # PRD 0012 RF2: HTTP/1.x request parsing for the optional local server.
 httparse = { version = "=1.10.1", optional = true }
 
+# PRD 0017 RF3.3: the extension's process tree killed on timeout (a
+# process group on Unix, a kill-on-close Job Object on Windows) and the
+# low-priority child.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
+
 [features]
 default = []
 # PRD 0012 RF2/RF3: `serve::LocalServer`, the read-only loopback HTTP server.

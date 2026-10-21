@@ -35,6 +35,8 @@ In scope, for example:
 - command execution, or file reads and writes beyond what the app declares;
 - missing validation of input coming from providers or from user files.
 
+Script extensions (PRD 0017) run as your own user, after you review an exact disclosure and approve them: **Cuotai restricts neither their network nor their files**, so what an approved extension does with them is the extension author's responsibility. What stays in scope is Cuotai's side of that contract: an extension running without approval or after its manifest or program changed, credentials or other accounts' data reaching an extension, or its output escaping validation.
+
 Out of scope:
 - changes to or outages of provider interfaces (open a regular issue);
 - the **plain-text** SQLite store of development mode (`--dev-credentials-sqlite`), which is intentional, exists only in debug builds and is refused in release builds;

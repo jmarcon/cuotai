@@ -14,7 +14,7 @@
 
 ## 1. Context
 
-Settings is a single `<dialog>` (`ui/js/settings.js`, 843 lines) opened over the main window. Every feature added since 0.17 put its own section in that dialog, and it now holds 12 sections in one column. Measured on the demo build (0.65.0, Portuguese):
+Settings is a single `<dialog>` (`ui/js/settings.js`, 843 lines) opened over the main window. Every feature added since 0.17 put its own section in that dialog, and it now holds 12 sections in one column. Measured on the demo build (0.66.0, Portuguese):
 
 | Measure | Today |
 |---|---|

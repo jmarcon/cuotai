@@ -596,9 +596,10 @@ impl RefreshCycle {
     /// `base`. Doubles the interval per consecutive failure, capped at
     /// `BACKOFF_CAP_SECONDS`; an interval already above the cap is kept
     /// as is, so a failure never polls sooner than configured (metered
-    /// providers included). Exposed for tests so the contract is
-    /// assertable independently of the live clock.
-    fn backoff_for(base: Duration, failures: u32) -> Duration {
+    /// providers included). Crate-visible so tests and the extension
+    /// runner (PRD 0017 RF3.4, the same backoff per extension) share
+    /// the exact arithmetic.
+    pub(crate) fn backoff_for(base: Duration, failures: u32) -> Duration {
         let base_secs = base.as_secs().max(1);
         let cap = BACKOFF_CAP_SECONDS.max(base_secs);
         let mut seconds = base_secs;
