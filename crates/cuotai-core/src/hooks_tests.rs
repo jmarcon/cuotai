@@ -8,7 +8,6 @@ use crate::events::{MetricRef, Values, SCHEMA};
 use crate::MetricWindow;
 use chrono::TimeZone;
 use std::collections::BTreeSet;
-use tokio::sync::mpsc;
 
 fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
     Event {
@@ -579,6 +578,7 @@ fn saving_keeps_the_comments_of_the_rules_it_keeps() {
 #[cfg(unix)]
 mod running {
     use super::*;
+    use tokio::sync::mpsc;
 
     /// A sandbox with fixture scripts, its consent and its log.
     struct Rig {
