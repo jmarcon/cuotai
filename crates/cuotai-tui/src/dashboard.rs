@@ -875,12 +875,28 @@ fn render_card(
                 .saturating_sub(Span::raw(title.as_str()).width());
             badge_title(&badge, room)
         });
+    // PRD 0016 RF3.2: the known expiry of the web session the query used,
+    // right of the access level on the bottom border.
+    let expiry = report
+        .and_then(|report| cuotai_core::user_session::report_expiry(report, now))
+        .map(|expiry| session_expiry_title(&expiry));
+    let expiry_width = expiry.as_ref().map_or(0, |line| {
+        u16::try_from(line.width())
+            .unwrap_or(u16::MAX)
+            .saturating_add(1)
+    });
     let mut block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
         .title_style(title_style)
         .title(title)
-        .title_bottom(access_title(&access, area.width));
+        .title_bottom(access_title(
+            &access,
+            area.width.saturating_sub(expiry_width),
+        ));
+    if let Some(expiry) = expiry {
+        block = block.title_bottom(expiry.right_aligned());
+    }
     if let Some(badge) = badge {
         block = block.title(badge);
     }
@@ -1035,6 +1051,16 @@ fn access_title(access: &UsageAccess, width: u16) -> Line<'static> {
     Line::from(Span::styled(
         format!(" {text} "),
         Style::default().fg(MUTED).remove_modifier(Modifier::BOLD),
+    ))
+}
+
+/// "Sessão expira em 12 dias", yellow under three days.
+fn session_expiry_title(expiry: &cuotai_core::user_session::SessionExpiry) -> Line<'static> {
+    let text = resolve_l10n(&expiry.label);
+    let color = if expiry.soon { YELLOW } else { MUTED };
+    Line::from(Span::styled(
+        format!(" {} ", text.trim_end_matches('.')),
+        Style::default().fg(color).remove_modifier(Modifier::BOLD),
     ))
 }
 
@@ -1858,6 +1884,7 @@ mod tests {
             notes: Vec::new(),
             notes_l10n: Vec::new(),
             source: String::new(),
+            session_expires_at: None,
         }
     }
 

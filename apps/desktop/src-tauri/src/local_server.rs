@@ -318,6 +318,7 @@ mod tests {
             notes: vec![],
             notes_l10n: vec![],
             source: String::new(),
+            session_expires_at: None,
         };
         cycle.finish_account(0, Some(report), token, Instant::now());
         Feed {

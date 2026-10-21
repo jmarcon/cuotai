@@ -176,7 +176,7 @@ async fn failed_vault_write_leaves_no_entry_and_rollback_undoes_a_staged_one() {
     let oauth = session(&store);
     let staged = stage_migration(&oauth, &env, &legacy, 0).await.unwrap();
     assert_eq!(store.values(), [SECRET]);
-    rollback_migration(&oauth, staged).await.unwrap();
+    rollback(&oauth, staged).await.unwrap();
     assert!(store.values().is_empty());
 }
 
@@ -195,7 +195,7 @@ async fn rollback_restores_the_session_a_migration_replaced() {
     store
         .entries
         .lock()
-        .insert(key, token("OLD-SESSION".into()));
+        .insert(key, token("OLD-SESSION".into(), None));
     account.session = Some(reference);
     let env = Env(vec![("MIMO_COOKIE", SECRET)]);
 
@@ -203,7 +203,7 @@ async fn rollback_restores_the_session_a_migration_replaced() {
         .await
         .unwrap();
     assert_eq!(store.values(), [SECRET]);
-    rollback_migration(&oauth, staged).await.unwrap();
+    rollback(&oauth, staged).await.unwrap();
     assert_eq!(store.values(), ["OLD-SESSION"]);
 }
 
@@ -407,5 +407,500 @@ async fn the_development_store_keeps_the_session_across_reopen() {
     drop(oauth);
     let reopened = OAuthSession::development_sqlite(&db).unwrap();
     let sessions = load(&reopened, &account).await.unwrap();
-    assert_eq!(sessions, [("platform_session_env", SECRET.to_string())]);
+    let loaded: Vec<_> = sessions
+        .iter()
+        .map(|session| (session.slot, session.value.as_str()))
+        .collect();
+    assert_eq!(loaded, [("platform_session_env", SECRET)]);
+}
+
+// ------------------------------------------------------------ RF2.2: paste
+
+const PLATFORM: &str = "platform_session_env";
+const KEPT: &str = "api-platform_serviceToken=SECRET-TOKEN; userId=7";
+
+fn now() -> DateTime<Utc> {
+    use chrono::TimeZone;
+    Utc.with_ymd_and_hms(2026, 10, 21, 12, 0, 0).unwrap()
+}
+
+#[test]
+fn every_paste_format_keeps_only_the_accepted_cookies() {
+    let cases = [
+        (
+            "Cookie line",
+            "Cookie: _ga=GA1.2.3; api-platform_serviceToken=SECRET-TOKEN; userId=7; tracking=DISCARDED-VALUE".to_string(),
+        ),
+        (
+            "name=value list",
+            "userId=7; tracking=DISCARDED-VALUE; api-platform_serviceToken=SECRET-TOKEN; _ga=x".into(),
+        ),
+        (
+            "request headers",
+            "Host: platform.xiaomimimo.com\nAccept: text/html;q=0.9\ncookie: api-platform_serviceToken=SECRET-TOKEN; tracking=DISCARDED-VALUE; userId=7; _ga=x\nUser-Agent: test".into(),
+        ),
+        (
+            "inspector table",
+            "Name\tValue\tDomain\tPath\tExpires / Max-Age\tSize\n\
+             api-platform_serviceToken\tSECRET-TOKEN\t.xiaomimimo.com\t/\tSession\t38\n\
+             userId\t7\t.xiaomimimo.com\t/\t2027-01-01T00:00:00.000Z\t7\n\
+             tracking\tDISCARDED-VALUE\t.xiaomimimo.com\t/\tSession\t23\n\
+             _ga\tx\t.xiaomimimo.com\t/\tSession\t4"
+                .into(),
+        ),
+        (
+            "cURL with -H",
+            "curl 'https://platform.xiaomimimo.com/api/v1/balance' \\\n  -H 'accept: application/json' \\\n  -H 'cookie: api-platform_serviceToken=SECRET-TOKEN; userId=7; tracking=DISCARDED-VALUE; _ga=x' \\\n  --compressed".into(),
+        ),
+        (
+            "cURL with -b",
+            "curl \"https://platform.xiaomimimo.com/api/v1/balance\" -b \"tracking=DISCARDED-VALUE; userId=7; api-platform_serviceToken=SECRET-TOKEN; _ga=x\" -H \"accept: */*\"".into(),
+        ),
+    ];
+    for (format, paste) in cases {
+        // A terminal delivers a pasted line break as a carriage return;
+        // Windows copies carry CRLF.
+        for paste in [
+            paste.clone(),
+            paste.replace('\n', "\r"),
+            paste.replace('\n', "\r\n"),
+        ] {
+            let reduced = reduce(Provider::XiaomiMimo, PLATFORM, &paste, now())
+                .unwrap_or_else(|error| panic!("{format} {paste:?}: {}", error.fallback));
+            assert_eq!(reduced.cookie(), KEPT, "{format}");
+            assert_eq!(
+                reduced.kept(),
+                ["api-platform_serviceToken", "userId"],
+                "{format}"
+            );
+            assert_eq!(reduced.discarded(), 2, "{format}");
+            let shown = format!("{reduced:?} {}", reduced.summary(now()).resolve("en-US"));
+            assert!(
+                !shown.contains("SECRET") && !shown.contains("DISCARDED"),
+                "{format}: {shown}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fragments_out_of_order_are_reassembled_and_the_expiry_is_the_earliest_known() {
+    let reduced = reduce(
+        Provider::XiaomiMimo,
+        "session_env",
+        "serviceToken.2=CC; userId=9; serviceToken.0=AA; other.0=x; serviceToken.1=BB",
+        now(),
+    )
+    .unwrap();
+    assert_eq!(reduced.cookie(), "serviceToken=AABBCC; userId=9");
+    assert_eq!(reduced.discarded(), 1);
+    assert_eq!(reduced.expires_at(), None);
+
+    // The table's expiry of the required cookie bounds the session; an
+    // optional cookie expiring sooner does not.
+    let table = "serviceToken.1\tBB\t.x\t/\tTue, 03 Nov 2026 10:00:00 GMT\n\
+                 serviceToken.0\tAA\t.x\t/\t2026-11-20T00:00:00Z\n\
+                 userId\t9\t.x\t/\t2026-10-22T00:00:00Z";
+    let reduced = reduce(Provider::XiaomiMimo, "session_env", table, now()).unwrap();
+    assert_eq!(reduced.cookie(), "serviceToken=AABB; userId=9");
+    let at = DateTime::parse_from_rfc3339("2026-11-03T10:00:00Z").unwrap();
+    assert_eq!(reduced.expires_at(), Some(at.with_timezone(&Utc)));
+    assert_eq!(expiry(at.with_timezone(&Utc), now()).days, 12);
+}
+
+#[test]
+fn malformed_pastes_name_the_cookie_and_never_a_value() {
+    let expired = "api-platform_serviceToken\tSECRET-A\t.x\t/\t2026-10-01T00:00:00Z\n\
+                   userId\tSECRET-B\t.x\t/\tSession";
+    let cases = [
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "userId=SECRET-A; other=SECRET-B",
+            "user_session.paste.missing",
+            "api-platform_serviceToken",
+        ),
+        (
+            Provider::XiaomiMimo,
+            "session_env",
+            "serviceToken.0=SECRET-A; serviceToken.2=SECRET-B",
+            "user_session.paste.fragment_missing",
+            "serviceToken",
+        ),
+        (
+            Provider::XiaomiMimo,
+            "session_env",
+            "serviceToken=SECRET-A; serviceToken=SECRET-B",
+            "user_session.paste.duplicate",
+            "serviceToken",
+        ),
+        (
+            Provider::XiaomiMimo,
+            "session_env",
+            "serviceToken=SECRET-A; serviceToken.0=SECRET-B",
+            "user_session.paste.duplicate",
+            "serviceToken",
+        ),
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "api-platform_serviceToken=; userId=SECRET-A",
+            "user_session.paste.invalid_value",
+            "api-platform_serviceToken",
+        ),
+        (
+            Provider::AlibabaTokenPlan,
+            "session_env",
+            "_ga=SECRET-A; foo=SECRET-B",
+            "user_session.paste.none_accepted",
+            "login_aliyunid_ticket",
+        ),
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "Host: SECRET-A\nAccept: SECRET-B",
+            "user_session.paste.empty",
+            "",
+        ),
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            expired,
+            "user_session.paste.expired",
+            "2026-10-01",
+        ),
+    ];
+    for (provider, slot, paste, id, named) in cases {
+        let error = reduce(provider, slot, paste, now()).expect_err(id);
+        assert_eq!(error.id, id, "{paste}");
+        assert!(error.fallback.contains(named), "{}", error.fallback);
+        for locale in ["pt-BR", "en-US", "es"] {
+            let text = error.resolve(locale);
+            assert!(!text.contains("SECRET"), "{locale}: {text}");
+            assert!(!format!("{error:?}").contains("SECRET"));
+        }
+        for locale in ["en-US", "es"] {
+            let catalog = crate::text::core_catalog(locale).unwrap();
+            assert!(catalog.contains_key(id), "{locale} lacks {id}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn only_the_reduced_cookies_reach_the_vault_and_the_toml_keeps_the_reference() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut file = legacy_file(&dir);
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let reduced = reduce(
+        Provider::XiaomiMimo,
+        PLATFORM,
+        "Cookie: api-platform_serviceToken=SECRET-TOKEN; userId=7; tracking=DISCARDED-VALUE",
+        now(),
+    )
+    .unwrap();
+    let staged = stage_pasted(&oauth, &file.config, 0, &[reduced])
+        .await
+        .unwrap();
+    file.save(staged.config().clone()).unwrap();
+
+    assert_eq!(store.values(), [KEPT]);
+    let text = std::fs::read_to_string(&file.path).unwrap();
+    for absent in ["SECRET", "DISCARDED", "MIMO_COOKIE"] {
+        assert!(!text.contains(absent), "{absent}: {text}");
+    }
+    assert!(text.contains("credential_ref"), "{text}");
+}
+
+#[tokio::test]
+async fn a_new_paste_replaces_the_session_in_the_same_vault_entry() {
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let first = reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap();
+    let saved = stage_pasted(&oauth, &config(vec![mimo(&[])]), 0, &[first])
+        .await
+        .unwrap()
+        .config()
+        .clone();
+    let reference = saved.accounts[0].session.clone().unwrap();
+
+    let table = "api-platform_serviceToken\tNEW-TOKEN\t.x\t/\t2026-12-01T00:00:00Z\nuserId\t7\t.x\t/\tSession";
+    let second = reduce(Provider::XiaomiMimo, PLATFORM, table, now()).unwrap();
+    let replaced = stage_pasted(&oauth, &saved, 0, &[second]).await.unwrap();
+
+    assert_eq!(replaced.config().accounts.len(), 1);
+    assert_eq!(
+        replaced.config().accounts[0].session.as_ref(),
+        Some(&reference)
+    );
+    let entries = store.entries.lock();
+    assert_eq!(entries.len(), 1);
+    let token = entries.values().next().unwrap();
+    assert_eq!(
+        token.access_token,
+        "api-platform_serviceToken=NEW-TOKEN; userId=7"
+    );
+    assert_eq!(
+        token.expires_at,
+        Some(
+            DateTime::parse_from_rfc3339("2026-12-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc)
+        )
+    );
+}
+
+// --------------------------------------------- RF3: rejection, hosts, expiry
+
+/// A MiMo account whose platform session was pasted from `paste`, and its
+/// monitor (no environment variable can answer).
+async fn pasted(paste: &str) -> (Account, Monitor) {
+    let store = Arc::new(MemoryStore::default());
+    let oauth = Arc::new(session(&store));
+    let reduced = reduce(Provider::XiaomiMimo, PLATFORM, paste, Utc::now()).unwrap();
+    let staged = stage_pasted(&oauth, &config(vec![mimo(&[])]), 0, &[reduced])
+        .await
+        .unwrap();
+    let config = staged.config().clone();
+    let account = config.accounts[0].clone();
+    let monitor = Monitor::with_oauth(config, Arc::new(Env(Vec::new())), oauth).unwrap();
+    (account, monitor)
+}
+
+/// The platform query of `account` against `base`, its session read from
+/// the query's credentials as the adapter reads it in production.
+async fn query_platform(
+    monitor: &Monitor,
+    account: &Account,
+    pasted: &[ReducedSession],
+    base: &str,
+) -> (
+    Result<crate::providers::Data, crate::providers::QueryError>,
+    Option<DateTime<Utc>>,
+) {
+    monitor
+        .with_sessions(
+            account,
+            pasted,
+            async |account: &Account, ctx: &crate::providers::Context<'_>| {
+                let name = account.params.get(PLATFORM).expect("slot param");
+                let cookie = ctx.credentials.get(name).expect("session");
+                crate::providers::mimo_platform::fetch(ctx, base, &cookie).await
+            },
+        )
+        .await
+}
+
+async fn balance_server() -> wiremock::MockServer {
+    use wiremock::matchers::{header, method, path};
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("GET"))
+        .and(path("/balance"))
+        .and(header("Cookie", KEPT))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0,
+                "data": { "balance": "12.50", "currency": "USD" }
+            })),
+        )
+        .mount(&server)
+        .await;
+    server
+}
+
+#[tokio::test]
+async fn a_rejected_session_asks_for_a_new_paste_without_body_or_url() {
+    use wiremock::matchers::method;
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("GET"))
+        .respond_with(wiremock::ResponseTemplate::new(401).set_body_string("SECRET-BODY"))
+        .mount(&server)
+        .await;
+    let (account, monitor) = pasted(KEPT).await;
+    let (result, _) = query_platform(&monitor, &account, &[], &server.uri()).await;
+    let error = result.expect_err("401");
+    assert_eq!(error.status, Status::AuthenticationError);
+    assert_eq!(error.note.id, "user_session.rejected");
+    let text = format!("{} {:?}", error.note.resolve("en-US"), error.note);
+    assert!(
+        !text.contains("SECRET") && !text.contains(&server.uri()),
+        "{text}"
+    );
+}
+
+#[tokio::test]
+async fn a_redirect_to_another_host_never_carries_the_session() {
+    use wiremock::matchers::{any, method};
+    let elsewhere = wiremock::MockServer::start().await;
+    wiremock::Mock::given(any())
+        .respond_with(wiremock::ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&elsewhere)
+        .await;
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("GET"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(302)
+                .insert_header("Location", format!("{}/login", elsewhere.uri())),
+        )
+        .mount(&server)
+        .await;
+    let (account, monitor) = pasted(KEPT).await;
+    let (result, _) = query_platform(&monitor, &account, &[], &server.uri()).await;
+    let error = result.expect_err("redirect");
+    assert_eq!(error.status, Status::AuthenticationError);
+    assert_eq!(error.note.id, "user_session.rejected");
+    assert!(!error.note.fallback.contains(&elsewhere.uri()));
+    // `elsewhere` verifies on drop that it received nothing.
+}
+
+#[tokio::test]
+async fn the_session_only_goes_to_its_declared_hosts_over_https() {
+    let allowed = [
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "https://platform.xiaomimimo.com/api/v1/balance",
+        ),
+        (
+            Provider::XiaomiMimo,
+            "session_env",
+            "https://mimo-server-sgp.xiaomimimo.com/api/user/usage",
+        ),
+        (
+            Provider::AlibabaCodingPlan,
+            "session_env",
+            "https://bailian.console.aliyun.com/data/api.json",
+        ),
+        (
+            Provider::AlibabaCodingPlan,
+            "session_env",
+            "https://bailian-cs.console.aliyun.com/data/api.json",
+        ),
+        (
+            Provider::AlibabaCodingPlan,
+            "session_env",
+            "https://modelstudio.console.alibabacloud.com/tool/user/info.json",
+        ),
+        (
+            Provider::AlibabaCodingPlan,
+            "session_env",
+            "https://bailian-singapore-cs.alibabacloud.com/data/api.json",
+        ),
+        (
+            Provider::AlibabaTokenPlan,
+            "session_env",
+            "https://home.qwencloud.com/tool/user/info.json",
+        ),
+        (
+            Provider::AlibabaTokenPlan,
+            "session_env",
+            "https://cs-data.qwencloud.com/data/api.json",
+        ),
+    ];
+    for (provider, slot, url) in allowed {
+        assert!(
+            may_receive(provider, slot, &url::Url::parse(url).unwrap()),
+            "{url}"
+        );
+    }
+    let refused = [
+        // Plain HTTP to the declared host, another host, a look-alike, and
+        // the other slot's or provider's host.
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "http://platform.xiaomimimo.com/api/v1/balance",
+        ),
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "https://evil.example/api/v1/balance",
+        ),
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "https://platform.xiaomimimo.com.evil.example/",
+        ),
+        (
+            Provider::XiaomiMimo,
+            PLATFORM,
+            "https://mimo-server-sgp.xiaomimimo.com/api/user/usage",
+        ),
+        (
+            Provider::AlibabaTokenPlan,
+            "session_env",
+            "https://bailian.console.aliyun.com/data/api.json",
+        ),
+        (
+            Provider::OpenAiApi,
+            "session_env",
+            "https://platform.xiaomimimo.com/",
+        ),
+    ];
+    for (provider, slot, url) in refused {
+        assert!(
+            !may_receive(provider, slot, &url::Url::parse(url).unwrap()),
+            "{url}"
+        );
+    }
+    let http = reqwest::Client::new();
+    let error = crate::providers::send_session(
+        http.get("https://evil.example/").header("Cookie", KEPT),
+        Provider::XiaomiMimo,
+        PLATFORM,
+    )
+    .await
+    .expect_err("refused before the network");
+    assert_eq!(error.note.id, "query.session_host_refused");
+}
+
+#[tokio::test]
+async fn a_known_expiry_reaches_the_report_and_an_unknown_one_stays_unknown() {
+    let server = balance_server().await;
+    let at = Utc::now() + chrono::TimeDelta::days(2);
+    let table = format!(
+        "api-platform_serviceToken\tSECRET-TOKEN\t.x\t/\t{}\nuserId\t7\t.x\t/\tSession",
+        at.to_rfc3339()
+    );
+    let (account, monitor) = pasted(&table).await;
+    let (result, expires_at) = query_platform(&monitor, &account, &[], &server.uri()).await;
+    result.expect("balance");
+    let expires_at = expires_at.expect("known expiry");
+    assert_eq!(expires_at.timestamp(), at.timestamp());
+    let expiry = expiry(expires_at, Utc::now());
+    assert!(expiry.soon);
+    assert_eq!(expiry.label.id, "user_session.expiry.one_day");
+
+    let (account, monitor) = pasted(KEPT).await;
+    let (result, expires_at) = query_platform(&monitor, &account, &[], &server.uri()).await;
+    result.expect("balance");
+    assert_eq!(expires_at, None);
+}
+
+#[tokio::test]
+async fn a_test_query_uses_the_paste_and_stores_nothing() {
+    let server = balance_server().await;
+    let store = Arc::new(MemoryStore::default());
+    let draft = mimo(&[]);
+    let monitor = Monitor::with_oauth(
+        config(vec![draft.clone()]),
+        Arc::new(Env(Vec::new())),
+        Arc::new(session(&store)),
+    )
+    .unwrap();
+    let paste = reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap();
+    let (result, _) = query_platform(&monitor, &draft, &[paste], &server.uri()).await;
+    result.expect("pasted session answered");
+    assert!(store.values().is_empty());
+    // An invalid draft is refused without a query.
+    let mut nameless = draft;
+    nameless.name.clear();
+    let report = monitor
+        .test_session(
+            &nameless,
+            &[reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap()],
+        )
+        .await;
+    assert_eq!(report.status, Status::NeedsConfiguration);
 }

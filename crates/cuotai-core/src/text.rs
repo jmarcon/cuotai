@@ -510,6 +510,7 @@ mod tests {
             ids.push(edit::credential_help(provider).id.to_string());
             for session in crate::user_session::descriptors(provider) {
                 ids.push(session.label().id.to_string());
+                ids.push(session.instructions().id.to_string());
                 let legacy = crate::Account {
                     provider,
                     params: [(session.slot.to_string(), "VAR".to_string())].into(),

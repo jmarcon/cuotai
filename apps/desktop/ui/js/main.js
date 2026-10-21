@@ -110,6 +110,10 @@ function card(r, position, ordered, recharging = false) {
   const bindingTitle = blockedText(r) ?? t("card.binding.title");
   const bindingChip = r.status === "ready" && r.binding
     ? `<span class="mini binding ${isBlocked(r) ? "bad" : level(100 - r.binding.used_ratio * 100)}" data-binding-chip title="${esc(bindingTitle)}" aria-label="${esc(`${bindingTitle}: ${bindingChipText(r)}`)}">${esc(bindingChipText(r))}</span>` : "";
+  // PRD 0016 RF3.2: the core's "expires in N days" of the web session the query used (only the date is known).
+  const expiry = r.session_expiry;
+  const expiryChip = expiry
+    ? `<span class="mini ${expiry.soon ? "warn" : ""}" data-session-expiry title="${esc(tl(expiry.label))}">${icon("clock")}<span class="mini-t">${esc(tl(expiry.label))}</span></span>` : "";
   // PRD 0008 RF3.4: an active usage alert highlights the card; the exhausted state keeps its own class.
   return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${r.usage_alerts?.length ? "usage-alert" : ""}" data-card="${esc(key)}">
     <div class="card-head">
@@ -127,7 +131,7 @@ function card(r, position, ordered, recharging = false) {
       ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
       : summaryHtml(r)}${paceLine(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
     <div class="card-foot">
-      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
+      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
     </div>
   </section>`;

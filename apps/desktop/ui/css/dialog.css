@@ -171,6 +171,12 @@ label.mode-off {
 .session-box p {
   margin: 0;
 }
+/* PRD 0016 RF2.1: the pasted session is never shown in clear. */
+.session-paste {
+  -webkit-text-security: disc;
+  font-family: var(--mono, monospace);
+  resize: vertical;
+}
 .login-log {
   max-height: 6.5em;
   overflow-y: auto;

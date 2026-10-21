@@ -614,6 +614,8 @@ impl EventState {
                 }
                 AlertKind::Exhausted => EventKind::QuotaExhausted,
                 AlertKind::Recovered => EventKind::QuotaRecovered,
+                // PRD 0016 RF3.2: a notice of its own, not a quota event.
+                AlertKind::SessionExpiring => continue,
             };
             let metric = MetricRef {
                 label: alert.label.clone(),

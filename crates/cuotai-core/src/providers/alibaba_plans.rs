@@ -349,7 +349,12 @@ async fn response_json(
     request: reqwest::RequestBuilder,
     session: bool,
 ) -> Result<Value, QueryError> {
-    let response = secure_send(request).await?;
+    // Only the Coding Plan console RPC sends the session here.
+    let response = if session {
+        super::send_session(request, crate::Provider::AlibabaCodingPlan, "session_env").await?
+    } else {
+        secure_send(request).await?
+    };
     let status = response.status();
     let payload = response.json::<Value>().await;
     if !status.is_success() {
@@ -848,7 +853,7 @@ async fn resolve_sec_token(
     region: Region,
     endpoints: CodingPlanEndpoints<'_>,
 ) -> Result<String, QueryError> {
-    if let Ok(response) = secure_send(
+    if let Ok(response) = super::send_session(
         ctx.http
             .get(endpoints.dashboard)
             .header("Cookie", cookie)
@@ -858,6 +863,8 @@ async fn resolve_sec_token(
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             )
             .timeout(ctx.timeout),
+        crate::Provider::AlibabaCodingPlan,
+        "session_env",
     )
     .await
     {
@@ -870,7 +877,7 @@ async fn resolve_sec_token(
         }
     }
 
-    if let Ok(response) = secure_send(
+    if let Ok(response) = super::send_session(
         ctx.http
             .get(endpoints.user_info)
             .header("Cookie", cookie)
@@ -878,6 +885,8 @@ async fn resolve_sec_token(
             .header("Accept", "application/json, text/plain, */*")
             .header("Referer", console_origin(region))
             .timeout(ctx.timeout),
+        crate::Provider::AlibabaCodingPlan,
+        "session_env",
     )
     .await
     {
@@ -1261,7 +1270,8 @@ async fn token_plan_send(
     data_params: Value,
 ) -> Result<reqwest::Response, QueryError> {
     let request = build_token_plan_request(ctx, endpoint, session, api, data_params);
-    let response = secure_send(request).await?;
+    let response =
+        super::send_session(request, crate::Provider::AlibabaTokenPlan, "session_env").await?;
     if !response.status().is_success() {
         let code = response.status();
         return Err(QueryError {
@@ -1363,12 +1373,14 @@ async fn token_plan_at(
             )
         })?;
     let dashboard = TOKEN_PLAN_DASHBOARD;
-    let info = secure_send(
+    let info = super::send_session(
         ctx.http
             .get(user_info)
             .header("Cookie", &cookie)
             .header("Referer", dashboard)
             .timeout(ctx.timeout),
+        crate::Provider::AlibabaTokenPlan,
+        "session_env",
     )
     .await?;
     if !info.status().is_success() {

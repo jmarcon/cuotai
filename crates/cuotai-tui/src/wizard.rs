@@ -13,8 +13,8 @@ use cuotai_core::access::UsageAccess;
 use cuotai_core::account_edit as edit;
 use cuotai_core::login::{self, LoginCredentialStore, LoginMode, LoginOption, LoginRequest};
 use cuotai_core::oauth::OAuthConfig;
-use cuotai_core::user_session;
-use cuotai_core::{Account, Config, Provider};
+use cuotai_core::user_session::{self, ReducedSession};
+use cuotai_core::{Account, Config, Provider, Report, Status};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -49,6 +49,9 @@ pub(crate) enum Action {
     Save {
         config: Config,
         edit: Option<usize>,
+        /// PRD 0016 RF2: pasted sessions, already reduced by the core, to
+        /// store in the vault with this save.
+        sessions: Vec<ReducedSession>,
     },
     /// Start any core-described flow through the same request/interface.
     Login {
@@ -74,6 +77,12 @@ pub(crate) enum Action {
     /// `session_env`-style variables into the system vault.
     MigrateSession {
         index: usize,
+    },
+    /// PRD 0016 RF2.1: one read-only query of the draft with its pasted
+    /// sessions; nothing is stored.
+    TestSession {
+        account: Box<Account>,
+        sessions: Vec<ReducedSession>,
     },
 }
 
@@ -109,8 +118,49 @@ enum Step {
     Name,
     Credential,
     Params,
+    /// PRD 0016 RF2.1: only for providers whose core declares a session.
+    Session,
     Interval,
     Summary,
+}
+
+/// PRD 0016 RF2.1: one session slot of the paste step. The pasted text is
+/// never drawn and is overwritten whenever the step forgets it (clear,
+/// provider switch, wizard closed).
+struct SessionPaste {
+    descriptor: &'static user_session::SessionDescriptor,
+    text: String,
+}
+
+impl Drop for SessionPaste {
+    fn drop(&mut self) {
+        user_session::wipe(&mut self.text);
+    }
+}
+
+impl SessionPaste {
+    /// The core's reduction of the paste; `None` while nothing was pasted.
+    fn reduce(&self, provider: Provider) -> Option<Result<ReducedSession, String>> {
+        (!self.text.trim().is_empty()).then(|| {
+            user_session::reduce(
+                provider,
+                self.descriptor.slot,
+                &self.text,
+                chrono::Utc::now(),
+            )
+            .map_err(|note| crate::ui::resolve_l10n(&note))
+        })
+    }
+}
+
+fn session_pastes(provider: Provider) -> Vec<SessionPaste> {
+    user_session::descriptors(provider)
+        .iter()
+        .map(|descriptor| SessionPaste {
+            descriptor,
+            text: String::new(),
+        })
+        .collect()
 }
 
 struct Field {
@@ -252,6 +302,11 @@ pub(crate) struct Wizard {
     /// PRD 0016 RF1.2: set by the first F3 on the summary, which shows what
     /// the migration does; the next F3 confirms it, any other key clears it.
     confirm_migrate: bool,
+    /// PRD 0016 RF2.1: the paste step's slots, the highlighted one and the
+    /// last test's outcome (`true` when the query answered).
+    sessions: Vec<SessionPaste>,
+    session_idx: usize,
+    session_test: Option<(bool, String)>,
 }
 
 impl Wizard {
@@ -316,6 +371,9 @@ impl Wizard {
             models_pick: None,
             confirm_save: false,
             confirm_migrate: false,
+            sessions: session_pastes(provider),
+            session_idx: 0,
+            session_test: None,
         }
     }
 
@@ -555,6 +613,10 @@ impl Wizard {
                 }
             }
             Step::Interval => Some(&mut self.interval),
+            Step::Session => self
+                .sessions
+                .get_mut(self.session_idx)
+                .map(|paste| &mut paste.text),
             Step::Params => {
                 let visible = self.visible_fields();
                 let idx = *visible.get(self.field_idx)?;
@@ -590,6 +652,9 @@ impl Wizard {
                             .join("\n")
                     });
                     self.reload_login_fields();
+                    self.sessions = session_pastes(selected);
+                    self.session_idx = 0;
+                    self.session_test = None;
                     self.invalidate_oauth();
                 }
                 self.step = Step::Name;
@@ -602,10 +667,13 @@ impl Wizard {
             Step::Params => {
                 if self.field_idx + 1 < self.visible_fields().len() {
                     self.field_idx += 1;
+                } else if !self.sessions.is_empty() {
+                    self.step = Step::Session;
                 } else {
                     self.step = Step::Interval;
                 }
             }
+            Step::Session => self.step = Step::Interval,
             Step::Interval => self.step = Step::Summary,
             Step::Summary => {}
         }
@@ -623,6 +691,12 @@ impl Wizard {
                     self.step = Step::Credential;
                 }
             }
+            Step::Session => {
+                let visible = self.visible_fields().len();
+                self.field_idx = visible.saturating_sub(1);
+                self.step = Step::Params;
+            }
+            Step::Interval if !self.sessions.is_empty() => self.step = Step::Session,
             Step::Interval => {
                 let visible = self.visible_fields().len();
                 self.field_idx = visible.saturating_sub(1);
@@ -1009,6 +1083,22 @@ impl Wizard {
             self.confirm_migrate = true;
             return Action::Continue;
         }
+        // PRD 0016 RF2.1: F4 tests the pasted sessions with one read-only
+        // query; ↑↓ pick the slot.
+        if self.step == Step::Session {
+            match key.code {
+                KeyCode::F(4) => return self.test_session(),
+                KeyCode::Up => {
+                    self.session_idx = self.session_idx.saturating_sub(1);
+                    return Action::Continue;
+                }
+                KeyCode::Down => {
+                    self.session_idx = (self.session_idx + 1).min(self.sessions.len() - 1);
+                    return Action::Continue;
+                }
+                _ => {}
+            }
+        }
         // Any selected core mode uses the same field navigation and F2 action.
         if self.step == Step::Credential && self.selected_mode().is_some() {
             match key.code {
@@ -1065,6 +1155,7 @@ impl Wizard {
                         Ok(config) => Action::Save {
                             config,
                             edit: self.editing,
+                            sessions: self.reduced_sessions(),
                         },
                         Err(message) => {
                             self.error = Some(message);
@@ -1089,7 +1180,7 @@ impl Wizard {
             }
             (KeyCode::Char('u'), m) if m.contains(KeyModifiers::CONTROL) => {
                 if let Some(buf) = self.current_text_mut() {
-                    buf.clear();
+                    user_session::wipe(buf);
                     self.after_credential_edit();
                 }
             }
@@ -1149,8 +1240,10 @@ impl Wizard {
                             buf.push(c);
                         }
                     }
-                } else if matches!(self.step, Step::Name | Step::Credential | Step::Params)
-                    && !c.is_control()
+                } else if matches!(
+                    self.step,
+                    Step::Name | Step::Credential | Step::Params | Step::Session
+                ) && !c.is_control()
                 {
                     // Aceita texto colado/digitado, inclusive caminhos longos (Azure).
                     if let Some(buf) = self.current_text_mut() {
@@ -1417,6 +1510,18 @@ impl Wizard {
                 Ok(())
             }
             Step::Interval => self.parse_interval().map(|_| ()),
+            // PRD 0016 RF2.2: a paste the core cannot reduce stops here,
+            // with the cookie it is about and never a value.
+            Step::Session => {
+                if let Some(Err(message)) = self
+                    .sessions
+                    .iter()
+                    .find_map(|p| p.reduce(self.provider).filter(Result::is_err))
+                {
+                    return Err(message);
+                }
+                Ok(())
+            }
             _ => Ok(()),
         };
         result.map_err(|note| note.to_string())
@@ -1464,12 +1569,93 @@ impl Wizard {
 
     /// PRD 0005 RF3: how the draft's usage will be read, from the core.
     fn access(&self) -> UsageAccess {
-        edit::draft_access(
-            self.provider,
-            &self.auth_mode,
-            &self.draft_fields(),
-            &self.stored_slots(),
-        )
+        // A pasted session counts as stored: it is written with the save.
+        let mut slots = self.stored_slots();
+        slots.extend(
+            self.reduced_sessions()
+                .iter()
+                .map(|session| session.slot().to_string()),
+        );
+        edit::draft_access(self.provider, &self.auth_mode, &self.draft_fields(), &slots)
+    }
+
+    /// PRD 0016 RF2: the pastes the core could reduce, ready for the vault.
+    fn reduced_sessions(&self) -> Vec<ReducedSession> {
+        self.sessions
+            .iter()
+            .filter_map(|paste| paste.reduce(self.provider)?.ok())
+            .collect()
+    }
+
+    /// PRD 0016 RF2.1: F4 on the paste step. The draft must be complete and
+    /// at least one paste reducible; the query itself runs in `ui.rs`.
+    fn test_session(&mut self) -> Action {
+        self.session_test = None;
+        if let Err(message) = self.validate_step() {
+            self.error = Some(message);
+            return Action::Continue;
+        }
+        let sessions = self.reduced_sessions();
+        if sessions.is_empty() {
+            self.error = Some("Cole uma sessão antes de testar.".into());
+            return Action::Continue;
+        }
+        match self.build_config() {
+            Ok(config) => {
+                let index = self.editing.unwrap_or(config.accounts.len() - 1);
+                self.error = None;
+                self.session_test = Some((true, "Testando a sessão…".into()));
+                Action::TestSession {
+                    account: Box::new(config.accounts[index].clone()),
+                    sessions,
+                }
+            }
+            Err(message) => {
+                self.error = Some(message);
+                Action::Continue
+            }
+        }
+    }
+
+    /// The outcome of [`Action::TestSession`]: whether the read-only query
+    /// answered, with the core's note or the session's expiry.
+    pub(crate) fn session_tested(&mut self, report: &Report) {
+        let resolve = crate::ui::resolve_l10n;
+        let text = if report.status == Status::Ready {
+            let mut text = format!(
+                "Sessão aceita: a consulta de leitura respondeu ({} métricas).",
+                report.metrics.len()
+            );
+            if let Some(expiry) = user_session::report_expiry(report, chrono::Utc::now()) {
+                text = format!("{text} {}", resolve(&expiry.label));
+            }
+            text
+        } else {
+            let status = resolve(&cuotai_core::text::status_l10n(report.status));
+            match report.notes_l10n.first() {
+                Some(note) => format!("{status}: {}", resolve(note)),
+                None => status,
+            }
+        };
+        self.session_test = Some((report.status == Status::Ready, text));
+    }
+
+    /// PRD 0016 RF2.1: bracketed paste is on only while this step shows,
+    /// so a pasted table or `cURL` arrives whole instead of as keystrokes.
+    pub(crate) fn accepts_paste(&self) -> bool {
+        self.step == Step::Session && self.conflict.is_none()
+    }
+
+    /// A bracketed paste into the highlighted session slot.
+    pub(crate) fn paste(&mut self, text: &str) {
+        if !self.accepts_paste() {
+            return;
+        }
+        if let Some(paste) = self.sessions.get_mut(self.session_idx) {
+            paste.text.push_str(text);
+            self.error = None;
+            self.session_test = None;
+        }
     }
 
     fn build_config(&self) -> Result<Config, String> {
@@ -1635,6 +1821,19 @@ impl Wizard {
                 warn,
             )));
         }
+        // PRD 0016 RF2: what the save writes to the vault (names only).
+        for paste in &self.sessions {
+            if let Some(Ok(reduced)) = paste.reduce(self.provider) {
+                lines.push(Line::from(vec![
+                    Span::styled("Sessão colada (vai para o cofre ao gravar): ", dim),
+                    Span::raw(crate::ui::resolve_l10n(&paste.descriptor.label())),
+                    Span::styled(" — ", dim),
+                    Span::raw(crate::ui::resolve_l10n(
+                        &reduced.summary(chrono::Utc::now()),
+                    )),
+                ]));
+            }
+        }
         // PRD 0005 RF3.3/RF3.4: cost and "no query" warnings come from the
         // same core descriptor; an Unavailable account shows its reason here,
         // before the save that needs a second, explicit Enter.
@@ -1679,14 +1878,18 @@ impl Wizard {
         }
         let chunks = wizard_chunks(area);
 
-        let title = match self.step {
-            Step::Provider => "Assistente — 1/6 Provedor",
-            Step::Name => "Assistente — 2/6 Nome da conta",
-            Step::Credential => "Assistente — 3/6 Credencial",
-            Step::Params => "Assistente — 4/6 Parâmetros",
-            Step::Interval => "Assistente — 5/6 Intervalo",
-            Step::Summary => "Assistente — 6/6 Revisão",
+        let has_session = !self.sessions.is_empty();
+        let total = if has_session { 7 } else { 6 };
+        let (position, label) = match self.step {
+            Step::Provider => (1, "Provedor"),
+            Step::Name => (2, "Nome da conta"),
+            Step::Credential => (3, "Credencial"),
+            Step::Params => (4, "Parâmetros"),
+            Step::Session => (5, "Colar sessão"),
+            Step::Interval => (5 + usize::from(has_session), "Intervalo"),
+            Step::Summary => (total, "Revisão"),
         };
+        let title = format!("Assistente — {position}/{total} {label}");
         frame.render_widget(
             Paragraph::new(title)
                 .block(Block::default().borders(Borders::ALL))
@@ -1719,6 +1922,7 @@ impl Wizard {
             }
             Step::Credential => self.draw_credential(frame, inner),
             Step::Params => self.draw_params(frame, inner),
+            Step::Session => self.draw_session(frame, inner),
             Step::Interval => self.draw_interval(frame, inner),
             Step::Summary => {
                 let lines = self.summary_lines(path);
@@ -1784,6 +1988,9 @@ impl Wizard {
                 } else {
                     " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar"
                 }
+            }
+            Step::Session => {
+                " ↑↓ sessão  cole com o atalho do terminal  F4 testar  Ctrl+U limpar  Enter próximo  Shift+Tab voltar  Esc cancelar"
             }
             Step::Interval => {
                 " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  vazio herda global  Esc cancelar"
@@ -2134,6 +2341,75 @@ impl Wizard {
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
     }
 
+    /// PRD 0016 RF2.1: per slot, what it is, where to copy it from, the
+    /// only hosts that receive it and the masked paste with the core's
+    /// reduction (names and counts, never a value); then the last test.
+    fn draw_session(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let resolve = crate::ui::resolve_l10n;
+        let dim = Style::default().fg(DRACULA_COMMENT);
+        let now = chrono::Utc::now();
+        let stored = self.stored_slots();
+        let mut lines = vec![
+            Line::from(Span::styled(
+                "Colar sessão (opcional): Cuotai guarda só os cookies desta sessão no cofre do sistema; o resto do texto colado é descartado.",
+                Style::default().fg(DRACULA_CYAN),
+            )),
+            Line::default(),
+        ];
+        for (index, paste) in self.sessions.iter().enumerate() {
+            let focused = index == self.session_idx;
+            let marker = if focused { "▶ " } else { "  " };
+            lines.push(Line::from(Span::styled(
+                format!("{marker}{}", resolve(&paste.descriptor.label())),
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            if focused {
+                lines.push(Line::from(Span::styled(
+                    resolve(&paste.descriptor.instructions()),
+                    dim,
+                )));
+                lines.push(Line::from(Span::styled(
+                    format!("Enviada só a: {}", paste.descriptor.hosts.join(", ")),
+                    dim,
+                )));
+            }
+            let chars = paste.text.chars().count();
+            let field = if chars == 0 && stored.iter().any(|s| s == paste.descriptor.slot) {
+                "> (sessão no cofre; colar outra a substitui)".to_string()
+            } else if chars == 0 {
+                "> (vazio)".to_string()
+            } else {
+                format!(
+                    "> {} ({chars} caracteres colados)",
+                    "•".repeat(chars.min(24))
+                )
+            };
+            lines.push(Line::from(Span::styled(
+                field,
+                Style::default().fg(DRACULA_GREEN),
+            )));
+            match paste.reduce(self.provider) {
+                Some(Ok(reduced)) => lines.push(Line::from(Span::styled(
+                    resolve(&reduced.summary(now)),
+                    Style::default().fg(DRACULA_GREEN),
+                ))),
+                Some(Err(message)) => lines.push(Line::from(Span::styled(
+                    message,
+                    Style::default().fg(DRACULA_RED),
+                ))),
+                None => {}
+            }
+            lines.push(Line::default());
+        }
+        if let Some((ok, text)) = &self.session_test {
+            lines.push(Line::from(Span::styled(
+                text.clone(),
+                Style::default().fg(if *ok { DRACULA_GREEN } else { DRACULA_YELLOW }),
+            )));
+        }
+        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+    }
+
     fn draw_interval(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
         // Dracula prompt color (cyan) e amarelo suave para o alerta AWS.
         let prompt = Style::default().fg(DRACULA_CYAN);
@@ -2349,6 +2625,80 @@ mod tests {
         let mut wiz = Wizard::new(&config, Some(0));
         wiz.interval = interval.into();
         wiz
+    }
+
+    // PRD 0016 RF2.1: the paste step exists only for session providers, is
+    // masked, refuses a paste the core cannot reduce and hands only the
+    // reduced cookies to the test and the save.
+    #[test]
+    fn the_paste_step_hands_only_the_reduced_session_to_the_test_and_the_save() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let to_last_param = |wiz: &mut Wizard| {
+            wiz.step = Step::Params;
+            wiz.field_idx = wiz.visible_fields().len().saturating_sub(1);
+        };
+        let mut plain = wizard_with("OpenAI", "OPENAI_ADMIN_KEY", "");
+        to_last_param(&mut plain);
+        press(&mut plain, KeyCode::Enter);
+        assert_eq!(plain.step, Step::Interval);
+
+        let mut mimo = account("MiMo", "XIAOMI_MIMO_API_KEY");
+        mimo.provider = Provider::XiaomiMimo;
+        let config = Config {
+            accounts: vec![mimo],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        to_last_param(&mut wiz);
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Session);
+        assert!(wiz.accepts_paste());
+
+        // A required cookie missing: Enter names it and stays.
+        wiz.paste("serviceToken.1=SECRET-PART");
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Session);
+        let error = wiz.error.clone().expect("fragment error");
+        assert!(
+            error.contains("serviceToken") && !error.contains("SECRET"),
+            "{error}"
+        );
+        let ctrl_u = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+        wiz.handle(ctrl_u);
+
+        press(&mut wiz, KeyCode::Down);
+        wiz.paste("Cookie: api-platform_serviceToken=SECRET-TOKEN; userId=7; _ga=TRACKER");
+        let sessions = match press(&mut wiz, KeyCode::F(4)) {
+            Action::TestSession { account, sessions } => {
+                assert_eq!(account.provider, Provider::XiaomiMimo);
+                sessions
+            }
+            _ => panic!("F4 tests the paste"),
+        };
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].slot(), "platform_session_env");
+        assert_eq!(sessions[0].kept(), ["api-platform_serviceToken", "userId"]);
+        assert_eq!(sessions[0].discarded(), 1);
+
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Interval);
+        wiz.step = Step::Summary;
+        let summary: String = wiz
+            .summary_lines(Path::new("cuotai.toml"))
+            .iter()
+            .map(|line| line.to_string())
+            .collect();
+        assert!(
+            !summary.contains("SECRET") && !summary.contains("TRACKER"),
+            "{summary}"
+        );
+        match press(&mut wiz, KeyCode::Enter) {
+            Action::Save { sessions, .. } => {
+                assert_eq!(sessions.len(), 1);
+                assert_eq!(sessions[0].kept(), ["api-platform_serviceToken", "userId"]);
+            }
+            _ => panic!("Enter saves with the paste"),
+        }
     }
 
     #[test]

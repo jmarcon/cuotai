@@ -437,6 +437,11 @@ pub struct Report {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes_l10n: Vec<crate::text::Localized>,
     pub source: String,
+    /// PRD 0016 RF3.2: when the vault session the query used carries a
+    /// known expiry (only the date is read, never the value). Additive and
+    /// skipped when unknown, so the legacy JSON stays byte-compatible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -509,6 +514,7 @@ mod tests {
             notes: vec!["Nota.".into()],
             notes_l10n: Vec::new(),
             source: String::new(),
+            session_expires_at: None,
         };
         let json = serde_json::to_value(&report).unwrap();
         assert!(json.get("notes_l10n").is_none(), "empty sidecar must skip");

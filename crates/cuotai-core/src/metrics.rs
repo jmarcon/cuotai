@@ -448,6 +448,7 @@ mod tests {
             notes: Vec::new(),
             notes_l10n: Vec::new(),
             source: String::new(),
+            session_expires_at: None,
         }
     }
 

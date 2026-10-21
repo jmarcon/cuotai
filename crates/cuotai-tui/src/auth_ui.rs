@@ -200,7 +200,7 @@ impl LoginTask {
         matches!(self.job, Job::Login(_))
     }
 
-    fn accepts_code(&self) -> bool {
+    pub fn accepts_code(&self) -> bool {
         match &self.job {
             Job::Login(driver) => driver.accepts_code(),
             _ => false,

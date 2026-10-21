@@ -40,7 +40,12 @@ use futures_util::{stream, StreamExt};
 pub use model::*;
 #[cfg(test)]
 use std::time::Instant;
-use std::{borrow::Cow, collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    borrow::Cow,
+    collections::{BTreeSet, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::Semaphore;
 
 /// The caller owns secret storage. Native apps can implement this using Keychain.
@@ -540,9 +545,55 @@ impl Monitor {
             self.config.accounts.len()
         );
         let account = &self.config.accounts[index];
-        let result = self
-            .with_access(
+        let report = self.query_report(account, &[]).await;
+        // RF2.2/RF2.4: only enqueued; the disk never delays the refresh.
+        if let Some(recorder) = &self.history {
+            recorder.submit(account, &report);
+        }
+        report
+    }
+
+    /// PRD 0016 RF2.1: one read-only query of `account` (a draft the wizard
+    /// has not saved yet, or an edited one) with the pasted `sessions` in
+    /// place of the vault ones. Nothing is stored nor recorded in the
+    /// history; the report says whether the session works. An invalid draft
+    /// is reported as needing configuration, without a query.
+    pub async fn test_session(
+        &self,
+        account: &Account,
+        sessions: &[user_session::ReducedSession],
+    ) -> Report {
+        let mut probe = self.config.clone();
+        probe.accounts = vec![account.clone()];
+        if let Err(error) = probe.validate() {
+            let (notes, notes_l10n) =
+                crate::text::Notes::one(edit_error::config_error_note(&error)).finish();
+            return Report {
+                account: account.name.clone(),
+                provider: account.provider,
+                checked_at: self.now(),
+                status: Status::NeedsConfiguration,
+                metrics: Vec::new(),
+                notes,
+                notes_l10n,
+                source: String::new(),
+                session_expires_at: None,
+            };
+        }
+        self.query_report(account, sessions).await
+    }
+
+    /// The report of one query of `account`, `pasted` sessions replacing the
+    /// vault ones of their slots.
+    async fn query_report(
+        &self,
+        account: &Account,
+        pasted: &[user_session::ReducedSession],
+    ) -> Report {
+        let (result, session_expires_at) = self
+            .with_sessions(
                 account,
+                pasted,
                 async |account: &Account, ctx: &providers::Context<'_>| {
                     self.dispatch(account, ctx).await
                 },
@@ -566,7 +617,7 @@ impl Monitor {
                 (error.status, Vec::new(), plain, l10n, String::new())
             }
         };
-        let report = Report {
+        Report {
             account: account.name.clone(),
             provider: account.provider,
             checked_at: self.now(),
@@ -575,12 +626,8 @@ impl Monitor {
             notes,
             notes_l10n,
             source,
-        };
-        // RF2.2/RF2.4: only enqueued; the disk never delays the refresh.
-        if let Some(recorder) = &self.history {
-            recorder.submit(account, &report);
+            session_expires_at,
         }
-        report
     }
 
     /// Run `run` under one query slot and the account deadline, with OAuth
@@ -590,6 +637,23 @@ impl Monitor {
         account: &Account,
         run: impl AsyncFnOnce(&Account, &providers::Context<'_>) -> Result<T, providers::QueryError>,
     ) -> Result<T, providers::QueryError> {
+        self.with_sessions(account, &[], run).await.0
+    }
+
+    /// [`Monitor::with_access`] with `pasted` sessions replacing the vault
+    /// ones of their slots. PRD 0016 RF3.1: when the adapter read a vault
+    /// or pasted session and the provider rejected the query, the note says
+    /// the session expired or was revoked. RF3.2: also returns the earliest
+    /// known expiry of the sessions the adapter read.
+    async fn with_sessions<T>(
+        &self,
+        account: &Account,
+        pasted: &[user_session::ReducedSession],
+        run: impl AsyncFnOnce(&Account, &providers::Context<'_>) -> Result<T, providers::QueryError>,
+    ) -> (
+        Result<T, providers::QueryError>,
+        Option<chrono::DateTime<Utc>>,
+    ) {
         let _permit = self
             .query_slots
             .acquire()
@@ -601,32 +665,47 @@ impl Monitor {
                 // MiMo's native login yields an inference key, never the cookie
                 // used for quota. Do not open Keychain for this unrelated key.
                 Some(_) if account.provider == Provider::XiaomiMimo => None,
-                Some(config) => Some(
-                    self.oauth
-                        .credentials(account.provider, config)
-                        .await
-                        .map_err(|error| providers::QueryError {
-                            status: match &error {
-                                oauth::OAuthError::Configuration(_) => Status::NeedsConfiguration,
-                                oauth::OAuthError::Denied | oauth::OAuthError::Expired => {
-                                    Status::AuthenticationError
-                                }
-                                _ => Status::Error,
-                            },
+                Some(config) => match self.oauth.credentials(account.provider, config).await {
+                    Ok(token) => Some(token),
+                    Err(error) => {
+                        let status = match &error {
+                            oauth::OAuthError::Configuration(_) => Status::NeedsConfiguration,
+                            oauth::OAuthError::Denied | oauth::OAuthError::Expired => {
+                                Status::AuthenticationError
+                            }
+                            _ => Status::Error,
+                        };
+                        let error = providers::QueryError {
+                            status,
                             note: error.l10n(),
-                        })?,
-                ),
+                        };
+                        return (Err(error), None);
+                    }
+                },
                 None => None,
             };
             // PRD 0016 RF1: a vault session supersedes the variable its slot
             // names; the adapter reads it through the query's credentials.
-            let sessions = user_session::load(&self.oauth, account).await?;
+            let mut sessions = match user_session::load(&self.oauth, account).await {
+                Ok(sessions) => sessions,
+                // RF2.1: a test with a pasted session does not need the vault.
+                Err(_) if !pasted.is_empty() => Vec::new(),
+                Err(error) => return (Err(error), None),
+            };
+            for reduced in pasted {
+                sessions.retain(|session| session.slot != reduced.slot());
+                sessions.push(user_session::QuerySession {
+                    slot: reduced.slot(),
+                    value: reduced.cookie().to_string(),
+                    expires_at: reduced.expires_at(),
+                });
+            }
             let mut effective = Cow::Borrowed(account);
-            for (slot, _) in &sessions {
-                effective
-                    .to_mut()
-                    .params
-                    .insert((*slot).to_string(), format!("{USER_SESSION}{slot}"));
+            for session in &sessions {
+                effective.to_mut().params.insert(
+                    session.slot.to_string(),
+                    format!("{USER_SESSION}{}", session.slot),
+                );
             }
             if let (Some(config), Some(token)) = (&account.oauth, &access) {
                 let effective = effective.to_mut();
@@ -656,17 +735,38 @@ impl Monitor {
                 external: self.credentials.as_ref(),
                 access: access.map(|token| token.access_token),
                 sessions,
+                read: std::sync::Mutex::new(BTreeSet::new()),
             };
             let ctx = providers::Context {
                 http: &self.http,
                 credentials: &credentials,
                 timeout,
             };
-            run(account, &ctx).await
+            let result = run(account, &ctx).await;
+            let read = credentials
+                .read
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let expires_at = credentials
+                .sessions
+                .iter()
+                .filter(|session| read.contains(session.slot))
+                .filter_map(|session| session.expires_at)
+                .min();
+            let result = match result {
+                Err(error) if error.status == Status::AuthenticationError && !read.is_empty() => {
+                    Err(providers::QueryError {
+                        status: Status::AuthenticationError,
+                        note: user_session::rejected(),
+                    })
+                }
+                other => other,
+            };
+            (result, expires_at)
         };
         tokio::time::timeout(timeout, fetch)
             .await
-            .unwrap_or_else(|_| Err(providers::QueryError::timeout()))
+            .unwrap_or_else(|_| (Err(providers::QueryError::timeout()), None))
     }
 
     async fn dispatch(
@@ -755,16 +855,19 @@ const USER_SESSION: &str = "__CUOTAI_USER_SESSION:";
 struct QueryCredentials<'a> {
     external: &'a dyn Credentials,
     access: Option<String>,
-    sessions: Vec<(&'static str, String)>,
+    sessions: Vec<user_session::QuerySession>,
+    /// Session slots the adapter read (PRD 0016 RF3.1/RF3.2).
+    read: std::sync::Mutex<BTreeSet<&'static str>>,
 }
 impl Credentials for QueryCredentials<'_> {
     fn get(&self, name: &str) -> Option<String> {
         if let Some(slot) = name.strip_prefix(USER_SESSION) {
-            return self
-                .sessions
-                .iter()
-                .find(|(stored, _)| *stored == slot)
-                .map(|(_, value)| value.clone());
+            let session = self.sessions.iter().find(|session| session.slot == slot)?;
+            self.read
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(session.slot);
+            return Some(session.value.clone());
         }
         match name {
             OAUTH_ACCESS => self.access.clone(),
@@ -1476,6 +1579,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         notes: Vec::new(),
                         notes_l10n: Vec::new(),
                         source: String::new(),
+                        session_expires_at: None,
                     },
                     crate::Report {
                         account: "aws-two".into(),
@@ -1486,6 +1590,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         notes: Vec::new(),
                         notes_l10n: Vec::new(),
                         source: String::new(),
+                        session_expires_at: None,
                     },
                 ],
             }),
