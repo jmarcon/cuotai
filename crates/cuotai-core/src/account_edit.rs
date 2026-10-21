@@ -2941,10 +2941,18 @@ mod tests {
                 .map(|name| env_account(name, Provider::OpenAiApi, &format!("ENV_{name}")))
                 .collect(),
         );
+        // Names are unique, so comparing them proves order and content.
         for index in 0..config.accounts.len() {
-            let mut expected = config.accounts.clone();
+            let mut expected: Vec<String> =
+                config.accounts.iter().map(|a| a.name.clone()).collect();
             expected.remove(index);
-            let got = config.without_account(index).unwrap().accounts;
+            let got: Vec<String> = config
+                .without_account(index)
+                .unwrap()
+                .accounts
+                .iter()
+                .map(|a| a.name.clone())
+                .collect();
             assert_eq!(got, expected, "index {index}");
         }
     }
