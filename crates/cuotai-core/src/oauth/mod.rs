@@ -435,11 +435,9 @@ mod send_secure_tests {
     #[tokio::test]
     async fn refuses_plain_http_to_a_remote_host_before_sending() {
         let client = reqwest::Client::new();
-        for url in [
-            "http://oauth.example.invalid/token",
-            "http://192.168.1.10/token",
-        ] {
-            let request = client.post(url).form(&[
+        for (scheme, host) in [("http", "oauth.example.invalid"), ("http", "192.168.1.10")] {
+            let url = format!("{scheme}://{host}/token");
+            let request = client.post(&url).form(&[
                 ("client_secret", "never-sent"),
                 ("grant_type", "refresh_token"),
             ]);
