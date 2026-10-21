@@ -4130,7 +4130,7 @@ mod tests {
                 assert_eq!(account.storage_key.as_deref(), Some(key.as_str()));
                 assert!(
                     vault_error.text().contains("Keychain") || vault_error.text().contains("cofre"),
-                    "vault_error should mention the failure: {vault_error}"
+                    "vault_error should mention the failure"
                 );
             }
             other => panic!("expected PartialFailure, got {other:?}"),
