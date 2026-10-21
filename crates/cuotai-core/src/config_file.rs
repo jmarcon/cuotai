@@ -1015,8 +1015,7 @@ mod tests {
         let path = dir.path().join("delete.toml");
         fs::write(&path, "[[accounts]]\nname='first'\nprovider='groq'\n[[accounts]]\nname='middle'\nprovider='kimi'\n[[accounts]]\n# survivor comment\nname='last'\nprovider='ollama_cloud'\ncredential_env='LAST_KEY'\n").unwrap();
         let mut file = load_at(&path, false).unwrap();
-        let mut edited = file.config.clone();
-        edited.accounts.remove(1);
+        let edited = file.config.without_account(1).unwrap();
         file.save(edited).unwrap();
         let loaded = load_at(&path, false).unwrap();
         assert_eq!(
