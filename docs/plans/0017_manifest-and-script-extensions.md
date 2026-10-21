@@ -3,13 +3,21 @@
 | Field | Value |
 |---|---|
 | ID | 0017 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui`, `apps/desktop`, extension authors |
 | Depends on | PRD 0005 (RF1: the `Extension` level) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-21)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.64.0 | `cuotai_core::extensions`. RF1.1: `default_dir()` is `<OS local data dir>/cuotai/extensions`; each folder holds a `manifest.toml` (`MANIFEST_FILE`) with `id` (a slug: lowercase letters, digits, `-` and `_`, up to 64 characters), `name` (up to 64 characters), `version` (up to 32), `schema` (`SCHEMA` = 1), `command` (an argument vector whose program is a relative path without `..` naming a file inside the folder, resolved through links and executable on Unix; never an absolute path or a `PATH` name), `interval_seconds` (at least `MIN_INTERVAL_SECONDS` = 60), `timeout_seconds` (`DEFAULT_TIMEOUT_SECONDS` = 15, 1 to `MAX_TIMEOUT_SECONDS` = 60), optional `description` (up to 500 characters) and `homepage` (`http(s)` without credentials) and `env` (up to 32 variable names, repetitions dropped). RF1.2: `discover(root)` runs nothing: every non-hidden folder becomes a `Manifest` (with the resolved `dir` and `program`) or a `Rejected { dir, id, reason }` whose `extensions.error.*` reason names the field or line, never the file's content (a missing manifest, one that is not a regular file (never opened, so a FIFO cannot block discovery), over 64 KiB, not UTF-8, invalid TOML, a missing or newer `schema` checked before the other fields, an unknown field, each invalid value, a command outside the folder, every folder sharing an `id`); a missing directory has no extensions and an unlistable one is a single rejection, so nothing else stops loading. RF1.3: `Discovery::catalog()` gives each valid extension's `CatalogEntry` (`extensions.catalog.label` "Extensão: {name}", the new `access::Level::Extension` and its warning `access.risk.extension` "Executa um programa local; revise o código antes de ativar."), in pt-BR, en-US and es; `docs/export-v1.schema.json` and `docs/export-v1.md` list `extension` among the `access.level` values (additive within schema 1). The TUI wizard and the desktop dialog do not offer it yet (decision below). |
+
+**Decision (2026-10-21, orchestrator):** the RF1.3 catalog entry stays out of the TUI wizard and the desktop account dialog until RF3 and RF4 can run an approved extension, so no account type is offered that cannot produce a reading; the front ends list `Discovery::catalog()` when those RFs ship.
 
 ## 1. Context
 

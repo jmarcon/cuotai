@@ -10,6 +10,7 @@ pub mod cost;
 pub mod edit_error;
 pub mod events;
 pub mod export;
+pub mod extensions;
 pub mod freshness;
 pub mod headless;
 pub mod history;
