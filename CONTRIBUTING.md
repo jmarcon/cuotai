@@ -78,6 +78,20 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 - Every user-visible delivery raises the version in the same commit. The full rules (which bump, which files, the `Refs:` footer and the changelog) are in the "Versioning, Commits & Changelog" section of [`AGENTS.md`](AGENTS.md).
 - Keep pull requests focused and small enough to review.
 
+## Releasing
+
+Releases are tag-driven through `.github/workflows/release.yml` (PRD 0021).
+Before tagging, verify locally that every version source agrees:
+
+```sh
+cargo xtask release-check                           # versions, lockfiles, changelog
+cargo xtask release-check --tag v0.68.0             # plus the tag you plan to push
+```
+
+The full procedure, the dry run (**Actions → Release → Run workflow**, which
+builds everything and publishes nothing), the signing secrets and the fork
+rehearsal are documented in [`docs/releasing.md`](docs/releasing.md).
+
 ## Documentation language
 
 The README and all documentation are written in **English**, as is usual for open-source repositories. The product itself stays multilingual: UI strings live in the Portuguese, English and Spanish catalogs.

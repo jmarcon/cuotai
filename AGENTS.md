@@ -54,7 +54,7 @@ Use `--once` instead of `--json` for human-readable, single-refresh output (`--j
 
 ## Runtime/Tooling Preferences
 
-Use Rust/Cargo (no pinned toolchain or JS package manager). Default OAuth storage uses the OS credential vault; AWS Bedrock needs AWS CLI v2 and an explicitly configured profile. Config lookup: `--config`, `./cuotai.toml`, then the OS config directory. `.env` is not loaded. `run.sh` selects `--dev-credentials-sqlite ./cuotai-dev.sqlite3`: this debug-only store contains plaintext tokens; release builds reject the flag. Local `cuotai.toml`, `.env*`, SQLite files, and `target/` are git-ignored; do not publish secrets.
+- Use the repository-pinned Rust 1.99.1 toolchain (`rust-toolchain.toml`). No JavaScript package manager is used. Default OAuth storage uses the OS credential vault; AWS Bedrock needs AWS CLI v2 and an explicitly configured profile. Config lookup: `--config`, `./cuotai.toml`, then the OS config directory. `.env` is not loaded. `run.sh` selects `--dev-credentials-sqlite ./cuotai-dev.sqlite3`: this debug-only store contains plaintext tokens; release builds reject the flag. Local `cuotai.toml`, `.env*`, SQLite files, and `target/` are git-ignored; do not publish secrets.
 
 ## Documentation Language
 

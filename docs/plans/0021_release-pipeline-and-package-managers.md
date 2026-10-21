@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0021 |
-| Status | Proposed |
+| Status | In progress (RF1–RF4 implemented in 0.68.0; RF5–RF8 pending) |
 | Owner | Repository, CI and release (`.github/`, `packaging/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRD 0018 (updater), PRD 0014 (widgets) |
 | Depends on | PRD 0019 RF2 (green CI on three systems) and RF7.1 to RF7.3 (`CHANGELOG.md`) |
@@ -11,6 +11,19 @@
 | Date | 2026-10-21 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-21)
+
+| RF | Version | Status and evidence |
+|---|---|---|
+| RF1 | 0.68.0 | Implemented — deterministic tag/version gate and safe `workflow_dispatch` dry run in `xtask/src/{check,git,main}.rs` and `.github/workflows/release.yml`; procedure in `docs/releasing.md`. |
+| RF2 | 0.68.0 | Implemented — cross-platform artifact collection, optional ARM legs, checksums, provenance and aggregate CycloneDX SBOM in `.github/workflows/release.yml`, `scripts/release/` and `xtask/src/{manifest,sbom}.rs`. |
+| RF3 | 0.68.0 | Implemented — honest signing-state and checksum-signing fallback in `xtask/src/signing.rs` and `scripts/release/{macos,windows}-*`; owner production certificates and keys remain prerequisites. |
+| RF4 | 0.68.0 | Implemented — idempotent draft assembly, publish gate and public checksum verification in `scripts/release/{publish-release,verify-release}.sh`, `.github/workflows/release.yml` and `xtask/src/notes.rs`. |
+| RF5 | — | Proposed — package-manager channels are not implemented; no Homebrew, winget, Scoop, Cargo, AUR or repository publishing is enabled. |
+| RF6 | — | Proposed — produced-artifact smoke tests are not implemented as a completed requirement. |
+| RF7 | — | Proposed — documentation/layout work beyond the validated release procedure remains pending. |
+| RF8 | — | Proposed — package-manager/updater coexistence is not implemented. |
 
 ## 1. Context
 

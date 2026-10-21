@@ -34,9 +34,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
-          toolchain: stable
+          toolchain: 1.99.1
           components: clippy, rustfmt
       # WebKitGTK is the only system library the desktop build links; the tray
       # library (appindicator) is loaded at run time and no test opens a tray.
@@ -75,3 +75,18 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           manifest-path: ${{ matrix.manifest }}
+
+  # Version consistency (PRD 0021 RF1.2): workspace, member manifests, both
+  # lockfiles, tauri.conf.json and the top released CHANGELOG section agree.
+  # The same check runs with the tag in release.yml before any build.
+  version-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - run: cargo run -p xtask --locked -- release-check

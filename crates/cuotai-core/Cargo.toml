@@ -16,7 +16,7 @@ toml = "0.8"
 toml_edit = { version = "0.22", features = ["serde"] }
 tempfile = "3"
 uuid = { version = "1", features = ["v4", "v5"] }
-keyring = { version = "4.2", features = ["v1", "dbus-secret-service-keyring-store"] }
+keyring = { version = "4.2", features = ["v1"] }
 sha2 = "0.10"
 base64 = "0.22"
 hmac.workspace = true
