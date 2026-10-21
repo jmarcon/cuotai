@@ -1849,8 +1849,7 @@ mod tests {
             data.notes
                 .iter()
                 .any(|n| n.contains("PARCIAL") && n.contains("modelos")),
-            "expected note about modelos: {:?}",
-            data.notes
+            "expected note about modelos"
         );
     }
 
