@@ -60,6 +60,18 @@ impl std::ops::Add for Usd {
     }
 }
 
+/// `$3.40`, half up to the cent; `<$0.01` for a positive amount below a
+/// cent, so a small cost never reads as free.
+impl std::fmt::Display for Usd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let cents = self.cents();
+        if cents == 0 && self.pico > 0 {
+            return f.write_str("<$0.01");
+        }
+        write!(f, "${}.{:02}", cents / 100, cents % 100)
+    }
+}
+
 impl Serialize for Usd {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_f64(self.as_usd())

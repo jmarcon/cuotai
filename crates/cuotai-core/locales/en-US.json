@@ -1073,5 +1073,21 @@
   "cost.pricing.error.source": "pricing.json has a source longer than 300 characters or with control characters.",
   "cost.pricing.error.syntax": "Invalid pricing.json at line {line}, column {column}.",
   "cost.pricing.error.unreadable": "Could not read pricing.json.",
-  "cost.pricing.ignored": "{error} Only the embedded table is used until the file is fixed."
+  "cost.pricing.ignored": "{error} Only the embedded table is used until the file is fixed.",
+  "cost.span.days": "Last {days} days",
+  "cost.view.empty": "{source}: no usage in the logs read ({period}).",
+  "cost.view.partial": "{source}: reading the logs has not finished yet; the numbers may still grow.",
+  "cost.view.no_access": "{source}: no access to the log directories; nothing was worked around. The numbers are what the index already held.",
+  "cost.view.not_read": "{source}: the logs were not read yet in this run; the numbers are what the index already held.",
+  "cost.view.yesterday": "Yesterday",
+  "cost.view.heading": "Local usage of {source} on this computer",
+  "cost.view.by_model": "By model ({period})",
+  "cost.view.by_day": "By day",
+  "cost.view.enable_hint": "To turn a source on: cuotai --cost-sources shows what each one reads and cuotai --cost-enable SOURCE asks for the confirmation.",
+  "cost.line.none": "{label}: no usage",
+  "cost.line.unknown": "{label}: {tokens} tokens · unknown cost",
+  "cost.line.partial": "{label}: {tokens} tokens · {cost} + unknown cost of {unknown} tokens",
+  "cost.line.priced": "{label}: {tokens} tokens · {cost}",
+  "cost.error.days_bounds": "The number of days ranges from {min} to {max}.",
+  "cost.error.relative_path": "Use a directory that is absolute or starts with ~/."
 }

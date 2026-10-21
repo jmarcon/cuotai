@@ -1073,5 +1073,21 @@
   "cost.pricing.error.source": "pricing.json tiene una fuente (source) de más de 300 caracteres o con caracteres de control.",
   "cost.pricing.error.syntax": "pricing.json inválido en la línea {line}, columna {column}.",
   "cost.pricing.error.unreadable": "No se pudo leer pricing.json.",
-  "cost.pricing.ignored": "{error} Solo se usa la tabla integrada hasta que se corrija el archivo."
+  "cost.pricing.ignored": "{error} Solo se usa la tabla integrada hasta que se corrija el archivo.",
+  "cost.span.days": "Últimos {days} días",
+  "cost.view.empty": "{source}: ningún uso en los registros leídos ({period}).",
+  "cost.view.partial": "{source}: la lectura de los registros aún no terminó; los números pueden crecer.",
+  "cost.view.no_access": "{source}: sin acceso a los directorios de los registros; no se intentó sortearlo. Los números son los que el índice ya tenía.",
+  "cost.view.not_read": "{source}: los registros aún no se leyeron en esta ejecución; los números son los que el índice ya tenía.",
+  "cost.view.yesterday": "Ayer",
+  "cost.view.heading": "Uso local de {source} en este equipo",
+  "cost.view.by_model": "Por modelo ({period})",
+  "cost.view.by_day": "Por día",
+  "cost.view.enable_hint": "Para activar una fuente: cuotai --cost-sources muestra lo que lee cada una y cuotai --cost-enable FUENTE pide la confirmación.",
+  "cost.line.none": "{label}: sin uso",
+  "cost.line.unknown": "{label}: {tokens} tokens · costo desconocido",
+  "cost.line.partial": "{label}: {tokens} tokens · {cost} + costo desconocido de {unknown} tokens",
+  "cost.line.priced": "{label}: {tokens} tokens · {cost}",
+  "cost.error.days_bounds": "El número de días va de {min} a {max}.",
+  "cost.error.relative_path": "Use un directorio absoluto o que empiece con ~/."
 }

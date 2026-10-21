@@ -25,16 +25,18 @@ use cuotai_core::{
     Config, Monitor,
 };
 
-use crate::{serve::ServeArgs, watch::WatchArgs};
+use crate::{cost::LocalCost, serve::ServeArgs, watch::WatchArgs};
 
 /// Run until a shutdown signal arrives (or, with `--watch`, until stdout
-/// is closed). `monitor` was built for `config`.
+/// is closed). `monitor` was built for `config`; with `--serve`, the
+/// server publishes `local_cost` from `local_cost` (PRD 0015 RF4.3).
 pub(crate) async fn run(
     config: Config,
     identity: ConfigIdentity,
     monitor: Monitor,
     serve: Option<ServeArgs>,
     watch: Option<WatchArgs>,
+    local_cost: Option<LocalCost>,
 ) -> Result<u8, Box<dyn Error>> {
     let token = serve
         .as_ref()
@@ -55,6 +57,7 @@ pub(crate) async fn run(
                 identity.clone(),
                 Arc::clone(driver.cycle()),
                 Arc::clone(&monitor),
+                local_cost,
             )
             .await?,
         ),

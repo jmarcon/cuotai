@@ -503,3 +503,167 @@
   gap: 6px;
   margin: 4px 0 0;
 }
+
+/* PRD 0015 RF4.1: this computer's local usage of a tool, on its accounts' cards, in a card of its own and in the
+   details (bar chart per day with its table, table per model). */
+.local-cost {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2);
+}
+.lc-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lc-head .lc-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lc-head svg.i {
+  width: 14px;
+  height: 14px;
+}
+.lc-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 6px 0 0;
+}
+.lc-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lc-label,
+.lc-tokens {
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lc-cost {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.lc-cost.dim,
+.lc-models td.dim {
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+.lc-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.lc-note.warn { color: var(--warn); }
+.lc-note.bad { color: var(--bad); }
+.lc-foot {
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.lc-detail {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2);
+}
+.lc-detail h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+.lc-detail > .sub {
+  margin: 4px 0 0;
+}
+.lc-chart {
+  margin: 12px 0 0;
+}
+.lc-chart figcaption,
+.lc-models caption {
+  margin: 0 0 6px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.lc-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 72px;
+  padding: 0 0 1px;
+  border-bottom: 1px solid var(--border);
+}
+.lc-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+.lc-bar.unknown {
+  background: var(--track);
+}
+.lc-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0 0;
+  font-size: 11px;
+}
+.lc-table summary {
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.lc-table table,
+.lc-models,
+.cost-price-table table {
+  width: 100%;
+  margin: 6px 0 0;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.lc-models {
+  margin: 12px 0 0;
+}
+.lc-table th,
+.lc-table td,
+.lc-models th,
+.lc-models td,
+.cost-price-table th,
+.cost-price-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+  text-align: right;
+}
+.lc-table th:first-child,
+.lc-models th:first-child,
+.cost-price-table th:first-child {
+  text-align: left;
+}
+.lc-table thead th,
+.lc-models thead th,
+.cost-price-table thead th {
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.lc-models code,
+.cost-price-table code {
+  font: 12px var(--font-mono);
+  word-break: break-all;
+}

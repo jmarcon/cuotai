@@ -44,7 +44,7 @@ const HISTORY_SPARK_CELLS: usize = 60;
     about = "Quota e consumo de AI: APIs e assinaturas, sem gerar tokens.",
     // PRD 0015: one local cost action at a time, never with a query mode.
     group(
-        clap::ArgGroup::new("cost")
+        clap::ArgGroup::new("cost_action")
             .multiple(false)
             .conflicts_with_all(["once", "json_v1", "history", "notify", "serve", "watch"])
     )
@@ -151,14 +151,14 @@ struct Args {
     /// Lista as fontes de custo local (Claude Code, Codex CLI): se estão
     /// ligadas, os diretórios exatos que leem (ou leriam) e o que o índice
     /// já segue; não lê logs. Com --json, em JSON. Tudo desligado por padrão.
-    #[arg(long, group = "cost")]
+    #[arg(long, group = "cost_action")]
     cost_sources: bool,
     /// Liga a leitura dos logs locais de FONTE (claude_code ou codex_cli):
     /// mostra exatamente quais diretórios serão lidos, para quê e que só
     /// números (horário, modelo, contagens de tokens, resumo anônimo da
     /// sessão) são extraídos, e pede confirmação no terminal. Nunca lê o
     /// conteúdo das conversas.
-    #[arg(long, value_name = "FONTE", group = "cost")]
+    #[arg(long, value_name = "FONTE", group = "cost_action")]
     cost_enable: Option<String>,
     /// Com --cost-enable, lê DIR em vez dos diretórios padrão (repetível);
     /// sem ele, volta aos padrão.
@@ -166,24 +166,36 @@ struct Args {
     cost_path: Vec<PathBuf>,
     /// Desliga FONTE: nenhum log dela é lido e tudo o que foi derivado
     /// dela é apagado do índice.
-    #[arg(long, value_name = "FONTE", group = "cost")]
+    #[arg(long, value_name = "FONTE", group = "cost_action")]
     cost_disable: Option<String>,
     /// Apaga o índice local de custo inteiro (as fontes continuam ligadas
     /// ou desligadas como estão).
-    #[arg(long, group = "cost")]
+    #[arg(long, group = "cost_action")]
     cost_erase: bool,
     /// Lê agora, em primeiro plano, o que cresceu nos logs das fontes
     /// ligadas e diz o que encontrou; com --json, em JSON. Saída 0; 2 se
     /// nenhuma fonte está ligada ou uma ficou sem logs ou sem acesso; 1 em
     /// erro local.
-    #[arg(long, group = "cost")]
+    #[arg(long, group = "cost_action")]
     cost_scan: bool,
     /// Mostra os preços (USD por milhão de tokens) que a estimativa de
     /// custo local usa: a tabela embutida, com data e fonte, sob o seu
     /// pricing.json (revisado à mão, nunca baixado); com --json, em JSON.
     /// Saída 0; 1 se o pricing.json é inválido (fica ignorado). Não lê logs.
-    #[arg(long, group = "cost")]
+    #[arg(long, group = "cost_action")]
     cost_prices: bool,
+    /// Mostra o custo estimado a preços de API do uso local das fontes
+    /// ligadas: hoje, ontem e o período salvo (ou os últimos --days N
+    /// dias), por modelo e por dia, depois de ler em primeiro plano o que
+    /// cresceu nos logs; com --json, em JSON. É uma estimativa, não uma
+    /// cobrança. Saída 0; 2 se nenhuma fonte está ligada ou uma ficou sem
+    /// logs ou sem acesso; 1 em erro local.
+    #[arg(long, group = "cost_action")]
+    cost: bool,
+    /// Com --cost, os últimos DIAS dias locais, hoje incluído (1 a 730),
+    /// em vez do período salvo.
+    #[arg(long, value_name = "DIAS", requires = "cost")]
+    days: Option<u32>,
     /// Período do custo local mostrado: today, last_7_days (padrão),
     /// last_30_days, current_month ou all.
     #[arg(long, value_name = "PERÍODO", conflicts_with_all = COST_OPTION_CONFLICTS)]
@@ -195,7 +207,14 @@ struct Args {
 
 /// `--cost-period`/`--cost-retention-days` only save preferences.
 const COST_OPTION_CONFLICTS: [&str; 8] = [
-    "cost", "once", "json", "json_v1", "history", "notify", "serve", "watch",
+    "cost_action",
+    "once",
+    "json",
+    "json_v1",
+    "history",
+    "notify",
+    "serve",
+    "watch",
 ];
 
 /// PRD 0015: the local cost action the flags ask for, if any.
@@ -219,6 +238,9 @@ fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
     }
     if args.cost_prices {
         return Some(CostAction::Prices);
+    }
+    if args.cost {
+        return Some(CostAction::Usage { days: args.days });
     }
     (args.cost_period.is_some() || args.cost_retention_days.is_some()).then(|| {
         CostAction::Options {
@@ -363,7 +385,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 jsonl: args.jsonl,
                 hooks,
             });
-            return headless::run(config, file.identity()?, monitor, serve, watch).await;
+            // PRD 0015 RF4.3: the server publishes `local_cost`, kept
+            // current by the background scan while it runs.
+            let local_cost = args.serve.then(cost::LocalCost::start).flatten();
+            return headless::run(config, file.identity()?, monitor, serve, watch, local_cost)
+                .await;
         }
         // PRD 0010 RF2.3: read before this query's readings are recorded.
         let restored = if args.json_v1 {
@@ -371,6 +397,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         } else {
             Vec::new()
         };
+        // PRD 0015 RF4.3: `local_cost` reads what grew in the logs of the
+        // sources that are on (bounded, on its own thread) during the query.
+        let local_cost = args
+            .json_v1
+            .then(|| std::thread::spawn(cost::one_shot_export));
         let snapshot = monitor.refresh().await;
         // The readings are queued off the refresh; let them land first.
         monitor.flush_history(HISTORY_FLUSH);
@@ -391,7 +422,8 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 snapshot,
                 &monitor.incident_statuses(),
                 Utc::now(),
-            );
+            )
+            .with_local_cost(local_cost.and_then(|job| job.join().ok()).flatten());
             let mut stdout = io::stdout().lock();
             serde_json::to_writer_pretty(&mut stdout, &export)?;
             writeln!(stdout)?;
@@ -411,10 +443,20 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return Ok(code);
     }
     let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
-    // PRD 0015 RF2.2: the local cost index follows the logs of the sources
-    // that are on from a thread of its own while the TUI is open.
-    let _cost = cost::worker();
-    ui::run(file, session, animations, retention, args.notify, status).await?;
+    // PRD 0015 RF2.2/RF4.2: the local cost index follows the logs of the
+    // sources that are on from a thread of its own while the TUI is open,
+    // and the account details show it.
+    let local_cost = cost::LocalCost::start();
+    ui::run(
+        file,
+        session,
+        animations,
+        retention,
+        args.notify,
+        status,
+        local_cost,
+    )
+    .await?;
     Ok(0)
 }
 

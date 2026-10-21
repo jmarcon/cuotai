@@ -40,6 +40,7 @@ println!("{}", serde_json::to_string(&export)?);
 | `generated_at` | RFC 3339 | When the export was built. |
 | `config_identity` | string | Lowercase hex SHA-256 of the configuration identity (the canonical TOML path, or an explicit id). It tells configurations apart without publishing the path. |
 | `accounts` | array | One entry per configured account, in configuration order. |
+| `local_cost` | object or `null` | PRD 0015 RF4.3 (since 0.59.0): the estimated cost at API prices from this computer's local CLI logs, apart from every account and never summed with a provider's billing; `null` while every local cost source is off or when the producer does not read the cost index (`Export::with_local_cost`). `currency` (always `USD`), the localized `notice` ("not a charge"), the `span` (`period` or `days`, `label`, `first_day`, `last_day`), `sources` (each with `source`, `label`, the `providers` whose accounts show it, `state` `off`/`ready`/`partial`/`no_logs`/`no_access`/`not_read`, a localized `note` and, while on, `usage` with `today`, `yesterday`, `period` estimates and `days`), the span's `total` and `pricing_error`. An estimate carries tokens, requests, `total` (`null` when nothing is priced), `unknown_tokens` and `unknown_share`, per model its `cost` (`null`: unknown, never 0) and price, and the price tables used. It never holds a path, a file name or conversation content. `cuotai --cost --json` prints the same object. |
 
 ## Account (`AccountExport`)
 

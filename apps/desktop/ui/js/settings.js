@@ -2,7 +2,7 @@
 import { te, t, tl, tle, currentLocale, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costSetOptions, costStatus, currentSort, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, testHook, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, currentSort, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, testHook, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -142,7 +142,7 @@ export async function openSettings(extra = {}) {
       (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#status-msg").textContent = errorText(x); });
     bindIntegration(dlg.querySelector("[data-serve]"), extra);
     bindHooks(dlg.querySelector("[data-hooks]"), extra);
-    bindCost(dlg.querySelector("[data-cost-body]"));
+    bindCost(dlg.querySelector("[data-cost-body]"), extra);
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -230,18 +230,27 @@ function bindHistory(dlg) {
   };
 }
 
-/** PRD 0015 RF1/RF2: local cost from the logs of command-line tools, off by default. Per source a switch that first
- *  shows the core's disclosure (exactly the directories read, what for, and that only numbers are extracted) and turns
- *  on with its digest; turning off confirms that everything derived is erased. Then the period, the index retention,
- *  its size and its erasure; the state the core's background scan last reported (paused while saving energy). */
-function costHtml(cv) {
+/** PRD 0015 RF1/RF2/RF4.1: local cost from the logs of command-line tools, off by default. Per source a switch that
+ *  first shows the core's disclosure (exactly the directories read, what for, and that only numbers are extracted)
+ *  and turns on with its digest; turning off confirms that everything derived is erased; the directories it reads
+ *  (a different list turns a source that is on off, so its new disclosure is reviewed). Then the period, the index
+ *  retention, the prices in effect (the embedded table under the user's pricing.json), the index size and its
+ *  erasure; the state the core's background scan last reported (paused while saving energy). */
+function costHtml(cv, prices) {
   const state = { starting: "settings.cost.state.starting", scanning: "settings.cost.state.scanning", paused: "settings.cost.state.paused" }[cv.state];
   const sources = cv.sources.map((s) => `<div class="cost-source" data-cost-source="${esc(s.source)}">
         <label class="check"><input type="checkbox" data-cost-toggle="${esc(s.source)}" ${s.enabled ? "checked" : ""} /> ${te("settings.cost.read", { source: s.label })}</label>
         <p class="hint" data-cost-state>${s.enabled ? te("settings.cost.since", { at: fmtReset(s.consented_at) ?? "—" }) : te("settings.cost.off")}</p>
-        <p class="hint">${te("settings.cost.dirs", { pattern: s.disclosure.pattern })} ${s.disclosure.directories.map((d) => `<code>${esc(d)}</code>`).join(", ")}</p>
+        <p class="hint">${te("settings.cost.dirs", { pattern: s.disclosure.pattern })} ${s.disclosure.directories.map((d) => `<code>${esc(d)}</code>`).join(", ")}${s.disclosure.custom ? ` (${te("settings.cost.pathsChosen")})` : ""}</p>
         ${s.enabled && s.summary ? `<p class="hint" data-cost-summary>${tle(s.summary)}</p>` : ""}
         ${s.enabled ? `<p class="hint" data-cost-indexed>${te("settings.cost.indexed", { files: s.indexed.files, invalid: s.indexed.invalid_lines })}</p>` : ""}
+        <details class="cost-paths" data-cost-paths-box="${esc(s.source)}" ${pathsOpen.has(s.source) ? "open" : ""}><summary>${te("settings.cost.pathsEdit")}</summary>
+          <label class="f"><span>${te("settings.cost.paths", { source: s.label })}</span>
+            <textarea rows="3" spellcheck="false" autocomplete="off" data-cost-paths="${esc(s.source)}" placeholder="~/…">${esc(s.paths.join("\n"))}</textarea>
+            <small>${te("settings.cost.pathsHelp")}</small></label>
+          <div class="dlg-actions left"><button class="btn" data-cost-paths-save="${esc(s.source)}">${te("settings.cost.pathsSave")}</button>
+            <button class="btn" data-cost-paths-reset="${esc(s.source)}" ${s.paths.length ? "" : "disabled"}>${te("settings.cost.pathsReset")}</button></div>
+        </details>
       </div>`).join("");
   return `${sources}
         ${state ? `<p class="hint${cv.state === "paused" ? " warn-txt" : ""}" data-cost-worker role="status">${te(state)}</p>` : ""}
@@ -252,6 +261,7 @@ function costHtml(cv) {
           <input id="cost-retention" type="number" inputmode="numeric" min="${cv.retention_min}" max="${cv.retention_max}" step="1" value="${esc(cv.retention_days)}" />
           <small>${te("settings.cost.retentionRange", { min: cv.retention_min, max: cv.retention_max })}</small></label>
         <div class="dlg-actions left"><button class="btn primary" data-cost-save>${te("settings.cost.save")}</button></div>
+        <div class="cost-prices" data-cost-prices>${prices ? pricesHtml(prices) : `<p class="hint">${te("common.loading")}</p>`}</div>
         <p class="hint" data-cost-size>${te("settings.cost.size", { size: fmtBytes(cv.size) })}</p>
         <div class="dlg-actions left"><button class="btn danger-btn" data-cost-erase>${icon("trash")} ${te("settings.cost.erase")}</button></div>
         <div class="confirm" id="cost-erase-confirm" role="alertdialog" aria-labelledby="cost-erase-text" hidden>
@@ -262,19 +272,56 @@ function costHtml(cv) {
         <p class="err" id="cost-msg" role="alert"></p>`;
 }
 
-/** Paints the section from the backend's state and binds it; while a scan is under way it reads the state again. */
-async function bindCost(box) {
-  let cv;
+/** RF3/RF4.1: the prices the estimate uses, with each table's date and source and the state of pricing.json. */
+function pricesHtml(p) {
+  const user = p.models.filter((m) => m.origin === "user").length;
+  const tables = p.tables.map((tb) => `<p class="hint">${tb.origin === "embedded"
+    ? te("settings.cost.pricesEmbedded", { date: tb.effective, source: tb.source ?? "—" })
+    : te("settings.cost.pricesUser", { date: tb.effective, source: tb.source ?? "—", count: user })}</p>`).join("");
+  const file = p.pricing_file;
+  const state = file.error ? `<p class="hint warn-txt" role="alert">${tle(file.error)}</p>`
+    : file.used ? "" : `<p class="hint">${te("settings.cost.pricesMissing")}</p>`;
+  const rate = (r) => fmtNumber(r, 6);
+  const rows = p.models.map((m) => `<tr><th scope="row"><code>${esc(m.model)}</code></th><td>${rate(m.rates.input)}</td><td>${rate(m.rates.output)}</td>
+      <td>${rate(m.rates.cache_read)}</td><td>${rate(m.rates.cache_write)}</td><td>${te(`cost.origin.${m.origin}`)}</td></tr>`).join("");
+  const cols = ["model", "input", "output", "cacheRead", "cacheWrite", "origin"].map((c) => `<th scope="col">${te(`settings.cost.col.${c}`)}</th>`).join("");
+  return `<h4>${te("settings.cost.prices")}</h4>
+    <p class="hint">${te("settings.cost.pricesHelp")}</p>${tables}${state}
+    <p class="hint">${te("settings.cost.pricesFile")} <code>${esc(file.path)}</code></p>
+    <details class="cost-price-table" ${pricesOpen ? "open" : ""}><summary>${te("settings.cost.pricesShow", { count: p.models.length })}</summary>
+      <table><thead><tr>${cols}</tr></thead><tbody>${rows}</tbody></table></details>
+    <p class="hint">${tle(p.notice)} ${te("settings.cost.unknownModel")}</p>`;
+}
+
+// What stays open across the section's repaints.
+const pathsOpen = new Set();
+let pricesOpen = false;
+
+/** Paints the section from the backend's state and binds it; while a scan is under way it reads the state again.
+ *  `keep`: a repaint the user did not ask for (the scan's state, the prices arriving) keeps the directories being
+ *  typed and the focus. */
+async function bindCost(box, extra) {
+  let cv, prices = null;
   try { cv = await costStatus(); } catch (e) { box.querySelector(".hint").textContent = l10nError(e); return; }
   let timer = null;
-  const paint = (next, message = "", ok = false) => {
+  const paint = (next, message = "", ok = false, keep = false) => {
     cv = next;
     clearTimeout(timer);
-    box.innerHTML = costHtml(cv);
+    const drafts = keep ? [...box.querySelectorAll("[data-cost-paths]")].map((el) => [el.dataset.costPaths, el.value]) : [];
+    const focused = keep && document.activeElement?.dataset?.costPaths;
+    const caret = focused ? document.activeElement.selectionStart : 0;
+    box.innerHTML = costHtml(cv, prices);
+    for (const [source, value] of drafts) box.querySelector(`[data-cost-paths="${source}"]`).value = value;
+    if (focused) {
+      const el = box.querySelector(`[data-cost-paths="${focused}"]`);
+      el.focus();
+      el.setSelectionRange(caret, caret);
+    }
     const msg = box.querySelector("#cost-msg");
     msg.classList.toggle("ok", ok);
     msg.textContent = message;
-    const run = (work, done = () => "") => work().then((answer) => paint(answer, done(), true), (e) => paint(cv, l10nError(e)));
+    // A change also repaints the cards' local usage (`onChange`); a refused one keeps what was typed.
+    const run = (work, done = () => "") => work().then((answer) => { paint(answer, done(), true); extra.onChange?.(); }, (e) => paint(cv, l10nError(e), false, true));
     for (const input of box.querySelectorAll("[data-cost-toggle]")) input.onchange = async () => {
       const source = cv.sources.find((s) => s.source === input.dataset.costToggle);
       input.checked = source.enabled; // only the confirmed answer changes it
@@ -282,6 +329,25 @@ async function bindCost(box) {
         if (await confirmDisclosure(source.disclosure)) run(() => costEnable(source.source, source.disclosure.digest));
       } else if (await confirmCostOff(source)) run(() => costDisable(source.source));
     };
+    for (const el of box.querySelectorAll("[data-cost-paths-box]")) {
+      el.ontoggle = () => (el.open ? pathsOpen.add(el.dataset.costPathsBox) : pathsOpen.delete(el.dataset.costPathsBox));
+    }
+    // RF4.1: a different list needs a new consent, so a source that is on turns off (erasing what was derived) first.
+    const savePaths = async (source, paths) => {
+      const chosen = paths.map((p) => p.trim()).filter(Boolean);
+      const changed = JSON.stringify([...new Set(chosen)]) !== JSON.stringify(source.paths);
+      if (changed && source.enabled && !(await confirmPathsOff(source))) return;
+      run(() => costSetPaths(source.source, chosen), () => (changed ? t("settings.cost.pathsSaved", { source: source.label }) : ""));
+    };
+    for (const button of box.querySelectorAll("[data-cost-paths-save]")) button.onclick = () => {
+      const source = cv.sources.find((s) => s.source === button.dataset.costPathsSave);
+      savePaths(source, box.querySelector(`[data-cost-paths="${source.source}"]`).value.split("\n"));
+    };
+    for (const button of box.querySelectorAll("[data-cost-paths-reset]")) button.onclick = () => {
+      savePaths(cv.sources.find((s) => s.source === button.dataset.costPathsReset), []);
+    };
+    const table = box.querySelector(".cost-price-table");
+    if (table) table.ontoggle = () => { pricesOpen = table.open; };
     box.querySelector("[data-cost-save]").onclick = () => run(
       () => costSetOptions(box.querySelector("#cost-period").value, Number(box.querySelector("#cost-retention").value)),
       () => t("settings.cost.saved"));
@@ -292,14 +358,21 @@ async function bindCost(box) {
       try {
         const count = await costErase();
         paint(await costStatus(), t("settings.cost.erased", { count }), true);
+        extra.onChange?.();
       } catch (e) { paint(cv, l10nError(e)); }
     };
     // The background scan answers after the change: read its state again until it settles.
     const settled = ["paused", "failed"].includes(cv.state);
     const busy = ["starting", "scanning"].includes(cv.state) || (!settled && cv.sources.some((s) => s.enabled && !s.summary));
-    if (busy) timer = setTimeout(() => { if (box.isConnected) costStatus().then((answer) => paint(answer, msg.textContent, msg.classList.contains("ok")), () => {}); }, 1000);
+    if (busy) timer = setTimeout(() => { if (box.isConnected) costStatus().then((answer) => paint(answer, msg.textContent, msg.classList.contains("ok"), true), () => {}); }, 1000);
   };
   paint(cv);
+  // The prices change only with pricing.json; read once per opening.
+  costPrices().then((answer) => {
+    prices = answer;
+    const msg = box.querySelector("#cost-msg");
+    if (msg) paint(cv, msg.textContent, msg.classList.contains("ok"), true);
+  }, (e) => { const slot = box.querySelector("[data-cost-prices]"); if (slot) slot.innerHTML = `<p class="hint warn-txt">${esc(l10nError(e))}</p>`; });
 }
 
 /** RF1.1: the core's disclosure of one source before it is turned on; resolves to the user's answer. */
@@ -316,6 +389,12 @@ function confirmDisclosure(d) {
 function confirmCostOff(s) {
   return askDialog("cost-off", te("settings.cost.disable.title", { source: s.label }),
     `<p>${te("settings.cost.disable.text", { source: s.label })}</p>`, te("settings.cost.disable.yes"));
+}
+
+/** RF4.1: choosing other directories for a source that is on turns it off and erases what was derived from it. */
+function confirmPathsOff(s) {
+  return askDialog("cost-off", te("settings.cost.pathsOffTitle", { source: s.label }),
+    `<p>${te("settings.cost.pathsOffText", { source: s.label })}</p>`, te("settings.cost.pathsOffYes"));
 }
 
 /** A modal question with Cancel focused first; resolves `true` only for the confirming button. */

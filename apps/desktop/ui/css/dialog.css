@@ -468,3 +468,19 @@ dialog.libs {
 .thresholds input {
   width: 5.5em;
 }
+
+/* PRD 0015 RF4.1: Settings → Local cost's directory editor and price table. */
+.cost-paths summary,
+.cost-price-table summary {
+  margin: 4px 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cost-paths textarea {
+  width: 100%;
+  font: 12px var(--font-mono);
+}
+.cost-prices h4 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+}

@@ -145,12 +145,16 @@ export const onHookRun = (cb) => {
   demoHookListeners.add(cb);
   return Promise.resolve(() => demoHookListeners.delete(cb));
 };
-// PRD 0015 RF1/RF2: local cost from the logs of command-line tools (off by default; the core's preferences, index and
-// background scan). `costEnable` sends the digest of the disclosure the dialog showed; each call answers the new state.
+// PRD 0015 RF1/RF2/RF4: local cost from the logs of command-line tools (off by default; the core's preferences, index,
+// background scan and summary). `costEnable` sends the digest of the disclosure the dialog showed; each settings call
+// answers the new state. `costUsage` is the core's CostSummary the cards and details show.
 export const costStatus = () => call("cost_status");
+export const costUsage = () => call("cost_usage");
 export const costEnable = (source, digest) => call("cost_enable", { source, digest });
 export const costDisable = (source) => call("cost_disable", { source });
+export const costSetPaths = (source, paths) => call("cost_set_paths", { source, paths });
 export const costSetOptions = (period, retentionDays) => call("cost_set_options", { period, retentionDays });
+export const costPrices = () => call("cost_prices");
 export const costErase = () => call("cost_erase");
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
@@ -905,17 +909,23 @@ const demoHistory = async ({ index, generation, range, metricKey }) => {
     metrics: metricKey == null ? metrics : metrics.filter((m) => m.key === metricKey) };
 };
 // ponytail: the browser demo has no logs; two fixed sources play the core's disclosure, the consent by digest, turning
-// off (erasing what was derived), the period, the retention and the background scan's last summary. `?cost-paused`
-// plays a computer in energy-saving mode. Core texts keep their Portuguese fallback here (no core catalog in the demo).
+// off (erasing what was derived), the chosen directories, the period, the retention, the background scan's last
+// summary and the RF4 summary (synthetic days and models; one model without a price). `?cost-paused` plays a computer
+// in energy-saving mode and `?cost-noaccess` a Claude Code directory the system refuses. Core texts keep their
+// Portuguese fallback here (no core catalog in the demo).
 const DEMO_COST = {
-  claude_code: { label: "Claude Code", pattern: "**/*.jsonl", dirs: ["/Users/demo/.config/claude/projects", "/Users/demo/.claude/projects"], files: 12 },
-  codex_cli: { label: "Codex CLI", pattern: "**/rollout-*.jsonl", dirs: ["/Users/demo/.codex/sessions", "/Users/demo/.codex/archived_sessions"], files: 3 },
+  claude_code: { label: "Claude Code", pattern: "**/*.jsonl", dirs: ["/Users/demo/.config/claude/projects", "/Users/demo/.claude/projects"], files: 12,
+    providers: ["claude"], models: { "claude-sonnet-4-5-20250929": { entry: "claude-sonnet-4-5", input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }, "claude-haiku-5-5": null } },
+  codex_cli: { label: "Codex CLI", pattern: "**/rollout-*.jsonl", dirs: ["/Users/demo/.codex/sessions", "/Users/demo/.codex/archived_sessions"], files: 3,
+    providers: ["chat_gpt"], models: { "gpt-5-codex": { entry: "gpt-5-codex", input: 1.25, output: 10, cache_read: 0.125, cache_write: 1.25 } } },
 };
 const DEMO_PERIODS = { today: "Hoje", last_7_days: "Últimos 7 dias", last_30_days: "Últimos 30 dias", current_month: "Mês atual", all: "Tudo o que está disponível" };
-const demoCost = { on: {}, period: "last_7_days", retention: 120, erased: new Set() };
+const demoCost = { on: {}, paths: {}, period: "last_7_days", retention: 120, erased: new Set() };
+const demoDirs = (id) => demoCost.paths[id]?.map((p) => p.replace(/^~(?=\/|$)/, "/Users/demo")) ?? DEMO_COST[id].dirs;
 const demoDisclosure = (id) => {
-  const { label, pattern, dirs } = DEMO_COST[id];
-  return { source: id, label, directories: dirs, custom: false, pattern, digest: `demo-${id}-${dirs.length}`,
+  const { label, pattern } = DEMO_COST[id];
+  const dirs = demoDirs(id);
+  return { source: id, label, directories: dirs, custom: !!demoCost.paths[id], pattern, digest: `demo-${id}-${dirs.join("|")}`,
     purpose: demoL10n("cost.disclosure.purpose", { source: label }, `Para estimar, só neste computador, os tokens e o custo a preços de API do uso do ${label} por dia e por modelo.`),
     extracted: demoL10n("cost.disclosure.extracted", {}, "Só números são extraídos: o horário, o modelo, as contagens de tokens (entrada, saída, leitura e gravação de cache) e um resumo anônimo da sessão."),
     never: demoL10n("cost.disclosure.never", {}, "O conteúdo das conversas, prompts, respostas, nomes de arquivos e caminhos de projetos nunca é lido para o índice, gravado nem exibido. Nada sai do computador."),
@@ -925,7 +935,7 @@ const demoCostView = () => {
   const sources = Object.entries(DEMO_COST).map(([id, s]) => {
     const enabled = id in demoCost.on;
     const files = enabled && !demoCost.erased.has(id) ? s.files : 0;
-    return { source: id, label: s.label, enabled, consented_at: demoCost.on[id] ?? null, disclosure: demoDisclosure(id),
+    return { source: id, label: s.label, enabled, consented_at: demoCost.on[id] ?? null, paths: demoCost.paths[id] ?? [], disclosure: demoDisclosure(id),
       indexed: { files, invalid_lines: files ? 2 : 0 },
       summary: enabled ? demoL10n("cost.scan.ready", { source: s.label, files: String(s.files), requests: String(files ? 0 : 41), invalid: "2" },
         `${s.label}: ${s.files} log(s); ${files ? 0 : 41} requisição(ões) nova(s); 2 linha(s) inválida(s) ignorada(s).`) : null };
@@ -935,6 +945,78 @@ const demoCostView = () => {
     retention_days: demoCost.retention, retention_min: 7, retention_max: 730,
     state: !on ? "off" : new URLSearchParams(location.search).has("cost-paused") ? "paused" : "waiting", error: null,
     size: on ? 86016 : 0 };
+};
+const DEMO_EFFECTIVE = "2026-10-21";
+const demoNotice = () => demoL10n("cost.estimate.notice", {}, "Estimativa a preços de API, não é uma cobrança; valores em USD.");
+const tokenSum = (t) => t.input + t.output + t.cache_read + t.cache_write;
+const addTokens = (a, b) => ({ input: a.input + b.input, output: a.output + b.output, cache_read: a.cache_read + b.cache_read, cache_write: a.cache_write + b.cache_write });
+const ZERO_TOKENS = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
+/** The demo price of `model` (model names are unique across the demo sources); `null`: cost unknown. */
+const demoPrice = (model) => Object.values(DEMO_COST).map((s) => s.models[model]).find((p) => p !== undefined) ?? null;
+/** The core's `cost::estimate` of demo rows `{ model, tokens, requests }` at the demo prices. */
+const demoEstimate = (rows) => {
+  const by = new Map();
+  for (const r of rows) {
+    const m = by.get(r.model) ?? { tokens: ZERO_TOKENS, requests: 0 };
+    by.set(r.model, { tokens: addTokens(m.tokens, r.tokens), requests: m.requests + r.requests });
+  }
+  let tokens = ZERO_TOKENS, unknown = ZERO_TOKENS, requests = 0, total = 0, priced = false;
+  const models = [...by.keys()].sort().map((model) => {
+    const { tokens: mt, requests: mr } = by.get(model);
+    const p = demoPrice(model);
+    const cost = p ? (mt.input * p.input + mt.output * p.output + mt.cache_read * p.cache_read + mt.cache_write * p.cache_write) / 1e6 : null;
+    tokens = addTokens(tokens, mt);
+    requests += mr;
+    if (cost == null) unknown = addTokens(unknown, mt); else { total += cost; priced = true; }
+    return { model, tokens: mt, requests: mr, cost, price: p ? { entry: p.entry, origin: "embedded", rates: { input: p.input, output: p.output, cache_read: p.cache_read, cache_write: p.cache_write } } : null };
+  });
+  return { currency: "USD", total: priced || !models.length ? total : null, tokens, requests, unknown_tokens: unknown,
+    unknown_share: tokenSum(tokens) ? tokenSum(unknown) / tokenSum(tokens) : 0, models,
+    tables: priced ? [{ origin: "embedded", effective: DEMO_EFFECTIVE, source: "https://claude.com/pricing#api" }] : [], notice: demoNotice() };
+};
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** Synthetic usage of `id` on the day `back` days ago (some days without any). */
+const demoDayRows = (id, back) => Object.keys(DEMO_COST[id].models).flatMap((model, i) => {
+  const k = (back * 7 + i * 5 + id.length) % 9;
+  if (k === 0 || (i > 0 && back % 3)) return [];
+  return [{ model, requests: 4 * k, tokens: { input: 3_000 * k, output: 1_500 * k, cache_read: 45_000 * k, cache_write: 2_500 * k } }];
+});
+/** The core's `CostSummary` of the demo sources over the saved period. */
+const demoCostUsage = () => {
+  const now = new Date();
+  const span = { today: 0, last_7_days: 6, last_30_days: 29, current_month: now.getDate() - 1, all: 44 }[demoCost.period];
+  const at = (back) => { const d = new Date(now); d.setDate(d.getDate() - back); return dayKey(d); };
+  const noAccess = new URLSearchParams(location.search).has("cost-noaccess");
+  const sources = Object.entries(DEMO_COST).map(([id, s]) => {
+    const base = { source: id, label: s.label, providers: s.providers };
+    if (!(id in demoCost.on)) return { ...base, state: "off", note: demoL10n("cost.scan.off", { source: s.label }, `${s.label}: desligado; nada é lido.`), usage: null };
+    const kept = !demoCost.erased.has(id);
+    const rowsOf = (back) => (kept ? demoDayRows(id, back) : []);
+    const days = [];
+    for (let back = span; back >= 0; back--) {
+      const e = demoEstimate(rowsOf(back));
+      days.push({ day: at(back), tokens: e.tokens, requests: e.requests, cost: e.total, unknown_tokens: e.unknown_tokens });
+    }
+    const period = demoEstimate(Array.from({ length: span + 1 }, (_, back) => rowsOf(back)).flat());
+    const periodLabel = demoL10n(`cost.period.${demoCost.period}`, {}, DEMO_PERIODS[demoCost.period]);
+    const state = id === "claude_code" && noAccess ? "no_access" : "ready";
+    const note = state === "no_access"
+      ? demoL10n("cost.view.no_access", { source: s.label }, `${s.label}: sem acesso aos diretórios dos logs; nada foi contornado. Os números são os que o índice já tinha.`)
+      : period.models.length ? null : demoL10n("cost.view.empty", { source: s.label, period: periodLabel }, `${s.label}: nenhum uso nos logs lidos (${periodLabel.fallback}).`);
+    return { ...base, state, note, usage: { today: demoEstimate(rowsOf(0)), yesterday: demoEstimate(rowsOf(1)), period, days: period.models.length ? days : [] } };
+  });
+  const label = demoL10n(`cost.period.${demoCost.period}`, {}, DEMO_PERIODS[demoCost.period]);
+  const all = Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id))
+    .flatMap((id) => Array.from({ length: span + 1 }, (_, back) => demoDayRows(id, back)).flat());
+  return { currency: "USD", notice: demoNotice(), span: { period: demoCost.period, days: null, label, first_day: demoCost.period === "all" ? null : at(span), last_day: at(0) }, sources,
+    total: demoEstimate(all), pricing_error: null };
+};
+const demoPrices = () => {
+  const models = Object.values(DEMO_COST).flatMap((s) => Object.values(s.models).filter(Boolean))
+    .map((p) => ({ model: p.entry, origin: "embedded", rates: { input: p.input, output: p.output, cache_read: p.cache_read, cache_write: p.cache_write } }))
+    .sort((a, b) => a.model.localeCompare(b.model));
+  return { currency: "USD", notice: demoNotice(), tables: [{ origin: "embedded", effective: DEMO_EFFECTIVE, source: "https://claude.com/pricing#api; https://openai.com/api/pricing/" }],
+    pricing_file: { path: "/Users/demo/Library/Application Support/cuotai/cost/pricing.json", used: false, error: null }, models };
 };
 const demo = {
   get_view: async () => demoView(),
@@ -1054,6 +1136,18 @@ const demo = {
     return demoSettings.serve.secret;
   },
   cost_status: async () => demoCostView(),
+  cost_usage: async () => demoCostUsage(),
+  cost_prices: async () => demoPrices(),
+  cost_set_paths: async ({ source, paths }) => {
+    const chosen = [...new Set(paths.map((p) => p.trim()).filter(Boolean))];
+    if (chosen.some((p) => !(p.startsWith("/") || p === "~" || p.startsWith("~/")))) {
+      throw JSON.stringify(demoL10n("cost.error.relative_path", {}, "Use um diretório absoluto ou que comece com ~/."));
+    }
+    if (JSON.stringify(chosen) === JSON.stringify(demoCost.paths[source] ?? [])) return demoCostView();
+    if (source in demoCost.on) { delete demoCost.on[source]; demoCost.erased.add(source); }
+    if (chosen.length) demoCost.paths[source] = chosen; else delete demoCost.paths[source];
+    return demoCostView();
+  },
   cost_enable: async ({ source, digest }) => {
     if (!DEMO_COST[source] || digest !== demoDisclosure(source).digest) {
       throw JSON.stringify(demoL10n("cost.error.consent_changed", {}, "Os diretórios desta fonte mudaram desde que foram exibidos; revise e confirme de novo."));

@@ -331,6 +331,27 @@ impl SettingsStore {
         })
     }
 
+    /// Save `paths` as the directories of `source` (empty: the defaults)
+    /// and drop its consent, which covered other directories. Use
+    /// [`super::choose_paths`], which also erases what was derived.
+    pub(crate) fn set_paths(
+        &self,
+        source: SourceId,
+        paths: Vec<PathBuf>,
+    ) -> Result<CostSettings, CostError> {
+        self.update(|settings| {
+            settings.sources.insert(
+                source,
+                SourceSettings {
+                    consent: None,
+                    consented_at: None,
+                    paths,
+                },
+            );
+            Ok(())
+        })
+    }
+
     /// RF2.3: the period front ends show.
     pub fn set_period(&self, period: Period) -> Result<CostSettings, CostError> {
         self.update(|settings| {

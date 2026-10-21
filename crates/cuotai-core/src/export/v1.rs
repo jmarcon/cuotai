@@ -2,7 +2,8 @@
 //! from a [`RefreshCycle`] without querying anything, with the derived fields
 //! the front ends already show (class, age, freshness, the preserved reading,
 //! binding metric, pace, usage access and, PRD 0011 RF5, the provider's
-//! public status).
+//! public status), plus, PRD 0015 RF4.3, `local_cost`: the estimated cost
+//! from this computer's local logs, apart from every account.
 //!
 //! The contract is additive within `schema: 1` and documented in
 //! `docs/export-v1.md` with `docs/export-v1.schema.json`; the reference
@@ -19,6 +20,7 @@ use serde::Serialize;
 
 use crate::access::{self, UsageAccess};
 use crate::config_file::ConfigIdentity;
+use crate::cost::CostSummary;
 use crate::freshness::{self, Freshness};
 use crate::incidents::{Incident, IncidentState, ProviderStatus};
 use crate::metrics::{self, AccountClass, Binding};
@@ -52,6 +54,11 @@ pub struct Export {
     pub config_identity: String,
     /// In configuration order.
     pub accounts: Vec<AccountExport>,
+    /// PRD 0015 RF4.3: the estimated cost at API prices from this
+    /// computer's local logs, separate from the providers' reports (never
+    /// summed with them); `null` while every local cost source is off or
+    /// when the producer does not read the cost index.
+    pub local_cost: Option<CostSummary>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -177,7 +184,14 @@ impl Export {
             generated_at: now,
             config_identity: identity.digest(),
             accounts,
+            local_cost: None,
         }
+    }
+
+    /// RF4.3 of PRD 0015: the export with `local_cost` (see
+    /// [`Export::local_cost`]).
+    pub fn with_local_cost(self, local_cost: Option<CostSummary>) -> Self {
+        Self { local_cost, ..self }
     }
 }
 
@@ -526,6 +540,100 @@ mod tests {
     ) -> Export {
         let identity = ConfigIdentity::Explicit("reference".into());
         Export::from_cycle(config, &identity, cycle, incidents, now(), options)
+            .with_local_cost(Some(local_cost()))
+    }
+
+    /// PRD 0015 RF4.3: Claude Code on and read, with a priced model and one
+    /// without a price, over the last three days; Codex CLI off.
+    fn local_cost() -> CostSummary {
+        use crate::cost::{
+            summarize, DailyUsage, PriceTable, Prices, Rate, Rates, ScanReport, SourceId,
+            SourceScan, SourceState, Span, SummaryInput, Tokens,
+        };
+        let day = |d| chrono::NaiveDate::from_ymd_opt(2026, 10, d).unwrap();
+        let usage = |d, model: &str, input, output, cache_read, cache_write, requests| DailyUsage {
+            source: SourceId::ClaudeCode,
+            day: day(d),
+            model: model.into(),
+            tokens: Tokens {
+                input,
+                output,
+                cache_read,
+                cache_write,
+            },
+            requests,
+            sessions: 1,
+        };
+        let rate = |usd| Rate::usd_per_million(usd).unwrap();
+        let prices = Prices::with_tables(
+            PriceTable {
+                currency: crate::cost::CURRENCY,
+                effective: day(15),
+                source: Some("https://claude.com/pricing#api".into()),
+                models: [(
+                    "claude-sonnet-4-5".to_owned(),
+                    Rates {
+                        input: rate(3.0),
+                        output: rate(15.0),
+                        cache_read: rate(0.3),
+                        cache_write: rate(3.75),
+                    },
+                )]
+                .into(),
+            },
+            None,
+        );
+        let rows = [
+            usage(
+                19,
+                "claude-sonnet-4-5-20250929",
+                120_000,
+                8_000,
+                900_000,
+                40_000,
+                42,
+            ),
+            usage(
+                20,
+                "claude-sonnet-4-5-20250929",
+                30_000,
+                2_000,
+                200_000,
+                10_000,
+                9,
+            ),
+            usage(20, "claude-mystery-9", 1_000, 100, 0, 0, 1),
+        ];
+        let scan = SourceScan {
+            source: SourceId::ClaudeCode,
+            state: SourceState::Ready,
+            roots: Vec::new(),
+            files: 4,
+            read: 1,
+            restarted: 0,
+            unreadable: 0,
+            foreign: 0,
+            lines: 52,
+            requests: 10,
+            duplicates: 0,
+            invalid: 0,
+            expired: 0,
+            complete: true,
+        };
+        let last = ScanReport {
+            scanned_at: minutes_ago(3),
+            sources: vec![scan],
+            complete: true,
+        };
+        summarize(&SummaryInput {
+            today: day(20),
+            span: Span::days(3).unwrap(),
+            enabled: &[SourceId::ClaudeCode],
+            usage: &rows,
+            prices: &prices,
+            pricing_error: None,
+            last: Some(&last),
+        })
     }
 
     /// PRD 0011 RF5: what the status client read for the reference: Claude
@@ -706,6 +814,43 @@ mod tests {
             assert!(pending[field].is_null(), "{field}");
         }
         assert_eq!(pending["pace"], serde_json::json!([]));
+    }
+
+    /// PRD 0015 RF4.3: `local_cost` travels beside the accounts, never in a
+    /// report; a model without a price stays unknown, and an export built
+    /// without the cost index says `null`, never an empty estimate.
+    #[test]
+    fn local_cost_stays_apart_from_the_reports() {
+        let (config, cycle) = reference();
+        let json = export(&config, &cycle, Options::default());
+        let cost = &json["local_cost"];
+        assert_eq!(cost["currency"], "USD");
+        let [claude, codex] = cost["sources"].as_array().unwrap().as_slice() else {
+            panic!("every source");
+        };
+        assert_eq!(
+            (&claude["state"], &codex["state"]),
+            (&"ready".into(), &"off".into())
+        );
+        assert!(codex["usage"].is_null());
+        let today = &claude["usage"]["today"];
+        let mystery = today["models"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["model"] == "claude-mystery-9")
+            .unwrap();
+        assert!(mystery["cost"].is_null(), "unknown, never 0");
+        assert_eq!(today["unknown_tokens"]["input"], 1_000);
+        assert_eq!(claude["providers"], serde_json::json!(["claude"]));
+        // Nothing of it enters an account.
+        for account in json["accounts"].as_array().unwrap() {
+            assert!(!account.to_string().contains("claude-mystery-9"));
+        }
+
+        let identity = ConfigIdentity::Explicit("reference".into());
+        let bare = Export::from_cycle(&config, &identity, &cycle, &[], now(), Options::default());
+        assert!(serde_json::to_value(bare).unwrap()["local_cost"].is_null());
     }
 
     /// PRD 0011 RF5: each account carries its own provider's status; an

@@ -4,12 +4,13 @@
   "title": "Cuotai export v1",
   "description": "cuotai-core export::v1 (PRD 0012 RF1). Additive within schema 1: consumers must ignore unknown properties and tolerate new enum values. See docs/export-v1.md.",
   "type": "object",
-  "required": ["schema", "generated_at", "config_identity", "accounts"],
+  "required": ["schema", "generated_at", "config_identity", "accounts", "local_cost"],
   "properties": {
     "schema": { "const": 1, "description": "Contract version; a removed or redefined field needs 2." },
     "generated_at": { "type": "string", "format": "date-time" },
     "config_identity": { "type": "string", "description": "Lowercase hex SHA-256 of the configuration identity; never the file path." },
-    "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountExport" }, "description": "In configuration order." }
+    "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountExport" }, "description": "In configuration order." },
+    "local_cost": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/LocalCost" }], "description": "Estimated cost from this computer's local CLI logs (PRD 0015 RF4.3), separate from the providers' reports; null while every local cost source is off or when the producer does not read the cost index." }
   },
   "$defs": {
     "AccountExport": {
@@ -203,6 +204,137 @@
           "description": "Absent when empty."
         },
         "fallback": { "type": "string", "description": "Portuguese text with the parameters already in place." }
+      }
+    },
+    "LocalCost": {
+      "type": "object",
+      "description": "An estimate at API prices, not a charge. Only numbers, model names and texts: never a path, a file name or conversation content.",
+      "required": ["currency", "notice", "span", "sources", "total", "pricing_error"],
+      "properties": {
+        "currency": { "const": "USD", "description": "Every amount; never summed with another currency or a provider's billing." },
+        "notice": { "$ref": "#/$defs/Localized" },
+        "span": { "$ref": "#/$defs/CostSpan" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/CostSource" }, "description": "Every local cost source, on or off." },
+        "total": { "$ref": "#/$defs/CostEstimate", "description": "The span over every source that is on." },
+        "pricing_error": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The user's pricing.json is invalid and ignored as a whole; embedded prices only." }
+      }
+    },
+    "CostSpan": {
+      "type": "object",
+      "required": ["period", "days", "label", "first_day", "last_day"],
+      "properties": {
+        "period": { "anyOf": [{ "type": "null" }, { "enum": ["today", "last_7_days", "last_30_days", "current_month", "all"] }], "description": "The saved period; null with a number of days." },
+        "days": { "type": ["integer", "null"], "minimum": 1, "description": "The last N local days; null with a period." },
+        "label": { "$ref": "#/$defs/Localized" },
+        "first_day": { "type": ["string", "null"], "format": "date", "description": "First local day; null for everything the index holds." },
+        "last_day": { "type": "string", "format": "date", "description": "Today, the computer's local day." }
+      }
+    },
+    "CostSource": {
+      "type": "object",
+      "required": ["source", "label", "providers", "state", "note", "usage"],
+      "properties": {
+        "source": { "enum": ["claude_code", "codex_cli"], "description": "New sources add values." },
+        "label": { "type": "string" },
+        "providers": { "type": "array", "items": { "$ref": "#/$defs/Provider" }, "description": "The accounts of these providers show this source." },
+        "state": { "enum": ["off", "ready", "partial", "no_logs", "no_access", "not_read"] },
+        "note": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Why there are no numbers or what limits them; null when they are complete." },
+        "usage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/CostUsage" }], "description": "null while the source is off." }
+      }
+    },
+    "CostUsage": {
+      "type": "object",
+      "required": ["today", "yesterday", "period", "days"],
+      "properties": {
+        "today": { "$ref": "#/$defs/CostEstimate" },
+        "yesterday": { "$ref": "#/$defs/CostEstimate" },
+        "period": { "$ref": "#/$defs/CostEstimate", "description": "The span; its models are the breakdown by model." },
+        "days": { "type": "array", "items": { "$ref": "#/$defs/CostDay" }, "description": "Every local day of the span, oldest first, days without usage at zero; empty without usage." }
+      }
+    },
+    "CostDay": {
+      "type": "object",
+      "required": ["day", "tokens", "requests", "cost", "unknown_tokens"],
+      "properties": {
+        "day": { "type": "string", "format": "date" },
+        "tokens": { "$ref": "#/$defs/Tokens" },
+        "requests": { "type": "integer", "minimum": 0 },
+        "cost": { "type": ["number", "null"], "minimum": 0, "description": "USD of the priced part; null when nothing is priced, never 0 for unpriced usage." },
+        "unknown_tokens": { "$ref": "#/$defs/Tokens" }
+      }
+    },
+    "CostEstimate": {
+      "type": "object",
+      "required": ["currency", "total", "tokens", "requests", "unknown_tokens", "unknown_share", "models", "tables", "notice"],
+      "properties": {
+        "currency": { "const": "USD" },
+        "total": { "type": ["number", "null"], "minimum": 0, "description": "USD of the usage with a known price; null when there is usage and none is priced." },
+        "tokens": { "$ref": "#/$defs/Tokens" },
+        "requests": { "type": "integer", "minimum": 0 },
+        "unknown_tokens": { "$ref": "#/$defs/Tokens", "description": "Tokens of models without a known price." },
+        "unknown_share": { "type": "number", "minimum": 0, "description": "unknown_tokens over tokens, 0 to 1." },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["model", "tokens", "requests", "cost", "price"],
+            "properties": {
+              "model": { "type": "string", "description": "As the logs name it." },
+              "tokens": { "$ref": "#/$defs/Tokens" },
+              "requests": { "type": "integer", "minimum": 0 },
+              "cost": { "type": ["number", "null"], "minimum": 0, "description": "null: cost unknown, never 0." },
+              "price": {
+                "anyOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "required": ["entry", "origin", "rates"],
+                    "properties": {
+                      "entry": { "type": "string", "description": "The table entry that matched." },
+                      "origin": { "enum": ["embedded", "user"] },
+                      "rates": { "$ref": "#/$defs/Rates" }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["origin", "effective", "source"],
+            "properties": {
+              "origin": { "enum": ["embedded", "user"] },
+              "effective": { "type": "string", "format": "date" },
+              "source": { "type": ["string", "null"] }
+            }
+          },
+          "description": "Date and source of each price table that priced a model."
+        },
+        "notice": { "$ref": "#/$defs/Localized" }
+      }
+    },
+    "Tokens": {
+      "type": "object",
+      "required": ["input", "output", "cache_read", "cache_write"],
+      "properties": {
+        "input": { "type": "integer", "minimum": 0, "description": "Without the cached and cache-written parts." },
+        "output": { "type": "integer", "minimum": 0 },
+        "cache_read": { "type": "integer", "minimum": 0 },
+        "cache_write": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Rates": {
+      "type": "object",
+      "description": "USD per million tokens.",
+      "required": ["input", "output", "cache_read", "cache_write"],
+      "properties": {
+        "input": { "type": "number", "minimum": 0 },
+        "output": { "type": "number", "minimum": 0 },
+        "cache_read": { "type": "number", "minimum": 0 },
+        "cache_write": { "type": "number", "minimum": 0 }
       }
     }
   }

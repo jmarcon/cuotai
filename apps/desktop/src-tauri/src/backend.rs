@@ -1060,6 +1060,12 @@ impl Backend {
         }
     }
 
+    /// PRD 0015 RF4.3: the local server publishes `cost`'s summary as
+    /// `local_cost`. Called once, before the server can start.
+    pub fn publish_local_cost(&self, cost: Arc<crate::local_cost::LocalCost>) {
+        self.feed.attach_cost(cost);
+    }
+
     /// Every state change ends here: the UI gets the view, the reset
     /// notice timer recomputes (PRD 0003 RF2.1), the tray icon follows
     /// the providers' outages (PRD 0011 RF4.2) and the hooks see the new
