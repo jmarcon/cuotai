@@ -1,0 +1,190 @@
+# PRD 0020 — Settings window redesign
+
+| Field | Value |
+|---|---|
+| ID | 0020 |
+| Status | Proposed |
+| Owner | Desktop (`apps/desktop`): usability and design |
+| Consumers | `apps/desktop/ui` (new `settings.html`), `apps/desktop/src-tauri` (window, menu, capabilities) |
+| Depends on | none |
+| Benefits from | PRD 0018 (an Updates page), PRD 0019 RF7.7 (What's new in About) |
+| Date | 2026-10-21 |
+
+> **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## 1. Context
+
+Settings is a single `<dialog>` (`ui/js/settings.js`, 843 lines) opened over the main window. Every feature added since 0.17 put its own section in that dialog, and it now holds 12 sections in one column. Measured on the demo build (0.65.0, Portuguese):
+
+| Measure | Today |
+|---|---|
+| Sections in one popup | 12 (Appearance, Language, Account order, Refresh, Notifications, History, Privacy, Local cost, Integration, Accounts file, Themes and languages folder, About) |
+| Height of the scrolling content | about 4,600 px, six screens of the popup |
+| Visible text | about 1,200 words, most of it explanatory paragraphs under each control |
+| Controls that need a separate **Apply**/**Save** button | refresh interval, history retention, price table and retention, server port, hook rules |
+| Layout | one flat list; a check box and a paragraph per setting; no hierarchy between a theme choice and an access-token procedure |
+| Window | a modal popup that covers the dashboard, so a change cannot be seen where it takes effect |
+
+![Settings today: six screens of one popup dialog](assets/0020_settings-current.png)
+
+*The six screens of the current dialog, side by side.*
+
+The growth was incremental: the plans for reset notices and alerts (0003, 0008), history (0006), status pages (0011), the local server and hooks (0012, 0013) and local cost (0015) each appended a block, and none could be placed without moving the others.
+
+The desktop already has what a better design needs: 14 themes with a token contract, three interface languages, a Tauri multi-window setup (`main`, `tray`), a native menu item and a tray button that open settings, and a core that owns every validation, so the interface only has to present the results.
+
+## 2. Problem
+
+- **Too much on one page.** Finding "Run hooks" or "Port" means scrolling through unrelated sections. There is no navigation, no search and no way to know how long the page is.
+- **Too much text.** Each control carries a paragraph. People read none of it, and the one sentence that matters (for example, that a token is never shown) is buried.
+- **Mixed importance.** Common choices (theme, language, refresh interval) sit in the same flat list as rare, technical ones (local server port, price table, hook rules).
+- **Inconsistent saving.** Some controls save on change and others need a button, and the user cannot tell which is which.
+- **A popup is the wrong container.** It blocks the dashboard, it cannot stay open while the user checks the effect, and it limits width, so every new feature makes it longer instead of wider or deeper.
+
+## 3. Goals
+
+- Make any setting reachable in at most **two clicks** (page, then the row) or one search.
+- Cut the visible text by at least half without removing information: the detail moves behind disclosures, not out of the product.
+- Give settings **its own window** with a sidebar of pages, in the style users already know from Windows 11 Settings and macOS System Settings.
+- One predictable rule for saving: a change applies at once and says so.
+- Keep every existing setting, every safety confirmation and every privacy disclosure (PRDs 0008, 0011, 0012, 0013, 0015).
+
+## 4. Non-goals
+
+- New settings, new preferences or any change to `desktop.json`, the TOML or core contracts. This is a redesign of presentation and navigation.
+- A TUI settings screen.
+- A theme editor or an import/export of preferences.
+- Platform-specific forks of the interface: one layout serves macOS, Windows and Linux (see the owner decision in section 8).
+- Changing what the dashboard shows. Only where the choices are made changes.
+
+## 5. Functional requirements
+
+### RF1 — A dedicated Settings window (high priority; prerequisite)
+
+- **RF1.1** A second regular window, label `settings`, loading `settings.html`, created **on demand** (not at startup) and destroyed on close. Default size 860 × 640, minimum 640 × 460, resizable, centered over the main window the first time and restoring its last size and position afterwards.
+- **RF1.2** Single instance: opening settings while it is open focuses it. It is **not modal**: the dashboard stays usable and visible, so a theme, order or refresh change can be seen in the main window while the settings window is open.
+- **RF1.3** Entry points keep working and all open the same window: the native menu item (with the platform shortcut: `⌘,` on macOS, `Ctrl+,` elsewhere), the tray popover button, the gear in the main window and the "open settings" buttons inside other screens (for example the cost view). The command accepts an optional **page** and **anchor** so a link can land on the right row (for example the cost sources).
+- **RF1.4** Window chrome follows the platform: macOS uses the overlay title bar with the traffic lights already used by the main window; Windows and Linux use the native frame. The window title is "Settings" in the interface language. `capabilities/default.json` lists the new window and nothing more is granted to it than the main window already has.
+- **RF1.5** The browser demo (no Tauri) can open `settings.html` directly, so the interface keeps being smoke-tested without the shell.
+- **Acceptance criterion:** from every entry point the same single window opens, focused; closing and reopening restores size, position and the last page; the main window stays interactive while it is open; the Tauri shell test for the command covers the page and anchor parameters.
+
+### RF2 — Navigation and information architecture (high priority)
+
+- **RF2.1** A left **sidebar** of seven pages, in this order, with an icon and a one- or two-word label each, and **About** separated at the bottom:
+
+  | Page | Holds (today's section) |
+  |---|---|
+  | General | Appearance (theme, light/dark mode, animations) and Language |
+  | Dashboard | Account order, group "Recharging", consumption pace and the Refresh interval |
+  | Notifications | Quota-reset notices and usage alerts, with the test notice |
+  | Data & privacy | History, Local cost and the provider status pages |
+  | Integrations | Local server (address, port, token, browsers) and Hooks |
+  | Files | Accounts file and the themes-and-languages folder |
+  | About | Version, license, open-source libraries and, when present, What's new and Updates |
+
+- **RF2.2** Each page opens with its title and **groups** of rows (a small-caps group label over one rounded card). A page holds at most 8 rows before the extra rows go into a disclosure (RF5.2). The selected page is marked by an accent bar and a heavier label, and it is remembered between openings.
+- **RF2.3** Deep content (the hook rule editor, the price table, the directory pickers of the cost sources) opens as a **second level inside the window** (a sub-page with a back button, or a sheet), never as another popup stacked over the window.
+- **RF2.4** The page list lives in one registry (page id, icon, label key, order). Adding a page is one registry entry plus its module; no page is a hard-coded block of the shell.
+- **Acceptance criterion:** all 12 sections of the current dialog map to a page in the table above (parity checklist in RF10); every page is reachable from the sidebar with the keyboard; the last page is restored.
+
+### RF3 — Row anatomy and shared components (high priority)
+
+- **RF3.1** Every setting is a **row**: the label and one short description on the left, the control on the right, rows separated by a hairline inside a group card. A row is built by one shared component, not hand-written HTML per setting.
+- **RF3.2** A small component set, styled only with theme tokens: **switch** (replaces every check box), **segmented control** (two to five exclusive choices: mode, language, refresh presets, "Only if used / Always"), **select** (longer lists: theme, history account), **number field with unit** (days, port, seconds), **chips** (alert thresholds), **button row** (an action such as "Send test notification"), **path row** (a truncated path with **Change…**, **Use default** and **Reveal** in one menu) and **disclosure** (a collapsible group).
+- **RF3.3** **Dependent rows** (for example "When" under "Notify when a quota resets") are indented and visually attached to their parent, and are disabled, not hidden, while the parent is off, so the structure stays stable.
+- **RF3.4** Destructive actions (erase history, erase the price index, revoke the token) sit in a clearly separated group at the end of their page, use the danger style and keep today's confirmation.
+- **Acceptance criterion:** no page contains a raw `<input type="checkbox">`, an inline paragraph longer than one line or hand-written row markup; the components render correctly in the four reference themes (Dracula, GitHub light, Win98 and CRT).
+
+### RF4 — Apply at once, with feedback (high priority)
+
+- **RF4.1** Switches, segmented controls and selects **save on change**. A brief "Saved" confirmation appears in the window (bottom corner, announced politely to screen readers) and disappears by itself.
+- **RF4.2** Fields that need validation (port, retention days, thresholds, custom refresh seconds) save on **Enter or when the field loses focus**. While the value is changed and unsaved, the row shows its own small **Apply** and **Revert**; there is no page-level Apply button anywhere.
+- **RF4.3** Validation and every error message come from the core, as today. A failed save shows the message **inside the row** (not at the bottom of the section), returns the control to its saved value and keeps focus there.
+- **RF4.4** The hook rule editor, a multi-field draft, keeps an explicit **Save rules / Discard** bar, which stays visible while the sub-page scrolls and warns when leaving with unsaved changes.
+- **Acceptance criterion:** every old **Apply**/**Save** button is gone or replaced by the rules above (the hook rules keep their own bar); a forced error (a port in use, retention out of range) appears in its row and restores the previous value.
+
+### RF5 — Less text and progressive disclosure (high priority)
+
+- **RF5.1** **Copy budget.** A row's label is at most 4 words and its description at most **90 characters on one line**; a page shows at most **150 words** before any disclosure; the whole window shows at most **450 words** across all pages. The interface test counts them in the three languages.
+- **RF5.2** **Disclosures.** Anything technical or rare is collapsed by default: the cost-source directories and the price table, the status-page domain list, the server port, token and browser access, history export and erase, the path of the accounts file. The disclosure label says what is inside ("Connection details"), and its open state is remembered.
+- **RF5.3** **Info popovers.** A long explanation moves behind an **ⓘ** button on the row: it opens a short popover (keyboard and screen-reader accessible, closes with `Esc`), and the full text is still present in the interface. Warnings that apply only to a state (for example "web pages can read your usage") appear **only in that state**, next to the control that causes them.
+- **RF5.4** **Writing rules.** Sentence case, no trailing periods in labels, the user's task as the label ("Notify when a quota resets", not "Quota reset notification toggle"), no explanation of how the feature is built. The rewritten strings exist in Portuguese, English and Spanish; keys of strings that disappear are removed from the catalogs.
+- **Acceptance criterion:** the word counts of RF5.1 hold in the three languages; every removed paragraph is either shortened to the description limit or moved to an info popover or disclosure (listed in the migration table, RF10).
+
+### RF6 — Search (medium priority)
+
+- **RF6.1** A search field at the top of the sidebar (`⌘F` / `Ctrl+F` and `/` focus it) filters **rows**, not pages, by label, description and a keyword list, in the active language.
+- **RF6.2** Results replace the page area, grouped by page, each showing the row's label and its page. Selecting a result goes to the page, expands any disclosure that contains the row and highlights the row for about 1.5 seconds (no animation with reduced motion).
+- **RF6.3** An empty search shows a short "No matching settings" state with the suggestion to clear the field. The index is built from the same row definitions as the pages, so a row cannot exist without being searchable.
+- **Acceptance criterion:** searching "port", "retention", "token", "tema" (in Portuguese) and "sound" finds the right rows or the empty state; a row inside a collapsed disclosure is found and revealed.
+
+### RF7 — Live sync with the other windows (high priority)
+
+- **RF7.1** A change made in the settings window reaches the main and tray windows **immediately**, without a restart: theme and mode, language, animations, account order, grouping, pace display, refresh interval and the rest. The shell broadcasts one event (`settings-changed`, with the key that changed) and each window re-reads what it needs.
+- **RF7.2** Preferences that today live in `localStorage` of the main window (theme, mode, language, animations, order, grouping) are shared across windows through the existing storage events or the same event channel, so a window never shows a stale choice.
+- **RF7.3** Opening settings does not reload or re-render the main window, and closing it leaves the main window's scroll, focus and filter untouched.
+- **Acceptance criterion:** with both windows open, switching theme, language, order and the refresh interval in settings changes the main window and the tray popover at once; a manual check confirms that the dashboard scroll position survives.
+
+### RF8 — Accessibility, keyboard and size (high priority)
+
+- **RF8.1** The sidebar is a navigation landmark: arrow keys move between pages, `Enter` opens, the current page is exposed with `aria-current="page"`. The content region is labelled by the page title; focus moves to the title when the page changes.
+- **RF8.2** Every control has a programmatic label and description (`aria-labelledby`/`aria-describedby` from the row), switches use `role="switch"`, status messages use `role="status"`/`role="alert"` as today, and the visible focus ring is never removed.
+- **RF8.3** Full keyboard operation: `Tab` order follows reading order, `Esc` closes a popover first and the window second, `⌘W`/`Ctrl+W` closes the window.
+- **RF8.4** Responsive: below 720 px of width the sidebar collapses to an icon rail with tooltips; below 560 px it becomes a page selector above the content. The interface stays usable at 200% text zoom and respects reduced motion (page changes are instant).
+- **RF8.5** Contrast follows the theme contract (`tools/contrast.py` already checks the tokens); no meaning is carried by color alone (an error also has an icon and text).
+- **Acceptance criterion:** a keyboard-only pass reaches and changes every setting; the accessibility tree shows the landmarks and roles above; the layout holds at 640 px and at 200% zoom with no horizontal scroll. Full validation needs a manual pass with a screen reader.
+
+### RF9 — Look: tokens, themes and platform feel (medium priority)
+
+- **RF9.1** The window uses only theme tokens (`--bg`, `--surface`, `--surface-2`, `--border`, `--fg`, `--fg-muted`, `--accent`, radius and motion tokens), so every one of the 14 themes and every user theme works. The sidebar uses `--surface`, the content `--bg`, group cards `--surface` with `--border`, switches `--accent`.
+- **RF9.2** Layout proportions come from the two reference systems: a sidebar of about 220 px with icon plus label, content with a maximum readable width (about 640 px) centered in wider windows, group cards with rounded corners from `--radius-lg`, 52 px minimum row height, a single column. The retro themes (Win98, CRT) keep their own radius and borders through the same tokens.
+- **RF9.3** Motion is short and uses the motion tokens: a page change cross-fades in `--motion-base`, a disclosure expands in `--motion-fast`, the "Saved" toast fades. Nothing animates when motion is reduced or off.
+- **Acceptance criterion:** screenshots of every page in Dracula, GitHub light, Win98 and CRT (and a user theme) show no clipped text, readable contrast and the same structure; the theme lint (`tools/lint_theme.py`) still passes.
+
+### RF10 — Migration and parity (high priority)
+
+- **RF10.1** The old settings dialog is **removed** when the window ships (no second copy to maintain). The `open-settings` event and the dialog code are deleted, and the entry points of RF1.3 are repointed.
+- **RF10.2** A **parity checklist** lists every control of the current dialog (every button, switch, field and selector across the 12 sections) with its new page, row and component. A smoke test walks the checklist and fails when a control is missing or unreachable. Safety behaviors move unchanged: the cost-source consent, the server browser-access confirmation, the hooks consent, the history erase confirmation and the status-page disclosure.
+- **RF10.3** Existing preferences keep their keys and values; nothing is migrated. Rolling back the version leaves preferences intact.
+- **RF10.4** The page modules are split by page (`ui/js/settings/<page>.js`, each under about 300 lines) with the shared row/components in one module, replacing the 843-line file. Business rules stay in the core and the shell commands; the page modules only present and call them.
+- **Acceptance criterion:** the parity test passes with 100% of controls mapped; `node --check` passes on every module; the old `settings.js` dialog and its CSS are gone; the existing shell and core tests still pass.
+
+### RF11 — How a new setting is added (low priority)
+
+- **RF11.1** A short guide in `apps/desktop/README.md` (or `docs/`): choose the page; define the row (label key, description key, keywords, component, command); respect the RF5 copy budget; add it to the parity checklist.
+- **RF11.2** A page with more than 8 rows must split a group into a disclosure or a sub-page. A new page needs a registry entry and a decision recorded in this plan or its successor.
+- **Acceptance criterion:** adding a sample row only touches the page module, the three locale catalogs and the checklist.
+
+## 6. Non-functional requirements
+
+- **Performance:** the window opens in under 300 ms on the reference machine and loads only the module of the current page; closing it frees the webview.
+- **Security and privacy:** no new network request and no new capability. Tokens, paths of secrets and credentials are still never rendered; the access token stays copy-only.
+- **Internationalization:** every string in Portuguese, English and Spanish; user language packs keep overriding the catalogs; long Spanish and Portuguese labels must not clip at the minimum width.
+- **Consistency with the product:** the existing tone, terminology and theme contract stay; the dashboard behavior is untouched.
+
+## 7. Order of execution and verification
+
+1. **RF1 and RF7:** the window, the entry points, the page and anchor parameters and the cross-window sync, with the shell and the old pages' content hosted as they are. Nothing is lost at this point.
+2. **RF3 and RF4:** the row and component set, the apply-at-once rules and the in-row feedback.
+3. **RF2 and RF5:** the sidebar, the seven pages moved one at a time (General and Dashboard first, then Notifications, Data & privacy, Integrations, Files, About), each rewritten to the copy budget.
+4. **RF6, RF8 and RF9:** search, accessibility and the visual pass over the reference themes.
+5. **RF10 and RF11:** parity test, removal of the old dialog, the guide.
+
+At each step: `cargo fmt`, `clippy -D warnings`, the workspace and desktop tests, `node --check` on every module, and a smoke test of the changed pages in the browser demo and in the Tauri app on macOS, in the four reference themes and three languages. Each delivered RF raises the version according to `AGENTS.md`, updates this plan's status, `0000_control.md` and the changelog.
+
+The requirement is only delivered when every setting of today is reachable from the new window in at most two clicks or one search, no page needs a vertical scroll of more than one and a half screens at the default size, the visible text meets the copy budget in the three languages, every control saves with the rules of RF4, and the old popup is gone.
+
+## 8. Decisions for the project owner
+
+| Decision | Recommendation |
+|---|---|
+| Windows 11 look, macOS look, or one layout | **One layout** (sidebar of pages plus grouped rows), which both systems share, drawn with the theme tokens and the native title bar of each platform. Two forks double the work and the 14 themes already set the colors and radii. |
+| Window or popup | **Window**, as the project owner indicated on 2026-10-21: non-modal, single instance, restoring size and position. |
+| Single page for rarely used items (Integrations, Files) | Keep them as sidebar pages but collapsed inside (disclosures), so the common path stays short. |
+| Name of the page "Data & privacy" | Alternative: split into "History" and "Privacy". Recommendation: keep one page until it exceeds the 8-row rule. |
+
+## 9. Reference mockup
+
+![Proposed settings window: sidebar of pages, rows with one-line descriptions, changes saved as you make them](assets/0020_settings-proposed.png)
+
+*Two of the seven pages (Dashboard and Notifications) and the map from today's 12 sections to the new pages. Rendered with the app's own Dracula tokens; it is a design reference, not an implementation.*
