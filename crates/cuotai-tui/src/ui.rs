@@ -3,6 +3,7 @@ use crate::{
     auth_ui::{LoginTask, Outcome},
     cost::LocalCost,
     dashboard::{self, FooterAction},
+    extensions_view::{Action as ExtensionAction, ExtensionsView},
     models_view::{ModelsView, Reply},
     motion::{self, Anim},
     notify::{self, Notices},
@@ -26,7 +27,7 @@ use cuotai_core::{
     oauth::OAuthSession,
     pace::Point,
     refresh::{Edit, RefreshCycle},
-    user_session, Account, Config, EnvironmentCredentials, Metric, Monitor, Snapshot,
+    user_session, Account, Config, EnvironmentCredentials, Metric, Monitor, Provider, Snapshot,
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -234,8 +235,11 @@ pub async fn run(
     let mut session_test: Option<JoinHandle<cuotai_core::Report>> = None;
     // Whether the terminal currently sends pastes as one event.
     let mut bracketed_paste = false;
-    let mut wizard =
-        (!file.exists || file.config.accounts.is_empty()).then(|| Wizard::new(&file.config, None));
+    // PRD 0017 RF5.11: onboarding is for a first run with no accounts at all.
+    // A configured launch shows the dashboard and starts its refresh, even with
+    // extension folders present; the manager opens with `x`.
+    let first_run = !file.exists || file.config.accounts.is_empty();
+    let mut wizard = first_run.then(|| Wizard::new(&file.config, None));
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
@@ -297,6 +301,12 @@ pub async fn run(
     let mut dirty = true;
     let mut last_tick = Instant::now();
     let mut deletion: Option<DeletionState> = None;
+    // PRD 0017 RF5: core-backed extension manager and its single test run.
+    let mut extensions: Option<ExtensionsView> = None;
+    let mut extension_test: Option<(
+        String,
+        JoinHandle<Result<cuotai_core::extensions::output::Checked, cuotai_core::text::Localized>>,
+    )> = None;
     // RF5: Models section over the details screen or the wizard.
     let mut models: Option<ModelsView> = None;
     // "Sobre": libraries and repositories; opened from the dashboard only.
@@ -343,6 +353,8 @@ pub async fn run(
         PrevDetail,
         /// Abre a seção Modelos da conta em detalhe.
         Models,
+        /// Opens discovered executable extensions.
+        Extensions,
         /// Abre a tela Sobre (bibliotecas de código aberto e repositórios).
         About,
         /// PRD 0006 RF6.1: span of the details' history (1, 2, 3).
@@ -370,6 +382,7 @@ pub async fn run(
             KeyCode::Char('2') if details => Command::HistoryRange(HistoryRange::Week),
             KeyCode::Char('3') if details => Command::HistoryRange(HistoryRange::Month),
             KeyCode::Char('?') => Command::About,
+            KeyCode::Char('x') => Command::Extensions,
             KeyCode::Char('u') => Command::ToggleUnmeasured,
             KeyCode::Down if details => Command::ScrollDetailDown,
             KeyCode::Up if details => Command::ScrollDetailUp,
@@ -739,12 +752,40 @@ pub async fn run(
                         None
                     };
                     if matches!($command, Command::Add) || editing.is_some() {
-                        if let Some((job, _token)) = refresh.0.take() {
-                            job.abort();
+                        // PRD 0017 RF5.12: an extension account has no form
+                        // in the built-in wizard (the provider is not in the
+                        // creation catalog); its identity, approval and
+                        // removal live in the extension manager, so `e`
+                        // opens it instead of silently editing an OpenAI
+                        // form.
+                        let is_extension = editing.is_some_and(|index| {
+                            file.config
+                                .accounts
+                                .get(index)
+                                .is_some_and(|account| account.provider == Provider::Extension)
+                        });
+                        if is_extension {
+                            if let Some(manager) = monitor.extension_manager() {
+                                let id = editing
+                                    .and_then(|index| file.config.accounts.get(index))
+                                    .and_then(|account| account.extension_id())
+                                    .map(str::to_owned);
+                                extensions = Some(
+                                    ExtensionsView::new(manager.list(&file.config)).focused(id.as_deref()),
+                                );
+                            } else {
+                                state.error = Some(
+                                    "O diretório local de extensões não está disponível.".into(),
+                                );
+                            }
+                        } else {
+                            if let Some((job, _token)) = refresh.0.take() {
+                                job.abort();
+                            }
+                            account_refresh.abort_all();
+                            wizard = Some(Wizard::new(&file.config, editing));
+                            authorized = None;
                         }
-                        account_refresh.abort_all();
-                        wizard = Some(Wizard::new(&file.config, editing));
-                        authorized = None;
                     }
                 }
                 Command::MoveUp | Command::MoveDown => {
@@ -853,6 +894,15 @@ pub async fn run(
                         if let Some(account) = file.config.accounts.get(index) {
                             models = Some(ModelsView::open(&monitor, index, account.clone()));
                         }
+                    }
+                }
+                Command::Extensions => {
+                    if let Some(manager) = monitor.extension_manager() {
+                        extensions = Some(ExtensionsView::new(manager.list(&file.config)));
+                    } else {
+                        state.error = Some(
+                            "O diretório local de extensões não está disponível.".into(),
+                        );
                     }
                 }
             }
@@ -988,6 +1038,36 @@ pub async fn run(
                 }
             }
         }
+        if extension_test
+            .as_ref()
+            .is_some_and(|(_, job)| job.is_finished())
+        {
+            if let Some((_id, job)) = extension_test.take() {
+                dirty = true;
+                let outcome = job.await;
+                if let Some(view) = &mut extensions {
+                    match outcome {
+                        Ok(Ok(checked)) if checked.status == cuotai_core::Status::Ready => {
+                            view.set_message("Teste concluído com sucesso.".into(), false);
+                        }
+                        Ok(Ok(checked)) => {
+                            let message =
+                                checked.notes.first().map(resolve_l10n).unwrap_or_else(|| {
+                                    "A extensão não retornou um relatório utilizável.".into()
+                                });
+                            view.set_message(message, true);
+                        }
+                        Ok(Err(note)) => view.set_message(resolve_l10n(&note), true),
+                        Err(_) => {
+                            view.set_message("Falha na tarefa de teste da extensão.".into(), true)
+                        }
+                    }
+                    if let Some(manager) = monitor.extension_manager() {
+                        view.replace(manager.list(&file.config));
+                    }
+                }
+            }
+        }
         // PRD 0016 RF2.1: bracketed paste while a login takes a code or the
         // wizard shows the paste step, so a multi-line paste arrives whole.
         let wants_paste = auth_task.as_ref().is_some_and(LoginTask::accepts_code)
@@ -1003,6 +1083,12 @@ pub async fn run(
         if let Some((job, _token)) = refresh.0.as_ref() {
             if job.is_finished() {
                 dirty = true;
+                // RF5.6: the same for a full sweep.
+                if let Some(view) = &mut extensions {
+                    if let Some(manager) = monitor.extension_manager() {
+                        view.replace(manager.list(&file.config));
+                    }
+                }
                 if let Some((job, token)) = refresh.0.take() {
                     let selected_account =
                         state.selected_account(&cycle_slot_reports(&refresh_cycle));
@@ -1046,6 +1132,13 @@ pub async fn run(
                 continue;
             }
             dirty = true;
+            // RF5.6: an open manager shows the core's last run and error, so
+            // it reads them again whenever a refresh lands.
+            if let Some(view) = &mut extensions {
+                if let Some(manager) = monitor.extension_manager() {
+                    view.replace(manager.list(&file.config));
+                }
+            }
             if let Some((job, token)) = account_refresh.take(index) {
                 match job.await {
                     Ok(report) => {
@@ -1197,6 +1290,11 @@ pub async fn run(
                         anim.wipe(frame.buffer_mut());
                     }
                 })?;
+            } else if let Some(view) = &mut extensions {
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    view.draw(frame)
+                })?;
             } else if let Some(wizard) = &mut wizard {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
@@ -1295,7 +1393,7 @@ pub async fn run(
                     dispatch_wizard_action!(action);
                     continue;
                 }
-                if deletion.is_some() || state.filtering {
+                if extensions.is_some() || deletion.is_some() || state.filtering {
                     // Clicks while a confirm dialog is open or the filter is
                     // being typed are ignored — keep keyboard as the only
                     // path through sensitive states.
@@ -1345,6 +1443,7 @@ pub async fn run(
                                 FooterAction::ToggleUnmeasured => Command::ToggleUnmeasured,
                                 FooterAction::Filter => Command::Filter,
                                 FooterAction::Models => Command::Models,
+                                FooterAction::Extensions => Command::Extensions,
                                 FooterAction::About => Command::About,
                                 FooterAction::ClearFilter => Command::ClearFilter,
                                 FooterAction::Refresh => Command::Refresh,
@@ -1408,6 +1507,171 @@ pub async fn run(
                         Reply::Close => models = None,
                         Reply::Sync => view.sync(&monitor),
                         Reply::Stay => {}
+                    }
+                    continue;
+                }
+                if extensions.is_some() {
+                    let action = extensions
+                        .as_mut()
+                        .map(|view| view.key(key.code))
+                        .unwrap_or(ExtensionAction::Stay);
+                    match action {
+                        ExtensionAction::Stay => {}
+                        ExtensionAction::Close => extensions = None,
+                        ExtensionAction::Disclose(id) => {
+                            if let Some(manager) = monitor.extension_manager() {
+                                match manager.disclosure(&id) {
+                                    Ok(disclosure) => {
+                                        if let Some(view) = &mut extensions {
+                                            view.show_disclosure(
+                                                disclosure.lines,
+                                                disclosure.candidate,
+                                            );
+                                        }
+                                    }
+                                    Err(note) => {
+                                        if let Some(view) = &mut extensions {
+                                            view.set_message(resolve_l10n(&note), true);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ExtensionAction::Approve(candidate) => {
+                            let manager = monitor.extension_manager().cloned();
+                            if let Some(manager) = manager {
+                                let editing = candidate.id().and_then(|id| {
+                                    file.config
+                                        .accounts
+                                        .iter()
+                                        .position(|account| account.extension_id() == Some(id))
+                                });
+                                match manager.enable(&candidate, true, &file.config) {
+                                    Err(note) => {
+                                        if let Some(view) = &mut extensions {
+                                            view.set_message(resolve_l10n(&note), true);
+                                        }
+                                    }
+                                    Ok(enabled) => {
+                                        let message = resolve_l10n(&enabled.action.message);
+                                        let id = enabled.action.id.clone();
+                                        match apply_edit_to_config(
+                                            &mut file,
+                                            &monitor,
+                                            &mut refresh_cycle,
+                                            &mut account_refresh,
+                                            &mut state,
+                                            enabled.config,
+                                            editing,
+                                            None,
+                                        ) {
+                                            Ok((new_monitor, refresh_target)) => {
+                                                monitor = new_monitor;
+                                                // Persistence succeeded: only
+                                                // now does the newly approved
+                                                // version replace the old
+                                                // one's cached failure.
+                                                manager.confirm_commit(&id);
+                                                if let Some(view) = &mut extensions {
+                                                    view.replace(manager.list(&file.config));
+                                                    view.set_message(message, false);
+                                                }
+                                                if let Some(index) = refresh_target {
+                                                    if index < account_refresh.len()
+                                                        && account_refresh.slot(index).is_none()
+                                                    {
+                                                        if let Some(token) =
+                                                            refresh_cycle.begin(index)
+                                                        {
+                                                            account_refresh.install(
+                                                                index,
+                                                                start_account_refresh(
+                                                                    &monitor, index,
+                                                                ),
+                                                                token,
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Err(error) => {
+                                                // Approval and config persistence form one UI
+                                                // action: core knows exactly what its
+                                                // approval step changed and restores
+                                                // that. A rollback that itself fails
+                                                // (a newer approval landed meanwhile)
+                                                // is reported with the original
+                                                // error, never swallowed.
+                                                let mut message = error.message();
+                                                if let Err(conflict) =
+                                                    manager.rollback(enabled.consent_rollback)
+                                                {
+                                                    message = format!(
+                                                        "{message} {}",
+                                                        resolve_l10n(&conflict)
+                                                    );
+                                                }
+                                                if let Some(view) = &mut extensions {
+                                                    view.replace(manager.list(&file.config));
+                                                    view.set_message(message, true);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ExtensionAction::Disable(id) => {
+                            if let Some(manager) = monitor.extension_manager().cloned() {
+                                match manager.disable(&id) {
+                                    Ok(action) => {
+                                        let message = resolve_l10n(&action.message);
+                                        if let Some(view) = &mut extensions {
+                                            view.replace(manager.list(&file.config));
+                                            view.set_message(message, false);
+                                        }
+                                        if let Some(index) =
+                                            file.config.accounts.iter().position(|account| {
+                                                account.extension_id() == Some(id.as_str())
+                                            })
+                                        {
+                                            if account_refresh.slot(index).is_none() {
+                                                if let Some(token) = refresh_cycle.begin(index) {
+                                                    account_refresh.install(
+                                                        index,
+                                                        start_account_refresh(&monitor, index),
+                                                        token,
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(note) => {
+                                        if let Some(view) = &mut extensions {
+                                            view.set_message(resolve_l10n(&note), true);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ExtensionAction::Test(id) => {
+                            if extension_test.is_none() {
+                                if let Some(manager) = monitor.extension_manager().cloned() {
+                                    let run_id = id.clone();
+                                    extension_test = Some((
+                                        id,
+                                        tokio::spawn(async move { manager.test(&run_id).await }),
+                                    ));
+                                    if let Some(view) = &mut extensions {
+                                        view.set_message("Testando extensão…".into(), false);
+                                    }
+                                }
+                            }
+                        }
+                        ExtensionAction::Remove(index) => {
+                            extensions = None;
+                            deletion = Some(DeletionState::Confirm { index });
+                        }
                     }
                     continue;
                 }
@@ -1507,6 +1771,12 @@ fn new_monitor(
     }
     if let Some(store) = crate::history_store(file, retention) {
         monitor = monitor.with_history(store);
+    }
+    // RF5.8: the conflict reload rebuilds the monitor from scratch; the
+    // process-wide extension manager (runner, cap, schedules, revocation
+    // guard) is shared, so the two never run side by side.
+    if let Some(manager) = cuotai_core::extensions::management::Manager::default_shared() {
+        monitor = monitor.with_extensions(manager);
     }
     // Just loaded from the TOML: drop catalogs of accounts gone from it.
     // A cache failure only keeps stale digests; model ops report it.

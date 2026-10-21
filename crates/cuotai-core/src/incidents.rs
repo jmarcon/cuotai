@@ -284,7 +284,8 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         | Provider::AlibabaTokenPlan
         | Provider::AlibabaCloud
         | Provider::Antigravity
-        | Provider::Kimchi => return None,
+        | Provider::Kimchi
+        | Provider::Extension => return None,
     })
 }
 

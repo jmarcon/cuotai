@@ -41,6 +41,11 @@ pub enum Provider {
     AlibabaCloud,
     Antigravity,
     Kimchi,
+    /// A locally installed script extension. Dynamic identity lives in
+    /// `Account::params["extension_id"]`; this variant is intentionally not
+    /// part of [`Provider::ALL`], so a blank extension is never offered or
+    /// created by the built-in account editor.
+    Extension,
 }
 
 impl Provider {
@@ -121,6 +126,7 @@ impl Provider {
             Self::AlibabaCloud => "Alibaba Cloud — faturamento",
             Self::Antigravity => "Antigravity",
             Self::Kimchi => "Kimchi",
+            Self::Extension => "Extension",
         }
     }
 
@@ -184,7 +190,61 @@ impl Provider {
             Self::AlibabaCloud => "alibaba_cloud",
             Self::Antigravity => "antigravity",
             Self::Kimchi => "kimchi",
+            Self::Extension => "extension",
         }
+    }
+
+    /// Every variant, in serialization order. It includes
+    /// [`Provider::Extension`], which is deliberately kept out of
+    /// [`Provider::ALL`]: consumers that parse or route a provider name
+    /// (hooks rules, CLI arguments, saved payloads) must accept it, while
+    /// the account creation catalog keeps offering only real providers.
+    pub const VARIANTS: [Self; 37] = [
+        Self::OpenAiApi,
+        Self::AnthropicApi,
+        Self::ChatGpt,
+        Self::Claude,
+        Self::GeminiApi,
+        Self::VertexAi,
+        Self::AwsBedrock,
+        Self::AzureOpenAi,
+        Self::Cursor,
+        Self::Copilot,
+        Self::Windsurf,
+        Self::MiniMax,
+        Self::Kimi,
+        Self::Qwen,
+        Self::Groq,
+        Self::Perplexity,
+        Self::Mistral,
+        Self::CloudflareAi,
+        Self::OllamaCloud,
+        Self::XiaomiMimo,
+        Self::OpenCodeGo,
+        Self::Qoder,
+        Self::GeminiAi,
+        Self::Grok,
+        Self::NvidiaNim,
+        Self::Poolside,
+        Self::Kiro,
+        Self::Cline,
+        Self::CodeBuddy,
+        Self::Zed,
+        Self::AlibabaModelStudio,
+        Self::AlibabaCodingPlan,
+        Self::AlibabaTokenPlan,
+        Self::AlibabaCloud,
+        Self::Antigravity,
+        Self::Kimchi,
+        Self::Extension,
+    ];
+
+    /// The variant whose [`Self::slug`] is `slug`, trimmed.
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        let slug = slug.trim();
+        Self::VARIANTS
+            .into_iter()
+            .find(|provider| provider.slug() == slug)
     }
 }
 
@@ -224,12 +284,21 @@ impl Account {
         self.refresh_seconds.unwrap_or(global_refresh_seconds)
     }
 
-    /// Stable account key: provider slug + name (`claude:Work`). Survives
-    /// reordering and credential edits; a rename yields a new key. Names
-    /// are unique per configuration and slugs carry no `:`, so it is
-    /// unambiguous.
+    /// The dynamic extension id for an extension-backed account.
+    pub fn extension_id(&self) -> Option<&str> {
+        (self.provider == Provider::Extension)
+            .then(|| self.params.get("extension_id").map(String::as_str))
+            .flatten()
+    }
+
+    /// Stable account key. Built-ins use `provider:name`; extension accounts
+    /// include their dynamic id (`extension:<id>:<name>`) so two discovered
+    /// extensions can never collide.
     pub fn key(&self) -> String {
-        account_key(self.provider, &self.name)
+        match self.extension_id() {
+            Some(id) => format!("extension:{id}:{}", self.name),
+            None => account_key(self.provider, &self.name),
+        }
     }
 }
 
@@ -240,6 +309,11 @@ fn account_key(provider: Provider, name: &str) -> String {
 impl Report {
     /// [`Account::key`] of the account this report belongs to.
     pub fn account_key(&self) -> String {
+        if self.provider == Provider::Extension {
+            if let Some(id) = self.source.strip_prefix("extension:") {
+                return format!("extension:{id}:{}", self.account);
+            }
+        }
         account_key(self.provider, &self.account)
     }
 }

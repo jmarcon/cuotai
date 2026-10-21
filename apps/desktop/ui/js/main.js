@@ -3,6 +3,7 @@ import { te, t, tl } from "./i18n.js";
 import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
 import { confirmDelete, offerExternalReload, openAccountDialog } from "./account-dialog.js";
+import { openExtensionsDialog } from "./extensions-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { costCardHtml, costSoloCardHtml, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
@@ -209,12 +210,33 @@ async function retryDelete() {
 const onSaved = (result) => {
   if (result?.cleanup_warning) setNotice("bad", tl(result.cleanup_warning));
 };
+const openExtensionManager = () => openExtensionsDialog({
+  onChanged: () => isDesktop || store.reload(),
+  onRemove: (index, label) =>
+    confirmDelete(index, label, {
+      usesOauth: false,
+      onDone: (result) => {
+        onDeleted(result);
+        isDesktop || store.reload();
+      },
+    }),
+});
+
+/** PRD 0017 RF5.12: an extension account has no built-in form (the provider
+ * is not in the creation catalog, and the form would fall back to OpenAI),
+ * so its edit opens the extension manager, which owns its identity,
+ * approval and removal. */
+const isExtensionAccount = (index) =>
+  store.view?.reports.some((r) => r.index === index && r.provider === "extension") ?? false;
+
+const editAccount = (index) =>
+  isExtensionAccount(index) ? openExtensionManager() : openAccountDialog(index, { onSaved });
 
 const detailsContext = {
   reports: () => store.view?.reports ?? [],
   generation: () => store.view?.generation ?? 0,
   historyEpoch: () => store.view?.history_epoch ?? 0,
-  onEdit: (index) => openAccountDialog(index, { onSaved }),
+  onEdit: editAccount,
   onRemove: (index, label) =>
     confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),
   onChange: () => render(),
@@ -260,6 +282,7 @@ function render() {
       ${themeSwitchHtml()}${sortMenuHtml()}${langMenuHtml()}
       <button class="icon" data-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>
       <button class="icon" data-add title="${te("common.add")}" aria-label="${te("common.add")}">${icon("plus")}</button>
+      <button class="icon" data-extensions title="${te("extensions.title")}" aria-label="${te("extensions.title")}">E</button>
       <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh")}</button>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
@@ -299,6 +322,7 @@ root.addEventListener("click", (e) => {
   if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
   if (t.closest("[data-settings]")) return openSettingsDialog();
+  if (t.closest("[data-extensions]")) return openExtensionManager();
   const costDetails = t.closest("[data-cost-details]");
   if (costDetails) return openCostDetails(costDetails.dataset.costDetails, costContext, costDetails.closest("[data-card]"));
   const det = t.closest("[data-details]");

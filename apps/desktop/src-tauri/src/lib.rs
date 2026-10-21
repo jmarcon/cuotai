@@ -47,6 +47,48 @@ fn list_providers() -> Vec<ProviderInfo> {
 }
 
 #[tauri::command]
+async fn list_extensions(
+    b: Shared<'_>,
+) -> Result<Vec<cuotai_core::extensions::management::ExtensionItem>, String> {
+    b.extensions().await
+}
+
+#[tauri::command]
+async fn extension_disclosure(
+    b: Shared<'_>,
+    id: String,
+) -> Result<cuotai_core::extensions::management::Disclosure, String> {
+    b.extension_disclosure(&id).await
+}
+
+#[tauri::command]
+async fn enable_extension(
+    app: AppHandle,
+    b: Shared<'_>,
+    candidate: cuotai_core::extensions::management::Candidate,
+) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+    b.enable_extension(&app, &candidate).await
+}
+
+#[tauri::command]
+async fn disable_extension(
+    app: AppHandle,
+    b: Shared<'_>,
+    id: String,
+) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+    b.disable_extension(&app, &id).await
+}
+
+#[tauri::command]
+async fn test_extension(
+    app: AppHandle,
+    b: Shared<'_>,
+    id: String,
+) -> Result<cuotai_core::extensions::output::Checked, String> {
+    b.test_extension(&app, &id).await
+}
+
+#[tauri::command]
 fn form_schema(provider: Provider) -> FormSchema {
     backend::form_schema(provider)
 }
@@ -940,6 +982,11 @@ pub fn run() {
             refresh_all,
             refresh_account,
             list_providers,
+            list_extensions,
+            extension_disclosure,
+            enable_extension,
+            disable_extension,
+            test_extension,
             form_schema,
             visible_fields,
             field_choices,

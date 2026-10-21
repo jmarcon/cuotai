@@ -77,7 +77,7 @@ impl Rig {
 
 /// A runner with a fixed parent environment: the allowed variables, one
 /// the manifest asks for and one nobody may see.
-fn runner() -> Runner {
+fn runner(rig: &Rig) -> Runner {
     Runner::with_parent_env(
         [
             ("PATH", "/usr/bin:/bin"),
@@ -88,6 +88,7 @@ fn runner() -> Runner {
         ]
         .into_iter()
         .map(|(name, value)| (OsString::from(name), OsString::from(value))),
+        &rig.consent,
     )
 }
 
@@ -210,7 +211,7 @@ async fn a_changed_extension_never_runs() {
     )
     .unwrap();
 
-    let reading = runner().run(&approved).await;
+    let reading = runner(&rig).run(&approved).await;
     assert_eq!(reading.run.outcome, Outcome::Changed);
     assert_eq!(reading.checked.status, Status::Error);
     assert_eq!(note_ids(&reading), [CHANGED_NOTE]);
@@ -258,7 +259,7 @@ mod execution {
             &["a b", "it's \"quoted\"", &format!("$(touch {})", pwned.display())],
             "env = [\"APPROVED_VAR\"]\n",
         );
-        let reading = runner().run(&approved).await;
+        let reading = runner(&rig).run(&approved).await;
         assert!(reading.run.succeeded(), "{reading:?}");
         assert_eq!(reading.checked.status, Status::Ready, "{reading:?}");
         assert_eq!(reading.checked.metrics[0].label, "Saldo");
@@ -313,7 +314,7 @@ mod execution {
             ),
             "timeout_seconds = 1\n",
         );
-        let reading = runner().run(&approved).await;
+        let reading = runner(&rig).run(&approved).await;
         assert_eq!(reading.run.outcome, Outcome::TimedOut);
         assert_eq!(reading.run.exit_code, None);
         assert!(
@@ -345,7 +346,7 @@ mod execution {
             ),
             "",
         );
-        let runner = runner();
+        let runner = runner(&rig);
         let task = tokio::spawn(async move { runner.run(&approved).await });
         let deadline = Instant::now() + StdDuration::from_secs(20);
         let pid = loop {
@@ -378,7 +379,7 @@ mod execution {
             "#!/bin/sh\nhead -c 300000 /dev/zero | tr '\\0' 'a'\n",
             "",
         );
-        let reading = runner().run(&approved).await;
+        let reading = runner(&rig).run(&approved).await;
         assert!(reading.run.succeeded(), "{reading:?}");
         assert!(reading.run.truncated);
         assert_eq!(reading.run.stdout.len(), output::MAX_BYTES + 1);
@@ -405,7 +406,7 @@ mod execution {
             running = running.display(),
             seen = seen.display()
         );
-        let runner = runner();
+        let runner = runner(&rig);
         let approved: Vec<Approved> = ["a", "b", "c", "d"]
             .into_iter()
             .map(|id| rig.approve(id, &script, ""))
@@ -437,7 +438,7 @@ mod execution {
         let rig = Rig::new();
         let slow = rig.approve("slow", "#!/bin/sh\nsleep 30\n", "timeout_seconds = 2\n");
         let fast = rig.approve("fast", &format!("#!/bin/sh\nprintf '{READY}'\n"), "");
-        let runner = runner();
+        let runner = runner(&rig);
         let (slow_reading, fast_reading) = tokio::join!(runner.run(&slow), runner.run(&fast));
         assert_eq!(slow_reading.run.outcome, Outcome::TimedOut);
         assert_eq!(
@@ -478,7 +479,7 @@ mod execution {
             ),
             "",
         );
-        let runner = runner();
+        let runner = runner(&rig);
         let reading = runner.run(&approved).await;
         assert_eq!(reading.run.outcome, Outcome::Exited);
         assert_eq!(reading.run.exit_code, Some(3));
@@ -527,7 +528,7 @@ mod execution {
             fs::Permissions::from_mode(0o644),
         )
         .unwrap();
-        let reading = runner().run(&approved).await;
+        let reading = runner(&rig).run(&approved).await;
         assert_eq!(reading.run.outcome, Outcome::NotStarted);
         assert_eq!(note_ids(&reading), [NOT_STARTED_NOTE]);
     }
@@ -577,7 +578,7 @@ mod windows_execution {
     async fn a_run_captures_stdout_and_checks_the_contract() {
         let rig = Rig::new();
         let approved = system_program(&rig, "whoami", "whoami.exe", &[], "");
-        let reading = runner().run(&approved).await;
+        let reading = runner(&rig).run(&approved).await;
         assert!(
             reading.run.succeeded(),
             "outcome {:?}, exit code {:?}",
@@ -620,7 +621,7 @@ mod windows_execution {
             &["-n", "30", "127.0.0.1"],
             "timeout_seconds = 1\n",
         );
-        let reading = runner().run(&approved).await;
+        let reading = runner(&rig).run(&approved).await;
         assert_eq!(reading.run.outcome, Outcome::TimedOut);
         assert!(
             reading.run.duration < StdDuration::from_secs(10),

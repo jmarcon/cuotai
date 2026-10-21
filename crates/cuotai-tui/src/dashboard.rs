@@ -39,6 +39,19 @@ const SPARK: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'
 /// Below this many cells the history line is text only.
 const SPARK_MIN_CELLS: usize = 8;
 const SPARK_MAX_CELLS: usize = 48;
+#[cfg(test)]
+thread_local! {
+    static TEST_LOCALE: std::cell::RefCell<Option<&'static str>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn resolve_card_l10n(value: &cuotai_core::text::Localized) -> String {
+    #[cfg(test)]
+    if let Some(locale) = TEST_LOCALE.with(|slot| *slot.borrow()) {
+        return value.resolve(locale);
+    }
+    resolve_l10n(value)
+}
 
 // Dracula palette: background, foreground, selection, muted, and status accents.
 const BG: Color = Color::Rgb(40, 42, 54);
@@ -450,6 +463,7 @@ pub(crate) enum FooterAction {
     ToggleUnmeasured,
     Filter,
     Models,
+    Extensions,
     About,
     ClearFilter,
     RefreshSelected,
@@ -539,6 +553,67 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
     }
     render_footer(frame, areas[2], &view, &mut targets);
     targets
+}
+
+/// Render the dashboard for one account/report pair into an off-screen
+/// buffer and return it as text: the card's actual drawn output, used by the
+/// extension acceptance test.
+#[cfg(test)]
+pub(crate) fn render_for_test(
+    accounts: &[Account],
+    reports: &[Option<Report>],
+    model_counts: &[Option<usize>],
+    visible: &[usize],
+    now: DateTime<Utc>,
+    locale: &'static str,
+) -> String {
+    struct LocaleGuard(Option<&'static str>);
+    impl Drop for LocaleGuard {
+        fn drop(&mut self) {
+            TEST_LOCALE.with(|slot| *slot.borrow_mut() = self.0);
+        }
+    }
+    let _locale = LocaleGuard(TEST_LOCALE.with(|slot| slot.replace(Some(locale))));
+    use ratatui::{backend::TestBackend, Terminal};
+    let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    let empty_history: &[Option<&Report>] = &[];
+    let empty_recent: &[Vec<Vec<Point>>] = &[];
+    let view = View {
+        accounts,
+        reports,
+        model_counts,
+        visible,
+        selected: None,
+        details: false,
+        detail_scroll: 0,
+        show_unmeasured: true,
+        refreshing: false,
+        location: "",
+        filter: "",
+        filtering: false,
+        next_refresh: None,
+        error: None,
+        anim: None,
+        last_good: empty_history,
+        recent: empty_recent,
+        history: None,
+        banner: None,
+        incidents: &[],
+        local_cost: None,
+        now,
+    };
+    terminal
+        .draw(|frame| {
+            draw(frame, view);
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    buffer
+        .content()
+        .chunks(120)
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
@@ -646,6 +721,8 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         plain("r todas", Some(FooterAction::Refresh)),
         plain(" · ", None),
         plain("R selecionada", Some(FooterAction::RefreshSelected)),
+        plain("  ", None),
+        plain("x extensões", Some(FooterAction::Extensions)),
         plain("  ", None),
         plain("? sobre", Some(FooterAction::About)),
         plain("  ", None),
@@ -1077,9 +1154,9 @@ fn access_title(
     session: Option<&cuotai_core::text::Localized>,
     width: u16,
 ) -> Line<'static> {
-    let mut text = resolve_l10n(&access.level.label());
+    let mut text = resolve_card_l10n(&access.level.label());
     for part in session.into_iter().chain([&access.summary]) {
-        text = format!("{text} · {}", resolve_l10n(part));
+        text = format!("{text} · {}", resolve_card_l10n(part));
     }
     let room = usize::from(width.saturating_sub(4));
     let text = if text.chars().count() > room {
@@ -1948,6 +2025,74 @@ mod tests {
     #[test]
     fn missing_report_is_unmeasured() {
         assert_eq!(classification(None), AccountClass::Unmeasured);
+    }
+
+    /// PRD 0017 RF5.13: an extension account renders as a normal card in
+    /// each shipped locale — the provider label, the `Extension` access
+    /// label and the metric text come from the core's own report, not from
+    /// a fixture string.
+    #[test]
+    fn an_extension_account_renders_a_normal_card_in_every_locale() {
+        for locale in ["pt-BR", "en-US", "es"] {
+            let account = Account {
+                name: "quota".into(),
+                provider: Provider::Extension,
+                params: std::collections::BTreeMap::from([(
+                    "extension_id".to_owned(),
+                    "quota".to_owned(),
+                )]),
+                refresh_seconds: Some(300),
+                ..Account::default()
+            };
+            let report = Report {
+                account: "quota".into(),
+                provider: Provider::Extension,
+                checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+                status: Status::Ready,
+                metrics: vec![Metric {
+                    label: "Monthly".into(),
+                    used: Some(1.0),
+                    limit: Some(2.0),
+                    remaining: Some(1.0),
+                    unit: "requests".into(),
+                    kind: MetricKind::Quota,
+                    window: Some(MetricWindow::Monthly),
+                    period: None,
+                    resets_at: None,
+                }],
+                notes: Vec::new(),
+                notes_l10n: Vec::new(),
+                source: "extension:quota".into(),
+                session_expires_at: None,
+            };
+            let expected_metric = metric_text(&report.metrics[0]);
+            let screen = crate::dashboard::render_for_test(
+                &[account],
+                &[Some(report)],
+                &[],
+                &[0],
+                Utc.with_ymd_and_hms(2026, 1, 1, 0, 1, 0).unwrap(),
+                locale,
+            );
+            let expected_access = match locale {
+                "pt-BR" => "Extensão",
+                "en-US" => "Extension",
+                "es" => "Extensión",
+                _ => unreachable!(),
+            };
+            assert!(
+                screen.contains(Provider::Extension.label()),
+                "{locale}: the card names the provider:\n{screen}"
+            );
+            assert!(
+                screen.contains(expected_access),
+                "{locale}: the card renders the exact localized access label:\n{screen}"
+            );
+            assert!(
+                screen.contains(&expected_metric),
+                "{locale}: the card renders the metric text `{expected_metric}`:\n{screen}"
+            );
+        }
     }
 
     #[test]

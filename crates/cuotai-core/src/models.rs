@@ -238,6 +238,10 @@ pub fn support(account: &Account) -> Result<Localized, Localized> {
             "models.unsupported",
             "a credencial é uma AccessKey de faturamento e o Alibaba Cloud não tem endpoint de modelos para ela.",
         ),
+        Provider::Extension => reason(
+            "models.unsupported",
+            "extensões informam métricas, não um catálogo de modelos.",
+        ),
     }
 }
 

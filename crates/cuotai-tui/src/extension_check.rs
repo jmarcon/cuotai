@@ -13,9 +13,10 @@
 
 use std::io::{self, BufRead, IsTerminal, Write};
 
-use cuotai_core::extensions::consent::{self, Approved, Consent};
-use cuotai_core::extensions::runner::{Outcome, Reading, Runner};
-use cuotai_core::extensions::{self, Manifest};
+use cuotai_core::extensions;
+use cuotai_core::extensions::consent;
+use cuotai_core::extensions::management::Manager;
+use cuotai_core::extensions::runner::{Outcome, Reading};
 use cuotai_core::text::Localized;
 use cuotai_core::Status;
 
@@ -28,21 +29,41 @@ pub(crate) async fn run(id: &str, json: bool) -> Result<u8, Box<dyn std::error::
     let Some(dir) = extensions::default_dir() else {
         return Err(no_dir().resolve(locale).into());
     };
-    let discovery = extensions::discover(&dir);
-    let Some(manifest) = discovery.get(id).cloned() else {
-        return Err(unknown(id).resolve(locale).into());
-    };
-    let consent = Consent::in_data_dir().map_err(|error| error.resolve(locale))?;
-    let interactive = io::stdin().is_terminal() && io::stderr().is_terminal();
-    let approved = confirm(
-        &consent,
-        manifest,
-        interactive,
-        &mut io::stdin().lock(),
-        &mut io::stderr().lock(),
-        locale,
-    )?;
-    let reading = Runner::new().run(&approved).await;
+    let manager = Manager::at(dir);
+    if !manager
+        .is_enabled(id)
+        .map_err(|error| error.resolve(locale))?
+    {
+        // RF5.3: the approval is bound to exactly what these lines show.
+        let disclosure = manager
+            .disclosure(id)
+            .map_err(|error| error.resolve(locale))?;
+        for line in &disclosure.lines {
+            let text = line.resolve(locale);
+            writeln!(io::stderr().lock(), "{}", ui::safe(&text))?;
+        }
+        let interactive = io::stdin().is_terminal() && io::stderr().is_terminal();
+        if !interactive {
+            return Err(consent::not_approved(id).resolve(locale).into());
+        }
+        let answer = consent::confirm_answer().resolve(locale);
+        let mut stderr = io::stderr().lock();
+        write!(
+            stderr,
+            "{} ",
+            consent::confirm_question(&answer).resolve(locale)
+        )?;
+        stderr.flush()?;
+        let mut typed = String::new();
+        io::stdin().lock().read_line(&mut typed)?;
+        manager
+            .approve(&disclosure.candidate, typed.trim() == answer)
+            .map_err(|error| error.resolve(locale))?;
+    }
+    let reading = manager
+        .test_reading(id)
+        .await
+        .map_err(|error| error.resolve(locale))?;
     let mut stdout = io::stdout().lock();
     if json {
         serde_json::to_writer_pretty(&mut stdout, &reading_json(&reading))?;
@@ -55,46 +76,6 @@ pub(crate) async fn run(id: &str, json: bool) -> Result<u8, Box<dyn std::error::
     } else {
         2
     })
-}
-
-/// `manifest` approved exactly as it is. Unapproved (never, or since a
-/// change) the disclosure is written to `out` and the typed answer decides
-/// in a terminal; otherwise a local error and nothing runs.
-fn confirm(
-    consent: &Consent,
-    manifest: Manifest,
-    interactive: bool,
-    input: &mut impl BufRead,
-    out: &mut impl Write,
-    locale: &str,
-) -> Result<Approved, String> {
-    let io_error = |error: io::Error| error.to_string();
-    let manifest = match consent.check(manifest) {
-        Ok(approved) => return Ok(approved),
-        Err(manifest) => *manifest,
-    };
-    for line in consent::disclosure(&manifest) {
-        writeln!(out, "{}", line.resolve(locale)).map_err(io_error)?;
-    }
-    if !interactive {
-        return Err(consent::not_approved(&manifest.id).resolve(locale));
-    }
-    let answer = consent::confirm_answer().resolve(locale);
-    write!(
-        out,
-        "{} ",
-        consent::confirm_question(&answer).resolve(locale)
-    )
-    .map_err(io_error)?;
-    out.flush().map_err(io_error)?;
-    let mut typed = String::new();
-    input.read_line(&mut typed).map_err(io_error)?;
-    if typed.trim() != answer {
-        return Err(consent::declined().resolve(locale));
-    }
-    consent
-        .approve(&manifest)
-        .map_err(|error| error.resolve(locale))
 }
 
 /// The `--extension-check` JSON: how the run ended and the checked
@@ -123,6 +104,7 @@ fn reading_text(reading: &Reading, locale: &str) -> String {
         (Outcome::TimedOut, _) => "tempo esgotado".to_string(),
         (Outcome::NotStarted, _) => "programa não iniciado".to_string(),
         (Outcome::Changed, _) => "mudou desde a aprovação".to_string(),
+        (Outcome::Revoked, _) => "aprovação revogada".to_string(),
     };
     out += &format!("Execução: {outcome} em {ms} ms\n");
     out += &format!("Fonte: {}\n", ui::safe(&reading.checked.source));
@@ -155,19 +137,10 @@ fn no_dir() -> Localized {
     )
 }
 
-/// `extensions.check.unknown`: no valid extension has this id.
-fn unknown(id: &str) -> Localized {
-    Localized::with_param(
-        "extensions.check.unknown",
-        "id",
-        id,
-        format!("Não há nenhuma extensão válida com o id {id}."),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cuotai_core::Config;
     use std::fs;
 
     /// A sandbox with one extension and its consent file.
@@ -187,31 +160,47 @@ mod tests {
             ));
             let extension = dir.join("proxy");
             fs::create_dir_all(&extension).unwrap();
-            fs::write(
-                extension.join("manifest.toml"),
-                "id = \"proxy\"\nname = \"Proxy balance\"\nversion = \"1.2.0\"\nschema = 1\n\
-                 command = [\"./run.sh\"]\ninterval_seconds = 300\n\
-                 env = [\"PROXY_TOKEN\"]\n",
-            )
-            .unwrap();
-            let program = extension.join("run.sh");
-            fs::write(&program, "#!/bin/sh\nprintf '{}'\n").unwrap();
+            // A real executable compiled here, so the fixture runs on every
+            // platform with no shell and no interpreter in the contract.
+            let name = if cfg!(windows) {
+                "program.exe"
+            } else {
+                "run.sh"
+            };
+            let source = extension.join("program.rs");
+            let source_text = format!(
+                "fn main() {{ print!(\"{{}}\", {output:?}); }}",
+                output = r#"{"schema":1,"status":"ready","metrics":[{"label":"Saldo","unit":"cr","kind":"quota","used":1,"limit":2,"remaining":1}],"notes":[]}"#,
+            );
+            fs::write(&source, source_text).unwrap();
+            let program = extension.join(name);
+            let built = std::process::Command::new("rustc")
+                .args(["--edition", "2021", "-O"])
+                .arg(&source)
+                .arg("-o")
+                .arg(&program)
+                .output()
+                .expect("rustc builds the fixture program");
+            assert!(
+                built.status.success(),
+                "fixture build failed: {}",
+                String::from_utf8_lossy(&built.stderr)
+            );
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
                 fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
             }
+            fs::write(
+                extension.join("manifest.toml"),
+                format!(
+                    "id = \"proxy\"\nname = \"Proxy balance\"\nversion = \"1.2.0\"\nschema = 1\n\
+                     command = [\"./{name}\"]\ninterval_seconds = 300\n\
+                     env = [\"PROXY_TOKEN\"]\n"
+                ),
+            )
+            .unwrap();
             Self { dir }
-        }
-
-        fn manifest(&self) -> Manifest {
-            let discovery = extensions::discover(&self.dir);
-            assert!(discovery.rejected.is_empty(), "{:?}", discovery.rejected);
-            discovery.get("proxy").expect("discovered").clone()
-        }
-
-        fn consent(&self) -> Consent {
-            Consent::at(self.dir.join("consent.json"))
         }
     }
 
@@ -221,64 +210,84 @@ mod tests {
         }
     }
 
-    /// RF4.1: unapproved, the extension is disclosed (exact command,
-    /// directory, requested variables, interval) and runs only after the
-    /// typed answer; a change asks again.
+    /// RF5.3: the approval binds to exactly the disclosed files. A program
+    /// that changes between the disclosure and the confirmation fails closed
+    /// (no approval, no run), and a token cannot be replayed.
     #[test]
-    fn an_extension_runs_only_after_the_typed_approval() {
+    fn an_approval_binds_to_the_disclosed_files_and_is_single_use() {
         let rig = Rig::new();
-        let consent = rig.consent();
-        let ask = |interactive, typed: &str| {
-            let mut out = Vec::new();
-            let result = confirm(
-                &consent,
-                rig.manifest(),
-                interactive,
-                &mut typed.as_bytes(),
-                &mut out,
-                "en-US",
-            );
-            (result, String::from_utf8(out).unwrap())
-        };
+        let manager = Manager::at(&rig.dir);
 
-        let (result, out) = ask(false, "");
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(error.contains("not approved yet"), "{error}");
-        assert!(out.contains("command: [\"./run.sh\"]"), "{out}");
-        let dir = rig.dir.join("proxy").canonicalize().unwrap();
-        assert!(out.contains(&dir.display().to_string()), "{out}");
-        assert!(out.contains("PROXY_TOKEN"), "{out}");
-        assert!(out.contains("300 s"), "{out}");
-        assert!(out.contains("review the code"), "{out}");
+        // Nothing is approved before a confirmation.
+        assert!(!manager.is_enabled("proxy").unwrap());
+        let disclosure = manager.disclosure("proxy").unwrap();
+        let shown = disclosure
+            .lines
+            .iter()
+            .map(|line| line.resolve("en-US"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(shown.contains("command:"), "{shown}");
         assert!(
-            !out.contains("type"),
-            "no question without a terminal: {out}"
+            shown.contains(
+                &rig.dir
+                    .join("proxy")
+                    .canonicalize()
+                    .unwrap()
+                    .display()
+                    .to_string()
+            ),
+            "{shown}"
         );
+        assert!(shown.contains("PROXY_TOKEN"), "{shown}");
+        assert!(shown.contains("300 s"), "{shown}");
+        assert!(shown.contains("review the code"), "{shown}");
 
-        let (result, out) = ask(true, "no\n");
-        assert_eq!(
-            result.unwrap_err(),
-            "Extension not approved; it was not run."
-        );
-        assert!(out.ends_with("(any other answer declines): "), "{out}");
-        assert!(consent.check(rig.manifest()).is_err(), "still unapproved");
-
-        let (result, _) = ask(true, "yes\n");
-        assert!(result.is_ok(), "{result:?}");
-        let (result, out) = ask(false, "");
-        assert!(result.is_ok(), "an approved extension needs no terminal");
-        assert_eq!(out, "", "and is not disclosed again");
-
-        // A change to the program asks again.
+        // The program changes while the user reads: the same confirmation
+        // must not approve what is now on disk.
+        let changed = rig.dir.join("proxy").join("program.rs");
         fs::write(
-            rig.dir.join("proxy").join("run.sh"),
-            "#!/bin/sh\nprintf '{\"schema\":1}'\n",
+            &changed,
+            r#"fn main() { std::io::Write::write_all(&mut std::io::stdout(), b"changed").unwrap(); }"#,
         )
         .unwrap();
-        let (result, out) = ask(false, "");
-        assert!(result.is_err(), "a changed program needs a new approval");
-        assert!(out.contains("command:"), "{out}");
+        let rebuilt = std::process::Command::new("rustc")
+            .args(["--edition", "2021", "-O"])
+            .arg(&changed)
+            .arg("-o")
+            .arg(rig.dir.join("proxy").join(if cfg!(windows) {
+                "program.exe"
+            } else {
+                "run.sh"
+            }))
+            .output()
+            .unwrap();
+        assert!(rebuilt.status.success());
+        let error = manager
+            .enable(&disclosure.candidate, true, &Config::default())
+            .unwrap_err();
+        assert_eq!(error.id, "extensions.action.changed", "{error:?}");
+        assert!(!manager.is_enabled("proxy").unwrap());
+
+        // A fresh disclosure of the new files approves, and its token is
+        // spent: replaying it approves nothing.
+        let fresh = manager.disclosure("proxy").unwrap();
+        let enabled = manager
+            .enable(&fresh.candidate, true, &Config::default())
+            .unwrap();
+        assert!(enabled.config.validate().is_ok(), "{:?}", enabled.config);
+        assert!(manager.is_enabled("proxy").unwrap());
+        let replay = manager
+            .enable(&fresh.candidate, true, &enabled.config)
+            .unwrap_err();
+        assert_eq!(
+            replay.id, "extensions.action.candidate_expired",
+            "{replay:?}"
+        );
+
+        // Disabling revokes it again.
+        manager.disable("proxy").unwrap();
+        assert!(!manager.is_enabled("proxy").unwrap());
     }
 
     /// RF2.4: the text report shows the run, the normalized reading and the

@@ -55,6 +55,11 @@ export const getView = () => call("get_view");
 export const refreshAll = () => call("refresh_all");
 export const refreshAccount = (index) => call("refresh_account", { index });
 export const listProviders = () => call("list_providers");
+export const listExtensions = () => call("list_extensions");
+export const extensionDisclosure = (id) => call("extension_disclosure", { id });
+export const enableExtension = (candidate) => call("enable_extension", { candidate });
+export const disableExtension = (id) => call("disable_extension", { id });
+export const testExtension = (id) => call("test_extension", { id });
 export const formSchema = (provider) => call("form_schema", { provider });
 export const visibleFields = (provider, choices, authMode, loginParams = {}) => call("visible_fields", { provider, choices, authMode, loginParams });
 export const fieldChoices = (provider, choices, authMode) => call("field_choices", { provider, choices, authMode });
@@ -453,6 +458,7 @@ const brands = {
   alibaba_model_studio: B("Alibaba Model Studio", "#ff6a00", "Al"), alibaba_coding_plan: B("Alibaba Coding Plan", "#ff6a00", "Al"),
   alibaba_token_plan: B("Alibaba Token Plan", "#ff6a00", "Al"), alibaba_cloud: B("Alibaba Cloud", "#ff6a00", "Al"),
   antigravity: B("Antigravity", "#7c6cf0", "Ag"), kimchi: B("Kimchi", "#ef4444", "Km"),
+  extension: B("Extension", "#8b5cf6", "Ex"),
 };
 export const brand = (p) => brands[p] ?? B(p, "#888888");
 // Logos de provider: glifos SVG monocromáticos (lobehub/icons, MIT; zed: simple-icons, CC0; ver img/providers/NOTICE.md)
@@ -1058,6 +1064,11 @@ const demo = {
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
   },
   list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, level: demoLevel(demoLevelOf(id)) })),
+  list_extensions: async () => [],
+  extension_disclosure: async () => ({ lines: [], candidate: { token: "demo" } }),
+  enable_extension: async ({ candidate }) => ({ id: candidate?.id ?? "demo", message: dl("extensions.action.enabled", "Extensão ativada."), account: null }),
+  disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extensão ${id} desativada.`), account: null }),
+  test_extension: async ({ id }) => ({ source: `extension:${id}`, status: "ready", metrics: [], notes: [], violations: [] }),
   // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
   draft_access: async ({ provider }) => {
     const level = demoLevelOf(provider);

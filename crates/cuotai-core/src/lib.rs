@@ -79,6 +79,8 @@ pub enum ConfigError {
     OAuth,
     #[error("Referência de sessão inválida ou repetida em [accounts.session]; informe a sessão novamente no assistente da conta.")]
     Session,
+    #[error("Conta de extensão sem um extension_id válido, com o id de outra extensão repetido ou com campos de credencial incompatíveis.")]
+    Extension,
 }
 
 impl Config {
@@ -118,6 +120,7 @@ impl Config {
         {
             return Err(ConfigError::AccountNames);
         }
+        let mut identities = HashSet::new();
         for account in &self.accounts {
             if let Some(override_seconds) = account.refresh_seconds {
                 if override_seconds < Account::MIN_REFRESH_SECONDS {
@@ -141,6 +144,23 @@ impl Config {
             if let Some(session) = &account.session {
                 if !session.is_valid(account.provider) {
                     return Err(ConfigError::Session);
+                }
+            }
+            if account.provider == Provider::Extension
+                && (account
+                    .extension_id()
+                    .is_none_or(|id| !extensions::valid_id(id))
+                    || account.credential_env.is_some()
+                    || account.oauth.is_some()
+                    || account.session.is_some())
+            {
+                return Err(ConfigError::Extension);
+            }
+            // One extension is one account: two rows for the same id would
+            // race over one consent record and one schedule.
+            if let Some(id) = account.extension_id() {
+                if !identities.insert(id) {
+                    return Err(ConfigError::Extension);
                 }
             }
         }
@@ -180,6 +200,9 @@ pub struct Monitor {
     /// PRD 0011 RF2: opt-in public status queries and their cache; off
     /// until a frontend enables it. Shared by [`Monitor::with_config`].
     incidents: incidents::IncidentMonitor,
+    /// PRD 0017 RF5: discovery/consent/runtime state and the one shared
+    /// extension Runner used by recurring refreshes and explicit tests.
+    extensions: Option<Arc<extensions::management::Manager>>,
     /// Test-only fixed clock for `checked_at`, so recording tests control
     /// the time between readings.
     #[cfg(test)]
@@ -227,6 +250,7 @@ impl Monitor {
             models: None,
             history: None,
             incidents: incidents::IncidentMonitor::new(),
+            extensions: extensions::management::Manager::default_shared(),
             #[cfg(test)]
             clock: None,
         })
@@ -271,6 +295,7 @@ impl Monitor {
             models: self.models.clone(),
             history: self.history.clone(),
             incidents: self.incidents.clone(),
+            extensions: self.extensions.clone(),
             #[cfg(test)]
             clock: self.clock.clone(),
         })
@@ -281,6 +306,18 @@ impl Monitor {
     pub fn with_model_cache(mut self, cache: models::ModelCache) -> Self {
         self.models = Some(cache);
         self
+    }
+
+    /// Use an injected extension directory (tests and portable frontends).
+    /// Kept by [`Monitor::with_config`].
+    pub fn with_extensions(mut self, manager: Arc<extensions::management::Manager>) -> Self {
+        self.extensions = Some(manager);
+        self
+    }
+
+    /// The shared UI-neutral extension module, when available.
+    pub fn extension_manager(&self) -> Option<&Arc<extensions::management::Manager>> {
+        self.extensions.as_ref()
     }
 
     /// PRD 0006 RF2.1: record every `Ready` report into `store` (pruned by
@@ -520,11 +557,25 @@ impl Monitor {
     /// delays or changes a quota reading beyond its own short timeout.
     pub async fn refresh(&self) -> Snapshot {
         let started_at = self.now();
-        let accounts = stream::iter(0..self.config.accounts.len())
+        // PRD 0017 RF5.12: local extensions run under the extension
+        // manager's own cap, never this provider semaphore, so a slow or
+        // stuck extension at index 0 cannot delay a built-in account when
+        // `concurrency` is 1. Both groups are joined and re-sorted into
+        // configuration order.
+        let (local, remote): (Vec<usize>, Vec<usize>) = (0..self.config.accounts.len())
+            .partition(|index| self.config.accounts[*index].provider == Provider::Extension);
+        let extensions = futures_util::future::join_all(
+            local
+                .into_iter()
+                .map(|index| async move { (index, self.refresh_account(index).await) }),
+        );
+        let accounts = stream::iter(remote)
             .map(|index| async move { (index, self.refresh_account(index).await) })
             .buffer_unordered(self.config.concurrency)
             .collect::<Vec<_>>();
-        let (mut indexed, _) = tokio::join!(accounts, self.refresh_incidents());
+        let (extension_reports, mut indexed, _incidents) =
+            tokio::join!(extensions, accounts, self.refresh_incidents());
+        indexed.extend(extension_reports);
         indexed.sort_unstable_by_key(|(index, _)| *index);
         Snapshot {
             started_at,
@@ -591,6 +642,39 @@ impl Monitor {
         account: &Account,
         pasted: &[user_session::ReducedSession],
     ) -> Report {
+        if account.provider == Provider::Extension {
+            let checked_at = self.now();
+            let unavailable = |note: crate::text::Localized| {
+                let (notes, notes_l10n) = crate::text::Notes::one(note).finish();
+                Report {
+                    account: account.name.clone(),
+                    provider: Provider::Extension,
+                    checked_at,
+                    status: Status::NeedsConfiguration,
+                    metrics: Vec::new(),
+                    notes,
+                    notes_l10n,
+                    source: account
+                        .extension_id()
+                        .map_or_else(String::new, |id| format!("extension:{id}")),
+                    session_expires_at: None,
+                }
+            };
+            let Some(manager) = &self.extensions else {
+                return unavailable(extensions::management::missing(
+                    account.extension_id().unwrap_or("extension"),
+                ));
+            };
+            // A local program runs under the extension manager's own cap
+            // (`Runner::MAX_RUNNING`), never the HTTP provider semaphore: a
+            // slow extension must not hold a slot a provider query needs.
+            return match manager.run_account(account).await {
+                Ok(checked) => {
+                    checked.into_report(account.name.clone(), Provider::Extension, checked_at)
+                }
+                Err(note) => unavailable(note),
+            };
+        }
         let (result, session_expires_at) = self
             .with_sessions(
                 account,
@@ -844,6 +928,9 @@ impl Monitor {
             Provider::AlibabaCloud => providers::alibaba_billing::fetch(account, ctx).await,
             Provider::Antigravity => providers::antigravity::fetch(account, ctx).await,
             Provider::Kimchi => providers::kimchi::fetch(account, ctx).await,
+            Provider::Extension => {
+                unreachable!("extension dispatch is handled before provider dispatch")
+            }
         }
     }
 }

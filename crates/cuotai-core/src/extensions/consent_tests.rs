@@ -134,6 +134,74 @@ fn a_changed_manifest_disables_until_a_new_approval() {
     assert!(rig.consent.check(rig.manifest()).is_ok());
 }
 
+/// RF4.5: an approval issued before a revocation can never be admitted,
+/// while an approval taken after it can. The guard makes the decision and
+/// the process spawn atomic with respect to `revoke`.
+#[test]
+fn a_revocation_invalidates_the_approvals_issued_before_it() {
+    let rig = Rig::new();
+    let approved = rig.consent.approve(&rig.manifest()).unwrap();
+    {
+        let guard = approved
+            .admit(rig.consent.shared())
+            .expect("an approved run may start");
+        drop(guard);
+    }
+
+    assert!(rig.consent.revoke("proxy").unwrap(), "revoked");
+    // Re-approving and revoking again: the second approval is older than
+    // the current generation once the revoke lands.
+    let approved = rig.consent.approve(&rig.manifest()).unwrap();
+    assert!(rig.consent.revoke("proxy").unwrap());
+    assert!(
+        approved.admit(rig.consent.shared()).is_none(),
+        "an approval revoked after it was issued never starts a process"
+    );
+
+    let fresh = rig.consent.approve(&rig.manifest()).unwrap();
+    assert!(
+        fresh.admit(rig.consent.shared()).is_some(),
+        "a new approval admits"
+    );
+}
+
+/// RF4.5: the generation is per extension id, so revoking one leaves
+/// another's approval valid.
+#[test]
+fn revoking_one_extension_leaves_another_approved() {
+    let rig = Rig::new();
+    Rig::with_manifest(&rig.root, "other", &MANIFEST.replace("proxy", "other"));
+    let mine = rig.consent.approve(&rig.manifest()).unwrap();
+    let theirs = rig
+        .consent
+        .approve(&discover(&rig.root).get("other").unwrap().clone())
+        .unwrap();
+
+    rig.consent.revoke("other").unwrap();
+    assert!(
+        mine.admit(rig.consent.shared()).is_some(),
+        "the other extension's revocation does not touch this approval"
+    );
+    assert!(theirs.admit(rig.consent.shared()).is_none());
+    assert!(!rig.consent.has_approval("other"));
+    assert!(rig.consent.has_approval("proxy"));
+}
+
+/// RF4.5: clones share one revocation state, so a frontend and a rebuilt
+/// monitor agree on whether an approval is still valid.
+#[test]
+fn clones_share_one_revocation_state() {
+    let rig = Rig::new();
+    let other = rig.consent.clone();
+    let approved = rig.consent.approve(&rig.manifest()).unwrap();
+    assert!(other.check(rig.manifest()).is_ok());
+    other.revoke("proxy").unwrap();
+    assert!(
+        approved.admit(other.shared()).is_none(),
+        "a revocation through any clone invalidates the approval"
+    );
+}
+
 #[test]
 fn a_damaged_record_holds_no_approval() {
     let rig = Rig::new();

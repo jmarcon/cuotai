@@ -107,6 +107,46 @@ fn refresh_edit_error(error: &cuotai_core::refresh::EditError) -> cuotai_core::t
     }
 }
 
+/// The frontend's own failure together with the failure of the consent
+/// rollback that should have undone it: both are reported, never dropped.
+fn rollback_with(
+    rollback: &Result<(), cuotai_core::text::Localized>,
+    error: cuotai_core::text::Localized,
+) -> String {
+    match rollback {
+        Ok(()) => l10n_to_json(&error),
+        Err(conflict) => l10n_to_json(&combined_failure(&error, conflict)),
+    }
+}
+
+/// The same combination for an `EditError` (already JSON-serializable).
+fn rollback_edit(
+    rollback: &Result<(), cuotai_core::text::Localized>,
+    error: cuotai_core::edit_error::EditError,
+) -> String {
+    match rollback {
+        Ok(()) => edit_error_to_json(&error),
+        Err(conflict) => l10n_to_json(&combined_failure(&error.l10n(), conflict)),
+    }
+}
+
+/// `extensions.action.rollback_failed`: the operation failed and so did its
+/// rollback; the second sentence is the rollback's own reason.
+fn combined_failure(
+    error: &cuotai_core::text::Localized,
+    rollback: &cuotai_core::text::Localized,
+) -> cuotai_core::text::Localized {
+    cuotai_core::text::Localized::fixed(
+        "extensions.action.rollback_failed",
+        format!("{} {}", error.fallback, rollback.fallback),
+    )
+}
+
+/// The typed note of a `ConfigError`, as the rest of the backend reports it.
+fn config_error_note(error: &cuotai_core::ConfigError) -> cuotai_core::text::Localized {
+    cuotai_core::edit_error::config_error_note(error)
+}
+
 const TICK: Duration = Duration::from_secs(5);
 /// Longest sleep of the reset notice timer while a notice is ahead.
 const NOTICE_NAP: Duration = Duration::from_secs(60);
@@ -967,6 +1007,12 @@ impl Inner {
             Ok(cache) => monitor.with_model_cache(cache),
             Err(_) => monitor,
         };
+        // PRD 0017 RF5.8: install and reload both rebuild the monitor; the
+        // process-wide extension manager (runner, two-process cap, per-id
+        // schedules, revocation guard) is shared, never duplicated.
+        if let Some(manager) = cuotai_core::extensions::management::Manager::default_shared() {
+            monitor = monitor.with_extensions(manager);
+        }
         // PRD 0006: the measurement history of this TOML, pruned by the
         // device's retention (`desktop.json`); without a data dir nothing is
         // recorded. Tests never touch the real OS data dir.
@@ -1676,6 +1722,164 @@ impl Backend {
             }
             tokio::time::sleep(TICK).await;
         }
+    }
+
+    // ---------- extensões locais (PRD 0017 RF5) ----------
+
+    pub async fn extensions(
+        &self,
+    ) -> Result<Vec<cuotai_core::extensions::management::ExtensionItem>, String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+        let manager = loaded
+            .monitor
+            .extension_manager()
+            .ok_or("extensions_unavailable")?;
+        Ok(manager.list(&loaded.file.config))
+    }
+
+    pub async fn extension_disclosure(
+        &self,
+        id: &str,
+    ) -> Result<cuotai_core::extensions::management::Disclosure, String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+        loaded
+            .monitor
+            .extension_manager()
+            .ok_or("extensions_unavailable")?
+            .disclosure(id)
+            .map_err(|note| l10n_to_json(&note))
+    }
+
+    pub async fn enable_extension(
+        &self,
+        app: &AppHandle,
+        candidate: &cuotai_core::extensions::management::Candidate,
+    ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+        self.ensure_loaded().await;
+        let (action, index) = {
+            let mut g = self.inner.lock().await;
+            let Inner {
+                loaded: Some(loaded),
+                generation,
+                ..
+            } = &mut *g
+            else {
+                return Err("config_unavailable".into());
+            };
+            let manager = loaded
+                .monitor
+                .extension_manager()
+                .cloned()
+                .ok_or("extensions_unavailable")?;
+            let prev = loaded.file.config.clone();
+            // RF5.3: the approval binds to the disclosed snapshot, so a file
+            // changed in between fails here instead of running unseen.
+            let enabled = manager
+                .enable(candidate, true, &prev)
+                .map_err(|note| l10n_to_json(&note))?;
+            let id = enabled.action.id.clone();
+            // Approval and configuration persistence are one action: core knows
+            // exactly what its approval step changed and restores that when
+            // persistence loses. A rollback that itself fails (a newer
+            // approval landed meanwhile) is reported with the original
+            // error, never swallowed.
+            let mut consent_rollback = Some(enabled.consent_rollback);
+            let index = enabled
+                .action
+                .account
+                .as_ref()
+                .map(|account| account.index)
+                .ok_or("extension_account_missing")?;
+            let mut cycle = loaded.cycle.clone();
+            if let Err(error) =
+                cycle.apply_edit(&prev, &enabled.config, Edit::Upsert(index), Instant::now())
+            {
+                let rollback = manager.rollback(consent_rollback.take().unwrap());
+                return Err(rollback_with(&rollback, refresh_edit_error(&error)));
+            }
+            let monitor = match loaded
+                .monitor
+                .with_config(enabled.config.clone())
+                .map(Arc::new)
+            {
+                Ok(monitor) => monitor,
+                Err(error) => {
+                    let rollback = manager.rollback(consent_rollback.take().unwrap());
+                    return Err(rollback_with(&rollback, config_error_note(&error)));
+                }
+            };
+            if let Err(error) = loaded.file.save(enabled.config) {
+                let rollback = manager.rollback(consent_rollback.take().unwrap());
+                return Err(rollback_edit(&rollback, error));
+            }
+            // Persistence succeeded: only now does the newly approved
+            // version replace the old one's cached failure and backoff.
+            manager.confirm_commit(&id);
+            loaded.cycle = cycle;
+            loaded.monitor = monitor;
+            if loaded.tokens.len() < loaded.file.config.accounts.len() {
+                loaded.tokens.extend(
+                    (0..loaded.file.config.accounts.len() - loaded.tokens.len()).map(|_| None),
+                );
+            }
+            loaded.generation += 1;
+            *generation = loaded.generation;
+            (enabled.action, index)
+        };
+        self.emit(app).await;
+        self.refresh_account(app, index).await?;
+        Ok(action)
+    }
+
+    pub async fn disable_extension(
+        &self,
+        app: &AppHandle,
+        id: &str,
+    ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+        self.ensure_loaded().await;
+        let (action, index) = {
+            let g = self.inner.lock().await;
+            let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+            let manager = loaded
+                .monitor
+                .extension_manager()
+                .ok_or("extensions_unavailable")?;
+            let action = manager.disable(id).map_err(|note| l10n_to_json(&note))?;
+            let index = loaded
+                .file
+                .config
+                .accounts
+                .iter()
+                .position(|account| account.extension_id() == Some(id));
+            (action, index)
+        };
+        self.emit(app).await;
+        if let Some(index) = index {
+            self.refresh_account(app, index).await?;
+        }
+        Ok(action)
+    }
+
+    pub async fn test_extension(
+        &self,
+        app: &AppHandle,
+        id: &str,
+    ) -> Result<cuotai_core::extensions::output::Checked, String> {
+        self.ensure_loaded().await;
+        let manager = {
+            let g = self.inner.lock().await;
+            g.loaded
+                .as_ref()
+                .and_then(|loaded| loaded.monitor.extension_manager().cloned())
+                .ok_or("extensions_unavailable")?
+        };
+        let checked = manager.test(id).await.map_err(|note| l10n_to_json(&note))?;
+        self.emit(app).await;
+        Ok(checked)
     }
 
     // ---------- edição de contas ----------
