@@ -1,5 +1,6 @@
 mod about_view;
 mod auth_ui;
+mod cost;
 mod dashboard;
 mod headless;
 mod models_view;
@@ -40,7 +41,13 @@ const HISTORY_SPARK_CELLS: usize = 60;
 #[derive(Parser)]
 #[command(
     version,
-    about = "Quota e consumo de AI: APIs e assinaturas, sem gerar tokens."
+    about = "Quota e consumo de AI: APIs e assinaturas, sem gerar tokens.",
+    // PRD 0015: one local cost action at a time, never with a query mode.
+    group(
+        clap::ArgGroup::new("cost")
+            .multiple(false)
+            .conflicts_with_all(["once", "json_v1", "history", "notify", "serve", "watch"])
+    )
 )]
 struct Args {
     /// Arquivo TOML (cria se ausente). Sem ele: CUOTAI_CONFIG, ./cuotai.toml existente,
@@ -141,6 +148,75 @@ struct Args {
     /// terminal: erro). Sem --jsonl, o stdout fica vazio.
     #[arg(long, requires = "watch")]
     hooks: bool,
+    /// Lista as fontes de custo local (Claude Code, Codex CLI): se estão
+    /// ligadas, os diretórios exatos que leem (ou leriam) e o que o índice
+    /// já segue; não lê logs. Com --json, em JSON. Tudo desligado por padrão.
+    #[arg(long, group = "cost")]
+    cost_sources: bool,
+    /// Liga a leitura dos logs locais de FONTE (claude_code ou codex_cli):
+    /// mostra exatamente quais diretórios serão lidos, para quê e que só
+    /// números (horário, modelo, contagens de tokens, resumo anônimo da
+    /// sessão) são extraídos, e pede confirmação no terminal. Nunca lê o
+    /// conteúdo das conversas.
+    #[arg(long, value_name = "FONTE", group = "cost")]
+    cost_enable: Option<String>,
+    /// Com --cost-enable, lê DIR em vez dos diretórios padrão (repetível);
+    /// sem ele, volta aos padrão.
+    #[arg(long, value_name = "DIR", requires = "cost_enable")]
+    cost_path: Vec<PathBuf>,
+    /// Desliga FONTE: nenhum log dela é lido e tudo o que foi derivado
+    /// dela é apagado do índice.
+    #[arg(long, value_name = "FONTE", group = "cost")]
+    cost_disable: Option<String>,
+    /// Apaga o índice local de custo inteiro (as fontes continuam ligadas
+    /// ou desligadas como estão).
+    #[arg(long, group = "cost")]
+    cost_erase: bool,
+    /// Lê agora, em primeiro plano, o que cresceu nos logs das fontes
+    /// ligadas e diz o que encontrou; com --json, em JSON. Saída 0; 2 se
+    /// nenhuma fonte está ligada ou uma ficou sem logs ou sem acesso; 1 em
+    /// erro local.
+    #[arg(long, group = "cost")]
+    cost_scan: bool,
+    /// Período do custo local mostrado: today, last_7_days (padrão),
+    /// last_30_days, current_month ou all.
+    #[arg(long, value_name = "PERÍODO", conflicts_with_all = COST_OPTION_CONFLICTS)]
+    cost_period: Option<String>,
+    /// Dias mantidos no índice de custo local (7 a 730; padrão 120).
+    #[arg(long, value_name = "DIAS", conflicts_with_all = COST_OPTION_CONFLICTS)]
+    cost_retention_days: Option<u32>,
+}
+
+/// `--cost-period`/`--cost-retention-days` only save preferences.
+const COST_OPTION_CONFLICTS: [&str; 8] = [
+    "cost", "once", "json", "json_v1", "history", "notify", "serve", "watch",
+];
+
+/// PRD 0015: the local cost action the flags ask for, if any.
+fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
+    use cost::CostAction;
+    if args.cost_sources {
+        return Some(CostAction::Sources);
+    }
+    if let Some(source) = args.cost_enable.take() {
+        let paths = std::mem::take(&mut args.cost_path);
+        return Some(CostAction::Enable { source, paths });
+    }
+    if let Some(source) = args.cost_disable.take() {
+        return Some(CostAction::Disable(source));
+    }
+    if args.cost_erase {
+        return Some(CostAction::Erase);
+    }
+    if args.cost_scan {
+        return Some(CostAction::Scan);
+    }
+    (args.cost_period.is_some() || args.cost_retention_days.is_some()).then(|| {
+        CostAction::Options {
+            period: args.cost_period.take(),
+            retention_days: args.cost_retention_days,
+        }
+    })
 }
 
 /// PRD 0011 RF5: public status queries are opt-in (`--status`, or
@@ -178,7 +254,7 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run() -> Result<u8, Box<dyn std::error::Error>> {
-    let args = match Args::try_parse() {
+    let mut args = match Args::try_parse() {
         Ok(args) => args,
         // `--help`/`--version` succeed; an invalid argument is a local error
         // (1), never the 2 that `--once`/`--json`/`--serve` keep for accounts.
@@ -196,6 +272,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             );
         }
         return Ok(0);
+    }
+    if let Some(action) = cost_action(&mut args) {
+        return Ok(cost::run(action, args.json, ui::tui_locale())?);
     }
     if let Some(account) = &args.history {
         let days = retention(Some(args.history_days.unwrap_or(HISTORY_DEFAULT_DAYS)))?.keep_days();
@@ -323,6 +402,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return Ok(code);
     }
     let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
+    // PRD 0015 RF2.2: the local cost index follows the logs of the sources
+    // that are on from a thread of its own while the TUI is open.
+    let _cost = cost::worker();
     ui::run(file, session, animations, retention, args.notify, status).await?;
     Ok(0)
 }

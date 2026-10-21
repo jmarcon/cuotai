@@ -324,6 +324,29 @@ dialog.hooks-confirm {
   user-select: text;
 }
 
+/* PRD 0015: Settings → Local cost and its disclosure dialog. */
+.cost-source {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cost-source code,
+.cost-dirs code {
+  font: 12px var(--font-mono);
+  word-break: break-all;
+  user-select: text;
+}
+dialog.cost-confirm,
+dialog.cost-off {
+  width: min(600px, calc(100vw - 32px));
+}
+.cost-dirs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 20px;
+}
+
 dialog.details {
   width: min(560px, calc(100vw - 32px));
 }

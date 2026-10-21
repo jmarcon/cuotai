@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-10-21
+
+### Added
+
+- Cuotai can follow the local session logs of Claude Code and Codex CLI to count tokens per day and per model, off until you turn a source on: `cuotai --cost-enable claude_code|codex_cli` (or the switch in the desktop's new **Settings → Local cost**) first shows exactly which directories are read, what for and that only numbers (time, model, token counts and an anonymous session digest) are extracted, and reads nothing before you confirm; the logs are indexed incrementally into a private `cost.sqlite3` by a low-priority background scan with limits per cycle that pauses in energy-saving mode and never delays the quota refresh, directories without access become a "no access" state, invalid lines are skipped and counted, conversation content is never read into the index, `--cost-sources`, `--cost-scan`, `--cost-period` and `--cost-retention-days` (120 days by default) list, scan and configure it, and `--cost-disable` or `--cost-erase` remove everything derived (PRD 0015 RF1, RF2).
+
 ## [0.56.0] - 2026-10-21
 
 ### Added
 
-- The desktop app runs hooks from **Settings → Integration**, off until you turn them on: an editor for the rules of the `hooks.toml` next to the accounts' file (name, events and the command as one field per argument; filters and time limits written by hand are kept), shared with `cuotai --watch --hooks`; turning hooks on, or saving changed rules while they are on, shows a dialog with the exact list of commands and nothing runs until you confirm it (a file edited outside the app asks again, also in a banner on the main window); the confirmed rules run on the events of the app's own readings with no extra query, a **Test** button fires a sample event marked `"sample": true` at a rule, the latest runs are listed from the local run log, and turning hooks off stops them; `cuotai-core` adds `hooks::Document` to read and save the rules over the revision read, `Rule::sample`, `Runner::submit_to` and `RunLog::latest` (PRD 0013 RF4).
+- The desktop app runs hooks from **Settings → Integration**, off until you turn them on: an editor for the rules of the `hooks.toml` next to the accounts' file (name, events and the command as one field per argument; filters and time limits written by hand are kept), shared with `cuotai --watch --hooks`; turning hooks on, or saving changed rules while they are on, shows a dialog with the exact list of commands and nothing runs until you confirm it (a file edited outside the app asks again, also in a banner on the main window); the confirmed rules run on the events of the app's own readings with no extra query, a **Test** button fires a sample event marked `"sample": true` at a rule, the latest runs are listed from the local run log, and turning hooks off stops them; `cuotai-core` adds `hooks::Document` to read and save the rules over the revision read, `Rule::sample`, `Runner::submit_to` and `RunLog::latest` (PRD 0013 RF4, 050c86a).
 
 ## [0.55.0] - 2026-10-21
 
@@ -486,8 +492,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/5ea7bd1...main
-[0.56.0]: https://github.com/jmarcon/cuotai/compare/5ea7bd1...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/050c86a...main
+[0.57.0]: https://github.com/jmarcon/cuotai/compare/050c86a...main
+[0.56.0]: https://github.com/jmarcon/cuotai/commit/050c86a
 [0.55.0]: https://github.com/jmarcon/cuotai/commit/5ea7bd1
 [0.54.0]: https://github.com/jmarcon/cuotai/commit/f6b3272
 [0.53.0]: https://github.com/jmarcon/cuotai/commit/28137a8

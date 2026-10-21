@@ -145,6 +145,13 @@ export const onHookRun = (cb) => {
   demoHookListeners.add(cb);
   return Promise.resolve(() => demoHookListeners.delete(cb));
 };
+// PRD 0015 RF1/RF2: local cost from the logs of command-line tools (off by default; the core's preferences, index and
+// background scan). `costEnable` sends the digest of the disclosure the dialog showed; each call answers the new state.
+export const costStatus = () => call("cost_status");
+export const costEnable = (source, digest) => call("cost_enable", { source, digest });
+export const costDisable = (source) => call("cost_disable", { source });
+export const costSetOptions = (period, retentionDays) => call("cost_set_options", { period, retentionDays });
+export const costErase = () => call("cost_erase");
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
   const n = view?.notify?.next;
@@ -897,6 +904,38 @@ const demoHistory = async ({ index, generation, range, metricKey }) => {
   return { range, from: new Date(from).toISOString(), to: new Date(to).toISOString(), recording: demoSettings.historyRecording,
     metrics: metricKey == null ? metrics : metrics.filter((m) => m.key === metricKey) };
 };
+// ponytail: the browser demo has no logs; two fixed sources play the core's disclosure, the consent by digest, turning
+// off (erasing what was derived), the period, the retention and the background scan's last summary. `?cost-paused`
+// plays a computer in energy-saving mode. Core texts keep their Portuguese fallback here (no core catalog in the demo).
+const DEMO_COST = {
+  claude_code: { label: "Claude Code", pattern: "**/*.jsonl", dirs: ["/Users/demo/.config/claude/projects", "/Users/demo/.claude/projects"], files: 12 },
+  codex_cli: { label: "Codex CLI", pattern: "**/rollout-*.jsonl", dirs: ["/Users/demo/.codex/sessions", "/Users/demo/.codex/archived_sessions"], files: 3 },
+};
+const DEMO_PERIODS = { today: "Hoje", last_7_days: "Últimos 7 dias", last_30_days: "Últimos 30 dias", current_month: "Mês atual", all: "Tudo o que está disponível" };
+const demoCost = { on: {}, period: "last_7_days", retention: 120, erased: new Set() };
+const demoDisclosure = (id) => {
+  const { label, pattern, dirs } = DEMO_COST[id];
+  return { source: id, label, directories: dirs, custom: false, pattern, digest: `demo-${id}-${dirs.length}`,
+    purpose: demoL10n("cost.disclosure.purpose", { source: label }, `Para estimar, só neste computador, os tokens e o custo a preços de API do uso do ${label} por dia e por modelo.`),
+    extracted: demoL10n("cost.disclosure.extracted", {}, "Só números são extraídos: o horário, o modelo, as contagens de tokens (entrada, saída, leitura e gravação de cache) e um resumo anônimo da sessão."),
+    never: demoL10n("cost.disclosure.never", {}, "O conteúdo das conversas, prompts, respostas, nomes de arquivos e caminhos de projetos nunca é lido para o índice, gravado nem exibido. Nada sai do computador."),
+    off: demoL10n("cost.disclosure.off", {}, "Desligar a fonte interrompe qualquer leitura e apaga tudo o que foi derivado dela.") };
+};
+const demoCostView = () => {
+  const sources = Object.entries(DEMO_COST).map(([id, s]) => {
+    const enabled = id in demoCost.on;
+    const files = enabled && !demoCost.erased.has(id) ? s.files : 0;
+    return { source: id, label: s.label, enabled, consented_at: demoCost.on[id] ?? null, disclosure: demoDisclosure(id),
+      indexed: { files, invalid_lines: files ? 2 : 0 },
+      summary: enabled ? demoL10n("cost.scan.ready", { source: s.label, files: String(s.files), requests: String(files ? 0 : 41), invalid: "2" },
+        `${s.label}: ${s.files} log(s); ${files ? 0 : 41} requisição(ões) nova(s); 2 linha(s) inválida(s) ignorada(s).`) : null };
+  });
+  const on = sources.some((s) => s.enabled);
+  return { sources, period: demoCost.period, periods: Object.entries(DEMO_PERIODS).map(([id, text]) => ({ id, label: demoL10n(`cost.period.${id}`, {}, text) })),
+    retention_days: demoCost.retention, retention_min: 7, retention_max: 730,
+    state: !on ? "off" : new URLSearchParams(location.search).has("cost-paused") ? "paused" : "waiting", error: null,
+    size: on ? 86016 : 0 };
+};
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -1014,6 +1053,24 @@ const demo = {
     if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token." });
     return demoSettings.serve.secret;
   },
+  cost_status: async () => demoCostView(),
+  cost_enable: async ({ source, digest }) => {
+    if (!DEMO_COST[source] || digest !== demoDisclosure(source).digest) {
+      throw JSON.stringify(demoL10n("cost.error.consent_changed", {}, "Os diretórios desta fonte mudaram desde que foram exibidos; revise e confirme de novo."));
+    }
+    demoCost.on[source] = new Date().toISOString();
+    demoCost.erased.delete(source);
+    return demoCostView();
+  },
+  cost_disable: async ({ source }) => { delete demoCost.on[source]; demoCost.erased.add(source); return demoCostView(); },
+  cost_set_options: async ({ period, retentionDays }) => {
+    if (!(Number.isInteger(retentionDays) && retentionDays >= 7 && retentionDays <= 730)) {
+      throw JSON.stringify(demoL10n("cost.error.retention_bounds", { min: "7", max: "730" }, "A retenção do índice de custo vai de 7 a 730 dias."));
+    }
+    Object.assign(demoCost, { period, retention: retentionDays });
+    return demoCostView();
+  },
+  cost_erase: async () => { for (const id of Object.keys(DEMO_COST)) demoCost.erased.add(id); return 57; },
   hooks_status: async () => demoHooksView(),
   set_hooks_enabled: async ({ on }) => { demoHooks.enabled = on; return demoHooksView(); },
   confirm_hooks: async ({ digest }) => {

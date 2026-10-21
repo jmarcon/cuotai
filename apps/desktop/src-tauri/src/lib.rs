@@ -3,6 +3,7 @@
 mod about;
 mod backend;
 mod hooks;
+mod local_cost;
 mod local_server;
 mod notify;
 mod settings;
@@ -646,6 +647,56 @@ async fn send_test_notification(
     notify::SystemNotifier(app).deliver(&clean_menu_line(&title), &clean_menu_line(&body))
 }
 
+/// PRD 0015 RF1/RF2: Settings → Local cost: each source with its
+/// disclosure, what the index follows and the last scan, the period and
+/// the retention.
+#[tauri::command]
+async fn cost_status(
+    cost: State<'_, local_cost::LocalCost>,
+) -> Result<local_cost::CostView, String> {
+    cost.view()
+}
+
+/// PRD 0015 RF1.1: turn `source` on after the user accepted the
+/// disclosure `digest` the dialog showed. Error: the core's
+/// `cost.error.*` text as JSON (`consent_changed` when the directories
+/// changed since).
+#[tauri::command]
+async fn cost_enable(
+    cost: State<'_, local_cost::LocalCost>,
+    source: cuotai_core::cost::SourceId,
+    digest: String,
+) -> Result<local_cost::CostView, String> {
+    cost.enable(source, &digest)
+}
+
+/// PRD 0015 RF2.4: turn `source` off and erase everything derived from it.
+#[tauri::command]
+async fn cost_disable(
+    cost: State<'_, local_cost::LocalCost>,
+    source: cuotai_core::cost::SourceId,
+) -> Result<local_cost::CostView, String> {
+    cost.disable(source)
+}
+
+/// PRD 0015 RF2.3: the period shown and the days the index keeps (7 to
+/// 730). Error: `cost.error.retention_bounds` as JSON.
+#[tauri::command]
+async fn cost_set_options(
+    cost: State<'_, local_cost::LocalCost>,
+    period: cuotai_core::cost::Period,
+    retention_days: u32,
+) -> Result<local_cost::CostView, String> {
+    cost.set_options(period, retention_days)
+}
+
+/// PRD 0015 RF2.4: erase the whole cost index after the confirmation the
+/// UI asked for. Returns the rows removed.
+#[tauri::command]
+async fn cost_erase(cost: State<'_, local_cost::LocalCost>) -> Result<usize, String> {
+    cost.erase()
+}
+
 /// PRD 0006 RF5.3: bytes the history file takes on this device.
 #[tauri::command]
 async fn history_size(b: Shared<'_>) -> Result<u64, String> {
@@ -802,6 +853,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(Arc::clone(&backend))
+        .manage(local_cost::LocalCost::new())
         .invoke_handler(tauri::generate_handler![
             get_view,
             refresh_all,
@@ -852,6 +904,11 @@ pub fn run() {
             confirm_hooks,
             save_hooks,
             test_hook,
+            cost_status,
+            cost_enable,
+            cost_disable,
+            cost_set_options,
+            cost_erase,
             history_size,
             account_history,
             set_notify_enabled,
@@ -932,6 +989,8 @@ pub fn run() {
                     }
                 });
             }
+            // PRD 0015 RF2.2: the local cost scan, on a thread of its own.
+            app.state::<local_cost::LocalCost>().start();
             backend.notify_hook_runs(app.handle().clone());
             tauri::async_runtime::spawn(Arc::clone(&backend).run_scheduler(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_notices(app.handle().clone()));

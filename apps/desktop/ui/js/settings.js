@@ -2,7 +2,7 @@
 import { te, t, tl, tle, currentLocale, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, currentSort, fmtNumber, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, testHook, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costSetOptions, costStatus, currentSort, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, testHook, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -77,6 +77,9 @@ export async function openSettings(extra = {}) {
         <p class="err" id="history-data-msg" role="status"></p>
       </section>
       ${privacySectionHtml(s, view)}
+      <section class="set-sec" data-cost><h3>${te("settings.cost.title")}</h3>
+        <p class="hint">${te("settings.cost.help")}</p>
+        <div data-cost-body><p class="hint">${te("common.loading")}</p></div></section>
       <section class="set-sec" data-integration><h3>${te("settings.serve.title")}</h3>
         <div data-serve><p class="hint">${te("common.loading")}</p></div>
         <div data-hooks><p class="hint">${te("common.loading")}</p></div></section>
@@ -139,6 +142,7 @@ export async function openSettings(extra = {}) {
       (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#status-msg").textContent = errorText(x); });
     bindIntegration(dlg.querySelector("[data-serve]"), extra);
     bindHooks(dlg.querySelector("[data-hooks]"), extra);
+    bindCost(dlg.querySelector("[data-cost-body]"));
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -224,6 +228,114 @@ function bindHistory(dlg) {
     catch (e) { report(l10nError(e), false); }
     showSize();
   };
+}
+
+/** PRD 0015 RF1/RF2: local cost from the logs of command-line tools, off by default. Per source a switch that first
+ *  shows the core's disclosure (exactly the directories read, what for, and that only numbers are extracted) and turns
+ *  on with its digest; turning off confirms that everything derived is erased. Then the period, the index retention,
+ *  its size and its erasure; the state the core's background scan last reported (paused while saving energy). */
+function costHtml(cv) {
+  const state = { starting: "settings.cost.state.starting", scanning: "settings.cost.state.scanning", paused: "settings.cost.state.paused" }[cv.state];
+  const sources = cv.sources.map((s) => `<div class="cost-source" data-cost-source="${esc(s.source)}">
+        <label class="check"><input type="checkbox" data-cost-toggle="${esc(s.source)}" ${s.enabled ? "checked" : ""} /> ${te("settings.cost.read", { source: s.label })}</label>
+        <p class="hint" data-cost-state>${s.enabled ? te("settings.cost.since", { at: fmtReset(s.consented_at) ?? "—" }) : te("settings.cost.off")}</p>
+        <p class="hint">${te("settings.cost.dirs", { pattern: s.disclosure.pattern })} ${s.disclosure.directories.map((d) => `<code>${esc(d)}</code>`).join(", ")}</p>
+        ${s.enabled && s.summary ? `<p class="hint" data-cost-summary>${tle(s.summary)}</p>` : ""}
+        ${s.enabled ? `<p class="hint" data-cost-indexed>${te("settings.cost.indexed", { files: s.indexed.files, invalid: s.indexed.invalid_lines })}</p>` : ""}
+      </div>`).join("");
+  return `${sources}
+        ${state ? `<p class="hint${cv.state === "paused" ? " warn-txt" : ""}" data-cost-worker role="status">${te(state)}</p>` : ""}
+        ${cv.error ? `<p class="hint warn-txt" role="alert">${tle(cv.error)}</p>` : ""}
+        <label class="f"><span>${te("settings.cost.period")}</span>
+          <select id="cost-period">${cv.periods.map((p) => `<option value="${esc(p.id)}" ${p.id === cv.period ? "selected" : ""}>${tle(p.label)}</option>`).join("")}</select></label>
+        <label class="f"><span>${te("settings.cost.retention")}</span>
+          <input id="cost-retention" type="number" inputmode="numeric" min="${cv.retention_min}" max="${cv.retention_max}" step="1" value="${esc(cv.retention_days)}" />
+          <small>${te("settings.cost.retentionRange", { min: cv.retention_min, max: cv.retention_max })}</small></label>
+        <div class="dlg-actions left"><button class="btn primary" data-cost-save>${te("settings.cost.save")}</button></div>
+        <p class="hint" data-cost-size>${te("settings.cost.size", { size: fmtBytes(cv.size) })}</p>
+        <div class="dlg-actions left"><button class="btn danger-btn" data-cost-erase>${icon("trash")} ${te("settings.cost.erase")}</button></div>
+        <div class="confirm" id="cost-erase-confirm" role="alertdialog" aria-labelledby="cost-erase-text" hidden>
+          <p id="cost-erase-text">${te("settings.cost.eraseText")}</p>
+          <div class="dlg-actions left"><button class="btn danger-btn" data-cost-erase-confirm>${te("settings.cost.eraseConfirm")}</button>
+            <button class="btn" data-cost-erase-cancel>${te("common.cancel")}</button></div>
+        </div>
+        <p class="err" id="cost-msg" role="alert"></p>`;
+}
+
+/** Paints the section from the backend's state and binds it; while a scan is under way it reads the state again. */
+async function bindCost(box) {
+  let cv;
+  try { cv = await costStatus(); } catch (e) { box.querySelector(".hint").textContent = l10nError(e); return; }
+  let timer = null;
+  const paint = (next, message = "", ok = false) => {
+    cv = next;
+    clearTimeout(timer);
+    box.innerHTML = costHtml(cv);
+    const msg = box.querySelector("#cost-msg");
+    msg.classList.toggle("ok", ok);
+    msg.textContent = message;
+    const run = (work, done = () => "") => work().then((answer) => paint(answer, done(), true), (e) => paint(cv, l10nError(e)));
+    for (const input of box.querySelectorAll("[data-cost-toggle]")) input.onchange = async () => {
+      const source = cv.sources.find((s) => s.source === input.dataset.costToggle);
+      input.checked = source.enabled; // only the confirmed answer changes it
+      if (!source.enabled) {
+        if (await confirmDisclosure(source.disclosure)) run(() => costEnable(source.source, source.disclosure.digest));
+      } else if (await confirmCostOff(source)) run(() => costDisable(source.source));
+    };
+    box.querySelector("[data-cost-save]").onclick = () => run(
+      () => costSetOptions(box.querySelector("#cost-period").value, Number(box.querySelector("#cost-retention").value)),
+      () => t("settings.cost.saved"));
+    const confirm = box.querySelector("#cost-erase-confirm");
+    box.querySelector("[data-cost-erase]").onclick = () => { confirm.hidden = false; confirm.querySelector("[data-cost-erase-cancel]").focus(); };
+    confirm.querySelector("[data-cost-erase-cancel]").onclick = () => { confirm.hidden = true; box.querySelector("[data-cost-erase]").focus(); };
+    confirm.querySelector("[data-cost-erase-confirm]").onclick = async () => {
+      try {
+        const count = await costErase();
+        paint(await costStatus(), t("settings.cost.erased", { count }), true);
+      } catch (e) { paint(cv, l10nError(e)); }
+    };
+    // The background scan answers after the change: read its state again until it settles.
+    const settled = ["paused", "failed"].includes(cv.state);
+    const busy = ["starting", "scanning"].includes(cv.state) || (!settled && cv.sources.some((s) => s.enabled && !s.summary));
+    if (busy) timer = setTimeout(() => { if (box.isConnected) costStatus().then((answer) => paint(answer, msg.textContent, msg.classList.contains("ok")), () => {}); }, 1000);
+  };
+  paint(cv);
+}
+
+/** RF1.1: the core's disclosure of one source before it is turned on; resolves to the user's answer. */
+function confirmDisclosure(d) {
+  return askDialog("cost-confirm", te("settings.cost.confirm.title", { source: d.label }), `<p>${tle(d.purpose)}</p>
+      <p>${te("settings.cost.confirm.dirs", { pattern: d.pattern })}</p>
+      <ul class="cost-dirs" data-cost-dirs>${d.directories.map((dir) => `<li><code>${esc(dir)}</code></li>`).join("")}</ul>
+      <p>${tle(d.extracted)}</p>
+      <p class="hint">${tle(d.never)}</p>
+      <p class="hint">${tle(d.off)}</p>`, te("settings.cost.confirm.yes"));
+}
+
+/** RF2.4: turning a source off erases everything derived from it; resolves to the user's answer. */
+function confirmCostOff(s) {
+  return askDialog("cost-off", te("settings.cost.disable.title", { source: s.label }),
+    `<p>${te("settings.cost.disable.text", { source: s.label })}</p>`, te("settings.cost.disable.yes"));
+}
+
+/** A modal question with Cancel focused first; resolves `true` only for the confirming button. */
+function askDialog(id, title, body, yes) {
+  return new Promise((resolve) => {
+    const d = document.createElement("dialog");
+    d.className = `dlg ${id}`;
+    d.setAttribute("role", "alertdialog");
+    d.setAttribute("aria-labelledby", `${id}-title`);
+    d.innerHTML = `<div class="dlg-body"><h2 id="${id}-title">${title}</h2>${body}
+      <div class="dlg-actions"><button class="btn" data-ask-no>${te("common.cancel")}</button>
+        <button class="btn danger-btn" data-ask-yes>${yes}</button></div></div>`;
+    document.body.append(d);
+    let answer = false;
+    d.addEventListener("close", () => { d.remove(); resolve(answer); }, { once: true });
+    d.querySelector("[data-ask-yes]").onclick = () => { answer = true; d.close(); };
+    d.querySelector("[data-ask-no]").onclick = () => d.close();
+    showDialog(d);
+    d.querySelector("[data-ask-no]").focus();
+  });
 }
 
 /** PRD 0011 RF4.3: public provider status queries, off until the user turns them on, with what they reveal and the

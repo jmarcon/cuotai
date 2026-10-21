@@ -253,7 +253,7 @@ fn span(range: impl RangeBounds<DateTime<Utc>>) -> (i64, i64) {
 /// Switch the file to WAL (persistent, so once per file). SQLite answers a
 /// journal-mode change racing another first open with `BUSY` without
 /// consulting the busy handler, so retry it within [`BUSY_TIMEOUT`].
-fn wal(db: &Connection) -> rusqlite::Result<()> {
+pub(crate) fn wal(db: &Connection) -> rusqlite::Result<()> {
     let mode =
         |db: &Connection| db.query_row("PRAGMA journal_mode", [], |row| row.get::<_, String>(0));
     if mode(db)?.eq_ignore_ascii_case("wal") {
@@ -277,7 +277,7 @@ fn wal(db: &Connection) -> rusqlite::Result<()> {
 /// Apply the steps of `migrations` the file has not seen yet, inside one
 /// `BEGIN IMMEDIATE` so concurrent first opens migrate once. A file from a
 /// newer Cuotai (a higher `user_version`) is rejected, never guessed at.
-fn migrate(db: &mut Connection, migrations: &[&str]) -> Result<(), HistoryError> {
+pub(crate) fn migrate(db: &mut Connection, migrations: &[&str]) -> Result<(), HistoryError> {
     let latest = i64::try_from(migrations.len()).map_err(|_| HistoryError::Storage)?;
     let version =
         |db: &Connection| db.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0));
