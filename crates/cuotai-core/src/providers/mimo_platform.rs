@@ -30,7 +30,7 @@
 //! `/balance` é obrigatório (como no CodexBar); os dois de tokenPlan são
 //! complementares — falha neles degrada para nota, nunca para zero inventado.
 
-use super::{send as secure_send, Context, Data, QueryError};
+use super::{Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Metric, MetricKind, MetricWindow, Status};
 use chrono::{DateTime, Utc};
@@ -113,11 +113,13 @@ async fn get(
         .header("Referer", format!("{PLATFORM_ORIGIN}/"))
         .header("User-Agent", PLATFORM_UA)
         .timeout(ctx.timeout);
-    let response = secure_send(request).await?;
+    // A redirect (the login flow of an expired session) is refused by
+    // `send_session` and never followed.
+    let response =
+        super::send_session(request, crate::Provider::XiaomiMimo, "platform_session_env").await?;
     let status = response.status().as_u16();
     match status {
-        // Sessão expirada redireciona para o fluxo de login (3xx) ou 401.
-        s @ (300..=399 | 401) => {
+        s @ 401 => {
             return Err(QueryError {
                 status: Status::AuthenticationError,
                 note: Localized::with_params(

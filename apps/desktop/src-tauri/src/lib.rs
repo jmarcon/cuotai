@@ -121,6 +121,27 @@ async fn migrate_session(
     b.migrate_session(&app, index).await
 }
 
+/// PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), before it is
+/// saved; never the value.
+#[tauri::command]
+fn preview_session(
+    provider: Provider,
+    slot: String,
+    paste: String,
+) -> Result<backend::SessionPreview, String> {
+    backend::preview_session(provider, &slot, paste)
+}
+
+/// PRD 0016 RF2.1: one read-only query of the dialog's draft with its pasted
+/// sessions; nothing is stored.
+#[tauri::command]
+async fn test_session(
+    b: Shared<'_>,
+    input: AccountInput,
+) -> Result<backend::SessionTestView, String> {
+    b.test_session(input).await
+}
+
 #[tauri::command]
 async fn save_account(
     app: AppHandle,
@@ -912,6 +933,8 @@ pub fn run() {
             draft_access,
             get_account,
             migrate_session,
+            preview_session,
+            test_session,
             save_account,
             delete_account,
             retry_purge,

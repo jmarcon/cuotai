@@ -399,6 +399,7 @@ mod tests {
             notes: vec![],
             notes_l10n: vec![],
             source: "test".into(),
+            session_expires_at: None,
         };
         let snapshot = Snapshot {
             started_at: at,

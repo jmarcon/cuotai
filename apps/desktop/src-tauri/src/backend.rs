@@ -401,6 +401,9 @@ pub struct ReportView {
     /// PRD 0011 RF4.1: the provider's public status, while status queries
     /// are on and the provider has a verified source.
     incident: Option<IncidentView>,
+    /// PRD 0016 RF3.2: the known expiry of the web session the query used
+    /// ("expires in N days" on the card), never its value.
+    session_expiry: Option<user_session::SessionExpiry>,
 }
 
 /// The core's provider status plus its state's text.
@@ -603,6 +606,7 @@ fn report_view(
         notify: true,
         usage_alerts: Vec::new(),
         incident: None,
+        session_expiry: user_session::report_expiry(report, now),
     }
 }
 
@@ -1679,6 +1683,21 @@ impl Backend {
         input: AccountInput,
     ) -> Result<SaveAccountResult, String> {
         self.ensure_loaded().await;
+        let (refresh_target, cleanup_warning) = self.drive_save_account(input).await?;
+        self.emit(app).await;
+        if let Some(index) = refresh_target {
+            self.refresh_account(app, index).await?;
+        }
+        Ok(SaveAccountResult { cleanup_warning })
+    }
+
+    /// Testable half of [`Backend::save_account`]: the vault (a committed
+    /// login, PRD 0016 pasted sessions), the TOML and the staged runtime;
+    /// returns the account to refresh and a cleanup warning.
+    pub(crate) async fn drive_save_account(
+        &self,
+        input: AccountInput,
+    ) -> Result<(Option<usize>, Option<cuotai_core::text::Localized>), String> {
         // Everything below runs under ONE inner.lock so a concurrent
         // refresh / scheduler tick cannot observe a half-applied edit.
         // The commit path holds the lock across `commit_login`'s vault
@@ -1686,10 +1705,7 @@ impl Backend {
         // desktop is single-user with a modal dialog, and keeping the
         // lock avoids any half-applied window between the vault and
         // TOML stages.
-        let (refresh_target, cleanup_warning): (
-            Option<usize>,
-            Option<cuotai_core::text::Localized>,
-        ) = {
+        let saved: (Option<usize>, Option<cuotai_core::text::Localized>) = {
             let mut g = self.inner.lock().await;
             // Split borrows: pending login, session and loaded config are
             // disjoint fields.
@@ -1729,83 +1745,53 @@ impl Backend {
                 .filter(|_| input.commit_login)
                 .and_then(|p| p.completed.as_ref());
             let config = &l.file.config;
-            let existing = input.index.and_then(|i| config.accounts.get(i));
-            let had_oauth = existing
-                .filter(|a| a.provider == input.provider)
-                .is_some_and(|a| a.oauth.is_some());
-            let selected_mode = if input.auth_mode == "credential" {
-                None
-            } else {
-                Some(
-                    login::login_mode(input.provider, &input.auth_mode)
-                        .ok_or("Modo de autenticação não oferecido para este provedor.")?,
-                )
-            };
-            let vault_mode = selected_mode.as_ref().is_some_and(|mode| {
-                mode.credential_store == login::LoginCredentialStore::CuotaiVault
-            });
-            let oauth_existing = if vault_mode && had_oauth {
-                existing
-                    .filter(|a| a.provider == input.provider)
-                    .and_then(|a| a.oauth.as_ref())
-                    .cloned()
-            } else {
-                None
-            };
-            let oauth_mode = vault_mode && (completed.is_some() || oauth_existing.is_some());
-            if login_needed_before_save(selected_mode.as_ref(), oauth_mode) {
-                return Err(
-                    "Conclua o login antes de salvar (ou volte para a credencial manual).".into(),
-                );
-            }
-            let fields = draft_fields(input.provider, &input.fields);
-            let oauth_login_params = completed.map(|c| c.params.clone()).unwrap_or_default();
-            let (credential, credential_params) = if let Some(mode) = &selected_mode {
-                login::account_login_inputs(
-                    input.provider,
-                    &mode.id,
-                    &input.credential,
-                    &input.auth_options,
-                    &input.auth_params,
-                    input.commit_login,
-                )
-                .map_err(|error| error.to_string())?
-            } else {
-                (input.credential.clone(), None)
-            };
-            let draft = AccountDraft {
-                provider: input.provider,
-                name: &input.name,
-                credential: &credential,
-                auth_mode: &input.auth_mode,
-                oauth_mode,
-                oauth_existing: oauth_existing.as_ref(),
-                oauth_authorized: completed.map(|c| c.config.clone()),
-                oauth_login_params,
-                existing_params: None,
-                credential_params,
-                fields: &fields,
-                interval_text: &input.interval,
-            };
-            let account =
-                build_account(&draft, config, input.index).map_err(|e| l10n_to_json(&e.l10n()))?;
+            let account = input_account(config, &input, completed)?;
             let updated = config
                 .upsert_account(account, input.index)
                 .map_err(|e| l10n_to_json(&e.l10n()))?;
             let prev = config.clone();
             let edit_index = input.index.unwrap_or(prev.accounts.len());
+            // PRD 0016 RF2/RF3.4: the pasted sessions, reduced by the core,
+            // reach the vault first (an existing reference keeps its entry);
+            // every later failure takes them out again.
+            let vault = session.clone();
+            let pasted = reduce_pastes(input.provider, &input.sessions)?;
+            let staged_paste = if pasted.is_empty() {
+                None
+            } else {
+                let vault = vault.as_deref().ok_or("Sessão OAuth não inicializada.")?;
+                Some(
+                    user_session::stage_pasted(vault, &updated, edit_index, &pasted)
+                        .await
+                        .map_err(|note| l10n_to_json(&note))?,
+                )
+            };
+            drop(pasted);
+            let updated = staged_paste
+                .as_ref()
+                .map_or(updated, |staged| staged.config().clone());
             // Stage the new cycle on a copy so a structural-diff rejection
             // (e.g. reorder) leaves the live state untouched.
             let mut staged = l.cycle.clone_state_for_edit();
-            let due = staged
-                .apply_edit(&prev, &updated, Edit::Upsert(edit_index), Instant::now())
-                .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))?;
+            let due = match staged.apply_edit(
+                &prev,
+                &updated,
+                Edit::Upsert(edit_index),
+                Instant::now(),
+            ) {
+                Ok(due) => due,
+                Err(e) => {
+                    undo_paste(vault.as_deref(), staged_paste).await;
+                    return Err(l10n_to_json(&refresh_edit_error(&e)));
+                }
+            };
             let refresh_target = due.first().copied();
             // Build the new monitor. A failure here means the config is
             // structurally invalid; we abort before touching disk.
             let new_monitor = match l.monitor.with_config(updated.clone()) {
                 Ok(m) => Arc::new(m),
                 Err(e) => {
+                    undo_paste(vault.as_deref(), staged_paste).await;
                     return Err(l10n_to_json(&cuotai_core::edit_error::config_error_note(
                         &e,
                     )));
@@ -1828,6 +1814,7 @@ impl Backend {
                         ));
                     }
                     login::LoginCommitOutcome::PartialFailure(failure) => {
+                        undo_paste(vault.as_deref(), staged_paste).await;
                         let wrapped = format!(
                             "{} A autorização continua em memória: clique em Salvar novamente para concluir sem refazer o login.",
                             failure.message
@@ -1839,6 +1826,7 @@ impl Backend {
                     }
                 }
             } else if let Err(e) = l.file.save(updated.clone()) {
+                undo_paste(vault.as_deref(), staged_paste).await;
                 return Err(edit_error_to_json(&e));
             }
             // Persistido: pendente consumido (committed credential ou modo
@@ -1871,11 +1859,7 @@ impl Backend {
             *generation = l.generation;
             (refresh_target, cleanup_warning)
         };
-        self.emit(app).await;
-        if let Some(index) = refresh_target {
-            self.refresh_account(app, index).await?;
-        }
-        Ok(SaveAccountResult { cleanup_warning })
+        Ok(saved)
     }
 
     /// `purge_credentials`: apagar também a credencial OAuth do cofre do sistema. O core decide se pode (credencial
@@ -2444,6 +2428,35 @@ impl Backend {
         })
     }
 
+    /// PRD 0016 RF2.1: one read-only query of the dialog's draft with its
+    /// pasted sessions, before anything is saved. Nothing reaches the vault,
+    /// the TOML or the history.
+    pub async fn test_session(&self, input: AccountInput) -> Result<SessionTestView, String> {
+        self.ensure_loaded().await;
+        let pasted = reduce_pastes(input.provider, &input.sessions)?;
+        if pasted.is_empty() {
+            return Err("Cole uma sessão antes de testar.".into());
+        }
+        let (account, monitor) = {
+            let g = self.inner.lock().await;
+            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let completed = g
+                .login
+                .as_ref()
+                .filter(|p| {
+                    input.commit_login
+                        && p.provider == input.provider
+                        && p.index == input.index
+                        && p.attempt == input.login_attempt
+                })
+                .and_then(|p| p.completed.as_ref());
+            let account = input_account(&l.file.config, &input, completed)?;
+            (account, Arc::clone(&l.monitor))
+        };
+        let report = monitor.test_session(&account, &pasted).await;
+        Ok(SessionTestView::from_report(&report))
+    }
+
     /// PRD 0016 RF1.2: after the dialog's explicit confirmation, move the
     /// saved account's `session_env`-style variables into the system vault.
     /// Returns the account's refreshed form.
@@ -2502,7 +2515,7 @@ impl Backend {
         let (due, new_monitor) = match runtime {
             Ok(runtime) => runtime,
             Err(error) => {
-                let _ = user_session::rollback_migration(&session, staged).await;
+                let _ = user_session::rollback(&session, staged).await;
                 return Err(error);
             }
         };
@@ -2911,6 +2924,23 @@ pub struct AccountInput {
     pub auth_options: BTreeMap<String, String>,
     #[serde(default)]
     pub auth_params: BTreeMap<String, String>,
+    /// PRD 0016 RF2: sessions pasted in the dialog, by slot. The core
+    /// reduces them before anything else; the text is never logged or kept.
+    #[serde(default)]
+    pub sessions: Vec<SessionPasteInput>,
+}
+
+/// One pasted session of the dialog; the text is overwritten when dropped.
+#[derive(Deserialize)]
+pub struct SessionPasteInput {
+    pub slot: String,
+    pub paste: String,
+}
+
+impl Drop for SessionPasteInput {
+    fn drop(&mut self) {
+        user_session::wipe(&mut self.paste);
+    }
 }
 
 #[derive(Serialize)]
@@ -2976,6 +3006,155 @@ pub fn providers() -> Vec<ProviderInfo> {
             .label(),
         })
         .collect()
+}
+
+/// PRD 0016 RF2.2: the dialog's non-empty pastes reduced by the core to the
+/// cookies each slot accepts; the first one it refuses is the error (it
+/// names cookies, never values).
+fn reduce_pastes(
+    provider: Provider,
+    pastes: &[SessionPasteInput],
+) -> Result<Vec<user_session::ReducedSession>, String> {
+    pastes
+        .iter()
+        .filter(|paste| !paste.paste.trim().is_empty())
+        .map(|paste| {
+            user_session::reduce(provider, &paste.slot, &paste.paste, chrono::Utc::now())
+                .map_err(|note| l10n_to_json(&note))
+        })
+        .collect()
+}
+
+/// Take a staged paste back out of the vault after the save failed.
+async fn undo_paste(vault: Option<&OAuthSession>, staged: Option<user_session::StagedSession>) {
+    if let (Some(vault), Some(staged)) = (vault, staged) {
+        let _ = user_session::rollback(vault, staged).await;
+    }
+}
+
+/// The account the dialog describes, built by the core against `config`
+/// (`completed`: the login this save commits, if any).
+fn input_account(
+    config: &Config,
+    input: &AccountInput,
+    completed: Option<&CompletedLogin>,
+) -> Result<cuotai_core::Account, String> {
+    let existing = input.index.and_then(|i| config.accounts.get(i));
+    let had_oauth = existing
+        .filter(|a| a.provider == input.provider)
+        .is_some_and(|a| a.oauth.is_some());
+    let selected_mode = if input.auth_mode == "credential" {
+        None
+    } else {
+        Some(
+            login::login_mode(input.provider, &input.auth_mode)
+                .ok_or("Modo de autenticação não oferecido para este provedor.")?,
+        )
+    };
+    let vault_mode = selected_mode
+        .as_ref()
+        .is_some_and(|mode| mode.credential_store == login::LoginCredentialStore::CuotaiVault);
+    let oauth_existing = if vault_mode && had_oauth {
+        existing
+            .filter(|a| a.provider == input.provider)
+            .and_then(|a| a.oauth.as_ref())
+            .cloned()
+    } else {
+        None
+    };
+    let oauth_mode = vault_mode && (completed.is_some() || oauth_existing.is_some());
+    if login_needed_before_save(selected_mode.as_ref(), oauth_mode) {
+        return Err("Conclua o login antes de salvar (ou volte para a credencial manual).".into());
+    }
+    let fields = draft_fields(input.provider, &input.fields);
+    let oauth_login_params = completed.map(|c| c.params.clone()).unwrap_or_default();
+    let (credential, credential_params) = if let Some(mode) = &selected_mode {
+        login::account_login_inputs(
+            input.provider,
+            &mode.id,
+            &input.credential,
+            &input.auth_options,
+            &input.auth_params,
+            input.commit_login,
+        )
+        .map_err(|error| error.to_string())?
+    } else {
+        (input.credential.clone(), None)
+    };
+    let draft = AccountDraft {
+        provider: input.provider,
+        name: &input.name,
+        credential: &credential,
+        auth_mode: &input.auth_mode,
+        oauth_mode,
+        oauth_existing: oauth_existing.as_ref(),
+        oauth_authorized: completed.map(|c| c.config.clone()),
+        oauth_login_params,
+        existing_params: None,
+        credential_params,
+        fields: &fields,
+        interval_text: &input.interval,
+    };
+    build_account(&draft, config, input.index).map_err(|e| l10n_to_json(&e.l10n()))
+}
+
+/// PRD 0016 RF2.1: what the dialog shows of a paste before it is saved:
+/// the kept names, the discarded count and the expiry, never a value.
+#[derive(Serialize)]
+pub struct SessionPreview {
+    summary: cuotai_core::text::Localized,
+    kept: Vec<&'static str>,
+    discarded: usize,
+    expiry: Option<user_session::SessionExpiry>,
+}
+
+pub fn preview_session(
+    provider: Provider,
+    slot: &str,
+    mut paste: String,
+) -> Result<SessionPreview, String> {
+    let now = chrono::Utc::now();
+    let reduced = user_session::reduce(provider, slot, &paste, now);
+    user_session::wipe(&mut paste);
+    let reduced = reduced.map_err(|note| l10n_to_json(&note))?;
+    Ok(SessionPreview {
+        summary: reduced.summary(now),
+        kept: reduced.kept().to_vec(),
+        discarded: reduced.discarded(),
+        expiry: reduced.expires_at().map(|at| user_session::expiry(at, now)),
+    })
+}
+
+/// PRD 0016 RF2.1: the outcome of the dialog's read-only session test.
+#[derive(Serialize)]
+pub struct SessionTestView {
+    ok: bool,
+    status: cuotai_core::text::Localized,
+    note: Option<cuotai_core::text::Localized>,
+    metrics: usize,
+    expiry: Option<user_session::SessionExpiry>,
+}
+
+impl SessionTestView {
+    fn from_report(report: &Report) -> Self {
+        Self {
+            ok: report.status == Status::Ready,
+            status: cuotai_core::text::status_l10n(report.status),
+            note: report.notes_l10n.first().cloned(),
+            metrics: report.metrics.len(),
+            expiry: user_session::report_expiry(report, chrono::Utc::now()),
+        }
+    }
+}
+
+/// PRD 0016 RF2.1: one session slot the dialog offers to paste: what it is,
+/// where to copy it from and the only hosts that receive it.
+#[derive(Serialize)]
+pub struct SessionSlotSchema {
+    slot: &'static str,
+    label: cuotai_core::text::Localized,
+    instructions: cuotai_core::text::Localized,
+    hosts: &'static [&'static str],
 }
 
 /// The dialog's values in the core draft shape; unknown keys and values of
@@ -3092,6 +3271,8 @@ pub struct FormSchema {
     credential_help: cuotai_core::text::Localized,
     fields: Vec<FieldSchema>,
     login: ProviderLoginSchema,
+    /// PRD 0016 RF2.1: the sessions the provider accepts (empty for most).
+    sessions: Vec<SessionSlotSchema>,
 }
 
 fn login_option_schema(
@@ -3144,6 +3325,15 @@ pub fn form_schema(provider: Provider) -> FormSchema {
         credential_kind: account_edit::credential_kind(provider),
         default_env: default_env(provider),
         credential_help: credential_help(provider),
+        sessions: user_session::descriptors(provider)
+            .iter()
+            .map(|descriptor| SessionSlotSchema {
+                slot: descriptor.slot,
+                label: descriptor.label(),
+                instructions: descriptor.instructions(),
+                hosts: descriptor.hosts,
+            })
+            .collect(),
         login: ProviderLoginSchema {
             modes: login
                 .modes
@@ -3384,6 +3574,7 @@ mod tests {
                 notes: vec![],
                 notes_l10n: vec![],
                 source: "teste".into(),
+                session_expires_at: None,
             })
             .collect();
         let snapshot = cuotai_core::Snapshot {
@@ -3437,6 +3628,7 @@ mod tests {
             notes: vec![],
             notes_l10n: vec![],
             source: "teste".into(),
+            session_expires_at: None,
         }
     }
 
@@ -4397,6 +4589,105 @@ mod tests {
                 .map(String::as_str),
             Some(env)
         );
+    }
+
+    /// The dialog's save of the MiMo account at 0 with `paste` in its
+    /// platform session slot.
+    fn pasted_input(paste: &str) -> AccountInput {
+        AccountInput {
+            index: Some(0),
+            provider: Provider::XiaomiMimo,
+            name: "MiMo".into(),
+            credential: "XIAOMI_MIMO_API_KEY".into(),
+            fields: Vec::new(),
+            interval: String::new(),
+            commit_login: false,
+            login_attempt: 0,
+            auth_mode: "credential".into(),
+            auth_options: BTreeMap::new(),
+            auth_params: BTreeMap::new(),
+            sessions: vec![SessionPasteInput {
+                slot: "platform_session_env".into(),
+                paste: paste.into(),
+            }],
+        }
+    }
+
+    // PRD 0016 RF2/RF3.4: the dialog's paste reaches the vault reduced to the
+    // accepted cookies, and a second paste replaces it in the same entry.
+    #[tokio::test(flavor = "current_thread")]
+    async fn save_account_stores_only_the_reduced_paste_and_replaces_it_in_place() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![session_env_account("MIMO_COOKIE")]).await;
+        backend
+            .inner
+            .drive_save_account(pasted_input(
+                "Cookie: api-platform_serviceToken=DESKTOP-SECRET; userId=1; _ga=TRACKER",
+            ))
+            .await
+            .unwrap();
+        let values = || -> Vec<String> {
+            store
+                .entries
+                .lock()
+                .values()
+                .map(|token| token.access_token.clone())
+                .collect()
+        };
+        assert_eq!(
+            values(),
+            ["api-platform_serviceToken=DESKTOP-SECRET; userId=1"]
+        );
+        let text = std::fs::read_to_string(backend.file_path().await).unwrap();
+        for absent in ["DESKTOP-SECRET", "TRACKER", "MIMO_COOKIE"] {
+            assert!(!text.contains(absent), "{absent}: {text}");
+        }
+        let reference = backend.loaded_config().await.accounts[0].session.clone();
+        assert!(reference.is_some());
+
+        backend
+            .inner
+            .drive_save_account(pasted_input(
+                "curl 'https://platform.xiaomimimo.com/' -b 'userId=1; api-platform_serviceToken=RENEWED'",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(values(), ["api-platform_serviceToken=RENEWED; userId=1"]);
+        let config = backend.loaded_config().await;
+        assert_eq!(config.accounts.len(), 1);
+        assert_eq!(config.accounts[0].session, reference);
+    }
+
+    // A paste the core refuses writes nothing; a save refused after the vault
+    // write (the file changed on disk) takes the entry out again.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_refused_paste_or_save_leaves_the_vault_untouched() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![session_env_account("MIMO_COOKIE")]).await;
+        let error = backend
+            .inner
+            .drive_save_account(pasted_input("userId=1; tracking=DESKTOP-SECRET"))
+            .await
+            .unwrap_err();
+        assert!(error.contains("user_session.paste.missing"), "{error}");
+        assert!(!error.contains("DESKTOP-SECRET"), "{error}");
+
+        let path = backend.file_path().await;
+        let external = format!(
+            "{}\n# edited elsewhere\n",
+            std::fs::read_to_string(&path).unwrap()
+        );
+        std::fs::write(&path, external).unwrap();
+        let error = backend
+            .inner
+            .drive_save_account(pasted_input(
+                "api-platform_serviceToken=DESKTOP-SECRET; userId=1",
+            ))
+            .await
+            .unwrap_err();
+        assert!(error.contains("edit_error.conflict"), "{error}");
+        assert!(store.entries.lock().is_empty());
+        assert!(backend.loaded_config().await.accounts[0].session.is_none());
     }
 
     // RF1.2: desktop precedence env > chosen > OS, never `./cuotai.toml`;

@@ -75,6 +75,10 @@ const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
 /** PRD 0016 RF1.2: move the account's session variables into the system vault (after an explicit confirmation). */
 export const migrateSession = (index) => call("migrate_session", { index });
+/** PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), never the value. */
+export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
+/** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
+export const testSession = (input) => call("test_session", { input });
 export const saveAccount = (input) => call("save_account", { input });
 export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
 /// RF4: re-read the configuration from disk and rebuild the live
@@ -640,9 +644,17 @@ const demoReports = [
   // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
   { ...dr("Restored", "chat_gpt", []), pending: true, class: "unmeasured", checked_at: ago(180),
     last_good: { checked_at: ago(180), metrics: [dm("5h", 30, 100, 2, "quota", "window_5h", "%")] } },
-  // PRD 0016 RF1.2 fixture: a session still read from an environment variable, offered for the vault.
-  dr("Personal", "xiaomi_mimo", [dm("Weekly", 6, 100, 96, "quota", "weekly", "%")]),
+  // PRD 0016 RF1.2 fixture: a session still read from an environment variable, offered for the vault;
+  // RF3.2: its pasted session expires in 2 days (the card warns).
+  { ...dr("Personal", "xiaomi_mimo", [dm("Weekly", 6, 100, 96, "quota", "weekly", "%")]),
+    session_expiry: { expires_at: new Date(Date.now() + 2.5 * 86400000).toISOString(), days: 2, soon: true,
+      label: { id: "user_session.expiry.days", params: { days: 2 }, fallback: "Sessão expira em 2 dias." } } },
 ];
+// PRD 0016 RF2.1 demo: the platform session slot the core declares for Xiaomi MiMo.
+const DEMO_SESSION_SLOT = { slot: "platform_session_env",
+  label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" },
+  instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Entre em platform.xiaomimimo.com no navegador. Nas ferramentas do desenvolvedor (F12), aba Rede, recarregue a página, escolha uma requisição a platform.xiaomimimo.com e copie o cabeçalho Cookie ou use \"Copiar como cURL\"; a tabela de cookies da aba Aplicativo também serve. Só os cookies desta sessão são guardados; o resto do texto colado é descartado." },
+  hosts: ["platform.xiaomimimo.com"] };
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
 const DEMO_BINDINGS = new Map([
@@ -1046,6 +1058,7 @@ const demo = {
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
     credential_help: { id: "credential_help.demo", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },
     login: { modes: [{ id: "oauth", label: { id: "login.demo.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "login.demo.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "login.demo.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "login.demo.oauth.unavailable_reason", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
+    sessions: provider === "xiaomi_mimo" ? [DEMO_SESSION_SLOT] : [],
     fields: [{ id: "field.demo.project_id", key: "project_id", label: { id: "field.demo.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "field.demo.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "field.demo.mode", key: "mode", label: { id: "field.demo.mode.label", params: {}, fallback: "Modo" }, help: { id: "field.demo.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "field.demo.mode.option.personal", index: 0, value: "personal", label: { id: "field.demo.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "field.demo.mode.option.org", index: 1, value: "org", label: { id: "field.demo.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
@@ -1084,6 +1097,19 @@ const demo = {
   migrate_session: async ({ index }) => {
     demoSettings.sessionMigrated.add(demoReports[index]);
     return demo.get_account({ index });
+  },
+  // PRD 0016 RF2 demo: the browser keeps only the accepted names, like the core (no value is ever shown).
+  preview_session: async ({ paste }) => {
+    const names = paste.replace(/^cookie:/i, "").split(";").map((p) => p.split("=")[0].trim()).filter(Boolean);
+    const kept = ["api-platform_serviceToken", "userId"].filter((n) => names.includes(n));
+    if (kept.length < 2) throw JSON.stringify({ id: "user_session.paste.missing", params: { names: "api-platform_serviceToken, userId" }, fallback: "Faltam cookies desta sessão: api-platform_serviceToken, userId." });
+    const discarded = names.length - kept.length;
+    const expiry = { id: "user_session.expiry.unknown", params: {}, fallback: "Validade desconhecida." };
+    return { kept, discarded, expiry: null, summary: { id: "user_session.paste.summary", params: { kept: kept.join(", "), discarded, expiry }, fallback: `Guardados: ${kept.join(", ")}. Descartados: ${discarded}. Validade desconhecida.` } };
+  },
+  test_session: async ({ input }) => {
+    await demo.preview_session({ paste: input.sessions?.[0]?.paste ?? "" });
+    return { ok: true, status: { id: "status.ready", params: {}, fallback: "OK" }, note: null, metrics: 2, expiry: null };
   },
   save_account: async ({ input }) => {
     window.__lastSaveRequest = input;

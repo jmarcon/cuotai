@@ -118,7 +118,7 @@ impl AlertPrefs {
                 .get(&event.account_key)
                 .is_some_and(|labels| labels.contains(&event.label))
             && match event.kind {
-                AlertKind::Threshold => true,
+                AlertKind::Threshold | AlertKind::SessionExpiring => true,
                 AlertKind::Exhausted => self.exhaustion,
                 AlertKind::Recovered => self.recovery,
             }
@@ -135,6 +135,11 @@ pub enum AlertKind {
     /// A metric whose exhaustion was notified has slack in a new window
     /// instance (`threshold` is 100, the level it recovered from).
     Recovered,
+    /// PRD 0016 RF3.2: the web session the account's query used ends
+    /// within [`crate::user_session::EXPIRY_WARNING`]. No metric: `label`
+    /// is empty, `threshold` the whole days left and `resets_at` the
+    /// session's expiry.
+    SessionExpiring,
 }
 
 /// One notice about one metric of one account.
@@ -222,20 +227,22 @@ pub fn evaluate(
     if !prefs.enabled || next.status != Status::Ready || now - next.checked_at > CROSSING_GRACE {
         return Vec::new();
     }
+    // PRD 0016 RF3.2: a near-expiry session needs no earlier reading.
+    let mut events: Vec<AlertEvent> = session_expiring(next, state, now).into_iter().collect();
+    events.retain(|event| prefs.wants(event));
     let Some(prev) = prev.filter(|prev| {
         prev.provider == next.provider
             && prev.account == next.account
             && prev.status == Status::Ready
             && prev.checked_at < next.checked_at
     }) else {
-        return Vec::new();
+        return events;
     };
     let account_key = next.account_key();
     let first = !state.seen.contains(&account_digest(&account_key));
     if first && next.checked_at - prev.checked_at > CROSSING_GRACE {
-        return Vec::new();
+        return events;
     }
-    let mut events = Vec::new();
     for metric in &next.metrics {
         let Some(consumption) = consumption(metric) else {
             continue;
@@ -294,6 +301,37 @@ pub fn evaluate(
     events
 }
 
+/// Mark of the session expiry in [`AlertState`]: never a metric label.
+const SESSION_MARK: &str = "\u{0}user_session";
+
+/// PRD 0016 RF3.2: `next` used a web session that ends within
+/// [`crate::user_session::EXPIRY_WARNING`] at `now`, and no earlier reading
+/// already noticed this expiry. One notice per expiry date: a session
+/// pasted again with a new date is noticed again when it nears its end.
+fn session_expiring(next: &Report, state: &AlertState, now: DateTime<Utc>) -> Option<AlertEvent> {
+    let at = next.session_expires_at?;
+    let expiry = crate::user_session::expiry(at, now);
+    if !expiry.soon {
+        return None;
+    }
+    let account_key = next.account_key();
+    let digest = key_digest(&account_key, SESSION_MARK);
+    let noticed = state.marks.iter().any(|mark| {
+        mark.metric == digest
+            && mark.kind == AlertKind::SessionExpiring
+            && mark.resets_at == Some(at)
+    });
+    (!noticed).then(|| AlertEvent {
+        account_key,
+        label: String::new(),
+        window: None,
+        kind: AlertKind::SessionExpiring,
+        threshold: u8::try_from(expiry.days.max(0)).unwrap_or(u8::MAX),
+        consumed: 0.0,
+        resets_at: Some(at),
+    })
+}
+
 impl AlertState {
     /// Remember `next` after delivering the `events` [`evaluate`] returned
     /// for it (pass only the ones delivered): every level `next` reached
@@ -320,6 +358,24 @@ impl AlertState {
         let account = account_digest(&account_key);
         if now - next.checked_at <= CROSSING_GRACE {
             self.seen.insert(account.clone());
+        }
+        // PRD 0016 RF3.2: a near expiry seen once is not noticed again.
+        if let Some(event) = session_expiring(next, self, now) {
+            let notified = events.iter().any(|delivered| {
+                delivered.account_key == account_key
+                    && delivered.kind == AlertKind::SessionExpiring
+                    && delivered.resets_at == event.resets_at
+            });
+            self.marks.push(Mark {
+                account: account.clone(),
+                metric: key_digest(&account_key, SESSION_MARK),
+                kind: AlertKind::SessionExpiring,
+                threshold: event.threshold,
+                resets_at: event.resets_at,
+                notified,
+                at: now,
+            });
+            changed = true;
         }
         for metric in &next.metrics {
             let Some(consumption) = consumption(metric) else {
@@ -625,6 +681,31 @@ where
     Tz::Offset: Display,
 {
     let provider = provider_l10n(account.provider);
+    if event.kind == AlertKind::SessionExpiring {
+        let at = event
+            .resets_at
+            .map(|at| local_time(at, now, tz))
+            .unwrap_or_default();
+        return Notice {
+            title: Localized::with_param(
+                "alerts.title.session_expiring",
+                "provider",
+                provider,
+                format!("{}: sessão expira em breve", account.provider.label()),
+            ),
+            body: Localized::with_params(
+                "alerts.body.session_expiring",
+                params([
+                    ("account", account.name.as_str().into()),
+                    ("at", at.as_str().into()),
+                ]),
+                format!(
+                    "{}: a sessão expira {at}; cole uma nova no assistente da conta.",
+                    account.name
+                ),
+            ),
+        };
+    }
     let provider_pt = account.provider.label();
     let percent = event.threshold.to_string();
     let label = event.label.as_str();
@@ -677,6 +758,8 @@ where
             params([("provider", provider.into()), ("metric", label.into())]),
             format!("{provider_pt}: {label} disponível de novo"),
         ),
+        // Returned above.
+        (AlertKind::SessionExpiring, _) => unreachable!("session notices return early"),
     };
     let body = match event.resets_at {
         Some(at) => {
@@ -728,6 +811,9 @@ fn item(event: &AlertEvent) -> Localized {
             label,
             format!("{label} disponível de novo"),
         ),
+        AlertKind::SessionExpiring => {
+            Localized::fixed("alerts.item.session_expiring", "sessão expira em breve")
+        }
     }
 }
 
@@ -804,6 +890,7 @@ mod tests {
             notes: Vec::new(),
             notes_l10n: Vec::new(),
             source: String::new(),
+            session_expires_at: None,
         }
     }
 
@@ -1504,6 +1591,57 @@ mod tests {
             )
         );
         assert!(notice(&[(&work, Vec::new())], t0(), &Utc).is_none());
+    }
+
+    // PRD 0016 RF3.2: a session ending within 3 days is a notice of its
+    // own, once per expiry date, with no earlier reading needed.
+    #[test]
+    fn a_session_near_its_expiry_is_noticed_once_per_date() {
+        let prefs = on();
+        let mut state = AlertState::default();
+        let expiring = |at| Report {
+            session_expires_at: Some(at),
+            ..report("Work", t0(), Vec::new())
+        };
+        let soon = t0() + TimeDelta::days(2) + mins(30);
+
+        let first = expiring(soon);
+        let events = evaluate(None, &first, &prefs, &state, t0());
+        assert_eq!(fired(&events), [(AlertKind::SessionExpiring, 2)]);
+        assert_eq!(events[0].resets_at, Some(soon));
+        state.update(&first, &prefs, &events, t0());
+        let again = expiring(soon);
+        assert!(evaluate(Some(&first), &again, &prefs, &state, t0() + mins(1)).is_empty());
+
+        // A fresh paste with a later date that also nears its end.
+        let renewed = expiring(soon + TimeDelta::hours(12));
+        assert_eq!(
+            fired(&evaluate(None, &renewed, &prefs, &state, t0())),
+            [(AlertKind::SessionExpiring, 2)]
+        );
+        // Far from its end, unknown, alerts off or account muted: silent.
+        let far = expiring(t0() + TimeDelta::days(5));
+        assert!(evaluate(None, &far, &prefs, &state, t0()).is_empty());
+        let unknown = report("Work", t0(), Vec::new());
+        assert!(evaluate(None, &unknown, &prefs, &state, t0()).is_empty());
+        assert!(evaluate(None, &renewed, &AlertPrefs::default(), &state, t0()).is_empty());
+        let mut muted = on();
+        muted.muted_accounts.insert(renewed.account_key());
+        assert!(evaluate(None, &renewed, &muted, &state, t0()).is_empty());
+
+        let account = Account {
+            name: "Work".into(),
+            provider: Provider::Claude,
+            ..Account::default()
+        };
+        let notice = notice(&[(&account, events)], t0(), &Utc).expect("one notice");
+        assert_eq!(notice.title.id, "alerts.title.session_expiring");
+        assert_eq!(notice.body.id, "alerts.body.session_expiring");
+        assert!(
+            notice.body.fallback.contains("Work"),
+            "{}",
+            notice.body.fallback
+        );
     }
 
     fn next_window() -> DateTime<Utc> {

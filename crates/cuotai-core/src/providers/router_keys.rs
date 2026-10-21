@@ -731,7 +731,7 @@ async fn mimo_session_at(
         .header("Cookie", cookie.trim())
         .header("Accept", "application/json")
         .timeout(ctx.timeout);
-    let response = secure_send(request).await?;
+    let response = super::send_session(request, crate::Provider::XiaomiMimo, "session_env").await?;
     if response.status().as_u16() == 401 {
         return Err(QueryError {
             status: Status::AuthenticationError,

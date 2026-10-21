@@ -3,8 +3,8 @@
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
   configChangedOnDisk, deleteAccount, draftAccess, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
-  loginCancel, loginStart, loginSubmitCode, migrateSession, modelSupport, onLogin, reloadConfig,
-  reportKey, saveAccount, visibleFields,
+  loginCancel, loginStart, loginSubmitCode, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
+  reportKey, saveAccount, testSession, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
@@ -330,22 +330,71 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     const notes = dyn.querySelector("#access-notes");
     if (notes) notes.innerHTML = access.notes.map((n) => `<small>${esc(tl(n))}</small>`).join("");
   }
-  // PRD 0016 RF1: slots the saved account keeps in the vault (the provider cannot change while editing).
-  const sessionSlots = () => existing?.session_slots ?? [];
-  // PRD 0016 RF1.2: a session still read from a variable moves to the vault only after a second, explicit click.
+  // PRD 0016 RF1: slots the saved account keeps in the vault (the provider cannot change while editing), plus
+  // RF2: the slots with a paste, which the save writes to the vault.
+  const sessionSlots = () => [...new Set([...(existing?.session_slots ?? []), ...pastes().map((p) => p.slot)])];
   const sessionBox = dlg.querySelector("#session-box");
+  // PRD 0016 RF2.1: the pasted sessions live only in the masked fields; they go to the core on preview, test and save.
+  const pastes = () => [...sessionBox.querySelectorAll("textarea[data-slot]")]
+    .filter((el) => el.value.trim())
+    .map((el) => ({ slot: el.dataset.slot, paste: el.value }));
+  const clearPastes = () => sessionBox.querySelectorAll("textarea[data-slot]").forEach((el) => { el.value = ""; });
   let confirmMigrate = false;
+  let previewSeq = 0;
   function renderSession(status = "") {
     const offers = existing?.session_migration ?? [];
-    const stored = sessionSlots();
-    sessionBox.hidden = !editing || (!offers.length && !stored.length && !status);
-    if (sessionBox.hidden) return;
+    const stored = existing?.session_slots ?? [];
+    const slots = schema.sessions ?? [];
+    clearPastes();
+    sessionBox.hidden = !slots.length && !offers.length && !stored.length && !status;
+    if (sessionBox.hidden) { sessionBox.innerHTML = ""; return; }
     confirmMigrate = false;
     sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>`
+      + slots.map((s) => `<div class="session-slot">
+          <label class="f"><span>${esc(tl(s.label))}</span>
+            <textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"
+              placeholder="${te("dialog.session.placeholder")}"></textarea>
+            <small class="hint">${esc(tl(s.instructions))}</small>
+            <small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>
+            ${stored.includes(s.slot) ? `<small class="hint">${te("dialog.session.replace")}</small>` : ""}
+            <small class="hint" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></label>
+        </div>`).join("")
+      + (slots.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-test">${te("dialog.session.test")}</button></div>
+          <p class="hint" id="session-test-status" role="status" aria-live="polite"></p>` : "")
       + (stored.length ? `<p class="hint">${te("dialog.session.stored")}</p>` : "")
       + offers.map((c) => `<p class="hint">${esc(tl(c.consent))}</p>`).join("")
       + (offers.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-migrate">${te("dialog.session.migrate")}</button></div>` : "")
       + `<p class="hint" id="session-status" role="status" aria-live="polite">${esc(status)}</p>`;
+    // RF2.2: the core says what each paste keeps (names, counts, expiry) — never the value.
+    sessionBox.querySelectorAll("textarea[data-slot]").forEach((el) => el.addEventListener("input", async () => {
+      const seq = ++previewSeq;
+      const out = sessionBox.querySelector(`[data-preview="${el.dataset.slot}"]`);
+      sessionBox.querySelector("#session-test-status").textContent = "";
+      let text = "";
+      if (el.value.trim()) {
+        try { text = tl((await previewSession(provider, el.dataset.slot, el.value)).summary); } catch (x) { text = errText(x); }
+      }
+      if (seq === previewSeq) out.textContent = text;
+      await renderAccess();
+    }));
+    sessionBox.querySelector("#session-test")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const statusEl = sessionBox.querySelector("#session-test-status");
+      if (!pastes().length) { statusEl.textContent = t("dialog.session.pasteFirst"); return; }
+      collect();
+      btn.disabled = true;
+      statusEl.textContent = t("dialog.session.testing");
+      try {
+        const result = await testSession({ ...draftInput(), sessions: pastes() });
+        statusEl.textContent = result.ok
+          ? [t("dialog.session.testOk", { count: result.metrics }), result.expiry ? tl(result.expiry.label) : ""].filter(Boolean).join(" ")
+          : [tl(result.status), result.note ? tl(result.note) : ""].filter(Boolean).join(": ");
+      } catch (x) {
+        statusEl.textContent = errText(x);
+      } finally {
+        btn.disabled = false;
+      }
+    });
     const btn = sessionBox.querySelector("#session-migrate");
     btn?.addEventListener("click", async () => {
       const statusEl = sessionBox.querySelector("#session-status");
@@ -506,6 +555,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   }
   dlg.addEventListener("close", () => {
     unlisten();
+    // PRD 0016 RF2.3: a pasted session never outlives the dialog.
+    clearPastes();
     // Fechar o diálogo com login ativo e sem commit cancela o fluxo: o token
     // autorizado morre em memória e nada é gravado no cofre (RF2.4).
     if (loginState && !committing) {
@@ -703,6 +754,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       await resetLogin();
       authMode = schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential";
       await renderDynamic();
+      renderSession();
       renderModels();
     } else if (e.target.name === "auth") {
       syncModeChoicesToFields(selectedMode());
@@ -718,6 +770,23 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       await (e.target.tagName === "SELECT" ? renderDynamic() : renderAccess());
     }
   });
+  // The dialog's draft as the backend reads it (save and the PRD 0016 session test).
+  function draftInput() {
+    const data = new FormData(form);
+    const mode = selectedMode();
+    const { options } = collectModeInputs(mode);
+    return {
+      index, provider, name: String(data.get("name") ?? ""),
+      credential: mode ? "" : String(data.get("credential") ?? ""),
+      fields: draftFields(),
+      interval: String(data.get("interval") ?? ""),
+      commitLogin: loginDone(),
+      loginAttempt: loginState?.attempt ?? 0,
+      authMode,
+      authOptions: options,
+      authParams: loginDone() ? loginState.params : {},
+    };
+  }
   dlg.querySelector("[data-cancel]").addEventListener("click", () => {
     if (!committing) dlg.close();
   });
@@ -750,21 +819,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     ok.disabled = true;
     committing = true;
     dlg.querySelector("[data-cancel]").disabled = true;
-    const data = new FormData(form);
     try {
-      const { options } = collectModeInputs(mode);
-      const credential = mode ? "" : String(data.get("credential") ?? "");
-      const result = await saveAccount({
-        index, provider, name: String(data.get("name") ?? ""),
-        credential,
-        fields: draftFields(),
-        interval: String(data.get("interval") ?? ""),
-        commitLogin: loginDone(),
-        loginAttempt: loginState?.attempt ?? 0,
-        authMode,
-        authOptions: options,
-        authParams: loginDone() ? loginState.params : {},
-      });
+      const result = await saveAccount({ ...draftInput(), sessions: pastes() });
       committing = false;
       dlg.close();
       onSaved(result);

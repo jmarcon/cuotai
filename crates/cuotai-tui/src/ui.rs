@@ -214,6 +214,13 @@ pub async fn run(
     let mut auth_task: Option<LoginTask> = None;
     let mut authorized: Option<CompletedLogin> = None;
     let mut saving_config: Option<(Config, Option<usize>)> = None;
+    // PRD 0016 RF2: pasted sessions written to the vault for a save that
+    // waits on a login commit; undone when that commit rolls back.
+    let mut saving_paste: Option<user_session::StagedSession> = None;
+    // PRD 0016 RF2.1: the wizard's read-only session test, at most one.
+    let mut session_test: Option<JoinHandle<cuotai_core::Report>> = None;
+    // Whether the terminal currently sends pastes as one event.
+    let mut bracketed_paste = false;
     let mut wizard =
         (!file.exists || file.config.accounts.is_empty()).then(|| Wizard::new(&file.config, None));
     let previous_hook = std::panic::take_hook();
@@ -391,9 +398,6 @@ pub async fn run(
                     // Every mode discovered by the core follows this same path.
                     match login::start_login(Arc::clone(&session), provider, *request) {
                         Ok(driver) => {
-                            if driver.accepts_code() {
-                                execute!(io::stdout(), EnableBracketedPaste)?;
-                            }
                             auth_task = Some(LoginTask::new(driver));
                         }
                         Err(error) => {
@@ -403,73 +407,119 @@ pub async fn run(
                         }
                     }
                 }
-                Action::Save { config, edit } => {
-                    let pending = authorized.as_ref().filter(|completed| {
-                        config.accounts.iter().any(|a| {
-                            a.provider == completed.provider
-                                && a.oauth.as_ref() == Some(&completed.config)
-                        })
-                    });
-                    if let Some(completed) = pending {
-                        saving_config = Some((config, edit));
-                        auth_task = Some(LoginTask::begin_commit(
-                            Arc::clone(&session),
-                            completed.clone(),
-                        ));
+                Action::Save {
+                    config,
+                    edit,
+                    sessions,
+                } => {
+                    // PRD 0016 RF2/RF3.4: the pasted sessions reach the vault
+                    // first (an existing reference keeps its entry); any later
+                    // failure takes them out again.
+                    let staged_paste = if sessions.is_empty() {
+                        Ok(None)
                     } else {
-                        let expected_identity = wizard
-                            .as_ref()
-                            .and_then(|w| w.editing_identity_borrowed())
-                            .map(|(p, n)| (p, n.to_string()));
-                        match apply_edit_to_config(
-                            &mut file,
-                            &monitor,
-                            &mut refresh_cycle,
-                            &mut account_refresh,
-                            &mut state,
-                            config,
-                            edit,
-                            expected_identity,
-                        ) {
-                            Err(error) => {
-                                // RF4: a Conflict typed error from
-                                // `ConfigFile::save` means the file on
-                                // disk changed. Open the conflict modal
-                                // so the user can reload (which keeps
-                                // the wizard's draft) or cancel.
-                                if let Some(active) = &mut wizard {
-                                    if error.is_conflict() {
-                                        active.set_conflict(error.message());
-                                    } else {
-                                        active.set_error(error.message());
-                                    }
-                                }
+                        let index = edit.unwrap_or(config.accounts.len().saturating_sub(1));
+                        user_session::stage_pasted(session.as_ref(), &config, index, &sessions)
+                            .await
+                            .map(Some)
+                    };
+                    drop(sessions);
+                    match staged_paste {
+                        Err(note) => {
+                            if let Some(active) = &mut wizard {
+                                active.set_error(resolve_l10n(&note));
                             }
-                            Ok((new_monitor, refresh_target)) => {
-                                monitor = new_monitor;
-                                wizard = None;
-                                authorized = None;
-                                // The touched slot is pending. Fire a single
-                                // per-account refresh immediately so the
-                                // dashboard does not wait for the new
-                                // deadline (which is one full interval away).
-                                if let Some(index) = refresh_target {
-                                    if index < account_refresh.len()
-                                        && account_refresh.slot(index).is_none()
-                                    {
-                                        if let Some(token) = refresh_cycle.begin(index) {
-                                            account_refresh.install(
-                                                index,
-                                                start_account_refresh(&monitor, index),
-                                                token,
-                                            );
-                                            dirty = true;
+                        }
+                        Ok(staged_paste) => {
+                            let config = staged_paste
+                                .as_ref()
+                                .map_or(config, |staged| staged.config().clone());
+                            let pending = authorized.as_ref().filter(|completed| {
+                                config.accounts.iter().any(|a| {
+                                    a.provider == completed.provider
+                                        && a.oauth.as_ref() == Some(&completed.config)
+                                })
+                            });
+                            if let Some(completed) = pending {
+                                saving_config = Some((config, edit));
+                                saving_paste = staged_paste;
+                                auth_task = Some(LoginTask::begin_commit(
+                                    Arc::clone(&session),
+                                    completed.clone(),
+                                ));
+                            } else {
+                                let expected_identity = wizard
+                                    .as_ref()
+                                    .and_then(|w| w.editing_identity_borrowed())
+                                    .map(|(p, n)| (p, n.to_string()));
+                                match apply_edit_to_config(
+                                    &mut file,
+                                    &monitor,
+                                    &mut refresh_cycle,
+                                    &mut account_refresh,
+                                    &mut state,
+                                    config,
+                                    edit,
+                                    expected_identity,
+                                ) {
+                                    Err(error) => {
+                                        let mut message = error.message();
+                                        if let Some(staged) = staged_paste {
+                                            if let Err(note) =
+                                                user_session::rollback(session.as_ref(), staged)
+                                                    .await
+                                            {
+                                                message =
+                                                    format!("{message} {}", resolve_l10n(&note));
+                                            }
+                                        }
+                                        // RF4: a Conflict typed error from
+                                        // `ConfigFile::save` means the file on
+                                        // disk changed. Open the conflict modal
+                                        // so the user can reload (which keeps
+                                        // the wizard's draft) or cancel.
+                                        if let Some(active) = &mut wizard {
+                                            if error.is_conflict() {
+                                                active.set_conflict(message);
+                                            } else {
+                                                active.set_error(message);
+                                            }
+                                        }
+                                    }
+                                    Ok((new_monitor, refresh_target)) => {
+                                        monitor = new_monitor;
+                                        wizard = None;
+                                        authorized = None;
+                                        // The touched slot is pending. Fire a single
+                                        // per-account refresh immediately so the
+                                        // dashboard does not wait for the new
+                                        // deadline (which is one full interval away).
+                                        if let Some(index) = refresh_target {
+                                            if index < account_refresh.len()
+                                                && account_refresh.slot(index).is_none()
+                                            {
+                                                if let Some(token) = refresh_cycle.begin(index) {
+                                                    account_refresh.install(
+                                                        index,
+                                                        start_account_refresh(&monitor, index),
+                                                        token,
+                                                    );
+                                                    dirty = true;
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                }
+                Action::TestSession { account, sessions } => {
+                    // RF2.1: read-only, never stored or recorded.
+                    let monitor = Arc::clone(&monitor);
+                    session_test = Some(tokio::spawn(async move {
+                        monitor.test_session(&account, &sessions).await
+                    }));
                 }
                 Action::ConflictReload => {
                     // RF4: the user accepted the conflict-recovery
@@ -587,8 +637,7 @@ pub async fn run(
                                 }
                                 Err(error) => {
                                     let rollback =
-                                        user_session::rollback_migration(session.as_ref(), staged)
-                                            .await;
+                                        user_session::rollback(session.as_ref(), staged).await;
                                     if let Some(active) = &mut wizard {
                                         let mut message = error.message();
                                         if let Err(note) = rollback {
@@ -801,7 +850,7 @@ pub async fn run(
             dirty |= task.drain();
             if task.is_finished() {
                 let outcome = task.result().await;
-                execute!(io::stdout(), DisableBracketedPaste)?;
+                // Bracketed paste follows the login and the wizard step below.
                 auth_task = None;
                 dirty = true;
                 // Capture the identity BEFORE the mutable borrow of
@@ -855,12 +904,14 @@ pub async fn run(
                             }
                         }
                         Ok(Outcome::Committed(login::LoginCommitOutcome::Saved)) => {
+                            saving_paste = None;
                             wizard = None;
                             authorized = None;
                         }
                         Ok(Outcome::Committed(
                             login::LoginCommitOutcome::SavedWithCleanupFailure(failure),
                         )) => {
+                            saving_paste = None;
                             state.error = Some(crate::auth_ui::cleanup_failure_message(&failure));
                             wizard = None;
                             authorized = None;
@@ -868,21 +919,58 @@ pub async fn run(
                         Ok(Outcome::Committed(login::LoginCommitOutcome::PartialFailure(
                             failure,
                         ))) => {
+                            saving_paste = None;
                             active.set_error(crate::auth_ui::partial_failure_message(&failure));
                         }
                         Ok(Outcome::RolledBack(failure)) => {
                             // Estado exato reportado pelo core; o login
                             // autorizado continua em `authorized` e salvar de
                             // novo repete o commit de forma idempotente.
-                            active.set_error(crate::auth_ui::partial_failure_message(&failure));
+                            let mut message = crate::auth_ui::partial_failure_message(&failure);
+                            if let Some(staged) = saving_paste.take() {
+                                if let Err(note) =
+                                    user_session::rollback(session.as_ref(), staged).await
+                                {
+                                    message = format!("{message} {}", resolve_l10n(&note));
+                                }
+                            }
+                            active.set_error(message);
                         }
                         Err(error) => {
                             saving_config = None;
-                            active.set_error(error.to_string());
+                            let mut message = error.to_string();
+                            if let Some(staged) = saving_paste.take() {
+                                if let Err(note) =
+                                    user_session::rollback(session.as_ref(), staged).await
+                                {
+                                    message = format!("{message} {}", resolve_l10n(&note));
+                                }
+                            }
+                            active.set_error(message);
                         }
                     }
                 }
             }
+        }
+        if session_test.as_ref().is_some_and(JoinHandle::is_finished) {
+            if let Some(job) = session_test.take() {
+                dirty = true;
+                if let (Ok(report), Some(active)) = (job.await, &mut wizard) {
+                    active.session_tested(&report);
+                }
+            }
+        }
+        // PRD 0016 RF2.1: bracketed paste while a login takes a code or the
+        // wizard shows the paste step, so a multi-line paste arrives whole.
+        let wants_paste = auth_task.as_ref().is_some_and(LoginTask::accepts_code)
+            || wizard.as_ref().is_some_and(Wizard::accepts_paste);
+        if wants_paste != bracketed_paste {
+            if wants_paste {
+                execute!(io::stdout(), EnableBracketedPaste)?;
+            } else {
+                execute!(io::stdout(), DisableBracketedPaste)?;
+            }
+            bracketed_paste = wants_paste;
         }
         if let Some((job, _token)) = refresh.0.as_ref() {
             if job.is_finished() {
@@ -1136,11 +1224,16 @@ pub async fn run(
         };
         if event::poll(Duration::from_millis(frame))? {
             dirty = true;
-            let event = event::read()?;
-            if let Event::Paste(text) = &event {
+            let mut event = event::read()?;
+            if let Event::Paste(text) = &mut event {
                 if let Some(task) = &mut auth_task {
                     task.paste(text);
+                } else if let Some(active) = &mut wizard {
+                    // PRD 0016 RF2.1: the pasted session reaches the
+                    // wizard's masked field; this copy is overwritten.
+                    active.paste(text);
                 }
+                user_session::wipe(text);
                 continue;
             }
             // Mouse events: wheel scrolls, clicks select/trigger the same
@@ -1263,7 +1356,6 @@ pub async fn run(
                 if let Some(task) = &mut auth_task {
                     match key.code {
                         KeyCode::Esc if task.can_cancel() => {
-                            execute!(io::stdout(), DisableBracketedPaste)?;
                             auth_task = None;
                             if let Some(wizard) = &mut wizard {
                                 wizard.set_error(

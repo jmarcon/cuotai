@@ -162,6 +162,47 @@ pub(crate) async fn send(request: RequestBuilder) -> Result<reqwest::Response, Q
     })
 }
 
+/// PRD 0016 RF3.3: send a request that carries the web session of `slot`
+/// (in its `Cookie` header) only over HTTPS to a host the slot's
+/// descriptor declares; anything else is refused before the network. The
+/// client never follows redirects, and a redirect answer (the provider
+/// sending the session to its login page) is a rejected session, so the
+/// session never reaches another host.
+pub(crate) async fn send_session(
+    request: RequestBuilder,
+    provider: crate::Provider,
+    slot: &str,
+) -> Result<reqwest::Response, QueryError> {
+    let (client, request) = request.build_split();
+    let request = request.map_err(|_| QueryError::transport())?;
+    if !crate::user_session::may_receive(provider, slot, request.url()) {
+        return Err(QueryError {
+            status: Status::Error,
+            note: Localized::fixed(
+                "query.session_host_refused",
+                "Endereço recusado: a sessão só é enviada por HTTPS aos hosts declarados para ela. Nada foi enviado.",
+            ),
+        });
+    }
+    let response = client.execute(request).await.map_err(|error| {
+        if error.is_timeout() {
+            QueryError::timeout()
+        } else {
+            QueryError::transport()
+        }
+    })?;
+    if response.status().is_redirection() {
+        return Err(QueryError {
+            status: Status::AuthenticationError,
+            note: Localized::fixed(
+                "query.session_redirected",
+                "O serviço redirecionou a consulta (sessão expirada ou revogada); o redirecionamento não foi seguido.",
+            ),
+        });
+    }
+    Ok(response)
+}
+
 pub(crate) fn secret(
     account: &Account,
     ctx: &Context<'_>,
