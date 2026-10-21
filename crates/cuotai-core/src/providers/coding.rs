@@ -249,12 +249,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            data.metrics.len(),
-            1,
-            "esperava só o saldo, recebi: {:?}",
-            data.metrics
-        );
+        assert_eq!(data.metrics.len(), 1, "esperava só o saldo");
         let saldo = metric(&data, "Saldo — conta pessoal");
         assert_eq!(saldo.used, None);
         assert_eq!(saldo.limit, None);
