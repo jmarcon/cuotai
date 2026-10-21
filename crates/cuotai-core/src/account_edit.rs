@@ -4097,7 +4097,10 @@ mod tests {
                     },
                 );
             }
-            other => panic!("expected CredentialKept(SharedWith), got {other:?}"),
+            other => panic!(
+                "expected CredentialKept(SharedWith), got {}",
+                outcome_variant(&other)
+            ),
         }
         assert_eq!(file.config.accounts.len(), 1);
         assert_eq!(file.config.accounts[0].name, "second");
