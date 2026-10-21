@@ -37,7 +37,7 @@ use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{watch, Semaphore};
+use tokio::sync::{watch, RwLock, Semaphore};
 use tokio::task::{JoinHandle, JoinSet};
 
 use crate::export::v1::{Export, Limits, SCHEMA};
@@ -313,11 +313,36 @@ pub struct LocalServer {
     requested_port: u16,
     stop: watch::Sender<bool>,
     task: Option<JoinHandle<()>>,
+    state: Arc<State>,
+}
+
+/// What [`LocalServer::reconfigure`] did. Either the policy and source are
+/// live on the bound listener ([`Reconfigure::Replaced`]) or the caller must
+/// stop the server and start a new one with the requested port/binding
+/// ([`Reconfigure::RestartRequired`]). The accept loop owns the
+/// `max_connections` semaphore and drain `request_timeout`; the bind identity
+/// and `allow_non_loopback` pin listener security. Any change there forces a
+/// restart. Token, browser access, logging, and request-size caps are applied
+/// in place.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Reconfigure {
+    /// The snapshot was swapped in place under a single write lock; every
+    /// request accepted after this point runs against the new [`ServeConfig`]
+    /// and [`Source`], in-flight requests keep the snapshot they captured.
+    Replaced,
+    /// A field whose live semantics depends on `accept_loop` changed (bind
+    /// identity, `max_connections`, or `request_timeout`). The state is
+    /// untouched; the caller must stop this `LocalServer` and start a new
+    /// one with the requested config.
+    RestartRequired,
 }
 
 impl LocalServer {
     /// Validate `config`, bind (falling back to the next ports when allowed)
-    /// and serve `source` on the current Tokio runtime.
+    /// and serve `source` on the current Tokio runtime. The listener stays
+    /// open for the lifetime of the returned [`LocalServer`]; the policy in
+    /// effect for any newly accepted connection can be exchanged in place
+    /// with [`LocalServer::reconfigure`] without dropping the bound socket.
     pub async fn start(config: ServeConfig, source: impl Source) -> Result<Self, ServeError> {
         config.validate()?;
         let requested_port = config.port;
@@ -325,18 +350,65 @@ impl LocalServer {
         let addr = listener
             .local_addr()
             .map_err(|_| ServeError::Bind { port: config.port })?;
+        let initial = Arc::new(Snapshot::new(config, source));
+        Ok(Self::from_listener(listener, addr, requested_port, initial))
+    }
+
+    /// Build a server around an already-bound, validated listener.
+    fn from_listener(
+        listener: TcpListener,
+        addr: SocketAddr,
+        requested_port: u16,
+        initial: Arc<Snapshot>,
+    ) -> Self {
         let (stop, stopped) = watch::channel(false);
         let state = Arc::new(State {
-            config,
-            source: Box::new(source),
+            snapshot: RwLock::new(initial),
         });
-        let task = tokio::spawn(accept_loop(listener, state, stopped));
-        Ok(Self {
+        let task = tokio::spawn(accept_loop(listener, state.clone(), stopped));
+        Self {
             addr,
             requested_port,
             stop,
             task: Some(task),
-        })
+            state,
+        }
+    }
+
+    /// Same-port hot swap: keeps the bound listener open and atomically
+    /// replaces the [`ServeConfig`] + [`Source`] used by every connection
+    /// accepted from this point on. Used by Settings → Integration on the
+    /// desktop when only policy that does not depend on the socket changes
+    /// (`allow_browsers`, token, access_log, request-only caps on head / url
+    /// / header size). The bind identity, the `max_connections` semaphore,
+    /// and `bounds.request_timeout` (which the accept loop also uses for
+    /// connection draining) own live resources; changing any of them returns
+    /// `RestartRequired` and leaves the server untouched.
+    ///
+    /// Holding one write lock across the compatibility check and swap makes
+    /// concurrent calls linearizable: each reconfigure sees the result of any
+    /// swap serialized before it. The replacement snapshot is allocated only
+    /// after the compatibility check passes.
+    pub async fn reconfigure(
+        &self,
+        config: ServeConfig,
+        source: impl Source,
+    ) -> Result<Reconfigure, ServeError> {
+        // Validation is a pure config read; a bad input never mutates state.
+        config.validate()?;
+        let mut guard = self.state.snapshot.write().await;
+        let live = &guard.config;
+        let restart_required = live.bind != config.bind
+            || live.port != config.port
+            || live.port_fallback != config.port_fallback
+            || live.allow_non_loopback != config.allow_non_loopback
+            || live.bounds.max_connections != config.bounds.max_connections
+            || live.bounds.request_timeout != config.bounds.request_timeout;
+        if restart_required {
+            return Ok(Reconfigure::RestartRequired);
+        }
+        *guard = Arc::new(Snapshot::new(config, source));
+        Ok(Reconfigure::Replaced)
     }
 
     /// The address actually bound.
@@ -415,13 +487,40 @@ async fn probe(port: u16) -> bool {
     http::is_cuotai_health(&answer, BEARER_CHALLENGE)
 }
 
+/// The mutable live state shared by every connection an accept loop serves.
+/// Each newly accepted connection takes a clone of the current `Arc<Snapshot>`,
+/// so an in-place reconfigure is observed exactly once per connection with no
+/// per-request lock. `max_connections` is not part of the snapshot because it
+/// owns the semaphore that gates acceptance; only a restart can change it.
 struct State {
+    snapshot: RwLock<Arc<Snapshot>>,
+}
+
+/// One immutable pair of policy and source. Replacement is atomic and lock-free
+/// for serving connections: a request either runs against the snapshot it
+/// captured or the snapshot a [`LocalServer::reconfigure`] stored before its
+/// accept.
+struct Snapshot {
     config: ServeConfig,
     source: Box<dyn Source>,
 }
 
+impl Snapshot {
+    fn new(config: ServeConfig, source: impl Source) -> Self {
+        Self {
+            config,
+            source: Box::new(source),
+        }
+    }
+}
+
 async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watch::Receiver<bool>) {
-    let slots = Arc::new(Semaphore::new(state.config.bounds.max_connections));
+    // `max_connections` cannot change live; the accept_loop owns the
+    // semaphore for the server's lifetime. Reconfigure forces a restart when
+    // this field differs.
+    let max_connections = state.snapshot.read().await.config.bounds.max_connections;
+    let drain_timeout = state.snapshot.read().await.config.bounds.request_timeout;
+    let slots = Arc::new(Semaphore::new(max_connections));
     let mut connections = JoinSet::new();
     loop {
         while connections.try_join_next().is_some() {}
@@ -434,10 +533,11 @@ async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watc
                     let Ok(slot) = Arc::clone(&slots).try_acquire_owned() else {
                         continue;
                     };
+                    let snapshot = state.snapshot.read().await.clone();
                     let state = Arc::clone(&state);
                     connections.spawn(async move {
                         let _slot = slot;
-                        serve_connection(stream, peer.ip(), &state).await;
+                        serve_connection(stream, peer.ip(), &state, &snapshot).await;
                     });
                 }
                 // Out of descriptors and the like: do not spin.
@@ -447,16 +547,13 @@ async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watc
     }
     drop(listener);
     let drain = async { while connections.join_next().await.is_some() {} };
-    if tokio::time::timeout(state.config.bounds.request_timeout, drain)
-        .await
-        .is_err()
-    {
+    if tokio::time::timeout(drain_timeout, drain).await.is_err() {
         connections.shutdown().await;
     }
 }
 
-async fn serve_connection(mut stream: TcpStream, peer: IpAddr, state: &State) {
-    let bounds = state.config.bounds;
+async fn serve_connection(mut stream: TcpStream, peer: IpAddr, state: &State, snapshot: &Snapshot) {
+    let bounds = snapshot.config.bounds;
     let started = Instant::now();
     let _ = tokio::time::timeout(bounds.request_timeout, async {
         let (response, method, path) =
@@ -465,15 +562,17 @@ async fn serve_connection(mut stream: TcpStream, peer: IpAddr, state: &State) {
                 Read::TooLarge => (Response::error(431, "headers_too_large"), None, None),
                 Read::Malformed => (Response::error(400, "bad_request"), None, None),
                 Read::Head(head) => {
-                    let response = state.respond(&head, peer);
-                    (response, Some(head.method), Some(head.target))
+                    let method = head.method.clone();
+                    let target = head.target.clone();
+                    let response = state.respond(&head, peer, snapshot);
+                    (response, Some(method), Some(target))
                 }
             };
-        let response = state.finish(response);
+        let response = state.finish(response, snapshot);
         let status = response.status;
         let include_body = method.as_deref() != Some("HEAD");
         let _ = http::write(&mut stream, response, include_body).await;
-        if let Some(log) = &state.config.access_log {
+        if let Some(log) = &snapshot.config.access_log {
             log(&AccessEntry {
                 at: Utc::now(),
                 peer,
@@ -499,12 +598,12 @@ fn log_path(target: &str) -> String {
 
 impl State {
     /// RF3 checks, in order, then the route.
-    fn respond(&self, head: &Head, peer: IpAddr) -> Response {
-        let config = &self.config;
+    fn respond(&self, head: &Head, peer: IpAddr, snapshot: &Snapshot) -> Response {
+        let config = &snapshot.config;
         if head.target.len() > config.bounds.max_url_bytes {
             return Response::error(414, "uri_too_long");
         }
-        if !self.host_allowed(head) {
+        if !self.host_allowed(head, snapshot) {
             return Response::error(403, "host_not_allowed");
         }
         if !config.allow_browsers && head.sent_by_page() {
@@ -544,21 +643,23 @@ impl State {
                     schema: SCHEMA,
                 },
             ),
-            "/v1/snapshot" => self.with_export(|export| Response::json(200, &export)),
-            "/v1/limits" => {
-                self.with_export(|export| Response::json(200, &Limits::from_export(&export)))
-            }
+            "/v1/snapshot" => self.with_export(|export| Response::json(200, &export), snapshot),
+            "/v1/limits" => self.with_export(
+                |export| Response::json(200, &Limits::from_export(&export)),
+                snapshot,
+            ),
             _ => match path
                 .strip_prefix("/v1/accounts/")
                 .filter(|key| !key.is_empty() && !key.contains('/'))
                 .and_then(http::percent_decode)
             {
-                Some(key) => self.with_export(|export| {
-                    match export.accounts.iter().find(|account| account.key == key) {
+                Some(key) => self.with_export(
+                    |export| match export.accounts.iter().find(|account| account.key == key) {
                         Some(account) => Response::json(200, account),
                         None => Response::error(404, "not_found"),
-                    }
-                }),
+                    },
+                    snapshot,
+                ),
                 None => Response::error(404, "not_found"),
             },
         }
@@ -566,8 +667,12 @@ impl State {
 
     /// RF2.3: data comes only from the source, and `503` until any
     /// account has a reading (current or preserved).
-    fn with_export(&self, answer: impl FnOnce(Export) -> Response) -> Response {
-        match self.source.export().filter(|export| {
+    fn with_export(
+        &self,
+        answer: impl FnOnce(Export) -> Response,
+        snapshot: &Snapshot,
+    ) -> Response {
+        match snapshot.source.export().filter(|export| {
             export
                 .accounts
                 .iter()
@@ -580,8 +685,8 @@ impl State {
     }
 
     /// RF3.3: what every answer carries in "allow browsers" mode.
-    fn finish(&self, response: Response) -> Response {
-        if self.config.allow_browsers {
+    fn finish(&self, response: Response, snapshot: &Snapshot) -> Response {
+        if snapshot.config.allow_browsers {
             response.header("Access-Control-Allow-Origin", "*")
         } else {
             response
@@ -590,7 +695,7 @@ impl State {
 
     /// RF3.3: exactly one `Host`, naming loopback (or the address bound by
     /// the explicit flag); a rebound domain never matches.
-    fn host_allowed(&self, head: &Head) -> bool {
+    fn host_allowed(&self, head: &Head, snapshot: &Snapshot) -> bool {
         let mut hosts = head.values("host");
         let (Some(host), None) = (hosts.next(), hosts.next()) else {
             return false;
@@ -602,7 +707,7 @@ impl State {
             || name.parse::<IpAddr>().is_ok_and(|ip| {
                 ip == IpAddr::V4(Ipv4Addr::LOCALHOST)
                     || ip == IpAddr::V6(Ipv6Addr::LOCALHOST)
-                    || ip == self.config.bind
+                    || ip == snapshot.config.bind
             })
     }
 }
