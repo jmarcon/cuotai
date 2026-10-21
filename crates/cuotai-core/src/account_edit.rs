@@ -3993,6 +3993,18 @@ mod tests {
         key
     }
 
+    /// Name of the `RemoveOutcome` variant, for failure messages. Panic arms
+    /// report this constant instead of formatting the whole outcome, which
+    /// holds the removed account and its vault key.
+    fn outcome_variant(outcome: &RemoveOutcome) -> &'static str {
+        match outcome {
+            RemoveOutcome::RemovedNoCredential(_) => "RemovedNoCredential",
+            RemoveOutcome::RemovedFromVault(_) => "RemovedFromVault",
+            RemoveOutcome::CredentialKept { .. } => "CredentialKept",
+            RemoveOutcome::PartialFailure { .. } => "PartialFailure",
+        }
+    }
+
     fn temp_config_file(config: Config) -> (tempfile::TempDir, ConfigFile) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("cuotai.toml");
@@ -4017,7 +4029,10 @@ mod tests {
                 assert!(account.storage_key.is_some());
                 assert_eq!(reason, KeptReason::Declined);
             }
-            other => panic!("expected CredentialKept(Declined), got {other:?}"),
+            other => panic!(
+                "expected CredentialKept(Declined), got {}",
+                outcome_variant(&other)
+            ),
         }
         assert_eq!(file.config.accounts.len(), 0);
         assert!(
