@@ -123,13 +123,13 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::OpenCodeGo => "OPENCODE_GO_API_KEY da conta; a própria chave do usuário autentica a consulta interna.",
         Provider::Groq => "GROQ_API_KEY da conta; a própria chave do usuário autentica a consulta interna.",
         Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY da conta (Bearer); uso em GET ollama.com/api/usage e plano em POST /api/me. Não é necessário importar cookies.",
-        Provider::XiaomiMimo => "Saldo/Token Plan: configure platform_session_env com a sessão web platform.xiaomimimo.com. O código nativo entrega chave de inferência, não cookie. session_env é separado: quota semanal do MiMo Desktop.",
+        Provider::XiaomiMimo => "Saldo/Token Plan: cole a sessão web de platform.xiaomimimo.com no assistente da conta (cofre do sistema) ou nomeie a variável em platform_session_env. O código nativo entrega chave de inferência, não cookie. A sessão da conta Xiaomi (session_env) é separada: quota semanal do MiMo Desktop.",
         Provider::Kiro => "Access token Kiro/CodeWhisperer (não refresh token). Com variável: auth_method google, github, import, api_key ou external_idp. Builder ID e Identity Center exigem login nativo para renovação.",
         Provider::CodeBuddy => "Access token de sessão do CodeBuddy (cn: copilot.tencent.com; intl: www.codebuddy.ai).",
         Provider::Zed => "ZED_ACCESS_TOKEN (cloud access token do fluxo de login nativo zed.dev). Informe também o user_id numérico — é enviado como `Authorization: <user_id> <token>`.",
         Provider::AlibabaModelStudio => "API key Alibaba Model Studio/DashScope. Pode apontar para QWEN_API_KEY. Selecione a região correspondente à conta; não é login OAuth Qwen Code.",
         Provider::AlibabaCodingPlan => "Chave da assinatura Alibaba Coding Plan (normalmente sk-sp-). Selecione China ou internacional; é diferente de uma API key padrão DashScope.",
-        Provider::AlibabaTokenPlan => "A quota Token Plan consulta, por padrão, o perfil dedicado do `bl` (`params.cli_profile`, configurado pelo F2). `params.session_env` (Cookie de home.qwencloud.com) é override opcional. QWEN_API_KEY autentica apenas inferência e não é enviada à consulta.",
+        Provider::AlibabaTokenPlan => "A quota Token Plan consulta, por padrão, o perfil dedicado do `bl` (`params.cli_profile`, configurado pelo F2). A sessão de home.qwencloud.com, colada no assistente da conta (cofre do sistema) ou numa variável em `params.session_env`, tem precedência quando existe. QWEN_API_KEY autentica apenas inferência e não é enviada à consulta.",
         Provider::AlibabaCloud => "Informe o NOME da variável com AccessKey ID da conta RAM de faturamento. Em Parâmetros informe a variável AccessKey Secret; os valores nunca entram no TOML.",
         Provider::Antigravity => "Sessão Google do Antigravity, distinta da API key Gemini. Pressione Tab para login nativo; o projeto Code Assist e as janelas de quota serão consultados automaticamente.",
         Provider::Kimchi => "KIMCHI_API_KEY da conta Kimchi; consulta créditos e orçamentos em llm.kimchi.dev, sem geração.",
@@ -1366,13 +1366,13 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         FieldDescriptor::text(
             "platform_session_env",
             "Variável da sessão da plataforma (opcional)",
-            "Nome da variável com Cookie de platform.xiaomimimo.com (api-platform_serviceToken e userId). Lê saldo/plano mensal; não cole cookies neste campo.",
+            "Alternativa à sessão colada no assistente da conta (cofre do sistema): nome da variável com o Cookie de platform.xiaomimimo.com (api-platform_serviceToken e userId). Lê saldo/plano mensal; não cole cookies neste campo.",
             false,
         ),
         FieldDescriptor::text(
             "session_env",
             "Variável do cookie de sessão (opcional)",
-            "Nome da variável com o cookie de sessão da conta Xiaomi (ex.: serviceToken=...), nunca o valor. Tem prioridade sobre a credencial principal.",
+            "Alternativa à sessão colada no assistente da conta (cofre do sistema): nome da variável com o cookie de sessão da conta Xiaomi (ex.: serviceToken=...), nunca o valor. Tem prioridade sobre a credencial principal.",
             false,
         ),
         FieldDescriptor::choice(
@@ -1419,14 +1419,14 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         FieldDescriptor::text(
             "session_env",
             "Variável da sessão Alibaba (opcional)",
-            "Se a API exigir login no console, informe o NOME da variável contendo o Cookie da sua sessão. Substitui a API key na consulta; nunca cole o cookie aqui.",
+            "Se a API exigir login no console, cole a sessão no assistente da conta (cofre do sistema) ou informe aqui o NOME da variável contendo o Cookie da sua sessão. Substitui a API key na consulta; nunca cole o cookie aqui.",
             false,
         ),
     ];
     const ALIBABA_TOKEN_PLAN: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "session_env",
         "Variável do Cookie Qwen Cloud (opcional)",
-        "Vazio = quota via perfil dedicado do `bl` (`params.cli_profile`). Se preferir a rota manual, informe o NOME da variável contendo o Cookie de home.qwencloud.com; nunca cole o Cookie aqui.",
+        "Vazio = quota pela sessão colada no assistente da conta (cofre do sistema) ou, sem ela, pelo perfil dedicado do `bl` (`params.cli_profile`). Se preferir uma variável, informe o NOME da variável contendo o Cookie de home.qwencloud.com; nunca cole o Cookie aqui.",
         false,
     )];
     const ALIBABA_CLOUD: [FieldDescriptor; 4] = [

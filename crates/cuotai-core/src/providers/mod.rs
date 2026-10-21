@@ -203,6 +203,103 @@ pub(crate) async fn send_session(
     Ok(response)
 }
 
+/// PRD 0016 RF5.1: the web session an adapter sends, read through the
+/// slot's descriptor. `vault` tells a session pasted into (or moved to) the
+/// system vault from one an environment variable holds. Never
+/// `Debug`-printed; dropping it overwrites the value.
+pub(crate) struct WebSession {
+    pub cookie: String,
+    pub vault: bool,
+}
+
+impl Drop for WebSession {
+    fn drop(&mut self) {
+        crate::user_session::wipe(&mut self.cookie);
+    }
+}
+
+/// PRD 0016 RF5.1: the session of `slot` (a [`crate::user_session`]
+/// descriptor of the account's provider), whether the vault holds it or the
+/// variable named by `params.<slot>` does; `None` when the account has
+/// neither. The value is sent as stored, but a session without the
+/// descriptor's required cookies is refused before any request, naming only
+/// the cookies (and the variable) that need fixing.
+pub(crate) fn web_session(
+    account: &Account,
+    ctx: &Context<'_>,
+    slot: &'static str,
+) -> Result<Option<WebSession>, QueryError> {
+    let Some(name) = account
+        .params
+        .get(slot)
+        .map(|name| name.trim())
+        .filter(|name| !name.is_empty())
+    else {
+        return Ok(None);
+    };
+    let vault = name.starts_with(crate::user_session::VAULT_NAME);
+    let Some(mut cookie) = ctx.credentials.get(name) else {
+        return Err(session_unset(name, slot, vault));
+    };
+    if cookie.trim().is_empty() {
+        crate::user_session::wipe(&mut cookie);
+        return Err(session_unset(name, slot, vault));
+    }
+    let session = WebSession {
+        cookie: cookie.trim().to_string(),
+        vault,
+    };
+    crate::user_session::wipe(&mut cookie);
+    let missing = crate::user_session::missing_required(account.provider, slot, &session.cookie);
+    if missing.is_empty() {
+        return Ok(Some(session));
+    }
+    let names = missing.join(", ");
+    let note = if vault {
+        Localized::with_param(
+            "query.session.missing_cookies",
+            "names",
+            names.as_str(),
+            format!("A sessão guardada no cofre do sistema não tem os cookies {names}; cole uma nova no assistente da conta."),
+        )
+    } else {
+        Localized::with_params(
+            "query.session.missing_cookies_env",
+            params([
+                ("names", ParamValue::from(names.clone())),
+                ("name", ParamValue::from(name.to_string())),
+                ("slot", ParamValue::from(slot)),
+            ]),
+            format!("A sessão da variável {name} (params.{slot}) não tem os cookies {names}; exporte-a de novo ou cole a sessão no assistente da conta."),
+        )
+    };
+    Err(QueryError {
+        status: Status::NeedsConfiguration,
+        note,
+    })
+}
+
+/// The variable `params.<slot>` names is unset or empty (or, for a vault
+/// session, the entry came back empty).
+fn session_unset(name: &str, slot: &str, vault: bool) -> QueryError {
+    let note = if vault {
+        crate::user_session::not_found()
+    } else {
+        Localized::with_params(
+            "query.session.variable_missing",
+            params([
+                ("name", ParamValue::from(name.to_string())),
+                ("slot", ParamValue::from(slot.to_string())),
+            ]),
+            format!("Sessão ausente: a variável {name} (params.{slot}) não está definida; defina-a ou cole a sessão no assistente da conta."),
+        )
+    };
+    QueryError {
+        status: Status::NeedsConfiguration,
+        note,
+    }
+}
+
 pub(crate) fn secret(
     account: &Account,
     ctx: &Context<'_>,
@@ -395,5 +492,123 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(value["ok"], true);
+    }
+
+    struct Vars(Vec<(String, &'static str)>);
+    impl Credentials for Vars {
+        fn get(&self, name: &str) -> Option<String> {
+            self.0
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.to_string())
+        }
+    }
+
+    fn session_of(
+        provider: crate::Provider,
+        params: &[(&str, &str)],
+        vars: &[(&str, &'static str)],
+        slot: &'static str,
+    ) -> Result<Option<(String, bool)>, QueryError> {
+        let account = Account {
+            provider,
+            params: params
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            ..Default::default()
+        };
+        let credentials = Vars(vars.iter().map(|(k, v)| (k.to_string(), *v)).collect());
+        let http = Client::new();
+        let ctx = Context {
+            http: &http,
+            credentials: &credentials,
+            timeout: Duration::from_secs(1),
+        };
+        web_session(&account, &ctx, slot)
+            .map(|session| session.map(|s| (s.cookie.clone(), s.vault)))
+    }
+
+    /// PRD 0016 RF5.1: the three migrated providers read their sessions
+    /// through the descriptor, from the vault or from `session_env`.
+    #[test]
+    fn web_sessions_come_from_the_vault_or_the_variable_and_need_the_required_cookies() {
+        use crate::Provider::{AlibabaTokenPlan, XiaomiMimo};
+        const SECRET: &str = "SECRET-VALUE";
+        let vault = format!("{}platform_session_env", crate::user_session::VAULT_NAME);
+        let full = "api-platform_serviceToken=SECRET-VALUE; userId=7";
+        // No session configured: the adapter takes its other route.
+        assert!(matches!(
+            session_of(XiaomiMimo, &[], &[], "platform_session_env"),
+            Ok(None)
+        ));
+        // A variable is sent as stored (trimmed), not reduced.
+        let from_env = session_of(
+            XiaomiMimo,
+            &[("platform_session_env", "MIMO_COOKIE")],
+            &[(
+                "MIMO_COOKIE",
+                " api-platform_serviceToken=SECRET-VALUE; userId=7; extra=1 ",
+            )],
+            "platform_session_env",
+        );
+        assert_eq!(from_env.unwrap(), Some((format!("{full}; extra=1"), false)));
+        let from_vault = session_of(
+            XiaomiMimo,
+            &[("platform_session_env", vault.as_str())],
+            &[(vault.as_str(), full)],
+            "platform_session_env",
+        );
+        assert_eq!(from_vault.unwrap(), Some((full.to_string(), true)));
+        // Alibaba declares no required cookie: any session goes through.
+        assert!(session_of(
+            AlibabaTokenPlan,
+            &[("session_env", "QWEN_CLOUD_COOKIE")],
+            &[("QWEN_CLOUD_COOKIE", "session=x")],
+            "session_env",
+        )
+        .unwrap()
+        .is_some());
+
+        let unset = session_of(
+            XiaomiMimo,
+            &[("platform_session_env", "MIMO_COOKIE")],
+            &[("MIMO_COOKIE", "  ")],
+            "platform_session_env",
+        )
+        .expect_err("unset variable");
+        assert_eq!(unset.status, Status::NeedsConfiguration);
+        assert_eq!(&*unset.note.id, "query.session.variable_missing");
+        assert!(unset
+            .note
+            .resolve("en-US")
+            .contains("MIMO_COOKIE (params.platform_session_env)"));
+
+        let lacking = session_of(
+            XiaomiMimo,
+            &[("session_env", "MIMO_SESSION")],
+            &[("MIMO_SESSION", "serviceToken=; userId=SECRET-VALUE")],
+            "session_env",
+        )
+        .expect_err("empty serviceToken");
+        assert_eq!(lacking.status, Status::NeedsConfiguration);
+        assert_eq!(&*lacking.note.id, "query.session.missing_cookies_env");
+        let vault_lacking = session_of(
+            XiaomiMimo,
+            &[("platform_session_env", vault.as_str())],
+            &[(vault.as_str(), "api-platform_serviceToken=SECRET-VALUE")],
+            "platform_session_env",
+        )
+        .expect_err("userId missing");
+        assert_eq!(&*vault_lacking.note.id, "query.session.missing_cookies");
+        for (error, names) in [(&lacking, "serviceToken"), (&vault_lacking, "userId")] {
+            for locale in ["pt-BR", "en-US", "es"] {
+                let text = error.note.resolve(locale);
+                assert!(text.contains(names), "{locale}: {text}");
+                assert!(!text.contains(SECRET), "{locale}: {text}");
+                assert!(!text.contains(crate::user_session::VAULT_NAME), "{text}");
+            }
+        }
+        assert!(lacking.note.resolve("es").contains("MIMO_SESSION"));
     }
 }

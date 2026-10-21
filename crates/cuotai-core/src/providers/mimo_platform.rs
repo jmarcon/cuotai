@@ -13,9 +13,11 @@
 //! Modo real alcançável (referência: CodexBar MIT,
 //! `Sources/CodexBarCore/Providers/MiMo/MiMoUsageFetcher.swift` e
 //! `MiMoCookieImporter.swift`): o usuário entra em platform.xiaomimimo.com no
-//! navegador e exporta o cookie da sessão; `params.platform_session_env`
-//! referencia a variável com esse cookie. São obrigatórios
-//! `api-platform_serviceToken` e `userId` no valor.
+//! navegador e cola a sessão no assistente da conta (cofre do sistema, PRD
+//! 0016) ou a exporta numa variável referenciada por
+//! `params.platform_session_env`. O descritor da sessão
+//! (`crate::user_session::descriptors`) exige `api-platform_serviceToken` e
+//! `userId`; `super::web_session` os confere antes de chamar [`fetch`].
 //!
 //! Endpoints (GET, cookie de sessão web):
 //!   /balance           -> {code, data:{balance,currency,cashBalance?,giftBalance?}}
@@ -41,15 +43,12 @@ const PLATFORM_ORIGIN: &str = "https://platform.xiaomimimo.com";
 /// UA de navegador, como o CodexBar envia; o backend espera sessão web real.
 const PLATFORM_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-/// Cookies exigidos pela sessão web da plataforma (MiMoCookieImporter.swift).
-const REQUIRED_COOKIES: [&str; 2] = ["api-platform_serviceToken", "userId"];
-
 const REF_NOTE: &str = "Rotas do console web não documentadas publicamente (referência: CodexBar MIT, MiMoUsageFetcher.swift); podem mudar sem aviso.";
 
-/// Consulta saldo e plano de tokens com o cookie da sessão web da plataforma.
+/// Consulta saldo e plano de tokens com o cookie da sessão web da plataforma
+/// (já conferido contra o descritor por `super::web_session`).
 pub(crate) async fn fetch(ctx: &Context<'_>, base: &str, cookie: &str) -> Result<Data, QueryError> {
     let cookie = cookie.trim();
-    validate_cookie(cookie)?;
 
     let base = base.trim_end_matches('/');
     let balance_body = get(ctx, &format!("{base}/balance"), cookie)
@@ -71,25 +70,6 @@ pub(crate) async fn fetch(ctx: &Context<'_>, base: &str, cookie: &str) -> Result
         usage_body.as_ref(),
         base,
     )
-}
-
-/// O cookie precisa carregar `api-platform_serviceToken` e `userId` com valor
-/// não vazio (validação local, antes de qualquer requisição).
-fn validate_cookie(cookie: &str) -> Result<(), QueryError> {
-    let has = |name: &str| {
-        cookie.split(';').any(|pair| {
-            let mut kv = pair.trim().splitn(2, '=');
-            kv.next().map(str::trim) == Some(name)
-                && kv.next().map(str::trim).is_some_and(|v| !v.is_empty())
-        })
-    };
-    if REQUIRED_COOKIES.iter().all(|name| has(name)) {
-        return Ok(());
-    }
-    Err(QueryError::config(
-        "query.mimo_platform.missing_cookie_fields",
-        "Xiaomi MiMo (plataforma): o cookie em params.platform_session_env precisa incluir api-platform_serviceToken e userId. Exporte o cookie da sessão após entrar em platform.xiaomimimo.com no navegador.",
-    ))
 }
 
 /// GET autenticado por cookie. Ok(None) quando o endpoint complementar falha
@@ -443,27 +423,6 @@ mod tests {
         assert_eq!(saldo.window, None);
         assert!(data.notes.iter().any(|n| n.contains("mimo-pro")));
         assert!(data.notes.iter().any(|n| n.contains("bonificado")));
-    }
-
-    #[tokio::test]
-    async fn plataforma_cookie_sem_campos_obrigatorios_nao_faz_requisicao() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .respond_with(ResponseTemplate::new(200))
-            .expect(0)
-            .mount(&server)
-            .await;
-        let http = reqwest::Client::new();
-        let err = fetch(
-            &ctx_with(&http, &NoCredentials),
-            &server.uri(),
-            "session=abc",
-        )
-        .await
-        .expect_err("cookie incompleto");
-        assert_eq!(err.status, Status::NeedsConfiguration);
-        assert!(err.note.fallback.contains("api-platform_serviceToken"));
-        server.verify().await;
     }
 
     #[tokio::test]

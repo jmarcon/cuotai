@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-10-21
+
+### Changed
+
+- Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan now read their web session the same way whether you pasted it into the system vault or still name an environment variable (`session_env`, `platform_session_env`), with the same queries and precedence as before: a session missing its required cookies (`serviceToken` for the MiMo account session, `api-platform_serviceToken` and `userId` for the MiMo platform session) or an unset variable is reported before any request, naming only the cookies or the variable; Alibaba reports say whether the vault session or the variable was used; the field help, the credential hints and the "configure a session" messages point to pasting the session in the account wizard first, with the variable as an alternative; and the `docs/providers.md` access matrix lists the vault session beside `session_env` (PRD 0016 RF5).
+
 ## [0.62.0] - 2026-10-21
 
 ### Added
 
-- A web session now comes with its risk spelled out and a way out: the card of a Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan account whose query uses a session (in the TUI also its details) names the "User session" level and warns "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service." (or that it is read from an environment variable and can move to the vault), the TUI paste step and the desktop "Web session" box show the same level and warning before you paste, and "Forget this session" (F5 twice on the TUI wizard summary, or the button and its confirmation in the desktop account dialog) deletes the session's system vault entry and its reference in the TOML, putting it back when the save is refused; `cuotai-core` adds `user_session::notice`, `paste_notice` and `stage_forget`, and `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored, what is discarded and the risks (PRD 0016 RF4).
+- A web session now comes with its risk spelled out and a way out: the card of a Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan account whose query uses a session (in the TUI also its details) names the "User session" level and warns "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service." (or that it is read from an environment variable and can move to the vault), the TUI paste step and the desktop "Web session" box show the same level and warning before you paste, and "Forget this session" (F5 twice on the TUI wizard summary, or the button and its confirmation in the desktop account dialog) deletes the session's system vault entry and its reference in the TOML, putting it back when the save is refused; `cuotai-core` adds `user_session::notice`, `paste_notice` and `stage_forget`, and `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored, what is discarded and the risks (PRD 0016 RF4, a525ced).
 
 ## [0.61.0] - 2026-10-21
 
@@ -522,8 +528,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/a10d2dc...main
-[0.62.0]: https://github.com/jmarcon/cuotai/compare/a10d2dc...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/a525ced...main
+[0.63.0]: https://github.com/jmarcon/cuotai/compare/a525ced...main
+[0.62.0]: https://github.com/jmarcon/cuotai/commit/a525ced
 [0.61.0]: https://github.com/jmarcon/cuotai/commit/a10d2dc
 [0.60.0]: https://github.com/jmarcon/cuotai/commit/b000625
 [0.59.0]: https://github.com/jmarcon/cuotai/commit/fbbef8f

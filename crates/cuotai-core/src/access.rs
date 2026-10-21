@@ -157,7 +157,7 @@ impl Credential {
             Self::SubscriptionSession => "Usa a sessão da assinatura (login nativo ou o token dela), não uma chave de API da plataforma.",
             Self::CloudIdentity => "Usa uma identidade de nuvem (token OAuth, perfil de CLI ou AccessKey) com permissão de leitura de cobrança ou monitoramento.",
             Self::LocalCli => "Usa um perfil já autenticado do CLI do fornecedor instalado nesta máquina.",
-            Self::UserSession => "Precisa de um cookie de sessão exportado por você; ele expira e nunca é importado automaticamente.",
+            Self::UserSession => "Precisa de uma sessão web que você cola no assistente da conta (guardada no cofre do sistema) ou exporta numa variável; ela expira e nunca é importada automaticamente.",
         };
         Localized::fixed(format!("access.credential_hint.{}", self.slug()), pt)
     }
@@ -1166,10 +1166,15 @@ mod tests {
             let mut rows = vec![(vec![mode_label(&[])], default.clone())];
             let login = crate::oauth::supports_login(provider)
                 .then(|| ("native login".to_string(), account(provider, &[], true)));
+            // PRD 0016 RF5.1: a session pasted into the vault, beside the
+            // `session_env` variable it can replace.
+            let vault = (!crate::user_session::descriptors(provider).is_empty())
+                .then(|| ("session in the vault".to_string(), vault_account(provider)));
             let modes = MODES[1..]
                 .iter()
                 .map(|params| (mode_label(params), account(provider, params, false)))
-                .chain(login);
+                .chain(login)
+                .chain(vault);
             for (label, mode) in modes {
                 let cells = matrix_cells(&describe(&mode));
                 if cells == default {
@@ -1197,6 +1202,66 @@ mod tests {
         )
         .unwrap();
         out
+    }
+
+    /// An account of `provider` keeping every session slot it declares in
+    /// the vault and naming no variable.
+    fn vault_account(provider: Provider) -> Account {
+        let mut vault = account(provider, &[], false);
+        vault.session = Some(crate::user_session::SessionConfig {
+            credential_ref: "6f1d3c1e-8a52-4a3c-9f7e-2a8b5b1c0d11".into(),
+            slots: crate::user_session::descriptors(provider)
+                .iter()
+                .map(|descriptor| descriptor.slot.to_string())
+                .collect(),
+        });
+        vault
+    }
+
+    /// PRD 0016 RF5.2: a provider accepts a web session only through PRD
+    /// 0005: every provider with session descriptors classifies a vault
+    /// session as `UserSession` on a queried (not `Unavailable`) interface
+    /// with its evidence, sends it only to declared hosts, and every
+    /// interface classified `UserSession` has a descriptor to paste into.
+    #[test]
+    fn session_providers_go_through_the_access_descriptor() {
+        for provider in Provider::ALL {
+            let descriptors = crate::user_session::descriptors(provider);
+            let session_modes = MODES
+                .iter()
+                .flat_map(|params| [false, true].map(|oauth| account(provider, params, oauth)))
+                .any(|mode| describe(&mode).credential == C::UserSession);
+            assert_eq!(
+                !descriptors.is_empty(),
+                session_modes,
+                "{provider:?}: a UserSession interface needs a session descriptor and vice versa"
+            );
+            if descriptors.is_empty() {
+                continue;
+            }
+            let access = describe(&vault_account(provider));
+            assert_eq!(access.credential, C::UserSession, "{provider:?}");
+            assert_ne!(access.level, Unavailable, "{provider:?}");
+            assert!(
+                access.evidence.url().starts_with("https://"),
+                "{provider:?}"
+            );
+            for descriptor in descriptors {
+                assert!(
+                    !descriptor.hosts.is_empty(),
+                    "{provider:?} {}",
+                    descriptor.slot
+                );
+                assert!(
+                    descriptor
+                        .hosts
+                        .iter()
+                        .all(|host| !host.contains('/') && !host.contains(':')),
+                    "{provider:?} {}: hosts are bare host names",
+                    descriptor.slot
+                );
+            }
+        }
     }
 
     /// RF5.1: `docs/providers.md` carries the matrix `access::describe`

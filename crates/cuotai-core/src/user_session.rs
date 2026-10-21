@@ -31,6 +31,10 @@
 //! * RF4: [`notice`] and [`paste_notice`] give the card and the paste step
 //!   the `UserSession` level with a short risk warning; [`stage_forget`]
 //!   deletes an account's vault entries and drops its reference.
+//! * RF5: the Xiaomi MiMo and Alibaba Coding/Token Plan adapters read each
+//!   slot through its descriptor (`providers::web_session`), from the vault
+//!   or from the `session_env`-style variable kept as an alternative, and
+//!   refuse a session without its required cookies before any request.
 //!
 //! Session values never appear in the TOML, `Debug`, errors or reports.
 //!
@@ -95,6 +99,11 @@ impl SessionDescriptor {
 
 /// Alibaba console login cookies the Coding Plan and Token Plan adapters
 /// read (CSRF, anonymous id and `sec_token`) plus the Aliyun login family.
+/// CodexBar's `AlibabaCodingPlanCookieImporter.swift` treats
+/// `login_aliyunid_ticket` with one of `login_aliyunid_pk`,
+/// `login_current_pk` or `login_aliyunid` as a signed-in console, but sends
+/// the whole cookie jar of the console domains; none is required here until
+/// a live console session confirms that this reduced set is enough.
 const ALIBABA_COOKIES: &[&str] = &[
     "login_aliyunid_ticket",
     "login_aliyunid",
@@ -199,6 +208,30 @@ pub fn descriptor(provider: Provider, slot: &str) -> Option<&'static SessionDesc
     descriptors(provider).iter().find(|d| d.slot == slot)
 }
 
+/// Prefix of the name a vault session slot is read under: the query puts
+/// it in the slot's parameter in place of a variable name.
+pub(crate) const VAULT_NAME: &str = "__CUOTAI_USER_SESSION:";
+
+/// RF5.1: the required cookies of `slot` that `cookie` (a `Cookie` header
+/// value, from the vault or a variable) lacks or carries empty, in the
+/// descriptor's order. Names only; the value is never copied.
+pub(crate) fn missing_required(provider: Provider, slot: &str, cookie: &str) -> Vec<&'static str> {
+    let Some(descriptor) = descriptor(provider, slot) else {
+        return Vec::new();
+    };
+    descriptor
+        .required
+        .iter()
+        .copied()
+        .filter(|name| {
+            !cookie.split(';').any(|item| {
+                item.split_once('=')
+                    .is_some_and(|(key, value)| key.trim() == *name && !value.trim().is_empty())
+            })
+        })
+        .collect()
+}
+
 /// RF3.3: whether a request to `url` may carry the session of `slot`: over
 /// HTTPS to one of the hosts its descriptor declares, nothing else. The
 /// crate's own contract tests also reach their loopback `wiremock`
@@ -269,7 +302,7 @@ fn token(value: String, expires_at: Option<DateTime<Utc>>) -> OAuthToken {
     }
 }
 
-fn not_found() -> Localized {
+pub(crate) fn not_found() -> Localized {
     Localized::fixed(
         "user_session.not_found",
         "Sessão não encontrada no cofre do sistema; informe a sessão novamente no assistente da conta.",
