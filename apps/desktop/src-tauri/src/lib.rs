@@ -2,6 +2,7 @@
 //! Somente consome `cuotai-core` (via `backend.rs`); não contém lógica de provider.
 mod about;
 mod backend;
+mod hooks;
 mod local_server;
 mod notify;
 mod settings;
@@ -471,6 +472,60 @@ async fn copy_serve_token(b: Shared<'_>) -> Result<String, String> {
     b.copy_serve_token().await
 }
 
+/// PRD 0013 RF4.1: the hooks in Settings → Integration: the switch, the
+/// state, the rules of `hooks.toml` for the editor, the listing awaiting
+/// confirmation and the latest runs.
+#[tauri::command]
+async fn hooks_status(app: AppHandle, b: Shared<'_>) -> Result<hooks::HooksView, String> {
+    Ok(b.hooks_view(&app).await)
+}
+
+/// PRD 0013 RF3.2/RF4: turn the hooks on or off (off by default, saved in
+/// `desktop.json`); on runs only confirmed rules. Error: `unwritable`.
+#[tauri::command]
+async fn set_hooks_enabled(
+    app: AppHandle,
+    b: Shared<'_>,
+    on: bool,
+) -> Result<hooks::HooksView, String> {
+    b.set_hooks_enabled(&app, on).await
+}
+
+/// PRD 0013 RF4.2: the user confirmed the exact commands the dialog listed
+/// under `digest`. Error: the core's `hooks.error.*` text as JSON.
+#[tauri::command]
+async fn confirm_hooks(
+    app: AppHandle,
+    b: Shared<'_>,
+    digest: String,
+) -> Result<hooks::HooksView, String> {
+    b.confirm_hooks(&app, digest).await
+}
+
+/// PRD 0013 RF4.1: save the editor's rules into `hooks.toml` over the
+/// `revision` it read. Errors: `no_config`, the core's `hooks.error.*`
+/// text as JSON.
+#[tauri::command]
+async fn save_hooks(
+    app: AppHandle,
+    b: Shared<'_>,
+    revision: Option<String>,
+    rules: Vec<cuotai_core::hooks::RuleDraft>,
+) -> Result<hooks::HooksView, String> {
+    b.save_hooks(&app, revision, rules).await
+}
+
+/// PRD 0013 RF4.1: fire a sample event at the confirmed rule `name`.
+/// Errors: `hooks_off`, `hook_unknown`.
+#[tauri::command]
+async fn test_hook(
+    app: AppHandle,
+    b: Shared<'_>,
+    name: String,
+) -> Result<hooks::HooksView, String> {
+    b.test_hook(&app, name).await
+}
+
 /// PRD 0003 RF3.3: turn reset notices on or off. On asks the operating system
 /// for permission first and stays off unless it is `granted`; returns the
 /// permission (`granted`, `denied`, `prompt`) or `off`. Error: `unwritable`.
@@ -741,6 +796,7 @@ pub fn run() {
         notify::Notices::load(),
         settings::status_queries(),
         settings::serve_prefs(),
+        settings::hooks_enabled(),
     ));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -791,6 +847,11 @@ pub fn run() {
             generate_serve_token,
             revoke_serve_token,
             copy_serve_token,
+            hooks_status,
+            set_hooks_enabled,
+            confirm_hooks,
+            save_hooks,
+            test_hook,
             history_size,
             account_history,
             set_notify_enabled,
@@ -871,6 +932,7 @@ pub fn run() {
                     }
                 });
             }
+            backend.notify_hook_runs(app.handle().clone());
             tauri::async_runtime::spawn(Arc::clone(&backend).run_scheduler(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_notices(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_incidents(app.handle().clone()));

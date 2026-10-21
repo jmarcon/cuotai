@@ -133,6 +133,18 @@ export const setServe = (enabled, port, allowBrowsers) => call("set_serve", { en
 export const generateServeToken = () => call("generate_serve_token");
 export const revokeServeToken = () => call("revoke_serve_token");
 export const copyServeToken = () => call("copy_serve_token");
+// PRD 0013 RF4: hooks (desktop.json, off by default); the backend runs the core's hooks over this app's own refresh
+// cycle. Each call answers the hooks' new state; `onHookRun` fires after every run so the log is read again.
+export const hooksStatus = () => call("hooks_status");
+export const setHooksEnabled = (on) => call("set_hooks_enabled", { on });
+export const confirmHooks = (digest) => call("confirm_hooks", { digest });
+export const saveHooks = (revision, rules) => call("save_hooks", { revision, rules });
+export const testHook = (name) => call("test_hook", { name });
+export const onHookRun = (cb) => {
+  if (isDesktop) return T.event.listen("hooks", () => cb());
+  demoHookListeners.add(cb);
+  return Promise.resolve(() => demoHookListeners.delete(cb));
+};
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
   const n = view?.notify?.next;
@@ -681,7 +693,7 @@ const demoView = () => {
     notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
     status: { enabled: demoSettings.statusQueries, domains: [...new Set(demoReports.map((r) => DEMO_STATUS_HOSTS[r.provider]).filter(Boolean))],
       outage: reports.some((r) => ["partial_outage", "major_outage"].includes(r.incident?.state)) },
-    serve: demoServeView() };
+    serve: demoServeView(), hooks: { state: demoHooks.enabled ? demoHooksView().state : "off" } };
 };
 // ponytail: demo mirror of the backend's local server state (PRD 0012 RF5); nothing listens in the browser.
 // `?serve=taken` plays port 6738 held by a `cuotai --serve` instance (the core's probe says so in the app).
@@ -695,6 +707,53 @@ function demoServeView() {
     error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `A porta ${s.port} está em uso; escolha outra porta para o servidor local.` } : null,
     cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
     browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "Com navegadores permitidos, qualquer página aberta no navegador pode ler seu uso no servidor local (com token, qualquer página que o conheça). Ative só se uma página sua precisa desses dados." } };
+}
+// ponytail: demo mirror of the backend's hooks (PRD 0013 RF4) with the core's validation, listing and digest reduced
+// to what the screen needs; nothing runs in the browser: a test logs a made-up successful run after a moment.
+// `?hooks=changed` starts with the hooks on and a rule changed since its confirmation (the main-window banner).
+const DEMO_HOOK_EVENTS = ["quota_threshold_crossed", "quota_exhausted", "quota_recovered", "quota_reset", "account_blocked",
+  "account_unblocked", "refresh_failed", "refresh_recovered", "auth_required", "provider_incident", "usage_updated"];
+const DEMO_HOOKS_CHANGED = new URLSearchParams(location.search).get("hooks") === "changed";
+const demoHooks = { enabled: DEMO_HOOKS_CHANGED, path: "~/.config/cuotai/hooks.toml (demo)", revision: null, confirmed: null, runs: [],
+  rules: DEMO_HOOKS_CHANGED ? [{ name: "sound", events: ["quota_exhausted"], command: ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"] }] : null };
+if (DEMO_HOOKS_CHANGED) demoHooks.revision = "r1";
+const demoHookListeners = new Set();
+const demoDigest = (rules) => [...JSON.stringify(rules)].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7).toString(16);
+const demoL10n = (id, params, fallback) => ({ id, params, fallback });
+function demoListing(rules) {
+  const lines = [demoL10n("hooks.confirm.header", { path: demoHooks.path }, `Os hooks de ${demoHooks.path} executam estes comandos quando os eventos indicados acontecem:`)];
+  rules.forEach((r, i) => {
+    const command = JSON.stringify(r.command), events = r.events.join(", ");
+    lines.push(demoL10n("hooks.confirm.rule", { index: i + 1, name: r.name }, `${i + 1}. ${r.name}`),
+      demoL10n("hooks.confirm.events", { events }, `eventos: ${events}`),
+      demoL10n("hooks.confirm.timeout", { seconds: r.timeout_seconds ?? 10 }, `limite de tempo: ${r.timeout_seconds ?? 10} s`),
+      demoL10n("hooks.confirm.command", { command }, `comando: ${command}`));
+  });
+  return lines;
+}
+/** The core's `hooks.error.*` for the cases the editor can produce. */
+function demoHooksError(rules) {
+  if (!rules.length) return demoL10n("hooks.error.empty", {}, "hooks.toml não tem nenhuma regra [[hooks]].");
+  const seen = new Set();
+  for (const [i, r] of rules.entries()) {
+    const name = r.name.trim();
+    if (!name || name.length > 64) return demoL10n("hooks.error.name", { index: i + 1, max: 64 }, `A regra ${i + 1} precisa de um name de 1 a 64 caracteres, sem caracteres de controle.`);
+    if (!r.events.length) return demoL10n("hooks.error.no_events", { name }, `A regra "${name}" não lista nenhum evento.`);
+    const program = r.command[0] ?? "";
+    if (!program || !(program.startsWith("/") || !program.includes("/"))) return demoL10n("hooks.error.command", { name }, `O command da regra "${name}" deve ser uma lista de argumentos cujo primeiro item é um caminho absoluto ou um nome procurado no PATH, como ["/caminho/script", "--opcao"].`);
+    if (seen.has(name)) return demoL10n("hooks.error.duplicate", { name }, `Há mais de uma regra chamada "${name}".`);
+    seen.add(name);
+  }
+  return null;
+}
+function demoHooksView() {
+  const h = demoHooks, rules = h.rules;
+  const digest = rules ? demoDigest(rules) : null, confirmed = digest != null && h.confirmed === digest;
+  const state = !rules ? "missing" : !h.enabled ? "off" : confirmed ? "on" : "unconfirmed";
+  return { state, enabled: h.enabled, path: h.path, revision: h.revision, rules: structuredClone(rules ?? []), error: null, confirmed,
+    digest: rules && !confirmed ? digest : null, listing: rules && !confirmed ? demoListing(rules) : [],
+    running: state === "on" ? rules.map((r) => r.name) : [], runs: h.runs.slice(0, 20), warnings: [], events: DEMO_HOOK_EVENTS,
+    default_timeout: 10, max_timeout: 60 };
 }
 // ponytail: demo mirror of the core's provider statuses (PRD 0011 RF4); the app reads them from the backend. `?status`
 // starts with the queries on and incidents simulated; `?status=offline` plays sources that could not be read.
@@ -954,6 +1013,33 @@ const demo = {
   copy_serve_token: async () => {
     if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token." });
     return demoSettings.serve.secret;
+  },
+  hooks_status: async () => demoHooksView(),
+  set_hooks_enabled: async ({ on }) => { demoHooks.enabled = on; return demoHooksView(); },
+  confirm_hooks: async ({ digest }) => {
+    if (!demoHooks.rules || demoDigest(demoHooks.rules) !== digest) throw JSON.stringify(demoL10n("hooks.error.changed", {}, "O hooks.toml mudou desde que foi exibido; revise as regras de novo."));
+    demoHooks.confirmed = digest;
+    return demoHooksView();
+  },
+  save_hooks: async ({ revision, rules }) => {
+    if (revision !== demoHooks.revision) throw JSON.stringify(demoL10n("hooks.error.changed", {}, "O hooks.toml mudou desde que foi exibido; revise as regras de novo."));
+    const error = demoHooksError(rules);
+    if (error) throw JSON.stringify(error);
+    demoHooks.rules = structuredClone(rules);
+    demoHooks.revision = `r${Date.now()}`;
+    return demoHooksView();
+  },
+  test_hook: async ({ name }) => {
+    const view = demoHooksView();
+    if (view.state !== "on") throw "hooks_off";
+    const rule = demoHooks.rules.find((r) => r.name === name);
+    if (!rule) throw "hook_unknown";
+    setTimeout(() => {
+      const run = { at: new Date().toISOString(), rule: name, event: rule.events[0], duration_ms: 42, outcome: "exited", exit_code: 0 };
+      demoHooks.runs.unshift({ ...run, summary: demoL10n("hooks.run.succeeded", { rule: name, event: run.event, ms: 42 }, `${name} (${run.event}): concluído em 42 ms`) });
+      for (const cb of demoHookListeners) cb();
+    }, 300);
+    return view;
   },
   // `?notify-denied` plays a system that refuses the permission (PRD 0003 RF3.3, reused by PRD 0008 RF3.3).
   set_notify_enabled: async ({ on }) => {

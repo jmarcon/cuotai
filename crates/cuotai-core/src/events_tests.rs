@@ -622,6 +622,7 @@ fn every_summary_reads_in_each_catalog() {
                 ..Values::default()
             },
             previous: None,
+            sample: false,
         };
         let summary = event.summary();
         assert!(!summary.fallback.contains('{'), "{kind:?}");
@@ -645,6 +646,7 @@ fn every_summary_reads_in_each_catalog() {
                 ..Values::default()
             },
             previous: None,
+            sample: false,
         }
         .summary()
         .resolve("en-US"),

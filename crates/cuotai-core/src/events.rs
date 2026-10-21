@@ -23,7 +23,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::alerts::{self, AlertEvent, AlertKind, AlertPrefs, AlertState, ThresholdError};
 use crate::export::v1::AccountExport;
@@ -44,7 +44,7 @@ pub const USAGE_SPACING: TimeDelta = TimeDelta::seconds(600);
 const OAUTH_NETWORK_NOTE: &str = "query.oauth.network";
 
 /// Stable event names (serialized in `snake_case`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventKind {
     /// A quota's consumption reached a threshold (75% or 90% by default)
@@ -195,6 +195,10 @@ pub struct Event {
     pub current: Values,
     /// The same values before it; `null` when nothing earlier is known.
     pub previous: Option<Values>,
+    /// A made-up event, not a transition of a real account (the desktop's
+    /// hook test, [`crate::hooks::Rule::sample`]); present only when true.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub sample: bool,
 }
 
 impl Event {
@@ -521,6 +525,7 @@ impl Emit<'_> {
             metric,
             current,
             previous,
+            sample: false,
         });
     }
 }

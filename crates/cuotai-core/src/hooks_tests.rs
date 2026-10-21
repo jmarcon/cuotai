@@ -29,6 +29,7 @@ fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
             ..Values::default()
         },
         previous: None,
+        sample: false,
     }
 }
 
@@ -322,6 +323,14 @@ fn every_message_reads_in_each_catalog() {
             .confirm(hooks)
             .unwrap_err(),
     );
+    messages.push(changed());
+    let valid = vec![RuleDraft {
+        name: "a".into(),
+        events: vec!["quota_exhausted".into()],
+        command: vec!["/bin/true".into()],
+        ..RuleDraft::default()
+    }];
+    messages.push(Document::save(&blocked.join("hooks.toml"), None, valid).unwrap_err());
     let ids: BTreeSet<&str> = messages.iter().map(|message| &*message.id).collect();
     let catalog: BTreeSet<&str> = crate::text::core_catalog("en-US")
         .unwrap()
@@ -381,6 +390,190 @@ fn the_log_rotates_and_holds_no_payload() {
             .len(),
         LOG_ROTATE_BYTES
     );
+}
+
+/// RF4.1: the desktop's log of the latest runs reads them back newest
+/// first, the rotated log included, skipping lines that are not runs.
+#[test]
+fn the_latest_runs_read_back_newest_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = RunLog::at(dir.path().join("runs.log"));
+    assert!(log.latest(5).is_empty(), "no log is no run");
+    let run = |rule: &str, ms| Run {
+        rule: rule.into(),
+        event: EventKind::RefreshFailed,
+        started_at: Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap(),
+        duration: Duration::from_millis(ms),
+        outcome: Outcome::Exited,
+        exit_code: Some(1),
+        output: String::new(),
+        truncated: false,
+    };
+    let older = serde_json::to_string(&run("old", 1).logged()).unwrap();
+    std::fs::write(dir.path().join("runs.log.1"), format!("{older}\n")).unwrap();
+    log.append(&run("a", 2)).unwrap();
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(log.path())
+        .unwrap()
+        .write_all(b"{\"truncated\nnot json\n")
+        .unwrap();
+    log.append(&run("b", 3)).unwrap();
+    let rules = |runs: Vec<LoggedRun>| runs.into_iter().map(|run| run.rule).collect::<Vec<_>>();
+    assert_eq!(rules(log.latest(10)), ["b", "a", "old"]);
+    assert_eq!(rules(log.latest(2)), ["b", "a"]);
+    assert_eq!(log.latest(1), [run("b", 3).logged()]);
+    assert_eq!(
+        log.latest(1)[0].summary().resolve("en-US"),
+        "b (refresh_failed): exited with code 1 after 3 ms"
+    );
+}
+
+/// RF4.1: a rule's sample passes its own filters, is marked as a sample
+/// in the payload (real events never are) and exists for every event.
+#[test]
+fn a_sample_passes_its_rule_and_says_it_is_one() {
+    let hooks = hooks(concat!(
+        "[[hooks]]\nname = \"filtered\"\n",
+        "events = [\"quota_threshold_crossed\", \"refresh_failed\"]\n",
+        "provider = \"groq\"\naccount = \"Work\"\nmin_threshold = 95\ncommand = [\"/bin/true\"]\n",
+        "[[hooks]]\nname = \"plain\"\nevents = [\"provider_incident\"]\ncommand = [\"/bin/true\"]\n",
+    ));
+    let now = Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap();
+    let [filtered, plain] = hooks.rules() else {
+        panic!("two rules")
+    };
+    let sample = filtered.sample(now);
+    assert!(filtered.matches(&sample));
+    assert_eq!(
+        (
+            sample.event,
+            sample.provider,
+            sample.account_name.as_str(),
+            sample.current.threshold,
+        ),
+        (
+            EventKind::QuotaThresholdCrossed,
+            Provider::Groq,
+            "Work",
+            Some(95)
+        )
+    );
+    assert_eq!(serde_json::to_value(&sample).unwrap()["sample"], true);
+    let real = serde_json::to_value(event(EventKind::QuotaExhausted, "Work", None)).unwrap();
+    assert!(real.get("sample").is_none(), "{real}");
+
+    let incident = plain.sample(now);
+    assert!(plain.matches(&incident));
+    assert_eq!(
+        (incident.account_name.as_str(), &incident.metric),
+        (SAMPLE_ACCOUNT, &None)
+    );
+    for kind in EventKind::ALL {
+        let rule = Rule {
+            events: vec![kind],
+            ..plain.clone()
+        };
+        let sample = rule.sample(now);
+        assert!(rule.matches(&sample) && sample.event == kind && sample.sample);
+        assert!(!sample.summary().resolve("en-US").contains('{'), "{kind:?}");
+    }
+}
+
+fn draft(name: &str, command: &[&str]) -> RuleDraft {
+    RuleDraft {
+        name: name.into(),
+        events: vec!["quota_exhausted".into()],
+        command: command.iter().map(|arg| (*arg).to_owned()).collect(),
+        ..RuleDraft::default()
+    }
+}
+
+/// RF4.1: the editor reads a missing file as an empty one, saves exactly
+/// the commands it was given, never over a file edited since it was read,
+/// and never writes rules the file would reject.
+#[test]
+fn the_editor_saves_only_over_the_revision_it_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("hooks.toml");
+    let missing = Document::read(&path);
+    assert_eq!(
+        (missing.revision(), missing.drafts()),
+        (None, Some(&[][..]))
+    );
+    assert_eq!(missing.hooks().unwrap_err().id, "hooks.error.missing");
+
+    let saved = Document::save(
+        &path,
+        None,
+        vec![draft("sound", &["/usr/bin/afplay", "it's \"x\"; $(id)"])],
+    )
+    .unwrap();
+    assert_eq!(
+        saved.hooks().unwrap().rules()[0].command,
+        ["/usr/bin/afplay", "it's \"x\"; $(id)"]
+    );
+    assert_eq!(saved, Document::read(&path));
+    assert!(saved.revision().is_some());
+
+    let edited = format!("# mine\n{}", std::fs::read_to_string(&path).unwrap());
+    std::fs::write(&path, &edited).unwrap();
+    for stale in [saved.revision(), None] {
+        let error = Document::save(&path, stale, vec![draft("x", &["/bin/true"])]).unwrap_err();
+        assert_eq!(error.id, "hooks.error.changed");
+    }
+    let current = Document::read(&path);
+    for (drafts, id) in [
+        (vec![draft("bad", &["bin/run"])], "hooks.error.command"),
+        (vec![], "hooks.error.empty"),
+        (
+            vec![draft("a", &["/bin/true"]), draft("a", &["/bin/true"])],
+            "hooks.error.duplicate",
+        ),
+    ] {
+        let error = Document::save(&path, current.revision(), drafts).unwrap_err();
+        assert_eq!(error.id, id);
+    }
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), edited);
+
+    std::fs::write(&path, "not toml =").unwrap();
+    let broken = Document::read(&path);
+    assert_eq!(broken.drafts(), None);
+    assert_eq!(broken.hooks().unwrap_err().id, "hooks.error.toml");
+}
+
+/// RF4.1: an edit keeps the comments and filters of the rules it keeps;
+/// a removed rule takes its own comments with it.
+#[test]
+fn saving_keeps_the_comments_of_the_rules_it_keeps() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("hooks.toml");
+    let text = concat!(
+        "# My hooks.\n\n# Plays a sound.\n[[hooks]]\nname = \"sound\"\n",
+        "events = [\"quota_exhausted\"] # when it runs out\nprovider = \"claude\"\n",
+        "command = [\"/usr/bin/afplay\", \"Glass.aiff\"]\n\n",
+        "# Gone soon.\n[[hooks]]\nname = \"old\"\nevents = [\"refresh_failed\"]\ncommand = [\"/bin/true\"]\n",
+    );
+    std::fs::write(&path, text).unwrap();
+    let read = Document::read(&path);
+    let mut drafts = read.drafts().unwrap().to_vec();
+    assert_eq!(drafts[0].provider.as_deref(), Some("claude"));
+    drafts[0].events.push("quota_reset".into());
+    drafts.remove(1);
+    drafts.push(draft("new", &["logger", "-t", "cuotai"]));
+    Document::save(&path, read.revision(), drafts.clone()).unwrap();
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.starts_with("# My hooks.\n\n# Plays a sound.\n[[hooks]]\nname = \"sound\"\n"),
+        "{written}"
+    );
+    assert!(written.contains("# when it runs out"), "{written}");
+    assert!(written.contains("provider = \"claude\""), "{written}");
+    assert!(
+        !written.contains("Gone soon") && !written.contains("\"old\""),
+        "{written}"
+    );
+    assert_eq!(Document::read(&path).drafts().unwrap(), drafts.as_slice());
 }
 
 #[cfg(unix)]
@@ -730,5 +923,37 @@ rm '{running}/'$$
             assert!(Instant::now() < deadline, "the hook outlived the runner");
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
+    }
+
+    /// RF4.1: the test button runs one rule alone with its sample, marked
+    /// as such on stdin, even where the rule's filters would not let a
+    /// real event of another account through; other rules stay idle.
+    #[tokio::test]
+    async fn a_test_runs_only_the_named_rule_with_its_sample() {
+        let rig = Rig::new();
+        let out = rig.path("stdin");
+        let script = rig.script("cat.sh", &format!("cat > '{}'\n", out.display()));
+        let other = rig.path("other");
+        let touch = rig.script("touch.sh", &format!("touch '{}'\n", other.display()));
+        let confirmed = rig.confirmed(&[
+            ("tested", "\"refresh_failed\"", sh(&script, &[]), 10),
+            ("idle", "\"refresh_failed\"", sh(&touch, &[]), 10),
+        ]);
+        let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
+        let sample = runner.rules()[0].sample(Utc::now());
+        assert_eq!(runner.submit_to("nope", &sample), None);
+        assert_eq!(runner.submit_to("tested", &sample), Some(0));
+        let run = next(&mut runs).await;
+        assert_eq!(
+            (run.rule.as_str(), run.event),
+            ("tested", EventKind::RefreshFailed)
+        );
+        assert!(run.succeeded(), "{run:?}");
+        let stdin: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+        assert_eq!(stdin["sample"], true);
+        assert_eq!(stdin, serde_json::to_value(&sample).unwrap());
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(!other.exists(), "only the named rule ran");
     }
 }

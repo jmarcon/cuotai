@@ -1,6 +1,6 @@
 # Events (`events`)
 
-`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. `cuotai --watch` streams them (PRD 0013 RF2) and `cuotai --watch --hooks` runs your own commands on them (PRD 0013 RF3).
+`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. `cuotai --watch` streams them (PRD 0013 RF2), and `cuotai --watch --hooks` and the desktop app's Settings → Integration run your own commands on them (PRD 0013 RF3 and RF4).
 
 ## Watching from the command line (`cuotai --watch`)
 
@@ -20,7 +20,7 @@ cuotai --watch --jsonl --serve                   # the local server on the same 
 
 ## Hooks (`cuotai --watch --hooks`)
 
-Hooks run commands of your own when events happen: play a sound, write to a file, notify a chat through a script of yours. They are **off by default**: they only run with `cuotai --watch --hooks`, and only after you confirmed their exact commands.
+Hooks run commands of your own when events happen: play a sound, write to a file, notify a chat through a script of yours. They are **off by default**: they only run with `cuotai --watch --hooks` or while turned on in the desktop app ([below](#hooks-in-the-desktop-app)), and only after you confirmed their exact commands.
 
 ```toml
 # hooks.toml, in the same directory as the accounts' TOML (cuotai.toml or config.toml).
@@ -48,7 +48,7 @@ cuotai --watch --hooks --jsonl      # hooks and the NDJSON stream
 
 - **File.** `hooks.toml` lives next to the accounts' TOML (`--config ~/x/cuotai.toml` reads `~/x/hooks.toml`). Each `[[hooks]]` rule has `name`, `events` (payload names), the optional filters `provider`, `account` and `min_threshold`, a `command` and an optional `timeout_seconds`. Any other key is rejected, as is a file with no rule; an invalid file is a local error (exit `1`) that names the line or the rule, never a rule that is silently skipped. `--events` also limits what reaches the hooks.
 - **The command is an argument vector,** never a shell string: `command = "script; rm -rf ~"` is rejected, and `["/path/script", "it's; $(id)"]` runs `/path/script` with that exact text as its one argument. The program is an absolute path or a bare name looked up in `PATH` (a relative path is rejected); `~` and variables are not expanded. To use a shell, say so explicitly (`["/bin/sh", "/path/script.sh"]`).
-- **Confirmation.** The first time, and whenever the rules change (any name, event, filter, command or time limit; comments and layout do not count), `--watch --hooks` lists every rule with its exact command (as a JSON array, so quotes and separators are visible) on stderr and asks you to type `sim`/`yes`/`si` (per `CUOTAI_LANG`); any other answer declines and nothing runs. Without a terminal (a service, a pipe on stdin) unconfirmed hooks are a local error (exit `1`) before any query: confirm them once in a terminal. The confirmation is the SHA-256 of the rules, kept per `hooks.toml` in `<OS local data dir>/cuotai/hooks/consent.json`; Cuotai never writes, downloads or changes a command.
+- **Confirmation.** The first time, and whenever the rules change (any name, event, filter, command or time limit; comments and layout do not count), `--watch --hooks` lists every rule with its exact command (as a JSON array, so quotes and separators are visible) on stderr and asks you to type `sim`/`yes`/`si` (per `CUOTAI_LANG`); any other answer declines and nothing runs. Without a terminal (a service, a pipe on stdin) unconfirmed hooks are a local error (exit `1`) before any query: confirm them once in a terminal or in the desktop app. The confirmation is the SHA-256 of the rules, kept per `hooks.toml` in `<OS local data dir>/cuotai/hooks/consent.json`; Cuotai never downloads, generates or changes a command (the desktop editor writes only what you typed).
 - **What a hook receives.** The event payload (below) as one JSON line on stdin, and the variables `CUOTAI_EVENT` (the event name), `CUOTAI_ACCOUNT` (the account name), `CUOTAI_PROVIDER` (the provider slug) and `CUOTAI_METRIC` (the metric label, empty for account-wide events). They are data, never part of the command line: quote them in your script (`"$CUOTAI_ACCOUNT"`).
 - **Isolation.** The environment is reduced to `PATH`, `HOME` and `LANG` (plus `SystemRoot` on Windows, which processes need to start) and the `CUOTAI_*` variables: no credential variable (`OPENAI_ADMIN_KEY`, `AWS_*`, …) or `CUOTAI_CONFIG` reaches a hook. The working directory is the system's temporary directory. stdout and stderr are captured (never mixed into the event stream), up to 16 KiB per run.
 - **Limits.** A hook that outlives its `timeout_seconds` is killed. At most 4 hooks run at once; up to 64 more wait in a queue, and beyond that the oldest waiting run is dropped with a warning on stderr. A hook that fails, hangs or cannot start never stops `--watch` or changes when accounts are queried: a run that did not succeed is one line on stderr (`cuotai: hook sound (quota_exhausted): exited with code 3 after 120 ms`). Stopping `--watch` drops the queue and kills the hooks still running.
@@ -63,6 +63,16 @@ payload=$(cat)
 printf '%s %s %s\n' "$(date -u +%FT%TZ)" "$CUOTAI_EVENT" "$CUOTAI_ACCOUNT" >> "$HOME/cuotai-events.log"
 printf '%s\n' "$payload" | jq -r '.current.threshold // empty' >> "$HOME/cuotai-thresholds.log"
 ```
+
+### Hooks in the desktop app
+
+**Settings → Integration → Hooks** runs the same rules inside the desktop app, from the `hooks.toml` next to the accounts' file it has open.
+
+- **Off by default.** The **Run hooks** switch is saved in `desktop.json`; while it is off no command runs.
+- **Editor.** Each rule has a name, the events it runs on (a box per payload name) and the command as one field per argument, the first being the program (an absolute path or a bare name looked up in `PATH`); arguments are passed exactly as typed, without a shell. Saving goes through the same validation as `cuotai --watch --hooks` and never replaces a file edited outside the app since it was shown (reload it first). Filters and time limits written by hand in `hooks.toml` are shown and kept; comments of the rules you keep survive a save, those of a removed rule go with it.
+- **Confirmation.** Turning hooks on with rules nobody confirmed, saving changed rules while they are on, or **Review commands** opens a dialog with the exact listing `cuotai --watch --hooks` prints (every rule's events, filters, time limit and command as a JSON array); nothing runs until you choose **Run these commands**. The confirmation is the same record the command line uses, so confirming in either one confirms both. When the file changes outside the app the rules stop, Settings asks again and a banner on the main window says so.
+- **Events.** The confirmed rules run on the events of the app's own readings (the refresh cycle the window shows), so hooks add no query; the first reading after they start, or after the accounts' file changes, is a new baseline. A hook gets the event exactly as described above, with the same isolation and limits. A desktop app started from the Dock gets the system's short `PATH`, so prefer absolute program paths.
+- **Test and log.** **Test** (on a confirmed, running rule) sends it a sample of its first event at once, built to pass its filters and marked `"sample": true`. **Latest runs** lists the last 20 lines of the shared `runs.log` (from the app and from `cuotai --watch --hooks`), newest first, updated when each run ends.
 
 ## Producing events (Rust)
 
@@ -122,6 +132,7 @@ One reading can fire several events; they come in this order: refresh events, `q
 | `metric` | object or `null` | `label` and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`). |
 | `current` | object | The values after the transition. |
 | `previous` | object or `null` | The same values before it; `null` when nothing earlier is known. |
+| `sample` | `true`, or absent | Present only on the made-up event the desktop's **Test** button sends to a hook ([Hooks in the desktop app](#hooks-in-the-desktop-app)); a real transition never has it. |
 
 The value objects hold only the fields that apply and are known; a missing field is never zero: `status` (the `Report` status), `category`, `threshold`, `used`, `limit`, `remaining`, `unit`, `used_ratio` (consumed fraction of the cap, 0 to 1), `resets_at`, `blocked_until`, `incident` and `metrics` (each with `label`, `window`, `used`, `limit`, `remaining`, `unit`, `used_ratio` and `resets_at`, `null` when unknown).
 
