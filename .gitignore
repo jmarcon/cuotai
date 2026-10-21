@@ -1,4 +1,6 @@
 /target/
+/dist/
+/fragments/
 *.rs.broken
 /cuotai.toml
 .env
@@ -9,3 +11,17 @@
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
+# Per-workspace BOMs produced by `cargo cyclonedx --override-filename`
+# during a release run; they embed absolute paths and are inputs to
+# `cargo xtask merge-sbom`, which publishes the aggregate sbom.cdx.json.
+# Scoped to the exact generated file names, so sbom.cdx.json (the published
+# artifact) and any intentional test fixture are unaffected.
+/sbom-cli.json
+/sbom-desktop.json
+/crates/cuotai-tui/sbom-cli.json
+/crates/cuotai-tui/sbom-desktop.json
+/crates/cuotai-core/sbom-cli.json
+/xtask/sbom-cli.json
+/xtask/sbom-desktop.json
+/apps/desktop/src-tauri/sbom-cli.json
+/apps/desktop/src-tauri/sbom-desktop.json

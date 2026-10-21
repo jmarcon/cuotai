@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-10-21
+
+### Added
+
+- You can rehearse a deterministic tag/version-gated release with the cross-platform desktop and CLI artifact matrix, honest signing and checksum state, provenance and CycloneDX SBOM outputs, and a draft-to-verified release flow with a safe dry run; this records validated tooling rather than a production tag, published release or configured owner signing secrets (PRD 0021 RF1–RF4; PRD 0019 RF3).
+
 ## [0.67.0] - 2026-10-21
 
 ### Added
@@ -555,8 +561,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/0.67.0...HEAD
-[0.67.0]: https://github.com/jmarcon/cuotai/compare/0.66.0...0.67.0
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.68.0...HEAD
+[0.68.0]: https://github.com/jmarcon/cuotai/compare/v0.67.0...v0.68.0
+[0.67.0]: https://github.com/jmarcon/cuotai/compare/v0.66.0...v0.67.0
 [0.66.0]: https://github.com/jmarcon/cuotai/compare/44b1f0f...main
 [0.65.0]: https://github.com/jmarcon/cuotai/commit/44b1f0f
 [0.64.0]: https://github.com/jmarcon/cuotai/commit/fb83951

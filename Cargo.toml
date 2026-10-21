@@ -1,9 +1,9 @@
 [workspace]
-members = ["crates/cuotai-core", "crates/cuotai-tui"]
+members = ["crates/cuotai-core", "crates/cuotai-tui", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.67.0"
+version = "0.68.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
