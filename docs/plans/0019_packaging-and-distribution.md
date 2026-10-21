@@ -30,6 +30,8 @@
 
 The first `cargo deny` also found four `rustls` advisories and a yanked package, fixed in 0.17.1 (`chore(security)`). The `rsa` advisory `RUSTSEC-2023-0071` remains ignored, as no fixed version exists, with the justification recorded in `deny.toml`.
 
+> **Scope note (2026-10-21):** the build, signing, publication (RF3) and installation-channel (RF4) requirements below are detailed and superseded by [PRD 0021](0021_release-pipeline-and-package-managers.md) (release pipeline and package-manager publishing). They stay here as the original summary; new work on them follows PRD 0021. RF1, RF2, RF5, RF6 and RF7 remain in this plan.
+
 Sections 1 and 2 describe the situation before the implementation.
 
 ## 1. Context
@@ -80,6 +82,8 @@ Without binaries, without a formal license and without releases, Cuotai cannot b
 
 ### RF3 — Build, signing and publication (high priority)
 
+> Detailed in [PRD 0021](0021_release-pipeline-and-package-managers.md), RF1 to RF4.
+
 - **RF3.1** A release triggered by a `v*` tag on `main`. The version comes from a single source: the workspace `Cargo.toml`, with a CI check that `apps/desktop/src-tauri/Cargo.toml` and `tauri.conf.json` match (they are duplicated today).
 - **RF3.2** Desktop artifacts: macOS universal (`.dmg`), Windows x64 and ARM64 (installer), Linux x64 and ARM64 (`AppImage` and `.deb`). TUI/CLI artifacts: tarballs for macOS (arm64 and x86_64) and Linux (glibc and musl, where viable) and a zip for Windows.
 - **RF3.3** Signing:
@@ -92,6 +96,8 @@ Without binaries, without a formal license and without releases, Cuotai cannot b
 - **Acceptance criterion:** a test tag generates the artifacts for all platforms; a clean install on each system opens the app, loads the configuration and creates a sample account; `shasum -c` verifies the checksums; the macOS package passes the Gatekeeper check.
 
 ### RF4 — Installation channels (medium priority)
+
+> Detailed in [PRD 0021](0021_release-pipeline-and-package-managers.md), RF5 and RF8.
 
 - **RF4.1** Homebrew: a *tap* of its own with a desktop *cask* and a CLI *formula*; once stable, evaluate the official repository.
 - **RF4.2** Windows: a `winget` manifest and, optionally, `scoop`. Linux: an AUR package and `AppImage`/`.deb` instructions. Cargo: `cargo install` of the TUI from the repository, documented.
