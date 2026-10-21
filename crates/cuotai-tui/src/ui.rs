@@ -134,8 +134,7 @@ impl AccountRefresh {
         if from == to {
             return;
         }
-        let job = self.jobs.remove(from);
-        self.jobs.insert(to, job);
+        rotate_span(&mut self.jobs, from, to);
         let token = self.tokens.remove(from);
         self.tokens.insert(to, token);
     }
@@ -150,6 +149,18 @@ impl AccountRefresh {
         }
     }
 }
+/// Moves the element at `from` to `to`, shifting the ones in between by one
+/// slot. Same result as `remove(from)` followed by `insert(to, ..)`, done by
+/// rotating the affected span in place. Panics when either index is out of
+/// range, like the remove/insert pair it replaces.
+fn rotate_span<T>(items: &mut [T], from: usize, to: usize) {
+    if from < to {
+        items[from..=to].rotate_left(1);
+    } else {
+        items[to..=from].rotate_right(1);
+    }
+}
+
 impl Drop for AccountRefresh {
     fn drop(&mut self) {
         self.abort_all();
@@ -2543,6 +2554,62 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+        }
+    }
+
+    #[test]
+    fn rotate_span_matches_remove_then_insert_for_every_pair() {
+        let n = 5;
+        for from in 0..n {
+            for to in 0..n {
+                let mut expected: Vec<usize> = (0..n).collect();
+                let moved = expected.remove(from);
+                expected.insert(to, moved);
+                let mut got: Vec<usize> = (0..n).collect();
+                rotate_span(&mut got, from, to);
+                assert_eq!(got, expected, "from {from} to {to}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn move_account_reorders_jobs_and_tokens_for_every_pair() {
+        let n = 4;
+        for from in 0..n {
+            for to in 0..n {
+                let mut table = AccountRefresh::new(n);
+                let mut ids = Vec::new();
+                for index in 0..n {
+                    let handle = tokio::spawn(std::future::pending::<cuotai_core::Report>());
+                    ids.push(handle.id());
+                    table.install(
+                        index,
+                        handle,
+                        cuotai_core::refresh::Generation(index as u64),
+                    );
+                }
+                let mut expected_ids = ids.clone();
+                let id = expected_ids.remove(from);
+                expected_ids.insert(to, id);
+                let mut expected_tokens: Vec<u64> = (0..n as u64).collect();
+                let token = expected_tokens.remove(from);
+                expected_tokens.insert(to, token);
+
+                table.move_account(from, to);
+
+                let got_ids: Vec<_> = table
+                    .jobs
+                    .iter()
+                    .map(|job| job.as_ref().expect("job kept").id())
+                    .collect();
+                let got_tokens: Vec<u64> = table
+                    .tokens
+                    .iter()
+                    .map(|token| token.expect("token kept").0)
+                    .collect();
+                assert_eq!(got_ids, expected_ids, "jobs from {from} to {to}");
+                assert_eq!(got_tokens, expected_tokens, "tokens from {from} to {to}");
+            }
         }
     }
 
