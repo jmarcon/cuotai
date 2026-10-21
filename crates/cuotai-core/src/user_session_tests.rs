@@ -256,15 +256,13 @@ async fn a_query_reads_the_vault_session_through_its_credentials() {
 
 #[tokio::test]
 async fn the_report_of_a_vault_session_never_carries_its_value() {
-    // A platform cookie without the required fields fails before any
-    // request; the adapter's message proves it read the vault value.
+    // A platform cookie without the descriptor's required cookies fails
+    // before any request; the message proves the vault value was read.
     let (_, monitor) = migrated("platform_session_env", "other=SECRET-SESSION-VALUE").await;
     let report = monitor.refresh_account(0).await;
     assert_eq!(report.status, Status::NeedsConfiguration);
-    assert_eq!(
-        report.notes_l10n[0].id,
-        "query.mimo_platform.missing_cookie_fields"
-    );
+    assert_eq!(report.notes_l10n[0].id, "query.session.missing_cookies");
+    assert!(report.notes[0].contains("api-platform_serviceToken, userId"));
     let text = serde_json::to_string(&report).unwrap();
     assert!(!text.contains(SECRET), "{text}");
     assert!(!format!("{report:?}").contains(SECRET));

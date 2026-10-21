@@ -704,7 +704,7 @@ impl Monitor {
             for session in &sessions {
                 effective.to_mut().params.insert(
                     session.slot.to_string(),
-                    format!("{USER_SESSION}{}", session.slot),
+                    format!("{}{}", user_session::VAULT_NAME, session.slot),
                 );
             }
             if let (Some(config), Some(token)) = (&account.oauth, &access) {
@@ -849,8 +849,6 @@ impl Monitor {
 
 const OAUTH_ACCESS: &str = "__CUOTAI_OAUTH_ACCESS";
 const NO_API_KEY: &str = "__CUOTAI_NO_API_KEY";
-/// Prefix of the name a vault session slot is read under.
-const USER_SESSION: &str = "__CUOTAI_USER_SESSION:";
 
 struct QueryCredentials<'a> {
     external: &'a dyn Credentials,
@@ -861,7 +859,7 @@ struct QueryCredentials<'a> {
 }
 impl Credentials for QueryCredentials<'_> {
     fn get(&self, name: &str) -> Option<String> {
-        if let Some(slot) = name.strip_prefix(USER_SESSION) {
+        if let Some(slot) = name.strip_prefix(user_session::VAULT_NAME) {
             let session = self.sessions.iter().find(|session| session.slot == slot)?;
             self.read
                 .lock()

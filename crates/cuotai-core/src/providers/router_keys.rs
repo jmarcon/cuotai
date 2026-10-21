@@ -627,17 +627,24 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
 
 /// Quota do Xiaomi MiMo: modos reais, em ordem de prioridade.
 ///
-/// 1. `params.session_env` — cookie de sessão da CONTA Xiaomi (valor de
-///    `serviceToken`, do MiMo Desktop/SSO); GET `{mimo-server-<região>}/api/user/usage`.
+/// 1. Sessão `session_env` (PRD 0016: colada no cofre do sistema ou, como
+///    alternativa, numa variável nomeada por `params.session_env`) — cookie
+///    da CONTA Xiaomi (`serviceToken=...`, do MiMo Desktop/SSO); GET
+///    `{mimo-server-<região>}/api/user/usage`.
 ///    Região em `params.region` ∈ {cn, sgp, ams, ru, in} (padrão `sgp`).
 ///    Resposta: `{ code: 0, data: { percent, resetDate, resetAt? } }`, onde
 ///    `percent` é o percentual RESTANTE da quota semanal (ex.: 94).
 ///    (xiaomi-mimo.js + mimoAccount.js do 9router.)
 ///
-/// 2. `params.platform_session_env` — cookie da sessão WEB da plataforma
-///    (login em platform.xiaomimimo.com; precisa de `api-platform_serviceToken`
-///    e `userId`). Saldo pay-as-you-go e plano de tokens mensal; implementado
-///    em `super::mimo_platform` (referência: CodexBar).
+/// 2. Sessão `platform_session_env` (cofre ou variável) — cookie da sessão
+///    WEB da plataforma (login em platform.xiaomimimo.com; precisa de
+///    `api-platform_serviceToken` e `userId`). Saldo pay-as-you-go e plano
+///    de tokens mensal; implementado em `super::mimo_platform` (referência:
+///    CodexBar).
+///
+/// Os cookies exigidos de cada sessão vêm do descritor
+/// (`crate::user_session::descriptors`), checados por `super::web_session`
+/// antes de qualquer requisição.
 ///
 /// 3. Chave nativa `sk-` (login authorize/ECDH): NÃO lê quota em endpoint
 ///    nenhum — a rota AI Studio recusa `sk-` com 401 (verificado pelo 9router)
@@ -650,18 +657,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
 ///    endpoint `aistudio.xiaomimimo.com/open-apis/v1/user/usage` — só funciona
 ///    se a credencial for um token de sessão, não uma `sk-` de inferência.
 async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
-    if let Some(name) = opt_param(account, "session_env") {
-        let cookie = ctx
-            .credentials
-            .get(name)
-            .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| {
-                QueryError::config_params(
-                    "query.router_keys.xiaomi_missing_session_cookie",
-                    params([("name", ParamValue::from(name.to_string()))]),
-                    format!("Credencial ausente: {name}"),
-                )
-            })?;
+    if let Some(session) = super::web_session(account, ctx, "session_env")? {
         let region = opt_param(account, "region")
             .unwrap_or(MIMO_DEFAULT_REGION)
             .to_ascii_lowercase();
@@ -676,23 +672,16 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
                     format!("params.region inválido: {region}. Valores: cn, sgp, ams, ru, in."),
                 )
             })?;
-        return mimo_session_at(ctx, base, &cookie, &region).await;
+        return mimo_session_at(ctx, base, &session.cookie, &region).await;
     }
 
-    if let Some(name) = opt_param(account, "platform_session_env") {
-        let cookie = ctx
-            .credentials
-            .get(name)
-            .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| {
-                QueryError::config_params(
-                    "query.router_keys.xiaomi_missing_platform_cookie",
-                    params([("name", ParamValue::from(name.to_string()))]),
-                    format!("Credencial ausente: {name}"),
-                )
-            })?;
-        return super::mimo_platform::fetch(ctx, super::mimo_platform::PLATFORM_API_BASE, &cookie)
-            .await;
+    if let Some(session) = super::web_session(account, ctx, "platform_session_env")? {
+        return super::mimo_platform::fetch(
+            ctx,
+            super::mimo_platform::PLATFORM_API_BASE,
+            &session.cookie,
+        )
+        .await;
     }
 
     // Conta criada pelo login nativo (oauth presente) ou marcada
@@ -702,7 +691,7 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
     if native_key {
         return Err(QueryError::config(
             "query.router_keys.xiaomi_native_key_has_no_quota",
-            "Xiaomi MiMo: a chave permanente do login nativo (sk-) é só de inferência e não lê quota — não repita o login nem o código, o resultado seria a mesma chave. Para quota, configure params.session_env (cookie serviceToken da conta; quota semanal) ou params.platform_session_env (cookie de platform.xiaomimimo.com com api-platform_serviceToken e userId; saldo e plano de tokens).",
+            "Xiaomi MiMo: a chave permanente do login nativo (sk-) é só de inferência e não lê quota — não repita o login nem o código, o resultado seria a mesma chave. Para quota, cole no assistente da conta a sessão da conta Xiaomi (cookie serviceToken; quota semanal) ou a de platform.xiaomimimo.com (api-platform_serviceToken e userId; saldo e plano de tokens), ou, como alternativa, nomeie a variável com o cookie em params.session_env ou params.platform_session_env.",
         ));
     }
 
@@ -781,7 +770,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
             note: Localized::with_params(
                 "query.router_keys.xiaomi_aistudio_session_required",
                 params([("code", ParamValue::from(401u16))]),
-                "Xiaomi MiMo: a quota semanal exige sessão da conta Xiaomi (params.session_env); uma chave sk- de inferência sozinha não é aceita.",
+                "Xiaomi MiMo: a quota semanal exige a sessão da conta Xiaomi (cole-a no assistente da conta ou nomeie a variável em params.session_env); uma chave sk- de inferência sozinha não é aceita.",
             ),
         });
     }

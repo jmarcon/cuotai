@@ -4,10 +4,11 @@
 //! inferência. Coding Plan, por outro lado, é consultado pelo gateway do
 //! console usado pelo painel Alibaba. Há dois modos mutuamente exclusivos:
 //!
-//! - `params.session_env`: cookie de uma sessão já autenticada. Quando o
-//!   parâmetro existe, ele sempre tem precedência e nenhuma API key é exigida.
-//!   O adaptador obtém `sec_token` com um GET no dashboard e faz o RPC do
-//!   console com o cookie.
+//! - sessão web `session_env` (PRD 0016): colada no assistente da conta e
+//!   guardada no cofre do sistema ou, como alternativa, numa variável
+//!   nomeada por `params.session_env`. Quando existe, ela sempre tem
+//!   precedência e nenhuma API key é exigida. O adaptador obtém `sec_token`
+//!   com um GET no dashboard e faz o RPC do console com o cookie.
 //! - API key: `Account.credential_env` (padrão `BAILIAN_CODING_PLAN_API_KEY`) é enviada ao
 //!   gateway regional nos três cabeçalhos aceitos pelo console.
 //!
@@ -21,7 +22,8 @@
 //!
 //! Parâmetros opcionais:
 //! - `region`: `intl` (padrão) ou `cn`;
-//! - `session_env`: nome da variável que contém o header Cookie completo.
+//! - `session_env`: nome da variável que contém o header Cookie completo
+//!   (alternativa à sessão no cofre).
 
 use super::{json as fetch_json, paginate, secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
@@ -384,7 +386,8 @@ fn login_required(session: bool) -> QueryError {
         QueryError::config(
             "query.alibaba_plans.api_key_requires_session",
             "A API key não disponibilizou a cota do Coding Plan nesta conta/região; \
-             configure params.session_env com o Cookie de uma sessão do console Alibaba.",
+             cole a sessão do console Alibaba no assistente da conta (ou configure \
+             params.session_env com a variável que contém o Cookie).",
         )
     }
 }
@@ -640,12 +643,33 @@ fn window_metric(
     })
 }
 
+/// Which credential a Coding Plan query used, for the note on its report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QueriedWith {
+    ApiKey,
+    /// The session a `params.session_env` variable holds.
+    Variable,
+    /// The session kept in the system vault (PRD 0016).
+    Vault,
+}
+
+impl QueriedWith {
+    fn session(session: &super::WebSession) -> Self {
+        if session.vault {
+            Self::Vault
+        } else {
+            Self::Variable
+        }
+    }
+}
+
 fn parse_coding_plan_payload(
     payload: Value,
     region: Region,
-    session: bool,
+    via: QueriedWith,
     now: DateTime<Utc>,
 ) -> Result<Data, QueryError> {
+    let session = via != QueriedWith::ApiKey;
     let payload = expand_embedded_json(payload);
     let code = find_string(&payload, &["code", "statusCode", "status_code"]);
     let message = find_string(&payload, &["message", "msg", "statusMessage", "status_msg"]);
@@ -765,16 +789,19 @@ fn parse_coding_plan_payload(
             format!("Plano: {plan_name}."),
         );
     }
-    if session {
-        notes.push(
+    match via {
+        QueriedWith::Vault => notes.push(
+            "note.alibaba_plans.vault_session_query",
+            "Quota consultada com a sessão web guardada no cofre do sistema.",
+        ),
+        QueriedWith::Variable => notes.push(
             "note.alibaba_plans.session_query",
             "Quota consultada com a sessão indicada por params.session_env.",
-        );
-    } else {
-        notes.push(
+        ),
+        QueriedWith::ApiKey => notes.push(
             "note.alibaba_plans.api_key_query",
             "Quota consultada com a API key indicada por credential_env.",
-        );
+        ),
     }
     Ok(Data::new(metrics, notes, coding_plan_dashboard(region)))
 }
@@ -811,7 +838,7 @@ async fn query_with_api_key(
         false,
     )
     .await?;
-    parse_coding_plan_payload(payload, region, false, Utc::now())
+    parse_coding_plan_payload(payload, region, QueriedWith::ApiKey, Utc::now())
 }
 
 fn cookie_value<'a>(cookie: &'a str, name: &str) -> Option<&'a str> {
@@ -907,10 +934,11 @@ async fn resolve_sec_token(
 
 async fn query_with_session(
     ctx: &Context<'_>,
-    cookie: &str,
+    session: &super::WebSession,
     region: Region,
     endpoints: CodingPlanEndpoints<'_>,
 ) -> Result<Data, QueryError> {
+    let cookie = session.cookie.as_str();
     let sec_token = resolve_sec_token(ctx, cookie, region, endpoints).await?;
     let trace_id = uuid::Uuid::new_v4().to_string();
     let mut cornerstone = json!({
@@ -973,7 +1001,7 @@ async fn query_with_session(
             .header("x-csrf-token", csrf);
     }
     let payload = response_json(request, true).await?;
-    parse_coding_plan_payload(payload, region, true, Utc::now())
+    parse_coding_plan_payload(payload, region, QueriedWith::session(session), Utc::now())
 }
 
 async fn fetch_coding_plan_at(
@@ -982,25 +1010,8 @@ async fn fetch_coding_plan_at(
     endpoints: CodingPlanEndpoints<'_>,
 ) -> Result<Data, QueryError> {
     let region = parse_region(account)?;
-    if let Some(session_env) = account
-        .params
-        .get("session_env")
-        .map(String::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        let cookie = ctx
-            .credentials
-            .get(session_env)
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| {
-                QueryError::config_params(
-                    "query.alibaba_plans.missing_session_cookie",
-                    params([("name", ParamValue::from(session_env.to_string()))]),
-                    format!("Cookie de sessão ausente: {session_env} (params.session_env)."),
-                )
-            })?;
-        return query_with_session(ctx, &cookie, region, endpoints).await;
+    if let Some(session) = super::web_session(account, ctx, "session_env")? {
+        return query_with_session(ctx, &session, region, endpoints).await;
     }
     let key = secret(account, ctx, "BAILIAN_CODING_PLAN_API_KEY")?;
     query_with_api_key(ctx, &key, region, endpoints).await
@@ -1343,6 +1354,10 @@ async fn fetch_token_plan_metadata(
     (plan_code, quota)
 }
 
+/// Token Plan quota of `account`: its web session (the vault one, or the
+/// variable `params.session_env` names) takes precedence over the `bl`
+/// profile in `params.cli_profile`. `endpoint` and `user_info` are the
+/// console URLs (the test servers in tests).
 async fn token_plan_at(
     account: &Account,
     ctx: &Context<'_>,
@@ -1355,28 +1370,35 @@ async fn token_plan_at(
             "Qwen Cloud Token Plan requer região intl (Singapura).",
         ));
     }
-    let session_env = account.params.get("session_env").map(String::as_str)
+    if let Some(session) = super::web_session(account, ctx, "session_env")? {
+        return token_plan_with_session(ctx, &session, endpoint, user_info).await;
+    }
+    match account
+        .params
+        .get("cli_profile")
+        .map(String::as_str)
         .filter(|name| !name.trim().is_empty())
-        .ok_or_else(|| QueryError::config(
-            "query.alibaba_plans.token_plan_missing_session_env",
-            "Configure params.session_env com o nome da variável que contém o Cookie do console Token Plan.",
-        ))?;
-    let cookie = ctx
-        .credentials
-        .get(session_env)
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            QueryError::config_params(
-                "query.alibaba_plans.token_plan_missing_cookie",
-                params([("name", ParamValue::from(session_env.to_string()))]),
-                format!("Cookie de sessão ausente: {session_env} (params.session_env)."),
-            )
-        })?;
+    {
+        Some(profile) => token_plan_via_cli(ctx, profile).await,
+        None => Err(QueryError::config(
+            "query.alibaba_plans.token_plan_auth_method_required",
+            "Cole a sessão do Qwen Cloud no assistente da conta, ou configure params.session_env (variável com o cookie) ou params.cli_profile (CLI oficial) para o Qwen Cloud Token Plan.",
+        )),
+    }
+}
+
+async fn token_plan_with_session(
+    ctx: &Context<'_>,
+    web: &super::WebSession,
+    endpoint: &str,
+    user_info: &str,
+) -> Result<Data, QueryError> {
+    let cookie = web.cookie.as_str();
     let dashboard = TOKEN_PLAN_DASHBOARD;
     let info = super::send_session(
         ctx.http
             .get(user_info)
-            .header("Cookie", &cookie)
+            .header("Cookie", cookie)
             .header("Referer", dashboard)
             .timeout(ctx.timeout),
         crate::Provider::AlibabaTokenPlan,
@@ -1395,7 +1417,7 @@ async fn token_plan_at(
     let info: Value = info.json().await.map_err(|_| QueryError::schema())?;
     let info = expand_embedded_json(info);
     let sec_token = find_string(&info, &["secToken", "sec_token"])
-        .or_else(|| cookie_value(&cookie, "sec_token").map(str::to_owned))
+        .or_else(|| cookie_value(cookie, "sec_token").map(str::to_owned))
         .ok_or_else(|| QueryError {
             status: Status::AuthenticationError,
             note: Localized::fixed(
@@ -1404,7 +1426,7 @@ async fn token_plan_at(
             ),
         })?;
     let session = TokenPlanSession {
-        cookie: &cookie,
+        cookie,
         sec_token: &sec_token,
     };
     let usage_response = token_plan_send(
@@ -1422,10 +1444,17 @@ async fn token_plan_at(
     let (_plan_code, quota) = fetch_token_plan_metadata(ctx, endpoint, &session).await;
     let metrics = token_plan_metrics(usage_payload, quota)?;
     let mut notes = Notes::new();
-    notes.push(
-        "note.alibaba_plans.token_plan_session_query",
-        "Quota consultada com a sessão indicada por params.session_env; QWEN_API_KEY não é enviada.",
-    );
+    if web.vault {
+        notes.push(
+            "note.alibaba_plans.token_plan_vault_session_query",
+            "Quota consultada com a sessão web guardada no cofre do sistema; QWEN_API_KEY não é enviada.",
+        );
+    } else {
+        notes.push(
+            "note.alibaba_plans.token_plan_session_query",
+            "Quota consultada com a sessão indicada por params.session_env; QWEN_API_KEY não é enviada.",
+        );
+    }
     if quota == TokenPlanQuotaTotals::default() {
         notes.push(
             "note.alibaba_plans.token_plan_metadata_unavailable",
@@ -1436,38 +1465,13 @@ async fn token_plan_at(
 }
 
 async fn alibaba_token_plan(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
-    if parse_region(account)? != Region::Intl {
-        return Err(QueryError::unsupported(
-            "query.alibaba_plans.token_plan_intl_only",
-            "Qwen Cloud Token Plan requer região intl (Singapura).",
-        ));
-    }
-    let session_env = account
-        .params
-        .get("session_env")
-        .map(String::as_str)
-        .filter(|name| !name.trim().is_empty());
-    let cli_profile = account
-        .params
-        .get("cli_profile")
-        .map(String::as_str)
-        .filter(|name| !name.trim().is_empty());
-    match (session_env, cli_profile) {
-        (Some(_), _) => {
-            token_plan_at(
-                account,
-                ctx,
-                "https://cs-data.qwencloud.com/data/api.json",
-                "https://home.qwencloud.com/tool/user/info.json",
-            )
-            .await
-        }
-        (None, Some(profile)) => token_plan_via_cli(ctx, profile).await,
-        (None, None) => Err(QueryError::config(
-            "query.alibaba_plans.token_plan_auth_method_required",
-            "Configure params.session_env (cookie) ou params.cli_profile (CLI oficial) para o Qwen Cloud Token Plan.",
-        )),
-    }
+    token_plan_at(
+        account,
+        ctx,
+        "https://cs-data.qwencloud.com/data/api.json",
+        "https://home.qwencloud.com/tool/user/info.json",
+    )
+    .await
 }
 
 fn is_safe_cli_profile(profile: &str) -> bool {
@@ -2106,6 +2110,116 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(metric(&data, "Coding Plan: 5h").remaining, Some(9.0));
+    }
+
+    /// PRD 0016 RF5.1: a session kept in the vault (read under the name the
+    /// monitor puts in `params.session_env`) takes the same console route as
+    /// the variable, and the report says which one it used.
+    #[tokio::test]
+    async fn coding_plan_reads_the_vault_session_like_the_variable_and_says_so() {
+        let server = MockServer::start().await;
+        let cookie = "login_aliyunid_ticket=ticket; cna=anon";
+        Mock::given(method("GET"))
+            .and(path("/dashboard"))
+            .and(header("Cookie", cookie))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(r#"<script>window.cfg={SEC_TOKEN: "tok"}</script>"#),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/rpc"))
+            .and(header("Cookie", cookie))
+            .and(body_string_contains("sec_token=tok"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": {"codingPlanQuotaInfo": {"per5HourUsedQuota": 2, "per5HourTotalQuota": 10}}
+            })))
+            .mount(&server)
+            .await;
+        let vault = format!("{}session_env", crate::user_session::VAULT_NAME);
+        let http = reqwest::Client::new();
+        for (name, note) in [
+            (vault.as_str(), "note.alibaba_plans.vault_session_query"),
+            ("ALIBABA_SESSION", "note.alibaba_plans.session_query"),
+        ] {
+            let credentials = MapCredentials(BTreeMap::from([(name.into(), cookie.into())]));
+            let mut account = account(Provider::AlibabaCodingPlan, "MISSING_API_KEY", Some("intl"));
+            account.params.insert("session_env".into(), name.into());
+            let data = fetch_on(&account, &ctx_with(&http, &credentials), &server)
+                .await
+                .unwrap();
+            assert_eq!(
+                metric(&data, "Coding Plan: 5h").remaining,
+                Some(8.0),
+                "{name}"
+            );
+            let ids: Vec<_> = data.notes_l10n.iter().map(|n| n.id.to_string()).collect();
+            assert!(ids.iter().any(|id| id == note), "{name}: {ids:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn token_plan_prefers_the_vault_session_over_the_cli_profile_and_says_so() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/tool/user/info.json"))
+            .and(header("Cookie", "session=vault-cookie"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"data": {"secToken": "sec"}})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/data/api.json"))
+            .and(query_param("api", TOKEN_PLAN_USAGE_API))
+            .and(header("Cookie", "session=vault-cookie"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"data": "{\"per5HourPercentage\":0.5,\"per5HourResetTime\":1787001180000}"}),
+            ))
+            .mount(&server)
+            .await;
+        let vault = format!("{}session_env", crate::user_session::VAULT_NAME);
+        let credentials = MapCredentials(BTreeMap::from([(
+            vault.clone(),
+            "session=vault-cookie".into(),
+        )]));
+        let none = account(Provider::AlibabaTokenPlan, "QWEN_API_KEY", None);
+        let mut with_session = none.clone();
+        with_session.params.insert("session_env".into(), vault);
+        // The `bl` profile is never run while a session exists.
+        with_session
+            .params
+            .insert("cli_profile".into(), "cuotai-qwen".into());
+        let http = reqwest::Client::new();
+        let data = token_plan_at(
+            &with_session,
+            &ctx_with(&http, &credentials),
+            &format!("{}/data/api.json", server.uri()),
+            &format!("{}/tool/user/info.json", server.uri()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(data.metrics[0].remaining, Some(50.0));
+        assert_eq!(
+            data.notes_l10n[0].id,
+            "note.alibaba_plans.token_plan_vault_session_query"
+        );
+
+        // Neither a session nor a profile: the paste comes first in the
+        // guidance, the variable and the profile stay as alternatives.
+        let error = token_plan_at(
+            &none,
+            &ctx_with(&http, &credentials),
+            &format!("{}/data/api.json", server.uri()),
+            &format!("{}/tool/user/info.json", server.uri()),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.status, Status::NeedsConfiguration);
+        let en = error.note.resolve("en-US");
+        assert!(en.starts_with("Paste the Qwen Cloud session"), "{en}");
+        assert!(en.contains("params.session_env") && en.contains("params.cli_profile"));
     }
 
     #[tokio::test]
