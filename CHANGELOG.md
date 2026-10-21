@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.68.2] - 2026-10-21
+
+### Security
+
+- The Antigravity login no longer keeps a custom OAuth client secret in memory while the browser waits for you: the variable is checked when the login starts and read again only when the authorization code is exchanged (CodeQL alert #50).
+
 ## [0.68.1] - 2026-10-21
 
 ### Security
@@ -567,7 +573,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.68.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.68.2...HEAD
+[0.68.2]: https://github.com/jmarcon/cuotai/compare/v0.68.1...v0.68.2
 [0.68.1]: https://github.com/jmarcon/cuotai/compare/v0.68.0...v0.68.1
 [0.68.0]: https://github.com/jmarcon/cuotai/compare/v0.67.0...v0.68.0
 [0.67.0]: https://github.com/jmarcon/cuotai/compare/v0.66.0...v0.67.0

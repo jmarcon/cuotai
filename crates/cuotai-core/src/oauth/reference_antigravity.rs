@@ -139,7 +139,9 @@ struct LoopbackLogin {
     expected_state: String,
     code_verifier: String,
     client_id: String,
-    client_secret: String,
+    // The pending login keeps the configuration, never the client secret: the
+    // value is read again in `finish`, only while the exchange form is built.
+    config: Box<OAuthConfig>,
     endpoints: Endpoints,
     deadline: Instant,
 }
@@ -150,7 +152,9 @@ async fn begin_with(
     endpoints: Endpoints,
 ) -> Result<PendingLogin, OAuthError> {
     endpoints.validate()?;
-    let (client_id, client_secret) = client_credentials(config)?;
+    let client_id = client_id(config);
+    // Validate only: the value is dropped here and resolved again at `finish`.
+    ensure_client_secret_available(config)?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
         .map_err(|_| OAuthError::Network)?;
@@ -195,7 +199,7 @@ async fn begin_with(
             expected_state: state,
             code_verifier: verifier,
             client_id,
-            client_secret,
+            config: Box::new(config.clone()),
             endpoints,
             deadline: Instant::now() + LOGIN_DEADLINE,
         },
@@ -205,10 +209,11 @@ async fn begin_with(
 impl LoopbackLogin {
     async fn finish(self) -> Result<OAuthToken, OAuthError> {
         let callback = self.wait_for_callback().await?;
+        let client_secret = client_secret(&self.config)?;
         let form = [
             ("grant_type", "authorization_code".to_owned()),
             ("client_id", self.client_id.clone()),
-            ("client_secret", self.client_secret.clone()),
+            ("client_secret", client_secret),
             ("code", callback.code),
             ("redirect_uri", self.redirect_uri.clone()),
             ("code_verifier", self.code_verifier.clone()),
@@ -415,7 +420,8 @@ async fn refresh_with(
         .as_deref()
         .filter(|value| !value.is_empty())
         .ok_or(OAuthError::Expired)?;
-    let (client_id, client_secret) = client_credentials(config)?;
+    let client_id = client_id(config);
+    let client_secret = client_secret(config)?;
     let form = [
         ("grant_type", "refresh_token".to_owned()),
         ("refresh_token", refresh_token.to_owned()),
@@ -509,10 +515,28 @@ fn ensure_provider(provider: Provider) -> Result<(), OAuthError> {
     }
 }
 
-fn client_credentials(config: &OAuthConfig) -> Result<(String, String), OAuthError> {
+/// The configured custom client id, or the public Antigravity client.
+fn client_id(config: &OAuthConfig) -> String {
     let configured = config.client_id.trim();
     if configured.is_empty() || configured == CLIENT_ID {
-        return Ok((CLIENT_ID.to_owned(), CLIENT_SECRET.to_owned()));
+        CLIENT_ID.to_owned()
+    } else {
+        configured.to_owned()
+    }
+}
+
+/// Fail early, without keeping the value, when the client secret is missing.
+fn ensure_client_secret_available(config: &OAuthConfig) -> Result<(), OAuthError> {
+    client_secret(config).map(|_| ())
+}
+
+/// Resolves the client secret: the public client's built-in value, or the
+/// environment variable a custom client names. The caller must use the result
+/// only for the request it is building and never store it.
+fn client_secret(config: &OAuthConfig) -> Result<String, OAuthError> {
+    let configured = config.client_id.trim();
+    if configured.is_empty() || configured == CLIENT_ID {
+        return Ok(CLIENT_SECRET.to_owned());
     }
     let env_name = config
         .client_secret_env
@@ -523,7 +547,7 @@ fn client_credentials(config: &OAuthConfig) -> Result<(String, String), OAuthErr
     if secret.is_empty() {
         return Err(OAuthError::google_client_secret_env_empty());
     }
-    Ok((configured.to_owned(), secret))
+    Ok(secret)
 }
 
 fn random_url_safe_32() -> Result<String, OAuthError> {
@@ -738,6 +762,158 @@ mod tests {
             .expect("login task")
             .expect("token");
         assert_eq!(token.access_token, "access-new");
+    }
+
+    /// Environment variable that is removed again when the guard drops. Each
+    /// test uses its own variable name because the environment is process-wide.
+    struct EnvGuard(&'static str);
+    impl EnvGuard {
+        fn set(name: &'static str, value: &str) -> Self {
+            std::env::set_var(name, value);
+            Self(name)
+        }
+    }
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            std::env::remove_var(self.0);
+        }
+    }
+
+    fn custom_config(env_name: Option<&str>) -> OAuthConfig {
+        OAuthConfig {
+            client_id: "custom-client.apps.test".into(),
+            client_secret_env: env_name.map(str::to_owned),
+            ..config()
+        }
+    }
+
+    fn configuration_id(error: &OAuthError) -> &str {
+        match error {
+            OAuthError::Configuration(localized) => localized.id.as_ref(),
+            _ => "not-a-configuration-error",
+        }
+    }
+
+    #[tokio::test]
+    async fn begin_requires_the_secret_variable_for_a_custom_client() {
+        let server = MockServer::start().await;
+        let cases = [
+            (
+                custom_config(None),
+                "oauth_error.google.client_secret_env_required",
+            ),
+            (
+                custom_config(Some("CUOTAI_TEST_ANTIGRAVITY_UNSET")),
+                "oauth_error.google.client_secret_env_unset",
+            ),
+        ];
+        for (config, expected) in cases {
+            let error = begin_with(&client(), &config, endpoints(&server))
+                .await
+                .err()
+                .expect("begin must fail");
+            assert_eq!(configuration_id(&error), expected);
+        }
+
+        let _empty = EnvGuard::set("CUOTAI_TEST_ANTIGRAVITY_EMPTY", "");
+        let error = begin_with(
+            &client(),
+            &custom_config(Some("CUOTAI_TEST_ANTIGRAVITY_EMPTY")),
+            endpoints(&server),
+        )
+        .await
+        .err()
+        .expect("empty secret must fail");
+        assert_eq!(
+            configuration_id(&error),
+            "oauth_error.google.client_secret_env_empty"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn exchange_reads_the_secret_when_the_login_finishes() {
+        const NAME: &str = "CUOTAI_TEST_ANTIGRAVITY_FINISH";
+        let server = MockServer::start().await;
+        // Only the finish-time value is accepted: a request carrying the
+        // begin-time value would not match and the exchange would fail.
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("client_secret=fake-after"))
+            .and(body_string_contains("client_id=custom-client.apps.test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "access-new",
+                "expires_in": 3600
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let _guard = EnvGuard::set(NAME, "fake-before");
+        let pending = begin_with(&client(), &custom_config(Some(NAME)), endpoints(&server))
+            .await
+            .expect("begin");
+        std::env::set_var(NAME, "fake-after");
+        let (state, port, path) = callback_details(&pending);
+        let task = tokio::spawn(pending.finish());
+        let response = send_callback(port, &path, &format!("state={state}&code=approved")).await;
+        assert!(response.starts_with("HTTP/1.1 200"));
+        let token = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("login timeout")
+            .expect("login task")
+            .expect("token");
+        assert_eq!(token.access_token, "access-new");
+    }
+
+    #[tokio::test]
+    async fn exchange_fails_without_a_request_when_the_secret_disappears() {
+        const NAME: &str = "CUOTAI_TEST_ANTIGRAVITY_GONE";
+        // No mock is mounted: any token request would be answered with 404.
+        let server = MockServer::start().await;
+        let guard = EnvGuard::set(NAME, "fake-before");
+        let pending = begin_with(&client(), &custom_config(Some(NAME)), endpoints(&server))
+            .await
+            .expect("begin");
+        drop(guard);
+        let (state, port, path) = callback_details(&pending);
+        let task = tokio::spawn(pending.finish());
+        send_callback(port, &path, &format!("state={state}&code=approved")).await;
+        let error = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("login timeout")
+            .expect("login task")
+            .err()
+            .expect("exchange must fail");
+        assert_eq!(
+            configuration_id(&error),
+            "oauth_error.google.client_secret_env_unset"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn refresh_requires_the_secret_variable_for_a_custom_client() {
+        let server = MockServer::start().await;
+        let stored = OAuthToken {
+            access_token: "access-old".into(),
+            refresh_token: Some("refresh-old".into()),
+            expires_at: None,
+            metadata: BTreeMap::new(),
+        };
+        let error = refresh_with(
+            &client(),
+            &custom_config(Some("CUOTAI_TEST_ANTIGRAVITY_REFRESH_UNSET")),
+            &stored,
+            &endpoints(&server),
+        )
+        .await
+        .err()
+        .expect("refresh must fail");
+        assert_eq!(
+            configuration_id(&error),
+            "oauth_error.google.client_secret_env_unset"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 
     #[tokio::test]
