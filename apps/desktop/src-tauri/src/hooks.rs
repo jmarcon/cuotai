@@ -373,6 +373,7 @@ mod tests {
     };
     use std::time::{Duration, Instant};
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn account() -> Account {
         Account {
             name: "Work".into(),
@@ -383,6 +384,7 @@ mod tests {
     }
 
     /// The app's cycle after one reading of `status`, as an export.
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn export(status: Status, at: DateTime<Utc>) -> Export {
         let config = Config {
             accounts: vec![account()],
@@ -469,6 +471,7 @@ mod tests {
             .unwrap()
         }
 
+        #[cfg_attr(not(unix), allow(dead_code))]
         fn out(&self) -> Vec<String> {
             std::fs::read_to_string(self.path("out"))
                 .unwrap_or_default()
@@ -477,6 +480,7 @@ mod tests {
                 .collect()
         }
 
+        #[cfg_attr(not(unix), allow(dead_code))]
         async fn wait_for_out(&self, lines: usize) -> Vec<String> {
             let deadline = Instant::now() + Duration::from_secs(20);
             loop {
@@ -490,6 +494,7 @@ mod tests {
         }
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn t(minutes: i64) -> DateTime<Utc> {
         use chrono::TimeZone;
         Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap() + chrono::TimeDelta::minutes(minutes)
