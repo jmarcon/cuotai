@@ -180,7 +180,8 @@ fn confirmation_is_mandatory_and_follows_the_rules() {
     let dir = tempfile::tempdir().unwrap();
     let consent = Consent::at(dir.path().join("data/consent.json"));
     let path = dir.path().join("hooks.toml");
-    let text = "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"/bin/echo\", \"one\"]\n";
+    let text =
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"echo\", \"one\"]\n";
     let load = |text: &str| Hooks::from_toml(path.clone(), text).unwrap();
 
     let unconfirmed = consent.check(load(text)).unwrap_err();
@@ -505,12 +506,12 @@ fn the_editor_saves_only_over_the_revision_it_read() {
     let saved = Document::save(
         &path,
         None,
-        vec![draft("sound", &["/usr/bin/afplay", "it's \"x\"; $(id)"])],
+        vec![draft("sound", &["afplay", "it's \"x\"; $(id)"])],
     )
     .unwrap();
     assert_eq!(
         saved.hooks().unwrap().rules()[0].command,
-        ["/usr/bin/afplay", "it's \"x\"; $(id)"]
+        ["afplay", "it's \"x\"; $(id)"]
     );
     assert_eq!(saved, Document::read(&path));
     assert!(saved.revision().is_some());
