@@ -1,5 +1,6 @@
 //! PRD 0015 — estimated cost from local logs: sources and consent (RF1),
-//! the incremental index (RF2) and prices and computation (RF3).
+//! the incremental index (RF2), prices and computation (RF3) and what
+//! front ends display (RF4).
 //!
 //! Off by default. A source ([`SourceId`]) is one command-line tool whose
 //! session logs live in known directories; each has an adapter behind the
@@ -26,6 +27,10 @@
 //! overridden model by model by the user's own `pricing.json`
 //! ([`PricingFile`]). A model without a known price is "cost unknown",
 //! never zero, and every estimate says it is not a charge.
+//!
+//! [`Scanner::summary`] ([`summarize`], pure) gives every front end the
+//! same [`CostSummary`]: per source today, yesterday and the span shown,
+//! the breakdown by day and by model, and why a source has no numbers.
 
 mod claude;
 mod codex;
@@ -36,6 +41,7 @@ mod scan;
 mod settings;
 mod source;
 mod system;
+mod view;
 mod worker;
 
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
@@ -47,9 +53,15 @@ pub use prices::{
 pub use scan::{Limits, RootScan, RootState, ScanReport, Scanner, SourceScan, SourceState};
 pub use settings::{CostSettings, Disclosure, Env, SettingsStore, SourceSettings};
 pub use system::energy_saving;
+pub use view::{
+    by_day_heading, by_model_heading, compact_tokens, enable_hint, heading, summarize, usage_line,
+    yesterday_label, CostState, CostSummary, DayCost, SourceCost, SourceUsage, Span, SpanView,
+    SummaryInput,
+};
 pub use worker::{CostStatus, CostWorker, Schedule, WorkerState};
 
 use crate::text::{params, Localized};
+use crate::Provider;
 use chrono::{DateTime, Datelike, Duration as Days, FixedOffset, Local, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +97,23 @@ impl SourceId {
 
     pub fn from_slug(slug: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|source| source.slug() == slug)
+    }
+
+    /// RF4.1: the providers whose accounts are used through this tool and
+    /// show its local usage: the window-based subscriptions (Claude for
+    /// Claude Code, ChatGPT / Codex for Codex CLI).
+    pub fn providers(self) -> &'static [Provider] {
+        match self {
+            Self::ClaudeCode => &[Provider::Claude],
+            Self::CodexCli => &[Provider::ChatGpt],
+        }
+    }
+
+    /// The source whose local usage the accounts of `provider` show.
+    pub fn for_provider(provider: Provider) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|source| source.providers().contains(&provider))
     }
 
     pub(crate) fn adapter(self) -> &'static dyn source::Source {
@@ -254,6 +283,12 @@ pub enum CostError {
         "Os diretórios desta fonte mudaram desde que foram exibidos; revise e confirme de novo."
     )]
     ConsentChanged,
+    /// `cuotai --cost --days` out of bounds.
+    #[error("O número de dias vai de 1 a 730.")]
+    DaysBounds,
+    /// A chosen directory that is neither absolute nor under `~/`.
+    #[error("Use um diretório absoluto ou que comece com ~/.")]
+    RelativePath,
 }
 
 impl CostError {
@@ -272,6 +307,15 @@ impl CostError {
             Self::ConsentChanged => {
                 Localized::fixed("cost.error.consent_changed", self.to_string())
             }
+            Self::DaysBounds => Localized::with_params(
+                "cost.error.days_bounds",
+                params([
+                    ("min", 1u64.into()),
+                    ("max", u64::from(Span::MAX_DAYS).into()),
+                ]),
+                self.to_string(),
+            ),
+            Self::RelativePath => Localized::fixed("cost.error.relative_path", self.to_string()),
         }
     }
 }
@@ -334,6 +378,42 @@ pub fn turn_off(
 ) -> Result<usize, CostError> {
     settings.disable(source)?;
     index.erase_source(source)
+}
+
+/// RF4.1: read `paths` (empty: the defaults) for `source` from now on; each
+/// is absolute or starts with `~/`. The consent covered the directories it
+/// showed, so a list that differs from the saved one turns the source off
+/// first, erasing everything derived from it (as [`turn_off`]); turning it
+/// on again shows the new list. Returns the index rows removed.
+pub fn choose_paths(
+    settings: &SettingsStore,
+    index: &CostIndex,
+    source: SourceId,
+    paths: Vec<std::path::PathBuf>,
+    env: &Env,
+) -> Result<usize, CostError> {
+    let mut chosen: Vec<std::path::PathBuf> = Vec::with_capacity(paths.len());
+    for path in paths {
+        let text = path.to_string_lossy();
+        if !(path.is_absolute() || text == "~" || text.starts_with("~/")) {
+            return Err(CostError::RelativePath);
+        }
+        if !chosen.contains(&path) {
+            chosen.push(path);
+        }
+    }
+    let saved = settings.load()?;
+    let current = saved.sources.get(&source).map_or(&[][..], |s| &s.paths);
+    if current == chosen.as_slice() {
+        return Ok(0);
+    }
+    let removed = if saved.enabled(source, env) {
+        turn_off(settings, index, source)?
+    } else {
+        0
+    };
+    settings.set_paths(source, chosen)?;
+    Ok(removed)
 }
 
 /// `source` was turned on.

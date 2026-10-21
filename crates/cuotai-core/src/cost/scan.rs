@@ -150,18 +150,8 @@ impl SourceScan {
     pub fn summary(&self) -> Localized {
         let label = self.source.label();
         match self.state {
-            SourceState::Off => Localized::with_param(
-                "cost.scan.off",
-                "source",
-                label,
-                format!("{label}: desligado; nada é lido."),
-            ),
-            SourceState::NoLogs => Localized::with_param(
-                "cost.scan.no_logs",
-                "source",
-                label,
-                format!("{label}: nenhum log encontrado nos diretórios."),
-            ),
+            SourceState::Off => off_text(label),
+            SourceState::NoLogs => no_logs_text(label),
             SourceState::NoAccess => {
                 let paths = self
                     .roots
@@ -204,6 +194,26 @@ impl SourceScan {
             ),
         }
     }
+}
+
+/// `label`'s source is off: nothing is read.
+pub(crate) fn off_text(label: &str) -> Localized {
+    Localized::with_param(
+        "cost.scan.off",
+        "source",
+        label,
+        format!("{label}: desligado; nada é lido."),
+    )
+}
+
+/// None of `label`'s default directories exists.
+pub(crate) fn no_logs_text(label: &str) -> Localized {
+    Localized::with_param(
+        "cost.scan.no_logs",
+        "source",
+        label,
+        format!("{label}: nenhum log encontrado nos diretórios."),
+    )
 }
 
 /// One scan of every source.

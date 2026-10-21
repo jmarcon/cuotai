@@ -2,12 +2,13 @@
 import { te, tl } from "./i18n.js";
 import { bellHtml, brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
+import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
 import { showDialog } from "./motion.js";
 
 let dlg = null;
 let currentKey = null;
-let ctx = null; // { reports(), generation(), historyEpoch(), view(), onEdit(index), onRemove(index, label), onChange(), onBell(key, on), onMetricAlert(key, label, on) }
+let ctx = null; // { reports(), generation(), historyEpoch(), view(), localCost(), onEdit(index), onRemove(index, label), onChange(), onBell(key, on), onMetricAlert(key, label, on), onSettings() }
 let models = null; // seção de modelos montada uma vez por diálogo; sobrevive aos redesenhos
 let history = null; // PRD 0006 RF5.2: idem, para o histórico
 
@@ -15,6 +16,13 @@ const badges = (list) =>
   list.length ? `<div class="badges">${list.map((b) => `<span class="badge ${esc(b.tone)}">${esc(tl(b.text))}</span>`).join("")}</div>` : "";
 /** What makes the history worth reading again: a new reading, an erasure or the recording switch. */
 const historyStamp = (r) => `${r.checked_at}|${ctx.historyEpoch()}`;
+
+/** PRD 0015 RF4.1: this computer's local usage of the account's tool, the same section on every account of it. */
+function localCostHtml(r) {
+  const summary = ctx.localCost?.();
+  const sc = sourceFor(summary, r.provider);
+  return sc ? costDetailHtml(sc, summary) : "";
+}
 
 function render() {
   const r = ctx.reports().find((x) => reportKey(x) === currentKey);
@@ -37,7 +45,7 @@ function render() {
       </div>
     </div>
     ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
-    <div class="det-body">${detailHtml(r, { eye: true })}<div data-history-slot></div><div data-models-slot></div></div>
+    <div class="det-body">${detailHtml(r, { eye: true })}${localCostHtml(r)}<div data-history-slot></div><div data-models-slot></div></div>
     <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;
   history.attach(dlg);
@@ -57,6 +65,8 @@ export function openDetails(key, context, from = null) {
       const t = e.target;
       const r = () => ctx.reports().find((x) => reportKey(x) === currentKey);
       if (t.closest("[data-close]")) return dlg.close();
+      // PRD 0015 RF4.1: a source that is off points to Settings → Local cost.
+      if (t.closest("[data-cost-settings]")) { dlg.close(); return ctx.onSettings(); }
       const bell = t.closest("[data-bell]");
       if (bell) return ctx.onBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
       // PRD 0008 RF3.2: mute or unmute one metric's usage alerts.

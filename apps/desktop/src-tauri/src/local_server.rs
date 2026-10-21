@@ -5,12 +5,13 @@
 //! backend publishes a [`Feed`] (the configuration, its identity, the cycle
 //! and the provider statuses it just showed) and a request only builds the
 //! export from it, so a read never queries a provider and no second cycle
-//! exists. It binds `127.0.0.1` on exactly the chosen port: a taken port is
+//! exists; `local_cost` (PRD 0015 RF4.3) is read from the cost index per
+//! request. It binds `127.0.0.1` on exactly the chosen port: a taken port is
 //! an error the interface shows, naming another Cuotai server
 //! (`cuotai --serve`) when it is one, never a silent move to another port.
 //! A required token stays in the OS vault ([`TokenVault`]).
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use chrono::Utc;
 use cuotai_core::{
@@ -24,6 +25,7 @@ use cuotai_core::{
 };
 use serde::Serialize;
 
+use crate::local_cost::LocalCost;
 use crate::settings::{ServePrefs, SERVE_PORTS};
 
 /// What the server reads: the app's state as the backend last showed it.
@@ -37,17 +39,27 @@ pub struct Feed {
 /// Where the backend publishes the [`Feed`]; empty while no configuration
 /// is loaded or the server is off (data routes then answer `503`).
 #[derive(Clone, Default)]
-pub struct FeedSlot(Arc<Mutex<Option<Feed>>>);
+pub struct FeedSlot {
+    feed: Arc<Mutex<Option<Feed>>>,
+    /// PRD 0015 RF4.3: where `local_cost` comes from, set once at start.
+    cost: Arc<OnceLock<Arc<LocalCost>>>,
+}
 
 impl FeedSlot {
     pub fn publish(&self, feed: Option<Feed>) {
-        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = feed;
+        *self.feed.lock().unwrap_or_else(PoisonError::into_inner) = feed;
+    }
+
+    /// PRD 0015 RF4.3: export `cost`'s summary as `local_cost`.
+    pub fn attach_cost(&self, cost: Arc<LocalCost>) {
+        let _ = self.cost.set(cost);
     }
 
     /// The export of the published state at this instant (ages count from
     /// now); never a query.
     fn export(&self) -> Option<Export> {
-        let feed = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let local_cost = self.cost.get().and_then(|cost| cost.export());
+        let feed = self.feed.lock().unwrap_or_else(PoisonError::into_inner);
         feed.as_ref().map(|feed| {
             Export::from_cycle(
                 &feed.config,
@@ -57,6 +69,7 @@ impl FeedSlot {
                 Utc::now(),
                 Options::default(),
             )
+            .with_local_cost(local_cost)
         })
     }
 }

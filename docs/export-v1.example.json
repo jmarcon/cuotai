@@ -322,5 +322,352 @@
       },
       "incident": null
     }
-  ]
+  ],
+  "local_cost": {
+    "currency": "USD",
+    "notice": {
+      "id": "cost.estimate.notice",
+      "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+    },
+    "span": {
+      "period": null,
+      "days": 3,
+      "label": {
+        "id": "cost.span.days",
+        "params": {
+          "days": "3"
+        },
+        "fallback": "Últimos 3 dias"
+      },
+      "first_day": "2026-10-18",
+      "last_day": "2026-10-20"
+    },
+    "sources": [
+      {
+        "source": "claude_code",
+        "label": "Claude Code",
+        "providers": [
+          "claude"
+        ],
+        "state": "ready",
+        "note": null,
+        "usage": {
+          "today": {
+            "currency": "USD",
+            "total": 0.2175,
+            "tokens": {
+              "input": 31000,
+              "output": 2100,
+              "cache_read": 200000,
+              "cache_write": 10000
+            },
+            "requests": 10,
+            "unknown_tokens": {
+              "input": 1000,
+              "output": 100,
+              "cache_read": 0,
+              "cache_write": 0
+            },
+            "unknown_share": 0.004524886877828055,
+            "models": [
+              {
+                "model": "claude-mystery-9",
+                "tokens": {
+                  "input": 1000,
+                  "output": 100,
+                  "cache_read": 0,
+                  "cache_write": 0
+                },
+                "requests": 1,
+                "cost": null,
+                "price": null
+              },
+              {
+                "model": "claude-sonnet-4-5-20250929",
+                "tokens": {
+                  "input": 30000,
+                  "output": 2000,
+                  "cache_read": 200000,
+                  "cache_write": 10000
+                },
+                "requests": 9,
+                "cost": 0.2175,
+                "price": {
+                  "entry": "claude-sonnet-4-5",
+                  "origin": "embedded",
+                  "rates": {
+                    "input": 3.0,
+                    "output": 15.0,
+                    "cache_read": 0.3,
+                    "cache_write": 3.75
+                  }
+                }
+              }
+            ],
+            "tables": [
+              {
+                "origin": "embedded",
+                "effective": "2026-10-15",
+                "source": "https://claude.com/pricing#api"
+              }
+            ],
+            "notice": {
+              "id": "cost.estimate.notice",
+              "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+            }
+          },
+          "yesterday": {
+            "currency": "USD",
+            "total": 0.9,
+            "tokens": {
+              "input": 120000,
+              "output": 8000,
+              "cache_read": 900000,
+              "cache_write": 40000
+            },
+            "requests": 42,
+            "unknown_tokens": {
+              "input": 0,
+              "output": 0,
+              "cache_read": 0,
+              "cache_write": 0
+            },
+            "unknown_share": 0.0,
+            "models": [
+              {
+                "model": "claude-sonnet-4-5-20250929",
+                "tokens": {
+                  "input": 120000,
+                  "output": 8000,
+                  "cache_read": 900000,
+                  "cache_write": 40000
+                },
+                "requests": 42,
+                "cost": 0.9,
+                "price": {
+                  "entry": "claude-sonnet-4-5",
+                  "origin": "embedded",
+                  "rates": {
+                    "input": 3.0,
+                    "output": 15.0,
+                    "cache_read": 0.3,
+                    "cache_write": 3.75
+                  }
+                }
+              }
+            ],
+            "tables": [
+              {
+                "origin": "embedded",
+                "effective": "2026-10-15",
+                "source": "https://claude.com/pricing#api"
+              }
+            ],
+            "notice": {
+              "id": "cost.estimate.notice",
+              "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+            }
+          },
+          "period": {
+            "currency": "USD",
+            "total": 1.1175,
+            "tokens": {
+              "input": 151000,
+              "output": 10100,
+              "cache_read": 1100000,
+              "cache_write": 50000
+            },
+            "requests": 52,
+            "unknown_tokens": {
+              "input": 1000,
+              "output": 100,
+              "cache_read": 0,
+              "cache_write": 0
+            },
+            "unknown_share": 0.0008389901609335672,
+            "models": [
+              {
+                "model": "claude-mystery-9",
+                "tokens": {
+                  "input": 1000,
+                  "output": 100,
+                  "cache_read": 0,
+                  "cache_write": 0
+                },
+                "requests": 1,
+                "cost": null,
+                "price": null
+              },
+              {
+                "model": "claude-sonnet-4-5-20250929",
+                "tokens": {
+                  "input": 150000,
+                  "output": 10000,
+                  "cache_read": 1100000,
+                  "cache_write": 50000
+                },
+                "requests": 51,
+                "cost": 1.1175,
+                "price": {
+                  "entry": "claude-sonnet-4-5",
+                  "origin": "embedded",
+                  "rates": {
+                    "input": 3.0,
+                    "output": 15.0,
+                    "cache_read": 0.3,
+                    "cache_write": 3.75
+                  }
+                }
+              }
+            ],
+            "tables": [
+              {
+                "origin": "embedded",
+                "effective": "2026-10-15",
+                "source": "https://claude.com/pricing#api"
+              }
+            ],
+            "notice": {
+              "id": "cost.estimate.notice",
+              "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+            }
+          },
+          "days": [
+            {
+              "day": "2026-10-18",
+              "tokens": {
+                "input": 0,
+                "output": 0,
+                "cache_read": 0,
+                "cache_write": 0
+              },
+              "requests": 0,
+              "cost": 0.0,
+              "unknown_tokens": {
+                "input": 0,
+                "output": 0,
+                "cache_read": 0,
+                "cache_write": 0
+              }
+            },
+            {
+              "day": "2026-10-19",
+              "tokens": {
+                "input": 120000,
+                "output": 8000,
+                "cache_read": 900000,
+                "cache_write": 40000
+              },
+              "requests": 42,
+              "cost": 0.9,
+              "unknown_tokens": {
+                "input": 0,
+                "output": 0,
+                "cache_read": 0,
+                "cache_write": 0
+              }
+            },
+            {
+              "day": "2026-10-20",
+              "tokens": {
+                "input": 31000,
+                "output": 2100,
+                "cache_read": 200000,
+                "cache_write": 10000
+              },
+              "requests": 10,
+              "cost": 0.2175,
+              "unknown_tokens": {
+                "input": 1000,
+                "output": 100,
+                "cache_read": 0,
+                "cache_write": 0
+              }
+            }
+          ]
+        }
+      },
+      {
+        "source": "codex_cli",
+        "label": "Codex CLI",
+        "providers": [
+          "chat_gpt"
+        ],
+        "state": "off",
+        "note": {
+          "id": "cost.scan.off",
+          "params": {
+            "source": "Codex CLI"
+          },
+          "fallback": "Codex CLI: desligado; nada é lido."
+        },
+        "usage": null
+      }
+    ],
+    "total": {
+      "currency": "USD",
+      "total": 1.1175,
+      "tokens": {
+        "input": 151000,
+        "output": 10100,
+        "cache_read": 1100000,
+        "cache_write": 50000
+      },
+      "requests": 52,
+      "unknown_tokens": {
+        "input": 1000,
+        "output": 100,
+        "cache_read": 0,
+        "cache_write": 0
+      },
+      "unknown_share": 0.0008389901609335672,
+      "models": [
+        {
+          "model": "claude-mystery-9",
+          "tokens": {
+            "input": 1000,
+            "output": 100,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "requests": 1,
+          "cost": null,
+          "price": null
+        },
+        {
+          "model": "claude-sonnet-4-5-20250929",
+          "tokens": {
+            "input": 150000,
+            "output": 10000,
+            "cache_read": 1100000,
+            "cache_write": 50000
+          },
+          "requests": 51,
+          "cost": 1.1175,
+          "price": {
+            "entry": "claude-sonnet-4-5",
+            "origin": "embedded",
+            "rates": {
+              "input": 3.0,
+              "output": 15.0,
+              "cache_read": 0.3,
+              "cache_write": 3.75
+            }
+          }
+        }
+      ],
+      "tables": [
+        {
+          "origin": "embedded",
+          "effective": "2026-10-15",
+          "source": "https://claude.com/pricing#api"
+        }
+      ],
+      "notice": {
+        "id": "cost.estimate.notice",
+        "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+      }
+    },
+    "pricing_error": null
+  }
 }

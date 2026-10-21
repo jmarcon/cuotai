@@ -4,12 +4,13 @@ import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
 import { confirmDelete, offerExternalReload, openAccountDialog } from "./account-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
+import { costCardHtml, costSoloCardHtml, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
-  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks,
+  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks, costUsage,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -21,6 +22,20 @@ const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
 const busy = (i) => store.view?.busy.includes(i);
+
+// PRD 0015 RF4.1: the core's local cost summary (null before the first answer or when the index cannot be read). It
+// is read again every 30 s (the background scan runs every 5 min), when the window comes back and after Settings.
+let localCost = null;
+async function loadLocalCost() {
+  let next = null;
+  try { next = await costUsage(); } catch { next = null; }
+  if (JSON.stringify(next) === JSON.stringify(localCost)) return;
+  localCost = next;
+  render();
+  refreshCostDetails();
+}
+const costContext = { summary: () => localCost, onSettings: () => openSettingsDialog() };
+const openSettingsDialog = () => openSettings({ onChange: () => { loadLocalCost(); return isDesktop ? render() : store.reload(); }, view: () => store.view });
 
 /** Uma janela do card (5h ou semanal). Sem a janela, o espaço continua lá, vazio, para o card manter o tamanho. */
 function windowSlot(r, name, w) {
@@ -110,7 +125,7 @@ function card(r, position, ordered, recharging = false) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${paceLine(r)}${incidentHtml(r)}${accessHtml(r)}</div>
+      : summaryHtml(r)}${paceLine(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
     <div class="card-foot">
       ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
@@ -203,6 +218,8 @@ const detailsContext = {
   onBell: (accountKey, on) => toggleBell(accountKey, on),
   onMetricAlert: (accountKey, label, on) =>
     setMetricAlert(accountKey, label, on).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
+  localCost: () => localCost,
+  onSettings: () => openSettingsDialog(),
 };
 /** PRD 0003 RF3.2: the bell lives in desktop.json; the backend answers with a new view ("snapshot"). */
 function toggleBell(accountKey, on) {
@@ -226,6 +243,9 @@ function render() {
   const have = new Set(reports.map((r) => r.index));
   const waiting = view && !filterText.trim() ? [...Array(view.account_count).keys()].filter((i) => !have.has(i)) : [];
   const prev = motion.before(root);
+  // PRD 0015 RF4.1: a source that is on with no configured account of its tool gets a card of its own.
+  const solo = view?.loaded ? (localCost?.sources ?? []).filter((s) => s.usage && !reports.some((r) => s.providers.includes(r.provider))
+    && (!filterText.trim() || norm(s.label).includes(norm(filterText.trim())))) : [];
   // Reconciliação por cartão (`data-card`): foco, cursor do filtro, rolagem e barras sobrevivem ao redesenho.
   patch(root, `<div class="shell">
     <header class="topbar" data-tauri-drag-region>
@@ -249,7 +269,7 @@ function render() {
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
-    <main class="grid">${rest.map((report, position) => card(report, position, rest)).join("")}${waiting.map(skeleton).join("")}</main>
+    <main class="grid">${rest.map((report, position) => card(report, position, rest)).join("")}${waiting.map(skeleton).join("")}${solo.map((s) => costSoloCardHtml(s, localCost)).join("")}</main>
     ${recharging.length ? rechargingGroup(recharging) : ""}</div>`);
   motion.after(root, prev);
 }
@@ -274,7 +294,9 @@ root.addEventListener("click", (e) => {
   const all = t.closest("[data-refresh-all]");
   if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
-  if (t.closest("[data-settings]")) return openSettings({ onChange: () => (isDesktop ? render() : store.reload()), view: () => store.view });
+  if (t.closest("[data-settings]")) return openSettingsDialog();
+  const costDetails = t.closest("[data-cost-details]");
+  if (costDetails) return openCostDetails(costDetails.dataset.costDetails, costContext, costDetails.closest("[data-card]"));
   const det = t.closest("[data-details]");
   if (det) return openDetails(det.dataset.details, detailsContext, det.closest("[data-card]"));
   const bell = t.closest("[data-bell]");
@@ -384,10 +406,13 @@ initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();
+loadLocalCost();
+setInterval(loadLocalCost, 30_000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLocalCost(); });
 
 // Eventos do shell: abrir a tela de configurações (vindo do popover) e recarregar quando a pasta do usuário mudar.
 if (window.__TAURI__) {
-  window.__TAURI__.event.listen("open-settings", () => openSettings({ onChange: render, view: () => store.view }));
+  window.__TAURI__.event.listen("open-settings", () => openSettingsDialog());
   window.__TAURI__.event.listen("user-content-changed", () => location.reload());
 }
 

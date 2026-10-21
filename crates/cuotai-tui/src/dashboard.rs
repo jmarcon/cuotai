@@ -10,6 +10,7 @@ use crate::motion::{eighth_bar, Anim};
 use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_locale};
 use chrono::{DateTime, Local, Utc};
 use cuotai_core::access::{self, UsageAccess};
+use cuotai_core::cost::{self, CostSummary, SourceCost};
 use cuotai_core::history::{self, HistoryRange, MetricHistory, Trend};
 use cuotai_core::incidents::{IncidentState, ProviderStatus};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
@@ -419,6 +420,9 @@ pub(crate) struct View<'a> {
     /// per provider with a verified source), empty while status queries
     /// are off.
     pub(crate) incidents: &'a [ProviderStatus],
+    /// PRD 0015 RF4.2: this computer's local cost, shown in the details of
+    /// every account of a source's tool; `None` shows nothing.
+    pub(crate) local_cost: Option<&'a CostSummary>,
     /// Clock for ages and countdowns, injected so rendering is testable.
     pub(crate) now: DateTime<Utc>,
 }
@@ -1647,6 +1651,13 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(YELLOW),
         )));
     }
+    // PRD 0015 RF4.2: this computer's local usage of the tool the account is
+    // used through, the same section on every account of that tool.
+    if let Some(summary) = view.local_cost {
+        if let Some(tool) = summary.for_provider(account.provider) {
+            lines.extend(local_cost_lines(summary, tool));
+        }
+    }
     let source = (!report.source.is_empty()).then_some(safe(&report.source));
     let link = source.as_deref().filter(|source| {
         source
@@ -1698,6 +1709,45 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             ));
         }
     }
+}
+
+/// PRD 0015 RF4.2: the account details' local usage section: the core's
+/// rows (why there are no complete numbers, today, yesterday and the
+/// span, by model and by day), the notice that it is an estimate and an
+/// ignored `pricing.json`; a source that is off explains how to turn it on.
+fn local_cost_lines(summary: &CostSummary, tool: &SourceCost) -> Vec<Line<'static>> {
+    let text = |l10n: &cuotai_core::text::Localized| safe(&resolve_l10n(l10n)).into_owned();
+    let mut lines = vec![
+        Line::default(),
+        Line::styled(
+            format!("  {}", text(&cost::heading(tool.source)).to_uppercase()),
+            Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+        ),
+    ];
+    for (row, line) in crate::cost::source_rows(tool, &summary.span) {
+        use crate::cost::Row;
+        let (indent, style) = match row {
+            Row::Note => ("  ", Style::default().fg(YELLOW)),
+            Row::Amount => ("  ", Style::default().fg(FG)),
+            Row::Heading => ("  ", Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
+            Row::Item => ("    ", Style::default().fg(MUTED)),
+        };
+        lines.push(Line::styled(format!("{indent}{}", text(&line)), style));
+    }
+    let tail = match &tool.usage {
+        None => vec![cost::enable_hint()],
+        Some(_) => summary
+            .pricing_error
+            .iter()
+            .cloned()
+            .chain([summary.notice.clone()])
+            .collect(),
+    };
+    lines.extend(
+        tail.iter()
+            .map(|l10n| Line::styled(format!("  {}", text(l10n)), Style::default().fg(MUTED))),
+    );
+    lines
 }
 
 fn line_bar(
@@ -2235,6 +2285,7 @@ mod tests {
                         history: None,
                         banner: None,
                         incidents: &[],
+                        local_cost: None,
                         now: Utc::now(),
                     },
                 );
@@ -2296,6 +2347,7 @@ mod tests {
                         history: None,
                         banner: None,
                         incidents: &[],
+                        local_cost: None,
                         now: Utc::now(),
                     },
                 );
@@ -2349,6 +2401,7 @@ mod tests {
                             history: None,
                             banner: None,
                             incidents: &[],
+                            local_cost: None,
                             now: Utc::now(),
                         },
                     );
@@ -2395,6 +2448,7 @@ mod tests {
                         history: None,
                         banner: None,
                         incidents: &[],
+                        local_cost: None,
                         now: Utc::now(),
                     },
                 );
@@ -2440,6 +2494,7 @@ mod tests {
                         history: None,
                         banner: None,
                         incidents: &[],
+                        local_cost: None,
                         now: Utc::now(),
                     },
                 );
@@ -2492,6 +2547,7 @@ mod tests {
                         history: None,
                         banner: None,
                         incidents: &[],
+                        local_cost: None,
                         now: Utc::now(),
                     },
                 );
@@ -2535,6 +2591,7 @@ mod tests {
                         history: None,
                         banner: None,
                         incidents: &[],
+                        local_cost: None,
                         now: Utc::now(),
                     },
                 );
@@ -2577,6 +2634,7 @@ mod tests {
                         history: None,
                         banner: None,
                         incidents: &[],
+                        local_cost: None,
                         now: Utc::now(),
                     },
                 );
@@ -2626,6 +2684,7 @@ mod tests {
                             history: None,
                             banner,
                             incidents: &[],
+                            local_cost: None,
                             now: Utc::now(),
                         },
                     );
@@ -2690,6 +2749,7 @@ mod tests {
                             history: None,
                             banner: None,
                             incidents: &[],
+                            local_cost: None,
                             now: Utc::now(),
                         },
                     );
@@ -2802,6 +2862,7 @@ mod tests {
             (width, height),
             None,
             &[],
+            None,
         )
     }
 
@@ -2817,6 +2878,7 @@ mod tests {
         (width, height): (u16, u16),
         history: Option<&DetailHistory>,
         incidents: &[ProviderStatus],
+        local_cost: Option<&CostSummary>,
     ) -> Vec<String> {
         let visible = visible_indices(accounts, reports, "", true);
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -2845,6 +2907,7 @@ mod tests {
                         history,
                         banner: None,
                         incidents,
+                        local_cost,
                         now,
                     },
                 );
@@ -3192,6 +3255,7 @@ mod tests {
             (width, 60),
             Some(detail),
             &[],
+            None,
         )
         .join("\n")
     }
@@ -3310,6 +3374,7 @@ mod tests {
             size,
             None,
             incidents,
+            None,
         )
     }
 
@@ -3400,5 +3465,114 @@ mod tests {
         // Off: no status block at all.
         let off = render_status(&three_accounts(), (true, 0), &[], (100, 40)).join("\n");
         assert!(!off.contains("PROVEDOR"), "{off}");
+    }
+
+    /// PRD 0015 RF4.2: the details of every account of a source's tool
+    /// carry its local usage (today, yesterday, the span, by model and by
+    /// day, the estimate notice); another provider's account never does,
+    /// and a source that is off says so and how to turn it on.
+    #[test]
+    fn details_of_the_tools_accounts_show_the_local_usage() {
+        use cuotai_core::cost::{
+            summarize, DailyUsage, Period, Prices, ScanReport, SourceId, SourceScan, SourceState,
+            Span, SummaryInput, Tokens,
+        };
+        let account = |name: &str, provider| Account {
+            name: name.into(),
+            provider,
+            ..Account::default()
+        };
+        let accounts = [
+            account("max", Provider::Claude),
+            account("api", Provider::AnthropicApi),
+        ];
+        let reports: Vec<Option<Report>> = accounts
+            .iter()
+            .map(|_| Some(report(Status::Ready, Vec::new())))
+            .collect();
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let usage = [DailyUsage {
+            source: SourceId::ClaudeCode,
+            day: today,
+            model: "claude-mystery-9".into(),
+            tokens: Tokens {
+                input: 12_000,
+                ..Tokens::default()
+            },
+            requests: 3,
+            sessions: 1,
+        }];
+        let scan = SourceScan {
+            source: SourceId::ClaudeCode,
+            state: SourceState::Ready,
+            roots: Vec::new(),
+            files: 1,
+            read: 1,
+            restarted: 0,
+            unreadable: 0,
+            foreign: 0,
+            lines: 3,
+            requests: 3,
+            duplicates: 0,
+            invalid: 0,
+            expired: 0,
+            complete: true,
+        };
+        let last = ScanReport {
+            scanned_at: at_min(0),
+            sources: vec![scan],
+            complete: true,
+        };
+        let summary = |enabled: &[SourceId]| {
+            summarize(&SummaryInput {
+                today,
+                span: Span::Period(Period::Last7Days),
+                enabled,
+                usage: &usage,
+                prices: &Prices::embedded(),
+                pricing_error: None,
+                last: Some(&last),
+            })
+        };
+        let on = summary(&[SourceId::ClaudeCode]);
+        let render = |selected, cost| {
+            render_view(
+                &accounts,
+                &reports,
+                &[],
+                &[],
+                (true, selected),
+                at_min(0),
+                (110, 50),
+                None,
+                &[],
+                Some(cost),
+            )
+            .join("\n")
+        };
+        let max = render(0, &on);
+        assert!(
+            max.contains("USO LOCAL DO CLAUDE CODE NESTE COMPUTADOR"),
+            "{max}"
+        );
+        assert!(
+            max.contains("Hoje: 12K tokens · custo desconhecido"),
+            "{max}"
+        );
+        assert!(max.contains("Ontem: sem uso"), "{max}");
+        assert!(max.contains("Por modelo (Últimos 7 dias)"), "{max}");
+        assert!(max.contains("claude-mystery-9: 12K tokens"), "{max}");
+        assert!(max.contains("2026-01-01: 12K tokens"), "{max}");
+        assert!(max.contains("não é uma cobrança"), "{max}");
+        let api = render(1, &on);
+        assert!(!api.contains("USO LOCAL"), "{api}");
+
+        let off = render(0, &summary(&[]));
+        assert!(
+            off.contains("Claude Code: desligado; nada é lido."),
+            "{off}"
+        );
+        assert!(off.contains("cuotai --cost-enable"), "{off}");
+        assert!(!off.contains("Hoje:"), "{off}");
     }
 }

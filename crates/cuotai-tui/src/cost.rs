@@ -1,14 +1,17 @@
-//! PRD 0015 RF1–RF3 on the command line: list the local cost sources with
+//! PRD 0015 RF1–RF4 on the command line: list the local cost sources with
 //! exactly what each reads, turn one on after the user read its disclosure
 //! and typed the confirmation, turn one off (erasing what was derived from
 //! it), erase the index, set the period and the retention, scan in the
-//! foreground, and show the prices the estimate uses (the embedded table
-//! under the user's `pricing.json`). The interactive TUI keeps the index
-//! current from the core's background [`CostWorker`].
+//! foreground, show the prices the estimate uses (the embedded table under
+//! the user's `pricing.json`) and show the estimate itself (`--cost`). The
+//! interactive TUI and `--serve` keep the index current from the core's
+//! background [`CostWorker`] ([`LocalCost`]); the TUI shows the core's
+//! [`CostSummary`] in the account details and the exports carry it as
+//! `local_cost`.
 
 use cuotai_core::cost::{
-    self, CostIndex, CostWorker, Env, Limits, Period, PriceOrigin, Prices, PricingFile, Retention,
-    Scanner, SettingsStore, SourceId, SourceState,
+    self, CostIndex, CostSummary, CostWorker, Env, Limits, Period, PriceOrigin, Prices,
+    PricingFile, Retention, ScanReport, Scanner, SettingsStore, SourceId, SourceState, Span,
 };
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
@@ -25,6 +28,10 @@ pub(crate) enum CostAction {
     Erase,
     Scan,
     Prices,
+    /// RF4.2 `--cost [--days N]`.
+    Usage {
+        days: Option<u32>,
+    },
     Options {
         period: Option<String>,
         retention_days: Option<u32>,
@@ -54,15 +61,79 @@ fn source(name: &str, locale: &str) -> Result<SourceId, String> {
     SourceId::from_slug(name).ok_or_else(|| cost::unknown_source(name).resolve(locale))
 }
 
-/// RF2.2: the background scan of the interactive TUI, on a thread of its
-/// own; `None` without a local data directory.
-pub(crate) fn worker() -> Option<CostWorker> {
+/// RF2.2/RF4: this computer's cost index as the interactive TUI and
+/// `--serve` read it, kept current by the core's background scan on a
+/// thread of its own (it ends with the last clone).
+#[derive(Clone)]
+pub(crate) struct LocalCost {
+    scanner: Scanner,
+    pricing: PricingFile,
+    worker: CostWorker,
+}
+
+impl LocalCost {
+    /// Start the background scan; `None` without a local data directory.
+    pub(crate) fn start() -> Option<Self> {
+        let (settings, index) = stores().ok()?;
+        let scanner = Scanner::new(index, settings, Env::system());
+        Some(Self {
+            worker: CostWorker::spawn(scanner.clone()),
+            pricing: PricingFile::in_data_dir().ok()?,
+            scanner,
+        })
+    }
+
+    /// RF4: the saved period at `now`, over the background scan's last
+    /// report. Reads the index, never a log.
+    pub(crate) fn summary(&self, now: chrono::DateTime<chrono::Utc>) -> Option<CostSummary> {
+        let last = self.worker.status().last;
+        self.scanner
+            .summary(&self.pricing, last.as_ref(), None, now)
+            .ok()
+    }
+
+    /// RF4.3: the export's `local_cost`, `None` while every source is off.
+    pub(crate) fn export(&self, now: chrono::DateTime<chrono::Utc>) -> Option<CostSummary> {
+        self.summary(now).filter(CostSummary::any_on)
+    }
+}
+
+/// RF4.3: `local_cost` of a one-shot export (`--json-v1`): a scan bounded by
+/// the background limits, then the summary; `None` while every source is
+/// off (nothing is read) or without a local data directory.
+pub(crate) fn one_shot_export() -> Option<CostSummary> {
     let (settings, index) = stores().ok()?;
-    Some(CostWorker::spawn(Scanner::new(
-        index,
-        settings,
-        Env::system(),
-    )))
+    let scanner = Scanner::new(index, settings, Env::system());
+    let on = scanner
+        .settings()
+        .load()
+        .ok()?
+        .enabled_sources(scanner.env());
+    if on.is_empty() {
+        return None;
+    }
+    let report = scanner.scan(chrono::Utc::now()).ok();
+    let pricing = PricingFile::in_data_dir().ok()?;
+    scanner
+        .summary(&pricing, report.as_ref(), None, chrono::Utc::now())
+        .ok()
+        .filter(CostSummary::any_on)
+}
+
+/// 0 when some source is on and every one that is on was read; 2 when none
+/// is on or one has no logs or no access.
+fn scan_code(report: &ScanReport) -> u8 {
+    let on: Vec<_> = report
+        .sources
+        .iter()
+        .filter(|s| s.state != SourceState::Off)
+        .collect();
+    let read = !on.is_empty() && on.iter().all(|s| s.state == SourceState::Ready);
+    if read {
+        0
+    } else {
+        2
+    }
 }
 
 /// Run `action`; returns the exit code (0 done, 2 a scan that found a
@@ -130,13 +201,24 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
                     writeln!(stdout, "{}", scan.summary().resolve(locale)).map_err(io_error)?;
                 }
             }
-            let on: Vec<_> = report
-                .sources
-                .iter()
-                .filter(|s| s.state != SourceState::Off)
-                .collect();
-            let read = !on.is_empty() && on.iter().all(|s| s.state == SourceState::Ready);
-            Ok(if read { 0 } else { 2 })
+            Ok(scan_code(&report))
+        }
+        CostAction::Usage { days } => {
+            let span = days.map(Span::days).transpose().map_err(l10n)?;
+            let pricing = PricingFile::in_data_dir().map_err(l10n)?;
+            let scanner = Scanner::new(index, settings, env).with_limits(FOREGROUND);
+            let now = chrono::Utc::now();
+            let report = scanner.scan(now).map_err(l10n)?;
+            let summary = scanner
+                .summary(&pricing, Some(&report), span, now)
+                .map_err(l10n)?;
+            if json {
+                serde_json::to_writer_pretty(&mut stdout, &summary).map_err(|e| e.to_string())?;
+                writeln!(stdout).map_err(io_error)?;
+            } else {
+                write!(stdout, "{}", usage_text(&summary, locale)).map_err(io_error)?;
+            }
+            Ok(scan_code(&report))
         }
         CostAction::Options {
             period,
@@ -383,6 +465,85 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
         "\nUm modelo fora da tabela tem custo desconhecido, nunca zero. Uma data no fim do nome \
             (-20250929) usa o preço do nome sem ela.\n";
     Ok((out, code))
+}
+
+/// How a row of a source's section reads, for styling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Row {
+    /// Why the numbers are missing or incomplete.
+    Note,
+    /// Today, yesterday or the span.
+    Amount,
+    /// "By model", "By day".
+    Heading,
+    /// One model or one day.
+    Item,
+}
+
+/// RF4.2: the rows of one source, shared by `--cost` and the TUI's account
+/// details: its note, today, yesterday and the span, then the breakdown by
+/// model and by day (the days with usage). A source that is off has only
+/// its note.
+pub(crate) fn source_rows(
+    source: &cost::SourceCost,
+    span: &cost::SpanView,
+) -> Vec<(Row, cuotai_core::text::Localized)> {
+    let mut rows: Vec<_> = source.note.iter().map(|n| (Row::Note, n.clone())).collect();
+    let Some(usage) = &source.usage else {
+        return rows;
+    };
+    rows.extend([
+        (Row::Amount, usage.today.line(Period::Today.label())),
+        (Row::Amount, usage.yesterday.line(cost::yesterday_label())),
+        (Row::Amount, usage.period.line(span.label.clone())),
+    ]);
+    if !usage.period.models.is_empty() {
+        rows.push((Row::Heading, cost::by_model_heading(span)));
+        rows.extend(usage.period.models.iter().map(|m| (Row::Item, m.line())));
+    }
+    let used: Vec<_> = usage.days.iter().filter(|d| d.tokens.total() > 0).collect();
+    if !used.is_empty() {
+        rows.push((Row::Heading, cost::by_day_heading()));
+        rows.extend(used.into_iter().map(|d| (Row::Item, d.line())));
+    }
+    rows
+}
+
+/// RF4.2 `--cost` in text: the span with its days, the notice, an ignored
+/// `pricing.json`, then each source's rows (a source that is off, a single
+/// line) and how to turn one on when none is.
+fn usage_text(summary: &CostSummary, locale: &str) -> String {
+    let span = &summary.span;
+    let range = match span.first_day {
+        Some(first) => format!("{first} → {}", span.last_day),
+        None => format!("… → {}", span.last_day),
+    };
+    let mut out = format!(
+        "{} ({range})\n{}\n",
+        span.label.resolve(locale),
+        summary.notice.resolve(locale)
+    );
+    if let Some(error) = &summary.pricing_error {
+        out += &format!("{}\n", error.resolve(locale));
+    }
+    for source in &summary.sources {
+        out.push('\n');
+        if source.usage.is_some() {
+            out += &format!("{}\n", cost::heading(source.source).resolve(locale));
+        }
+        for (row, text) in source_rows(source, span) {
+            let indent = match row {
+                _ if source.usage.is_none() => "",
+                Row::Note | Row::Amount | Row::Heading => "  ",
+                Row::Item => "    ",
+            };
+            out += &format!("{indent}{}\n", crate::ui::safe(&text.resolve(locale)));
+        }
+    }
+    if !summary.any_on() {
+        out += &format!("\n{}\n", cost::enable_hint().resolve(locale));
+    }
+    out
 }
 
 #[cfg(test)]

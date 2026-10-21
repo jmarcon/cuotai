@@ -1,6 +1,7 @@
 use crate::{
     about_view::{AboutView, Reply as AboutReply},
     auth_ui::{LoginTask, Outcome},
+    cost::LocalCost,
     dashboard::{self, FooterAction},
     models_view::{ModelsView, Reply},
     motion::{self, Anim},
@@ -52,6 +53,10 @@ const DRACULA_YELLOW: Color = Color::Rgb(241, 250, 140);
 /// PRD 0011 RF5: how often the status loop lets the core read the due
 /// sources (each is read at most once every 5 minutes), as the desktop.
 pub(crate) const STATUS_TICK: Duration = Duration::from_secs(30);
+
+/// PRD 0015 RF4.2: how often the details' local cost is read again from the
+/// index (the background scan itself runs every 5 minutes).
+const COST_TICK: Duration = Duration::from_secs(15);
 
 struct Restore;
 impl Drop for Restore {
@@ -200,6 +205,7 @@ pub async fn run(
     retention: Retention,
     notify: bool,
     status: bool,
+    local_cost: Option<LocalCost>,
 ) -> io::Result<()> {
     // PRD 0011 RF5: off unless opted in; shared by every rebuilt monitor.
     let incidents = IncidentMonitor::new();
@@ -248,6 +254,7 @@ pub async fn run(
             )
         }),
         incidents: Vec::new(),
+        local_cost: None,
     };
     let mut frame_area = Rect::default();
     let mut refresh_cycle = RefreshCycle::new(&file.config, Instant::now());
@@ -277,6 +284,9 @@ pub async fn run(
     // PRD 0011 RF5: the status read in flight and when the next one is due.
     let mut status_job: Option<JoinHandle<Vec<ProviderStatus>>> = None;
     let mut status_due = Instant::now();
+    // PRD 0015 RF4.2: the index read in flight and when the next is due.
+    let mut cost_job: Option<JoinHandle<Option<cuotai_core::cost::CostSummary>>> = None;
+    let mut cost_due = Instant::now();
 
     // Both the keyboard and mouse event paths run the same dashboard
     // transitions through `run_command!` and `dispatch_wizard_action!` so a
@@ -884,6 +894,24 @@ pub async fn run(
             status_job = Some(tokio::spawn(
                 async move { monitor.refresh_incidents().await },
             ));
+        }
+        if cost_job.as_ref().is_some_and(JoinHandle::is_finished) {
+            if let Some(job) = cost_job.take() {
+                if let Ok(summary) = job.await {
+                    if summary != state.local_cost {
+                        state.local_cost = summary;
+                        dirty = true;
+                    }
+                }
+            }
+            cost_due = Instant::now() + COST_TICK;
+        } else if let Some(cost) = local_cost.as_ref().filter(|_| cost_job.is_none()) {
+            if Instant::now() >= cost_due {
+                let cost = cost.clone();
+                cost_job = Some(tokio::task::spawn_blocking(move || {
+                    cost.summary(chrono::Utc::now())
+                }));
+            }
         }
         if wizard.is_none() && deletion.is_none() && !file.config.accounts.is_empty() {
             // Drive either an initial full sweep (no data yet at all and
@@ -1998,6 +2026,9 @@ struct State {
     /// PRD 0011 RF5: the last provider statuses the status loop read;
     /// empty while status queries are off.
     incidents: Vec<ProviderStatus>,
+    /// PRD 0015 RF4.2: the local cost the details show; `None` before the
+    /// first read or without a local data directory.
+    local_cost: Option<cuotai_core::cost::CostSummary>,
 }
 
 /// Per-account synced catalog sizes shown on the cards. Read from the local
@@ -2225,6 +2256,7 @@ impl State {
                         .as_ref()
                         .and_then(|notices| notices.banner(now)),
                     incidents: &self.incidents,
+                    local_cost: self.local_cost.as_ref(),
                     now,
                 },
             );
@@ -2357,6 +2389,7 @@ mod tests {
             anim: None,
             notices: None,
             incidents: Vec::new(),
+            local_cost: None,
         }
     }
 

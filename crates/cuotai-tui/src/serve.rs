@@ -23,6 +23,8 @@ use cuotai_core::{
     Config, Monitor,
 };
 
+use crate::cost::LocalCost;
+
 /// What `--serve` was given on the command line.
 pub(crate) struct ServeArgs {
     /// `--port`: only this port (no fallback); without it [`DEFAULT_PORT`]
@@ -38,7 +40,8 @@ pub(crate) fn token(args: &ServeArgs) -> Result<Option<Token>, String> {
 }
 
 /// Open the port and serve the export of `cycle` (the one `monitor`'s
-/// queries feed) until the returned server is shut down.
+/// queries feed), with `local_cost` from the cost index (PRD 0015 RF4.3),
+/// until the returned server is shut down.
 pub(crate) async fn start(
     args: &ServeArgs,
     token: Option<Token>,
@@ -46,18 +49,24 @@ pub(crate) async fn start(
     identity: ConfigIdentity,
     cycle: Arc<Mutex<RefreshCycle>>,
     monitor: Arc<Monitor>,
+    local_cost: Option<LocalCost>,
 ) -> Result<LocalServer, Box<dyn Error>> {
     let source = move || {
         let incidents = monitor.incident_statuses();
+        let now = Utc::now();
+        let local_cost = local_cost.as_ref().and_then(|cost| cost.export(now));
         let cycle = cycle.lock().unwrap_or_else(PoisonError::into_inner);
-        Some(Export::from_cycle(
-            &config,
-            &identity,
-            &cycle,
-            &incidents,
-            Utc::now(),
-            Options::default(),
-        ))
+        Some(
+            Export::from_cycle(
+                &config,
+                &identity,
+                &cycle,
+                &incidents,
+                now,
+                Options::default(),
+            )
+            .with_local_cost(local_cost),
+        )
     };
     let server = LocalServer::start(serve_config(args, token), source)
         .await

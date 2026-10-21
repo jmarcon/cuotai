@@ -22,6 +22,8 @@ use tauri::{
 };
 
 type Shared<'a> = State<'a, Arc<Backend>>;
+/// PRD 0015: the local cost, shared with the local server's feed.
+type Cost<'a> = State<'a, Arc<local_cost::LocalCost>>;
 
 #[tauri::command]
 async fn get_view(b: Shared<'_>) -> Result<View, String> {
@@ -647,14 +649,20 @@ async fn send_test_notification(
     notify::SystemNotifier(app).deliver(&clean_menu_line(&title), &clean_menu_line(&body))
 }
 
-/// PRD 0015 RF1/RF2: Settings → Local cost: each source with its
-/// disclosure, what the index follows and the last scan, the period and
-/// the retention.
+/// PRD 0015 RF1/RF2/RF4.1: Settings → Local cost: each source with its
+/// disclosure, chosen directories, what the index follows and the last
+/// scan, the period and the retention.
 #[tauri::command]
-async fn cost_status(
-    cost: State<'_, local_cost::LocalCost>,
-) -> Result<local_cost::CostView, String> {
+async fn cost_status(cost: Cost<'_>) -> Result<local_cost::CostView, String> {
     cost.view()
+}
+
+/// PRD 0015 RF4.1: the cards' and details' estimate (the core's
+/// `CostSummary`): per source today, yesterday and the saved period, by day
+/// and by model, and why a source has no numbers. Reads no log.
+#[tauri::command]
+async fn cost_usage(cost: Cost<'_>) -> Result<cuotai_core::cost::CostSummary, String> {
+    cost.usage()
 }
 
 /// PRD 0015 RF1.1: turn `source` on after the user accepted the
@@ -663,7 +671,7 @@ async fn cost_status(
 /// changed since).
 #[tauri::command]
 async fn cost_enable(
-    cost: State<'_, local_cost::LocalCost>,
+    cost: Cost<'_>,
     source: cuotai_core::cost::SourceId,
     digest: String,
 ) -> Result<local_cost::CostView, String> {
@@ -673,27 +681,46 @@ async fn cost_enable(
 /// PRD 0015 RF2.4: turn `source` off and erase everything derived from it.
 #[tauri::command]
 async fn cost_disable(
-    cost: State<'_, local_cost::LocalCost>,
+    cost: Cost<'_>,
     source: cuotai_core::cost::SourceId,
 ) -> Result<local_cost::CostView, String> {
     cost.disable(source)
+}
+
+/// PRD 0015 RF4.1: the directories `source` reads (none: the defaults). A
+/// different list turns a source that is on off and erases what was
+/// derived from it. Error: `cost.error.relative_path` as JSON.
+#[tauri::command]
+async fn cost_set_paths(
+    cost: Cost<'_>,
+    source: cuotai_core::cost::SourceId,
+    paths: Vec<String>,
+) -> Result<local_cost::CostView, String> {
+    cost.set_paths(source, paths)
 }
 
 /// PRD 0015 RF2.3: the period shown and the days the index keeps (7 to
 /// 730). Error: `cost.error.retention_bounds` as JSON.
 #[tauri::command]
 async fn cost_set_options(
-    cost: State<'_, local_cost::LocalCost>,
+    cost: Cost<'_>,
     period: cuotai_core::cost::Period,
     retention_days: u32,
 ) -> Result<local_cost::CostView, String> {
     cost.set_options(period, retention_days)
 }
 
+/// PRD 0015 RF4.1: the prices in effect (the embedded table under the
+/// user's `pricing.json`) for Settings → Local cost.
+#[tauri::command]
+async fn cost_prices(cost: Cost<'_>) -> Result<local_cost::PricesView, String> {
+    cost.prices()
+}
+
 /// PRD 0015 RF2.4: erase the whole cost index after the confirmation the
 /// UI asked for. Returns the rows removed.
 #[tauri::command]
-async fn cost_erase(cost: State<'_, local_cost::LocalCost>) -> Result<usize, String> {
+async fn cost_erase(cost: Cost<'_>) -> Result<usize, String> {
     cost.erase()
 }
 
@@ -849,11 +876,14 @@ pub fn run() {
         settings::serve_prefs(),
         settings::hooks_enabled(),
     ));
+    // PRD 0015 RF4.3: the local server publishes this computer's local cost.
+    let local_cost = Arc::new(local_cost::LocalCost::new());
+    backend.publish_local_cost(Arc::clone(&local_cost));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(Arc::clone(&backend))
-        .manage(local_cost::LocalCost::new())
+        .manage(local_cost)
         .invoke_handler(tauri::generate_handler![
             get_view,
             refresh_all,
@@ -905,9 +935,12 @@ pub fn run() {
             save_hooks,
             test_hook,
             cost_status,
+            cost_usage,
             cost_enable,
             cost_disable,
+            cost_set_paths,
             cost_set_options,
+            cost_prices,
             cost_erase,
             history_size,
             account_history,
@@ -990,7 +1023,7 @@ pub fn run() {
                 });
             }
             // PRD 0015 RF2.2: the local cost scan, on a thread of its own.
-            app.state::<local_cost::LocalCost>().start();
+            app.state::<Arc<local_cost::LocalCost>>().start();
             backend.notify_hook_runs(app.handle().clone());
             tauri::async_runtime::spawn(Arc::clone(&backend).run_scheduler(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_notices(app.handle().clone()));

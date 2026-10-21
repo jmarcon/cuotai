@@ -679,3 +679,113 @@ fn indexed_usage_is_estimated_at_the_embedded_prices_without_any_content() {
     let json = serde_json::to_string(&estimate).unwrap();
     assert!(!json.contains(SECRET) && !format!("{estimate:?}").contains(SECRET));
 }
+
+/// RF4: the summary every front end shows, from the index of synthetic
+/// logs: yesterday's priced usage, today's absence, no content and no
+/// directory in any of its renderings, and nothing once the source is off.
+#[test]
+fn the_summary_shows_indexed_days_without_content_and_nothing_once_off() {
+    let f = fixture();
+    let pricing = PricingFile::at(f.dir.path().join("data/cost/pricing.json"));
+    let off = f.scanner.summary(&pricing, None, None, now()).unwrap();
+    assert!(!off.any_on());
+    assert!(
+        !f.scanner.index().path().exists(),
+        "a summary while off never creates the index"
+    );
+
+    f.enable(SourceId::ClaudeCode);
+    write(
+        &f.claude_log("s1"),
+        &(user_line() + &claude_line(1, 1_000, 2)),
+    );
+    let report = f.scan();
+    let summary = f
+        .scanner
+        .summary(&pricing, Some(&report), Some(Span::days(7).unwrap()), now())
+        .unwrap();
+    let claude = summary.source(SourceId::ClaudeCode).unwrap();
+    assert_eq!(claude.state, CostState::Ready);
+    let usage = claude.usage.as_ref().unwrap();
+    assert_eq!(usage.yesterday.total.map(Usd::micros), Some(3_199));
+    assert_eq!(usage.today.tokens.total(), 0);
+    assert_eq!(usage.days.len(), 7);
+    assert_eq!(summary.span.label.resolve("en-US"), "Last 7 days");
+
+    let mut outputs = vec![
+        serde_json::to_string(&summary).unwrap(),
+        format!("{summary:?}"),
+    ];
+    for locale in ["pt-BR", "en-US", "es"] {
+        outputs.push(usage.yesterday.line(yesterday_label()).resolve(locale));
+        outputs.extend(usage.days.iter().map(|day| day.line().resolve(locale)));
+        for source in &summary.sources {
+            outputs.extend(source.note.iter().map(|note| note.resolve(locale)));
+        }
+    }
+    let home = f.home().display().to_string();
+    for output in outputs {
+        for leak in [SECRET, "session-", "msg_1", "req_1", home.as_str()] {
+            assert!(!output.contains(leak), "{leak} in {output}");
+        }
+    }
+
+    turn_off(
+        f.scanner.settings(),
+        f.scanner.index(),
+        SourceId::ClaudeCode,
+    )
+    .unwrap();
+    let after = f
+        .scanner
+        .summary(&pricing, Some(&report), None, now())
+        .unwrap();
+    assert!(!after.any_on());
+    assert!(after.sources.iter().all(|s| s.usage.is_none()));
+    assert_eq!(after.total.tokens.total(), 0);
+}
+
+/// RF4.1: choosing other directories needs a new consent, so a source
+/// that is on turns off and loses what was derived; the same list changes
+/// nothing and a relative directory is refused.
+#[test]
+fn choosing_other_directories_turns_the_source_off_and_erases_it() {
+    let f = fixture();
+    let (settings, index) = (f.scanner.settings(), f.scanner.index());
+    f.enable(SourceId::ClaudeCode);
+    write(&f.claude_log("s1"), &claude_line(1, 10, 2));
+    f.scan();
+    assert_eq!(f.requests(), 1);
+
+    let defaults = choose_paths(settings, index, SourceId::ClaudeCode, Vec::new(), &f.env);
+    assert_eq!(defaults, Ok(0), "the saved list: nothing changes");
+    assert!(settings
+        .load()
+        .unwrap()
+        .enabled(SourceId::ClaudeCode, &f.env));
+
+    assert_eq!(
+        choose_paths(
+            settings,
+            index,
+            SourceId::ClaudeCode,
+            vec![PathBuf::from("logs/claude")],
+            &f.env
+        ),
+        Err(CostError::RelativePath)
+    );
+    assert_eq!(f.requests(), 1, "a refused list changes nothing");
+
+    let chosen = vec![PathBuf::from("~/elsewhere"), PathBuf::from("~/elsewhere")];
+    let removed = choose_paths(settings, index, SourceId::ClaudeCode, chosen, &f.env).unwrap();
+    assert!(removed > 0);
+    assert_eq!(f.requests(), 0);
+    let saved = settings.load().unwrap();
+    assert!(!saved.enabled(SourceId::ClaudeCode, &f.env));
+    assert_eq!(
+        saved.roots(SourceId::ClaudeCode, &f.env),
+        [f.home().join("elsewhere")],
+        "the duplicate is dropped and ~/ is expanded"
+    );
+    assert!(saved.disclosure(SourceId::ClaudeCode, &f.env).custom);
+}
