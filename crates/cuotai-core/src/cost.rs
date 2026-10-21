@@ -1,5 +1,5 @@
-//! PRD 0015 — estimated cost from local logs: sources and consent (RF1)
-//! and the incremental index (RF2).
+//! PRD 0015 — estimated cost from local logs: sources and consent (RF1),
+//! the incremental index (RF2) and prices and computation (RF3).
 //!
 //! Off by default. A source ([`SourceId`]) is one command-line tool whose
 //! session logs live in known directories; each has an adapter behind the
@@ -20,17 +20,30 @@
 //! [`CostWorker`] runs it on a low-priority thread of its own, never on the
 //! refresh's path, and pauses in energy-saving mode. [`turn_off`] and
 //! [`CostIndex::erase`] remove everything derived.
+//!
+//! [`estimate`] turns indexed usage into an [`Estimate`] in USD at the
+//! prices in effect ([`Prices`]): the [`PriceTable`] embedded in the binary,
+//! overridden model by model by the user's own `pricing.json`
+//! ([`PricingFile`]). A model without a known price is "cost unknown",
+//! never zero, and every estimate says it is not a charge.
 
 mod claude;
 mod codex;
+mod estimate;
 mod index;
+mod prices;
 mod scan;
 mod settings;
 mod source;
 mod system;
 mod worker;
 
+pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 pub use index::{CostIndex, DailyUsage, Indexed};
+pub use prices::{
+    pricing_ignored, Price, PriceOrigin, PriceRow, PriceTable, Prices, PricingError, PricingFile,
+    Rate, Rates, TableInfo, CURRENCY,
+};
 pub use scan::{Limits, RootScan, RootState, ScanReport, Scanner, SourceScan, SourceState};
 pub use settings::{CostSettings, Disclosure, Env, SettingsStore, SourceSettings};
 pub use system::energy_saving;

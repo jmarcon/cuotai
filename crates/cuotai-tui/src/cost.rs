@@ -1,13 +1,14 @@
-//! PRD 0015 RF1/RF2 on the command line: list the local cost sources with
+//! PRD 0015 RF1–RF3 on the command line: list the local cost sources with
 //! exactly what each reads, turn one on after the user read its disclosure
 //! and typed the confirmation, turn one off (erasing what was derived from
-//! it), erase the index, set the period and the retention, and scan in the
-//! foreground. The interactive TUI keeps the index current from the core's
-//! background [`CostWorker`].
+//! it), erase the index, set the period and the retention, scan in the
+//! foreground, and show the prices the estimate uses (the embedded table
+//! under the user's `pricing.json`). The interactive TUI keeps the index
+//! current from the core's background [`CostWorker`].
 
 use cuotai_core::cost::{
-    self, CostIndex, CostWorker, Env, Limits, Period, Retention, Scanner, SettingsStore, SourceId,
-    SourceState,
+    self, CostIndex, CostWorker, Env, Limits, Period, PriceOrigin, Prices, PricingFile, Retention,
+    Scanner, SettingsStore, SourceId, SourceState,
 };
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
@@ -23,6 +24,7 @@ pub(crate) enum CostAction {
     Disable(String),
     Erase,
     Scan,
+    Prices,
     Options {
         period: Option<String>,
         retention_days: Option<u32>,
@@ -110,6 +112,12 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
             let removed = index.erase().map_err(l10n)?;
             writeln!(stdout, "{}", cost::erased_text(removed).resolve(locale)).map_err(io_error)?;
             Ok(0)
+        }
+        CostAction::Prices => {
+            let file = PricingFile::in_data_dir().map_err(l10n)?;
+            let (text, code) = prices(&file, json, locale)?;
+            write!(stdout, "{text}").map_err(io_error)?;
+            Ok(code)
         }
         CostAction::Scan => {
             let scanner = Scanner::new(index, settings, env).with_limits(FOREGROUND);
@@ -284,6 +292,99 @@ fn sources(
     Ok(out)
 }
 
+/// RF3.1/RF3.2 `--cost-prices`: the prices in effect, model by model, with
+/// the embedded table's date and source and the state of the user's
+/// `pricing.json` (missing, used, or ignored as a whole with exit 1 when
+/// invalid). Reads no log.
+fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), String> {
+    let (prices, error) = Prices::with_user_file(file);
+    let code = u8::from(error.is_some());
+    let notice = cost::estimate_notice().resolve(locale);
+    let ignored = error
+        .as_ref()
+        .map(|e| cost::pricing_ignored(e).resolve(locale));
+    let rows = prices.rows();
+    if json {
+        let value = serde_json::json!({
+            "currency": cost::CURRENCY,
+            "unit": "usd_per_million_tokens",
+            "notice": notice,
+            "tables": prices.info(),
+            "pricing_file": {
+                "path": file.path(),
+                "used": prices.user().is_some(),
+                "error": ignored,
+            },
+            "models": rows,
+        });
+        return serde_json::to_string_pretty(&value)
+            .map(|text| (text + "\n", code))
+            .map_err(|e| e.to_string());
+    }
+    let source = |source: &Option<String>| source.as_deref().unwrap_or("—").to_owned();
+    let mut out =
+        format!("Preços da estimativa de custo local (USD por milhão de tokens)\n{notice}\n\n");
+    for info in prices.info() {
+        out += &match info.origin {
+            PriceOrigin::Embedded => format!(
+                "Tabela embutida: preços de {}; fonte: {}\n",
+                info.effective,
+                source(&info.source)
+            ),
+            PriceOrigin::User => format!(
+                "Sua tabela ({}): preços de {}; fonte: {}; {} modelo(s), que valem sobre a embutida\n",
+                file.path().display(),
+                info.effective,
+                source(&info.source),
+                prices.user().map_or(0, |table| table.models.len())
+            ),
+        };
+    }
+    match &ignored {
+        Some(reason) => {
+            out += &format!(
+                "Sua tabela ({}): ignorada. {reason}\n",
+                file.path().display()
+            )
+        }
+        None if prices.user().is_none() => {
+            out += &format!(
+            "Sua tabela ({}): não existe; crie-a no mesmo formato para revisar ou trocar preços\n",
+            file.path().display()
+        )
+        }
+        None => {}
+    }
+    let width = rows
+        .iter()
+        .map(|row| row.model.len())
+        .max()
+        .unwrap_or(0)
+        .max(6);
+    out += &format!(
+        "\n{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  Origem\n",
+        "Modelo", "Entrada", "Saída", "Leitura cache", "Gravação cache"
+    );
+    for row in &rows {
+        let origin = match row.origin {
+            PriceOrigin::Embedded => "embutida",
+            PriceOrigin::User => "sua tabela",
+        };
+        out += &format!(
+            "{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {origin}\n",
+            row.model,
+            row.rates.input.to_string(),
+            row.rates.output.to_string(),
+            row.rates.cache_read.to_string(),
+            row.rates.cache_write.to_string()
+        );
+    }
+    out +=
+        "\nUm modelo fora da tabela tem custo desconhecido, nunca zero. Uma data no fim do nome \
+            (-20250929) usa o preço do nome sem ela.\n";
+    Ok((out, code))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,6 +450,74 @@ mod tests {
         );
         assert!(!saved.enabled(SourceId::ClaudeCode, &env));
         assert!(String::from_utf8(out).unwrap().contains("/srv/codex-logs"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn prices_show_the_users_table_over_the_embedded_one_and_fail_on_an_invalid_one() {
+        let dir = std::env::temp_dir().join(format!("cuotai-tui-prices-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = PricingFile::at(dir.join("pricing.json"));
+        let model = |value: &serde_json::Value, name: &str| {
+            value["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["model"] == name)
+                .cloned()
+        };
+
+        let (text, code) = prices(&file, true, "en-US").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(code, 0);
+        assert_eq!(value["pricing_file"]["used"], false);
+        assert_eq!(
+            value["notice"],
+            "Estimate at API prices, not a charge; amounts in USD."
+        );
+        assert_eq!(
+            model(&value, "claude-sonnet-4-5").unwrap()["origin"],
+            "embedded"
+        );
+
+        std::fs::write(
+            file.path(),
+            r#"{"effective": "2026-10-15", "source": "contract", "models": {
+                "claude-sonnet-4-5": {"input": 1, "output": 5, "cache_read": 0.1, "cache_write": 1.25}}}"#,
+        )
+        .unwrap();
+        let (text, code) = prices(&file, true, "en-US").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(code, 0);
+        let sonnet = model(&value, "claude-sonnet-4-5").unwrap();
+        assert_eq!(
+            (&sonnet["origin"], &sonnet["rates"]["input"]),
+            (&"user".into(), &1.0.into())
+        );
+        assert_eq!(value["tables"][1]["effective"], "2026-10-15");
+        let (text, _) = prices(&file, false, "en-US").unwrap();
+        assert!(
+            text.contains("preços de 2026-10-15; fonte: contract; 1 modelo(s)"),
+            "{text}"
+        );
+
+        std::fs::write(
+            file.path(),
+            r#"{"currency": "EUR", "effective": "2026-10-15", "models": {}}"#,
+        )
+        .unwrap();
+        let (text, code) = prices(&file, true, "en-US").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(code, 1);
+        assert_eq!(value["pricing_file"]["used"], false);
+        assert_eq!(
+            value["pricing_file"]["error"],
+            "pricing.json only accepts prices in USD. Only the embedded table is used until the file is fixed."
+        );
+        assert_eq!(
+            model(&value, "claude-sonnet-4-5").unwrap()["origin"],
+            "embedded"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1064,5 +1064,14 @@
   "cost.disabled": "{source} turned off; {removed} derived record(s) erased.",
   "cost.enabled": "{source} turned on. The logs are read in the background while the TUI or the desktop app is open, or now with cuotai --cost-scan.",
   "cost.erased": "Local cost index erased: {removed} record(s).",
-  "cost.error.unknown_period": "Unknown period: {name}. Periods: {known}."
+  "cost.error.unknown_period": "Unknown period: {name}. Periods: {known}.",
+  "cost.estimate.notice": "Estimate at API prices, not a charge; amounts in USD.",
+  "cost.pricing.error.currency": "pricing.json only accepts prices in USD.",
+  "cost.pricing.error.duplicate": "pricing.json repeats the model {model}.",
+  "cost.pricing.error.model": "pricing.json has an invalid model name: use 1 to 96 letters, digits or .-_:/@+ (and not \"unknown\").",
+  "cost.pricing.error.rate": "Invalid price for {model} ({field}): use a number from 0 to 10000 dollars per million tokens, with up to six decimals.",
+  "cost.pricing.error.source": "pricing.json has a source longer than 300 characters or with control characters.",
+  "cost.pricing.error.syntax": "Invalid pricing.json at line {line}, column {column}.",
+  "cost.pricing.error.unreadable": "Could not read pricing.json.",
+  "cost.pricing.ignored": "{error} Only the embedded table is used until the file is fixed."
 }

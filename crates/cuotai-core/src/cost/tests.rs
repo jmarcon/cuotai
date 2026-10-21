@@ -653,3 +653,29 @@ fn the_worker_scans_on_its_own_thread_and_pauses_while_saving_energy() {
     let last = status.last.unwrap();
     assert_eq!(source_scan(&last, SourceId::ClaudeCode).requests, 1);
 }
+
+#[test]
+fn indexed_usage_is_estimated_at_the_embedded_prices_without_any_content() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    f.enable(SourceId::CodexCli);
+    write(
+        &f.claude_log("s1"),
+        &(user_line() + &claude_line(1, 1_000, 2)),
+    );
+    write(&f.codex_log("sessions"), &codex_rollout());
+    f.scan();
+    let estimate = estimate(&f.usage(), &Prices::embedded());
+    // claude-sonnet-4-5-20250929 at the undated entry: 1 000 input × $3,
+    // 10 output × $15, 100 cache reads × $0.30, 5 cache writes × $3.75 per
+    // million = $0.00319875; gpt-5-codex has no price.
+    assert_eq!(estimate.total.unwrap().micros(), 3_199);
+    assert_eq!(
+        estimate.unknown_models().collect::<Vec<_>>(),
+        ["gpt-5-codex"]
+    );
+    assert_eq!(estimate.unknown_tokens.total(), 250);
+    assert_eq!(estimate.tokens.total(), 1_365);
+    let json = serde_json::to_string(&estimate).unwrap();
+    assert!(!json.contains(SECRET) && !format!("{estimate:?}").contains(SECRET));
+}

@@ -162,6 +162,21 @@ In the JSON output, each metric carries a `kind` (`quota`, `rate_limit`, `balanc
 
 `cuotai --cost-enable claude_code|codex_cli [--cost-path DIR]` turns on reading that tool's local session logs (off by default) after printing exactly which directories are read (by default those of `CLAUDE_CONFIG_DIR`/`~/.config/claude` and `~/.claude`, or `CODEX_HOME`/`~/.codex`) and that only the time, the model, the token counts and an anonymous session digest are extracted, and asking you to confirm in a terminal; conversation content is never read into the index. `--cost-sources [--json]` lists the sources and what they read, `--cost-scan [--json]` reads what grew now (the TUI and the desktop app do it in the background), `--cost-period` and `--cost-retention-days` set the period and the retention, and `--cost-disable SOURCE` or `--cost-erase` remove everything derived. The private index lives in `<OS local data dir>/cuotai/cost/cost.sqlite3`. See [`docs/tui.md`](docs/tui.md#configuration-precedence-and-exit-codes).
 
+`cuotai --cost-prices [--json]` lists the API prices the local cost estimate uses, in USD per million tokens (input, output, cache read, cache write), with the date and source of the table embedded in this build; nothing is ever downloaded. To review or change a price, write your own `pricing.json` beside the local cost preferences (`<OS local data dir>/cuotai/cost/pricing.json`, e.g. `~/Library/Application Support/cuotai/cost/pricing.json` on macOS) in the same format; each model you list wins over the embedded price, and an invalid file is ignored as a whole (`--cost-prices` says why and exits `1`):
+
+```json
+{
+  "currency": "USD",
+  "effective": "2026-10-21",
+  "source": "my contract",
+  "models": {
+    "claude-haiku-5-5": { "input": 0.5, "output": 2.5, "cache_read": 0.05, "cache_write": 0.625 }
+  }
+}
+```
+
+A model name with a date suffix (`claude-sonnet-4-5-20250929`) uses the price of the undated name; a model in neither table is shown as "cost unknown", never as zero, and every figure is an estimate at API prices, not a charge.
+
 Every successful reading (TUI, desktop app, `--once`, `--json`, `--json-v1`, `--serve` and `--watch`) also enters a local measurement history on this computer only: `<OS local data dir>/cuotai/history/history.sqlite3`, private to your user, holding numbers and window metadata, never credentials, account names or provider text. On opening, each account shows its last recorded reading, marked stale, until the first query answers, and the consumption pace projects from the recent slope. The history keeps 90 days by default (`--history-days 7…365` on the command line, **Settings → History** on the desktop), keeps one sample per hour after 7 days (each window's peak stays) and stays under 64 MiB, warning when it had to delete old samples. The desktop account details draw an area chart of each metric over the last 24 hours, 7 days or 30 days, with the last reading highlighted and a marker at each reset (and a table for screen readers); **Settings → History** turns recording off (on by default; what was recorded stays until you erase it), shows the size on disk, exports to CSV or JSON and erases one account's history or all of it, after a confirmation. The TUI account details draw a sparkline of each metric over the last 24 hours, 7 days or 30 days (keys `1`, `2`, `3`), and `--history [ACCOUNT]` prints the recorded series (`--json` for scripts; `--history-days` picks the days shown, 7 by default).
 
 ---
