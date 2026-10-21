@@ -6,7 +6,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 |---|---|
 | Last updated | 2026-10-21 |
 | Cuotai version at that date | 0.66.0 |
-| Plans | 20 (11 implemented, 6 in progress, 3 proposed) |
+| Plans | 21 (11 implemented, 6 in progress, 4 proposed) |
 
 ## 1. How to maintain it
 
@@ -42,6 +42,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0018](0018_automatic-updates.md) | Automatic updates for the desktop app | Proposed | — | 0019 (RF2 and RF3) | 0019 (RF7) | Needs a Tauri updater signing key pair. Release notes come from `CHANGELOG.md`. |
 | [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2), RF7.1 to RF7.3 and RF7.6 (`CHANGELOG.md`, no bump), RF2 partial (0.27.1) | — | — | Prerequisite of 0014 and 0018. RF1 delivered: `MIT OR Apache-2.0` license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and `deny.toml`. `CHANGELOG.md` exists with the history up to 0.20.0. RF2: `.github/workflows/ci.yml` (fmt, Clippy, tests of both workspaces on Linux, macOS and Windows, plus `cargo deny`) verified locally; **owner-blocked:** a green GitHub Actions run on the three runners and a failing pull request with broken Clippy need the workflow pushed to GitHub. RF7.4, RF7.5, RF7.7 and RF7.8 (CI checks, release extraction, in-product display, link with this file) are still open. |
 | [0020](0020_settings-window-redesign.md) | Settings window redesign | Proposed | — | — | 0018, 0019 | Usability and design of settings: a dedicated window with a sidebar of seven pages, rows with short descriptions, apply-at-once, search and live sync. Replaces the 12-section popup dialog; no new settings or preference changes. |
+| [0021](0021_release-pipeline-and-package-managers.md) | Release pipeline and package-manager publishing | Proposed | — | 0019 (RF2, RF7.1 to RF7.3) | 0018, 0019 (RF7.5) | Tag-driven build, signing, GitHub Release and opt-in channels: Homebrew tap, winget, Scoop, Cargo, AUR and Linux packages. Supersedes PRD 0019 RF3 and RF4. Without an Apple Developer ID the official Homebrew cask is out of reach (tap only). |
 
 ## 3. Delivered by version
 
@@ -143,6 +144,7 @@ graph LR
   P18["0018 Automatic updates"]:::todo
   P19["0019 Distribution"]:::wip
   P20["0020 Settings window"]:::todo
+  P21["0021 Release and packages"]:::todo
 
   P8 --> P3
   P13 --> P12
@@ -173,6 +175,8 @@ graph LR
   P14 -.-> P10
   P20 -.-> P18
   P20 -.-> P19
+  P21 --> P19
+  P18 -.-> P21
 ```
 
 ### What each plan unblocks
@@ -198,7 +202,7 @@ The waves respect the strong dependencies; within each wave the order is by prio
 |---|---|---|
 | 0 (under way) | 0003 | Infrastructure reused by the others (0004 is done). |
 | 1 (no dependencies) | 0019 (RF1: license, done), 0006, 0007, 0009, 0005, 0012, 0011, 0020 | They unblock almost everything; 0006 and 0007 close the biggest gap against competitors (history and pace). |
-| 2 | 0008, 0010, 0018, 0013, 0016, 0015, 0017 | They depend on items from wave 0 or 1. |
+| 2 | 0008, 0010, 0018, 0013, 0016, 0015, 0017, 0021 | They depend on items from wave 0 or 1. |
 | 3 | 0014 | Depends on 0012's contract and 0019's pipeline, plus an Apple developer account. |
 
 Critical path of distribution: **0019 → 0018**. Critical path of integrations: **0012 → 0013 and 0014**. Critical path of alerts: **0003 → 0008**.
@@ -209,8 +213,8 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 |---|---|---|
 | ~~Repository license~~ | 0019 (RF1) | **Decided on 2026-10-19: `MIT OR Apache-2.0`**, holder "Cuotai contributors". |
 | ~~Documentation language~~ | 0019 (RF1.4) | **Decided on 2026-10-19: English** for the README, `docs/`, plans, commits, pull requests and issues. Done: every plan, PRD 0004 included, is in English. |
-| Apple developer account and Developer ID certificate | 0014, 0018, 0019 | Needed for notarization and for widgets (*app group*). |
-| Windows Authenticode certificate | 0019 | Without it, the installer ships unsigned, declared in the release notes. |
+| Apple developer account and Developer ID certificate | 0014, 0018, 0019, 0021 | Needed for notarization and for widgets (*app group*). |
+| Windows Authenticode certificate | 0019, 0021 | Without it, the installer ships unsigned, declared in the release notes. |
 | ~~Cookie policy~~ | 0016 | **Decided on 2026-10-21: manual paste only**; Cuotai never imports cookies from browsers (recorded with PRD 0016 RF1 in 0.60.0). |
 | ~~Local server on by default or not~~ | 0012 | **Decided on 2026-10-20: off by default, loopback only**, suggested port 6738 (checked for conflicts when RF2 is implemented). |
 | ~~Reset notices on by default or not~~ | 0003 (RF3) | **Decided on 2026-10-20: off by default**; nothing is notified until the user turns on Settings → Notifications (delivered in 0.41.0). |
@@ -278,3 +282,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-21 | PRD 0017 RF2 delivered as partial in 0.65.0 (the output contract checked in the core, the `invalid_output` failure category, notes cleaned and truncated, `source = "extension:<id>"`); RF2.4 `--extension-check` moves to RF3 and RF4, which bring the runner; plan 0017 stays in progress. |
 | 2026-10-21 | PRD 0017 RF2.4, RF3 and RF4 delivered in 0.66.0 (the approved bounded runner, process-tree timeout, reduced environment allowlist, explicit consent and manifest/executable digests, plus `cuotai --extension-check`; no OS sandbox is claimed and network/file access remains unrestricted); plan 0017 stays in progress with RF5 pending. |
 | 2026-10-21 | PRD 0020 added (settings window redesign, with current and proposed images). |
+| 2026-10-21 | PRD 0021 added (release pipeline and package-manager publishing); it supersedes PRD 0019 RF3 and RF4. |
