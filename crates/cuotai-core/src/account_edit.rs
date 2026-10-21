@@ -4362,7 +4362,7 @@ mod tests {
         let outcome = remove_account(&mut file, &session, 0, true).await.unwrap();
         let removed = match outcome {
             RemoveOutcome::CredentialKept { account, .. } => account,
-            other => panic!("expected CredentialKept, got {other:?}"),
+            other => panic!("expected CredentialKept, got {}", outcome_variant(&other)),
         };
         // The user removes "second" too, then adds a fresh account
         // that intentionally uses the same OAuth config (same
