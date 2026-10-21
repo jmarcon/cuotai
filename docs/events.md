@@ -1,6 +1,6 @@
 # Events (`events`)
 
-`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. `cuotai --watch` streams them (PRD 0013 RF2); the hooks of later PRD 0013 requirements will build on them.
+`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. `cuotai --watch` streams them (PRD 0013 RF2) and `cuotai --watch --hooks` runs your own commands on them (PRD 0013 RF3).
 
 ## Watching from the command line (`cuotai --watch`)
 
@@ -14,9 +14,55 @@ cuotai --watch --jsonl --serve                   # the local server on the same 
 - **Refresh cycle.** `--watch` runs the same refresh cycle as the dashboard, without the TUI and without needing a terminal: a first query of every account at start, then each account at its own interval with the core's backoff. Watching adds no query: events come from comparing each new reading with the previous one. With `--serve` (PRD 0012) the local server reads the same cycle, so one query feeds both.
 - **`--interval S`** (60 to 86 400 seconds) replaces the global `refresh_seconds` for this run only (nothing is saved). An account with its own `refresh_seconds` keeps it, and AWS Bedrock, billed per query, is never queried more often than every 300 s. A smaller value is rejected with exit code `1`, never silently raised.
 - **`--events list`** keeps only the named events (comma-separated payload names; all of them by default). An unknown name is rejected with exit code `1` and the list of valid ones. Events left out still advance the engine, so selecting never changes which transitions are real.
-- **`--jsonl`** writes one payload (below) per line to stdout (NDJSON), flushed after each line; every human message and diagnostic goes to stderr, and with `--serve` the server's address goes to stderr too. Without `--jsonl` each transition is one readable line in local time and the `CUOTAI_LANG` language (the metric label is the provider's, as on the cards), such as `2026-10-20 14:02:11  Work (Claude): Sessão (5h): 90% used`.
+- **`--jsonl`** writes one payload (below) per line to stdout (NDJSON), flushed after each line; every human message and diagnostic goes to stderr, and with `--serve` the server's address goes to stderr too. Without `--jsonl` (and without `--hooks`, which leaves stdout empty unless `--jsonl` is given) each transition is one readable line in local time and the `CUOTAI_LANG` language (the metric label is the provider's, as on the cards), such as `2026-10-20 14:02:11  Work (Claude): Sessão (5h): 90% used`.
 - **Baselines.** The first reading of each account is only its baseline: a run prints nothing until something changes. `provider_incident` needs `--status`.
 - **Shutdown and exit codes.** `SIGINT`, `SIGTERM` and `SIGHUP` (Ctrl+C and Ctrl+Break on Windows) stop it cleanly, and so does a closed stdout when the next event is written (the consumer of the stream went away). `0`: normal shutdown; `2`: some account's latest reading had failed at shutdown (or, with `--serve`, no account was ever healthy); `1`: local error (invalid arguments, interval, events or configuration).
+
+## Hooks (`cuotai --watch --hooks`)
+
+Hooks run commands of your own when events happen: play a sound, write to a file, notify a chat through a script of yours. They are **off by default**: they only run with `cuotai --watch --hooks`, and only after you confirmed their exact commands.
+
+```toml
+# hooks.toml, in the same directory as the accounts' TOML (cuotai.toml or config.toml).
+# No accounts and no secrets here: a command that needs a secret reads it itself.
+
+[[hooks]]
+name = "sound"                                    # unique, up to 64 characters
+events = ["quota_exhausted", "quota_threshold_crossed"]
+provider = "claude"                               # optional: only this provider (slug, as in --list-providers)
+account = "Work"                                  # optional: only the account with this name
+min_threshold = 90                                # optional: crossings at or above 90% (other events pass)
+command = ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"]
+timeout_seconds = 10                              # optional: 1 to 60, 10 by default
+
+[[hooks]]
+name = "journal"
+events = ["refresh_failed", "auth_required"]
+command = ["/Users/me/bin/cuotai-journal.sh", "--append"]
+```
+
+```sh
+cuotai --watch --hooks              # hooks only; stdout stays empty
+cuotai --watch --hooks --jsonl      # hooks and the NDJSON stream
+```
+
+- **File.** `hooks.toml` lives next to the accounts' TOML (`--config ~/x/cuotai.toml` reads `~/x/hooks.toml`). Each `[[hooks]]` rule has `name`, `events` (payload names), the optional filters `provider`, `account` and `min_threshold`, a `command` and an optional `timeout_seconds`. Any other key is rejected, as is a file with no rule; an invalid file is a local error (exit `1`) that names the line or the rule, never a rule that is silently skipped. `--events` also limits what reaches the hooks.
+- **The command is an argument vector,** never a shell string: `command = "script; rm -rf ~"` is rejected, and `["/path/script", "it's; $(id)"]` runs `/path/script` with that exact text as its one argument. The program is an absolute path or a bare name looked up in `PATH` (a relative path is rejected); `~` and variables are not expanded. To use a shell, say so explicitly (`["/bin/sh", "/path/script.sh"]`).
+- **Confirmation.** The first time, and whenever the rules change (any name, event, filter, command or time limit; comments and layout do not count), `--watch --hooks` lists every rule with its exact command (as a JSON array, so quotes and separators are visible) on stderr and asks you to type `sim`/`yes`/`si` (per `CUOTAI_LANG`); any other answer declines and nothing runs. Without a terminal (a service, a pipe on stdin) unconfirmed hooks are a local error (exit `1`) before any query: confirm them once in a terminal. The confirmation is the SHA-256 of the rules, kept per `hooks.toml` in `<OS local data dir>/cuotai/hooks/consent.json`; Cuotai never writes, downloads or changes a command.
+- **What a hook receives.** The event payload (below) as one JSON line on stdin, and the variables `CUOTAI_EVENT` (the event name), `CUOTAI_ACCOUNT` (the account name), `CUOTAI_PROVIDER` (the provider slug) and `CUOTAI_METRIC` (the metric label, empty for account-wide events). They are data, never part of the command line: quote them in your script (`"$CUOTAI_ACCOUNT"`).
+- **Isolation.** The environment is reduced to `PATH`, `HOME` and `LANG` (plus `SystemRoot` on Windows, which processes need to start) and the `CUOTAI_*` variables: no credential variable (`OPENAI_ADMIN_KEY`, `AWS_*`, …) or `CUOTAI_CONFIG` reaches a hook. The working directory is the system's temporary directory. stdout and stderr are captured (never mixed into the event stream), up to 16 KiB per run.
+- **Limits.** A hook that outlives its `timeout_seconds` is killed. At most 4 hooks run at once; up to 64 more wait in a queue, and beyond that the oldest waiting run is dropped with a warning on stderr. A hook that fails, hangs or cannot start never stops `--watch` or changes when accounts are queried: a run that did not succeed is one line on stderr (`cuotai: hook sound (quota_exhausted): exited with code 3 after 120 ms`). Stopping `--watch` drops the queue and kills the hooks still running.
+- **Run log.** Each run appends one JSON line, without the payload or the output, to `<OS local data dir>/cuotai/hooks/runs.log` (private to your user; past 256 KiB it moves to `runs.log.1`): `{"at":"2026-10-20T12:02:00Z","rule":"sound","event":"quota_exhausted","duration_ms":120,"outcome":"exited","exit_code":0}`. `outcome` is `exited` (with `exit_code`), `terminated` (ended by a signal), `timed_out` or `not_started` (missing or not executable program).
+
+A minimal hook script:
+
+```sh
+#!/bin/sh
+# Append one line per event; the payload on stdin is JSON.
+payload=$(cat)
+printf '%s %s %s\n' "$(date -u +%FT%TZ)" "$CUOTAI_EVENT" "$CUOTAI_ACCOUNT" >> "$HOME/cuotai-events.log"
+printf '%s\n' "$payload" | jq -r '.current.threshold // empty' >> "$HOME/cuotai-thresholds.log"
+```
 
 ## Producing events (Rust)
 
@@ -35,7 +81,7 @@ for (prev, next) in previous.accounts.iter().zip(&current.accounts) {
 
 `previous` and `current` are `export::v1::Export`s built with `Export::from_cycle` from the refresh cycle the front end already runs ([`export-v1.md`](export-v1.md)): judging them never queries a provider. `EventState::new(thresholds)` picks the crossing thresholds (10 to 99%, 75 and 90 by default). `EventState::retain_accounts(keys)` forgets removed accounts, whose next reading is then a new baseline.
 
-`watch::Watcher` does this bookkeeping for whole exports: `Watcher::new(state, selected).observe(&export, now)` keeps the previous export of each account, treats a new account as a baseline, forgets removed ones and keeps only the `selected` kinds (`watch::parse_events` reads the names). `headless::Driver` runs the refresh cycle without a screen and builds the exports `--watch` observes. `Event::summary()` is the readable line (`events.summary.*`, with the category's `events.category.*` text).
+`watch::Watcher` does this bookkeeping for whole exports: `Watcher::new(state, selected).observe(&export, now)` keeps the previous export of each account, treats a new account as a baseline, forgets removed ones and keeps only the `selected` kinds (`watch::parse_events` reads the names). `headless::Driver` runs the refresh cycle without a screen and builds the exports `--watch` observes. `Event::summary()` is the readable line (`events.summary.*`, with the category's `events.category.*` text). `hooks::Hooks::load(&Hooks::path_beside(config_path))` reads `hooks.toml`; `hooks::Consent::check`/`confirm` turn it into a `Confirmed` set (the only input of `hooks::Runner::start(confirmed, log, on_run)`), and `Runner::submit(&event)` queues the matching rules without waiting, returning how many queued runs it dropped.
 
 ## Edge rules
 

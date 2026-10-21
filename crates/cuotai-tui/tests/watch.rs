@@ -241,6 +241,7 @@ fn local_errors_exit_1_before_any_query() {
         vec!["--config", config, "--interval", "60"],
         vec!["--config", config, "--jsonl"],
         vec!["--config", config, "--events", "quota_exhausted"],
+        vec!["--config", config, "--hooks"],
         vec!["--config", config, "--watch", "--once"],
     ] {
         let mut child = sandbox.command(&args).spawn().unwrap();
@@ -257,4 +258,66 @@ fn local_errors_exit_1_before_any_query() {
         sandbox.stderr()
     );
     assert_eq!(sandbox.calls(), 0, "no query before a local error");
+}
+
+/// PRD 0013 RF3.2: `--hooks` without a terminal to confirm in lists the
+/// exact commands and stops (exit 1) before any query or hook; so do a
+/// missing and an invalid `hooks.toml`.
+#[test]
+fn hooks_need_a_confirmation_before_any_query() {
+    let sandbox = Sandbox::new("hooks", "0.5");
+    let config = sandbox.config();
+    let args = ["--config", config.as_str(), "--watch", "--jsonl", "--hooks"];
+    let run = || {
+        let mut child = sandbox.command(&args).spawn().unwrap();
+        let code = child.wait().unwrap().code();
+        let mut stdout = String::new();
+        child
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut stdout)
+            .unwrap();
+        (code, stdout, sandbox.stderr())
+    };
+
+    let (code, _, stderr) = run();
+    assert_eq!(code, Some(1));
+    assert!(stderr.contains("Nenhum arquivo de hooks em"), "{stderr}");
+
+    let hooks = sandbox.0.join("hooks.toml");
+    fs::write(
+        &hooks,
+        "[[hooks]]\nname = \"x\"\nevents = [\"quota_exhausted\"]\ncommand = \"touch x\"\n",
+    )
+    .unwrap();
+    let (code, _, stderr) = run();
+    assert_eq!(code, Some(1));
+    assert!(
+        stderr.contains("hooks.toml inválido na linha 4"),
+        "{stderr}"
+    );
+
+    let marker = sandbox.0.join("ran");
+    fs::write(
+        &hooks,
+        format!(
+            "[[hooks]]\nname = \"mark\"\nevents = [\"quota_exhausted\", \"usage_updated\"]\ncommand = [\"/usr/bin/touch\", \"{}\"]\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
+    let (code, stdout, stderr) = run();
+    assert_eq!(code, Some(1), "{stderr}");
+    assert_eq!(stdout, "");
+    assert!(
+        stderr.contains(&format!(
+            "comando: [\"/usr/bin/touch\",\"{}\"]",
+            marker.display()
+        )),
+        "{stderr}"
+    );
+    assert!(stderr.contains("ainda não foram confirmados"), "{stderr}");
+    assert_eq!(sandbox.calls(), 0, "no query before the confirmation");
+    assert!(!marker.exists(), "no hook before the confirmation");
 }

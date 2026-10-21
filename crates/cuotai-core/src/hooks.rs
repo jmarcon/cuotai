@@ -1,0 +1,1064 @@
+//! Hooks (PRD 0013 RF3): user commands run on the events of
+//! [`crate::watch::Watcher`], configured in `hooks.toml` next to the
+//! accounts' TOML and run only after the user confirmed exactly those
+//! rules.
+//!
+//! - [`Hooks`] reads and validates the file: each rule has a `name`, the
+//!   `events` it runs on, optional `provider`/`account`/`min_threshold`
+//!   filters, a `command` given as an argument vector (never a shell
+//!   string) and a `timeout_seconds` up to [`MAX_TIMEOUT_SECONDS`].
+//! - [`Consent`] keeps, in the local data directory, the digest of the
+//!   rules the user confirmed for each `hooks.toml`; a [`Confirmed`] set
+//!   (the only input [`Runner::start`] takes) exists only when the current
+//!   rules match a confirmation, so any change to them needs a new one.
+//! - [`Runner`] runs the matching rules of each event: the event as JSON
+//!   on stdin and in `CUOTAI_*` variables (always data, never part of the
+//!   command), an environment reduced to [`INHERITED_ENV`], the temporary
+//!   directory as working directory, a timeout that kills the process,
+//!   [`OUTPUT_LIMIT`] bytes of captured output, at most [`MAX_RUNNING`] at
+//!   once and a queue of [`QUEUE_CAPACITY`] that drops the oldest. A hook
+//!   never blocks or fails its caller.
+//! - [`RunLog`] records each run without the payload: rule, event, start,
+//!   duration, outcome and exit code.
+//!
+//! See `docs/events.md`.
+
+use std::collections::{BTreeMap, VecDeque};
+use std::ffi::OsString;
+use std::io::{self, Write};
+use std::path::{Component, Path, PathBuf};
+use std::process::Stdio;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+use tokio::sync::{Notify, Semaphore};
+use tokio::task::{JoinHandle, JoinSet};
+
+use crate::config_file::ConfigIdentity;
+use crate::events::{Event, EventKind};
+use crate::text::{params, Localized, ParamValue};
+use crate::Provider;
+
+/// The rules' file, in the directory of the accounts' TOML.
+pub const FILE_NAME: &str = "hooks.toml";
+
+/// A rule's time limit when it sets none.
+pub const DEFAULT_TIMEOUT_SECONDS: u64 = 10;
+
+/// The longest `timeout_seconds` accepted.
+pub const MAX_TIMEOUT_SECONDS: u64 = 60;
+
+/// Captured output (stdout and stderr together) kept per run; the rest is
+/// read and discarded.
+pub const OUTPUT_LIMIT: usize = 16 * 1024;
+
+/// Hooks running at the same time.
+pub const MAX_RUNNING: usize = 4;
+
+/// Runs waiting for a free slot; a new one beyond it drops the oldest.
+pub const QUEUE_CAPACITY: usize = 64;
+
+/// The only variables a hook inherits from Cuotai's environment (besides
+/// its own `CUOTAI_*` ones).
+pub const INHERITED_ENV: [&str; 3] = ["PATH", "HOME", "LANG"];
+
+/// Longest rule name, in characters.
+const NAME_MAX_CHARS: usize = 64;
+
+/// The run log is moved to `<name>.1` (replacing it) past this size.
+const LOG_ROTATE_BYTES: u64 = 256 * 1024;
+
+/// One rule of `hooks.toml`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Rule {
+    pub name: String,
+    /// The events it runs on, without repetitions, in the file's order.
+    pub events: Vec<EventKind>,
+    /// Only events of this provider.
+    pub provider: Option<Provider>,
+    /// Only events of the account with this name.
+    pub account: Option<String>,
+    /// Only threshold crossings at or above this percentage (events without
+    /// a threshold are not filtered by it).
+    pub min_threshold: Option<u8>,
+    /// The program (an absolute path or a name looked up in `PATH`) and its
+    /// arguments, passed as they are, without a shell.
+    pub command: Vec<String>,
+    pub timeout_seconds: u64,
+}
+
+impl Rule {
+    /// Whether `event` passes this rule's events and filters.
+    pub fn matches(&self, event: &Event) -> bool {
+        self.events.contains(&event.event)
+            && self
+                .provider
+                .is_none_or(|provider| provider == event.provider)
+            && self
+                .account
+                .as_ref()
+                .is_none_or(|account| *account == event.account_name)
+            && self.min_threshold.is_none_or(|min| {
+                event
+                    .current
+                    .threshold
+                    .is_none_or(|threshold| threshold >= min)
+            })
+    }
+
+    pub fn timeout(&self) -> Duration {
+        Duration::from_secs(self.timeout_seconds)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawFile {
+    #[serde(default)]
+    hooks: Vec<RawRule>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawRule {
+    name: String,
+    events: Vec<String>,
+    provider: Option<String>,
+    account: Option<String>,
+    min_threshold: Option<i64>,
+    command: Vec<String>,
+    timeout_seconds: Option<i64>,
+}
+
+/// The validated rules of one `hooks.toml`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Hooks {
+    path: PathBuf,
+    rules: Vec<Rule>,
+}
+
+impl Hooks {
+    /// `hooks.toml` in the directory of the accounts' TOML at `config`.
+    pub fn path_beside(config: &Path) -> PathBuf {
+        config
+            .parent()
+            .filter(|dir| !dir.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .join(FILE_NAME)
+    }
+
+    /// Read and validate the file at `path`.
+    pub fn load(path: &Path) -> Result<Self, Localized> {
+        let shown = path.display().to_string();
+        let text = std::fs::read_to_string(path).map_err(|error| {
+            if error.kind() == io::ErrorKind::NotFound {
+                Localized::with_param(
+                    "hooks.error.missing",
+                    "path",
+                    shown.as_str(),
+                    format!("Nenhum arquivo de hooks em {shown}."),
+                )
+            } else {
+                Localized::with_param(
+                    "hooks.error.unreadable",
+                    "path",
+                    shown.as_str(),
+                    format!("Não foi possível ler {shown} (arquivo de texto UTF-8)."),
+                )
+            }
+        })?;
+        Self::from_toml(path.to_path_buf(), &text)
+    }
+
+    /// Validate `text`, the contents of the file at `path`. Errors name the
+    /// line or the rule, never echo the file.
+    pub fn from_toml(path: PathBuf, text: &str) -> Result<Self, Localized> {
+        let raw: RawFile = toml::from_str(text).map_err(|error| {
+            let at = error.span().map_or(0, |span| span.start.min(text.len()));
+            let line = text.as_bytes()[..at]
+                .iter()
+                .filter(|byte| **byte == b'\n')
+                .count()
+                + 1;
+            Localized::with_param(
+                "hooks.error.toml",
+                "line",
+                line,
+                format!(
+                    "hooks.toml inválido na linha {line}: cada [[hooks]] aceita name, events, \
+                     provider, account, min_threshold, command (lista de argumentos) e \
+                     timeout_seconds."
+                ),
+            )
+        })?;
+        if raw.hooks.is_empty() {
+            return Err(Localized::fixed(
+                "hooks.error.empty",
+                "hooks.toml não tem nenhuma regra [[hooks]].",
+            ));
+        }
+        let mut rules: Vec<Rule> = Vec::with_capacity(raw.hooks.len());
+        for (index, raw) in raw.hooks.into_iter().enumerate() {
+            let rule = validate(index + 1, raw)?;
+            if rules.iter().any(|known| known.name == rule.name) {
+                let name = rule.name;
+                return Err(Localized::with_param(
+                    "hooks.error.duplicate",
+                    "name",
+                    name.as_str(),
+                    format!("Há mais de uma regra chamada \"{name}\"."),
+                ));
+            }
+            rules.push(rule);
+        }
+        Ok(Self { path, rules })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn rules(&self) -> &[Rule] {
+        &self.rules
+    }
+
+    /// SHA-256 (lowercase hex) of every rule's name, events, filters,
+    /// command and timeout: what a confirmation covers. Comments and layout
+    /// do not change it.
+    pub fn digest(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let canonical = serde_json::to_vec(&self.rules).unwrap_or_default();
+        format!("{:x}", Sha256::digest(canonical))
+    }
+
+    /// What the user confirms, one line each: the file, then per rule its
+    /// name, events, filters, time limit and exact command (as a JSON array,
+    /// so quotes, spaces and control characters stay visible).
+    pub fn listing(&self) -> Vec<Localized> {
+        let path = self.path.display().to_string();
+        let mut lines = vec![Localized::with_param(
+            "hooks.confirm.header",
+            "path",
+            path.as_str(),
+            format!(
+                "Os hooks de {path} executam estes comandos quando os eventos indicados \
+                 acontecem:"
+            ),
+        )];
+        for (index, rule) in self.rules.iter().enumerate() {
+            let index = index + 1;
+            let name = rule.name.as_str();
+            lines.push(Localized::with_params(
+                "hooks.confirm.rule",
+                params([("index", index.into()), ("name", name.into())]),
+                format!("{index}. {name}"),
+            ));
+            let events = rule
+                .events
+                .iter()
+                .map(|kind| kind.name())
+                .collect::<Vec<_>>()
+                .join(", ");
+            lines.push(Localized::with_param(
+                "hooks.confirm.events",
+                "events",
+                events.as_str(),
+                format!("eventos: {events}"),
+            ));
+            let mut filters = Vec::new();
+            if let Some(provider) = rule.provider {
+                filters.push(format!("provider = {}", quoted(provider.slug())));
+            }
+            if let Some(account) = &rule.account {
+                filters.push(format!("account = {}", quoted(account)));
+            }
+            if let Some(min) = rule.min_threshold {
+                filters.push(format!("min_threshold = {min}"));
+            }
+            if !filters.is_empty() {
+                let filters = filters.join(", ");
+                lines.push(Localized::with_param(
+                    "hooks.confirm.filters",
+                    "filters",
+                    filters.as_str(),
+                    format!("filtros: {filters}"),
+                ));
+            }
+            lines.push(Localized::with_param(
+                "hooks.confirm.timeout",
+                "seconds",
+                rule.timeout_seconds,
+                format!("limite de tempo: {} s", rule.timeout_seconds),
+            ));
+            let command = serde_json::to_string(&rule.command).unwrap_or_default();
+            lines.push(Localized::with_param(
+                "hooks.confirm.command",
+                "command",
+                command.as_str(),
+                format!("comando: {command}"),
+            ));
+        }
+        lines
+    }
+}
+
+fn quoted(text: &str) -> String {
+    serde_json::to_string(text).unwrap_or_default()
+}
+
+fn rule_error(id: &'static str, name: &str, fallback: String) -> Localized {
+    Localized::with_param(id, "name", name, fallback)
+}
+
+fn validate(index: usize, raw: RawRule) -> Result<Rule, Localized> {
+    let name = raw.name.trim().to_owned();
+    if name.is_empty()
+        || name.chars().count() > NAME_MAX_CHARS
+        || name.chars().any(char::is_control)
+    {
+        return Err(Localized::with_params(
+            "hooks.error.name",
+            params([("index", index.into()), ("max", NAME_MAX_CHARS.into())]),
+            format!(
+                "A regra {index} precisa de um name de 1 a {NAME_MAX_CHARS} caracteres, sem \
+                 caracteres de controle."
+            ),
+        ));
+    }
+    if raw.events.is_empty() {
+        return Err(rule_error(
+            "hooks.error.no_events",
+            &name,
+            format!("A regra \"{name}\" não lista nenhum evento."),
+        ));
+    }
+    let mut events = Vec::with_capacity(raw.events.len());
+    for event in &raw.events {
+        let Some(kind) = EventKind::from_name(event.trim()) else {
+            let known = EventKind::ALL.map(EventKind::name).join(", ");
+            return Err(Localized::with_params(
+                "hooks.error.unknown_event",
+                params([
+                    ("name", name.as_str().into()),
+                    ("event", event.as_str().into()),
+                    ("known", known.as_str().into()),
+                ]),
+                format!(
+                    "A regra \"{name}\" cita o evento desconhecido \"{event}\". Eventos \
+                     válidos: {known}."
+                ),
+            ));
+        };
+        if !events.contains(&kind) {
+            events.push(kind);
+        }
+    }
+    let provider = match raw.provider {
+        None => None,
+        Some(slug) => Some(
+            Provider::ALL
+                .into_iter()
+                .find(|provider| provider.slug() == slug.trim())
+                .ok_or_else(|| {
+                    Localized::with_params(
+                        "hooks.error.provider",
+                        params([
+                            ("name", name.as_str().into()),
+                            ("provider", slug.as_str().into()),
+                        ]),
+                        format!(
+                            "A regra \"{name}\" filtra pelo provedor desconhecido \"{slug}\" \
+                             (use o identificador, como em cuotai --list-providers)."
+                        ),
+                    )
+                })?,
+        ),
+    };
+    if raw
+        .account
+        .as_ref()
+        .is_some_and(|account| account.trim().is_empty())
+    {
+        return Err(rule_error(
+            "hooks.error.account",
+            &name,
+            format!("A regra \"{name}\" tem um filtro account vazio."),
+        ));
+    }
+    let min_threshold = match raw.min_threshold {
+        None => None,
+        Some(min) => Some(
+            u8::try_from(min)
+                .ok()
+                .filter(|min| (1..=100).contains(min))
+                .ok_or_else(|| {
+                    rule_error(
+                        "hooks.error.min_threshold",
+                        &name,
+                        format!("O min_threshold da regra \"{name}\" deve ficar entre 1 e 100."),
+                    )
+                })?,
+        ),
+    };
+    if !valid_command(&raw.command) {
+        return Err(rule_error(
+            "hooks.error.command",
+            &name,
+            format!(
+                "O command da regra \"{name}\" deve ser uma lista de argumentos cujo primeiro \
+                 item é um caminho absoluto ou um nome procurado no PATH, como \
+                 [\"/caminho/script\", \"--opcao\"]."
+            ),
+        ));
+    }
+    let timeout_seconds = match raw.timeout_seconds {
+        None => DEFAULT_TIMEOUT_SECONDS,
+        Some(seconds) => u64::try_from(seconds)
+            .ok()
+            .filter(|seconds| (1..=MAX_TIMEOUT_SECONDS).contains(seconds))
+            .ok_or_else(|| {
+                Localized::with_params(
+                    "hooks.error.timeout",
+                    params([
+                        ("name", name.as_str().into()),
+                        ("max", MAX_TIMEOUT_SECONDS.into()),
+                    ]),
+                    format!(
+                        "O timeout_seconds da regra \"{name}\" deve ficar entre 1 e \
+                         {MAX_TIMEOUT_SECONDS}."
+                    ),
+                )
+            })?,
+    };
+    Ok(Rule {
+        name,
+        events,
+        provider,
+        account: raw.account,
+        min_threshold,
+        command: raw.command,
+        timeout_seconds,
+    })
+}
+
+/// A non-empty argument vector without NUL whose program is absolute or a
+/// bare name (a relative path would depend on the working directory).
+fn valid_command(command: &[String]) -> bool {
+    let Some(program) = command.first() else {
+        return false;
+    };
+    let path = Path::new(program);
+    let bare = !program.contains(['/', '\\'])
+        && matches!(
+            path.components().collect::<Vec<_>>().as_slice(),
+            [Component::Normal(_)]
+        );
+    (path.is_absolute() || bare) && command.iter().all(|arg| !arg.contains('\0'))
+}
+
+/// The confirmations, by `hooks.toml`.
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct ConsentRecord {
+    /// [`ConfigIdentity::digest`] of the file → [`Hooks::digest`] confirmed.
+    #[serde(default)]
+    confirmed: BTreeMap<String, String>,
+}
+
+/// Where confirmations are kept; injectable so tests never touch OS dirs.
+#[derive(Debug, Clone)]
+pub struct Consent {
+    file: PathBuf,
+}
+
+/// The word that confirms the listing ([`Hooks::listing`]) in a terminal.
+pub fn confirm_answer() -> Localized {
+    Localized::fixed("hooks.confirm.answer", "sim")
+}
+
+/// The question after the listing, asking for [`confirm_answer`].
+pub fn confirm_question(answer: &str) -> Localized {
+    Localized::with_param(
+        "hooks.confirm.question",
+        "answer",
+        answer,
+        format!(
+            "Para executá-los com o --watch, digite \"{answer}\" e Enter (qualquer outra \
+             resposta recusa):"
+        ),
+    )
+}
+
+/// The rules of `hooks` are not the ones confirmed, and nobody is there to
+/// confirm them.
+pub fn not_confirmed(hooks: &Hooks) -> Localized {
+    let path = hooks.path.display().to_string();
+    Localized::with_param(
+        "hooks.error.not_confirmed",
+        "path",
+        path.as_str(),
+        format!(
+            "Os hooks de {path} ainda não foram confirmados, ou mudaram desde a confirmação; \
+             revise e confirme os comandos num terminal com cuotai --watch --hooks."
+        ),
+    )
+}
+
+/// The user answered anything but [`confirm_answer`].
+pub fn declined() -> Localized {
+    Localized::fixed(
+        "hooks.error.declined",
+        "Hooks não confirmados; nada foi executado.",
+    )
+}
+
+/// [`Runner::submit`] dropped `count` queued runs.
+pub fn dropped(count: usize) -> Localized {
+    Localized::with_param(
+        "hooks.warning.dropped",
+        "count",
+        count,
+        format!(
+            "Fila de hooks cheia: {count} execução(ões) pendente(s) mais antiga(s) descartada(s)."
+        ),
+    )
+}
+
+/// A run's line could not be written to the log at `path`.
+pub fn log_unwritable(path: &Path) -> Localized {
+    let path = path.display().to_string();
+    Localized::with_param(
+        "hooks.warning.log",
+        "path",
+        path.as_str(),
+        format!("Não foi possível gravar o registro de execuções dos hooks em {path}."),
+    )
+}
+
+/// Rules the user confirmed exactly as they are: the only way to start a
+/// [`Runner`].
+#[derive(Debug, Clone)]
+pub struct Confirmed(Hooks);
+
+impl Confirmed {
+    pub fn hooks(&self) -> &Hooks {
+        &self.0
+    }
+}
+
+impl Consent {
+    pub fn at(file: impl Into<PathBuf>) -> Self {
+        Self { file: file.into() }
+    }
+
+    /// `<OS local data dir>/cuotai/hooks/consent.json`; without a local
+    /// data directory nothing can be confirmed.
+    pub fn in_data_dir() -> Result<Self, Localized> {
+        dirs::data_local_dir()
+            .map(|dir| Self::at(dir.join("cuotai").join("hooks").join("consent.json")))
+            .ok_or_else(consent_storage)
+    }
+
+    /// `hooks` confirmed when its rules are the ones last confirmed for its
+    /// file; otherwise `hooks` back, still to confirm.
+    pub fn check(&self, hooks: Hooks) -> Result<Confirmed, Hooks> {
+        let confirmed =
+            key(&hooks).is_some_and(|key| self.read().confirmed.get(&key) == Some(&hooks.digest()));
+        if confirmed {
+            Ok(Confirmed(hooks))
+        } else {
+            Err(hooks)
+        }
+    }
+
+    /// Record that the user confirmed `hooks` as they are now.
+    pub fn confirm(&self, hooks: Hooks) -> Result<Confirmed, Localized> {
+        let key = key(&hooks).ok_or_else(consent_storage)?;
+        let mut record = self.read();
+        record.confirmed.insert(key, hooks.digest());
+        self.write(&record).map_err(|_| consent_storage())?;
+        Ok(Confirmed(hooks))
+    }
+
+    /// An unreadable or damaged record holds no confirmation.
+    fn read(&self) -> ConsentRecord {
+        std::fs::read(&self.file)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
+    }
+
+    fn write(&self, record: &ConsentRecord) -> io::Result<()> {
+        let dir = self
+            .file
+            .parent()
+            .filter(|dir| !dir.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        std::fs::create_dir_all(dir)?;
+        // tempfile creates 0600 files on Unix.
+        let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+        tmp.write_all(&serde_json::to_vec(record)?)?;
+        tmp.as_file().sync_all()?;
+        tmp.persist(&self.file).map_err(|error| error.error)?;
+        Ok(())
+    }
+}
+
+fn consent_storage() -> Localized {
+    Localized::fixed(
+        "hooks.error.consent_storage",
+        "Não foi possível registrar a confirmação dos hooks no diretório de dados local.",
+    )
+}
+
+fn key(hooks: &Hooks) -> Option<String> {
+    ConfigIdentity::of_path(&hooks.path)
+        .ok()
+        .map(|identity| identity.digest())
+}
+
+/// How a run ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    /// The process exited with [`Run::exit_code`].
+    Exited,
+    /// The process ended without an exit code (a signal).
+    Terminated,
+    /// The time limit ran out and the process was killed.
+    TimedOut,
+    /// The program could not be started (missing, not executable).
+    NotStarted,
+}
+
+/// One run of one rule for one event.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Run {
+    pub rule: String,
+    pub event: EventKind,
+    pub started_at: DateTime<Utc>,
+    pub duration: Duration,
+    pub outcome: Outcome,
+    pub exit_code: Option<i32>,
+    /// stdout and stderr as they arrived, up to [`OUTPUT_LIMIT`] bytes.
+    pub output: String,
+    /// More output was written than [`OUTPUT_LIMIT`].
+    pub truncated: bool,
+}
+
+impl Run {
+    /// Exited with code 0.
+    pub fn succeeded(&self) -> bool {
+        self.outcome == Outcome::Exited && self.exit_code == Some(0)
+    }
+
+    /// `hooks.run.<case>`: one line for people.
+    pub fn summary(&self) -> Localized {
+        let (rule, event) = (self.rule.as_str(), self.event.name());
+        let ms = u64::try_from(self.duration.as_millis()).unwrap_or(u64::MAX);
+        let common = || {
+            params([
+                ("rule", rule.into()),
+                ("event", event.into()),
+                ("ms", ms.into()),
+            ])
+        };
+        match (self.outcome, self.exit_code) {
+            (Outcome::Exited, Some(0)) => Localized::with_params(
+                "hooks.run.succeeded",
+                common(),
+                format!("{rule} ({event}): concluído em {ms} ms"),
+            ),
+            (Outcome::Exited, code) => {
+                let code = code.map_or_else(String::new, |code| code.to_string());
+                let mut values = common();
+                values.insert("code".into(), ParamValue::from(code.as_str()));
+                Localized::with_params(
+                    "hooks.run.failed",
+                    values,
+                    format!("{rule} ({event}): saiu com o código {code} após {ms} ms"),
+                )
+            }
+            (Outcome::Terminated, _) => Localized::with_params(
+                "hooks.run.terminated",
+                common(),
+                format!("{rule} ({event}): encerrado sem código de saída após {ms} ms"),
+            ),
+            (Outcome::TimedOut, _) => Localized::with_params(
+                "hooks.run.timed_out",
+                common(),
+                format!("{rule} ({event}): excedeu o limite de tempo e foi encerrado após {ms} ms"),
+            ),
+            (Outcome::NotStarted, _) => Localized::with_params(
+                "hooks.run.not_started",
+                common(),
+                format!("{rule} ({event}): o comando não pôde ser iniciado"),
+            ),
+        }
+    }
+}
+
+/// The local record of runs: one JSON line each, without the payload or
+/// the output.
+#[derive(Debug)]
+pub struct RunLog {
+    path: PathBuf,
+    lock: Mutex<()>,
+}
+
+#[derive(Serialize)]
+struct LogLine<'a> {
+    at: DateTime<Utc>,
+    rule: &'a str,
+    event: EventKind,
+    duration_ms: u64,
+    outcome: Outcome,
+    exit_code: Option<i32>,
+}
+
+impl RunLog {
+    pub fn at(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            lock: Mutex::new(()),
+        }
+    }
+
+    /// `<OS local data dir>/cuotai/hooks/runs.log`.
+    pub fn in_data_dir() -> Option<Self> {
+        dirs::data_local_dir()
+            .map(|dir| Self::at(dir.join("cuotai").join("hooks").join("runs.log")))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Append `run` (creating the file privately: 0600 on Unix). Past
+    /// 256 KiB the log moves to `runs.log.1`, replacing the older one.
+    pub fn append(&self, run: &Run) -> io::Result<()> {
+        let mut line = serde_json::to_vec(&LogLine {
+            at: run.started_at,
+            rule: &run.rule,
+            event: run.event,
+            duration_ms: u64::try_from(run.duration.as_millis()).unwrap_or(u64::MAX),
+            outcome: run.outcome,
+            exit_code: run.exit_code,
+        })?;
+        line.push(b'\n');
+        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(dir) = self.path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir)?;
+        }
+        if std::fs::metadata(&self.path).is_ok_and(|meta| meta.len() >= LOG_ROTATE_BYTES) {
+            let mut older = self.path.clone().into_os_string();
+            older.push(".1");
+            std::fs::rename(&self.path, older)?;
+        }
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true).append(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options.open(&self.path)?.write_all(&line)
+    }
+}
+
+/// Called after each run with the run and, when its log line could not be
+/// written, the error.
+pub type OnRun = Arc<dyn Fn(&Run, Option<&io::Error>) + Send + Sync>;
+
+struct Job {
+    rule: usize,
+    event: EventKind,
+    payload: Arc<[u8]>,
+    vars: Arc<[(&'static str, String)]>,
+}
+
+struct Shared {
+    queue: Mutex<VecDeque<Job>>,
+    wake: Notify,
+}
+
+struct Context {
+    rules: Vec<Rule>,
+    inherited: Vec<(OsString, OsString)>,
+    log: Option<RunLog>,
+    on_run: OnRun,
+}
+
+/// The confirmed rules, run on the events given to [`Runner::submit`].
+/// Must be started inside a Tokio runtime; dropping it discards the queue
+/// and kills the hooks still running.
+pub struct Runner {
+    rules: Vec<Rule>,
+    shared: Arc<Shared>,
+    dispatcher: JoinHandle<()>,
+}
+
+impl Runner {
+    pub fn start(hooks: Confirmed, log: Option<RunLog>, on_run: OnRun) -> Self {
+        Self::start_with_env(hooks, log, on_run, std::env::vars_os())
+    }
+
+    /// [`Self::start`] inheriting [`INHERITED_ENV`] from `parent` instead
+    /// of the process environment.
+    fn start_with_env(
+        hooks: Confirmed,
+        log: Option<RunLog>,
+        on_run: OnRun,
+        parent: impl IntoIterator<Item = (OsString, OsString)>,
+    ) -> Self {
+        let rules = hooks.0.rules;
+        let inherited = parent
+            .into_iter()
+            .filter(|(name, _)| INHERITED_ENV.iter().any(|allowed| name == allowed))
+            .collect();
+        let shared = Arc::new(Shared {
+            queue: Mutex::new(VecDeque::new()),
+            wake: Notify::new(),
+        });
+        let context = Arc::new(Context {
+            rules: rules.clone(),
+            inherited,
+            log,
+            on_run,
+        });
+        let dispatcher = tokio::spawn(dispatch(Arc::clone(&shared), context));
+        Self {
+            rules,
+            shared,
+            dispatcher,
+        }
+    }
+
+    pub fn rules(&self) -> &[Rule] {
+        &self.rules
+    }
+
+    /// Queue a run of every rule that matches `event`, without waiting for
+    /// any. Returns how many queued runs were dropped (the oldest first)
+    /// to keep the queue within [`QUEUE_CAPACITY`].
+    pub fn submit(&self, event: &Event) -> usize {
+        let matching: Vec<usize> = self
+            .rules
+            .iter()
+            .enumerate()
+            .filter(|(_, rule)| rule.matches(event))
+            .map(|(index, _)| index)
+            .collect();
+        if matching.is_empty() {
+            return 0;
+        }
+        let Ok(mut payload) = serde_json::to_vec(event) else {
+            return 0;
+        };
+        payload.push(b'\n');
+        let payload: Arc<[u8]> = payload.into();
+        let vars: Arc<[(&'static str, String)]> = Arc::new([
+            ("CUOTAI_EVENT", event.event.name().to_owned()),
+            ("CUOTAI_ACCOUNT", event.account_name.clone()),
+            ("CUOTAI_PROVIDER", event.provider.slug().to_owned()),
+            (
+                "CUOTAI_METRIC",
+                event
+                    .metric
+                    .as_ref()
+                    .map_or_else(String::new, |metric| metric.label.clone()),
+            ),
+        ]);
+        let mut dropped = 0;
+        {
+            let mut queue = self
+                .shared
+                .queue
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            for rule in matching {
+                queue.push_back(Job {
+                    rule,
+                    event: event.event,
+                    payload: Arc::clone(&payload),
+                    vars: Arc::clone(&vars),
+                });
+                if queue.len() > QUEUE_CAPACITY {
+                    queue.pop_front();
+                    dropped += 1;
+                }
+            }
+        }
+        self.shared.wake.notify_one();
+        dropped
+    }
+}
+
+impl Drop for Runner {
+    fn drop(&mut self) {
+        self.dispatcher.abort();
+    }
+}
+
+/// Start queued runs while fewer than [`MAX_RUNNING`] are running. The
+/// running ones live in its `JoinSet`, so aborting it kills them.
+async fn dispatch(shared: Arc<Shared>, context: Arc<Context>) {
+    let slots = Arc::new(Semaphore::new(MAX_RUNNING));
+    let mut running = JoinSet::new();
+    loop {
+        let Ok(slot) = Arc::clone(&slots).acquire_owned().await else {
+            return;
+        };
+        let job = loop {
+            let next = shared
+                .queue
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .pop_front();
+            if let Some(job) = next {
+                break job;
+            }
+            while running.try_join_next().is_some() {}
+            shared.wake.notified().await;
+        };
+        let context = Arc::clone(&context);
+        running.spawn(async move {
+            let run = execute(&context, &job).await;
+            let logged = context.log.as_ref().map(|log| log.append(&run));
+            (context.on_run)(
+                &run,
+                logged.as_ref().and_then(|result| result.as_ref().err()),
+            );
+            drop(slot);
+        });
+        while running.try_join_next().is_some() {}
+    }
+}
+
+#[derive(Default)]
+struct Captured {
+    bytes: Vec<u8>,
+    truncated: bool,
+}
+
+impl Captured {
+    fn push(&mut self, chunk: &[u8]) {
+        let room = OUTPUT_LIMIT - self.bytes.len();
+        if chunk.len() > room {
+            self.truncated = true;
+        }
+        self.bytes
+            .extend_from_slice(&chunk[..chunk.len().min(room)]);
+    }
+}
+
+enum Waited {
+    Exited(io::Result<std::process::ExitStatus>),
+    TimedOut,
+}
+
+async fn execute(context: &Context, job: &Job) -> Run {
+    let rule = &context.rules[job.rule];
+    let started_at = Utc::now();
+    let started = Instant::now();
+    let run = |outcome, exit_code, captured: Captured| Run {
+        rule: rule.name.clone(),
+        event: job.event,
+        started_at,
+        duration: started.elapsed(),
+        outcome,
+        exit_code,
+        output: String::from_utf8_lossy(&captured.bytes).into_owned(),
+        truncated: captured.truncated,
+    };
+    let mut command = tokio::process::Command::new(&rule.command[0]);
+    command
+        .args(&rule.command[1..])
+        .env_clear()
+        .envs(context.inherited.iter().map(|(name, value)| (name, value)))
+        .envs(job.vars.iter().map(|(name, value)| (name, value)))
+        .current_dir(std::env::temp_dir())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    // Windows processes need SystemRoot to start at all.
+    #[cfg(windows)]
+    if let Some(root) = std::env::var_os("SystemRoot") {
+        command.env("SystemRoot", root);
+    }
+    let Ok(mut child) = command.spawn() else {
+        return run(Outcome::NotStarted, None, Captured::default());
+    };
+    let deadline = tokio::time::Instant::now() + rule.timeout();
+    let captured = Mutex::new(Captured::default());
+    let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
+    let io = async {
+        tokio::join!(
+            async {
+                if let Some(mut stdin) = stdin {
+                    // A hook that does not read its stdin is no error.
+                    let _ = stdin.write_all(&job.payload).await;
+                }
+            },
+            drain(stdout, &captured),
+            drain(stderr, &captured),
+        );
+    };
+    let mut io = std::pin::pin!(io);
+    let mut io_done = false;
+    let waited = loop {
+        tokio::select! {
+            status = child.wait() => break Waited::Exited(status),
+            () = &mut io, if !io_done => io_done = true,
+            () = tokio::time::sleep_until(deadline) => break Waited::TimedOut,
+        }
+    };
+    let (outcome, exit_code) = match waited {
+        Waited::Exited(Ok(status)) => {
+            if !io_done {
+                // Output still arriving (or a pipe held by a process the
+                // hook left behind) is read until the time limit only.
+                let _ = tokio::time::timeout_at(deadline, &mut io).await;
+            }
+            match status.code() {
+                Some(code) => (Outcome::Exited, Some(code)),
+                None => (Outcome::Terminated, None),
+            }
+        }
+        Waited::Exited(Err(_)) => {
+            let _ = child.kill().await;
+            (Outcome::Terminated, None)
+        }
+        Waited::TimedOut => {
+            let _ = child.kill().await;
+            (Outcome::TimedOut, None)
+        }
+    };
+    let duration = started.elapsed();
+    let captured = std::mem::take(&mut *captured.lock().unwrap_or_else(PoisonError::into_inner));
+    Run {
+        duration,
+        ..run(outcome, exit_code, captured)
+    }
+}
+
+/// Read `pipe` to its end, keeping what fits in [`OUTPUT_LIMIT`].
+async fn drain(pipe: Option<impl AsyncRead + Unpin>, captured: &Mutex<Captured>) {
+    let Some(mut pipe) = pipe else {
+        return;
+    };
+    let mut buffer = [0u8; 4096];
+    loop {
+        match pipe.read(&mut buffer).await {
+            Ok(0) | Err(_) => return,
+            Ok(read) => captured
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(&buffer[..read]),
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "hooks_tests.rs"]
+mod tests;
