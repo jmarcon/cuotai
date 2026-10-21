@@ -13,6 +13,7 @@
 //! server error bodies or token material ever appear in error text.
 
 use super::send_secure;
+use super::session::ClientSecretLookup;
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::model::Provider;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -98,14 +99,14 @@ pub(super) async fn begin(
     http: &reqwest::Client,
     provider: Provider,
     config: &OAuthConfig,
-    client_secret: Option<String>,
+    secrets: ClientSecretLookup,
 ) -> Result<PendingLogin, OAuthError> {
     match provider {
         Provider::GeminiApi | Provider::VertexAi => {
             begin_google(
                 http,
                 config,
-                client_secret,
+                secrets,
                 GOOGLE_AUTHORIZE_URL,
                 GOOGLE_TOKEN_URL,
                 GOOGLE_AUTHORIZE_HOSTS,
@@ -368,7 +369,7 @@ struct LoopbackLogin {
     token_url: String,
     redirect_uri: String,
     client_id: String,
-    client_secret: Option<String>,
+    secrets: ClientSecretLookup,
     code_verifier: String,
     state: String,
     deadline: Instant,
@@ -377,7 +378,7 @@ struct LoopbackLogin {
 async fn begin_google(
     http: &reqwest::Client,
     config: &OAuthConfig,
-    client_secret: Option<String>,
+    secrets: ClientSecretLookup,
     authorize_url: &str,
     token_url: &str,
     authorize_hosts: &[&str],
@@ -427,7 +428,7 @@ async fn begin_google(
             token_url: token_url.to_owned(),
             redirect_uri,
             client_id: config.client_id.clone(),
-            client_secret,
+            secrets,
             code_verifier,
             state,
             deadline: Instant::now() + CALLBACK_TOTAL_WAIT,
@@ -455,8 +456,9 @@ impl LoopbackLogin {
             ("code".to_owned(), code),
             ("code_verifier".to_owned(), self.code_verifier.clone()),
         ];
-        if let Some(secret) = &self.client_secret {
-            form.push(("client_secret".to_owned(), secret.clone()));
+        // Resolved here, not at `begin`: the pending login never owns the value.
+        if let Some(secret) = self.secrets.resolve()? {
+            form.push(("client_secret".to_owned(), secret));
         }
         // The exchange must finish within the remaining login deadline.
         let (status, body) =
@@ -812,6 +814,26 @@ mod tests {
         reqwest::Client::new()
     }
 
+    /// Credential source whose single variable can change between steps.
+    struct SwitchableSecret(parking_lot::Mutex<Option<String>>);
+    impl SwitchableSecret {
+        fn set(&self, value: Option<&str>) {
+            *self.0.lock() = value.map(str::to_owned);
+        }
+    }
+    impl crate::Credentials for SwitchableSecret {
+        fn get(&self, _: &str) -> Option<String> {
+            self.0.lock().clone()
+        }
+    }
+
+    fn no_secrets() -> ClientSecretLookup {
+        ClientSecretLookup::new(
+            Arc::new(SwitchableSecret(Default::default())),
+            &test_config(),
+        )
+    }
+
     fn token_json(access: &str) -> Value {
         json!({
             "access_token": access,
@@ -827,7 +849,7 @@ mod tests {
         begin_google(
             &client(),
             &test_config(),
-            None,
+            no_secrets(),
             &format!("{}/auth", server.uri()),
             &format!("{}/token", server.uri()),
             &["127.0.0.1"],
@@ -898,6 +920,87 @@ mod tests {
             .expect("join")
             .expect("token");
         assert_eq!(token.access_token, "ya29.test");
+    }
+
+    #[tokio::test]
+    async fn loopback_exchange_resolves_the_client_secret_when_it_finishes() {
+        use wiremock::matchers::body_string_contains;
+        let mut config = test_config();
+        config.client_secret_env = Some("FAKE_CLIENT_SECRET".into());
+        let credentials = Arc::new(SwitchableSecret(Default::default()));
+        credentials.set(Some("fake-before"));
+        let secrets = ClientSecretLookup::new(credentials.clone(), &config);
+
+        let server = MockServer::start().await;
+        // Only the finish-time value is accepted: a request that carried the
+        // begin-time value would not match and the exchange would fail.
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("client_secret=fake-after"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(token_json("ya29.secret")))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let pending = begin_google(
+            &client(),
+            &config,
+            secrets,
+            &format!("{}/auth", server.uri()),
+            &format!("{}/token", server.uri()),
+            &["127.0.0.1"],
+            false,
+        )
+        .await
+        .expect("begin_google");
+        credentials.set(Some("fake-after"));
+        let (state, port) = prompt_state_and_port(&pending);
+        let task = tokio::spawn(pending.finish());
+        send_callback(port, &format!("state={state}&code=authcode")).await;
+        let token = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("timed out")
+            .expect("join")
+            .expect("token");
+        assert_eq!(token.access_token, "ya29.secret");
+    }
+
+    #[tokio::test]
+    async fn loopback_exchange_fails_when_the_client_secret_disappears() {
+        let mut config = test_config();
+        config.client_secret_env = Some("FAKE_CLIENT_SECRET".into());
+        let credentials = Arc::new(SwitchableSecret(Default::default()));
+        credentials.set(Some("fake-before"));
+        let secrets = ClientSecretLookup::new(credentials.clone(), &config);
+
+        // No mock is mounted: any token request would answer 404.
+        let server = MockServer::start().await;
+        let pending = begin_google(
+            &client(),
+            &config,
+            secrets,
+            &format!("{}/auth", server.uri()),
+            &format!("{}/token", server.uri()),
+            &["127.0.0.1"],
+            false,
+        )
+        .await
+        .expect("begin_google");
+        credentials.set(None);
+        let (state, port) = prompt_state_and_port(&pending);
+        let task = tokio::spawn(pending.finish());
+        send_callback(port, &format!("state={state}&code=authcode")).await;
+        let error = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("timed out")
+            .expect("join")
+            .err()
+            .expect("must fail");
+        assert!(
+            matches!(&error, OAuthError::Configuration(l)
+                if l.id == "oauth_error.session.client_secret_env_missing"),
+            "got: {error}"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -1163,7 +1266,7 @@ mod tests {
 
     #[tokio::test]
     async fn unsupported_provider_and_missing_client_id_are_configuration_errors() {
-        let error = begin(&client(), Provider::OpenAiApi, &test_config(), None)
+        let error = begin(&client(), Provider::OpenAiApi, &test_config(), no_secrets())
             .await
             .err()
             .expect("unsupported");
@@ -1174,7 +1277,7 @@ mod tests {
 
         let mut config = test_config();
         config.client_id = "   ".into();
-        let error = begin(&client(), Provider::GeminiApi, &config, None)
+        let error = begin(&client(), Provider::GeminiApi, &config, no_secrets())
             .await
             .err()
             .expect("empty client id");

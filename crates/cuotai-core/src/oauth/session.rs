@@ -57,9 +57,11 @@ impl OAuthSession {
     ) -> Result<OAuthLogin, OAuthError> {
         config.validate(provider)?;
         let pending = if requires_client_registration(provider) {
-            Pending::Cloud(
-                flows::begin(&self.http, provider, config, self.client_secret(config)?).await?,
-            )
+            // The secret is only validated here; the pending login keeps the
+            // lookup and reads the value again when the code is exchanged.
+            let secrets = self.secret_lookup(config);
+            secrets.ensure_available()?;
+            Pending::Cloud(flows::begin(&self.http, provider, config, secrets).await?)
         } else {
             Pending::Native(reference::begin(&self.http, provider, config).await?)
         };
@@ -84,13 +86,8 @@ impl OAuthSession {
         })
     }
 
-    fn client_secret(&self, config: &OAuthConfig) -> Result<Option<String>, OAuthError> {
-        config.client_secret_env.as_ref().map(|name| self.secrets.get(name)
-            .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.session.client_secret_env_missing", "Variável do client secret ausente; exporte-a antes de iniciar o aplicativo.",
-        ))))
-            .transpose()
+    fn secret_lookup(&self, config: &OAuthConfig) -> ClientSecretLookup {
+        ClientSecretLookup::new(Arc::clone(&self.secrets), config)
     }
 
     pub async fn save_login(&self, login: &AuthorizedLogin) -> Result<(), OAuthError> {
@@ -187,7 +184,7 @@ impl OAuthSession {
         {
             return Err(OAuthError::Expired);
         }
-        let secret = self.client_secret(config)?;
+        let secret = self.secret_lookup(config).resolve()?;
         let http = self.http.clone();
         let config = config.clone();
         let store = Arc::clone(&self.store);
@@ -228,6 +225,50 @@ impl OAuthSession {
         })
         .await
         .map_err(|_| storage_error())?
+    }
+}
+
+/// Deferred lookup of the optional OAuth client secret named by
+/// [`OAuthConfig::client_secret_env`]. It owns the credential source and the
+/// config, never the secret value: pending logins keep this handle and resolve
+/// the value only while building the token-exchange request.
+#[derive(Clone)]
+pub(super) struct ClientSecretLookup {
+    credentials: Arc<dyn Credentials>,
+    config: Box<OAuthConfig>,
+}
+
+impl ClientSecretLookup {
+    pub(super) fn new(credentials: Arc<dyn Credentials>, config: &OAuthConfig) -> Self {
+        Self {
+            credentials,
+            config: Box::new(config.clone()),
+        }
+    }
+
+    /// `Ok(None)` when no client secret is configured; a configured variable
+    /// that is unset or blank is a configuration error.
+    pub(super) fn resolve(&self) -> Result<Option<String>, OAuthError> {
+        self.config
+            .client_secret_env
+            .as_ref()
+            .map(|name| {
+                self.credentials
+                    .get(name)
+                    .filter(|value| !value.trim().is_empty())
+                    .ok_or_else(|| {
+                        OAuthError::Configuration(crate::text::Localized::fixed(
+                            "oauth_error.session.client_secret_env_missing",
+                            "Variável do client secret ausente; exporte-a antes de iniciar o aplicativo.",
+                        ))
+                    })
+            })
+            .transpose()
+    }
+
+    /// Fail early, without keeping the value, when the secret is missing.
+    pub(super) fn ensure_available(&self) -> Result<(), OAuthError> {
+        self.resolve().map(|_| ())
     }
 }
 

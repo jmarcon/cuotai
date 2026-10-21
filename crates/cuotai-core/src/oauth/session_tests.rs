@@ -167,3 +167,83 @@ async fn separate_kiro_accounts_keep_their_tokens_when_one_is_removed() {
         "kiro-two"
     );
 }
+
+fn secret_config(provider_client: &str) -> OAuthConfig {
+    let mut config = OAuthConfig::new(provider_client.into());
+    config.client_secret_env = Some("FAKE_CLIENT_SECRET".into());
+    config
+}
+
+struct FixedSecret(Option<&'static str>);
+impl Credentials for FixedSecret {
+    fn get(&self, _: &str) -> Option<String> {
+        self.0.map(str::to_owned)
+    }
+}
+
+#[tokio::test]
+async fn begin_rejects_a_missing_or_blank_client_secret_before_any_flow_starts() {
+    let config = secret_config("own-google-client");
+    for value in [None, Some(""), Some("   ")] {
+        let session = OAuthSession::new(
+            Arc::new(MemoryStore::default()),
+            Arc::new(FixedSecret(value)),
+        )
+        .unwrap();
+        for provider in [Provider::GeminiApi, Provider::AzureOpenAi] {
+            let error = session.begin(provider, &config).await.err().expect("fails");
+            assert!(
+                matches!(&error, OAuthError::Configuration(l)
+                    if l.id == "oauth_error.session.client_secret_env_missing"),
+                "unexpected error for {provider:?}: {error}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn begin_accepts_a_present_client_secret_and_keeps_only_a_lookup() {
+    let session = OAuthSession::new(
+        Arc::new(MemoryStore::default()),
+        Arc::new(FixedSecret(Some("fake-secret-value"))),
+    )
+    .unwrap();
+    let config = secret_config("own-google-client");
+    let login = session.begin(Provider::GeminiApi, &config).await.unwrap();
+    assert!(login
+        .prompt()
+        .url
+        .starts_with("https://accounts.google.com/"));
+    assert!(!login.prompt().url.contains("fake-secret-value"));
+}
+
+#[tokio::test]
+async fn refresh_still_requires_the_client_secret() {
+    let session = OAuthSession::new(
+        Arc::new(MemoryStore::default()),
+        Arc::new(FixedSecret(None)),
+    )
+    .unwrap();
+    let config = secret_config("own-google-client");
+    session
+        .save_login(&AuthorizedLogin {
+            key: storage_key(Provider::GeminiApi, &config).unwrap(),
+            token: OAuthToken {
+                access_token: "old".into(),
+                refresh_token: Some("refresh".into()),
+                expires_at: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
+                metadata: Default::default(),
+            },
+        })
+        .await
+        .unwrap();
+    let error = session
+        .access_token(Provider::GeminiApi, &config)
+        .await
+        .expect_err("fails");
+    assert!(
+        matches!(&error, OAuthError::Configuration(l)
+            if l.id == "oauth_error.session.client_secret_env_missing"),
+        "got: {error}"
+    );
+}
