@@ -1990,7 +1990,7 @@ mod tests {
             &ctx,
             "https://unused.invalid/load",
             "https://unused.invalid/models",
-            "http://unused/summary",
+            "https://unused.invalid/summary",
         )
         .await
         .unwrap_err();
