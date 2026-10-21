@@ -2,6 +2,7 @@ mod about_view;
 mod auth_ui;
 mod cost;
 mod dashboard;
+mod extension_check;
 mod headless;
 mod models_view;
 mod motion;
@@ -68,6 +69,31 @@ struct Args {
     /// Lista os identificadores aceitos na configuração.
     #[arg(long)]
     list_providers: bool,
+    /// Executa a extensão ID uma vez e mostra o relatório normalizado ou as
+    /// violações do contrato (PRD 0017 RF2.4), sem nunca mostrar a saída
+    /// bruta. Uma extensão nasce desativada: na primeira vez, e após
+    /// qualquer mudança no manifesto ou no programa, o comando exato, a
+    /// pasta, as variáveis de ambiente pedidas e o intervalo são listados e
+    /// pedem confirmação no terminal (sem terminal: erro). Com --json, em
+    /// JSON. Saída 0 se a leitura está pronta; 2 se a execução falhou ou a
+    /// saída violou o contrato; 1 em erro local (id desconhecido, aprovação
+    /// recusada). Não combina com --once, --json-v1, --history, --notify,
+    /// --serve, --watch, --list-providers nem as opções de custo.
+    #[arg(
+        long,
+        value_name = "ID",
+        conflicts_with_all = [
+            "list_providers",
+            "once",
+            "json_v1",
+            "history",
+            "notify",
+            "serve",
+            "watch",
+            "cost_action",
+        ]
+    )]
+    extension_check: Option<String>,
     /// SOMENTE desenvolvimento: tokens sem criptografia em SQLite (release recusa).
     #[arg(long, value_name = "ARQUIVO")]
     dev_credentials_sqlite: Option<PathBuf>,
@@ -303,6 +329,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             );
         }
         return Ok(0);
+    }
+    // PRD 0017 RF2.4: one run of an approved extension, without loading
+    // the accounts' configuration.
+    if let Some(id) = args.extension_check.take() {
+        return extension_check::run(&id, args.json).await;
     }
     if let Some(action) = cost_action(&mut args) {
         return Ok(cost::run(action, args.json, ui::tui_locale())?);

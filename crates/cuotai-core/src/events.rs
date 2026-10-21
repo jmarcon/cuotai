@@ -145,7 +145,11 @@ impl FailureCategory {
             Status::AuthenticationError | Status::NeedsConfiguration => Self::AuthRequired,
             Status::RateLimited => Self::RateLimited,
             Status::Unsupported => Self::ProviderError,
-            Status::Error if noted(TIMEOUT_NOTE) => Self::Timeout,
+            Status::Error
+                if noted(TIMEOUT_NOTE) || noted(crate::extensions::runner::TIMED_OUT_NOTE) =>
+            {
+                Self::Timeout
+            }
             Status::Error if noted(TRANSPORT_NOTE) || noted(OAUTH_NETWORK_NOTE) => Self::Offline,
             Status::Error if noted(SCHEMA_NOTE) => Self::SchemaChanged,
             Status::Error if noted(crate::extensions::output::INVALID_NOTE) => Self::InvalidOutput,

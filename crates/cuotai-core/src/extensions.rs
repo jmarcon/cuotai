@@ -18,8 +18,19 @@
 //! RF2: [`output::check`] reads what one run printed against the output
 //! contract and gives the normalized reading (`source` `extension:<id>`)
 //! with every contract violation.
+//!
+//! RF3: [`runner::Runner`] runs an approved extension without a shell, in
+//! its folder, with a reduced environment, closed `stdin`, time and output
+//! limits, a process tree killed on timeout, at most two at once and a
+//! per-extension deadline with the `RefreshCycle`'s backoff.
+//!
+//! RF4: [`consent::Consent`] keeps the SHA-256 of the manifest and the
+//! program of each approved extension; any change disables it until a new
+//! approval, and only an [`consent::Approved`] can be run.
 
+pub mod consent;
 pub mod output;
+pub mod runner;
 
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
