@@ -576,7 +576,11 @@ async fn enable_refresh_disable_and_remove_in_every_locale() {
             .with_extensions(Arc::clone(&rig.manager));
         let report = monitor.refresh_account(index).await;
         assert_eq!(report.provider, Provider::Extension);
-        assert_eq!(report.status, Status::Ready, "{locale}: {report:?}");
+        assert_eq!(
+            report.status,
+            Status::Ready,
+            "{locale}: expected ready status"
+        );
         assert_eq!(report.source, "extension:quota");
         let access = crate::access::describe(&config.accounts[index]);
         assert_eq!(access.level, crate::access::Level::Extension);
