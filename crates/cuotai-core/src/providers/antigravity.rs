@@ -1895,8 +1895,7 @@ mod tests {
             data.notes
                 .iter()
                 .any(|n| n.contains("PARCIAL") && n.contains("resumo")),
-            "expected note about resumo: {:?}",
-            data.notes
+            "expected note about resumo"
         );
     }
 
