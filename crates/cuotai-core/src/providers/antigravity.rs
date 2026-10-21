@@ -1989,7 +1989,7 @@ mod tests {
             &account(),
             &ctx,
             "https://unused.invalid/load",
-            "http://unused/models",
+            "https://unused.invalid/models",
             "http://unused/summary",
         )
         .await
