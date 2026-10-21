@@ -988,7 +988,7 @@ mod tests {
     // --------------------------------------------- assinatura (vetor oficial)
 
     fn official_params(
-        nonce: &str,
+        request_uuid: &str,
         ts: &str,
         region: &str,
         action: &str,
@@ -1001,7 +1001,7 @@ mod tests {
         p.insert("SignatureMethod".into(), SIGNATURE_METHOD.into());
         p.insert("SignatureVersion".into(), SIGNATURE_VERSION.into());
         p.insert("SignatureType".into(), SIGNATURE_TYPE.into());
-        p.insert("SignatureNonce".into(), nonce.into());
+        p.insert("SignatureNonce".into(), request_uuid.into());
         p.insert("AccessKeyId".into(), "accessKeyId".into());
         p.insert("RegionId".into(), region.into());
         p
