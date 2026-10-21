@@ -671,8 +671,7 @@ mod tests {
     async fn apply_hot_swaps_same_port_policy_and_source_and_cold_restarts_only_on_bind_change() {
         let port = free_port();
         let slot = FeedSlot::default();
-        let mut integration =
-            Integration::new(on(port), Arc::new(MemoryVault::default()));
+        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
         slot.publish(Some(feed_named("Personal Max")));
 
         // First cold start: account "Personal Max".
@@ -700,31 +699,33 @@ mod tests {
         let browser = [("Origin", "https://example.com")];
         let (code, answer) = get(port, "/v1/limits", &browser).await.unwrap();
         assert_eq!(code, 200, "browser-origin limits reachable");
-        assert!(answer.contains("Access-Control-Allow-Origin: *"), "{answer}");
+        assert!(
+            answer.contains("Access-Control-Allow-Origin: *"),
+            "{answer}"
+        );
 
         // Source swap: a different `FeedSlot` with a distinct account name.
         // The source the running server reads must change without rebinding.
         let other_slot = FeedSlot::default();
         other_slot.publish(Some(feed_named("Work Pro")));
-        integration
-            .apply(on(port), &other_slot)
-            .await;
+        integration.apply(on(port), &other_slot).await;
         assert_eq!(
             integration.cold_starts(),
             1,
             "source swap must not bind a new socket"
         );
         let (_, body) = get(port, "/v1/snapshot", &[]).await.unwrap();
-        assert!(body.contains("Work Pro"), "snapshot reflects new source: {body}");
+        assert!(
+            body.contains("Work Pro"),
+            "snapshot reflects new source: {body}"
+        );
         assert!(
             !body.contains("Personal Max"),
             "snapshot must not contain old source data: {body}"
         );
 
         // CORS off: another hot swap. Counter still 1.
-        integration
-            .apply(on(port), &slot)
-            .await;
+        integration.apply(on(port), &slot).await;
         assert_eq!(integration.cold_starts(), 1);
         let (code, _) = get(port, "/v1/limits", &browser).await.unwrap();
         assert_eq!(code, 403, "browser origin refused when allow_browsers off");
@@ -761,8 +762,7 @@ mod tests {
     async fn apply_reports_a_failed_binding_change_and_does_not_advance_cold_starts() {
         let port = free_port();
         let slot = FeedSlot::default();
-        let mut integration =
-            Integration::new(on(port), Arc::new(MemoryVault::default()));
+        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
         slot.publish(Some(feed_named("Personal Max")));
         integration.apply(on(port), &slot).await;
         assert_eq!(integration.cold_starts(), 1);
@@ -785,7 +785,8 @@ mod tests {
             .await;
         assert_eq!(integration.view().state, "error");
         assert_eq!(
-            integration.view().url, None,
+            integration.view().url,
+            None,
             "a failed bind must not advertise a URL"
         );
         assert_eq!(
