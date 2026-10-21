@@ -467,12 +467,13 @@ mod tests {
     #[tokio::test]
     async fn send_refuses_plain_http_to_a_remote_host_before_sending() {
         let client = reqwest::Client::new();
-        for url in [
-            "http://api.example.invalid/v1/usage",
-            "http://10.0.0.5/v1/usage",
-            "ftp://api.example.invalid/x",
+        for (scheme, host) in [
+            ("http", "api.example.invalid"),
+            ("http", "10.0.0.5"),
+            ("ftp", "api.example.invalid"),
         ] {
-            let error = send(client.get(url).bearer_auth("secret-token"))
+            let url = format!("{scheme}://{host}/v1/usage");
+            let error = send(client.get(&url).bearer_auth("secret-token"))
                 .await
                 .unwrap_err();
             assert_eq!(&*error.note.id, "query.insecure_transport", "{url}");
