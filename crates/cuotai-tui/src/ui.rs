@@ -129,7 +129,8 @@ impl AccountRefresh {
             let last = self.jobs.len() - 1;
             self.jobs[index..].rotate_left(1);
             self.jobs.truncate(last);
-            self.tokens.remove(index);
+            self.tokens[index..].rotate_left(1);
+            self.tokens.truncate(last);
         }
     }
     fn move_account(&mut self, from: usize, to: usize) {
