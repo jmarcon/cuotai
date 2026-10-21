@@ -438,6 +438,11 @@ fn failures_are_classified_by_status_and_note_id() {
         (Status::Error, "query.transport", Some(C::Offline)),
         (Status::Error, "query.oauth.network", Some(C::Offline)),
         (Status::Error, "query.schema", Some(C::SchemaChanged)),
+        (
+            Status::Error,
+            "extensions.output.invalid",
+            Some(C::InvalidOutput),
+        ),
         (Status::Error, "query.http", Some(C::ProviderError)),
         (
             Status::AuthenticationError,
@@ -660,6 +665,7 @@ fn every_summary_reads_in_each_catalog() {
         FailureCategory::AuthRequired,
         FailureCategory::RateLimited,
         FailureCategory::SchemaChanged,
+        FailureCategory::InvalidOutput,
         FailureCategory::ProviderError,
     ] {
         let label = category.label();

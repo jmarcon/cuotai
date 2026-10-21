@@ -151,6 +151,7 @@ A failed reading carries only its category, never the provider's message, URL or
 | `auth_required` | Credentials were refused or expired, a login or credential is missing, or the account needs configuring before it can be read. |
 | `rate_limited` | The provider limited the query rate. |
 | `schema_changed` | The answer did not match the interface Cuotai knows. |
+| `invalid_output` | A script extension's output broke its output contract (PRD 0017 RF2). |
 | `provider_error` | Any other failure, including an HTTP error status and a provider that does not offer the query. |
 
 ## Privacy

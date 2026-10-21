@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-10-21
+
+### Added
+
+- `cuotai-core` exposes `extensions::output::check`, which reads what one run of a script extension printed against the schema-1 output contract (`{ "schema": 1, "status": "ready", "metrics": [...], "notes": [...] }`, each metric with the `Metric` fields and `null`, never zero, for an unknown value): at most 256 KiB, 64 metrics and 16 notes, finite numbers, RFC 3339 dates, known `status`, `kind` and `window` names and a `unit` of up to 16 characters, with labels, periods and notes stripped of markup and truncated and fields it does not know ignored; `Checked::into_report` gives the `Report` with `source = "extension:<id>"`, an output that breaks the contract becomes an `Error` report with the new `invalid_output` failure category (also in the `events` payload) and violations that name each field without repeating what was printed, and a status other than `ready` is a plain error, never a login or rate-limit state (PRD 0017 RF2).
+
 ## [0.64.0] - 2026-10-21
 
 ### Added
 
-- `cuotai-core` exposes `extensions::discover`, which reads the script extensions of `<OS local data dir>/cuotai/extensions/<id>/manifest.toml` without running anything: each manifest declares an `id` slug, `name`, `version`, `schema = 1`, a `command` argument vector whose program must be a file inside the extension's folder (never an absolute path, `..`, a link leading out or a `PATH` name), `interval_seconds` (60 at least), `timeout_seconds` (15 by default, 60 at most), optional `description` and `homepage` and the `env` variable names it asks for; unknown fields, a newer schema, invalid values and every folder sharing an `id` are listed with a localized reason instead of stopping the other extensions or anything else from loading, and `Discovery::catalog` gives each valid extension's account type "Extension: {name}" with the new `Extension` access level and its warning "Runs a local program; review the code before enabling." (not offered by the account editors until extensions can run) (PRD 0017 RF1).
+- `cuotai-core` exposes `extensions::discover`, which reads the script extensions of `<OS local data dir>/cuotai/extensions/<id>/manifest.toml` without running anything: each manifest declares an `id` slug, `name`, `version`, `schema = 1`, a `command` argument vector whose program must be a file inside the extension's folder (never an absolute path, `..`, a link leading out or a `PATH` name), `interval_seconds` (60 at least), `timeout_seconds` (15 by default, 60 at most), optional `description` and `homepage` and the `env` variable names it asks for; unknown fields, a newer schema, invalid values and every folder sharing an `id` are listed with a localized reason instead of stopping the other extensions or anything else from loading, and `Discovery::catalog` gives each valid extension's account type "Extension: {name}" with the new `Extension` access level and its warning "Runs a local program; review the code before enabling." (not offered by the account editors until extensions can run) (PRD 0017 RF1, fb83951).
 
 ## [0.63.0] - 2026-10-21
 
@@ -534,8 +540,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/ec68e4e...main
-[0.64.0]: https://github.com/jmarcon/cuotai/compare/ec68e4e...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/fb83951...main
+[0.65.0]: https://github.com/jmarcon/cuotai/compare/fb83951...main
+[0.64.0]: https://github.com/jmarcon/cuotai/commit/fb83951
 [0.63.0]: https://github.com/jmarcon/cuotai/commit/ec68e4e
 [0.62.0]: https://github.com/jmarcon/cuotai/commit/a525ced
 [0.61.0]: https://github.com/jmarcon/cuotai/commit/a10d2dc
