@@ -6,7 +6,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 |---|---|
 | Last updated | 2026-10-21 |
 | Cuotai version at that date | 0.65.0 |
-| Plans | 19 (11 implemented, 6 in progress, 2 proposed) |
+| Plans | 20 (11 implemented, 6 in progress, 3 proposed) |
 
 ## 1. How to maintain it
 
@@ -41,6 +41,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0017](0017_manifest-and-script-extensions.md) | Manifest and script extensions | In progress | RF1 (0.64.0), RF2 partial (0.65.0) | 0005 | — | An extension never receives Cuotai's credentials. RF1: core `extensions::discover` reads `<data dir>/cuotai/extensions/<id>/manifest.toml` without running anything (`deny_unknown_fields`, `schema = 1` checked first, the command's program a file inside the folder, `interval_seconds` ≥ 60, `timeout_seconds` 15 by default and ≤ 60, `env` names only) and lists every rejected folder with a localized reason, duplicate ids rejecting all of them; `Discovery::catalog` gives "Extension: {name}" with the new `Extension` access level and its warning. Decision: the account editors do not offer the entry until RF3 and RF4 can run extensions. RF2: core `extensions::output::check` validates one run's JSON output (256 KiB, 64 metrics, 16 notes, finite numbers, RFC 3339 dates, known `status`/`kind`/`window`, a 16-character `unit`, markup cleaned and texts truncated, unknown fields ignored) into a `Report` with `source = "extension:<id>"`; a broken contract is an `Error` with the new `invalid_output` failure category and violations naming fields, never values; a non-`ready` status is a plain error. Decision: RF2.4 `--extension-check` ships with the RF3 runner. |
 | [0018](0018_automatic-updates.md) | Automatic updates for the desktop app | Proposed | — | 0019 (RF2 and RF3) | 0019 (RF7) | Needs a Tauri updater signing key pair. Release notes come from `CHANGELOG.md`. |
 | [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2), RF7.1 to RF7.3 and RF7.6 (`CHANGELOG.md`, no bump), RF2 partial (0.27.1) | — | — | Prerequisite of 0014 and 0018. RF1 delivered: `MIT OR Apache-2.0` license, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and `deny.toml`. `CHANGELOG.md` exists with the history up to 0.20.0. RF2: `.github/workflows/ci.yml` (fmt, Clippy, tests of both workspaces on Linux, macOS and Windows, plus `cargo deny`) verified locally; **owner-blocked:** a green GitHub Actions run on the three runners and a failing pull request with broken Clippy need the workflow pushed to GitHub. RF7.4, RF7.5, RF7.7 and RF7.8 (CI checks, release extraction, in-product display, link with this file) are still open. |
+| [0020](0020_settings-window-redesign.md) | Settings window redesign | Proposed | — | — | 0018, 0019 | Usability and design of settings: a dedicated window with a sidebar of seven pages, rows with short descriptions, apply-at-once, search and live sync. Replaces the 12-section popup dialog; no new settings or preference changes. |
 
 ## 3. Delivered by version
 
@@ -140,6 +141,7 @@ graph LR
   P17["0017 Extensions"]:::wip
   P18["0018 Automatic updates"]:::todo
   P19["0019 Distribution"]:::wip
+  P20["0020 Settings window"]:::todo
 
   P8 --> P3
   P13 --> P12
@@ -168,6 +170,8 @@ graph LR
   P14 -.-> P7
   P14 -.-> P9
   P14 -.-> P10
+  P20 -.-> P18
+  P20 -.-> P19
 ```
 
 ### What each plan unblocks
@@ -192,7 +196,7 @@ The waves respect the strong dependencies; within each wave the order is by prio
 | Wave | Plans | Why |
 |---|---|---|
 | 0 (under way) | 0003 | Infrastructure reused by the others (0004 is done). |
-| 1 (no dependencies) | 0019 (RF1: license, done), 0006, 0007, 0009, 0005, 0012, 0011 | They unblock almost everything; 0006 and 0007 close the biggest gap against competitors (history and pace). |
+| 1 (no dependencies) | 0019 (RF1: license, done), 0006, 0007, 0009, 0005, 0012, 0011, 0020 | They unblock almost everything; 0006 and 0007 close the biggest gap against competitors (history and pace). |
 | 2 | 0008, 0010, 0018, 0013, 0016, 0015, 0017 | They depend on items from wave 0 or 1. |
 | 3 | 0014 | Depends on 0012's contract and 0019's pipeline, plus an Apple developer account. |
 
@@ -271,3 +275,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-21 | PRD 0016 RF5 delivered as partial in 0.63.0 (the three session providers read their sessions through the `UserSession` descriptor, with `session_env` kept as an alternative, and the providers matrix shows the vault session); plan 0016 stays in progress only for the owner's live Alibaba session that must confirm the cookie names. |
 | 2026-10-21 | PRD 0017 RF1 delivered in 0.64.0 (manifest discovery and validation in the core, rejections with reasons, the "Extension: {name}" catalog entry with the `Extension` access level, kept out of the account editors until RF3 and RF4 can run extensions); plan 0017 moves to in progress. |
 | 2026-10-21 | PRD 0017 RF2 delivered as partial in 0.65.0 (the output contract checked in the core, the `invalid_output` failure category, notes cleaned and truncated, `source = "extension:<id>"`); RF2.4 `--extension-check` moves to RF3 and RF4, which bring the runner; plan 0017 stays in progress. |
+| 2026-10-21 | PRD 0020 added (settings window redesign, with current and proposed images). |
