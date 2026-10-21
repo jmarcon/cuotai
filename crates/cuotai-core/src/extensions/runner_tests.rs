@@ -533,21 +533,33 @@ mod execution {
     }
 }
 
-/// Windows covers spawn, argv, capture, the Job Object and the timeout
-/// with a copied `ping.exe`; process-tree fixtures remain Unix-only.
+/// Windows covers spawn, argv, capture, the Job Object and the timeout with
+/// the OS's own `whoami.exe` (deterministic stdout, no network) and
+/// `ping.exe` (a run long enough to be killed); process-tree fixtures
+/// remain Unix-only.
 #[cfg(windows)]
 mod windows_execution {
     use super::*;
     use std::time::Duration as StdDuration;
 
-    fn ping(rig: &Rig, id: &str, args: &[&str], extra_toml: &str) -> Approved {
+    /// Approve an extension whose program is the OS's own `program` (copied
+    /// from `System32` into the extension's folder, as the manifest requires)
+    /// run with `args`. `whoami.exe` gives a deterministic stdout without
+    /// network; `ping.exe` gives a run long enough to be killed.
+    fn system_program(
+        rig: &Rig,
+        id: &str,
+        program: &str,
+        args: &[&str],
+        extra_toml: &str,
+    ) -> Approved {
         let dir = rig.root.join(id);
         fs::create_dir_all(&dir).unwrap();
-        let system32 = Path::new(&std::env::var_os("SystemRoot").expect("SystemRoot"))
+        let source = Path::new(&std::env::var_os("SystemRoot").expect("SystemRoot"))
             .join("System32")
-            .join("ping.exe");
-        fs::copy(system32, dir.join("ping.exe")).unwrap();
-        let mut command = vec!["./ping.exe".to_string()];
+            .join(program);
+        fs::copy(source, dir.join(program)).unwrap();
+        let mut command = vec![format!("./{program}")];
         command.extend(args.iter().map(|arg| arg.to_string()));
         let manifest = format!(
             "id = \"{id}\"\nname = \"{id}\"\nversion = \"1\"\nschema = 1\n\
@@ -564,21 +576,47 @@ mod windows_execution {
     #[tokio::test]
     async fn a_run_captures_stdout_and_checks_the_contract() {
         let rig = Rig::new();
-        let approved = ping(&rig, "ping", &["-n", "1", "-w", "500", "127.0.0.1"], "");
+        let approved = system_program(&rig, "whoami", "whoami.exe", &[], "");
         let reading = runner().run(&approved).await;
-        assert!(reading.run.succeeded(), "{reading:?}");
-        assert!(!reading.run.stdout.is_empty());
-        // ping's output is not the contract: violations, never raw text.
+        assert!(
+            reading.run.succeeded(),
+            "outcome {:?}, exit code {:?}",
+            reading.run.outcome,
+            reading.run.exit_code
+        );
+        // What the extension really printed (never rendered by an assertion):
+        // it proves the runner captured the output and is the exact text that
+        // must not reach anything the consumer reads.
+        let printed = String::from_utf8_lossy(&reading.run.stdout);
+        let printed = printed.trim();
+        assert!(!printed.is_empty(), "the run captured the stdout");
+        // The contract refuses this output, and its report carries only the
+        // contract's own texts, never the printed value.
         assert_eq!(reading.checked.status, Status::Error);
         assert!(!reading.checked.violations.is_empty());
+        for note in &reading.checked.notes {
+            assert!(
+                !note.fallback.contains(printed),
+                "a note leaked the printed output (id {:?})",
+                note.id
+            );
+        }
+        for violation in &reading.checked.violations {
+            assert!(
+                !violation.fallback.contains(printed),
+                "a violation leaked the printed output (id {:?})",
+                violation.id
+            );
+        }
     }
 
     #[tokio::test]
     async fn a_timeout_terminates_the_job() {
         let rig = Rig::new();
-        let approved = ping(
+        let approved = system_program(
             &rig,
             "slow",
+            "ping.exe",
             &["-n", "30", "127.0.0.1"],
             "timeout_seconds = 1\n",
         );
