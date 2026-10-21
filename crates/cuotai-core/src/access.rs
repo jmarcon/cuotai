@@ -34,6 +34,8 @@ pub enum Level {
     Derived,
     /// No query exists; [`UsageAccess::reason`] says why.
     Unavailable,
+    /// PRD 0017: a local program the user installed reports the usage.
+    Extension,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -100,6 +102,7 @@ impl Level {
             Self::Undocumented => "undocumented",
             Self::Derived => "derived",
             Self::Unavailable => "unavailable",
+            Self::Extension => "extension",
         }
     }
 
@@ -110,16 +113,19 @@ impl Level {
             Self::Undocumented => "Não documentada",
             Self::Derived => "Derivada",
             Self::Unavailable => "Indisponível",
+            Self::Extension => "Extensão",
         };
         Localized::fixed(format!("access.level.{}", self.slug()), pt)
     }
 
-    fn risk(self) -> Localized {
+    /// `access.risk.*`: what the level means for the reading's trust.
+    pub(crate) fn risk(self) -> Localized {
         let pt = match self {
             Self::Official => "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta.",
             Self::Undocumented => "Interface interna, não documentada pelo fornecedor; pode mudar sem aviso.",
             Self::Derived => "O uso é inferido de outra fonte (métricas ou cabeçalhos de rate limit); não é um saldo e pode atrasar.",
             Self::Unavailable => "Não há consulta de uso para esta credencial; a conta mostra o motivo em vez de números.",
+            Self::Extension => "Executa um programa local; revise o código antes de ativar.",
         };
         Localized::fixed(format!("access.risk.{}", self.slug()), pt)
     }
@@ -294,7 +300,7 @@ impl UsageAccess {
                     ),
                 ))
             }
-            Level::Official | Level::Derived | Level::Undocumented => None,
+            Level::Official | Level::Derived | Level::Undocumented | Level::Extension => None,
         }
     }
 }

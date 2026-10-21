@@ -147,7 +147,7 @@
         "summary", "credential_hint", "risk", "reason"
       ],
       "properties": {
-        "level": { "enum": ["official", "undocumented", "derived", "unavailable"] },
+        "level": { "enum": ["official", "undocumented", "derived", "unavailable", "extension"] },
         "credential": { "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session"] },
         "plan_requirement": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
         "scope": { "enum": ["account", "organization", "whole_cloud", "product"] },
