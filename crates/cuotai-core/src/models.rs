@@ -1079,10 +1079,22 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         server.received_requests().await.unwrap().len()
     }
 
+    /// Variant name only, so a failed assertion never formats the state.
+    fn state_variant(state: &ModelState) -> &'static str {
+        match state {
+            ModelState::NotFetched => "NotFetched",
+            ModelState::Ready(_) => "Ready",
+            ModelState::Failed { .. } => "Failed",
+            ModelState::Fetching { .. } => "Fetching",
+            ModelState::Interrupted { .. } => "Interrupted",
+            ModelState::Unsupported { .. } => "Unsupported",
+        }
+    }
+
     fn ids(state: &ModelState) -> Vec<&str> {
         match state {
             ModelState::Ready(catalog) => catalog.models.iter().map(|m| m.id.as_str()).collect(),
-            other => panic!("expected Ready, got {other:?}"),
+            other => panic!("expected Ready, got {}", state_variant(other)),
         }
     }
 
