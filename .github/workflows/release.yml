@@ -427,8 +427,15 @@ jobs:
           # `rusqlite` is bundled; the D-Bus session is a run-time need only.
           - { os: ubuntu-22.04, target: x86_64-unknown-linux-musl, archive: tar, packages: musl-tools }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, archive: zip }
-          # Optional ARM64 legs (RF2.5).
-          - { os: ubuntu-22.04, target: aarch64-unknown-linux-gnu, archive: tar, optional: true, packages: gcc-aarch64-linux-gnu }
+          # Optional ARM64 legs (RF2.5). For aarch64-unknown-linux-gnu, ring 0.17
+          # is pulled in transitively and needs glibc headers for the cross
+          # target; without `libc6-dev-arm64-cross` the build fails with
+          # `fatal error: bits/libc-header-start.h` and the matrix row turns
+          # into a blocker (run 39673307029). The optional row stays
+          # non-blocking via job-level `continue-on-error`; assembly never
+          # requires its result and the manifest step lists any missing
+          # artifact under `missing_optional`.
+          - { os: ubuntu-22.04, target: aarch64-unknown-linux-gnu, archive: tar, optional: true, packages: gcc-aarch64-linux-gnu libc6-dev-arm64-cross }
           - { os: windows-11-arm, target: aarch64-pc-windows-msvc, archive: zip, optional: true }
     steps:
       - run: git config --global core.autocrlf false
@@ -587,6 +594,19 @@ jobs:
   # RF2/RF3/RF4: one manifest + signing state hand-off, checksums, release
   # notes, provenance attestations. Widened token scopes live only here
   # (attestations) and in publish (contents: write).
+  #
+  # Gating model — two layers:
+  # 1) The matrix `needs` deliberately lists every row (`cli`, `desktop-*`,
+  #    `sbom`); the `if:` condition below keys on each REQUIRED result and
+  #    ignores optional ones, so an optional ARM runner failure cannot skip
+  #    assembly (run 39673307029 reproduced that exact defect). Optional CLI
+  #    rows also use job-level `continue-on-error` for the case where the
+  #    whole job is not even allocated.
+  # 2) The download step always runs and only fetches what was produced; the
+  #    authoritative required-artifact gate is `xtask release-manifest`, which
+  #    fails the job when a mandatory name is missing. That keeps required
+  #    CLI failures (x64/mac/musl/Windows) fail-closed while letting an
+  #    optional ARM cross build just record `missing_optional` and continue.
   assemble:
     name: assemble, checksums and release notes
     needs:
@@ -598,7 +618,7 @@ jobs:
       - desktop-linux-arm64
       - cli
       - sbom
-    if: ${{ always() && needs.check.result == 'success' && needs.desktop-macos.result == 'success' && needs.desktop-windows.result == 'success' && needs.desktop-linux.result == 'success' && needs.cli.result == 'success' && needs.sbom.result == 'success' }}
+    if: ${{ always() && needs.check.result == 'success' && needs.desktop-macos.result == 'success' && needs.desktop-windows.result == 'success' && needs.desktop-linux.result == 'success' && needs.sbom.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: release
