@@ -447,7 +447,7 @@ mod tests {
         }
 
         /// One rule on `refresh_failed` appending `$CUOTAI_ACCOUNT` (and
-        /// whether the payload is a sample) to `out` through `/bin/sh`.
+        /// whether the payload is a sample) to `out` through `sh`.
         fn save_rule(&self, name: &str, revision: Option<&str>) -> Document {
             let script = self.path("append.sh");
             std::fs::write(
@@ -464,7 +464,7 @@ mod tests {
                 vec![RuleDraft {
                     name: name.into(),
                     events: vec!["refresh_failed".into()],
-                    command: vec!["/bin/sh".into(), script.display().to_string(), name.into()],
+                    command: vec!["sh".into(), script.display().to_string(), name.into()],
                     ..RuleDraft::default()
                 }],
             )
@@ -538,7 +538,7 @@ mod tests {
         assert!(
             listing
                 .iter()
-                .any(|line| line.starts_with("command: [\"/bin/sh\",")
+                .any(|line| line.starts_with("command: [\"sh\",")
                     && line.ends_with("\"journal\"]")),
             "{listing:?}"
         );
