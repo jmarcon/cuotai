@@ -289,6 +289,10 @@ mod tests {
             .port()
     }
 
+    fn bound_port(integration: &Integration) -> u16 {
+        integration.server.as_ref().unwrap().addr().port()
+    }
+
     fn on(port: u16) -> ServePrefs {
         ServePrefs {
             enabled: true,
@@ -431,9 +435,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_token_is_generated_copied_rotated_and_revoked() {
-        let port = free_port();
         let slot = FeedSlot::default();
-        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
+        let mut integration = Integration::new(on(0), Arc::new(MemoryVault::default()));
         assert_eq!(
             integration.stored_token().await,
             Err(ServeError::TokenMissing)
@@ -441,9 +444,10 @@ mod tests {
         integration.store_new_token().await.unwrap();
         let guarded = ServePrefs {
             token: true,
-            ..on(port)
+            ..on(0)
         };
         integration.apply(guarded, &slot).await;
+        let mut port = bound_port(&integration);
         let first = integration.stored_token().await.unwrap();
         let bearer = |token: &Token| format!("Bearer {}", token.expose());
         assert_eq!(status(port, "/health", &[]).await, Some(401));
@@ -454,6 +458,7 @@ mod tests {
         // A new token replaces the old one at once.
         integration.store_new_token().await.unwrap();
         integration.apply(guarded, &slot).await;
+        port = bound_port(&integration);
         let second = integration.stored_token().await.unwrap();
         assert_ne!(first, second);
         assert_eq!(
@@ -466,7 +471,8 @@ mod tests {
         );
         // Revoked: gone from the vault, and the server no longer asks for one.
         integration.forget_token().await.unwrap();
-        integration.apply(on(port), &slot).await;
+        integration.apply(on(0), &slot).await;
+        port = bound_port(&integration);
         assert_eq!(
             integration.stored_token().await,
             Err(ServeError::TokenMissing)
