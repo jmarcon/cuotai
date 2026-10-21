@@ -652,14 +652,13 @@ mod tests {
         };
         let key = Sha256::digest(shared);
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-        let mut nonce = [0u8; GCM_NONCE_BYTES];
-        use rand::RngCore;
-        rand::rngs::OsRng.fill_bytes(&mut nonce);
+        use rand::Rng;
+        let iv: [u8; GCM_NONCE_BYTES] = rand::rngs::OsRng.gen();
         let ciphertext_and_tag = cipher
-            .encrypt(Nonce::from_slice(&nonce), json.as_bytes())
+            .encrypt(Nonce::from_slice(&iv), json.as_bytes())
             .expect("test encryption");
         let mut raw = Vec::new();
-        raw.extend_from_slice(&nonce);
+        raw.extend_from_slice(&iv);
         raw.extend_from_slice(&server_pub_raw);
         raw.extend_from_slice(&ciphertext_and_tag);
         B64.encode(raw)
