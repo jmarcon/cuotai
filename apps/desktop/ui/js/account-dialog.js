@@ -3,8 +3,8 @@
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
   configChangedOnDisk, deleteAccount, draftAccess, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
-  loginCancel, loginStart, loginSubmitCode, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
-  reportKey, saveAccount, testSession, visibleFields,
+  loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
+  reportKey, saveAccount, sessionNoticeHtml, testSession, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
@@ -340,6 +340,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     .map((el) => ({ slot: el.dataset.slot, paste: el.value }));
   const clearPastes = () => sessionBox.querySelectorAll("textarea[data-slot]").forEach((el) => { el.value = ""; });
   let confirmMigrate = false;
+  let confirmForget = false;
   let previewSeq = 0;
   function renderSession(status = "") {
     const offers = existing?.session_migration ?? [];
@@ -349,7 +350,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     sessionBox.hidden = !slots.length && !offers.length && !stored.length && !status;
     if (sessionBox.hidden) { sessionBox.innerHTML = ""; return; }
     confirmMigrate = false;
-    sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>`
+    confirmForget = false;
+    // PRD 0016 RF4.1: the core's `UserSession` level and risk warning lead the paste box.
+    sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>${slots.length ? sessionNoticeHtml(schema.session_notice) : ""}`
       + slots.map((s) => `<div class="session-slot">
           <label class="f"><span>${esc(tl(s.label))}</span>
             <textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"
@@ -361,7 +364,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
         </div>`).join("")
       + (slots.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-test">${te("dialog.session.test")}</button></div>
           <p class="hint" id="session-test-status" role="status" aria-live="polite"></p>` : "")
-      + (stored.length ? `<p class="hint">${te("dialog.session.stored")}</p>` : "")
+      + (stored.length ? `<p class="hint">${te("dialog.session.stored")}</p>
+          <div class="dlg-actions"><button type="button" class="btn danger-btn" id="session-forget">${te("dialog.session.forget")}</button></div>` : "")
       + offers.map((c) => `<p class="hint">${esc(tl(c.consent))}</p>`).join("")
       + (offers.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-migrate">${te("dialog.session.migrate")}</button></div>` : "")
       + `<p class="hint" id="session-status" role="status" aria-live="polite">${esc(status)}</p>`;
@@ -419,8 +423,42 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
         statusEl.textContent = errText(x);
       }
     });
+    // PRD 0016 RF4.2: "Forget this session" asks once more, then deletes the vault entry and the reference.
+    const forgetBtn = sessionBox.querySelector("#session-forget");
+    forgetBtn?.addEventListener("click", async () => {
+      const statusEl = sessionBox.querySelector("#session-status");
+      if (!confirmForget) {
+        confirmForget = true;
+        forgetBtn.textContent = t("dialog.session.forgetConfirm");
+        statusEl.textContent = t("dialog.session.forgetHint");
+        return;
+      }
+      forgetBtn.disabled = true;
+      try {
+        existing = await forgetSession(index);
+        renderSession(t("dialog.session.forgotten"));
+        await renderAccess();
+      } catch (x) {
+        forgetBtn.disabled = false;
+        confirmForget = false;
+        forgetBtn.textContent = t("dialog.session.forget");
+        statusEl.textContent = errText(x);
+      }
+    });
   }
   renderSession();
+  // PRD 0016 RF4.2: as with the TUI's F5, any other key or click withdraws a pending "Forget this session".
+  const disarmForget = (e) => {
+    const forgetBtn = sessionBox.querySelector("#session-forget");
+    if (!confirmForget || !forgetBtn) return;
+    const confirming = e.type === "keydown" ? e.target === forgetBtn && (e.key === "Enter" || e.key === " ") : forgetBtn.contains(e.target);
+    if (confirming) return;
+    confirmForget = false;
+    forgetBtn.textContent = t("dialog.session.forget");
+    sessionBox.querySelector("#session-status").textContent = "";
+  };
+  dlg.addEventListener("pointerdown", disarmForget, true);
+  dlg.addEventListener("keydown", disarmForget, true);
   function copyText(text, btn) {
     navigator.clipboard?.writeText(text).then(
       () => { const prev = btn.textContent; btn.textContent = t("dialog.copied"); setTimeout(() => (btn.textContent = prev), 1500); },

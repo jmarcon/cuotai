@@ -28,6 +28,9 @@
 //!   pasted session reads "session expired or revoked"; a known expiry
 //!   (only the date) reaches [`crate::Report::session_expires_at`], the
 //!   card label of [`expiry`] and the alerts.
+//! * RF4: [`notice`] and [`paste_notice`] give the card and the paste step
+//!   the `UserSession` level with a short risk warning; [`stage_forget`]
+//!   deletes an account's vault entries and drops its reference.
 //!
 //! Session values never appear in the TOML, `Debug`, errors or reports.
 //!
@@ -539,8 +542,8 @@ async fn write_sessions(
 }
 
 /// Undo the vault writes of a [`StagedSession`] after its configuration
-/// could not be persisted: new entries are deleted and a replaced session
-/// comes back, so the account reads what it read before.
+/// could not be persisted: new entries are deleted and a replaced or
+/// forgotten session comes back, so the account reads what it read before.
 pub async fn rollback(oauth: &OAuthSession, staged: StagedSession) -> Result<(), Localized> {
     undo_writes(oauth, staged.written).await
 }
@@ -1144,6 +1147,117 @@ pub fn expiry(expires_at: DateTime<Utc>, now: DateTime<Utc>) -> SessionExpiry {
 /// RF3.2: the expiry of the session `report`'s query used, when known.
 pub fn report_expiry(report: &crate::Report, now: DateTime<Utc>) -> Option<SessionExpiry> {
     report.session_expires_at.map(|at| expiry(at, now))
+}
+
+// ------------------------------------------------------------------- RF4
+
+/// RF4.1: the `UserSession` level and the risk warning, as the card and the
+/// paste step show them.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SessionNotice {
+    /// `access.credential.user_session`: "Sessão do usuário".
+    pub level: Localized,
+    /// What a full login session means and where Cuotai keeps it.
+    pub warning: Localized,
+}
+
+fn vault_warning() -> Localized {
+    Localized::fixed(
+        "user_session.warning",
+        "Esta é uma sessão de login completa. O Cuotai a guarda no cofre do sistema e a usa só para consultar este serviço.",
+    )
+}
+
+fn notice_with(warning: Localized) -> SessionNotice {
+    SessionNotice {
+        level: crate::access::Credential::UserSession.label(),
+        warning,
+    }
+}
+
+/// RF4.1: what the paste step of `provider` shows above its slots; `None`
+/// for a provider that accepts no session.
+pub fn paste_notice(provider: Provider) -> Option<SessionNotice> {
+    (!descriptors(provider).is_empty()).then(|| notice_with(vault_warning()))
+}
+
+/// RF4.1: what the card of `account` shows while its query uses a web
+/// session: kept in the vault or, before a migration, read from the
+/// environment variable it names. `None` for an account without one.
+pub fn notice(account: &Account) -> Option<SessionNotice> {
+    if account.session.is_some() {
+        return Some(notice_with(vault_warning()));
+    }
+    descriptors(account.provider)
+        .iter()
+        .any(|descriptor| {
+            account
+                .params
+                .get(descriptor.slot)
+                .is_some_and(|env| !env.trim().is_empty())
+        })
+        .then(|| {
+            notice_with(Localized::fixed(
+                "user_session.warning_env",
+                "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.",
+            ))
+        })
+}
+
+/// Shown once a forgotten session was saved.
+pub fn forgotten_notice() -> Localized {
+    Localized::fixed(
+        "user_session.forget.done",
+        "Sessão esquecida: a entrada do cofre do sistema foi apagada e o TOML não guarda mais a referência.",
+    )
+}
+
+/// RF4.2: "forget this session" for the account at `index`: every vault
+/// entry of its `[accounts.session]` is deleted and the staged
+/// configuration drops the reference. Persist [`StagedSession::config`]
+/// next; [`rollback`] puts the deleted sessions back when that fails. A
+/// slot whose entry is already gone only loses its reference.
+pub async fn stage_forget(
+    oauth: &OAuthSession,
+    config: &Config,
+    index: usize,
+) -> Result<StagedSession, Localized> {
+    let account = config.accounts.get(index).ok_or_else(no_account)?;
+    let session = account.session.as_ref().ok_or_else(|| {
+        Localized::fixed(
+            "user_session.forget.nothing",
+            "Esta conta não guarda nenhuma sessão no cofre do sistema.",
+        )
+    })?;
+    let mut updated = config.clone();
+    updated.accounts[index].session = None;
+    updated
+        .validate()
+        .map_err(|error| crate::edit_error::config_error_note(&error))?;
+    let mut written = Vec::with_capacity(session.slots.len());
+    for slot in &session.slots {
+        // An invalid reference names no vault entry.
+        let Some(key) = storage_key(account.provider, session, slot) else {
+            continue;
+        };
+        let deleted = match oauth.load_by_key(&key).await {
+            Ok(Some(deleted)) => deleted,
+            Ok(None) => continue,
+            Err(error) => {
+                let _ = undo_writes(oauth, written).await;
+                return Err(error.l10n());
+            }
+        };
+        if let Err(error) = oauth.delete_by_key(key.clone()).await {
+            let _ = undo_writes(oauth, written).await;
+            return Err(error.l10n_for_purge());
+        }
+        written.push((key, Some(deleted)));
+    }
+    Ok(StagedSession {
+        config: updated,
+        written,
+    })
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ use crate::{
     models_view::{ModelsView, Reply},
     motion::{self, Anim},
     notify::{self, Notices},
-    wizard::{Action, Wizard},
+    wizard::{Action, VaultChange, Wizard},
 };
 use crossterm::{
     event::{
@@ -580,10 +580,10 @@ pub async fn run(
                         }
                     }
                 }
-                Action::MigrateSession { index } => {
-                    // PRD 0016 RF1.2: vault first, then the TOML through the
-                    // same staged edit as a save; a failed save removes the
-                    // vault entries again.
+                Action::SessionVault { index, change } => {
+                    // PRD 0016 RF1.2/RF4.2: vault first, then the TOML through
+                    // the same staged edit as a save; a failed save undoes the
+                    // vault change (new entries removed, forgotten ones back).
                     let base = wizard.as_ref().and_then(|w| w.base_account(index));
                     if base.is_none() || base != file.config.accounts.get(index) {
                         if let Some(active) = &mut wizard {
@@ -592,14 +592,22 @@ pub async fn run(
                             );
                         }
                     } else {
-                        match user_session::stage_migration(
-                            session.as_ref(),
-                            &EnvironmentCredentials,
-                            &file.config,
-                            index,
-                        )
-                        .await
-                        {
+                        let staged = match change {
+                            VaultChange::Migrate => {
+                                user_session::stage_migration(
+                                    session.as_ref(),
+                                    &EnvironmentCredentials,
+                                    &file.config,
+                                    index,
+                                )
+                                .await
+                            }
+                            VaultChange::Forget => {
+                                user_session::stage_forget(session.as_ref(), &file.config, index)
+                                    .await
+                            }
+                        };
+                        match staged {
                             Err(note) => {
                                 if let Some(active) = &mut wizard {
                                     active.set_error(resolve_l10n(&note));
@@ -618,7 +626,14 @@ pub async fn run(
                                 Ok((new_monitor, refresh_target)) => {
                                     monitor = new_monitor;
                                     if let Some(active) = &mut wizard {
-                                        active.session_migrated(&file.config);
+                                        match change {
+                                            VaultChange::Migrate => {
+                                                active.session_migrated(&file.config)
+                                            }
+                                            VaultChange::Forget => {
+                                                active.session_forgotten(&file.config)
+                                            }
+                                        }
                                     }
                                     if let Some(index) = refresh_target {
                                         if index < account_refresh.len()

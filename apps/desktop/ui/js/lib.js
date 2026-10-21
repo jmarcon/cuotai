@@ -75,6 +75,8 @@ const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
 /** PRD 0016 RF1.2: move the account's session variables into the system vault (after an explicit confirmation). */
 export const migrateSession = (index) => call("migrate_session", { index });
+/** PRD 0016 RF4.2: forget the account's web session, deleting its vault entry (after an explicit confirmation). */
+export const forgetSession = (index) => call("forget_session", { index });
 /** PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), never the value. */
 export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
@@ -375,9 +377,14 @@ export const noteText = (report, index) =>
 export const causeText = (r) => (r.pending ? t("card.waiting") : r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
 /** Adapter notes still to list after `causeText` (all of them when the core's explanation took the first place). */
 export const restNotes = (r) => r.notes.map((_, index) => noteText(r, index)).slice(r.access?.explanation ? 0 : 1);
-/** PRD 0005 RF4.1: the core's level and summary in one discreet line; `full` wraps instead of cutting. */
+/** PRD 0005 RF4.1: the core's level and summary in one discreet line; `full` wraps instead of cutting. PRD 0016 RF4.1:
+ *  an account whose query uses a web session adds the `UserSession` level and the core's risk warning. */
 export const accessHtml = (r, { full = false } = {}) => r.access
-  ? `<p class="access-line${full ? " full" : ""}" data-access="${esc(r.access.level)}" title="${esc(tl(r.access.summary))}"><span class="lv">${esc(tl(r.access.label))}</span> · <span>${esc(tl(r.access.summary))}</span></p>`
+  ? `<p class="access-line${full ? " full" : ""}" data-access="${esc(r.access.level)}" title="${esc(tl(r.access.summary))}"><span class="lv">${esc(tl(r.access.label))}</span> · <span>${esc(tl(r.access.summary))}</span></p>${sessionNoticeHtml(r.access.session)}`
+  : "";
+/** PRD 0016 RF4.1: the `UserSession` level and the core's warning (card, details and the paste box). */
+export const sessionNoticeHtml = (notice) => notice
+  ? `<p class="access-line session-notice" data-session-notice><span class="lv">${esc(tl(notice.level))}</span> · <span>${esc(tl(notice.warning))}</span></p>`
   : "";
 // ---------- PRD 0011 RF4: the provider's public status ----------
 // Tone and icon per core state (never color alone: the text is the core's label).
@@ -842,9 +849,17 @@ function demoAccess(r) {
     : null;
   return { level, label: demoLevel(level), summary: dl(`access.summary.${r.provider}`, "Consulta de uso de demonstração."), reason,
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
-    explanation: r.status === "ready" ? null : reason ?? changed };
+    explanation: r.status === "ready" ? null : reason ?? changed, session: demoSessionNotice(demoSessionState(r)) };
 }
-const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(),
+// PRD 0016 RF4 demo: the MiMo account reads its platform session from a variable until it is migrated (or pasted), then
+// from the vault until it is forgotten; the card mirrors `user_session::notice`.
+const demoSessionState = (r) => r.provider !== "xiaomi_mimo" || demoSettings.sessionForgotten.has(r) ? null
+  : demoSettings.sessionMigrated.has(r) ? "vault" : "env";
+const demoSessionNotice = (state) => state && { level: dl("access.credential.user_session", "Sessão do usuário"),
+  warning: state === "vault"
+    ? dl("user_session.warning", "Esta é uma sessão de login completa. O Cuotai a guarda no cofre do sistema e a usa só para consultar este serviço.")
+    : dl("user_session.warning_env", "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.") };
+const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} }, statusQueries: DEMO_STATUS != null,
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null } };
@@ -1059,6 +1074,7 @@ const demo = {
     credential_help: { id: "credential_help.demo", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },
     login: { modes: [{ id: "oauth", label: { id: "login.demo.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "login.demo.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "login.demo.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "login.demo.oauth.unavailable_reason", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
     sessions: provider === "xiaomi_mimo" ? [DEMO_SESSION_SLOT] : [],
+    session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
     fields: [{ id: "field.demo.project_id", key: "project_id", label: { id: "field.demo.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "field.demo.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "field.demo.mode", key: "mode", label: { id: "field.demo.mode.label", params: {}, fallback: "Modo" }, help: { id: "field.demo.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "field.demo.mode.option.personal", index: 0, value: "personal", label: { id: "field.demo.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "field.demo.mode.option.org", index: 1, value: "org", label: { id: "field.demo.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
@@ -1082,20 +1098,23 @@ const demo = {
   },
   get_account: async ({ index }) => {
     const r = demoReports[index];
-    // PRD 0016 RF1.2 demo: the MiMo account reads its platform session from a variable until it is migrated.
-    const migrated = demoSettings.sessionMigrated.has(r);
-    const sessionOffer = r.provider === "xiaomi_mimo" && !migrated;
+    const state = demoSessionState(r);
+    const sessionOffer = state === "env";
     const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" };
     const hosts = ["platform.xiaomimimo.com"];
     return { name: r.account, provider: r.provider, credential: "DEMO_API_KEY",
       interval: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
-      session_slots: r.provider === "xiaomi_mimo" && migrated ? ["platform_session_env"] : [],
+      session_slots: state === "vault" ? ["platform_session_env"] : [],
       session_migration: sessionOffer ? [{ slot: "platform_session_env", env: "MIMO_COOKIE", label, hosts,
         consent: { id: "user_session.migrate.consent", params: { label, env: "MIMO_COOKIE", hosts: hosts.join(", ") },
           fallback: `${label.fallback}: copiar o valor de MIMO_COOKIE para o cofre do sistema e tirar MIMO_COOKIE do TOML. A sessão só é enviada a ${hosts.join(", ")}; a variável continua no seu ambiente até você removê-la.` } }] : [] };
   },
   migrate_session: async ({ index }) => {
     demoSettings.sessionMigrated.add(demoReports[index]);
+    return demo.get_account({ index });
+  },
+  forget_session: async ({ index }) => {
+    demoSettings.sessionForgotten.add(demoReports[index]);
     return demo.get_account({ index });
   },
   // PRD 0016 RF2 demo: the browser keeps only the accepted names, like the core (no value is ever shown).
@@ -1115,6 +1134,10 @@ const demo = {
     window.__lastSaveRequest = input;
     if (!input.name.trim()) throw "Informe um nome para a conta.";
     const r = dr(input.name, input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
+    // PRD 0016 demo: a paste goes to the vault; otherwise the account keeps where its session was.
+    const prev = input.index == null ? null : demoReports[input.index];
+    if (input.sessions?.some((p) => p.paste.trim())) demoSettings.sessionMigrated.add(r);
+    else for (const set of [demoSettings.sessionMigrated, demoSettings.sessionForgotten]) if (set.has(prev)) set.add(r);
     input.index == null ? demoReports.push(r) : (demoReports[input.index] = r);
     demoSettings.generation++;
     return { cleanup_warning: null };

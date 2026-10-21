@@ -73,10 +73,11 @@ pub(crate) enum Action {
     Models {
         index: usize,
     },
-    /// PRD 0016 RF1.2: the user confirmed moving the saved account's
-    /// `session_env`-style variables into the system vault.
-    MigrateSession {
+    /// PRD 0016: the user confirmed a vault change of the saved account's
+    /// web session on the summary.
+    SessionVault {
         index: usize,
+        change: VaultChange,
     },
     /// PRD 0016 RF2.1: one read-only query of the draft with its pasted
     /// sessions; nothing is stored.
@@ -84,6 +85,15 @@ pub(crate) enum Action {
         account: Box<Account>,
         sessions: Vec<ReducedSession>,
     },
+}
+
+/// PRD 0016: what a confirmed summary key changes in the vault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VaultChange {
+    /// RF1.2 (F3): move the `session_env`-style variables into the vault.
+    Migrate,
+    /// RF4.2 (F5): forget the session, deleting its vault entries.
+    Forget,
 }
 
 const MAX_INTERVAL: u64 = edit::MAX_REFRESH_SECONDS;
@@ -302,6 +312,9 @@ pub(crate) struct Wizard {
     /// PRD 0016 RF1.2: set by the first F3 on the summary, which shows what
     /// the migration does; the next F3 confirms it, any other key clears it.
     confirm_migrate: bool,
+    /// PRD 0016 RF4.2: the same two-step confirmation for F5, "forget this
+    /// session".
+    confirm_forget: bool,
     /// PRD 0016 RF2.1: the paste step's slots, the highlighted one and the
     /// last test's outcome (`true` when the query answered).
     sessions: Vec<SessionPaste>,
@@ -371,6 +384,7 @@ impl Wizard {
             models_pick: None,
             confirm_save: false,
             confirm_migrate: false,
+            confirm_forget: false,
             sessions: session_pastes(provider),
             session_idx: 0,
             session_test: None,
@@ -556,6 +570,21 @@ impl Wizard {
         }
         self.error = None;
         self.notice = Some(crate::ui::resolve_l10n(&user_session::migrated_notice()));
+    }
+
+    /// PRD 0016 RF4.2: the saved account keeps a session in the vault that
+    /// F5 on the summary can forget.
+    fn has_vault_session(&self) -> bool {
+        self.saved_account()
+            .is_some_and(|account| account.session.is_some())
+    }
+
+    /// After a forgotten session was saved: the base is the new file, so
+    /// saving the draft later does not bring the reference back.
+    pub(crate) fn session_forgotten(&mut self, config: &Config) {
+        self.replace_base(config);
+        self.error = None;
+        self.notice = Some(crate::ui::resolve_l10n(&user_session::forgotten_notice()));
     }
 
     /// Borrowed view of the wizard's editing identity for callers
@@ -1069,6 +1098,7 @@ impl Wizard {
         // PRD 0016 RF1.2: F3 on the summary first shows what the migration
         // does; only a second F3 moves the session. Any other key cancels.
         let migrate_confirmed = std::mem::take(&mut self.confirm_migrate);
+        let forget_confirmed = std::mem::take(&mut self.confirm_forget);
         if self.step == Step::Summary && key.code == KeyCode::F(3) {
             let Some(index) = self
                 .editing
@@ -1077,10 +1107,29 @@ impl Wizard {
                 return Action::Continue;
             };
             if migrate_confirmed {
-                return Action::MigrateSession { index };
+                return Action::SessionVault {
+                    index,
+                    change: VaultChange::Migrate,
+                };
             }
             self.error = None;
             self.confirm_migrate = true;
+            return Action::Continue;
+        }
+        // PRD 0016 RF4.2: F5 on the summary asks first; a second F5 forgets
+        // the vault session. Any other key cancels.
+        if self.step == Step::Summary && key.code == KeyCode::F(5) {
+            let Some(index) = self.editing.filter(|_| self.has_vault_session()) else {
+                return Action::Continue;
+            };
+            if forget_confirmed {
+                return Action::SessionVault {
+                    index,
+                    change: VaultChange::Forget,
+                };
+            }
+            self.error = None;
+            self.confirm_forget = true;
             return Action::Continue;
         }
         // PRD 0016 RF2.1: F4 tests the pasted sessions with one read-only
@@ -1802,6 +1851,15 @@ impl Wizard {
                     ]));
                 }
             }
+            // PRD 0016 RF4.2: forgetting deletes the vault entries.
+            lines.push(Line::from(Span::styled(
+                if self.confirm_forget {
+                    "F5 de novo apaga a sessão do cofre do sistema; qualquer outra tecla cancela."
+                } else {
+                    "F5 esquece esta sessão: apaga a entrada do cofre do sistema (pede confirmação)."
+                },
+                Style::default().fg(DRACULA_YELLOW),
+            )));
         }
         let candidates = self.migration_candidates();
         if !candidates.is_empty() {
@@ -1974,8 +2032,16 @@ impl Wizard {
             Step::Params => {
                 " Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
             }
+            Step::Summary
+                if !self.migration_candidates().is_empty() && self.has_vault_session() =>
+            {
+                " Enter GRAVAR  F3 sessão → cofre  F5 esquecer sessão  ↑↓ rolar  Shift+Tab voltar  Esc cancelar"
+            }
             Step::Summary if !self.migration_candidates().is_empty() => {
                 " Enter GRAVAR  F3 sessão → cofre  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
+            }
+            Step::Summary if self.has_vault_session() => {
+                " Enter GRAVAR  F5 esquecer sessão  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
             }
             Step::Summary => {
                 " Enter GRAVAR no arquivo  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
@@ -2354,8 +2420,24 @@ impl Wizard {
                 "Colar sessão (opcional): Cuotai guarda só os cookies desta sessão no cofre do sistema; o resto do texto colado é descartado.",
                 Style::default().fg(DRACULA_CYAN),
             )),
-            Line::default(),
         ];
+        // PRD 0016 RF4.1: the `UserSession` level and the risk warning.
+        if let Some(notice) = user_session::paste_notice(self.provider) {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    resolve(&notice.level),
+                    Style::default()
+                        .fg(DRACULA_YELLOW)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" · ", dim),
+                Span::styled(
+                    resolve(&notice.warning),
+                    Style::default().fg(DRACULA_YELLOW),
+                ),
+            ]));
+        }
+        lines.push(Line::default());
         for (index, paste) in self.sessions.iter().enumerate() {
             let focused = index == self.session_idx;
             let marker = if focused { "▶ " } else { "  " };
@@ -2721,7 +2803,10 @@ mod tests {
         assert!(matches!(press(&mut wiz, KeyCode::F(3)), Action::Continue));
         assert!(matches!(
             press(&mut wiz, KeyCode::F(3)),
-            Action::MigrateSession { index: 0 }
+            Action::SessionVault {
+                index: 0,
+                change: VaultChange::Migrate
+            }
         ));
         // The core migrated it: the saved draft keeps the vault reference and
         // no longer names the variable, and F3 has nothing left to offer.
@@ -2743,6 +2828,47 @@ mod tests {
             .contains_key("platform_session_env"));
         assert!(matches!(press(&mut wiz, KeyCode::F(3)), Action::Continue));
         assert!(matches!(press(&mut wiz, KeyCode::F(3)), Action::Continue));
+    }
+
+    #[test]
+    fn forgetting_the_session_needs_a_second_f5_and_the_draft_drops_the_reference() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut stored = account("MiMo", "XIAOMI_MIMO_API_KEY");
+        stored.provider = Provider::XiaomiMimo;
+        stored.session = Some(user_session::SessionConfig {
+            credential_ref: "6f1d3c1e-8a52-4a3c-9f7e-2a8b5b1c0d11".into(),
+            slots: ["platform_session_env".to_string()].into(),
+        });
+        let config = Config {
+            accounts: vec![stored.clone()],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Summary;
+        assert!(matches!(press(&mut wiz, KeyCode::F(5)), Action::Continue));
+        assert!(matches!(press(&mut wiz, KeyCode::Down), Action::Continue));
+        assert!(matches!(press(&mut wiz, KeyCode::F(5)), Action::Continue));
+        assert!(matches!(
+            press(&mut wiz, KeyCode::F(5)),
+            Action::SessionVault {
+                index: 0,
+                change: VaultChange::Forget
+            }
+        ));
+        // The core forgot it: a later save of the draft has no reference and
+        // F5 has nothing left to forget.
+        let mut forgotten = stored;
+        forgotten.session = None;
+        wiz.session_forgotten(&Config {
+            accounts: vec![forgotten],
+            ..Config::default()
+        });
+        assert_eq!(
+            wiz.build_config().expect("draft still saves").accounts[0].session,
+            None
+        );
+        assert!(matches!(press(&mut wiz, KeyCode::F(5)), Action::Continue));
+        assert!(matches!(press(&mut wiz, KeyCode::F(5)), Action::Continue));
     }
 
     #[test]

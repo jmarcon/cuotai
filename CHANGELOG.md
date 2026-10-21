@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-10-21
+
+### Added
+
+- A web session now comes with its risk spelled out and a way out: the card of a Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan account whose query uses a session (in the TUI also its details) names the "User session" level and warns "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service." (or that it is read from an environment variable and can move to the vault), the TUI paste step and the desktop "Web session" box show the same level and warning before you paste, and "Forget this session" (F5 twice on the TUI wizard summary, or the button and its confirmation in the desktop account dialog) deletes the session's system vault entry and its reference in the TOML, putting it back when the save is refused; `cuotai-core` adds `user_session::notice`, `paste_notice` and `stage_forget`, and `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored, what is discarded and the risks (PRD 0016 RF4).
+
 ## [0.61.0] - 2026-10-21
 
 ### Added
 
-- Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan accounts can take a pasted web session: the TUI wizard's new "Colar sessão" step and the desktop account dialog's "Web session" box say where to copy it from, take a masked paste of a `Cookie:` line, a `name=value` list, the browser's cookie table or a copied cURL, keep only the cookies the provider accepts (numbered parts reassembled, the rest discarded before anything is written, errors naming cookies, never values), test it with one read-only query (F4 or "Test session") and store it in the system vault on save, replacing the earlier session of the same account in place; a session is sent only over HTTPS to its declared hosts and never follows a redirect, a rejected one reads "session expired or revoked; paste a new one", and when the cookie table shows an expiry the cards say "expires in N days" and, with usage alerts on, a session ending within 3 days gets a notification of its own (PRD 0016 RF2, RF3).
+- Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan accounts can take a pasted web session: the TUI wizard's new "Colar sessão" step and the desktop account dialog's "Web session" box say where to copy it from, take a masked paste of a `Cookie:` line, a `name=value` list, the browser's cookie table or a copied cURL, keep only the cookies the provider accepts (numbered parts reassembled, the rest discarded before anything is written, errors naming cookies, never values), test it with one read-only query (F4 or "Test session") and store it in the system vault on save, replacing the earlier session of the same account in place; a session is sent only over HTTPS to its declared hosts and never follows a redirect, a rejected one reads "session expired or revoked; paste a new one", and when the cookie table shows an expiry the cards say "expires in N days" and, with usage alerts on, a session ending within 3 days gets a notification of its own (PRD 0016 RF2, RF3, a10d2dc).
 
 ## [0.60.0] - 2026-10-21
 
@@ -516,8 +522,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/b000625...main
-[0.61.0]: https://github.com/jmarcon/cuotai/compare/b000625...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/a10d2dc...main
+[0.62.0]: https://github.com/jmarcon/cuotai/compare/a10d2dc...main
+[0.61.0]: https://github.com/jmarcon/cuotai/commit/a10d2dc
 [0.60.0]: https://github.com/jmarcon/cuotai/commit/b000625
 [0.59.0]: https://github.com/jmarcon/cuotai/commit/fbbef8f
 [0.58.0]: https://github.com/jmarcon/cuotai/commit/73781dd

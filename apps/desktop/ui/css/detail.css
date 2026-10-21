@@ -136,6 +136,9 @@
   font-weight: 600;
 }
 .access-line[data-access="unavailable"] .lv { color: var(--warn); }
+/* PRD 0016 RF4.1: the web session's level and risk warning wrap: the warning is read in full */
+.access-line.session-notice { white-space: normal; }
+.access-line.session-notice .lv { color: var(--warn); }
 /* RF4.2: the explanation of a changed interface ends in its long reference URL; break it inside the box */
 .detail > .metric > .sub,
 .cause > span {

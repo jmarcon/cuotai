@@ -12,6 +12,7 @@ const SECRET: &str = "SECRET-SESSION-VALUE";
 struct MemoryStore {
     entries: Mutex<HashMap<String, OAuthToken>>,
     fail_saves: bool,
+    fail_deletes: bool,
 }
 impl TokenStore for MemoryStore {
     fn load(&self, id: &str) -> Result<Option<OAuthToken>, OAuthError> {
@@ -25,6 +26,9 @@ impl TokenStore for MemoryStore {
         Ok(())
     }
     fn delete(&self, id: &str) -> Result<(), OAuthError> {
+        if self.fail_deletes {
+            return Err(crate::oauth::session::storage_error());
+        }
         self.entries.lock().remove(id);
         Ok(())
     }
@@ -903,4 +907,159 @@ async fn a_test_query_uses_the_paste_and_stores_nothing() {
         )
         .await;
     assert_eq!(report.status, Status::NeedsConfiguration);
+}
+
+// ------------------------------------------- RF4: warning and forgetting
+
+#[test]
+fn the_card_warns_about_a_vault_or_variable_session_and_nothing_else() {
+    let mut vault = mimo(&[]);
+    vault.session = Some(SessionConfig {
+        credential_ref: "6f1d3c1e-8a52-4a3c-9f7e-2a8b5b1c0d11".into(),
+        slots: [PLATFORM.to_string()].into(),
+    });
+    let notice = notice(&vault).expect("vault session");
+    assert_eq!(notice.level.id, "access.credential.user_session");
+    assert_eq!(notice.warning.id, "user_session.warning");
+    assert_eq!(
+        notice.warning.resolve("en-US"),
+        "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service."
+    );
+    assert_eq!(
+        super::notice(&mimo(&[(PLATFORM, "MIMO_COOKIE")]))
+            .expect("variable session")
+            .warning
+            .id,
+        "user_session.warning_env"
+    );
+    // An API key alone, a blank variable or a provider without sessions.
+    assert_eq!(super::notice(&mimo(&[(PLATFORM, " ")])), None);
+    let openai = Account {
+        provider: Provider::OpenAiApi,
+        params: [(PLATFORM.to_string(), "X".to_string())].into(),
+        ..Default::default()
+    };
+    assert_eq!(super::notice(&openai), None);
+    assert_eq!(paste_notice(Provider::OpenAiApi), None);
+    assert_eq!(
+        paste_notice(Provider::AlibabaTokenPlan).map(|n| n.warning.id),
+        Some("user_session.warning".into())
+    );
+}
+
+/// Two MiMo accounts with their own pasted platform sessions, saved.
+async fn two_pasted(store: &Arc<MemoryStore>, dir: &tempfile::TempDir) -> ConfigFile {
+    let oauth = session(store);
+    let path = dir.path().join("cuotai.toml");
+    std::fs::write(&path, "refresh_seconds = 300\naccounts = []\n").unwrap();
+    let mut file = ConfigFile::load(Some(path), false).unwrap();
+    let mut accounts = config(vec![
+        mimo(&[]),
+        Account {
+            name: "Other".into(),
+            ..mimo(&[])
+        },
+    ]);
+    for (index, token) in [(0, "SECRET-A"), (1, "SECRET-B")] {
+        let paste = format!("api-platform_serviceToken={token}; userId=7");
+        let reduced = reduce(Provider::XiaomiMimo, PLATFORM, &paste, now()).unwrap();
+        accounts = stage_pasted(&oauth, &accounts, index, &[reduced])
+            .await
+            .unwrap()
+            .config()
+            .clone();
+    }
+    file.save(accounts).unwrap();
+    file
+}
+
+#[tokio::test]
+async fn forgetting_deletes_the_vault_entry_and_the_reference_of_that_account_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let mut file = two_pasted(&store, &dir).await;
+    let kept = file.config.accounts[1].session.clone();
+
+    let staged = stage_forget(&oauth, &file.config, 0).await.unwrap();
+    file.save(staged.config().clone()).unwrap();
+
+    assert_eq!(
+        store.values(),
+        ["api-platform_serviceToken=SECRET-B; userId=7"]
+    );
+    let reloaded = ConfigFile::load(Some(file.path.clone()), false).unwrap();
+    assert_eq!(reloaded.config.accounts[0].session, None);
+    assert_eq!(reloaded.config.accounts[1].session, kept);
+    assert_eq!(super::notice(&reloaded.config.accounts[0]), None);
+    // Nothing left to forget.
+    let error = stage_forget(&oauth, &reloaded.config, 0)
+        .await
+        .err()
+        .expect("no session");
+    assert_eq!(error.id, "user_session.forget.nothing");
+    assert_eq!(store.values().len(), 1);
+}
+
+/// Every vault entry as key, value and expiry.
+fn stored(store: &MemoryStore) -> BTreeMap<String, (String, Option<DateTime<Utc>>)> {
+    store
+        .entries
+        .lock()
+        .iter()
+        .map(|(key, token)| (key.clone(), (token.access_token.clone(), token.expires_at)))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_failed_save_brings_the_forgotten_session_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let file = two_pasted(&store, &dir).await;
+    let before = stored(&store);
+
+    let staged = stage_forget(&oauth, &file.config, 0).await.unwrap();
+    assert_eq!(store.values().len(), 1);
+    rollback(&oauth, staged).await.unwrap();
+    assert_eq!(stored(&store), before);
+    // The account reads its session again.
+    assert_eq!(
+        load(&oauth, &file.config.accounts[0]).await.unwrap().len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn a_refused_vault_delete_keeps_the_session_and_names_no_value() {
+    let dir = tempfile::tempdir().unwrap();
+    let seeded = Arc::new(MemoryStore::default());
+    let file = two_pasted(&seeded, &dir).await;
+    let failing = Arc::new(MemoryStore {
+        entries: Mutex::new(seeded.entries.lock().clone()),
+        fail_deletes: true,
+        ..Default::default()
+    });
+    let error = stage_forget(&session(&failing), &file.config, 0)
+        .await
+        .err()
+        .expect("vault refused");
+    assert_eq!(failing.values().len(), 2);
+    let text = format!("{} {error:?}", error.resolve("en-US"));
+    assert!(!text.contains("SECRET"), "{text}");
+}
+
+#[tokio::test]
+async fn forgetting_a_reference_without_its_entry_only_drops_the_reference() {
+    let store = Arc::new(MemoryStore::default());
+    let mut account = mimo(&[]);
+    account.session = Some(SessionConfig {
+        credential_ref: uuid::Uuid::new_v4().to_string(),
+        slots: [PLATFORM.to_string()].into(),
+    });
+    let staged = stage_forget(&session(&store), &config(vec![account]), 0)
+        .await
+        .unwrap();
+    assert_eq!(staged.config().accounts[0].session, None);
+    assert!(store.entries.lock().is_empty());
 }
