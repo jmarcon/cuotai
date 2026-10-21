@@ -12,6 +12,7 @@ pub mod export;
 pub mod freshness;
 pub mod headless;
 pub mod history;
+pub mod hooks;
 pub mod identity;
 pub mod incidents;
 pub mod last_config;

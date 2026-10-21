@@ -69,6 +69,8 @@ struct Rig {
     all: Watcher,
     failures_only: Watcher,
     start: Instant,
+    /// PRD 0013 RF3: runs the events of `all`, when set.
+    hooks: Option<crate::hooks::Runner>,
 }
 
 impl Rig {
@@ -103,6 +105,7 @@ impl Rig {
             all: Watcher::new(EventState::default(), None),
             failures_only: Watcher::new(EventState::default(), Some(failures)),
             start,
+            hooks: None,
         }
     }
 
@@ -122,10 +125,13 @@ impl Rig {
         }
         let export = self.driver.export(&self.config, &self.identity, wall);
         let names = |events: Vec<Event>| events.into_iter().map(|e| e.event.name()).collect();
-        (
-            names(self.all.observe(&export, wall)),
-            names(self.failures_only.observe(&export, wall)),
-        )
+        let all = self.all.observe(&export, wall);
+        if let Some(hooks) = &self.hooks {
+            for event in &all {
+                assert_eq!(hooks.submit(event), 0);
+            }
+        }
+        (names(all), names(self.failures_only.observe(&export, wall)))
     }
 
     async fn queries(&self) -> usize {
@@ -252,4 +258,64 @@ fn event_selection_accepts_the_payload_names_only() {
         assert_eq!(error.id, "watch.error.unknown_event");
         assert!(error.resolve("en-US").contains("usage_updated"), "{wrong}");
     }
+}
+
+/// PRD 0013 RF3 over the real cycle: a hook gets exactly one run per real
+/// transition of its events (none for the baseline or a failure that
+/// persists), and a hook that fails changes neither the events nor the
+/// queries.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_hook_runs_once_per_transition_and_its_failure_changes_nothing() {
+    use crate::hooks::{Consent, Hooks, OnRun, Run, Runner};
+    let dir = tempfile::tempdir().unwrap();
+    let seen = dir.path().join("seen");
+    let script = dir.path().join("hook.sh");
+    std::fs::write(
+        &script,
+        format!(
+            "printf '%s %s\\n' \"$CUOTAI_EVENT\" \"$CUOTAI_ACCOUNT\" >> '{}'\nexit 7\n",
+            seen.display()
+        ),
+    )
+    .unwrap();
+    let hooks = Hooks::from_toml(
+        dir.path().join("hooks.toml"),
+        &format!(
+            "[[hooks]]\nname = \"seen\"\nevents = [\"refresh_failed\", \"refresh_recovered\"]\ncommand = [\"/bin/sh\", {:?}]\n",
+            script.display().to_string()
+        ),
+    )
+    .unwrap();
+    let confirmed = Consent::at(dir.path().join("consent.json"))
+        .confirm(hooks)
+        .unwrap();
+    let (sender, mut runs) = tokio::sync::mpsc::unbounded_channel();
+    let on_run: OnRun = Arc::new(move |run: &Run, _: Option<&std::io::Error>| {
+        let _ = sender.send(run.clone());
+    });
+    let mut rig = Rig::new().await;
+    rig.hooks = Some(Runner::start(confirmed, None, on_run));
+    let none = Vec::<&str>::new();
+
+    assert_eq!(rig.at(0).await.0, none, "baseline");
+    rig.answer.set(wiremock::ResponseTemplate::new(500));
+    assert_eq!(rig.at(60).await.0, ["refresh_failed"]);
+    assert_eq!(rig.at(120).await.0, none, "the failure persists");
+    rig.answer.set(remaining(13_000));
+    assert_eq!(rig.at(180).await.0, ["refresh_recovered", "usage_updated"]);
+    for _ in 0..2 {
+        let run = tokio::time::timeout(Duration::from_secs(20), runs.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(run.exit_code, Some(7));
+    }
+    assert_eq!(rig.at(240).await.0, none);
+    assert_eq!(rig.queries().await, 5, "one query per due reading");
+    assert_eq!(
+        std::fs::read_to_string(&seen).unwrap(),
+        "refresh_failed alpha\nrefresh_recovered alpha\n"
+    );
+    assert!(runs.try_recv().is_err(), "no other run");
 }

@@ -132,6 +132,15 @@ struct Args {
     /// mensagens e diagnósticos vão ao stderr.
     #[arg(long, requires = "watch")]
     jsonl: bool,
+    /// Com --watch, executa as regras de hooks.toml (no diretório do
+    /// arquivo TOML) a cada evento: o comando é uma lista de argumentos,
+    /// sem shell; o evento chega em JSON no stdin e em CUOTAI_EVENT,
+    /// CUOTAI_ACCOUNT, CUOTAI_PROVIDER e CUOTAI_METRIC; o ambiente se
+    /// reduz a PATH, HOME e LANG. Na primeira vez, e após qualquer mudança
+    /// nas regras, lista os comandos e pede confirmação no terminal (sem
+    /// terminal: erro). Sem --jsonl, o stdout fica vazio.
+    #[arg(long, requires = "watch")]
+    hooks: bool,
 }
 
 /// PRD 0011 RF5: public status queries are opt-in (`--status`, or
@@ -226,6 +235,13 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         .map_err(|error| error.resolve(locale))?;
     let retention = retention(args.history_days)?;
     let file = ConfigFile::load(args.config, interactive)?;
+    // PRD 0013 RF3.2: no hook runs before its exact commands were
+    // confirmed, and no query starts before that is settled.
+    let hooks = if args.hooks {
+        Some(watch::confirmed_hooks(&file.path, locale)?)
+    } else {
+        None
+    };
     let session = Arc::new(match args.dev_credentials_sqlite {
         Some(path) => {
             let session = OAuthSession::development_sqlite(&path)?;
@@ -257,6 +273,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             let watch = args.watch.then_some(watch::WatchArgs {
                 events,
                 jsonl: args.jsonl,
+                hooks,
             });
             return headless::run(config, file.identity()?, monitor, serve, watch).await;
         }

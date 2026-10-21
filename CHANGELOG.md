@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-10-21
+
+### Added
+
+- `cuotai --watch --hooks` runs your own commands on the watch events, from a `hooks.toml` next to the accounts' TOML: each rule lists its events, optional provider, account and threshold filters and a command given as an argument list (never a shell string); hooks are off by default and the exact commands run only after you confirm them in a terminal, again after any change, receive the event as JSON on stdin and in `CUOTAI_EVENT`/`CUOTAI_ACCOUNT`/`CUOTAI_PROVIDER`/`CUOTAI_METRIC` with an environment reduced to `PATH`, `HOME` and `LANG`, are killed past their time limit (10 s by default, 60 s at most), keep at most 16 KiB of output, run at most 4 at once with a bounded queue that drops the oldest run with a warning, never stop the watch when they fail, and each run is logged locally without the payload (PRD 0013 RF3).
+
 ## [0.54.0] - 2026-10-21
 
 ### Added
 
-- `cuotai --watch` follows your accounts in the foreground without opening the TUI or needing a terminal and reports one event per real transition between consecutive readings (a quota crossed 75% or 90%, ran out, recovered or reset, an account was blocked or unblocked, a query failed with only its category or recovered, authentication is needed, the provider status changed with `--status`, usage changed at most every 10 minutes), never repeating a condition that persists and treating the first reading of each account as its baseline: `--jsonl` writes one NDJSON payload per line on stdout, flushed at once, with every message on stderr, otherwise each transition is one readable line in local time and `CUOTAI_LANG`; `--events a,b` keeps only those names, `--interval S` (60 to 86400 s, smaller values are rejected, never adjusted) replaces the global `refresh_seconds` for the run while accounts with their own interval keep it and AWS Bedrock never goes below 300 s; it adds no query, can share its refresh cycle with `--serve` in the same process (the server address then goes to stderr), stops cleanly on `SIGINT`, `SIGTERM` and `SIGHUP`, and exits with `0`, `2` when an account's latest reading had failed at shutdown, or `1` for a local error; `cuotai-core` adds `headless::Driver` (the screenless refresh loop `--serve` and `--watch` share), `watch::Watcher`, `watch::with_interval`, `watch::parse_events` and `Event::summary` (PRD 0013 RF2).
+- `cuotai --watch` follows your accounts in the foreground without opening the TUI or needing a terminal and reports one event per real transition between consecutive readings (a quota crossed 75% or 90%, ran out, recovered or reset, an account was blocked or unblocked, a query failed with only its category or recovered, authentication is needed, the provider status changed with `--status`, usage changed at most every 10 minutes), never repeating a condition that persists and treating the first reading of each account as its baseline: `--jsonl` writes one NDJSON payload per line on stdout, flushed at once, with every message on stderr, otherwise each transition is one readable line in local time and `CUOTAI_LANG`; `--events a,b` keeps only those names, `--interval S` (60 to 86400 s, smaller values are rejected, never adjusted) replaces the global `refresh_seconds` for the run while accounts with their own interval keep it and AWS Bedrock never goes below 300 s; it adds no query, can share its refresh cycle with `--serve` in the same process (the server address then goes to stderr), stops cleanly on `SIGINT`, `SIGTERM` and `SIGHUP`, and exits with `0`, `2` when an account's latest reading had failed at shutdown, or `1` for a local error; `cuotai-core` adds `headless::Driver` (the screenless refresh loop `--serve` and `--watch` share), `watch::Watcher`, `watch::with_interval`, `watch::parse_events` and `Event::summary` (PRD 0013 RF2, f6b3272).
 
 ## [0.53.0] - 2026-10-21
 
@@ -474,8 +480,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/28137a8...main
-[0.54.0]: https://github.com/jmarcon/cuotai/compare/28137a8...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/f6b3272...main
+[0.55.0]: https://github.com/jmarcon/cuotai/compare/f6b3272...main
+[0.54.0]: https://github.com/jmarcon/cuotai/commit/f6b3272
 [0.53.0]: https://github.com/jmarcon/cuotai/commit/28137a8
 [0.52.0]: https://github.com/jmarcon/cuotai/commit/4795a15
 [0.51.0]: https://github.com/jmarcon/cuotai/commit/2d9cf48

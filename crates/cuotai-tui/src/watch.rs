@@ -4,16 +4,27 @@
 //! transition; messages and diagnostics go to stderr. The engine is the
 //! core's ([`cuotai_core::watch::Watcher`]); its baselines live in memory,
 //! so a restart starts new ones.
+//!
+//! With `--hooks` (PRD 0013 RF3) the same events also run the confirmed
+//! rules of `hooks.toml` through the core's [`Runner`] (without `--jsonl`
+//! stdout then stays empty); [`confirmed_hooks`] shows the exact commands
+//! and asks for the confirmation the core requires before any of them runs.
 
 use std::{
     collections::BTreeSet,
-    io::{self, Write},
+    io::{self, BufRead, IsTerminal, Write},
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use chrono::{DateTime, Utc};
 use cuotai_core::{
     events::{Event, EventKind, EventState},
     export::v1::Export,
+    hooks::{self, Confirmed, Consent, Hooks, Run, RunLog, Runner},
     text::provider_l10n,
     watch::Watcher,
 };
@@ -26,43 +37,138 @@ pub(crate) struct WatchArgs {
     pub events: Option<BTreeSet<EventKind>>,
     /// `--jsonl`: NDJSON instead of readable lines.
     pub jsonl: bool,
+    /// `--hooks`: the rules the user confirmed.
+    pub hooks: Option<Confirmed>,
 }
 
 pub(crate) struct Watch {
     watcher: Watcher,
     jsonl: bool,
+    hooks: Option<Runner>,
 }
 
 impl Watch {
+    /// Must run inside the Tokio runtime (the hooks' runner starts here).
     pub(crate) fn new(args: WatchArgs) -> Self {
         Self {
             watcher: Watcher::new(EventState::default(), args.events),
             jsonl: args.jsonl,
+            hooks: args.hooks.map(start_hooks),
         }
     }
 
     /// The stderr line that opens the run.
     pub(crate) fn started(&self, accounts: usize) -> String {
-        format!(
+        let mut line = format!(
             "cuotai: acompanhando {accounts} conta(s); a primeira leitura de cada uma é a base \
              e não gera eventos. Ctrl+C encerra."
-        )
+        );
+        if let Some(runner) = &self.hooks {
+            line.push_str(&format!(" {} hook(s) ativo(s).", runner.rules().len()));
+        }
+        line
     }
 
-    /// Write the events of `export` after the last one; `false` when
-    /// stdout was closed (the consumer went away), which ends the run.
+    /// Write the events of `export` after the last one (and hand them to
+    /// the hooks, which never wait); `false` when stdout was closed (the
+    /// consumer went away), which ends the run.
     pub(crate) fn emit(&mut self, export: &Export, now: DateTime<Utc>) -> io::Result<bool> {
         let events = self.watcher.observe(export, now);
         if events.is_empty() {
             return Ok(true);
         }
         let locale = crate::ui::tui_locale();
+        if let Some(runner) = &self.hooks {
+            let dropped: usize = events.iter().map(|event| runner.submit(event)).sum();
+            if dropped > 0 {
+                eprintln!("cuotai: {}", hooks::dropped(dropped).resolve(locale));
+            }
+            if !self.jsonl {
+                return Ok(true);
+            }
+        }
         match write_events(&mut io::stdout().lock(), &events, self.jsonl, locale) {
             Ok(()) => Ok(true),
             Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(false),
             Err(error) => Err(error),
         }
     }
+}
+
+/// The runner of `confirmed`, logging to the local data directory; a run
+/// that did not succeed (and a log that cannot be written, once) is one
+/// stderr line.
+fn start_hooks(confirmed: Confirmed) -> Runner {
+    let log = RunLog::in_data_dir();
+    let log_path = log.as_ref().map(|log| log.path().to_path_buf());
+    let warned = AtomicBool::new(false);
+    let on_run = move |run: &Run, log_error: Option<&io::Error>| {
+        let locale = crate::ui::tui_locale();
+        if !run.succeeded() {
+            eprintln!("cuotai: hook {}", safe(&run.summary().resolve(locale)));
+        }
+        if let (Some(_), Some(path)) = (log_error, &log_path) {
+            if !warned.swap(true, Ordering::Relaxed) {
+                eprintln!("cuotai: {}", hooks::log_unwritable(path).resolve(locale));
+            }
+        }
+    };
+    Runner::start(confirmed, log, Arc::new(on_run))
+}
+
+/// PRD 0013 RF3.2: the rules of the `hooks.toml` beside the accounts' TOML
+/// at `config`, once they are confirmed exactly as they are. Unconfirmed
+/// (never, or since a change) they are listed on stderr and confirmed by
+/// typing the answer in a terminal; without one it is a local error.
+pub(crate) fn confirmed_hooks(config: &Path, locale: &str) -> Result<Confirmed, String> {
+    let hooks = Hooks::load(&Hooks::path_beside(config)).map_err(|error| error.resolve(locale))?;
+    let consent = Consent::in_data_dir().map_err(|error| error.resolve(locale))?;
+    let interactive = io::stdin().is_terminal() && io::stderr().is_terminal();
+    confirm(
+        &consent,
+        hooks,
+        interactive,
+        &mut io::stdin().lock(),
+        &mut io::stderr(),
+        locale,
+    )
+}
+
+fn confirm(
+    consent: &Consent,
+    hooks: Hooks,
+    interactive: bool,
+    input: &mut impl BufRead,
+    out: &mut impl Write,
+    locale: &str,
+) -> Result<Confirmed, String> {
+    let hooks = match consent.check(hooks) {
+        Ok(confirmed) => return Ok(confirmed),
+        Err(hooks) => hooks,
+    };
+    let io_error = |error: io::Error| error.to_string();
+    for line in hooks.listing() {
+        let indent = match &*line.id {
+            "hooks.confirm.header" => "",
+            "hooks.confirm.rule" => "  ",
+            _ => "     ",
+        };
+        writeln!(out, "{indent}{}", line.resolve(locale)).map_err(io_error)?;
+    }
+    if !interactive {
+        return Err(hooks::not_confirmed(&hooks).resolve(locale));
+    }
+    let answer = hooks::confirm_answer().resolve(locale);
+    write!(out, "{} ", hooks::confirm_question(&answer).resolve(locale)).map_err(io_error)?;
+    out.flush().map_err(io_error)?;
+    let mut typed = String::new();
+    input.read_line(&mut typed).map_err(io_error)?;
+    if typed.trim().to_lowercase() != answer.to_lowercase() {
+        return Err(hooks::declined().resolve(locale));
+    }
+    consent
+        .confirm(hooks)
+        .map_err(|error| error.resolve(locale))
 }
 
 /// One line per event, flushed after each.
@@ -168,5 +274,72 @@ mod tests {
             text.ends_with("  Work (Claude): Semanal: 90% used\n"),
             "{text:?}"
         );
+    }
+
+    fn rules(dir: &Path, command: &str) -> Hooks {
+        Hooks::from_toml(
+            dir.join("hooks.toml"),
+            &format!(
+                "[[hooks]]\nname = \"say\"\nevents = [\"quota_exhausted\"]\ncommand = {command}\n"
+            ),
+        )
+        .unwrap()
+    }
+
+    /// PRD 0013 RF3.2: unconfirmed rules are listed with their exact
+    /// commands; only the typed answer confirms them (and nothing is asked
+    /// again until they change), any other answer or no terminal refuses.
+    #[test]
+    fn hooks_run_only_after_the_typed_confirmation() {
+        let dir = std::env::temp_dir().join(format!("cuotai-tui-hooks-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let consent = Consent::at(dir.join("consent.json"));
+        let original = r#"["/usr/bin/say", "a; b"]"#;
+        let ask = |interactive, typed: &str, command| {
+            let mut out = Vec::new();
+            let result = confirm(
+                &consent,
+                rules(&dir, command),
+                interactive,
+                &mut typed.as_bytes(),
+                &mut out,
+                "en-US",
+            );
+            (result.map(|_| ()), String::from_utf8(out).unwrap())
+        };
+
+        let (result, out) = ask(false, "yes\n", original);
+        let error = result.unwrap_err();
+        assert!(error.contains("not confirmed yet"), "{error}");
+        assert!(
+            out.contains(r#"     command: ["/usr/bin/say","a; b"]"#),
+            "{out}"
+        );
+        assert!(
+            !out.contains("type"),
+            "no question without a terminal: {out}"
+        );
+
+        for typed in ["", "no\n", "y\n", "yes please\n"] {
+            let (result, out) = ask(true, typed, original);
+            assert_eq!(result.unwrap_err(), "Hooks not confirmed; nothing was run.");
+            assert!(out.ends_with("(any other answer declines): "), "{out}");
+        }
+        assert!(consent.check(rules(&dir, original)).is_err());
+
+        let (result, _) = ask(true, " YES \n", original);
+        assert!(result.is_ok());
+        let (result, out) = ask(false, "", original);
+        assert!(result.is_ok());
+        assert_eq!(out, "", "confirmed rules are not listed again");
+
+        let changed = r#"["/usr/bin/say", "a; c"]"#;
+        let (result, out) = ask(false, "", changed);
+        assert!(
+            result.is_err(),
+            "a changed command needs a new confirmation"
+        );
+        assert!(out.contains("a; c"), "{out}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
