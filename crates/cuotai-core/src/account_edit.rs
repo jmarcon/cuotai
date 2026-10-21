@@ -4319,7 +4319,10 @@ mod tests {
                 );
                 account
             }
-            other => panic!("expected CredentialKept(SharedWith), got {other:?}"),
+            other => panic!(
+                "expected CredentialKept(SharedWith), got {}",
+                outcome_variant(&other)
+            ),
         };
         assert!(
             store.entries.lock().contains_key(&key),
