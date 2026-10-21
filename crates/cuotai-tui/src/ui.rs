@@ -126,7 +126,9 @@ impl AccountRefresh {
     }
     fn remove(&mut self, index: usize) {
         if index < self.jobs.len() {
-            self.jobs.remove(index);
+            let last = self.jobs.len() - 1;
+            self.jobs[index..].rotate_left(1);
+            self.jobs.truncate(last);
             self.tokens.remove(index);
         }
     }
@@ -2610,6 +2612,57 @@ mod tests {
                 assert_eq!(got_tokens, expected_tokens, "tokens from {from} to {to}");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn remove_drops_only_the_indexed_job_and_keeps_order() {
+        let n = 4;
+        for index in 0..n {
+            let mut table = AccountRefresh::new(n);
+            let mut ids = Vec::new();
+            let mut watchers = Vec::new();
+            for slot in 0..n {
+                let handle = tokio::spawn(std::future::pending::<cuotai_core::Report>());
+                ids.push(handle.id());
+                watchers.push(handle.abort_handle());
+                table.install(slot, handle, cuotai_core::refresh::Generation(slot as u64));
+            }
+            let expected_ids: Vec<_> = ids
+                .iter()
+                .enumerate()
+                .filter(|(slot, _)| *slot != index)
+                .map(|(_, id)| *id)
+                .collect();
+
+            table.remove(index);
+            tokio::task::yield_now().await;
+
+            let got_ids: Vec<_> = table
+                .jobs
+                .iter()
+                .map(|job| job.as_ref().expect("job kept").id())
+                .collect();
+            assert_eq!(got_ids, expected_ids, "jobs after removing {index}");
+            let got_generations: Vec<u64> = table
+                .tokens
+                .iter()
+                .map(|slot| slot.expect("generation kept").0)
+                .collect();
+            let expected_generations: Vec<u64> =
+                (0..n as u64).filter(|slot| *slot != index as u64).collect();
+            assert_eq!(
+                got_generations, expected_generations,
+                "generations after removing {index}"
+            );
+            // Dropping the handle detaches the task; it is not aborted.
+            assert!(
+                !watchers[index].is_finished(),
+                "removed job {index} must not be aborted"
+            );
+        }
+        let mut table = AccountRefresh::new(2);
+        table.remove(2);
+        assert_eq!(table.len(), 2, "out-of-range index is ignored");
     }
 
     fn three_accounts() -> Vec<Account> {
