@@ -309,6 +309,37 @@ where
     plan
 }
 
+/// The quota resets two consecutive readings of one account reveal (PRD
+/// 0013 RF1): each metric of `next` eligible for a reset notice whatever
+/// its usage (a `Quota` in a known window, `other` included) whose window
+/// instance replaced the one `prev` reported under the same label: `prev`'s
+/// `resets_at` had come by `next.checked_at` (within [`DRIFT_TOLERANCE`])
+/// and `next`'s lies beyond it by more than the tolerance. A postponed
+/// reset, an unknown `resets_at`, a metric missing from either reading or
+/// readings of different accounts reveal nothing. In `next`'s metric order.
+pub fn passed(prev: &Report, next: &Report) -> Vec<ResetMetric> {
+    if prev.provider != next.provider || prev.account != next.account {
+        return Vec::new();
+    }
+    let prefs = Prefs {
+        when: NotifyWhen::Always,
+        include_other: true,
+        ..Prefs::default()
+    };
+    next.metrics
+        .iter()
+        .filter_map(|metric| {
+            let before = prev
+                .metrics
+                .iter()
+                .find(|before| before.label == metric.label)?
+                .resets_at
+                .filter(|before| *before <= next.checked_at + DRIFT_TOLERANCE)?;
+            eligible(metric, before + DRIFT_TOLERANCE, &prefs)
+        })
+        .collect()
+}
+
 /// Notices already sent, persisted between runs (`notified.json`): the
 /// notified resets and the usage alert state (PRD 0008 RF2.1), only digests
 /// of account key and metric label plus thresholds and dates, forgotten
@@ -779,5 +810,74 @@ mod tests {
         assert_eq!(kept, Ledger::default());
         std::fs::write(&path, "{not json").unwrap();
         assert_eq!(Ledger::load(&path), Ledger::default(), "unreadable file");
+    }
+
+    /// PRD 0013 RF1: a reset is a new window instance after the old one
+    /// came; drift, postponement, unknown times and other kinds are not.
+    #[test]
+    fn passed_resets_need_the_old_instance_to_come_and_a_new_one_beyond_drift() {
+        let reading = |at: DateTime<Utc>, metrics: Vec<Metric>| {
+            let (_, mut reports) = setup(vec![metrics]);
+            let mut report = reports.remove(0);
+            report.checked_at = at;
+            report
+        };
+        let old = now() + mins(1);
+        let labels = |prev: &Report, next: &Report| -> Vec<String> {
+            passed(prev, next).into_iter().map(|m| m.label).collect()
+        };
+        let prev = reading(now(), vec![quota("q", Some(90.0), Some(old))]);
+        let cases = [
+            (
+                "new instance",
+                now() + mins(5),
+                Some(old + TimeDelta::hours(5)),
+                true,
+            ),
+            (
+                "idle quota resets too",
+                now() + mins(5),
+                Some(old + TimeDelta::hours(5)),
+                true,
+            ),
+            ("drift only", now() + mins(5), Some(old + mins(2)), false),
+            (
+                "postponed before it came",
+                now() - mins(2),
+                Some(old + TimeDelta::hours(5)),
+                false,
+            ),
+            ("unknown new time", now() + mins(5), None, false),
+            (
+                "came within the drift tolerance",
+                old - mins(2),
+                Some(old + TimeDelta::hours(5)),
+                true,
+            ),
+        ];
+        for (case, at, resets_at, expected) in cases {
+            let used = if case.starts_with("idle") { 0.0 } else { 5.0 };
+            let next = reading(at, vec![quota("q", Some(used), resets_at)]);
+            assert_eq!(labels(&prev, &next) == ["q"], expected, "{case}");
+        }
+        let mut other_kind = quota("q", Some(5.0), Some(old + TimeDelta::hours(5)));
+        other_kind.kind = MetricKind::Credits;
+        let next = reading(now() + mins(5), vec![other_kind]);
+        assert!(labels(&prev, &next).is_empty(), "not a quota");
+        let mut other_account = reading(
+            now() + mins(5),
+            vec![quota("q", Some(5.0), Some(old + TimeDelta::hours(5)))],
+        );
+        other_account.account = "acc9".into();
+        assert!(labels(&prev, &other_account).is_empty(), "another account");
+        let unknown_before = reading(now(), vec![quota("q", Some(90.0), None)]);
+        let next = reading(
+            now() + mins(5),
+            vec![quota("q", Some(5.0), Some(old + TimeDelta::hours(5)))],
+        );
+        assert!(
+            labels(&unknown_before, &next).is_empty(),
+            "unknown old time"
+        );
     }
 }

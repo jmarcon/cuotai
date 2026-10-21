@@ -61,6 +61,10 @@ impl Data {
 /// Note id of [`QueryError::schema`]: the response did not match the
 /// interface the adapter knows (read by `access` for PRD 0005 RF4.2).
 pub(crate) const SCHEMA_NOTE: &str = "query.schema";
+/// Note id of [`QueryError::transport`]: the provider could not be reached.
+pub(crate) const TRANSPORT_NOTE: &str = "query.transport";
+/// Note id of [`QueryError::timeout`]: the query ran out of time.
+pub(crate) const TIMEOUT_NOTE: &str = "query.timeout";
 
 /// RF8 structured error: a [`Status`] plus a [`Localized`] note the
 /// frontend translates via the stable id. The Portuguese fallback is what
@@ -118,10 +122,14 @@ impl QueryError {
     pub fn transport() -> Self {
         Self {
             status: Status::Error,
-            note: Localized::fixed(
-                "query.transport",
-                "Falha de rede ou tempo limite na consulta.",
-            ),
+            note: Localized::fixed(TRANSPORT_NOTE, "Falha de rede ou tempo limite na consulta."),
+        }
+    }
+    /// The account deadline (or the HTTP client's) ran out before an answer.
+    pub fn timeout() -> Self {
+        Self {
+            status: Status::Error,
+            note: Localized::fixed(TIMEOUT_NOTE, "Tempo limite da consulta esgotado."),
         }
     }
     /// The request would carry credentials over plain HTTP to a non-loopback
@@ -145,10 +153,13 @@ pub(crate) async fn send(request: RequestBuilder) -> Result<reqwest::Response, Q
     if !crate::transport::is_secure(request.url()) {
         return Err(QueryError::insecure());
     }
-    client
-        .execute(request)
-        .await
-        .map_err(|_| QueryError::transport())
+    client.execute(request).await.map_err(|error| {
+        if error.is_timeout() {
+            QueryError::timeout()
+        } else {
+            QueryError::transport()
+        }
+    })
 }
 
 pub(crate) fn secret(

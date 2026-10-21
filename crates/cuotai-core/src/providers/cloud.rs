@@ -583,7 +583,8 @@ async fn run_aws(
     })?;
     let output = match tokio::time::timeout(ctx.timeout, child.wait_with_output()).await {
         Ok(Ok(output)) => output,
-        _ => return Err(QueryError::transport()),
+        Ok(Err(_)) => return Err(QueryError::transport()),
+        Err(_) => return Err(QueryError::timeout()),
     };
     if output.status.success() {
         return Ok(output.stdout);
