@@ -10,6 +10,7 @@ pub mod edit_error;
 pub mod events;
 pub mod export;
 pub mod freshness;
+pub mod headless;
 pub mod history;
 pub mod identity;
 pub mod incidents;
@@ -26,6 +27,7 @@ pub mod resets;
 pub mod serve;
 pub mod text;
 mod transport;
+pub mod watch;
 
 /// RF2 shared login driver, re-exported for convenience.
 pub use oauth::login;

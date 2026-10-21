@@ -13,7 +13,7 @@ path = "src/main.rs"
 cuotai-core = { path = "../cuotai-core", features = ["serve"] }
 chrono.workspace = true
 serde_json.workspace = true
-# `signal`: `--serve` shuts down on SIGINT/SIGTERM.
+# `signal`: `--serve` and `--watch` shut down on SIGINT/SIGTERM (and `--watch` on SIGHUP).
 tokio = { workspace = true, features = ["signal"] }
 clap = { version = "4", features = ["derive"] }
 ratatui = { version = "0.30", features = ["unstable-rendered-line-info"] }

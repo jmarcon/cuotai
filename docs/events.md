@@ -1,6 +1,22 @@
 # Events (`events`)
 
-`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. It is the base of `cuotai --watch` and of the hooks that later PRD 0013 requirements add; today it is a library API.
+`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. `cuotai --watch` streams them (PRD 0013 RF2); the hooks of later PRD 0013 requirements will build on them.
+
+## Watching from the command line (`cuotai --watch`)
+
+```sh
+cuotai --watch                                   # one readable line per transition on stdout
+cuotai --watch --jsonl | jq -c 'select(.event == "quota_exhausted")'
+cuotai --watch --jsonl --events quota_threshold_crossed,refresh_failed --interval 120
+cuotai --watch --jsonl --serve                   # the local server on the same refresh cycle
+```
+
+- **Refresh cycle.** `--watch` runs the same refresh cycle as the dashboard, without the TUI and without needing a terminal: a first query of every account at start, then each account at its own interval with the core's backoff. Watching adds no query: events come from comparing each new reading with the previous one. With `--serve` (PRD 0012) the local server reads the same cycle, so one query feeds both.
+- **`--interval S`** (60 to 86 400 seconds) replaces the global `refresh_seconds` for this run only (nothing is saved). An account with its own `refresh_seconds` keeps it, and AWS Bedrock, billed per query, is never queried more often than every 300 s. A smaller value is rejected with exit code `1`, never silently raised.
+- **`--events list`** keeps only the named events (comma-separated payload names; all of them by default). An unknown name is rejected with exit code `1` and the list of valid ones. Events left out still advance the engine, so selecting never changes which transitions are real.
+- **`--jsonl`** writes one payload (below) per line to stdout (NDJSON), flushed after each line; every human message and diagnostic goes to stderr, and with `--serve` the server's address goes to stderr too. Without `--jsonl` each transition is one readable line in local time and the `CUOTAI_LANG` language (the metric label is the provider's, as on the cards), such as `2026-10-20 14:02:11  Work (Claude): Sessão (5h): 90% used`.
+- **Baselines.** The first reading of each account is only its baseline: a run prints nothing until something changes. `provider_incident` needs `--status`.
+- **Shutdown and exit codes.** `SIGINT`, `SIGTERM` and `SIGHUP` (Ctrl+C and Ctrl+Break on Windows) stop it cleanly, and so does a closed stdout when the next event is written (the consumer of the stream went away). `0`: normal shutdown; `2`: some account's latest reading had failed at shutdown (or, with `--serve`, no account was ever healthy); `1`: local error (invalid arguments, interval, events or configuration).
 
 ## Producing events (Rust)
 
@@ -18,6 +34,8 @@ for (prev, next) in previous.accounts.iter().zip(&current.accounts) {
 ```
 
 `previous` and `current` are `export::v1::Export`s built with `Export::from_cycle` from the refresh cycle the front end already runs ([`export-v1.md`](export-v1.md)): judging them never queries a provider. `EventState::new(thresholds)` picks the crossing thresholds (10 to 99%, 75 and 90 by default). `EventState::retain_accounts(keys)` forgets removed accounts, whose next reading is then a new baseline.
+
+`watch::Watcher` does this bookkeeping for whole exports: `Watcher::new(state, selected).observe(&export, now)` keeps the previous export of each account, treats a new account as a baseline, forgets removed ones and keeps only the `selected` kinds (`watch::parse_events` reads the names). `headless::Driver` runs the refresh cycle without a screen and builds the exports `--watch` observes. `Event::summary()` is the readable line (`events.summary.*`, with the category's `events.category.*` text).
 
 ## Edge rules
 

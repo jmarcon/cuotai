@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-10-21
+
+### Added
+
+- `cuotai --watch` follows your accounts in the foreground without opening the TUI or needing a terminal and reports one event per real transition between consecutive readings (a quota crossed 75% or 90%, ran out, recovered or reset, an account was blocked or unblocked, a query failed with only its category or recovered, authentication is needed, the provider status changed with `--status`, usage changed at most every 10 minutes), never repeating a condition that persists and treating the first reading of each account as its baseline: `--jsonl` writes one NDJSON payload per line on stdout, flushed at once, with every message on stderr, otherwise each transition is one readable line in local time and `CUOTAI_LANG`; `--events a,b` keeps only those names, `--interval S` (60 to 86400 s, smaller values are rejected, never adjusted) replaces the global `refresh_seconds` for the run while accounts with their own interval keep it and AWS Bedrock never goes below 300 s; it adds no query, can share its refresh cycle with `--serve` in the same process (the server address then goes to stderr), stops cleanly on `SIGINT`, `SIGTERM` and `SIGHUP`, and exits with `0`, `2` when an account's latest reading had failed at shutdown, or `1` for a local error; `cuotai-core` adds `headless::Driver` (the screenless refresh loop `--serve` and `--watch` share), `watch::Watcher`, `watch::with_interval`, `watch::parse_events` and `Event::summary` (PRD 0013 RF2).
+
 ## [0.53.0] - 2026-10-21
 
 ### Added
 
-- `cuotai-core` exposes the `events` engine: `events::diff` compares two consecutive `export::v1` readings of an account and returns edge events with stable names (`quota_threshold_crossed`, `quota_exhausted`, `quota_recovered`, `quota_reset`, `account_blocked`, `account_unblocked`, `refresh_failed`, `refresh_recovered`, `auth_required`, `provider_incident`, `usage_updated`), reusing the usage alert, reset, binding metric and provider status rules without any extra query: the first reading only sets a baseline, a condition that persists never repeats, `usage_updated` fires at most once per 600 s per account, the state lives in memory only (a restart builds new baselines), and a payload carries the account, the metric, its current and previous values and, for a failure, only a category (`timeout`, `offline`, `auth_required`, `rate_limited`, `schema_changed`, `provider_error`), never credentials, URLs, notes or raw messages, as documented in `docs/events.md`; a query that runs out of time now reports "The query timed out." instead of the generic network failure (PRD 0013 RF1).
+- `cuotai-core` exposes the `events` engine: `events::diff` compares two consecutive `export::v1` readings of an account and returns edge events with stable names (`quota_threshold_crossed`, `quota_exhausted`, `quota_recovered`, `quota_reset`, `account_blocked`, `account_unblocked`, `refresh_failed`, `refresh_recovered`, `auth_required`, `provider_incident`, `usage_updated`), reusing the usage alert, reset, binding metric and provider status rules without any extra query: the first reading only sets a baseline, a condition that persists never repeats, `usage_updated` fires at most once per 600 s per account, the state lives in memory only (a restart builds new baselines), and a payload carries the account, the metric, its current and previous values and, for a failure, only a category (`timeout`, `offline`, `auth_required`, `rate_limited`, `schema_changed`, `provider_error`), never credentials, URLs, notes or raw messages, as documented in `docs/events.md`; a query that runs out of time now reports "The query timed out." instead of the generic network failure (PRD 0013 RF1, 28137a8).
 
 ## [0.52.0] - 2026-10-20
 
@@ -468,8 +474,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/4795a15...main
-[0.53.0]: https://github.com/jmarcon/cuotai/compare/4795a15...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/28137a8...main
+[0.54.0]: https://github.com/jmarcon/cuotai/compare/28137a8...main
+[0.53.0]: https://github.com/jmarcon/cuotai/commit/28137a8
 [0.52.0]: https://github.com/jmarcon/cuotai/commit/4795a15
 [0.51.0]: https://github.com/jmarcon/cuotai/commit/2d9cf48
 [0.50.0]: https://github.com/jmarcon/cuotai/commit/75f79e9
