@@ -594,7 +594,7 @@ fn render(existing: Option<&str>, drafts: &[RuleDraft]) -> Option<String> {
 
 /// Replace `path` with `bytes` through a temporary file in its directory
 /// (created private: 0600 on Unix).
-fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
+pub(crate) fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let dir = path
         .parent()
         .filter(|dir| !dir.as_os_str().is_empty())

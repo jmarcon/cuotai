@@ -6,6 +6,7 @@ pub mod access;
 pub mod account_edit;
 pub mod alerts;
 pub mod config_file;
+pub mod cost;
 pub mod edit_error;
 pub mod events;
 pub mod export;
