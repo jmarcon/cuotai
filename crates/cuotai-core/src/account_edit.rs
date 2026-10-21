@@ -2194,7 +2194,11 @@ impl Config {
             ));
         }
         let mut updated = self.clone();
-        updated.accounts.remove(index);
+        // Rotate the removed account to the end and drop it: equivalent to
+        // `Vec::remove` (the remaining accounts keep their order).
+        let last = updated.accounts.len() - 1;
+        updated.accounts[index..].rotate_left(1);
+        updated.accounts.truncate(last);
         Ok(updated)
     }
 }
@@ -2927,6 +2931,22 @@ mod tests {
         assert_eq!(after.accounts.len(), 2);
         assert_eq!(after.accounts[0].name, "OpenAI");
         assert_eq!(after.accounts[1].name, "Mistral");
+    }
+
+    #[test]
+    fn without_account_matches_vec_remove_for_every_index() {
+        let config = config_with(
+            ["a", "b", "c", "d", "e"]
+                .iter()
+                .map(|name| env_account(name, Provider::OpenAiApi, &format!("ENV_{name}")))
+                .collect(),
+        );
+        for index in 0..config.accounts.len() {
+            let mut expected = config.accounts.clone();
+            expected.remove(index);
+            let got = config.without_account(index).unwrap().accounts;
+            assert_eq!(got, expected, "index {index}");
+        }
     }
 
     #[test]
