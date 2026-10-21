@@ -276,8 +276,13 @@ impl Config {
             }
         }
         let mut updated = self.clone();
-        let account = updated.accounts.remove(from);
-        updated.accounts.insert(to, account);
+        // Rotate the affected span in place: equivalent to remove + insert,
+        // and a no-op when `from == to`.
+        if from < to {
+            updated.accounts[from..=to].rotate_left(1);
+        } else {
+            updated.accounts[to..=from].rotate_right(1);
+        }
         Ok(updated)
     }
 }
@@ -521,5 +526,38 @@ mod tests {
         assert_eq!(json["notes"], serde_json::json!(["Nota."]));
         let back: Report = serde_json::from_value(json).unwrap();
         assert!(back.notes_l10n.is_empty());
+    }
+
+    #[test]
+    fn move_account_matches_remove_then_insert_for_every_pair() {
+        let config = Config {
+            accounts: ["a", "b", "c", "d"]
+                .iter()
+                .map(|name| Account {
+                    name: (*name).to_string(),
+                    ..Account::default()
+                })
+                .collect(),
+            ..Config::default()
+        };
+        let n = config.accounts.len();
+        for from in 0..n {
+            for to in 0..n {
+                let mut expected: Vec<String> =
+                    config.accounts.iter().map(|a| a.name.clone()).collect();
+                let moved = expected.remove(from);
+                expected.insert(to, moved);
+                let got: Vec<String> = config
+                    .move_account(from, to)
+                    .unwrap()
+                    .accounts
+                    .iter()
+                    .map(|a| a.name.clone())
+                    .collect();
+                assert_eq!(got, expected, "from {from} to {to}");
+            }
+        }
+        assert!(config.move_account(n, 0).is_err());
+        assert!(config.move_account(0, n).is_err());
     }
 }
