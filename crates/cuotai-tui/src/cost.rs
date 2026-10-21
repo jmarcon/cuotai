@@ -573,7 +573,7 @@ mod tests {
         );
         assert_eq!(declined, Err(resolve(cost::declined())));
         let shown = String::from_utf8(out).unwrap();
-        let sessions = env.home().unwrap().join(".codex/sessions");
+        let sessions = env.home().unwrap().join(".codex").join("sessions");
         assert!(shown.contains(&sessions.display().to_string()), "{shown}");
         assert!(shown.contains("Only numbers are extracted"), "{shown}");
         assert!(!store.load().unwrap().enabled(SourceId::CodexCli, &env));
@@ -591,11 +591,12 @@ mod tests {
         assert_eq!(without_terminal, Err(resolve(cost::needs_terminal())));
         assert!(!store.load().unwrap().enabled(SourceId::CodexCli, &env));
 
+        let custom = dir.join("codex-logs");
         let mut out = Vec::new();
         enable(
             &store,
             SourceId::CodexCli,
-            vec![PathBuf::from("/srv/codex-logs")],
+            vec![custom.clone()],
             &env,
             true,
             &mut "yes\n".as_bytes(),
@@ -605,12 +606,12 @@ mod tests {
         .unwrap();
         let saved = store.load().unwrap();
         assert!(saved.enabled(SourceId::CodexCli, &env));
-        assert_eq!(
-            saved.roots(SourceId::CodexCli, &env),
-            [PathBuf::from("/srv/codex-logs")]
-        );
+        let roots = saved.roots(SourceId::CodexCli, &env);
+        assert_eq!(roots.as_slice(), std::slice::from_ref(&custom));
         assert!(!saved.enabled(SourceId::ClaudeCode, &env));
-        assert!(String::from_utf8(out).unwrap().contains("/srv/codex-logs"));
+        assert!(String::from_utf8(out)
+            .unwrap()
+            .contains(custom.to_string_lossy().as_ref()));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

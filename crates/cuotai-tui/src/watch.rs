@@ -295,7 +295,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("cuotai-tui-hooks-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let consent = Consent::at(dir.join("consent.json"));
-        let original = r#"["/usr/bin/say", "a; b"]"#;
+        let original = r#"["say", "a; b"]"#;
         let ask = |interactive, typed: &str, command| {
             let mut out = Vec::new();
             let result = confirm(
@@ -312,10 +312,7 @@ mod tests {
         let (result, out) = ask(false, "yes\n", original);
         let error = result.unwrap_err();
         assert!(error.contains("not confirmed yet"), "{error}");
-        assert!(
-            out.contains(r#"     command: ["/usr/bin/say","a; b"]"#),
-            "{out}"
-        );
+        assert!(out.contains(r#"     command: ["say","a; b"]"#), "{out}");
         assert!(
             !out.contains("type"),
             "no question without a terminal: {out}"
@@ -334,7 +331,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(out, "", "confirmed rules are not listed again");
 
-        let changed = r#"["/usr/bin/say", "a; c"]"#;
+        let changed = r#"["say", "a; c"]"#;
         let (result, out) = ask(false, "", changed);
         assert!(
             result.is_err(),
