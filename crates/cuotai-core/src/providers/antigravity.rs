@@ -1988,7 +1988,7 @@ mod tests {
         let err = fetch_antigravity_at(
             &account(),
             &ctx,
-            "http://unused/load",
+            "https://unused.invalid/load",
             "http://unused/models",
             "http://unused/summary",
         )
