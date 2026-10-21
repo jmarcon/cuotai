@@ -519,8 +519,16 @@ mod tests {
                 for candidate in crate::user_session::migration_candidates(&legacy) {
                     ids.push(candidate.consent.id.to_string());
                 }
+                let notice = crate::user_session::notice(&legacy).expect("env session");
+                ids.push(notice.level.id.to_string());
+                ids.push(notice.warning.id.to_string());
+            }
+            if let Some(notice) = crate::user_session::paste_notice(provider) {
+                ids.push(notice.warning.id.to_string());
             }
             ids.push(crate::user_session::migrated_notice().id.to_string());
+            ids.push(crate::user_session::forgotten_notice().id.to_string());
+            ids.push("user_session.forget.nothing".to_string());
             for d in edit::field_descriptors(provider) {
                 ids.push(edit::field_label_id(provider, d.key));
                 ids.push(edit::field_help_id(provider, d.key));

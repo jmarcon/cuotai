@@ -832,6 +832,10 @@ fn render_card(
     let explanation = report
         .and_then(|report| access.explain(report))
         .map(|note| resolve_l10n(&note));
+    // PRD 0016 RF4.1: an account whose query uses a web session names the
+    // `UserSession` level on the border and the core's warning in the
+    // card's free rows (in full in the details).
+    let session_notice = cuotai_core::user_session::notice(account);
     let first_note = if rows.is_empty() {
         explanation
             .clone()
@@ -892,6 +896,7 @@ fn render_card(
         .title(title)
         .title_bottom(access_title(
             &access,
+            session_notice.as_ref().map(|notice| &notice.level),
             area.width.saturating_sub(expiry_width),
         ));
     if let Some(expiry) = expiry {
@@ -1023,6 +1028,37 @@ fn render_card(
             hint_chunks[0],
         );
     }
+    if let (Some(notice), Some(free)) = (&session_notice, chunks.last()) {
+        let lines = clipped_lines(
+            &resolve_l10n(&notice.warning),
+            usize::from(free.width),
+            usize::from(free.height),
+        );
+        let lines: Vec<Line> = lines
+            .into_iter()
+            .map(|line| Line::styled(line, Style::default().fg(MUTED)))
+            .collect();
+        frame.render_widget(Paragraph::new(lines), *free);
+    }
+}
+
+/// `text` wrapped to `width` in at most `rows` lines, the last one ending in
+/// "…" when the text did not fit.
+fn clipped_lines(text: &str, width: usize, rows: usize) -> Vec<String> {
+    if rows == 0 || width == 0 {
+        return Vec::new();
+    }
+    let mut lines = textwrap_simple(&safe(text), width);
+    if lines.len() > rows {
+        lines.truncate(rows);
+        let last = &mut lines[rows - 1];
+        let room = width.saturating_sub(1);
+        if last.chars().count() > room {
+            *last = last.chars().take(room).collect();
+        }
+        last.push('…');
+    }
+    lines
 }
 
 fn class_color(class: AccountClass) -> Color {
@@ -1034,13 +1070,17 @@ fn class_color(class: AccountClass) -> Color {
 }
 
 /// PRD 0005 RF4.1: the core's level and summary on the card's bottom border,
-/// muted and cut to the card so it never competes with the quota.
-fn access_title(access: &UsageAccess, width: u16) -> Line<'static> {
-    let text = format!(
-        "{} · {}",
-        resolve_l10n(&access.level.label()),
-        resolve_l10n(&access.summary)
-    );
+/// muted and cut to the card so it never competes with the quota. PRD 0016
+/// RF4.1: a web session's `UserSession` level comes before the summary.
+fn access_title(
+    access: &UsageAccess,
+    session: Option<&cuotai_core::text::Localized>,
+    width: u16,
+) -> Line<'static> {
+    let mut text = resolve_l10n(&access.level.label());
+    for part in session.into_iter().chain([&access.summary]) {
+        text = format!("{text} · {}", resolve_l10n(part));
+    }
     let room = usize::from(width.saturating_sub(4));
     let text = if text.chars().count() > room {
         let cut: String = text.chars().take(room.saturating_sub(1)).collect();
@@ -1561,6 +1601,23 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(MUTED),
         ),
     ]));
+    // PRD 0016 RF4.1: the web session's level and warning, in full.
+    if let Some(notice) = cuotai_core::user_session::notice(account) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "  SESSÃO  ",
+                Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                resolve_l10n(&notice.level),
+                Style::default().fg(FG).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(" · {}", safe(&resolve_l10n(&notice.warning))),
+                Style::default().fg(YELLOW),
+            ),
+        ]));
+    }
     if let Some(status) = incident_of(view, account.provider) {
         lines.extend(incident_lines(status, now));
     }

@@ -118,7 +118,20 @@ async fn migrate_session(
     b: Shared<'_>,
     index: usize,
 ) -> Result<AccountForm, String> {
-    b.migrate_session(&app, index).await
+    b.change_session(&app, index, backend::SessionChange::Migrate)
+        .await
+}
+
+/// PRD 0016 RF4.2: forget the account's web session (its vault entries are
+/// deleted), called only after the dialog's explicit confirmation.
+#[tauri::command]
+async fn forget_session(
+    app: AppHandle,
+    b: Shared<'_>,
+    index: usize,
+) -> Result<AccountForm, String> {
+    b.change_session(&app, index, backend::SessionChange::Forget)
+        .await
 }
 
 /// PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), before it is
@@ -933,6 +946,7 @@ pub fn run() {
             draft_access,
             get_account,
             migrate_session,
+            forget_session,
             preview_session,
             test_session,
             save_account,

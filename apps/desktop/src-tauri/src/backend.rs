@@ -473,13 +473,15 @@ pub struct NextNoticeView {
 /// The core's descriptor (`access::describe`, flattened: `level` slug,
 /// `summary`, `reason`, `evidence`…) plus the level's text and, for a
 /// failure the descriptor explains, what replaces the generic one
-/// (`UsageAccess::explain`).
+/// (`UsageAccess::explain`). PRD 0016 RF4.1: `session` is the `UserSession`
+/// level and risk warning of an account whose query uses a web session.
 #[derive(Serialize, Clone)]
 pub struct ReportAccess {
     #[serde(flatten)]
     descriptor: cuotai_core::access::UsageAccess,
     label: cuotai_core::text::Localized,
     explanation: Option<cuotai_core::text::Localized>,
+    session: Option<user_session::SessionNotice>,
 }
 
 fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAccess {
@@ -487,6 +489,7 @@ fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAcces
     ReportAccess {
         label: descriptor.level.label(),
         explanation: descriptor.explain(report),
+        session: user_session::notice(account),
         descriptor,
     }
 }
@@ -2457,16 +2460,18 @@ impl Backend {
         Ok(SessionTestView::from_report(&report))
     }
 
-    /// PRD 0016 RF1.2: after the dialog's explicit confirmation, move the
-    /// saved account's `session_env`-style variables into the system vault.
-    /// Returns the account's refreshed form.
-    pub async fn migrate_session(
+    /// PRD 0016 RF1.2/RF4.2: after the dialog's explicit confirmation, move
+    /// the saved account's `session_env`-style variables into the system
+    /// vault, or forget its vault session. Returns the account's refreshed
+    /// form.
+    pub async fn change_session(
         &self,
         app: &AppHandle,
         index: usize,
+        change: SessionChange,
     ) -> Result<AccountForm, String> {
         self.ensure_loaded().await;
-        let refresh_target = self.drive_migrate_session(index).await?;
+        let refresh_target = self.drive_session_change(index, change).await?;
         self.emit(app).await;
         if let Some(target) = refresh_target {
             self.refresh_account(app, target).await?;
@@ -2474,12 +2479,14 @@ impl Backend {
         self.get_account(index).await
     }
 
-    /// Testable half of [`Backend::migrate_session`]: the core writes the
+    /// Testable half of [`Backend::change_session`]: the core changes the
     /// vault, the runtime is staged, then the TOML is saved; any failure
-    /// after the vault write removes the new entries again.
-    pub(crate) async fn drive_migrate_session(
+    /// after the vault change undoes it (new entries removed, forgotten
+    /// ones back).
+    pub(crate) async fn drive_session_change(
         &self,
         index: usize,
+        change: SessionChange,
     ) -> Result<Option<usize>, String> {
         let mut g = self.inner.lock().await;
         let Inner {
@@ -2492,9 +2499,13 @@ impl Backend {
         let session = session.clone().ok_or("Sessão OAuth não inicializada.")?;
         let l = loaded.as_mut().ok_or("Configuração não carregada.")?;
         let prev = l.file.config.clone();
-        let staged = user_session::stage_migration(&session, &EnvironmentCredentials, &prev, index)
-            .await
-            .map_err(|note| l10n_to_json(&note))?;
+        let staged = match change {
+            SessionChange::Migrate => {
+                user_session::stage_migration(&session, &EnvironmentCredentials, &prev, index).await
+            }
+            SessionChange::Forget => user_session::stage_forget(&session, &prev, index).await,
+        }
+        .map_err(|note| l10n_to_json(&note))?;
         let updated = staged.config().clone();
         let mut staged_cycle = l.cycle.clone_state_for_edit();
         let runtime = staged_cycle
@@ -2984,6 +2995,15 @@ pub struct AccountForm {
     session_migration: Vec<user_session::MigrationCandidate>,
 }
 
+/// PRD 0016: what a confirmed "Web session" button changes in the vault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionChange {
+    /// RF1.2: move the `session_env`-style variables into the vault.
+    Migrate,
+    /// RF4.2: forget the session, deleting its vault entries.
+    Forget,
+}
+
 #[derive(Serialize)]
 pub struct ProviderInfo {
     id: Provider,
@@ -3273,6 +3293,9 @@ pub struct FormSchema {
     login: ProviderLoginSchema,
     /// PRD 0016 RF2.1: the sessions the provider accepts (empty for most).
     sessions: Vec<SessionSlotSchema>,
+    /// PRD 0016 RF4.1: the `UserSession` level and risk warning of the
+    /// paste box; `None` without sessions.
+    session_notice: Option<user_session::SessionNotice>,
 }
 
 fn login_option_schema(
@@ -3334,6 +3357,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                 hosts: descriptor.hosts,
             })
             .collect(),
+        session_notice: user_session::paste_notice(provider),
         login: ProviderLoginSchema {
             modes: login
                 .modes
@@ -4537,7 +4561,11 @@ mod tests {
         let before = backend.inner.get_account(0).await.unwrap();
         assert_eq!(before.session_migration.len(), 1);
 
-        backend.inner.drive_migrate_session(0).await.unwrap();
+        backend
+            .inner
+            .drive_session_change(0, SessionChange::Migrate)
+            .await
+            .unwrap();
         std::env::remove_var(env);
 
         let values: Vec<_> = store
@@ -4575,7 +4603,11 @@ mod tests {
         );
         std::fs::write(&path, external).unwrap();
 
-        let error = backend.inner.drive_migrate_session(0).await.unwrap_err();
+        let error = backend
+            .inner
+            .drive_session_change(0, SessionChange::Migrate)
+            .await
+            .unwrap_err();
         std::env::remove_var(env);
 
         assert!(error.contains("edit_error.conflict"), "{error}");
@@ -4688,6 +4720,44 @@ mod tests {
         assert!(error.contains("edit_error.conflict"), "{error}");
         assert!(store.entries.lock().is_empty());
         assert!(backend.loaded_config().await.accounts[0].session.is_none());
+    }
+
+    // PRD 0016 RF4.2: "Forget this session" deletes the account's vault entry
+    // and its reference; a save refused afterwards puts the session back.
+    #[tokio::test(flavor = "current_thread")]
+    async fn forget_session_deletes_the_vault_entry_or_restores_it_when_the_save_fails() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![session_env_account("MIMO_COOKIE")]).await;
+        let paste = "api-platform_serviceToken=DESKTOP-SECRET; userId=1";
+        backend
+            .inner
+            .drive_save_account(pasted_input(paste))
+            .await
+            .unwrap();
+
+        let path = backend.file_path().await;
+        let saved = std::fs::read_to_string(&path).unwrap();
+        std::fs::write(&path, format!("{saved}\n# edited elsewhere\n")).unwrap();
+        let error = backend
+            .inner
+            .drive_session_change(0, SessionChange::Forget)
+            .await
+            .unwrap_err();
+        assert!(error.contains("edit_error.conflict"), "{error}");
+        assert_eq!(store.entries.lock().len(), 1);
+        assert!(backend.loaded_config().await.accounts[0].session.is_some());
+
+        std::fs::write(&path, saved).unwrap();
+        backend
+            .inner
+            .drive_session_change(0, SessionChange::Forget)
+            .await
+            .unwrap();
+        assert!(store.entries.lock().is_empty());
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("credential_ref"), "{text}");
+        let after = backend.inner.get_account(0).await.unwrap();
+        assert!(after.session_slots.is_empty());
     }
 
     // RF1.2: desktop precedence env > chosen > OS, never `./cuotai.toml`;
