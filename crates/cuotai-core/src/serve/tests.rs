@@ -826,6 +826,126 @@ async fn shutdown_closes_the_port() {
     assert!(TcpStream::connect(addr).await.is_err(), "nothing listens");
 }
 
+/// `LocalServer::reconfigure` is the seam that fixes the macOS CI race:
+/// Settings → Integration's `allow_browsers` flip on the same port must not
+/// close and reopen the listener. The new policy must be observable on the
+/// very next request after `reconfigure` returns.
+#[tokio::test]
+async fn reconfigure_keeps_the_listener_and_swaps_policy_in_place() {
+    let server = start(ServeConfig::default(), fixture_source()).await;
+    let addr = server.addr();
+    // Without `allow_browsers`, a browser-origin request is refused: this
+    // proves the running policy is the initial one.
+    let refused = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap()
+        .request(Method::GET, format!("{}{}", server.url(), "/health"))
+        .header("origin", "https://example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(refused.status(), StatusCode::FORBIDDEN);
+
+    // Hot swap to allow browsers on the same listener. We pass `port: 0`
+    // (matches the requested port on the running server) and the same
+    // bind and `port_fallback` to keep the binding identity.
+    let result = server
+        .reconfigure(
+            ServeConfig {
+                port: 0,
+                allow_browsers: true,
+                ..ServeConfig::default()
+            },
+            fixture_source(),
+        )
+        .await
+        .expect("same-binding reconfigure is live");
+    assert!(matches!(result, Reconfigure::Replaced));
+
+    // The bound address is identical, so the listener fd was never dropped.
+    assert_eq!(server.addr(), addr);
+
+    // The next request observes the swapped policy: browser-origin succeeds.
+    let page = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap()
+        .request(Method::GET, format!("{}{}", server.url(), "/health"))
+        .header("origin", "https://example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    assert_eq!(page.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+}
+
+/// A change in binding identity must NOT be applied in place: the listener is
+/// still serving the old binding and the caller is told it must start a new
+/// `LocalServer` rather than accepting a wrong-port snapshot.
+#[tokio::test]
+async fn reconfigure_refuses_a_binding_change_and_does_not_swap() {
+    let server = start(ServeConfig::default(), fixture_source()).await;
+    let addr_before = server.addr();
+    let result = server
+        .reconfigure(
+            ServeConfig {
+                port: 1,
+                ..ServeConfig::default()
+            },
+            fixture_source(),
+        )
+        .await
+        .expect("identity check is a config validation, not a bind");
+    assert_eq!(
+        result,
+        Reconfigure::RestartRequired,
+        "bind change must refuse"
+    );
+    assert_eq!(server.addr(), addr_before, "listener identity unchanged");
+}
+
+/// `max_connections` and `request_timeout` are accept-loop tunables that
+/// own live resources (a semaphore and the connection drain timeout);
+/// changing either without recreating the loop would silently keep the old
+/// values. Force a restart instead.
+#[tokio::test]
+async fn reconfigure_refuses_max_connections_or_request_timeout_change() {
+    let server = start(ServeConfig::default(), fixture_source()).await;
+    let addr_before = server.addr();
+    let result = server
+        .reconfigure(
+            ServeConfig {
+                bounds: Bounds {
+                    max_connections: 4,
+                    ..Bounds::default()
+                },
+                ..ServeConfig::default()
+            },
+            fixture_source(),
+        )
+        .await
+        .expect("max_connections check is config-only");
+    assert_eq!(result, Reconfigure::RestartRequired);
+    assert_eq!(server.addr(), addr_before);
+
+    let result = server
+        .reconfigure(
+            ServeConfig {
+                bounds: Bounds {
+                    request_timeout: Duration::from_secs(2),
+                    ..Bounds::default()
+                },
+                ..ServeConfig::default()
+            },
+            fixture_source(),
+        )
+        .await
+        .expect("request_timeout check is config-only");
+    assert_eq!(result, Reconfigure::RestartRequired);
+    assert_eq!(server.addr(), addr_before);
+}
+
 #[test]
 fn generated_tokens_are_random_parseable_and_never_printed() {
     let token = Token::generate().unwrap();

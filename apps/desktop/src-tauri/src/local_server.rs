@@ -132,6 +132,11 @@ pub struct Integration {
     server: Option<LocalServer>,
     error: Option<ServeError>,
     cuotai_on_port: bool,
+    /// Cold-restart counter. Increments exactly once per successful
+    /// `LocalServer::start`; lets regression tests pin the structural
+    /// invariant that a same-port hot swap does not bind a new socket.
+    #[cfg(test)]
+    listener_starts: usize,
 }
 
 impl Default for Integration {
@@ -149,6 +154,8 @@ impl Integration {
             server: None,
             error: None,
             cuotai_on_port: false,
+            #[cfg(test)]
+            listener_starts: 0,
         }
     }
 
@@ -170,20 +177,102 @@ impl Integration {
         )
     }
 
-    /// Stop the server (the port is closed when this returns) and, when
-    /// `prefs` turn it on, start it again with them, reading `feed`.
+    /// Cold starts since construction (test-only). Equals one after the
+    /// first successful `apply`, unchanged across same-port policy/source
+    /// swaps, and grows by one per binding-identity restart.
+    #[cfg(test)]
+    pub(crate) fn cold_starts(&self) -> usize {
+        self.listener_starts
+    }
+
+    /// Apply `prefs`. The token is resolved exactly once (via the vault)
+    /// before any server path runs; a missing / vault error turns the
+    /// server off and surfaces the error to the UI rather than falling
+    /// back silently. When the server is already running and the change is
+    /// policy-only (`allow_browsers`, token, access_log, request-only
+    /// caps), the snapshot is hot-swapped on the same listener — there is
+    /// no close/rebind and `listener_starts` does not change. Binding
+    /// identity, `max_connections`, or `request_timeout` changes fall back
+    /// to the cold path, which closes the existing server and binds a new
+    /// one (the desktop forbids moving to another port by setting
+    /// `port_fallback = false`).
     pub async fn apply(&mut self, prefs: ServePrefs, feed: &FeedSlot) {
-        if let Some(server) = self.server.take() {
-            server.shutdown().await;
+        // Disabled: close if running, drop the error, do not start.
+        if !prefs.enabled {
+            if let Some(server) = self.server.take() {
+                server.shutdown().await;
+            }
+            self.prefs = prefs;
+            self.error = None;
+            self.cuotai_on_port = false;
+            return;
         }
+
+        // Resolve the token once for this `apply`. The resulting
+        // `ServeConfig` is used by both the hot-swap and cold paths so the
+        // vault is touched at most one time per call.
+        let new_config = match Self::config_for(&prefs, &self.vault).await {
+            Ok(config) => config,
+            Err(error) => {
+                if let Some(server) = self.server.take() {
+                    server.shutdown().await;
+                }
+                self.prefs = prefs;
+                self.error = Some(error);
+                self.cuotai_on_port = false;
+                return;
+            }
+        };
+
+        // Hot swap on the live listener.
+        if let Some(server) = self.server.as_ref() {
+            let source = feed.clone();
+            match server
+                .reconfigure(new_config.clone(), move || source.export())
+                .await
+            {
+                Ok(serve::Reconfigure::Replaced) => {
+                    self.prefs = prefs;
+                    self.error = None;
+                    self.cuotai_on_port = false;
+                    return;
+                }
+                Ok(serve::Reconfigure::RestartRequired) => {
+                    // Bind identity / max_connections / request_timeout
+                    // changed: drop into the cold path. Close first so a
+                    // half-reconfigured server cannot serve old policy if
+                    // the bind fails.
+                    if let Some(server) = self.server.take() {
+                        server.shutdown().await;
+                    }
+                }
+                Err(error) => {
+                    if let Some(server) = self.server.take() {
+                        server.shutdown().await;
+                    }
+                    self.prefs = prefs;
+                    self.error = Some(error);
+                    self.cuotai_on_port = false;
+                    return;
+                }
+            }
+        }
+
+        // Cold path: listener is off, or we just closed a server whose bind
+        // identity changed.
         self.prefs = prefs;
         self.error = None;
         self.cuotai_on_port = false;
-        if !prefs.enabled {
-            return;
-        }
-        match self.start(feed.clone()).await {
-            Ok(server) => self.server = Some(server),
+        let feed_for_source = feed.clone();
+        let config_for_start = new_config;
+        match LocalServer::start(config_for_start, move || feed_for_source.export()).await {
+            Ok(server) => {
+                self.server = Some(server);
+                #[cfg(test)]
+                {
+                    self.listener_starts += 1;
+                }
+            }
             Err(error) => {
                 self.cuotai_on_port = matches!(error, ServeError::PortInUse { .. })
                     && serve::is_cuotai_server(prefs.port).await;
@@ -192,22 +281,31 @@ impl Integration {
         }
     }
 
-    /// A required token that is not in the vault keeps the server off: it
-    /// never falls back to serving without one.
-    async fn start(&self, feed: FeedSlot) -> Result<LocalServer, ServeError> {
-        let token = if self.prefs.token {
-            Some(self.stored_token().await?)
+    /// Build the [`ServeConfig`] for `prefs`, fetching the token from the
+    /// vault when one is required. A required token that is missing or
+    /// rejected by the vault is a `ServeError` — the server must not fall
+    /// back to serving without one. The vault call goes through
+    /// `spawn_blocking` because the OS IPC may block the runtime thread.
+    async fn config_for(
+        prefs: &ServePrefs,
+        vault: &Arc<dyn TokenVault>,
+    ) -> Result<ServeConfig, ServeError> {
+        let token = if prefs.token {
+            let vault = Arc::clone(vault);
+            let raw = blocking(move || vault.load())
+                .await?
+                .ok_or(ServeError::TokenMissing)?;
+            Some(raw)
         } else {
             None
         };
-        let config = ServeConfig {
-            port: self.prefs.port,
+        Ok(ServeConfig {
+            port: prefs.port,
             port_fallback: false,
             token,
-            allow_browsers: self.prefs.allow_browsers,
+            allow_browsers: prefs.allow_browsers,
             ..ServeConfig::default()
-        };
-        LocalServer::start(config, move || feed.export()).await
+        })
     }
 
     /// Generate a token and store it in the vault, replacing the previous
@@ -303,9 +401,16 @@ mod tests {
 
     /// The app's cycle after one answered query of its only account.
     fn feed() -> Feed {
+        feed_named("Personal Max")
+    }
+
+    /// A test source with a single account of `name`. Distinct names let
+    /// the regression test prove the running `Source` was actually swapped
+    /// during an in-place reconfigure.
+    fn feed_named(name: &str) -> Feed {
         let config = Config {
             accounts: vec![Account {
-                name: "Personal Max".into(),
+                name: name.into(),
                 provider: Provider::Claude,
                 ..Account::default()
             }],
@@ -314,7 +419,7 @@ mod tests {
         let mut cycle = RefreshCycle::new(&config, Instant::now());
         let token = cycle.begin(0).unwrap();
         let report = Report {
-            account: "Personal Max".into(),
+            account: name.into(),
             provider: Provider::Claude,
             checked_at: Utc::now(),
             status: Status::Ready,
@@ -543,6 +648,153 @@ mod tests {
         drop(other);
         integration.apply(on(port), &slot).await;
         assert_eq!(integration.view().state, "on");
+        integration.apply(ServePrefs::default(), &slot).await;
+    }
+
+    /// `Integration::apply` is the lifecycle boundary Settings → Integration
+    /// uses when the user flips `allow_browsers` or `token` on the same
+    /// port. The contract is that the listener is **kept open** for in-place
+    /// swaps (only policy and `Source` change); the macOS CI hit `ECONNREFUSED`
+    /// when the implementation closed and rebound the socket every time, so
+    /// this test pins two things at once:
+    ///
+    /// - `Integration::cold_starts()` stays `1` across same-port policy and
+    ///   `Source` swaps (the structural invariant — no new bind was opened).
+    /// - The next live request after each `apply` reflects the new policy
+    ///   (CORS on / off, browser-origin allow / reject) and the new `Source`
+    ///   (the JSON the server returns contains the new account name, not
+    ///   the old one).
+    ///
+    /// A binding-identity change increments the counter to `2`, proving the
+    /// cold path runs exactly when reconfigure says it must.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn apply_hot_swaps_same_port_policy_and_source_and_cold_restarts_only_on_bind_change() {
+        let port = free_port();
+        let slot = FeedSlot::default();
+        let mut integration =
+            Integration::new(on(port), Arc::new(MemoryVault::default()));
+        slot.publish(Some(feed_named("Personal Max")));
+
+        // First cold start: account "Personal Max".
+        integration.apply(on(port), &slot).await;
+        assert_eq!(integration.view().state, "on");
+        assert_eq!(integration.cold_starts(), 1, "first apply binds once");
+        let (_, body) = get(port, "/v1/snapshot", &[]).await.unwrap();
+        assert!(body.contains("Personal Max"), "{body}");
+
+        // Same-port CORS on: hot swap. Counter stays at 1.
+        integration
+            .apply(
+                ServePrefs {
+                    allow_browsers: true,
+                    ..on(port)
+                },
+                &slot,
+            )
+            .await;
+        assert_eq!(
+            integration.cold_starts(),
+            1,
+            "CORS flip must not bind a new socket"
+        );
+        let browser = [("Origin", "https://example.com")];
+        let (code, answer) = get(port, "/v1/limits", &browser).await.unwrap();
+        assert_eq!(code, 200, "browser-origin limits reachable");
+        assert!(answer.contains("Access-Control-Allow-Origin: *"), "{answer}");
+
+        // Source swap: a different `FeedSlot` with a distinct account name.
+        // The source the running server reads must change without rebinding.
+        let other_slot = FeedSlot::default();
+        other_slot.publish(Some(feed_named("Work Pro")));
+        integration
+            .apply(on(port), &other_slot)
+            .await;
+        assert_eq!(
+            integration.cold_starts(),
+            1,
+            "source swap must not bind a new socket"
+        );
+        let (_, body) = get(port, "/v1/snapshot", &[]).await.unwrap();
+        assert!(body.contains("Work Pro"), "snapshot reflects new source: {body}");
+        assert!(
+            !body.contains("Personal Max"),
+            "snapshot must not contain old source data: {body}"
+        );
+
+        // CORS off: another hot swap. Counter still 1.
+        integration
+            .apply(on(port), &slot)
+            .await;
+        assert_eq!(integration.cold_starts(), 1);
+        let (code, _) = get(port, "/v1/limits", &browser).await.unwrap();
+        assert_eq!(code, 403, "browser origin refused when allow_browsers off");
+
+        // Binding-identity change: counter must move to 2 (close + reopen).
+        let other_port = free_port();
+        integration
+            .apply(
+                ServePrefs {
+                    port: other_port,
+                    ..on(other_port)
+                },
+                &slot,
+            )
+            .await;
+        assert_eq!(integration.view().state, "on");
+        assert_eq!(
+            integration.cold_starts(),
+            2,
+            "port change must cold-restart exactly once"
+        );
+        let (_, body) = get(other_port, "/v1/snapshot", &[]).await.unwrap();
+        assert!(body.contains("Personal Max"), "{body}");
+
+        integration.apply(ServePrefs::default(), &slot).await;
+    }
+
+    /// When a binding-identity change fails (port in use by an external
+    /// listener), the apply path must turn the server off and report the
+    /// error to the UI rather than silently keeping the old listener open.
+    /// No new bind succeeded, so `cold_starts()` does not advance beyond
+    /// the count that existed before the failed apply.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn apply_reports_a_failed_binding_change_and_does_not_advance_cold_starts() {
+        let port = free_port();
+        let slot = FeedSlot::default();
+        let mut integration =
+            Integration::new(on(port), Arc::new(MemoryVault::default()));
+        slot.publish(Some(feed_named("Personal Max")));
+        integration.apply(on(port), &slot).await;
+        assert_eq!(integration.cold_starts(), 1);
+
+        // External listener holds the requested new port: the cold restart
+        // cannot bind, so the apply must surface a `PortInUse` error and
+        // turn off the server (no silent retention of a now-out-of-policy
+        // listener that points at a port the user's port selection no
+        // longer matches).
+        let holder = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let taken_port = holder.local_addr().unwrap().port();
+        integration
+            .apply(
+                ServePrefs {
+                    port: taken_port,
+                    ..on(taken_port)
+                },
+                &slot,
+            )
+            .await;
+        assert_eq!(integration.view().state, "error");
+        assert_eq!(
+            integration.view().url, None,
+            "a failed bind must not advertise a URL"
+        );
+        assert_eq!(
+            integration.cold_starts(),
+            1,
+            "no successful LocalServer::start happened during the failure"
+        );
+
+        drop(holder);
         integration.apply(ServePrefs::default(), &slot).await;
     }
 }
