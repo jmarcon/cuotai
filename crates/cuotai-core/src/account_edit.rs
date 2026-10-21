@@ -4007,6 +4007,17 @@ mod tests {
         }
     }
 
+    /// Name of the `RemoveError` variant, for failure messages. Panic arms
+    /// report this constant instead of formatting the whole error, whose
+    /// `InvalidOAuth` detail is derived from the account's OAuth config.
+    fn remove_error_variant(error: &RemoveError) -> &'static str {
+        match error {
+            RemoveError::Index(_) => "Index",
+            RemoveError::Save(_) => "Save",
+            RemoveError::InvalidOAuth(_) => "InvalidOAuth",
+        }
+    }
+
     fn temp_config_file(config: Config) -> (tempfile::TempDir, ConfigFile) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("cuotai.toml");
@@ -4174,7 +4185,14 @@ mod tests {
         let result = remove_account(&mut file, &session, 0, true).await;
         match result {
             Err(RemoveError::InvalidOAuth(_)) => {}
-            other => panic!("expected RemoveError::InvalidOAuth, got {other:?}"),
+            Ok(outcome) => panic!(
+                "expected RemoveError::InvalidOAuth, got Ok({})",
+                outcome_variant(&outcome)
+            ),
+            Err(other) => panic!(
+                "expected RemoveError::InvalidOAuth, got {}",
+                remove_error_variant(&other)
+            ),
         }
         assert_eq!(
             file.config.accounts.len(),
