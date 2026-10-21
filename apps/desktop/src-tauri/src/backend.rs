@@ -1,7 +1,9 @@
 //! Ponte entre `cuotai-core` e a UI. Não contém regra de negócio: validação,
 //! edição de contas, escrita do TOML, classificação de métricas e agendamento
 //! vêm do core; aqui só há estado, DTOs e orquestração.
+use crate::local_server::{Feed, FeedSlot, Integration, ServeView};
 use crate::notify::{Notices, SystemNotifier};
+use crate::settings::ServePrefs;
 use cuotai_core::{
     account_edit::{
         self, build_account, credential_help, default_env, field_descriptors,
@@ -245,6 +247,8 @@ struct Inner {
     /// PRD 0011 RF4.3: the status preference and cache, shared by every
     /// monitor this backend installs (a reload keeps both).
     incidents: IncidentMonitor,
+    /// PRD 0012 RF5.2: the local server's state, for every view.
+    serve: ServeView,
 }
 
 #[derive(Default)]
@@ -257,6 +261,12 @@ pub struct Backend {
     status_nudge: tokio::sync::Notify,
     /// PRD 0011 RF4.2: the tray icon currently shows the outage indicator.
     tray_outage: AtomicBool,
+    /// PRD 0012 RF5: the local server. Locked before `inner`, never after.
+    serve: Mutex<Integration>,
+    /// What the local server reads, published from `inner` while it runs.
+    feed: FeedSlot,
+    /// The local server is on: every state change publishes the feed.
+    serving: AtomicBool,
 }
 
 // ---------- DTOs (somente leitura para a UI) ----------
@@ -514,6 +524,8 @@ pub struct View {
     history_epoch: u64,
     notify: NotifyView,
     status: StatusView,
+    /// PRD 0012 RF5.2: the local server (off, on at its address, or why not).
+    serve: ServeView,
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -736,6 +748,7 @@ impl Inner {
                     enabled: self.incidents.is_enabled(),
                     ..StatusView::default()
                 },
+                serve: self.serve.clone(),
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -831,7 +844,21 @@ impl Inner {
                 l.monitor.status_domains(),
                 &statuses,
             ),
+            serve: self.serve.clone(),
         }
+    }
+
+    /// PRD 0012 RF5.1: what the local server reads, copied from the live
+    /// state (the same cycle the app shows); `None` before a configuration
+    /// is loaded.
+    fn feed(&self) -> Option<Feed> {
+        let l = self.loaded.as_ref()?;
+        Some(Feed {
+            config: l.file.config.clone(),
+            identity: l.file.identity().ok()?,
+            cycle: l.cycle.clone(),
+            incidents: l.monitor.incident_statuses(),
+        })
     }
 
     /// PRD 0008 RF3.2/RF3.4: while usage alerts are on, each metric that can
@@ -968,17 +995,22 @@ impl Inner {
 }
 
 impl Backend {
-    /// The app's backend with this device's reset notice state (PRD 0003)
-    /// and status preference (PRD 0011 RF4.3, off until the user opts in).
-    pub fn new(notices: Notices, status_queries: bool) -> Self {
+    /// The app's backend with this device's reset notice state (PRD 0003),
+    /// status preference (PRD 0011 RF4.3, off until the user opts in) and
+    /// local server preferences (PRD 0012 RF5, off by default; started by
+    /// [`Self::start_serve`]).
+    pub fn new(notices: Notices, status_queries: bool, serve: ServePrefs) -> Self {
         let incidents = IncidentMonitor::new();
         incidents.set_enabled(status_queries);
+        let serve = Integration::new(serve, Arc::new(cuotai_core::serve::SystemTokenVault));
         Self {
             inner: Mutex::new(Inner {
                 notices,
                 incidents,
+                serve: serve.view(),
                 ..Inner::default()
             }),
+            serve: Mutex::new(serve),
             ..Self::default()
         }
     }
@@ -987,13 +1019,132 @@ impl Backend {
     /// notice timer recomputes (PRD 0003 RF2.1) and the tray icon follows
     /// the providers' outages (PRD 0011 RF4.2).
     async fn emit(&self, app: &AppHandle) {
-        let view = self.inner.lock().await.view();
+        let view = {
+            let g = self.inner.lock().await;
+            // PRD 0012 RF5.1: the local server serves this same state.
+            if self.serving.load(Ordering::Relaxed) {
+                self.feed.publish(g.feed());
+            }
+            g.view()
+        };
         let outage = view.status.outage;
         if self.tray_outage.swap(outage, Ordering::Relaxed) != outage {
             crate::show_tray_outage(app, outage);
         }
         let _ = app.emit(EVENT, view);
         self.notice_nudge.notify_one();
+    }
+
+    /// PRD 0012 RF5: the local server's state and choices.
+    pub async fn serve_view(&self) -> ServeView {
+        self.serve.lock().await.view()
+    }
+
+    /// PRD 0012 RF5.1: at launch, start the local server when the device
+    /// left it on (off by default: nothing listens otherwise).
+    pub async fn start_serve(self: Arc<Self>, app: AppHandle) {
+        let mut serve = self.serve.lock().await;
+        let prefs = serve.prefs();
+        if prefs.enabled {
+            self.ensure_loaded().await;
+            self.apply_serve(&app, &mut serve, prefs).await;
+        }
+    }
+
+    /// PRD 0012 RF5.1: turn the local server on or off, change its port or
+    /// the "allow browsers" mode (saved in `desktop.json`) and restart it
+    /// with them. A port that cannot be bound is the returned state, not an
+    /// error. Errors: `invalid_port`, `unwritable`.
+    pub async fn set_serve(
+        &self,
+        app: &AppHandle,
+        enabled: bool,
+        port: u16,
+        allow_browsers: bool,
+    ) -> Result<ServeView, String> {
+        let mut serve = self.serve.lock().await;
+        let prefs = serve
+            .prefs()
+            .with_choices(enabled, port, allow_browsers)
+            .map_err(str::to_owned)?;
+        crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
+        Ok(self.apply_serve(app, &mut serve, prefs).await)
+    }
+
+    /// PRD 0012 RF5.1: generate a token into the OS vault (replacing, and
+    /// so invalidating, the previous one) and require it. Errors: the core's
+    /// vault error as JSON, `unwritable`.
+    pub async fn generate_serve_token(&self, app: &AppHandle) -> Result<ServeView, String> {
+        let mut serve = self.serve.lock().await;
+        serve
+            .store_new_token()
+            .await
+            .map_err(|e| l10n_to_json(&e.l10n()))?;
+        let prefs = ServePrefs {
+            token: true,
+            ..serve.prefs()
+        };
+        crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
+        Ok(self.apply_serve(app, &mut serve, prefs).await)
+    }
+
+    /// PRD 0012 RF5.1: revoke the token: remove it from the vault and serve
+    /// without one (loopback programs only, never web pages). Errors: the
+    /// core's vault error as JSON, `unwritable`.
+    pub async fn revoke_serve_token(&self, app: &AppHandle) -> Result<ServeView, String> {
+        let mut serve = self.serve.lock().await;
+        serve
+            .forget_token()
+            .await
+            .map_err(|e| l10n_to_json(&e.l10n()))?;
+        let prefs = ServePrefs {
+            token: false,
+            ..serve.prefs()
+        };
+        crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
+        Ok(self.apply_serve(app, &mut serve, prefs).await)
+    }
+
+    /// PRD 0012 RF5.1: the stored token, only when the user asks to copy it.
+    /// Error: the core's vault error as JSON.
+    pub async fn copy_serve_token(&self) -> Result<String, String> {
+        let serve = self.serve.lock().await;
+        let token = if serve.prefs().token {
+            serve.stored_token().await
+        } else {
+            Err(cuotai_core::serve::ServeError::TokenMissing)
+        };
+        token
+            .map(|token| token.expose().to_owned())
+            .map_err(|e| l10n_to_json(&e.l10n()))
+    }
+
+    /// Restart the local server with `prefs` over the app's own state and
+    /// show the outcome everywhere. The feed is published before the port
+    /// opens and, while it is on, on every state change ([`Self::emit`]).
+    async fn apply_serve(
+        &self,
+        app: &AppHandle,
+        serve: &mut Integration,
+        prefs: ServePrefs,
+    ) -> ServeView {
+        {
+            let g = self.inner.lock().await;
+            self.serving.store(prefs.enabled, Ordering::Relaxed);
+            self.feed.publish(g.feed().filter(|_| prefs.enabled));
+        }
+        serve.apply(prefs, &self.feed).await;
+        let view = serve.view();
+        {
+            let mut g = self.inner.lock().await;
+            if !serve.is_on() {
+                self.serving.store(false, Ordering::Relaxed);
+                self.feed.publish(None);
+            }
+            g.serve = view.clone();
+        }
+        self.emit(app).await;
+        view
     }
 
     /// PRD 0011 RF4.3: turn the public status queries on or off (saved in

@@ -1,6 +1,6 @@
 # Local HTTP server (`serve::LocalServer`)
 
-`cuotai-core` can publish the [`export::v1`](export-v1.md) contract over a read-only HTTP server on loopback, so status bars and scripts read the last known state without making Cuotai query a provider on every read (PRD 0012 RF2 and RF3). It lives behind the core's `serve` feature, which is **off by default**; the front ends that offer it turn it on (`cuotai --serve` since PRD 0012 RF4, the desktop's Settings → Integration with RF5), and the server itself stays off until the user starts it.
+`cuotai-core` can publish the [`export::v1`](export-v1.md) contract over a read-only HTTP server on loopback, so status bars and scripts read the last known state without making Cuotai query a provider on every read (PRD 0012 RF2 and RF3). It lives behind the core's `serve` feature, which is **off by default**; the front ends that offer it turn it on (`cuotai --serve` since PRD 0012 RF4, the desktop's Settings → Integration since RF5), and the server itself stays off until the user starts it.
 
 ## From the command line (`cuotai --serve`)
 
@@ -20,6 +20,20 @@ curl -s http://127.0.0.1:6738/v1/limits
 - **Exit codes:** `0` after a normal shutdown when some account had a healthy (`ready`) reading during the run; `2` when no account was healthy until the shutdown; `1` for a local error before serving (the port, the configuration, the token file or an invalid argument).
 
 `cuotai --json-v1` prints the same `Export` once, after one query, without a server (exit codes as `--json`).
+
+## In the desktop app (Settings → Integration)
+
+- **Off by default.** The switch "Serve my usage on a local address" starts the server inside the app; it is remembered in `desktop.json` (`serve`) and starts again with the app until you turn it off. Turning it off closes the port.
+- **Same refresh cycle.** The server serves the app's own readings: every time the window updates, the app hands the server a copy of the state it shows, and each request only builds the export from it. No second refresh loop runs and no request queries a provider.
+- **Port:** 6738 by default, any port from 1024 to 65535. Exactly that port is used (no fallback), so the address your integrations know never moves. When it is taken, the server stays off and the section (and a banner on the main window) says why; when the program on that port answers like a Cuotai server (`cuotai --serve`, or another copy of the app), it is named as such, so you can stop it or pick another port. The effective address appears with **Copy address** while it is on.
+- **Token:** **Generate token** stores a new `cuotai_…` token in the system vault (service `cuotai.serve`, never the TOML) and requires it as `Authorization: Bearer <token>` from then on. **Copy token** copies it without showing it; **Generate new token** replaces it, so the old one gets `401` at once; **Revoke token** removes it from the vault and the server answers without a token again (loopback programs only, never web pages). If the vault later lacks the token or refuses access, the server stays off instead of serving without one.
+- **Allow web browsers** asks for confirmation with `serve::allow_browsers_warning()` before turning on `allow_browsers`.
+- The app keeps no access log.
+
+```sh
+curl -s http://127.0.0.1:6738/v1/limits
+curl -s -H "Authorization: Bearer $(pbpaste)" http://127.0.0.1:6738/v1/snapshot   # after "Copy token" (macOS)
+```
 
 ## Starting it (Rust)
 
@@ -57,7 +71,7 @@ The source is called for every data request and must only read what the refresh 
 ## Address and port
 
 - Binds to `127.0.0.1` by default (`::1` is also accepted). Any other address is a configuration error (`ServeError::NonLoopback`) unless the explicit `allow_non_loopback` flag is set, and then a token is mandatory (`ServeError::TokenRequired`). Access over the local network is out of scope: use your own tunnel (for example `ssh -L 9000:localhost:6738 host`), which keeps a loopback `Host`.
-- The default port is **6738**, unassigned in the IANA registry (6717–6766 are unassigned) and clear of OpenUsage's 6736. When it is taken, the server tries the next nine ports (`ServeConfig::port_fallback`, on by default); `LocalServer::addr()` and `fell_back()` report what was bound. With the fallback off, or when all ten are taken, `start` fails with `ServeError::PortInUse`. Port `0` lets the system choose.
+- The default port is **6738**, unassigned in the IANA registry (6717–6766 are unassigned) and clear of OpenUsage's 6736. When it is taken, the server tries the next nine ports (`ServeConfig::port_fallback`, on by default); `LocalServer::addr()` and `fell_back()` report what was bound. With the fallback off, or when all ten are taken, `start` fails with `ServeError::PortInUse`. Port `0` lets the system choose. `serve::is_cuotai_server(port)` tells a front end whether the program holding a port is a Cuotai server: it asks `/health` once without a token (at most `PROBE_TIMEOUT`, 1 second) and recognises the documented answer or the `401` with `WWW-Authenticate: Bearer realm="cuotai"`.
 
 ## Routes
 

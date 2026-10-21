@@ -204,6 +204,31 @@ pub(super) async fn linger(stream: &mut TcpStream) {
     .await;
 }
 
+/// PRD 0012 RF5.2: an answer to `GET /health` only a Cuotai server gives:
+/// `200` with `{"status":"ok","version":…,"schema":…}`, or `401` carrying
+/// Cuotai's `challenge`.
+pub(super) fn is_cuotai_health(answer: &[u8], challenge: &str) -> bool {
+    let mut headers = [httparse::EMPTY_HEADER; 32];
+    let mut response = httparse::Response::new(&mut headers);
+    let Ok(httparse::Status::Complete(body_at)) = response.parse(answer) else {
+        return false;
+    };
+    match response.code {
+        Some(200) => {
+            serde_json::from_slice::<serde_json::Value>(&answer[body_at..]).is_ok_and(|health| {
+                health["status"] == "ok"
+                    && health["version"].is_string()
+                    && health["schema"].is_u64()
+            })
+        }
+        Some(401) => response.headers.iter().any(|header| {
+            header.name.eq_ignore_ascii_case("www-authenticate")
+                && header.value == challenge.as_bytes()
+        }),
+        _ => false,
+    }
+}
+
 /// A percent-encoded path segment, decoded as UTF-8.
 pub(super) fn percent_decode(segment: &str) -> Option<String> {
     let bytes = segment.as_bytes();

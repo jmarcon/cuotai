@@ -932,6 +932,7 @@ fn errors_and_warning_are_translated() {
             last: 6738,
         }
         .l10n(),
+        ServeError::TokenMissing.l10n(),
     ];
     for locale in ["en-US", "es"] {
         let catalog = core_catalog(locale).unwrap();
@@ -958,4 +959,70 @@ fn errors_and_warning_are_translated() {
         texts[8].text(),
         "A porta 6738 está em uso; escolha outra porta para o servidor local."
     );
+}
+
+/// A free loopback port: bound once by the system, then released.
+async fn free_port() -> u16 {
+    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    listener.local_addr().unwrap().port()
+}
+
+/// A listener on an ephemeral port that answers every connection with
+/// `answer` and closes it.
+async fn answering(answer: &'static str) -> u16 {
+    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut head = [0u8; 1024];
+            let _ = stream.read(&mut head).await;
+            let _ = stream.write_all(answer.as_bytes()).await;
+        }
+    });
+    port
+}
+
+#[tokio::test]
+async fn probe_names_only_a_cuotai_server_on_the_port() {
+    let open = start(ServeConfig::default(), fixture_source()).await;
+    assert!(is_cuotai_server(open.addr().port()).await, "its /health");
+    let guarded = start(
+        ServeConfig {
+            token: Some(Token::generate().unwrap()),
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    assert!(
+        is_cuotai_server(guarded.addr().port()).await,
+        "its 401 with Cuotai's realm, without knowing the token"
+    );
+    // Another program on the port, or nothing at all, is not Cuotai.
+    let other = answering(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 15\r\nConnection: close\r\n\r\n{\"status\":\"ok\"}",
+    )
+    .await;
+    assert!(!is_cuotai_server(other).await, "health-like, not Cuotai's");
+    let challenge = answering(
+        "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer realm=\"other\"\r\nContent-Length: 0\r\n\r\n",
+    )
+    .await;
+    assert!(!is_cuotai_server(challenge).await, "another realm");
+    let silent = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let started = Instant::now();
+    assert!(!is_cuotai_server(silent.local_addr().unwrap().port()).await);
+    assert!(started.elapsed() < PROBE_TIMEOUT * 2, "bounded wait");
+    assert!(
+        !is_cuotai_server(free_port().await).await,
+        "nothing listens"
+    );
+    open.shutdown().await;
+    guarded.shutdown().await;
 }

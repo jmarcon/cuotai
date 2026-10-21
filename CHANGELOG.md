@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-10-20
+
+### Added
+
+- The desktop app can run the read-only local server from **Settings → Integration**, off until you turn it on: it serves the app's own readings on `127.0.0.1` at exactly the port you choose (6738 by default) without ever querying a provider per request, shows the effective address or why it is not serving (naming another Cuotai server such as `cuotai --serve` when it holds the port, also in a banner on the main window), can generate a bearer token kept in the system vault and require it, copy it without showing it, replace it or revoke it, turns on "allow browsers" only after you confirm its warning, and closes the port when turned off; `cuotai-core` adds `serve::is_cuotai_server` to recognise a Cuotai server on a port (PRD 0012 RF5).
+
 ## [0.51.0] - 2026-10-20
 
 ### Added
 
-- `cuotai --serve` runs the read-only local server in the foreground without opening the TUI or needing a terminal: it keeps refreshing your accounts on their own intervals and serves `/health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` on `127.0.0.1:6738` (or one of the next nine ports when it is taken; `--port N` asks for exactly that port, and `--token-file FILE` requires its bearer token), never querying a provider per request; it prints its address on stdout, logs each request on stderr without headers or query, stops cleanly on `SIGINT`/`SIGTERM` and exits with `0`, `2` when no account was healthy until shutdown, or `1` for a port, configuration or token error; the new `--json-v1` prints the full `export::v1` after one query, `--once` and `--json` are unchanged, and an invalid command-line argument now exits with `1` as documented instead of `2` (PRD 0012 RF4).
+- `cuotai --serve` runs the read-only local server in the foreground without opening the TUI or needing a terminal: it keeps refreshing your accounts on their own intervals and serves `/health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` on `127.0.0.1:6738` (or one of the next nine ports when it is taken; `--port N` asks for exactly that port, and `--token-file FILE` requires its bearer token), never querying a provider per request; it prints its address on stdout, logs each request on stderr without headers or query, stops cleanly on `SIGINT`/`SIGTERM` and exits with `0`, `2` when no account was healthy until shutdown, or `1` for a port, configuration or token error; the new `--json-v1` prints the full `export::v1` after one query, `--once` and `--json` are unchanged, and an invalid command-line argument now exits with `1` as documented instead of `2` (PRD 0012 RF4, 2d9cf48).
 
 ## [0.50.0] - 2026-10-20
 
@@ -456,8 +462,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/75f79e9...main
-[0.51.0]: https://github.com/jmarcon/cuotai/compare/75f79e9...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/2d9cf48...main
+[0.52.0]: https://github.com/jmarcon/cuotai/compare/2d9cf48...main
+[0.51.0]: https://github.com/jmarcon/cuotai/commit/2d9cf48
 [0.50.0]: https://github.com/jmarcon/cuotai/commit/75f79e9
 [0.49.0]: https://github.com/jmarcon/cuotai/commit/9694b24
 [0.48.0]: https://github.com/jmarcon/cuotai/commit/4ea2fd9

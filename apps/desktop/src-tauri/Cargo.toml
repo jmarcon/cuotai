@@ -1,6 +1,6 @@
 [package]
 name = "cuotai-desktop"
-version = "0.51.0"
+version = "0.52.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -20,7 +20,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
-cuotai-core = { path = "../../../crates/cuotai-core" }
+# PRD 0012 RF5: Settings → Integration runs the core's local server.
+cuotai-core = { path = "../../../crates/cuotai-core", features = ["serve"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "6"

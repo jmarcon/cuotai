@@ -1,8 +1,8 @@
 // Tela de configurações: aparência, idioma, arquivo de contas e pasta de temas/idiomas do usuário.
-import { te, t, tl, LOCALES } from "./i18n.js";
+import { te, t, tl, tle, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, currentSort, fmtNumber, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, sendTestNotification, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setShowPace, setSort, setStatusEnabled, setUserDir, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, copyServeToken, currentSort, fmtNumber, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, icon, langMenuHtml, MOTIONS, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, themeSwitchHtml } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -77,6 +77,7 @@ export async function openSettings(extra = {}) {
         <p class="err" id="history-data-msg" role="status"></p>
       </section>
       ${privacySectionHtml(s, view)}
+      <section class="set-sec" data-integration><h3>${te("settings.serve.title")}</h3><p class="hint">${te("common.loading")}</p></section>
       <section class="set-sec"><h3>${te("settings.config.title")}</h3>
         <p class="hint">${te("settings.config.help")}</p>
         <div class="path-row"><code title="${esc(configLabel(view))}">${esc(configLabel(view) || "—")}</code></div>
@@ -134,6 +135,7 @@ export async function openSettings(extra = {}) {
     dlg.querySelector("#status-queries").onchange = (e) => setStatusEnabled(e.target.checked).then(
       () => { dlg.querySelector("#status-msg").textContent = ""; extra.onChange?.(); },
       (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#status-msg").textContent = errorText(x); });
+    bindIntegration(dlg.querySelector("[data-integration]"), extra);
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
       try { await setUserDir(path); location.reload(); } // recarrega para ler a nova pasta
@@ -234,6 +236,99 @@ function privacySectionHtml(s, view) {
         <p class="err" id="status-msg" role="alert"></p>
       </section>`;
 }
+
+/** PRD 0012 RF5: the local server, off by default. The switch, the state (the effective address, or why it is not
+ *  serving, naming another Cuotai server on the port), the port (bound exactly), the token (generated into the system
+ *  vault, copied, renewed or revoked; never shown) and "allow browsers" behind the core's warning. Every change
+ *  restarts the server and the section repaints from the state the backend answers. */
+function integrationHtml(sv) {
+  const state = sv.state === "on"
+    ? `<p class="hint" data-serve-state><strong>${te("settings.serve.state.on")}</strong> <code>${esc(sv.url)}</code></p>
+        <div class="dlg-actions left"><button class="btn" data-serve-copy-url>${icon("copy")} ${te("settings.serve.copyUrl")}</button></div>`
+    : sv.state === "error"
+      ? `<p class="hint warn-txt" data-serve-state role="alert">${icon("warn")} <strong>${te("settings.serve.state.error")}</strong> ${tle(sv.error)}${
+        sv.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: sv.port })}` : ""}</p>`
+      : `<p class="hint" data-serve-state><strong>${te("settings.serve.state.off")}</strong></p>`;
+  const token = sv.token
+    ? `<p class="hint">${te("settings.serve.token.on")}</p>
+        <div class="dlg-actions left"><button class="btn" data-serve-token-copy>${icon("copy")} ${te("settings.serve.token.copy")}</button>
+          <button class="btn" data-serve-token-new>${te("settings.serve.token.renew")}</button>
+          <button class="btn danger-btn" data-serve-token-revoke>${te("settings.serve.token.revoke")}</button></div>
+        <p class="hint">${te("settings.serve.token.revokeHelp")}</p>`
+    : `<p class="hint">${te("settings.serve.token.off")}</p>
+        <div class="dlg-actions left"><button class="btn" data-serve-token-new>${te("settings.serve.token.generate")}</button></div>`;
+  return `<h3>${te("settings.serve.title")}</h3>
+        <p class="hint">${te("settings.serve.help")}</p>
+        <label class="check"><input id="serve-on" type="checkbox" ${sv.enabled ? "checked" : ""} /> ${te("settings.serve.on")}</label>
+        ${state}
+        <label class="f"><span>${te("settings.serve.port")}</span>
+          <input id="serve-port" type="number" inputmode="numeric" min="${sv.port_min}" max="${sv.port_max}" step="1" value="${esc(sv.port)}" />
+          <small>${te("settings.serve.portHelp", { port: sv.default_port, min: sv.port_min, max: sv.port_max })}</small></label>
+        <div class="dlg-actions left"><button class="btn primary" data-serve-port>${te("settings.serve.portSave")}</button></div>
+        <h4>${te("settings.serve.token.title")}</h4>
+        ${token}
+        <label class="check"><input id="serve-browsers" type="checkbox" ${sv.allow_browsers ? "checked" : ""} /> ${te("settings.serve.browsers")}</label>
+        ${sv.allow_browsers ? `<p class="hint warn-txt">${tle(sv.browsers_warning)}</p>` : `<p class="hint">${te("settings.serve.browsersOff")}</p>`}
+        <div class="confirm" id="serve-browsers-confirm" role="alertdialog" aria-labelledby="serve-browsers-text" hidden>
+          <p id="serve-browsers-text">${tle(sv.browsers_warning)}</p>
+          <div class="dlg-actions left"><button class="btn danger-btn" data-serve-browsers-confirm>${te("settings.serve.browsersConfirm")}</button>
+            <button class="btn" data-serve-browsers-cancel>${te("common.cancel")}</button></div>
+        </div>
+        <p class="hint">${te("settings.serve.privacy")}</p>
+        <p class="err" id="serve-msg" role="alert"></p>`;
+}
+
+/** Paints the section and binds it; a failed change keeps the previous state and shows why. */
+async function bindIntegration(sec, extra) {
+  let sv;
+  try { sv = await serveStatus(); } catch (e) { sec.querySelector(".hint").textContent = l10nError(e); return; }
+  const paint = (next, message = "") => {
+    sv = next;
+    sec.innerHTML = integrationHtml(sv);
+    const msg = sec.querySelector("#serve-msg");
+    msg.textContent = message;
+    const run = (work) => work().then((answer) => { paint(answer); extra.onChange?.(); }, (e) => paint(sv, serveErrorText(e)));
+    const port = () => Number(sec.querySelector("#serve-port").value);
+    sec.querySelector("#serve-on").onchange = (e) => run(() => setServe(e.target.checked, sv.port, sv.allow_browsers));
+    sec.querySelector("[data-serve-port]").onclick = () => run(() => setServe(sv.enabled, port(), sv.allow_browsers));
+    sec.querySelector("[data-serve-token-new]").onclick = () => run(generateServeToken);
+    const revoke = sec.querySelector("[data-serve-token-revoke]");
+    if (revoke) revoke.onclick = () => run(revokeServeToken);
+    const copied = (btn) => { const prev = btn.innerHTML; btn.textContent = t("settings.serve.copied"); setTimeout(() => { btn.innerHTML = prev; }, 1500); };
+    const copyToken = sec.querySelector("[data-serve-token-copy]");
+    if (copyToken) copyToken.onclick = () => copySecret(copyServeToken).then(() => copied(copyToken), (e) => { msg.textContent = serveErrorText(e); });
+    const copyUrl = sec.querySelector("[data-serve-copy-url]");
+    if (copyUrl) copyUrl.onclick = () => navigator.clipboard?.writeText(sv.url).then(() => copied(copyUrl), () => { msg.textContent = t("settings.serve.copyFailed"); });
+    // RF3.3: pages are only let in after the warning was read and confirmed.
+    const confirm = sec.querySelector("#serve-browsers-confirm");
+    sec.querySelector("#serve-browsers").onchange = (e) => {
+      if (!e.target.checked) { run(() => setServe(sv.enabled, sv.port, false)); return; }
+      e.target.checked = false;
+      confirm.hidden = false;
+      sec.querySelector("[data-serve-browsers-confirm]").focus();
+    };
+    sec.querySelector("[data-serve-browsers-confirm]").onclick = () => run(() => setServe(sv.enabled, sv.port, true));
+    sec.querySelector("[data-serve-browsers-cancel]").onclick = () => { confirm.hidden = true; };
+  };
+  paint(sv);
+}
+
+/** Copies a secret fetched on click. WebKit only lets the clipboard follow the click synchronously, so the text goes
+ *  in as a pending `ClipboardItem` when supported; otherwise it is written once it arrives. */
+function copySecret(fetchText) {
+  if (window.ClipboardItem && navigator.clipboard?.write) {
+    const blob = fetchText().then((text) => new Blob([text], { type: "text/plain" }));
+    return navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+  }
+  return fetchText().then((text) => navigator.clipboard.writeText(text));
+}
+
+/** Shell codes (`invalid_port`, `unwritable`) or the core's typed vault error. */
+const serveErrorText = (e) => {
+  const key = `settings.error.${e}`;
+  const tr = typeof e === "string" ? t(key) : key;
+  return tr === key ? l10nError(e) : tr;
+};
 
 /** PRD 0003 RF3.1: reset notices of this device (desktop.json). Off by default; the backend schedules them.
  *  PRD 0008 RF3.1: usage alerts in the same section (off by default), sharing its permission guidance and test. */
