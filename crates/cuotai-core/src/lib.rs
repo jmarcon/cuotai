@@ -592,7 +592,7 @@ impl Monitor {
     pub async fn refresh_account(&self, index: usize) -> Report {
         debug_assert!(
             index < self.config.accounts.len(),
-            "refresh_account index {index} is out of bounds"
+            "refresh_account index is out of bounds"
         );
         let account = &self.config.accounts[index];
         let report = self.query_report(account, &[]).await;
