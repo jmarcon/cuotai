@@ -1,6 +1,7 @@
 //! Ponte entre `cuotai-core` e a UI. Não contém regra de negócio: validação,
 //! edição de contas, escrita do TOML, classificação de métricas e agendamento
 //! vêm do core; aqui só há estado, DTOs e orquestração.
+use crate::hooks::{HooksBadge, HooksView, Integration as Hooks, HOOKS_EVENT};
 use crate::local_server::{Feed, FeedSlot, Integration, ServeView};
 use crate::notify::{Notices, SystemNotifier};
 use crate::settings::ServePrefs;
@@ -12,6 +13,7 @@ use cuotai_core::{
     },
     alerts,
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
+    export::v1::{Export, Options as ExportOptions},
     freshness::{assess, clock_adjusted, Freshness},
     history::{
         Chart, ExportFormat, HistoryError, HistoryRange, HistoryStore, MetricHistory, Trend,
@@ -249,6 +251,8 @@ struct Inner {
     incidents: IncidentMonitor,
     /// PRD 0012 RF5.2: the local server's state, for every view.
     serve: ServeView,
+    /// PRD 0013 RF4: the hooks' state, for every view.
+    hooks: HooksBadge,
 }
 
 #[derive(Default)]
@@ -267,6 +271,10 @@ pub struct Backend {
     feed: FeedSlot,
     /// The local server is on: every state change publishes the feed.
     serving: AtomicBool,
+    /// PRD 0013 RF4: the hooks. Locked before `inner`, never after.
+    hooks: Mutex<Hooks>,
+    /// The hooks' switch is on: every state change goes to them.
+    hooks_on: AtomicBool,
 }
 
 // ---------- DTOs (somente leitura para a UI) ----------
@@ -526,6 +534,8 @@ pub struct View {
     status: StatusView,
     /// PRD 0012 RF5.2: the local server (off, on at its address, or why not).
     serve: ServeView,
+    /// PRD 0013 RF4: whether hooks are on and, when on, run or why not.
+    hooks: HooksBadge,
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -749,6 +759,7 @@ impl Inner {
                     ..StatusView::default()
                 },
                 serve: self.serve.clone(),
+                hooks: self.hooks,
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -845,6 +856,7 @@ impl Inner {
                 &statuses,
             ),
             serve: self.serve.clone(),
+            hooks: self.hooks,
         }
     }
 
@@ -859,6 +871,29 @@ impl Inner {
             cycle: l.cycle.clone(),
             incidents: l.monitor.incident_statuses(),
         })
+    }
+
+    /// PRD 0013 RF4: what the hooks watch: the `hooks.toml` beside the
+    /// loaded TOML and the `export::v1` of the live cycle at `now` (the
+    /// same state the app shows; no query).
+    fn hooks_input(&self, now: chrono::DateTime<chrono::Utc>) -> Option<(PathBuf, Export)> {
+        let l = self.loaded.as_ref()?;
+        let export = Export::from_cycle(
+            &l.file.config,
+            &l.file.identity().ok()?,
+            &l.cycle,
+            &l.monitor.incident_statuses(),
+            now,
+            ExportOptions::default(),
+        );
+        Some((cuotai_core::hooks::Hooks::path_beside(&l.file.path), export))
+    }
+
+    /// The `hooks.toml` beside the loaded TOML.
+    fn hooks_path(&self) -> Option<PathBuf> {
+        self.loaded
+            .as_ref()
+            .map(|l| cuotai_core::hooks::Hooks::path_beside(&l.file.path))
     }
 
     /// PRD 0008 RF3.2/RF3.4: while usage alerts are on, each metric that can
@@ -996,13 +1031,21 @@ impl Inner {
 
 impl Backend {
     /// The app's backend with this device's reset notice state (PRD 0003),
-    /// status preference (PRD 0011 RF4.3, off until the user opts in) and
+    /// status preference (PRD 0011 RF4.3, off until the user opts in),
     /// local server preferences (PRD 0012 RF5, off by default; started by
-    /// [`Self::start_serve`]).
-    pub fn new(notices: Notices, status_queries: bool, serve: ServePrefs) -> Self {
+    /// [`Self::start_serve`]) and hooks switch (PRD 0013 RF4, off by
+    /// default; the confirmed rules start with the first state change).
+    pub fn new(
+        notices: Notices,
+        status_queries: bool,
+        serve: ServePrefs,
+        hooks_enabled: bool,
+    ) -> Self {
         let incidents = IncidentMonitor::new();
         incidents.set_enabled(status_queries);
         let serve = Integration::new(serve, Arc::new(cuotai_core::serve::SystemTokenVault));
+        let mut hooks = Hooks::default();
+        hooks.set_enabled(hooks_enabled);
         Self {
             inner: Mutex::new(Inner {
                 notices,
@@ -1011,28 +1054,141 @@ impl Backend {
                 ..Inner::default()
             }),
             serve: Mutex::new(serve),
+            hooks: Mutex::new(hooks),
+            hooks_on: AtomicBool::new(hooks_enabled),
             ..Self::default()
         }
     }
 
     /// Every state change ends here: the UI gets the view, the reset
-    /// notice timer recomputes (PRD 0003 RF2.1) and the tray icon follows
-    /// the providers' outages (PRD 0011 RF4.2).
+    /// notice timer recomputes (PRD 0003 RF2.1), the tray icon follows
+    /// the providers' outages (PRD 0011 RF4.2) and the hooks see the new
+    /// state (PRD 0013 RF4).
     async fn emit(&self, app: &AppHandle) {
-        let view = {
+        let (mut view, watched) = {
             let g = self.inner.lock().await;
             // PRD 0012 RF5.1: the local server serves this same state.
             if self.serving.load(Ordering::Relaxed) {
                 self.feed.publish(g.feed());
             }
-            g.view()
+            let watched = self
+                .hooks_on
+                .load(Ordering::Relaxed)
+                .then(|| g.hooks_input(chrono::Utc::now()))
+                .flatten();
+            (g.view(), watched)
         };
+        if let Some((path, export)) = watched {
+            let mut hooks = self.hooks.lock().await;
+            if hooks.observe(&path, &export, export.generated_at) {
+                let badge = hooks.view(Some(&path)).badge();
+                drop(hooks);
+                self.inner.lock().await.hooks = badge;
+                view.hooks = badge;
+            }
+        }
         let outage = view.status.outage;
         if self.tray_outage.swap(outage, Ordering::Relaxed) != outage {
             crate::show_tray_outage(app, outage);
         }
         let _ = app.emit(EVENT, view);
         self.notice_nudge.notify_one();
+    }
+
+    /// PRD 0013 RF4: tell Settings about each hook run. Called once at
+    /// setup, before any state change can start the hooks.
+    pub fn notify_hook_runs(&self, app: AppHandle) {
+        if let Ok(mut hooks) = self.hooks.try_lock() {
+            hooks.set_on_run(Arc::new(move |_, _| {
+                let _ = app.emit(HOOKS_EVENT, ());
+            }));
+        }
+    }
+
+    /// Make the hooks match their switch, file and confirmations, then show
+    /// the outcome everywhere (the next state change gives newly started
+    /// rules their baseline).
+    async fn settle_hooks(&self, app: &AppHandle, change: impl FnOnce(&mut Hooks)) -> HooksView {
+        let path = self.inner.lock().await.hooks_path();
+        let view = {
+            let mut hooks = self.hooks.lock().await;
+            change(&mut hooks);
+            hooks.reconcile(path.as_deref());
+            self.hooks_on.store(hooks.is_enabled(), Ordering::Relaxed);
+            let view = hooks.view(path.as_deref());
+            self.inner.lock().await.hooks = view.badge();
+            view
+        };
+        self.emit(app).await;
+        view
+    }
+
+    /// PRD 0013 RF4.1: the hooks as Settings shows them.
+    pub async fn hooks_view(&self, app: &AppHandle) -> HooksView {
+        self.ensure_loaded().await;
+        self.settle_hooks(app, |_| {}).await
+    }
+
+    /// PRD 0013 RF3.2/RF4: turn the hooks on or off (saved in
+    /// `desktop.json`, off by default). On runs only rules already
+    /// confirmed; off stops them and kills the running ones. Error:
+    /// `unwritable`.
+    pub async fn set_hooks_enabled(&self, app: &AppHandle, on: bool) -> Result<HooksView, String> {
+        crate::settings::save_hooks_enabled(on).map_err(str::to_owned)?;
+        Ok(self.settle_hooks(app, |hooks| hooks.set_enabled(on)).await)
+    }
+
+    /// PRD 0013 RF4.2: the user confirmed, in the dialog, the rules listed
+    /// under `digest`; they must still be the file's. Error: the core's
+    /// `hooks.error.*` text as JSON.
+    pub async fn confirm_hooks(
+        &self,
+        app: &AppHandle,
+        digest: String,
+    ) -> Result<HooksView, String> {
+        self.ensure_loaded().await;
+        let path = self.inner.lock().await.hooks_path();
+        self.hooks
+            .lock()
+            .await
+            .confirm(path.as_deref(), &digest)
+            .map_err(|e| l10n_to_json(&e))?;
+        Ok(self.settle_hooks(app, |_| {}).await)
+    }
+
+    /// PRD 0013 RF4.1: save the editor's rules into `hooks.toml` (the core
+    /// validates them and refuses a file changed since `revision`); the
+    /// new rules wait for a confirmation. Errors: `no_config`, the core's
+    /// `hooks.error.*` text as JSON.
+    pub async fn save_hooks(
+        &self,
+        app: &AppHandle,
+        revision: Option<String>,
+        rules: Vec<cuotai_core::hooks::RuleDraft>,
+    ) -> Result<HooksView, String> {
+        self.ensure_loaded().await;
+        let path = self
+            .inner
+            .lock()
+            .await
+            .hooks_path()
+            .ok_or_else(|| "no_config".to_owned())?;
+        cuotai_core::hooks::Document::save(&path, revision.as_deref(), rules)
+            .map_err(|e| l10n_to_json(&e))?;
+        Ok(self.settle_hooks(app, |_| {}).await)
+    }
+
+    /// PRD 0013 RF4.1: run the confirmed rule `name` alone with a sample
+    /// event; the run shows in the log (and [`HOOKS_EVENT`]) when it ends.
+    /// Errors: `hooks_off`, `hook_unknown`.
+    pub async fn test_hook(&self, app: &AppHandle, name: String) -> Result<HooksView, String> {
+        let path = self.inner.lock().await.hooks_path();
+        self.hooks
+            .lock()
+            .await
+            .test(path.as_deref(), &name)
+            .map_err(str::to_owned)?;
+        Ok(self.settle_hooks(app, |_| {}).await)
     }
 
     /// PRD 0012 RF5: the local server's state and choices.

@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-10-21
+
+### Added
+
+- The desktop app runs hooks from **Settings → Integration**, off until you turn them on: an editor for the rules of the `hooks.toml` next to the accounts' file (name, events and the command as one field per argument; filters and time limits written by hand are kept), shared with `cuotai --watch --hooks`; turning hooks on, or saving changed rules while they are on, shows a dialog with the exact list of commands and nothing runs until you confirm it (a file edited outside the app asks again, also in a banner on the main window); the confirmed rules run on the events of the app's own readings with no extra query, a **Test** button fires a sample event marked `"sample": true` at a rule, the latest runs are listed from the local run log, and turning hooks off stops them; `cuotai-core` adds `hooks::Document` to read and save the rules over the revision read, `Rule::sample`, `Runner::submit_to` and `RunLog::latest` (PRD 0013 RF4).
+
 ## [0.55.0] - 2026-10-21
 
 ### Added
 
-- `cuotai --watch --hooks` runs your own commands on the watch events, from a `hooks.toml` next to the accounts' TOML: each rule lists its events, optional provider, account and threshold filters and a command given as an argument list (never a shell string); hooks are off by default and the exact commands run only after you confirm them in a terminal, again after any change, receive the event as JSON on stdin and in `CUOTAI_EVENT`/`CUOTAI_ACCOUNT`/`CUOTAI_PROVIDER`/`CUOTAI_METRIC` with an environment reduced to `PATH`, `HOME` and `LANG`, are killed past their time limit (10 s by default, 60 s at most), keep at most 16 KiB of output, run at most 4 at once with a bounded queue that drops the oldest run with a warning, never stop the watch when they fail, and each run is logged locally without the payload (PRD 0013 RF3).
+- `cuotai --watch --hooks` runs your own commands on the watch events, from a `hooks.toml` next to the accounts' TOML: each rule lists its events, optional provider, account and threshold filters and a command given as an argument list (never a shell string); hooks are off by default and the exact commands run only after you confirm them in a terminal, again after any change, receive the event as JSON on stdin and in `CUOTAI_EVENT`/`CUOTAI_ACCOUNT`/`CUOTAI_PROVIDER`/`CUOTAI_METRIC` with an environment reduced to `PATH`, `HOME` and `LANG`, are killed past their time limit (10 s by default, 60 s at most), keep at most 16 KiB of output, run at most 4 at once with a bounded queue that drops the oldest run with a warning, never stop the watch when they fail, and each run is logged locally without the payload (PRD 0013 RF3, 5ea7bd1).
 
 ## [0.54.0] - 2026-10-21
 
@@ -480,8 +486,9 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/f6b3272...main
-[0.55.0]: https://github.com/jmarcon/cuotai/compare/f6b3272...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/5ea7bd1...main
+[0.56.0]: https://github.com/jmarcon/cuotai/compare/5ea7bd1...main
+[0.55.0]: https://github.com/jmarcon/cuotai/commit/5ea7bd1
 [0.54.0]: https://github.com/jmarcon/cuotai/commit/f6b3272
 [0.53.0]: https://github.com/jmarcon/cuotai/commit/28137a8
 [0.52.0]: https://github.com/jmarcon/cuotai/commit/4795a15

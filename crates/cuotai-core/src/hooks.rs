@@ -19,7 +19,12 @@
 //!   once and a queue of [`QUEUE_CAPACITY`] that drops the oldest. A hook
 //!   never blocks or fails its caller.
 //! - [`RunLog`] records each run without the payload: rule, event, start,
-//!   duration, outcome and exit code.
+//!   duration, outcome and exit code; [`RunLog::latest`] reads them back.
+//! - For an editor (PRD 0013 RF4, the desktop's Settings → Integration):
+//!   [`Document`] reads the rules as written with the file's revision and
+//!   saves edited [`RuleDraft`]s only over that same revision, and
+//!   [`Rule::sample`] builds the made-up event of a rule's test run
+//!   ([`Runner::submit_to`]).
 //!
 //! See `docs/events.md`.
 
@@ -112,25 +117,146 @@ impl Rule {
     pub fn timeout(&self) -> Duration {
         Duration::from_secs(self.timeout_seconds)
     }
+
+    /// PRD 0013 RF4.1: a made-up event of this rule's first event, marked
+    /// `sample`, that passes its filters (its provider, account and
+    /// threshold when it has them; [`SAMPLE_ACCOUNT`] and the first
+    /// provider otherwise), with plausible values. What the desktop's test
+    /// button sends through [`Runner::submit_to`].
+    pub fn sample(&self, now: DateTime<Utc>) -> Event {
+        use crate::events::{FailureCategory, MetricReading, MetricRef, Values, SCHEMA};
+        use crate::incidents::IncidentState;
+        use crate::{MetricWindow, Status};
+        let kind = self.events[0];
+        let provider = self.provider.unwrap_or(Provider::ALL[0]);
+        let account_name = self
+            .account
+            .clone()
+            .unwrap_or_else(|| SAMPLE_ACCOUNT.to_owned());
+        let resets_at = Some(now + chrono::TimeDelta::hours(5));
+        let quota = |used: f64| Values {
+            used: Some(used),
+            limit: Some(100.0),
+            remaining: Some(100.0 - used),
+            unit: Some("%".into()),
+            used_ratio: Some(used / 100.0),
+            resets_at,
+            ..Values::default()
+        };
+        let status = |status, category| Values {
+            status: Some(status),
+            category,
+            ..Values::default()
+        };
+        let incident = |state| Values {
+            incident: Some(state),
+            ..Values::default()
+        };
+        let usage = |used: f64| Values {
+            metrics: vec![MetricReading {
+                label: SAMPLE_METRIC.into(),
+                window: Some(MetricWindow::Window5h),
+                used: Some(used),
+                limit: Some(100.0),
+                remaining: Some(100.0 - used),
+                unit: "%".into(),
+                used_ratio: Some(used / 100.0),
+                resets_at,
+            }],
+            ..Values::default()
+        };
+        let failed = || status(Status::Error, Some(FailureCategory::ProviderError));
+        let (about_metric, current, previous) = match kind {
+            EventKind::QuotaThresholdCrossed => {
+                let threshold = self.min_threshold.unwrap_or(90);
+                let current = Values {
+                    threshold: Some(threshold),
+                    ..quota(f64::from(threshold))
+                };
+                (true, current, quota(50.0))
+            }
+            EventKind::QuotaExhausted => (true, quota(100.0), quota(90.0)),
+            EventKind::AccountBlocked => {
+                let current = Values {
+                    blocked_until: resets_at,
+                    ..quota(100.0)
+                };
+                (true, current, quota(90.0))
+            }
+            EventKind::QuotaRecovered | EventKind::AccountUnblocked => {
+                (true, quota(0.0), quota(100.0))
+            }
+            EventKind::QuotaReset => {
+                let previous = Values {
+                    resets_at: Some(now),
+                    ..quota(60.0)
+                };
+                (true, quota(0.0), previous)
+            }
+            EventKind::RefreshFailed => (false, failed(), status(Status::Ready, None)),
+            EventKind::RefreshRecovered => (false, status(Status::Ready, None), failed()),
+            EventKind::AuthRequired => (
+                false,
+                status(
+                    Status::AuthenticationError,
+                    Some(FailureCategory::AuthRequired),
+                ),
+                status(Status::Ready, None),
+            ),
+            EventKind::ProviderIncident => (
+                false,
+                incident(IncidentState::MajorOutage),
+                incident(IncidentState::Operational),
+            ),
+            EventKind::UsageUpdated => (false, usage(42.0), usage(40.0)),
+        };
+        Event {
+            schema: SCHEMA,
+            event: kind,
+            occurred_at: now,
+            account_key: format!("{}:{account_name}", provider.slug()),
+            account_name,
+            provider,
+            metric: about_metric.then(|| MetricRef {
+                label: SAMPLE_METRIC.into(),
+                window: Some(MetricWindow::Window5h),
+            }),
+            current,
+            previous: Some(previous),
+            sample: true,
+        }
+    }
 }
+
+/// The account name of a [`Rule::sample`] whose rule names none.
+pub const SAMPLE_ACCOUNT: &str = "sample";
+
+/// The metric label of a [`Rule::sample`].
+const SAMPLE_METRIC: &str = "sample (5h)";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawFile {
     #[serde(default)]
-    hooks: Vec<RawRule>,
+    hooks: Vec<RuleDraft>,
 }
 
-#[derive(Deserialize)]
+/// One `[[hooks]]` rule as written, before validation: what an editor
+/// reads ([`Document::drafts`]) and saves ([`Document::save`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawRule {
-    name: String,
-    events: Vec<String>,
-    provider: Option<String>,
-    account: Option<String>,
-    min_threshold: Option<i64>,
-    command: Vec<String>,
-    timeout_seconds: Option<i64>,
+pub struct RuleDraft {
+    pub name: String,
+    pub events: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_threshold: Option<i64>,
+    pub command: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_seconds: Option<i64>,
 }
 
 /// The validated rules of one `hooks.toml`.
@@ -152,57 +278,26 @@ impl Hooks {
 
     /// Read and validate the file at `path`.
     pub fn load(path: &Path) -> Result<Self, Localized> {
-        let shown = path.display().to_string();
-        let text = std::fs::read_to_string(path).map_err(|error| {
-            if error.kind() == io::ErrorKind::NotFound {
-                Localized::with_param(
-                    "hooks.error.missing",
-                    "path",
-                    shown.as_str(),
-                    format!("Nenhum arquivo de hooks em {shown}."),
-                )
-            } else {
-                Localized::with_param(
-                    "hooks.error.unreadable",
-                    "path",
-                    shown.as_str(),
-                    format!("Não foi possível ler {shown} (arquivo de texto UTF-8)."),
-                )
-            }
-        })?;
-        Self::from_toml(path.to_path_buf(), &text)
+        Document::read(path).hooks
     }
 
     /// Validate `text`, the contents of the file at `path`. Errors name the
     /// line or the rule, never echo the file.
     pub fn from_toml(path: PathBuf, text: &str) -> Result<Self, Localized> {
-        let raw: RawFile = toml::from_str(text).map_err(|error| {
-            let at = error.span().map_or(0, |span| span.start.min(text.len()));
-            let line = text.as_bytes()[..at]
-                .iter()
-                .filter(|byte| **byte == b'\n')
-                .count()
-                + 1;
-            Localized::with_param(
-                "hooks.error.toml",
-                "line",
-                line,
-                format!(
-                    "hooks.toml inválido na linha {line}: cada [[hooks]] aceita name, events, \
-                     provider, account, min_threshold, command (lista de argumentos) e \
-                     timeout_seconds."
-                ),
-            )
-        })?;
-        if raw.hooks.is_empty() {
+        Self::from_drafts(path, parse(text)?)
+    }
+
+    /// Validate `drafts` as the rules of the file at `path`, in order.
+    pub fn from_drafts(path: PathBuf, drafts: Vec<RuleDraft>) -> Result<Self, Localized> {
+        if drafts.is_empty() {
             return Err(Localized::fixed(
                 "hooks.error.empty",
                 "hooks.toml não tem nenhuma regra [[hooks]].",
             ));
         }
-        let mut rules: Vec<Rule> = Vec::with_capacity(raw.hooks.len());
-        for (index, raw) in raw.hooks.into_iter().enumerate() {
-            let rule = validate(index + 1, raw)?;
+        let mut rules: Vec<Rule> = Vec::with_capacity(drafts.len());
+        for (index, draft) in drafts.into_iter().enumerate() {
+            let rule = validate(index + 1, draft)?;
             if rules.iter().any(|known| known.name == rule.name) {
                 let name = rule.name;
                 return Err(Localized::with_param(
@@ -305,6 +400,233 @@ impl Hooks {
     }
 }
 
+/// The rules of `text` as written; an error names the line, never echoes
+/// the file.
+fn parse(text: &str) -> Result<Vec<RuleDraft>, Localized> {
+    toml::from_str::<RawFile>(text)
+        .map(|raw| raw.hooks)
+        .map_err(|error| {
+            let at = error.span().map_or(0, |span| span.start.min(text.len()));
+            let line = text.as_bytes()[..at]
+                .iter()
+                .filter(|byte| **byte == b'\n')
+                .count()
+                + 1;
+            Localized::with_param(
+                "hooks.error.toml",
+                "line",
+                line,
+                format!(
+                    "hooks.toml inválido na linha {line}: cada [[hooks]] aceita name, events, \
+                     provider, account, min_threshold, command (lista de argumentos) e \
+                     timeout_seconds."
+                ),
+            )
+        })
+}
+
+/// PRD 0013 RF4: `hooks.toml` as an editor shows it: the rules as written
+/// and whether they are valid, plus the revision a save must still find.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Document {
+    path: PathBuf,
+    revision: Option<String>,
+    drafts: Option<Vec<RuleDraft>>,
+    hooks: Result<Hooks, Localized>,
+}
+
+impl Document {
+    /// The file at `path` as it is now; a missing file is an empty one
+    /// (no revision, no rules, [`Self::hooks`] says it is missing).
+    pub fn read(path: &Path) -> Self {
+        let shown = path.display().to_string();
+        let unreadable = || {
+            Localized::with_param(
+                "hooks.error.unreadable",
+                "path",
+                shown.as_str(),
+                format!("Não foi possível ler {shown} (arquivo de texto UTF-8)."),
+            )
+        };
+        let (revision, text) = match std::fs::read(path) {
+            Ok(bytes) => (Some(revision_of(&bytes)), String::from_utf8(bytes).ok()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Self {
+                    path: path.to_path_buf(),
+                    revision: None,
+                    drafts: Some(Vec::new()),
+                    hooks: Err(Localized::with_param(
+                        "hooks.error.missing",
+                        "path",
+                        shown.as_str(),
+                        format!("Nenhum arquivo de hooks em {shown}."),
+                    )),
+                };
+            }
+            Err(_) => (None, None),
+        };
+        let Some(text) = text else {
+            return Self {
+                path: path.to_path_buf(),
+                revision,
+                drafts: None,
+                hooks: Err(unreadable()),
+            };
+        };
+        let drafts = parse(&text);
+        Self {
+            path: path.to_path_buf(),
+            revision,
+            hooks: drafts
+                .clone()
+                .and_then(|drafts| Hooks::from_drafts(path.to_path_buf(), drafts)),
+            drafts: drafts.ok(),
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// SHA-256 (lowercase hex) of the bytes read; `None` without a file.
+    pub fn revision(&self) -> Option<&str> {
+        self.revision.as_deref()
+    }
+
+    /// The rules as written, valid or not; `None` when the file is not
+    /// TOML the editor can show (fix it by hand first).
+    pub fn drafts(&self) -> Option<&[RuleDraft]> {
+        self.drafts.as_deref()
+    }
+
+    /// The validated rules, or why they are not usable.
+    pub fn hooks(&self) -> Result<&Hooks, &Localized> {
+        self.hooks.as_ref()
+    }
+
+    pub fn into_hooks(self) -> Result<Hooks, Localized> {
+        self.hooks
+    }
+
+    /// Replace the rules of the file at `path` with `drafts`, validated as
+    /// the file is, when it still is the one read at `revision` (`None`:
+    /// there was no file). Comments of a rule kept under the same name
+    /// survive, as does the rest of a rule's layout. Returns the file as
+    /// written. Commands are written exactly as given, never changed.
+    pub fn save(
+        path: &Path,
+        revision: Option<&str>,
+        drafts: Vec<RuleDraft>,
+    ) -> Result<Self, Localized> {
+        let hooks = Hooks::from_drafts(path.to_path_buf(), drafts.clone())?;
+        let current = match std::fs::read(path) {
+            Ok(bytes) => Some(bytes),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(_) => return Err(unwritable(path)),
+        };
+        if current.as_deref().map(revision_of).as_deref() != revision {
+            return Err(changed());
+        }
+        let existing = current.and_then(|bytes| String::from_utf8(bytes).ok());
+        let text = render(existing.as_deref(), &drafts)
+            .filter(|text| Hooks::from_toml(path.to_path_buf(), text).as_ref() == Ok(&hooks))
+            .ok_or_else(|| unwritable(path))?;
+        write_atomically(path, text.as_bytes()).map_err(|_| unwritable(path))?;
+        Ok(Self::read(path))
+    }
+}
+
+fn revision_of(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+/// `drafts` as `[[hooks]]` tables over `existing` (when it is a hooks
+/// file `toml_edit` reads): a rule found there by name keeps its table,
+/// with its comments, and each kept key its decoration.
+fn render(existing: Option<&str>, drafts: &[RuleDraft]) -> Option<String> {
+    use toml_edit::{ArrayOfTables, DocumentMut, Item, Table};
+    let mut doc = existing
+        .and_then(|text| text.parse::<DocumentMut>().ok())
+        .filter(|doc| doc.get("hooks").is_none_or(Item::is_array_of_tables))
+        .unwrap_or_default();
+    let old: Vec<Table> = doc
+        .get("hooks")
+        .and_then(Item::as_array_of_tables)
+        .map(|tables| tables.iter().cloned().collect())
+        .unwrap_or_default();
+    let mut tables = ArrayOfTables::new();
+    for draft in drafts {
+        let fresh = toml_edit::ser::to_document(draft).ok()?;
+        let mut table = old
+            .iter()
+            .find(|table| {
+                table.get("name").and_then(Item::as_str).map(str::trim) == Some(draft.name.trim())
+            })
+            .cloned()
+            .unwrap_or_default();
+        let gone: Vec<String> = table
+            .iter()
+            .map(|(key, _)| key.to_owned())
+            .filter(|key| !fresh.contains_key(key))
+            .collect();
+        for key in gone {
+            table.remove(&key);
+        }
+        for (key, item) in fresh.iter() {
+            let value = item.as_value()?.clone();
+            match table.get_mut(key).and_then(Item::as_value_mut) {
+                Some(kept) => {
+                    let decor = kept.decor().clone();
+                    *kept = value;
+                    *kept.decor_mut() = decor;
+                }
+                None => {
+                    table.insert(key, Item::Value(value));
+                }
+            }
+        }
+        tables.push(table);
+    }
+    doc.insert("hooks", Item::ArrayOfTables(tables));
+    Some(doc.to_string())
+}
+
+/// Replace `path` with `bytes` through a temporary file in its directory
+/// (created private: 0600 on Unix).
+fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    std::fs::create_dir_all(dir)?;
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    tmp.write_all(bytes)?;
+    tmp.as_file().sync_all()?;
+    tmp.persist(path).map_err(|error| error.error)?;
+    Ok(())
+}
+
+/// The rules on disk are not the ones the user was shown: a save over a
+/// file edited meanwhile, or a confirmation of rules that changed since
+/// they were listed.
+pub fn changed() -> Localized {
+    Localized::fixed(
+        "hooks.error.changed",
+        "O hooks.toml mudou desde que foi exibido; revise as regras de novo.",
+    )
+}
+
+fn unwritable(path: &Path) -> Localized {
+    let path = path.display().to_string();
+    Localized::with_param(
+        "hooks.error.unwritable",
+        "path",
+        path.as_str(),
+        format!("Não foi possível gravar {path}."),
+    )
+}
+
 fn quoted(text: &str) -> String {
     serde_json::to_string(text).unwrap_or_default()
 }
@@ -313,7 +635,7 @@ fn rule_error(id: &'static str, name: &str, fallback: String) -> Localized {
     Localized::with_param(id, "name", name, fallback)
 }
 
-fn validate(index: usize, raw: RawRule) -> Result<Rule, Localized> {
+fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
     let name = raw.name.trim().to_owned();
     if name.is_empty()
         || name.chars().count() > NAME_MAX_CHARS
@@ -501,7 +823,8 @@ pub fn not_confirmed(hooks: &Hooks) -> Localized {
         path.as_str(),
         format!(
             "Os hooks de {path} ainda não foram confirmados, ou mudaram desde a confirmação; \
-             revise e confirme os comandos num terminal com cuotai --watch --hooks."
+             revise e confirme os comandos num terminal com cuotai --watch --hooks ou em \
+             Configurações → Integração do app desktop."
         ),
     )
 }
@@ -591,22 +914,13 @@ impl Consent {
     }
 
     fn write(&self, record: &ConsentRecord) -> io::Result<()> {
-        let dir = self
-            .file
-            .parent()
-            .filter(|dir| !dir.as_os_str().is_empty())
-            .unwrap_or(Path::new("."));
-        std::fs::create_dir_all(dir)?;
-        // tempfile creates 0600 files on Unix.
-        let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
-        tmp.write_all(&serde_json::to_vec(record)?)?;
-        tmp.as_file().sync_all()?;
-        tmp.persist(&self.file).map_err(|error| error.error)?;
-        Ok(())
+        write_atomically(&self.file, &serde_json::to_vec(record)?)
     }
 }
 
-fn consent_storage() -> Localized {
+/// Confirmations cannot be recorded (no local data directory, or it
+/// cannot be written).
+pub fn consent_storage() -> Localized {
     Localized::fixed(
         "hooks.error.consent_storage",
         "Não foi possível registrar a confirmação dos hooks no diretório de dados local.",
@@ -620,7 +934,7 @@ fn key(hooks: &Hooks) -> Option<String> {
 }
 
 /// How a run ended.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     /// The process exited with [`Run::exit_code`].
@@ -656,8 +970,38 @@ impl Run {
 
     /// `hooks.run.<case>`: one line for people.
     pub fn summary(&self) -> Localized {
-        let (rule, event) = (self.rule.as_str(), self.event.name());
-        let ms = u64::try_from(self.duration.as_millis()).unwrap_or(u64::MAX);
+        self.logged().summary()
+    }
+
+    /// What the [`RunLog`] keeps of it.
+    pub fn logged(&self) -> LoggedRun {
+        LoggedRun {
+            at: self.started_at,
+            rule: self.rule.clone(),
+            event: self.event,
+            duration_ms: u64::try_from(self.duration.as_millis()).unwrap_or(u64::MAX),
+            outcome: self.outcome,
+            exit_code: self.exit_code,
+        }
+    }
+}
+
+/// One line of the [`RunLog`]: a run without its payload or output.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoggedRun {
+    /// When it started.
+    pub at: DateTime<Utc>,
+    pub rule: String,
+    pub event: EventKind,
+    pub duration_ms: u64,
+    pub outcome: Outcome,
+    pub exit_code: Option<i32>,
+}
+
+impl LoggedRun {
+    /// `hooks.run.<case>`: one line for people.
+    pub fn summary(&self) -> Localized {
+        let (rule, event, ms) = (self.rule.as_str(), self.event.name(), self.duration_ms);
         let common = || {
             params([
                 ("rule", rule.into()),
@@ -708,16 +1052,6 @@ pub struct RunLog {
     lock: Mutex<()>,
 }
 
-#[derive(Serialize)]
-struct LogLine<'a> {
-    at: DateTime<Utc>,
-    rule: &'a str,
-    event: EventKind,
-    duration_ms: u64,
-    outcome: Outcome,
-    exit_code: Option<i32>,
-}
-
 impl RunLog {
     pub fn at(path: impl Into<PathBuf>) -> Self {
         Self {
@@ -736,32 +1070,53 @@ impl RunLog {
         &self.path
     }
 
+    /// `runs.log.1`, where the log moves when it rotates.
+    fn older(&self) -> PathBuf {
+        let mut older = self.path.clone().into_os_string();
+        older.push(".1");
+        older.into()
+    }
+
     /// Append `run` (creating the file privately: 0600 on Unix). Past
     /// 256 KiB the log moves to `runs.log.1`, replacing the older one.
     pub fn append(&self, run: &Run) -> io::Result<()> {
-        let mut line = serde_json::to_vec(&LogLine {
-            at: run.started_at,
-            rule: &run.rule,
-            event: run.event,
-            duration_ms: u64::try_from(run.duration.as_millis()).unwrap_or(u64::MAX),
-            outcome: run.outcome,
-            exit_code: run.exit_code,
-        })?;
+        let mut line = serde_json::to_vec(&run.logged())?;
         line.push(b'\n');
         let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(dir) = self.path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
             std::fs::create_dir_all(dir)?;
         }
         if std::fs::metadata(&self.path).is_ok_and(|meta| meta.len() >= LOG_ROTATE_BYTES) {
-            let mut older = self.path.clone().into_os_string();
-            older.push(".1");
-            std::fs::rename(&self.path, older)?;
+            std::fs::rename(&self.path, self.older())?;
         }
         let mut options = std::fs::OpenOptions::new();
         options.create(true).append(true);
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
         options.open(&self.path)?.write_all(&line)
+    }
+
+    /// The last `limit` runs, newest first, from this log and the rotated
+    /// one (any process's: `cuotai --watch --hooks` and the desktop share
+    /// it). Lines that do not read as a run are skipped; no log is no run.
+    pub fn latest(&self, limit: usize) -> Vec<LoggedRun> {
+        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut runs = Vec::new();
+        for path in [self.path.clone(), self.older()] {
+            if runs.len() >= limit {
+                break;
+            }
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            runs.extend(
+                text.lines()
+                    .rev()
+                    .filter_map(|line| serde_json::from_str::<LoggedRun>(line).ok()),
+            );
+        }
+        runs.truncate(limit);
+        runs
     }
 }
 
@@ -848,6 +1203,19 @@ impl Runner {
             .filter(|(_, rule)| rule.matches(event))
             .map(|(index, _)| index)
             .collect();
+        self.enqueue(matching, event)
+    }
+
+    /// Queue a run of the rule named `rule` alone for `event`, whatever its
+    /// events and filters (the desktop's test with [`Rule::sample`]).
+    /// `None` when no confirmed rule has that name; otherwise as
+    /// [`Self::submit`].
+    pub fn submit_to(&self, rule: &str, event: &Event) -> Option<usize> {
+        let index = self.rules.iter().position(|known| known.name == rule)?;
+        Some(self.enqueue(vec![index], event))
+    }
+
+    fn enqueue(&self, matching: Vec<usize>, event: &Event) -> usize {
         if matching.is_empty() {
             return 0;
         }

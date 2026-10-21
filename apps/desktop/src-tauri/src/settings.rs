@@ -56,6 +56,10 @@ struct Stored {
     /// decision. Read leniently like `notify` ([`ServePrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     serve: Option<serde_json::Value>,
+    /// Hooks run in the app (PRD 0013 RF4); absent = off, as RF3.2
+    /// requires. Only `true` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    hooks: Option<bool>,
 }
 
 /// Lead times offered, in minutes ("at the time" is 0).
@@ -468,6 +472,17 @@ pub fn status_queries() -> bool {
     status_queries_of(&load())
 }
 
+/// Off unless `desktop.json` says `true`.
+fn hooks_of(stored: &Stored) -> bool {
+    stored.hooks == Some(true)
+}
+
+/// PRD 0013 RF4: whether this device runs the confirmed hooks (off until
+/// the user turns them on).
+pub fn hooks_enabled() -> bool {
+    hooks_of(&load())
+}
+
 /// Valores aceitos para `motion`, na ordem exibida pela UI.
 pub const MOTIONS: [&str; 4] = ["system", "always", "reduced", "off"];
 
@@ -618,6 +633,12 @@ pub fn save_history_recording(on: bool) -> Result<(), &'static str> {
 pub fn save_status_queries(on: bool) -> Result<(), &'static str> {
     let file = settings_file().ok_or("unwritable")?;
     update(&file, |s| s.status_queries = on.then_some(true))
+}
+
+/// Runs the confirmed hooks or not; `false` (the default) removes the key.
+pub fn save_hooks_enabled(on: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| s.hooks = on.then_some(true))
 }
 
 #[derive(Serialize)]
@@ -827,6 +848,20 @@ mod tests {
             .contains("status_queries"));
         fs::write(&file, r#"{"status_queries":false}"#).unwrap();
         assert!(!status_queries_of(&read(&file)));
+    }
+
+    #[test]
+    fn hooks_are_off_unless_turned_on_and_keep_other_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert!(!hooks_of(&read(&file)), "off by default");
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        update(&file, |s| s.hooks = Some(true)).unwrap();
+        let stored = read(&file);
+        assert!(hooks_of(&stored));
+        assert_eq!(motion_of(&stored), "off");
+        fs::write(&file, r#"{"hooks":false}"#).unwrap();
+        assert!(!hooks_of(&read(&file)), "a hand-edited false is off");
     }
 
     #[test]

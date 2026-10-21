@@ -231,6 +231,7 @@ mod tests {
                 ..Values::default()
             },
             previous: None,
+            sample: false,
         }
     }
 
