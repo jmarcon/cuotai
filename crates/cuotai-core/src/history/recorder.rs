@@ -120,8 +120,10 @@ impl Shared {
     }
 
     fn work(&self, jobs: Receiver<Job>) {
-        // Prune on open, then every 24 hours.
-        let mut next_prune = Instant::now();
+        // Finish the initial prune before receiving jobs so it cannot clear
+        // the outcome of a job that was already queued while the thread started.
+        self.prune();
+        let mut next_prune = Instant::now() + PRUNE_EVERY;
         loop {
             match jobs.recv_timeout(next_prune.saturating_duration_since(Instant::now())) {
                 Ok(Job::Record {
