@@ -1,6 +1,6 @@
 [package]
 name = "cuotai-desktop"
-version = "0.71.2"
+version = "0.71.3"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 # PRD 0021 RF5.4: the desktop is a Tauri app, distributed as DMG/installer

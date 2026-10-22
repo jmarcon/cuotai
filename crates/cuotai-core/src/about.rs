@@ -217,6 +217,13 @@ static LIBRARIES: &[Library] = &[
         Role::Runtime,
         &[Core],
     ),
+    lib(
+        "sys-locale",
+        "MIT OR Apache-2.0",
+        "https://github.com/1Password/sys-locale",
+        Role::Runtime,
+        &[Tui],
+    ),
     // Cofounded by Lucas Fernandes Nogueira (Brasil).
     lib(
         "tauri",

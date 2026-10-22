@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.71.3] - 2026-10-22
+
+### Fixed
+
+- The About screen now lists the TUI's system locale detector.
+
 ## [0.71.2] - 2026-10-22
 
 ### Fixed
@@ -613,7 +619,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.71.2...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.71.3...HEAD
+[0.71.3]: https://github.com/jmarcon/cuotai/compare/v0.71.2...v0.71.3
 [0.71.2]: https://github.com/jmarcon/cuotai/compare/v0.71.1...v0.71.2
 [0.71.1]: https://github.com/jmarcon/cuotai/compare/v0.71.0...v0.71.1
 [0.71.0]: https://github.com/jmarcon/cuotai/compare/v0.70.0...v0.71.0
