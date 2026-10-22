@@ -58,6 +58,23 @@ jobs:
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+      # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
+      # `--list-providers` must exit 0; `--once` on the fixture names only
+      # never-defined credential variables, so every account is classified
+      # missing configuration before any HTTP and the command must exit 2.
+      - run: cargo build -p cuotai-tui --locked
+      - name: TUI smoke (no network)
+        shell: bash
+        run: |
+          set -e
+          bin=target/debug/cuotai
+          "$bin" --list-providers
+          code=0
+          "$bin" --config crates/cuotai-tui/tests/fixtures/smoke.toml --once --no-status || code=$?
+          if [ "$code" -ne 2 ]; then
+            echo "expected exit 2 from --once on the smoke fixture, got $code" >&2
+            exit 1
+          fi
 
   # Dependency licenses, advisories and sources (PRD 0019, RF1.3). cargo-deny
   # finds the root `deny.toml` by walking up from either manifest.

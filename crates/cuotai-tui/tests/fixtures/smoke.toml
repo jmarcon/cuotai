@@ -1,0 +1,18 @@
+# PRD 0019 RF5.2: no-network smoke configuration for the CI TUI smoke step.
+# Every account names an environment variable that is never defined, so each
+# query is classified as missing configuration before any HTTP request and
+# `--once` exits 2 (account failures). `--list-providers` does not read this
+# file and exits 0.
+refresh_seconds = 300
+concurrency = 2
+timeout_seconds = 30
+
+[[accounts]]
+name = "Smoke OpenAI"
+provider = "open_ai_api"
+credential_env = "CUOTAI_SMOKE_MISSING_OPENAI_KEY"
+
+[[accounts]]
+name = "Smoke Kimi"
+provider = "kimi"
+credential_env = "CUOTAI_SMOKE_MISSING_KIMI_KEY"

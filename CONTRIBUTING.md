@@ -90,7 +90,7 @@ cargo xtask release-check --tag v0.68.0             # plus the tag you plan to p
 
 The full procedure, the dry run (**Actions → Release → Run workflow**, which
 builds everything and publishes nothing), the signing secrets and the fork
-rehearsal are documented in [`docs/releasing.md`](docs/releasing.md).
+rehearsal are documented in [`docs/releasing.md`](docs/releasing.md); the version, support and reproducibility policies in [`docs/release-policy.md`](docs/release-policy.md).
 
 ## Documentation language
 

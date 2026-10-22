@@ -269,6 +269,10 @@ verdict when notarized), runs the NSIS installer and the MSI on Windows
 (silent `/S` for NSIS), installs the `.deb` on the oldest supported Ubuntu
 and runs the AppImage, and runs `cuotai --once` from each CLI archive.
 
+The same review re-checks the platform support matrix in
+[`docs/platforms.md`](platforms.md) (PRD 0019 RF5.1): every cell still
+matches the code, and items marked as verified only in CI stay marked so.
+
 ## Revocation / yanking (RF9.4)
 
 To pull a bad release: mark the GitHub Release as pre-release (or delete its
