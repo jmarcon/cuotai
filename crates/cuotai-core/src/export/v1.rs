@@ -981,7 +981,7 @@ mod tests {
 
         let json = export(&config, &cycle, Options::default());
         let text = json.to_string();
-        for secret in [
+        for needle in [
             TOKEN,
             "user:",
             "key=",
@@ -996,7 +996,7 @@ mod tests {
             "session_env",
             "Bearer",
         ] {
-            assert!(!text.contains(secret), "{secret} leaked: {text}");
+            assert!(!text.contains(needle), "{needle} leaked: {text}");
         }
         assert!(json["accounts"][0].get("email").is_none());
         let report = &json["accounts"][0]["report"];
