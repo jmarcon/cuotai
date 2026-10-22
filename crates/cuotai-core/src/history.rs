@@ -1197,7 +1197,7 @@ credential_env = "GROQ_KEY_BETA"
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("history.sqlite3");
         let history = store(&db, "one");
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         history
             .record(&alpha, t0(), &[quota("5h", Some(10.0), Some(100.0))])
             .unwrap();
