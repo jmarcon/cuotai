@@ -19,3 +19,8 @@ sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"
+# The Tauri updater signature is a minisign signature: `tauri-cli` writes the
+# same `.sig` files with this exact crate, so the pipeline tests can produce a
+# real ephemeral-key signature and verify the manifest against it (PRD 0018 RF1).
+minisign = "0.9"
+base64 = "0.22"

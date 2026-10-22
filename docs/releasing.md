@@ -92,7 +92,7 @@ Stable names (package manifests can rely on them):
 | CLI Linux | `ubuntu-22.04` | `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz`, `…-x86_64-unknown-linux-musl.tar.gz`; `…-aarch64-unknown-linux-gnu.tar.gz` (optional) |
 | CLI Windows | `windows-latest` / `windows-11-arm` | `cuotai-<version>-x86_64-pc-windows-msvc.zip`; `…-aarch64-pc-windows-msvc.zip` (optional) |
 | Integrity | assembly job | `SHA256SUMS`, `SHA256SUMS.sig` + `SHA256SUMS.pem` (tag runs), `manifest.json`, `signing-state.json`, `sbom.cdx.json` |
-| Updater | assembly job | `latest.json` (only when the updater archive is signed) |
+| Updater (PRD 0018) | assembly job | `latest.json` (only when the updater artifacts are signed), `Cuotai.app.tar.gz` + `.sig` (macOS), `<installer>.sig` next to the Windows NSIS/MSI and the Linux AppImage/deb/rpm |
 
 Notes and limits:
 
@@ -169,12 +169,19 @@ Per platform:
   marked unavailable. There is no project key to rotate; the identity is the
   workflow.
 - **Tauri updater key** (`TAURI_SIGNING_PRIVATE_KEY` +
-  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`): used **only** to sign
-  `Cuotai.app.tar.gz` (PRD 0018 consumes it). When absent, no updater
-  archive, no `.sig` and no `latest.json` are produced, and
-  `signing-state.json` says so. Note: until PRD 0018 lands, the updater
-  plugin is not configured in `tauri.conf.json`; the pipeline only produces
-  the signed assets it will consume.
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`): used **only** for the in-app updater
+  signatures of PRD 0018, never for code signing or checksums. The public key
+  is committed in `tauri.conf.json` (`plugins.updater.pubkey`), and
+  [`docs/updater-security.md`](updater-security.md) holds the key custody,
+  the leak procedure and the loss procedure. Signing happens where the bytes
+  are final, which is a different step per platform:
+  | Platform | Where | Why |
+  |---|---|---|
+  | macOS | `collect-macos.sh`, after notarization | the updater artifact is a tarball of the **notarized** app; a bundle-time archive would carry the pre-notarization app and fail Gatekeeper |
+  | Windows | `scripts/release/updater-sign.sh`, after Authenticode | Authenticode rewrites the installer, so a bundle-time updater signature would not verify |
+  | Linux | the Tauri bundler, via `--config src-tauri/tauri.updater.conf.json` | nothing rewrites the AppImage/deb/rpm after bundling, so the bundler's signature is final |
+  When the key is absent (dry run, fork), no `.sig` and no `latest.json` are
+  produced and `signing-state.json` says why.
 - Every published release asset gets a GitHub **build-provenance attestation**
   (verifiable with `gh attestation verify`) on tag runs. Dry runs do not
   request or publish attestations and say so in the workflow summary.
@@ -287,8 +294,24 @@ Remove-Item -Recurse -Force "$env:APPDATA\cuotai", "$env:LOCALAPPDATA\cuotai"
 These paths are also how a managed install is recognised (RF8.1 groundwork):
 the Caskroom/Cellar receipt, `%LocalAppData%\Programs\Cuotai`,
 `~\scoop\apps\cuotai\current`, `/usr/bin/Cuotai` and `~/.cargo/bin/cuotai`.
-PRD 0018 later turns the in-app updater off on those installs and shows
-"Update with `brew upgrade`" (or the channel's own command) instead.
+PRD 0018 turns the in-app updater off on those installs and shows
+"Update with `brew upgrade`" (or the channel's own command) instead. The
+`CUOTAI_UPDATER=off` environment variable forces the same state for any other
+managed install (PRD 0018 RF3.2); the package-manager channels themselves
+publish the same binaries as the GitHub release, so they need no build-time
+switch — the difference is detected at run time.
+
+## Updater (PRD 0018)
+
+The in-app updater is signed by the Tauri updater key, distinct from the
+SHA256SUMS signature and from Authenticode/Developer ID. Key custody, the
+environment protection the owner must configure, the leak procedure (new pair,
+a transition release signed with the **old** key that embeds the new public
+key, user communication, then revoking the old secret), the loss procedure
+(why users must reinstall manually) and the exact contents of an update-check
+request are documented in
+[`docs/updater-security.md`](updater-security.md). That document is the one to
+read before the first signed release.
 
 ## Verifying a download (what users do)
 
@@ -308,10 +331,12 @@ The pipeline never creates secrets, environments or repositories. Before the
 first real release:
 
 1. Create the **`release` environment** (Settings → Environments) with a
-   **required reviewer**. Without it the jobs still run but no secret is
-   available (everything ships honestly unsigned); a dry run in the owner
-   repository waits for reviewer approval because the build jobs reference
-   the environment.
+   **required reviewer** and deployment branches restricted to tags. Without
+   it the jobs still run but no secret is available (everything ships honestly
+   unsigned); a dry run in the owner repository waits for reviewer approval
+   because the build jobs reference the environment. See
+   [`docs/updater-security.md`](updater-security.md) for the updater key's
+   own requirements.
 2. Add to the `release` environment, as desired:
    - `APPLE_CERTIFICATE` — base64-encoded PKCS#12 (`.p12`);
      `APPLE_CERTIFICATE_PASSWORD` — that file's password; and
@@ -325,8 +350,11 @@ first real release:
      `WINDOWS_CERTIFICATE_PASSWORD` — Authenticode;
    - `TAURI_SIGNING_PRIVATE_KEY` — the private-key text emitted by
      `cargo tauri signer generate` — and its
-     `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the generated public key belongs in
-     `tauri.conf.json` when PRD 0018 lands.
+     `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The public key is already
+     committed in `tauri.conf.json`; custody, leak and loss procedures are in
+     [`docs/updater-security.md`](updater-security.md), including the exact
+     `gh secret set --env release` commands and the environment protection
+     (required reviewer, tag-only deployment branches) the owner must set.
    - per channel, one token or key each, never shared (RF9.2):
      `HOMEBREW_TAP_TOKEN` (contents: write on the tap repository),
      `SCOOP_BUCKET_TOKEN` (contents: write on the bucket repository),
@@ -371,16 +399,52 @@ naming the secret to add or the variable to unset.
 `scripts/release/collect-linux.sh` selects exactly one final regular
 non-symlink package by expected extension in each Tauri bundle directory
 (`*.AppImage`, `*.deb`, `*.rpm`), ignoring Tauri's linuxdeploy `Cuotai.AppDir`
-staging tree and unrelated entries. A runnable shell test,
+staging tree and unrelated entries, and copies the updater signature the
+bundler wrote beside each package (PRD 0018 RF1.1). A runnable shell test,
 `scripts/release/test-collect-linux.sh`, asserts the green path (one valid
 package plus an `AppDir` staging tree and an unrelated extension sibling
-collect the right files into `dist/` with the exact stable names) and three
-red paths (zero matching files, duplicate same-extension matches, and a
-symlink package). Run it locally before pushing a desktop-related change:
+collect the right files into `dist/` with the exact stable names), the two
+updater paths (signatures collected and reported; no key → honestly
+unsigned), and three red paths (zero matching files, duplicate same-extension
+matches, and a symlink package). Run it locally before pushing a desktop-
+related change:
 
 ```sh
 bash scripts/release/test-collect-linux.sh
 ```
+
+### Building the updater manifest locally
+
+The same command the `assemble` job runs, against a `dist/` you built. Without
+the private key there are no `.sig` files and the command refuses, exactly as
+the pipeline does — rehearse with an **ephemeral** pair, never the production
+key:
+
+```sh
+# 1. ephemeral key pair in a scratch directory
+cargo tauri signer generate --ci -p smoke-only -w /tmp/cuotai-smoke
+
+# 2. sign one artifact per platform you want in the manifest
+TAURI_SIGNING_PRIVATE_KEY="$(cat /tmp/cuotai-smoke)" \
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD=smoke-only \
+  cargo tauri signer sign --app-version 0.68.0 dist/Cuotai.app.tar.gz
+
+# 3. merge the platforms into one latest.json
+cargo xtask release-check --changelog-out notes.txt
+cargo xtask updater-manifest \
+  --version 0.68.0 --repo jmarcon/cuotai --tag v0.68.0 \
+  --notes-file notes.txt --pub-date 2026-10-21T12:00:00Z \
+  --platform darwin-aarch64-app=dist/Cuotai.app.tar.gz \
+  --platform darwin-x86_64-app=dist/Cuotai.app.tar.gz \
+  --platform windows-x86_64-nsis=dist/Cuotai_0.68.0_x64-setup.exe \
+  --platform linux-x86_64-appimage=dist/Cuotai_0.68.0_amd64.AppImage \
+  --require darwin-aarch64-app --require windows-x86_64-nsis \
+  --out dist/latest.json
+```
+
+A missing platform is simply absent from `platforms`; a collected artifact
+without a `.sig` and a missing `--require` key both fail the command rather
+than producing a manifest that cannot be installed.
 
 ## Manual desktop checklist per release
 
@@ -399,8 +463,11 @@ matches the code, and items marked as verified only in CI stay marked so.
 To pull a bad release: mark the GitHub Release as pre-release (or delete its
 assets) — never reuse the tag; if a signing key leaked, rotate it (the
 Sigstore keyless identity needs no rotation; the Tauri updater key does: new
-pair, new `TAURI_SIGNING_PRIVATE_KEY`, the next release carries the new
-public key when PRD 0018 embeds it) and state it in the release notes.
+pair, new `TAURI_SIGNING_PRIVATE_KEY`, a transition release signed with the
+old key that embeds the new public key, then revoke the old secret) and state
+it in the release notes. The full leak and loss procedures, including what
+users must do when the key is lost, are in
+[`docs/updater-security.md`](updater-security.md).
 
 Each channel rolls back on its own, in its own repository: commit the
 previous version's cask/formula back in the tap, restore the previous

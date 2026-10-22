@@ -146,15 +146,87 @@ symlink_scenario() {
     || fail "symlink error did not name the kind of failure"
 }
 
+updater_signed_scenario() {
+  local root="$1"
+  setup_workdir "$root"
+  local v=0.67.0
+  local bundle="$root/apps/desktop/src-tauri/target/release/bundle"
+  write_pkg "$bundle/appimage/Cuotai_${v}_amd64.AppImage" "amd64 AppImage"
+  write_pkg "$bundle/appimage/Cuotai_${v}_amd64.AppImage.sig" "base64 updater signature"
+  write_pkg "$bundle/deb/Cuotai_${v}_amd64.deb" "amd64 deb"
+  write_pkg "$bundle/deb/Cuotai_${v}_amd64.deb.sig" "base64 updater signature"
+  write_pkg "$bundle/rpm/Cuotai_${v}_amd64.rpm" "amd64 rpm"
+
+  (
+    cd "$root"
+    export VERSION="$v"
+    "$COLLECT" x64
+  ) >/dev/null
+
+  # Every signature the bundler produced is collected next to its payload,
+  # and the fragment reports the updater as available with exactly those
+  # files (PRD 0018 RF1.1).
+  for base in "Cuotai_${v}_amd64.AppImage" "Cuotai_${v}_amd64.deb"; do
+    [ -s "$root/dist/${base}.sig" ] || fail "expected dist/${base}.sig to be collected"
+    cmp -s "$root/dist/${base}.sig" "$bundle/$(dirname "${base#Cuotai_${v}_}" | sed 's#^#x/#')${base}" 2>/dev/null || true
+  done
+  cmp -s "$root/dist/Cuotai_${v}_amd64.AppImage.sig" \
+    "$bundle/appimage/Cuotai_${v}_amd64.AppImage.sig" \
+    || fail "collected AppImage signature differs from the bundle source"
+  cmp -s "$root/dist/Cuotai_${v}_amd64.deb.sig" \
+    "$bundle/deb/Cuotai_${v}_amd64.deb.sig" \
+    || fail "collected deb signature differs from the bundle source"
+  [ -e "$root/dist/Cuotai_${v}_amd64.rpm.sig" ] \
+    && fail "an unsigned rpm must not produce a signature in dist/"
+
+  local frag="$root/fragments/linux-x64.json"
+  grep -q "\"available\": *true" "$frag" || fail "fragment does not report the updater as available"
+  local want
+  want="$(printf '%s\n' \
+      "Cuotai_${v}_amd64.AppImage" "Cuotai_${v}_amd64.AppImage.sig" \
+      "Cuotai_${v}_amd64.deb" "Cuotai_${v}_amd64.deb.sig" | sort | jq -R -s -c 'split("\n")[:-1]')"
+  jq -e --argjson want "$want" '.updater.artifacts | sort == $want' "$frag" >/dev/null \
+    || fail "updater artifacts in the fragment are not the signed pairs"
+  jq -e '[.artifacts[] | select(.method == "tauri-updater-key")] | length == 4' "$frag" >/dev/null \
+    || fail "fragment does not carry the updater-key signing entries"
+}
+
+updater_unsigned_scenario() {
+  local root="$1"
+  setup_workdir "$root"
+  local v=0.67.0
+  local bundle="$root/apps/desktop/src-tauri/target/release/bundle"
+  write_pkg "$bundle/appimage/Cuotai_${v}_amd64.AppImage" "amd64 AppImage"
+  write_pkg "$bundle/deb/Cuotai_${v}_amd64.deb" "amd64 deb"
+  write_pkg "$bundle/rpm/Cuotai_${v}_amd64.rpm" "amd64 rpm"
+
+  (
+    cd "$root"
+    export VERSION="$v"
+    "$COLLECT" x64
+  ) >/dev/null
+
+  # No key, no signature: the packages keep their checksum-signature trust
+  # and the fragment states why the updater produced nothing.
+  local frag="$root/fragments/linux-x64.json"
+  grep -q "\"available\": *false" "$frag" || fail "fragment does not report the updater as unavailable"
+  jq -e '.updater.reason | length > 0' "$frag" >/dev/null \
+    || fail "an unavailable updater must give a reason"
+  jq -e '[.artifacts[] | select(.method == "tauri-updater-key")] | length == 0' "$frag" >/dev/null \
+    || fail "an unsigned run must not report updater-key signing entries"
+}
+
 main() {
   bash -n "$COLLECT"
 
-  local green_dir zero_dir dup_dir sym_dir
+  local green_dir zero_dir dup_dir sym_dir signed_dir unsigned_dir
   green_dir="$(mktemp -d)"
   zero_dir="$(mktemp -d)"
   dup_dir="$(mktemp -d)"
   sym_dir="$(mktemp -d)"
-  trap 'rm -rf "${green_dir:-}" "${zero_dir:-}" "${dup_dir:-}" "${sym_dir:-}"' EXIT
+  signed_dir="$(mktemp -d)"
+  unsigned_dir="$(mktemp -d)"
+  trap 'rm -rf "${green_dir:-}" "${zero_dir:-}" "${dup_dir:-}" "${sym_dir:-}" "${signed_dir:-}" "${unsigned_dir:-}"' EXIT
 
   note "green: linuxdeploy AppDir staging tree + unrelated sibling collect the right packages"
   green_scenario "$green_dir"
@@ -164,6 +236,10 @@ main() {
   duplicate_scenario "$dup_dir"
   note "red: a symlink whose own name matches the expected extension must be rejected"
   symlink_scenario "$sym_dir"
+  note "green: bundler-produced updater signatures are collected and reported"
+  updater_signed_scenario "$signed_dir"
+  note "green: a run without the updater key stays honestly unsigned"
+  updater_unsigned_scenario "$unsigned_dir"
 
   echo "PASS: collect-linux.sh green/red fixtures behave correctly"
 }

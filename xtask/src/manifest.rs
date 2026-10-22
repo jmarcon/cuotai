@@ -207,6 +207,9 @@ fn expected(version: &str) -> Vec<Expected> {
             "aarch64",
         ),
         // Updater artifacts: only when the Tauri updater key is configured.
+        // The macOS archive is a tarball of the notarized app; Windows and
+        // Linux are updater-signed in place, so their `.sig` sits next to the
+        // installer/package itself (PRD 0018 RF1.3).
         opt(
             "Cuotai.app.tar.gz".into(),
             "desktop-updater-archive",
@@ -218,6 +221,60 @@ fn expected(version: &str) -> Vec<Expected> {
             "desktop-updater-signature",
             "macos",
             "universal",
+        ),
+        opt(
+            format!("Cuotai_{v}_x64-setup.exe.sig"),
+            "desktop-updater-signature",
+            "windows",
+            "x64",
+        ),
+        opt(
+            format!("Cuotai_{v}_x64_en-US.msi.sig"),
+            "desktop-updater-signature",
+            "windows",
+            "x64",
+        ),
+        opt(
+            format!("Cuotai_{v}_arm64-setup.exe.sig"),
+            "desktop-updater-signature",
+            "windows",
+            "arm64",
+        ),
+        opt(
+            format!("Cuotai_{v}_amd64.AppImage.sig"),
+            "desktop-updater-signature",
+            "linux",
+            "amd64",
+        ),
+        opt(
+            format!("Cuotai_{v}_amd64.deb.sig"),
+            "desktop-updater-signature",
+            "linux",
+            "amd64",
+        ),
+        opt(
+            format!("Cuotai_{v}_amd64.rpm.sig"),
+            "desktop-updater-signature",
+            "linux",
+            "amd64",
+        ),
+        opt(
+            format!("Cuotai_{v}_aarch64.AppImage.sig"),
+            "desktop-updater-signature",
+            "linux",
+            "aarch64",
+        ),
+        opt(
+            format!("Cuotai_{v}_aarch64.deb.sig"),
+            "desktop-updater-signature",
+            "linux",
+            "aarch64",
+        ),
+        opt(
+            format!("Cuotai_{v}_aarch64.rpm.sig"),
+            "desktop-updater-signature",
+            "linux",
+            "aarch64",
         ),
         opt("latest.json".into(), "updater-manifest", "any", "any"),
         // Cargo-generated release SBOM.

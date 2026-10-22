@@ -24,7 +24,7 @@ path = "src/main.rs"
 
 [dependencies]
 # PRD 0012 RF4: `--serve` runs the core's local server.
-cuotai-core = { path = "../cuotai-core", version = "0.74", features = ["serve"] }
+cuotai-core = { path = "../cuotai-core", version = "0.75", features = ["serve"] }
 chrono.workspace = true
 serde_json.workspace = true
 # `signal`: `--serve` and `--watch` shut down on SIGINT/SIGTERM (and `--watch` on SIGHUP).

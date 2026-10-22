@@ -123,6 +123,11 @@ jobs:
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build universal app and DMG
         working-directory: apps/desktop
+        # No `tauri.updater.conf.json` overlay here (PRD 0018 RF1.1): the macOS
+        # updater artifact is the notarized app, which only exists after the
+        # notarization below, so `collect-macos.sh` archives and updater-signs
+        # it afterwards. Bundling-time signatures would cover the pre-notarized
+        # app.
         run: cargo tauri build --target universal-apple-darwin --bundles app,dmg -- --locked
       - name: Sign and verify app payload and DMG container
         env:
@@ -213,6 +218,18 @@ jobs:
           WINDOWS_CERTIFICATE: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE || '' }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
         run: scripts/release/windows-sign.ps1 -Mode Installers -Target x86_64-pc-windows-msvc
+      # PRD 0018 RF1.1: updater-signs the collected installers. It runs after
+      # Authenticode, because that rewrites the installer bytes and would
+      # invalidate an updater signature computed while bundling. The key is
+      # only present on tag runs, and only in this step.
+      - name: Updater-sign the installers
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: |
+          scripts/release/updater-sign.sh "dist/Cuotai_${VERSION}_x64-setup.exe" fragments/windows.json
+          scripts/release/updater-sign.sh "dist/Cuotai_${VERSION}_x64_en-US.msi" fragments/windows.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist-desktop-windows
@@ -287,8 +304,16 @@ jobs:
           WINDOWS_CERTIFICATE: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE || '' }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
         run: scripts/release/windows-sign.ps1 -Mode Installers -Target aarch64-pc-windows-msvc -FragmentName windows-arm64.json
+      - name: Updater-sign the ARM64 installer (PRD 0018 RF1.1)
+        id: updater_sign
+        if: steps.sign_installers.outcome == 'success'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: scripts/release/updater-sign.sh "dist/Cuotai_${VERSION}_arm64-setup.exe" fragments/windows-arm64.json
       - name: Unavailable marker
-        if: ${{ always() && (steps.build.outcome != 'success' || steps.sign_app.outcome != 'success' || steps.bundle.outcome != 'success' || steps.collect.outcome != 'success' || steps.sign_installers.outcome != 'success') }}
+        if: ${{ always() && (steps.build.outcome != 'success' || steps.sign_app.outcome != 'success' || steps.bundle.outcome != 'success' || steps.collect.outcome != 'success' || steps.sign_installers.outcome != 'success' || steps.updater_sign.outcome == 'failure') }}
         shell: bash
         run: |
           rm -rf dist
@@ -311,6 +336,10 @@ jobs:
     needs: check
     runs-on: ubuntu-22.04 # oldest supported glibc (RF2)
     timeout-minutes: 90
+    # The Tauri updater key lives here (PRD 0018 RF4.1): the Linux packages
+    # are updater-signed while bundling, so this job needs the secret from the
+    # protected environment.
+    environment: release
     env:
       VERSION: ${{ needs.check.outputs.version }}
       DRY_RUN: ${{ needs.check.outputs.dry_run }}
@@ -341,8 +370,27 @@ jobs:
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build AppImage, deb and rpm
         working-directory: apps/desktop
-        run: cargo tauri build --bundles appimage,deb,rpm -- --locked
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        # PRD 0018 RF1.1: `createUpdaterArtifacts` is enabled through the
+        # release-time overlay, and only when the key exists — a build without
+        # it must still bundle (dispatch dry runs, forks, local builds).
+        # Nothing rewrites these package bytes afterwards, so the signatures
+        # the bundler writes here are the final ones.
+        run: |
+          set -euo pipefail
+          args=(build --bundles "appimage,deb,rpm")
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            args+=(--config src-tauri/tauri.updater.conf.json)
+          else
+            echo "no Tauri updater key: bundling without updater artifacts"
+          fi
+          cargo tauri "${args[@]}" -- --locked
       - name: Collect artifacts and signing fragment
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: scripts/release/collect-linux.sh x64
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -363,6 +411,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     continue-on-error: true
     timeout-minutes: 90
+    environment: release
     env:
       VERSION: ${{ needs.check.outputs.version }}
       DRY_RUN: ${{ needs.check.outputs.dry_run }}
@@ -394,10 +443,22 @@ jobs:
       - name: Build AppImage, deb and rpm (ARM64)
         id: build
         working-directory: apps/desktop
-        run: cargo tauri build --target aarch64-unknown-linux-gnu --bundles appimage,deb,rpm -- --locked
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          args=(build --target aarch64-unknown-linux-gnu --bundles "appimage,deb,rpm")
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            args+=(--config src-tauri/tauri.updater.conf.json)
+          fi
+          cargo tauri "${args[@]}" -- --locked
       - name: Collect artifacts and signing fragment
         id: collect
         if: steps.build.outcome == 'success'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: scripts/release/collect-linux.sh arm64
       - name: Unavailable marker
         if: ${{ always() && (steps.build.outcome != 'success' || steps.collect.outcome != 'success') }}
@@ -673,27 +734,63 @@ jobs:
           pattern: optional-*
           path: .
           merge-multiple: true
-      - name: Updater manifest (only when the updater archive is signed)
+      - name: Updater manifest (only when the updater artifacts are signed)
         run: |
           set -euo pipefail
           mkdir -p fragments
-          # Changelog section is regenerated in this job's workspace.
+          # Changelog section is regenerated in this job's workspace and
+          # becomes the release notes shown by the updater (PRD 0018 RF2.2).
           ./target/debug/xtask release-check --changelog-out notes.txt
-          if [ -f dist/Cuotai.app.tar.gz.sig ]; then
+          # One manifest for every platform this run produced (RF1.3). A
+          # platform without a collected updater artifact is simply absent;
+          # a collected artifact with no signature fails the xtask call.
+          platforms=()
+          add_platform() { # <manifest key> <file in dist/>
+            if [ -f "dist/$2" ]; then
+              platforms+=(--platform "$1=dist/$2")
+              updater_count=$((updater_count + 1))
+            fi
+          }
+          updater_count=0
+          # macOS: one universal archive serves both architectures.
+          add_platform darwin-aarch64-app Cuotai.app.tar.gz
+          add_platform darwin-x86_64-app Cuotai.app.tar.gz
+          # Windows: NSIS is the default installer; the MSI keeps its own key.
+          add_platform windows-x86_64-nsis "Cuotai_${VERSION}_x64-setup.exe"
+          add_platform windows-x86_64-msi "Cuotai_${VERSION}_x64_en-US.msi"
+          add_platform windows-aarch64-nsis "Cuotai_${VERSION}_arm64-setup.exe"
+          # Linux: AppImage is the generic answer, deb/rpm have their own.
+          add_platform linux-x86_64-appimage "Cuotai_${VERSION}_amd64.AppImage"
+          add_platform linux-x86_64-deb "Cuotai_${VERSION}_amd64.deb"
+          add_platform linux-x86_64-rpm "Cuotai_${VERSION}_amd64.rpm"
+          add_platform linux-aarch64-appimage "Cuotai_${VERSION}_aarch64.AppImage"
+          add_platform linux-aarch64-deb "Cuotai_${VERSION}_aarch64.deb"
+          add_platform linux-aarch64-rpm "Cuotai_${VERSION}_aarch64.rpm"
+
+          if [ "$updater_count" -gt 0 ]; then
             epoch="$(git show -s --format=%ct HEAD)"
             pub_date="$(date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ)"
+            # `--require` names the platforms a complete release must serve, so
+            # a run that signed only some of them fails instead of stranding
+            # the rest.
             ./target/debug/xtask updater-manifest \
               --version "$VERSION" --repo "$REPO" --tag "$TAG" \
               --notes-file notes.txt \
               --pub-date "$pub_date" \
-              --archive dist/Cuotai.app.tar.gz --out dist/latest.json
+              "${platforms[@]}" \
+              --require darwin-aarch64-app \
+              --require darwin-x86_64-app \
+              --require windows-x86_64-nsis \
+              --require linux-x86_64-appimage \
+              --out dist/latest.json
             jq -n '{artifacts: [{name: "latest.json", signed: false,
               method: "checksum-signature", status: "unsigned",
               note: "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"}]}' \
               > fragments/assemble.json
+            echo "updater manifest written for $updater_count platform entries"
           else
             printf '{"artifacts": []}\n' > fragments/assemble.json
-            echo "no updater signature: latest.json not generated (stated in signing-state.json)"
+            echo "no updater artifacts: latest.json not generated (stated in signing-state.json)"
           fi
       - name: Manifest and SHA256SUMS
         run: ./target/debug/xtask release-manifest --artifacts-dir dist --version "$VERSION" --channel "$CHANNEL" --out-dir dist

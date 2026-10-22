@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-10-22
+
+### Added
+
+- The release pipeline now publishes the updater artifacts the app consumes: one `latest.json` covering every platform a release produced, the signed macOS archive built after notarization, the Windows installers updater-signed after Authenticode and the Linux packages signed while bundling. A run without the updater key still bundles, reports the updater as unavailable and never claims a signature it did not make (PRD 0018 RF1.2, RF1.3, RF4.1, RF4.2; PRD 0021 RF2).
+
 ## [0.74.0] - 2026-10-22
 
 ### Added
@@ -625,7 +631,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.74.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.0...HEAD
+[0.75.0]: https://github.com/jmarcon/cuotai/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/jmarcon/cuotai/compare/v0.73.0...v0.74.0
 [0.72.0]: https://github.com/jmarcon/cuotai/compare/v0.71.1...v0.72.0
 [0.71.1]: https://github.com/jmarcon/cuotai/compare/v0.71.0...v0.71.1

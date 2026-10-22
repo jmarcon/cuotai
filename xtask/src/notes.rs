@@ -48,7 +48,7 @@ pub fn render_body(
 
     if state.updater.available {
         out.push_str(
-            "In-app updater artifacts (`Cuotai.app.tar.gz`, its `.sig` and `latest.json`) are attached for PRD 0018.\n\n",
+            "In-app updater artifacts (`Cuotai.app.tar.gz` for macOS, the updater signatures of the Windows and Linux installers, and `latest.json`) are attached for PRD 0018.\n\n",
         );
     } else {
         let reason = state

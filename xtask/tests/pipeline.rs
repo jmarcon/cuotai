@@ -9,6 +9,7 @@ use xtask::signing::{
     self, ArtifactSigning, ChecksumSigning, ChecksumSigningMethod, Fragment, SigningMethod,
     SigningStatus, UpdaterState,
 };
+use xtask::updater::PlatformArchive;
 use xtask::{Channel, Version};
 
 const VERSION: &str = "0.68.0";
@@ -486,6 +487,22 @@ fn signing_state_rejects_updater_availability_contradictions() {
             artifacts: vec!["Cuotai.app.tar.gz".into(), "Cuotai.app.tar.gz.sig".into()],
             reason: Some("contradiction".into()),
         },
+        // An available updater with no signature at all is not a usable state.
+        UpdaterState {
+            available: true,
+            artifacts: vec!["Cuotai.app.tar.gz".into()],
+            reason: None,
+        },
+        // Listing the same archive twice is a pipeline error.
+        UpdaterState {
+            available: true,
+            artifacts: vec![
+                "Cuotai.app.tar.gz".into(),
+                "Cuotai.app.tar.gz".into(),
+                "Cuotai.app.tar.gz.sig".into(),
+            ],
+            reason: None,
+        },
     ];
     for updater in invalid {
         let mut fragment = unsigned_fragment(&manifest);
@@ -503,6 +520,197 @@ fn signing_state_rejects_updater_availability_contradictions() {
         )
         .is_err());
     }
+}
+
+/// A fragment reporting exactly the files one job owns: the named updater
+/// artifacts are updater-signed, the rest of that job's files keep
+/// checksum-signature trust.
+fn updater_signed_fragment(
+    manifest: &Manifest,
+    owned: &[String],
+    updater_artifacts: &[String],
+) -> Fragment {
+    let is_updater = |name: &str| updater_artifacts.iter().any(|claimed| claimed == name);
+    Fragment {
+        artifacts: manifest
+            .artifacts
+            .iter()
+            .filter(|artifact| owned.contains(&artifact.name))
+            .map(|artifact| ArtifactSigning {
+                name: artifact.name.clone(),
+                signed: is_updater(&artifact.name),
+                method: if is_updater(&artifact.name) {
+                    SigningMethod::TauriUpdaterKey
+                } else {
+                    SigningMethod::ChecksumSignature
+                },
+                status: if is_updater(&artifact.name) {
+                    SigningStatus::Signed
+                } else {
+                    SigningStatus::Unsigned
+                },
+                note: None,
+            })
+            .collect(),
+        updater: (!updater_artifacts.is_empty()).then(|| UpdaterState {
+            available: true,
+            artifacts: updater_artifacts.to_vec(),
+            reason: None,
+        }),
+    }
+}
+
+/// The same, for a job that produced no updater artifact: it reports only its
+/// own files and states why the updater has nothing from it.
+fn owned_fragment(manifest: &Manifest, owned: &[String], updater_artifacts: &[String]) -> Fragment {
+    let mut fragment = updater_signed_fragment(manifest, owned, updater_artifacts);
+    if updater_artifacts.is_empty() {
+        fragment.updater = Some(UpdaterState {
+            available: false,
+            artifacts: Vec::new(),
+            reason: Some("this run produced no updater artifact".into()),
+        });
+    }
+    fragment
+}
+
+#[test]
+fn signing_state_unions_the_updater_artifacts_of_every_platform() {
+    let v = VERSION;
+    let dir = tempfile::tempdir().unwrap();
+    // `latest.json` is not itself an updater artifact: it is published and
+    // authenticated through the signed `SHA256SUMS`.
+    let signed = [
+        "Cuotai.app.tar.gz".to_string(),
+        "Cuotai.app.tar.gz.sig".to_string(),
+        format!("Cuotai_{v}_amd64.AppImage.sig"),
+        format!("Cuotai_{v}_x64-setup.exe.sig"),
+    ];
+    let payloads = [
+        "latest.json".to_string(),
+        format!("Cuotai_{v}_universal.dmg"),
+        "Cuotai.app.tar.gz".to_string(),
+        "Cuotai.app.tar.gz.sig".to_string(),
+        format!("Cuotai_{v}_x64-setup.exe"),
+        format!("Cuotai_{v}_x64-setup.exe.sig"),
+        format!("Cuotai_{v}_x64_en-US.msi"),
+        format!("Cuotai_{v}_amd64.AppImage"),
+        format!("Cuotai_{v}_amd64.AppImage.sig"),
+        format!("Cuotai_{v}_amd64.deb"),
+        format!("Cuotai_{v}_amd64.rpm"),
+        format!("cuotai-{v}-aarch64-apple-darwin.tar.gz"),
+        format!("cuotai-{v}-x86_64-apple-darwin.tar.gz"),
+        format!("cuotai-{v}-x86_64-unknown-linux-gnu.tar.gz"),
+        format!("cuotai-{v}-x86_64-unknown-linux-musl.tar.gz"),
+        format!("cuotai-{v}-x86_64-pc-windows-msvc.zip"),
+        "sbom.cdx.json".to_string(),
+    ];
+    write_dist(dir.path(), &payloads);
+    let (manifest, _) = manifest::build_manifest(dir.path(), VERSION, Channel::Stable).unwrap();
+
+    // Each platform job reports only the files it owns, as the real fragments do;
+    // the merged state is the union and `latest.json` keeps checksum trust.
+    let macos_names = vec![
+        "Cuotai.app.tar.gz".to_string(),
+        "Cuotai.app.tar.gz.sig".to_string(),
+    ];
+    let windows_names = vec![
+        format!("Cuotai_{v}_x64-setup.exe"),
+        format!("Cuotai_{v}_x64-setup.exe.sig"),
+        format!("Cuotai_{v}_x64_en-US.msi"),
+    ];
+    let linux_names = vec![
+        format!("Cuotai_{v}_amd64.AppImage"),
+        format!("Cuotai_{v}_amd64.AppImage.sig"),
+        format!("Cuotai_{v}_amd64.deb"),
+        format!("Cuotai_{v}_amd64.rpm"),
+    ];
+
+    // The macOS job updater-signs the archive itself; the Windows job signs
+    // the installer, which is also Authenticode-signed; Linux signs each
+    // package. Only the entries each job owns are reported.
+    let macos = owned_fragment(&manifest, &macos_names, &macos_names);
+    let windows = updater_signed_fragment(
+        &manifest,
+        &windows_names,
+        &[format!("Cuotai_{v}_x64-setup.exe.sig")],
+    );
+    let linux = updater_signed_fragment(
+        &manifest,
+        &linux_names,
+        &[format!("Cuotai_{v}_amd64.AppImage.sig")],
+    );
+    let platform_owned = [
+        macos_names.clone(),
+        windows_names.clone(),
+        linux_names.clone(),
+    ];
+    let rest: Vec<String> = manifest
+        .artifacts
+        .iter()
+        .map(|artifact| artifact.name.clone())
+        .filter(|name| !platform_owned.iter().any(|owned| owned.contains(name)))
+        .collect();
+    let assemble = owned_fragment(&manifest, &rest, &[]);
+
+    let state = signing::merge(
+        VERSION,
+        Channel::Stable,
+        vec![macos.clone(), windows, linux, assemble],
+        &manifest,
+        ChecksumSigning {
+            signed: false,
+            method: ChecksumSigningMethod::None,
+            status: "unsigned".into(),
+        },
+    )
+    .unwrap();
+
+    assert!(state.updater.available);
+    assert_eq!(state.updater.artifacts, signed);
+    assert_eq!(
+        state
+            .artifacts
+            .iter()
+            .filter(|entry| entry.method == SigningMethod::TauriUpdaterKey)
+            .count(),
+        4
+    );
+
+    // One platform reporting the same file twice cannot merge.
+    assert!(signing::merge(
+        VERSION,
+        Channel::Stable,
+        vec![macos.clone(), macos.clone()],
+        &manifest,
+        ChecksumSigning {
+            signed: false,
+            method: ChecksumSigningMethod::None,
+            status: "unsigned".into(),
+        },
+    )
+    .is_err());
+
+    // A fragment claiming the updater is available without producing anything
+    // is refused even when its platform peers are honest.
+    let mut lying = unsigned_fragment(&manifest);
+    lying.updater = Some(UpdaterState {
+        available: true,
+        artifacts: Vec::new(),
+        reason: None,
+    });
+    assert!(signing::merge(
+        VERSION,
+        Channel::Stable,
+        vec![lying],
+        &manifest,
+        ChecksumSigning {
+            signed: false,
+            method: ChecksumSigningMethod::None,
+            status: "unsigned".into(),
+        },
+    )
+    .is_err());
 }
 
 #[test]
@@ -566,21 +774,24 @@ fn updater_manifest_uses_the_real_signature_file() {
         "dW50cnVzdGVkIHNpZw==\n",
     )
     .unwrap();
+    let archives = vec![PlatformArchive::new("darwin-aarch64-app", &archive).unwrap()];
     let json = xtask::updater::latest_json(
         &Version::parse(VERSION).unwrap(),
         "Notes here",
         "2026-10-21T12:00:00Z",
         "owner/cuotai",
         "v0.68.0",
-        &archive,
+        &archives,
+        &["darwin-aarch64-app"],
     )
     .unwrap();
     assert_eq!(json["version"], "0.68.0");
     assert_eq!(json["pub_date"], "2026-10-21T12:00:00Z");
     let url = "https://github.com/owner/cuotai/releases/download/v0.68.0/Cuotai.app.tar.gz";
+    assert_eq!(json["platforms"]["darwin-aarch64-app"]["url"], url);
     assert_eq!(json["platforms"]["darwin-aarch64"]["url"], url);
     assert_eq!(
-        json["platforms"]["darwin-x86_64"]["signature"],
+        json["platforms"]["darwin-aarch64-app"]["signature"],
         "dW50cnVzdGVkIHNpZw=="
     );
 
@@ -592,9 +803,371 @@ fn updater_manifest_uses_the_real_signature_file() {
         "2026-10-21T12:00:00Z",
         "owner/cuotai",
         "v0.68.0",
-        &archive,
+        &archives,
+        &["darwin-aarch64-app"],
     )
     .is_err());
+}
+
+#[test]
+fn updater_manifest_refuses_unknown_platforms_and_missing_required_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let archive = dir.path().join("Cuotai.app.tar.gz");
+    std::fs::write(&archive, "archive bytes").unwrap();
+    std::fs::write(
+        dir.path().join("Cuotai.app.tar.gz.sig"),
+        "dW50cnVzdGVkIHNpZw==\n",
+    )
+    .unwrap();
+
+    // Keys the plugin never looks up, or installers no bundle produces.
+    for key in [
+        "plan9-x86_64-app",
+        "darwin-sparc-app",
+        "darwin-x86_64-deb",
+        "windows-x86_64-appimage",
+        "linux-x86_64-rpm-deb",
+        "",
+    ] {
+        assert!(
+            PlatformArchive::new(key, &archive).is_err(),
+            "{key} must not reach the manifest"
+        );
+    }
+
+    let archives = vec![PlatformArchive::new("darwin-aarch64-app", &archive).unwrap()];
+    // A required platform that this release did not produce fails instead of
+    // shipping a manifest that would strand those users.
+    for missing in ["darwin-x86_64-app", "windows-x86_64-nsis", "linux-x86_64"] {
+        let err = xtask::updater::latest_json(
+            &Version::parse(VERSION).unwrap(),
+            "Notes",
+            "2026-10-21T12:00:00Z",
+            "owner/cuotai",
+            "v0.68.0",
+            &archives,
+            &[missing],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains(missing), "{missing}: {err}");
+    }
+
+    // No archive at all is never a manifest.
+    assert!(xtask::updater::latest_json(
+        &Version::parse(VERSION).unwrap(),
+        "Notes",
+        "2026-10-21T12:00:00Z",
+        "owner/cuotai",
+        "v0.68.0",
+        &[],
+        &[],
+    )
+    .is_err());
+}
+
+#[test]
+fn updater_manifest_is_https_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let archive = dir.path().join("Cuotai_0.68.0_amd64.AppImage");
+    std::fs::write(&archive, "appimage bytes").unwrap();
+    std::fs::write(
+        dir.path().join("Cuotai_0.68.0_amd64.AppImage.sig"),
+        "c2lnbmF0dXJl\n",
+    )
+    .unwrap();
+    let archives = vec![PlatformArchive::with_keys(&["linux-x86_64-appimage"], &archive).unwrap()];
+    let json = xtask::updater::latest_json(
+        &Version::parse(VERSION).unwrap(),
+        "Notes",
+        "2026-10-21T12:00:00Z",
+        "owner/cuotai",
+        "v0.68.0",
+        &archives,
+        &["linux-x86_64-appimage"],
+    )
+    .unwrap();
+    for target in ["linux-x86_64", "linux-x86_64-appimage"] {
+        let url = json["platforms"][target]["url"].as_str().unwrap();
+        assert!(url.starts_with("https://"), "{target}: {url}");
+    }
+    // The generic key is added automatically next to the installer key.
+    assert_eq!(
+        json["platforms"]["linux-x86_64-appimage"]["signature"],
+        "c2lnbmF0dXJl"
+    );
+
+    // A signature that is not base64 is refused rather than published.
+    std::fs::write(
+        dir.path().join("Cuotai_0.68.0_amd64.AppImage.sig"),
+        "not base64!\n",
+    )
+    .unwrap();
+    assert!(xtask::updater::latest_json(
+        &Version::parse(VERSION).unwrap(),
+        "Notes",
+        "2026-10-21T12:00:00Z",
+        "owner/cuotai",
+        "v0.68.0",
+        &archives,
+        &["linux-x86_64-appimage"],
+    )
+    .is_err());
+}
+
+/// An ephemeral updater key pair, generated the way `cargo tauri signer`
+/// does: `minisign` keys with the signature bound to a version-bearing
+/// trusted comment. Nothing here is a production key.
+struct EphemeralSigner {
+    public_key: minisign::PublicKey,
+    secret_key: minisign::SecretKey,
+}
+
+impl EphemeralSigner {
+    fn generate() -> Self {
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().unwrap();
+        Self {
+            public_key: pair.pk,
+            secret_key: pair.sk,
+        }
+    }
+
+    /// Writes `<archive>.sig` exactly like `tauri-cli`'s `sign_file`: the
+    /// base64 of the minisign signature box, whose trusted comment carries the
+    /// timestamp, the file name and the app version.
+    fn sign(&self, archive: &Path, version: &str) {
+        let name = archive.file_name().unwrap().to_string_lossy().to_string();
+        let trusted = format!("timestamp:1700000000\tfile:{name}\tversion:{version}");
+        let bytes = std::fs::read(archive).unwrap();
+        let signature = minisign::sign(
+            None,
+            &self.secret_key,
+            std::io::Cursor::new(bytes),
+            Some(&trusted),
+            Some("signature from tauri secret key"),
+        )
+        .unwrap();
+        let sig_path = archive.with_extension(format!(
+            "{}.sig",
+            archive.extension().unwrap().to_string_lossy()
+        ));
+        std::fs::write(sig_path, base64_encode(signature.to_string().as_bytes())).unwrap();
+    }
+
+    /// The same check `tauri-plugin-updater` performs before installing: the
+    /// manifest's `signature` field must verify against the embedded public
+    /// key over the downloaded bytes.
+    fn verify(&self, archive: &Path, signature: &str) -> Result<(), String> {
+        let decoded = base64_decode(signature)?;
+        let box_ = minisign::SignatureBox::from_string(&decoded)
+            .map_err(|e| format!("signature is not a minisign signature box: {e}"))?;
+        let bytes = std::fs::read(archive).map_err(|e| e.to_string())?;
+        minisign::verify(
+            &self.public_key,
+            &box_,
+            std::io::Cursor::new(bytes),
+            true,
+            false,
+            true,
+        )
+        .map_err(|e| format!("signature does not verify: {e}"))
+    }
+
+    fn pubkey_base64(&self) -> String {
+        self.public_key.to_base64()
+    }
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+fn base64_decode(text: &str) -> Result<String, String> {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD
+        .decode(text)
+        .map_err(|e| format!("signature is not base64: {e}"))
+        .and_then(|bytes| {
+            String::from_utf8(bytes).map_err(|e| format!("base64 did not decode to text: {e}"))
+        })
+}
+
+#[test]
+fn updater_manifest_validates_against_an_ephemeral_real_signature() {
+    let dir = tempfile::tempdir().unwrap();
+    let signer = EphemeralSigner::generate();
+
+    // One release touching every updatable target: the universal macOS
+    // archive, the Windows installers and the Linux packages.
+    let payloads: [(&str, &[&str]); 5] = [
+        (
+            "Cuotai.app.tar.gz",
+            &["darwin-aarch64-app", "darwin-x86_64-app"],
+        ),
+        ("Cuotai_0.68.0_x64-setup.exe", &["windows-x86_64-nsis"]),
+        ("Cuotai_0.68.0_x64_en-US.msi", &["windows-x86_64-msi"]),
+        ("Cuotai_0.68.0_amd64.AppImage", &["linux-x86_64-appimage"]),
+        ("Cuotai_0.68.0_amd64.deb", &["linux-x86_64-deb"]),
+    ];
+    let mut archives = Vec::new();
+    for (name, keys) in payloads {
+        let path = dir.path().join(name);
+        std::fs::write(&path, format!("payload of {name}")).unwrap();
+        signer.sign(&path, VERSION);
+        archives.push(PlatformArchive::with_keys(keys, &path).unwrap());
+    }
+
+    let json = xtask::updater::latest_json(
+        &Version::parse(VERSION).unwrap(),
+        "### Added\n\n- Update check (PRD 0018 RF2).",
+        "2026-10-21T12:00:00Z",
+        "owner/cuotai",
+        "v0.68.0",
+        &archives,
+        &[
+            "darwin-aarch64-app",
+            "darwin-x86_64-app",
+            "windows-x86_64-nsis",
+            "windows-x86_64-msi",
+            "linux-x86_64-appimage",
+            "linux-x86_64-deb",
+        ],
+    )
+    .unwrap();
+
+    // The release notes are the changelog section (RF1.4, PRD 0021 RF7.5).
+    assert_eq!(json["notes"], "### Added\n\n- Update check (PRD 0018 RF2).");
+    assert_eq!(json["version"], "0.68.0");
+    assert_eq!(json["pub_date"], "2026-10-21T12:00:00Z");
+
+    let expected: Vec<&str> = vec![
+        "darwin-aarch64",
+        "darwin-aarch64-app",
+        "darwin-x86_64",
+        "darwin-x86_64-app",
+        "linux-x86_64",
+        "linux-x86_64-appimage",
+        "linux-x86_64-deb",
+        "windows-x86_64",
+        "windows-x86_64-msi",
+        "windows-x86_64-nsis",
+    ];
+    let platforms = json["platforms"].as_object().unwrap();
+    let mut keys: Vec<&str> = platforms.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(keys, expected, "one manifest covers every produced target");
+
+    // Every entry: an HTTPS URL pointing at the release asset, and a signature
+    // that verifies over those exact bytes with the embedded public key — the
+    // check the updater plugin performs before it installs anything.
+    for (key, entry) in platforms {
+        let url = entry["url"].as_str().unwrap();
+        assert!(
+            url.starts_with("https://github.com/owner/cuotai/releases/download/v0.68.0/"),
+            "{key}: {url}"
+        );
+        let name = url.rsplit('/').next().unwrap();
+        let path = dir.path().join(name);
+        signer
+            .verify(&path, entry["signature"].as_str().unwrap())
+            .unwrap_or_else(|e| panic!("{key}: {e}"));
+    }
+
+    // The signature is the minisign box the plugin decodes, bound to this
+    // version: the embedded public key verifies it and another archive's bytes
+    // do not.
+    let signature = json["platforms"]["darwin-aarch64-app"]["signature"]
+        .as_str()
+        .unwrap();
+    let box_ = minisign::SignatureBox::from_string(&base64_decode(signature).unwrap()).unwrap();
+    assert!(box_.trusted_comment().unwrap().contains("version:0.68.0"));
+    assert_eq!(
+        box_.keynum(),
+        minisign::PublicKey::from_base64(&signer.pubkey_base64())
+            .unwrap()
+            .keynum()
+    );
+    let tampered = dir.path().join("tampered");
+    std::fs::write(&tampered, "payload of Cuotai.app.tar.gz but edited").unwrap();
+    assert!(signer.verify(&tampered, signature).is_err());
+}
+
+#[test]
+fn updater_manifest_rejects_two_archives_for_one_platform_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let signer = EphemeralSigner::generate();
+    let appimage = dir.path().join("Cuotai_0.68.0_amd64.AppImage");
+    std::fs::write(&appimage, "appimage").unwrap();
+    signer.sign(&appimage, VERSION);
+    let copy = dir.path().join("Cuotai_0.68.0_amd64.AppImage.copy");
+    std::fs::write(&copy, "appimage").unwrap();
+    signer.sign(&copy, VERSION);
+
+    // Two different files claiming the same platform key is a pipeline error,
+    // not a coin toss on which one the updater downloads.
+    let archives = vec![
+        PlatformArchive::new("linux-x86_64-appimage", &appimage).unwrap(),
+        PlatformArchive::new("linux-x86_64-appimage", &copy).unwrap(),
+    ];
+    let err = xtask::updater::latest_json(
+        &Version::parse(VERSION).unwrap(),
+        "Notes",
+        "2026-10-21T12:00:00Z",
+        "owner/cuotai",
+        "v0.68.0",
+        &archives,
+        &["linux-x86_64-appimage"],
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("linux-x86_64-appimage"), "{err}");
+}
+
+#[test]
+fn updater_manifest_generic_key_answers_with_the_default_installer() {
+    let dir = tempfile::tempdir().unwrap();
+    let signer = EphemeralSigner::generate();
+    // The MSI is passed before the NSIS installer: the generic
+    // `windows-x86_64` entry must still be the NSIS installer, whatever the
+    // argument order was.
+    let msi = dir.path().join("Cuotai_0.68.0_x64_en-US.msi");
+    std::fs::write(&msi, "msi").unwrap();
+    signer.sign(&msi, VERSION);
+    let nsis = dir.path().join("Cuotai_0.68.0_x64-setup.exe");
+    std::fs::write(&nsis, "nsis").unwrap();
+    signer.sign(&nsis, VERSION);
+
+    let archives = vec![
+        PlatformArchive::new("windows-x86_64-msi", &msi).unwrap(),
+        PlatformArchive::new("windows-x86_64-nsis", &nsis).unwrap(),
+    ];
+    let json = xtask::updater::latest_json(
+        &Version::parse(VERSION).unwrap(),
+        "Notes",
+        "2026-10-21T12:00:00Z",
+        "owner/cuotai",
+        "v0.68.0",
+        &archives,
+        &["windows-x86_64-nsis", "windows-x86_64-msi"],
+    )
+    .unwrap();
+    let generic = json["platforms"]["windows-x86_64"]["url"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        generic.ends_with("Cuotai_0.68.0_x64-setup.exe"),
+        "{generic}"
+    );
+    assert!(json["platforms"]["windows-x86_64-msi"]["url"]
+        .as_str()
+        .unwrap()
+        .ends_with("Cuotai_0.68.0_x64_en-US.msi"));
+    assert!(json["platforms"]["windows-x86_64-nsis"]["url"]
+        .as_str()
+        .unwrap()
+        .ends_with("Cuotai_0.68.0_x64-setup.exe"));
 }
 
 fn workspace_bom(root: &str, crates: &[&str], shared: &[&str]) -> String {

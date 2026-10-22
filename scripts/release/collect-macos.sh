@@ -4,6 +4,12 @@
 # and signs it with the Tauri updater key when that secret is configured
 # (the key is never used for anything else). Dry runs skip the updater
 # archive honestly.
+#
+# The archive is built here, after notarization, rather than by the bundler:
+# `bundle > createUpdaterArtifacts` would tar the app as it was before the
+# Developer ID signature and the notarization ticket were applied, and an
+# update would then fail Gatekeeper. This runs last for that reason, so the
+# app it ships is the one a user downloads today.
 set -euo pipefail
 
 : "${VERSION:?}"

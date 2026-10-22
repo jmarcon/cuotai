@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | In progress (RF1.1, RF1.4, RF2, RF3 and RF4.3 delivered in 0.74.0; the release-side RFs and the acceptance criteria that need a real signed release and a native runner are still open) |
+| Status | In progress (RF1–RF4 delivered in 0.74.0 and 0.75.0; the acceptance criteria that need a real signed release and a native runner stay owner-blocked) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2 and RF3: signed packages and artifact hosting) |
@@ -15,10 +15,10 @@
 
 | Requirement | Version | State |
 |---|---|---|
-| RF1 (mechanism and keys) | 0.74.0 | Partial — the app side is delivered (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands); the pipeline side, which produces the `latest.json` the plugin reads, is still open. |
+| RF1 (mechanism and keys) | 0.74.0 and 0.75.0 | Delivered — in the app in 0.74.0 (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands) and in the pipeline in 0.75.0 (`xtask updater-manifest` renders the `latest.json` for every platform a run bundled). |
 | RF2 (flow in the app) | 0.74.0 | Delivered except the cross-OS acceptance smoke, which needs a signed release (owner). |
 | RF3 (Settings and About) | 0.74.0 | Delivered; the three-language smoke and the zero-request test are automated. |
-| RF4 (operational security) | 0.74.0 | Partial — the HTTPS-only endpoint and the certificate failure as an error are delivered and tested, and the procedures are written ([`docs/updater-security.md`](updater-security.md)); the pipeline review of RF4.1 needs the release-side work and the owner-configured environment. |
+| RF4 (operational security) | 0.74.0 and 0.75.0 | Delivered — the HTTPS-only endpoint and the certificate failure as an error in 0.74.0, and the key custody, leak and loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](updater-security.md)). |
 
 Owner-blocked, and not claimed as delivered:
 
@@ -109,7 +109,7 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 
 The requirement is only delivered when an app installed on an earlier version updates to the next one with consent, rejects any package with an invalid signature, preserves all the user's data, and with the feature off makes no update request.
 
-## 8. What 0.74.0 verified, and what it could not
+## 8. What 0.74.0 and 0.75.0 verified, and what it could not
 
 Verified in the repository, on every push:
 
@@ -126,7 +126,9 @@ Verified in the repository, on every push:
   certificate produces an error;
 - `cargo deny` over both manifests, which is why the plugin's `zip` feature is
   off (see [`docs/updater-security.md`](updater-security.md));
-- the three-language smoke of Settings → Updates and the banner.
+- the four-language smoke of Settings → Updates and the banner;
+- the updater's manifest renderer against real ephemeral-key signatures, and the
+  release scripts' updater-signing paths against a fixture layout.
 
 Not verified here, and therefore not claimed:
 

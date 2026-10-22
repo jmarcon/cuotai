@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use xtask::updater::PlatformArchive;
 use xtask::{err, Channel, Error, Res, Version};
 
 const USAGE: &str = "\
@@ -51,7 +52,13 @@ SUBCOMMANDS:
     --tag TAG
     --notes-file PATH       plain-text notes (changelog section)
     --pub-date RFC3339      e.g. from `date -u +%Y-%m-%dT%H:%M:%SZ`
-    --archive PATH          path to Cuotai.app.tar.gz (sibling .sig required)
+    --platform KEY=ARCHIVE  signed updater archive per manifest key (repeat)
+                            KEY is {os}-{arch}-{installer}: darwin-{aarch64,x86_64}-app,
+                            windows-{x86_64,aarch64}-{nsis,msi},
+                            linux-{x86_64,aarch64}-{appimage,deb,rpm}
+                            ARCHIVE needs its sibling .sig; the generic
+                            {os}-{arch} key is added automatically
+    --require KEY           platform key a complete release must carry (repeat)
     --out PATH
 
   merge-sbom        Merge the per-workspace CycloneDX BOMs into sbom.cdx.json (RF2)
@@ -262,8 +269,28 @@ fn updater_manifest(opts: &Opts) -> Res<()> {
     let notes = std::fs::read_to_string(&notes_path)
         .map_err(|e| Error::Msg(format!("cannot read {}: {e}", notes_path.display())))?;
     let pub_date = opts.need("pub-date")?;
-    let archive = PathBuf::from(opts.need("archive")?);
-    let json = xtask::updater::latest_json(&version, &notes, &pub_date, &repo, &tag, &archive)?;
+
+    let mut archives: Vec<xtask::updater::PlatformArchive> = Vec::new();
+    for entry in opts.all("platform") {
+        let (key, path) = entry
+            .split_once('=')
+            .ok_or_else(|| Error::Msg(format!("--platform '{entry}' is not 'KEY=ARCHIVE'")))?;
+        let archive = PlatformArchive::new(key, std::path::Path::new(path))?;
+        match archives
+            .iter_mut()
+            .find(|other| other.archive == archive.archive)
+        {
+            // The same file answering for several keys: one universal app for
+            // both macOS architectures, one AppImage for every Linux key.
+            Some(existing) => existing.merge(archive)?,
+            None => archives.push(archive),
+        }
+    }
+    let required = opts.all("require");
+    let required: Vec<&str> = required.iter().map(String::as_str).collect();
+    let json = xtask::updater::latest_json(
+        &version, &notes, &pub_date, &repo, &tag, &archives, &required,
+    )?;
     let out = PathBuf::from(opts.need("out")?);
     std::fs::write(&out, serde_json::to_string_pretty(&json)? + "\n")?;
     println!("updater manifest written to {}", out.display());

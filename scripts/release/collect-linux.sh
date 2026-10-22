@@ -70,26 +70,53 @@ collect() { # <bundle-subdirectory> <expected-extension> <stable-destination-nam
   src="$(select_final_package "$dir" "$expected_ext")"
   cp "$src" "dist/$dest"
   echo "collected dist/$dest"
+  # Updater signature (PRD 0018 RF1.1): with
+  # `--config src-tauri/tauri.updater.conf.json` the Tauri bundler signs every
+  # Linux package in place while bundling, and nothing rewrites those bytes
+  # afterwards, so the signature is final here. Without the overlay there is
+  # no `.sig` beside the package, which is the honest unsigned state.
+  if [ -f "${src}.sig" ]; then
+    cp "${src}.sig" "dist/${dest}.sig"
+    echo "collected dist/${dest}.sig"
+    updater_entries="$(jq -c --arg a "$dest" --arg s "${dest}.sig" '
+      . + [
+        {name: $a, signed: true, method: "tauri-updater-key", status: "signed"},
+        {name: $s, signed: true, method: "tauri-updater-key", status: "signed"}
+      ]
+    ' <<<"$updater_entries")"
+  fi
 }
 
-collect appimage "AppImage" "Cuotai_${VERSION}_${stable_arch}.AppImage"
-collect deb     "deb"     "Cuotai_${VERSION}_${stable_arch}.deb"
-collect rpm     "rpm"     "Cuotai_${VERSION}_${stable_arch}.rpm"
+appimage="Cuotai_${VERSION}_${stable_arch}.AppImage"
+deb="Cuotai_${VERSION}_${stable_arch}.deb"
+rpm="Cuotai_${VERSION}_${stable_arch}.rpm"
+updater_entries='[]'
+collect appimage "AppImage" "$appimage"
+collect deb     "deb"     "$deb"
+collect rpm     "rpm"     "$rpm"
 
+# The updater state follows the signatures: available with exactly the signed
+# artifacts, or unavailable with the reason the key was not configured.
 jq -n \
-  --arg a "Cuotai_${VERSION}_${stable_arch}.AppImage" \
-  --arg d "Cuotai_${VERSION}_${stable_arch}.deb" \
-  --arg r "Cuotai_${VERSION}_${stable_arch}.rpm" \
+  --arg a "$appimage" \
+  --arg d "$deb" \
+  --arg r "$rpm" \
+  --arg reason "complete Tauri updater signing credentials are not configured in the release environment" \
+  --argjson updater "$updater_entries" \
   '
   {
-    artifacts: [$a, $d, $r] | map({
+    artifacts: ([$a, $d, $r] | map({
       name: .,
       signed: false,
       method: "checksum-signature",
       status: "unsigned",
       note: "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
-    })
+    }) + $updater)
   }
+  | .updater = (if ($updater | length) == 0
+      then {available: false, artifacts: [], reason: $reason}
+      else {available: true, artifacts: ($updater | map(.name))}
+      end)
   ' > "fragments/linux-${arch}.json"
 
 echo "wrote fragments/linux-${arch}.json"

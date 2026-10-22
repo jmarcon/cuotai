@@ -206,13 +206,17 @@ fn validate_updater_shape(updater: &UpdaterState) -> Res<()> {
         if updater.reason.is_some() {
             return err("updater is available but also has an unavailability reason");
         }
+        if updater.artifacts.is_empty() {
+            return err("available updater must list the updater archives it produced");
+        }
         let names: HashSet<&str> = updater.artifacts.iter().map(String::as_str).collect();
-        if names.len() != updater.artifacts.len()
-            || names != HashSet::from(["Cuotai.app.tar.gz", "Cuotai.app.tar.gz.sig"])
-        {
-            return err(
-                "available updater must list exactly Cuotai.app.tar.gz and Cuotai.app.tar.gz.sig",
-            );
+        if names.len() != updater.artifacts.len() {
+            return err("available updater lists the same artifact twice");
+        }
+        // A platform that updater-signed only its signatures (Windows: the
+        // installer itself keeps its Authenticode state) still needs one.
+        if !updater.artifacts.iter().any(|name| name.ends_with(".sig")) {
+            return err("available updater lists no signature file");
         }
     } else if !updater.artifacts.is_empty()
         || updater
@@ -227,19 +231,14 @@ fn validate_updater_shape(updater: &UpdaterState) -> Res<()> {
 
 fn validate_updater_state(updater: &UpdaterState, artifacts: &[ArtifactSigning]) -> Res<()> {
     validate_updater_shape(updater)?;
-    let updater_names = ["Cuotai.app.tar.gz", "Cuotai.app.tar.gz.sig", "latest.json"];
     if updater.available {
-        for name in updater_names {
-            let Some(entry) = artifacts.iter().find(|entry| entry.name == name) else {
+        for name in &updater.artifacts {
+            let Some(entry) = artifacts.iter().find(|entry| entry.name == *name) else {
                 return err(format!(
                     "updater is available but '{name}' has no signing state"
                 ));
             };
-            if name == "latest.json" {
-                if entry.method != SigningMethod::ChecksumSignature {
-                    return err("latest.json must use checksum-signature trust");
-                }
-            } else if entry.method != SigningMethod::TauriUpdaterKey
+            if entry.method != SigningMethod::TauriUpdaterKey
                 || !entry.signed
                 || entry.status != SigningStatus::Signed
             {
@@ -248,9 +247,25 @@ fn validate_updater_state(updater: &UpdaterState, artifacts: &[ArtifactSigning])
                 ));
             }
         }
+        let Some(entry) = artifacts.iter().find(|entry| entry.name == "latest.json") else {
+            return err("updater is available but 'latest.json' has no signing state");
+        };
+        if entry.method != SigningMethod::ChecksumSignature {
+            return err("latest.json must use checksum-signature trust");
+        }
+        for entry in artifacts {
+            if entry.method == SigningMethod::TauriUpdaterKey
+                && !updater.artifacts.contains(&entry.name)
+            {
+                return err(format!(
+                    "'{}' is signed by the updater key but the updater state does not list it",
+                    entry.name
+                ));
+            }
+        }
     } else if artifacts
         .iter()
-        .any(|entry| updater_names.contains(&entry.name.as_str()))
+        .any(|entry| entry.name == "latest.json" || entry.method == SigningMethod::TauriUpdaterKey)
     {
         return err("updater is unavailable but updater artifacts have signing entries");
     }
@@ -291,7 +306,12 @@ pub fn merge(
     validate_checksums(&checksums)?;
 
     let mut artifacts = Vec::new();
-    let mut updater = None;
+    // Every platform fragment reports the updater archives it signed, so the
+    // updater state is the union of those reports: available as soon as one
+    // platform produced updater artifacts, unavailable with that platform's
+    // reason when none did.
+    let mut updater_artifacts: Vec<String> = Vec::new();
+    let mut updater_reason: Option<String> = None;
     for fragment in fragments {
         validate_unique_artifacts(&fragment.artifacts, true)?;
         if let Some(candidate) = &fragment.updater {
@@ -310,11 +330,37 @@ pub fn merge(
             artifacts.push(artifact);
         }
         if let Some(candidate) = fragment.updater {
-            if updater.replace(candidate).is_some() {
-                return err("two fragments report the updater state");
+            if candidate.available {
+                for name in &candidate.artifacts {
+                    if updater_artifacts.contains(name) {
+                        return err(format!(
+                            "two fragments report '{name}' as an updater artifact"
+                        ));
+                    }
+                    updater_artifacts.push(name.clone());
+                }
+            } else if updater_reason.is_none() {
+                updater_reason = candidate.reason.clone();
             }
         }
     }
+    let updater = if updater_artifacts.is_empty() {
+        UpdaterState {
+            available: false,
+            artifacts: Vec::new(),
+            reason: Some(
+                updater_reason
+                    .unwrap_or_else(|| "no updater artifacts produced in this run".to_string()),
+            ),
+        }
+    } else {
+        updater_artifacts.sort();
+        UpdaterState {
+            available: true,
+            artifacts: updater_artifacts,
+            reason: None,
+        }
+    };
 
     for artifact in &manifest.artifacts {
         if !artifacts.iter().any(|entry| entry.name == artifact.name) {
@@ -361,11 +407,6 @@ pub fn merge(
         }
     }
 
-    let updater = updater.unwrap_or_else(|| UpdaterState {
-        available: false,
-        artifacts: Vec::new(),
-        reason: Some("no updater artifacts produced in this run".into()),
-    });
     for name in &updater.artifacts {
         if !manifest
             .artifacts

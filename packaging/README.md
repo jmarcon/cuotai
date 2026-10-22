@@ -50,8 +50,8 @@ databases (`<OS local data dir>/cuotai/`) and the OS credential-vault entries
 
 ## Identifying managed installs (RF8.1 groundwork)
 
-The in-app updater (PRD 0018, later wave) must stand down on
-package-manager installs. The install locations below identify each channel:
+The in-app updater (PRD 0018) must stand down on package-manager installs.
+The install locations below identify each channel:
 
 - Homebrew cask: `/Applications/Cuotai.app` installed by `brew` (Caskroom
   receipt under `$(brew --prefix)/Caskroom/cuotai/`); formula:
@@ -61,6 +61,14 @@ package-manager installs. The install locations below identify each channel:
 - Scoop: `~\scoop\apps\cuotai\current\cuotai.exe`.
 - AUR/distribution: `/usr/bin/Cuotai` (pacman-owned).
 - Cargo: `~/.cargo/bin/cuotai`.
+
+**No build-time switch is needed.** Every channel publishes the same binaries
+as the GitHub release (PRD 0021 RF8.3), so a build key cannot distinguish
+them; the desktop app detects a managed install at run time and stands down,
+and `CUOTAI_UPDATER=off` forces that state for anything the detection does
+not recognise (PRD 0018 RF3.2). The templates below therefore stay free of
+updater configuration, and a channel that wants to be explicit can ship it as
+a documented environment variable rather than a separate build.
 
 Maintainers: templates are owned by the release pipeline (repository
 maintainers); each channel's rendered output is owned by that channel's
