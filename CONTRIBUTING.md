@@ -47,7 +47,7 @@ cargo deny --config deny.toml check
 cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml --config deny.toml check
 ```
 
-GitHub code scanning (CodeQL default setup) can be reproduced locally with `sh scripts/codeql-local.sh` (needs the [CodeQL CLI](https://github.com/github/codeql-action/releases); `--swift` is opt-in and macOS-only; exit 3 means findings).
+GitHub code scanning (CodeQL default setup) can be reproduced locally with `sh scripts/codeql-local.sh` (needs the [CodeQL CLI](https://github.com/github/codeql-action/releases); `--swift` is opt-in, macOS-only and needs full Xcode; exit 3 means findings).
 
 User-visible changes also need a smoke test of the affected interface (the TUI with `--once`, `--json` or the screen concerned; the desktop app running, in all three languages when you add text).
 

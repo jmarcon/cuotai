@@ -90,15 +90,17 @@ for lang in $langs; do
     start=$(date +%s)
     echo "codeql-local: [$lang] creating database"
     if [ "$lang" = swift ]; then
+        # SwiftPM's manifest sandbox cannot spawn the manifest binary under
+        # the CodeQL tracer ("Bad CPU type"), so the traced build runs without it.
         set -- --source-root="$src/apps/desktop/widgets/macos" \
-            --command="swift build --scratch-path $out/swift-build"
+            --command="swift build --disable-sandbox --scratch-path $out/swift-build"
         rm -rf "$out/swift-build"
     else
         set -- --source-root="$src" --build-mode=none
     fi
     if ! codeql database create "$db" --language="$lang" --overwrite "$@" >"$out/$lang.log" 2>&1; then
         echo "codeql-local: [$lang] database creation failed; see $out/$lang.log" >&2
-        [ "$lang" = swift ] && echo "codeql-local: [swift] the CLI's macOS build tracer is x86_64; on Apple silicon it needs Rosetta plus a toolchain with x86_64 slices; \"Bad CPU type\" or libxcrun errors mean the installed one (often arm64-only Command Line Tools) has none" >&2
+        [ "$lang" = swift ] && echo "codeql-local: [swift] needs full Xcode selected (sudo xcode-select -s /Applications/Xcode.app/Contents/Developer) with its license accepted; Command Line Tools alone fail with libxcrun or \"Bad CPU type\" errors" >&2
         failed=1
         summary="$summary
   $lang: ERROR (database create, $out/$lang.log)"
