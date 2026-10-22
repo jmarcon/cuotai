@@ -903,7 +903,7 @@ mod tests {
         assert_eq!(history.size_on_disk(), Ok(0), "nothing recorded yet");
         assert!(!db.exists(), "never created by asking");
 
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         let reading = |n: i64| {
             let at = t0() + TimeDelta::minutes(n * 20);
             history
