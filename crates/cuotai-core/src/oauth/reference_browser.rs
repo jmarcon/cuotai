@@ -258,7 +258,10 @@ enum Exchange {
     },
     Gemini {
         client_id: String,
-        client_secret: String,
+        // The pending login keeps the configuration (the variable's name), never
+        // the client secret: the value is read again in `finish`, only while the
+        // exchange form is built.
+        config: Box<OAuthConfig>,
         code_verifier: String,
     },
     Cline,
@@ -357,7 +360,10 @@ async fn begin_with(
             )
         }
         Provider::GeminiAi => {
-            let (client_id, client_secret) = gemini_client_credentials(config)?;
+            let client_id = gemini_client_id(config);
+            // Validate only: the value is dropped here and resolved again at
+            // `finish`.
+            ensure_gemini_client_ready(config)?;
             let state = random_url_safe_32()?;
             // PKCE S256 is optional in the reference gemini-cli flow but
             // Google supports it on every installed-app client and it
@@ -381,7 +387,7 @@ async fn begin_with(
                 format!("{}?{query}", endpoints.authorize_url),
                 Exchange::Gemini {
                     client_id,
-                    client_secret,
+                    config: Box::new(config.clone()),
                     code_verifier: verifier,
                 },
                 Some(state),
@@ -502,13 +508,14 @@ impl LoopbackLogin {
             }
             Exchange::Gemini {
                 client_id,
-                client_secret,
+                config,
                 code_verifier,
             } => {
+                let client_secret = resolve_gemini_client_proof(config)?;
                 let form = [
                     ("grant_type", "authorization_code".to_owned()),
                     ("client_id", client_id.clone()),
-                    ("client_secret", client_secret.clone()),
+                    ("client_secret", client_secret),
                     ("code", callback.code),
                     ("redirect_uri", self.redirect_uri.clone()),
                     ("code_verifier", code_verifier.clone()),
@@ -817,7 +824,8 @@ async fn refresh_with(
             })
         }
         Provider::GeminiAi => {
-            let (client_id, client_secret) = gemini_client_credentials(config)?;
+            let client_id = gemini_client_id(config);
+            let client_secret = resolve_gemini_client_proof(config)?;
             let form = [
                 ("grant_type", "refresh_token".to_owned()),
                 ("refresh_token", refresh_token.to_owned()),
@@ -1130,12 +1138,31 @@ fn native_client_id(config: &OAuthConfig, fixed: &str) -> String {
     }
 }
 
-/// Gemini CLI credentials: the public desktop pair by default. An overridden
-/// client id must pair with the caller's own secret via `client_secret_env`.
-fn gemini_client_credentials(config: &OAuthConfig) -> Result<(String, String), OAuthError> {
+/// The Gemini CLI client id: the public desktop client by default, or the
+/// configured override.
+fn gemini_client_id(config: &OAuthConfig) -> String {
     let configured = config.client_id.trim();
     if configured.is_empty() || configured == GEMINI_CLIENT_ID {
-        return Ok((GEMINI_CLIENT_ID.to_owned(), GEMINI_CLIENT_SECRET.to_owned()));
+        GEMINI_CLIENT_ID.to_owned()
+    } else {
+        configured.to_owned()
+    }
+}
+
+/// Validates that a custom Gemini client is fully configured, i.e. its
+/// variable is present and not empty, and keeps nothing.
+fn ensure_gemini_client_ready(config: &OAuthConfig) -> Result<(), OAuthError> {
+    resolve_gemini_client_proof(config).map(|_| ())
+}
+
+/// Resolves the client's exchange value (what Google calls the client secret):
+/// the public desktop client's built-in value, or the environment variable an
+/// overridden client id names via `client_secret_env`. The caller must use the
+/// result only for the request it is building and never store it.
+fn resolve_gemini_client_proof(config: &OAuthConfig) -> Result<String, OAuthError> {
+    let configured = config.client_id.trim();
+    if configured.is_empty() || configured == GEMINI_CLIENT_ID {
+        return Ok(GEMINI_CLIENT_SECRET.to_owned());
     }
     let env_name = config
         .client_secret_env
@@ -1146,7 +1173,7 @@ fn gemini_client_credentials(config: &OAuthConfig) -> Result<(String, String), O
     if secret.is_empty() {
         return Err(OAuthError::google_client_secret_env_empty());
     }
-    Ok((configured.to_owned(), secret))
+    Ok(secret)
 }
 
 fn random_url_safe_32() -> Result<String, OAuthError> {
@@ -1688,6 +1715,209 @@ mod tests {
             token.metadata.get("email").map(String::as_str),
             Some("ex@example.com")
         );
+    }
+
+    // -- Gemini custom client: the variable is validated at begin, read at finish
+
+    /// Environment variable that is removed again when the guard drops. Each
+    /// test uses its own variable name because the environment is process-wide.
+    struct EnvGuard(&'static str);
+    impl EnvGuard {
+        fn set(name: &'static str, value: &str) -> Self {
+            std::env::set_var(name, value);
+            Self(name)
+        }
+    }
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            std::env::remove_var(self.0);
+        }
+    }
+
+    fn custom_gemini_config(env_name: Option<&str>) -> OAuthConfig {
+        OAuthConfig {
+            client_id: "custom-client.apps.test".into(),
+            client_secret_env: env_name.map(str::to_owned),
+            ..test_config()
+        }
+    }
+
+    fn configuration_id(error: &OAuthError) -> &str {
+        match error {
+            OAuthError::Configuration(localized) => localized.id.as_ref(),
+            _ => "not-a-configuration-error",
+        }
+    }
+
+    #[tokio::test]
+    async fn gemini_begin_requires_the_variable_for_a_custom_client() {
+        let server = MockServer::start().await;
+        let cases = [
+            (
+                custom_gemini_config(None),
+                "oauth_error.google.client_secret_env_required",
+            ),
+            (
+                custom_gemini_config(Some("CUOTAI_TEST_GEMINI_BROWSER_UNSET")),
+                "oauth_error.google.client_secret_env_unset",
+            ),
+        ];
+        for (config, expected) in cases {
+            let error = begin_with(
+                &client(),
+                Provider::GeminiAi,
+                &config,
+                loopback_endpoints(&server, Provider::GeminiAi),
+            )
+            .await
+            .err()
+            .expect("begin must fail");
+            assert_eq!(configuration_id(&error), expected);
+        }
+
+        let _empty = EnvGuard::set("CUOTAI_TEST_GEMINI_BROWSER_EMPTY", "");
+        let error = begin_with(
+            &client(),
+            Provider::GeminiAi,
+            &custom_gemini_config(Some("CUOTAI_TEST_GEMINI_BROWSER_EMPTY")),
+            loopback_endpoints(&server, Provider::GeminiAi),
+        )
+        .await
+        .err()
+        .expect("empty value must fail");
+        assert_eq!(
+            configuration_id(&error),
+            "oauth_error.google.client_secret_env_empty"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn gemini_exchange_reads_the_variable_when_the_login_finishes() {
+        const NAME: &str = "CUOTAI_TEST_GEMINI_BROWSER_FINISH";
+        let server = MockServer::start().await;
+        // Only the finish-time value is accepted: a request carrying the
+        // begin-time value would not match and the exchange would fail.
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("client_secret=fake-after"))
+            .and(body_string_contains("client_id=custom-client.apps.test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "access-new",
+                "expires_in": 3600
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let _guard = EnvGuard::set(NAME, "fake-before");
+        let pending = begin_with(
+            &client(),
+            Provider::GeminiAi,
+            &custom_gemini_config(Some(NAME)),
+            loopback_endpoints(&server, Provider::GeminiAi),
+        )
+        .await
+        .expect("begin");
+        std::env::set_var(NAME, "fake-after");
+        let (state, port, path) = prompt_state_and_port(&pending);
+        let state = state.expect("gemini issues state");
+        let task = tokio::spawn(pending.finish());
+        let response = send_callback(port, &path, &format!("state={state}&code=approved")).await;
+        assert!(response.starts_with("HTTP/1.1 200"), "got: {response}");
+        let token = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("login timeout")
+            .expect("login task")
+            .expect("token");
+        assert_eq!(token.access_token, "access-new");
+    }
+
+    #[tokio::test]
+    async fn gemini_exchange_fails_without_a_request_when_the_variable_disappears() {
+        const NAME: &str = "CUOTAI_TEST_GEMINI_BROWSER_GONE";
+        // No mock is mounted: any token request would be answered with 404.
+        let server = MockServer::start().await;
+        let guard = EnvGuard::set(NAME, "fake-before");
+        let pending = begin_with(
+            &client(),
+            Provider::GeminiAi,
+            &custom_gemini_config(Some(NAME)),
+            loopback_endpoints(&server, Provider::GeminiAi),
+        )
+        .await
+        .expect("begin");
+        drop(guard);
+        let (state, port, path) = prompt_state_and_port(&pending);
+        let state = state.expect("gemini issues state");
+        let task = tokio::spawn(pending.finish());
+        send_callback(port, &path, &format!("state={state}&code=approved")).await;
+        let error = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("login timeout")
+            .expect("login task")
+            .err()
+            .expect("exchange must fail");
+        assert_eq!(
+            configuration_id(&error),
+            "oauth_error.google.client_secret_env_unset"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn gemini_public_client_exchange_needs_no_variable() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains(format!(
+                "client_id={GEMINI_CLIENT_ID}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "access-public",
+                "expires_in": 3600
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let pending = begin_with(
+            &client(),
+            Provider::GeminiAi,
+            &test_config(),
+            loopback_endpoints(&server, Provider::GeminiAi),
+        )
+        .await
+        .expect("begin");
+        let (state, port, path) = prompt_state_and_port(&pending);
+        let state = state.expect("gemini issues state");
+        let task = tokio::spawn(pending.finish());
+        let response = send_callback(port, &path, &format!("state={state}&code=approved")).await;
+        assert!(response.starts_with("HTTP/1.1 200"), "got: {response}");
+        let token = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("login timeout")
+            .expect("login task")
+            .expect("token");
+        assert_eq!(token.access_token, "access-public");
+    }
+
+    #[tokio::test]
+    async fn gemini_refresh_requires_the_variable_for_a_custom_client() {
+        let server = MockServer::start().await;
+        let error = refresh_with(
+            &client(),
+            Provider::GeminiAi,
+            &custom_gemini_config(Some("CUOTAI_TEST_GEMINI_BROWSER_REFRESH_UNSET")),
+            &stored_token(),
+            &loopback_endpoints(&server, Provider::GeminiAi),
+        )
+        .await
+        .err()
+        .expect("refresh must fail");
+        assert_eq!(
+            configuration_id(&error),
+            "oauth_error.google.client_secret_env_unset"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 
     // -- Codex id_token identity ----------------------------------------------
