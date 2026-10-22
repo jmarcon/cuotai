@@ -531,7 +531,7 @@ impl HistoryStore {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{config, quota, store, t0, CONFIG};
+    use super::super::tests::{config, first_account, quota, store, t0, CONFIG};
     use super::super::{metric_key, Bounds};
     use super::*;
     use crate::{Metric, MetricKind, MetricWindow};
@@ -632,7 +632,7 @@ mod tests {
     fn old_samples_fold_to_one_per_hour_keeping_each_window_peak() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("history.sqlite3");
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         let history = store(&db, "one");
         let base = t0() - days(10);
         let at = |minutes: i64| base + TimeDelta::minutes(minutes);
