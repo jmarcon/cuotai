@@ -18,7 +18,7 @@ cargo run -p cuotai-tui -- --status   # show the providers' public status (off b
 The TUI resolves the texts delivered by the core (login labels,
 fields, help, edit errors, report notes, cost warnings) against the
 core catalog, using the locale set in `CUOTAI_LANG`
-(RFC 5646 codes: `en-US`, `es`, `pt-BR`...). Without `CUOTAI_LANG`,
+(RFC 5646 codes: `en-US`, `es`, `it`, `pt-BR`...). Without `CUOTAI_LANG`,
 it keeps the `pt-BR` default so the chrome stays in Portuguese. The
 TUI frame itself (shortcuts, menus, Ratatui's own messages) remains in
 Portuguese, outside the scope of RF8.

@@ -1,58 +1,54 @@
-# Idiomas do Cuotai
+# Cuotai languages
 
-Um idioma novo = um único arquivo de catálogo. O core publica os textos
-que ele mesmo emite em `crates/cuotai-core/locales/{en-US,es}.json` (a
-resolução segue a ordem: idioma exato → mesma língua → `en-US` →
-`fallback` em português; `pt-*` nunca consulta catálogo); a UI publica
-apenas os textos próprios da casca (rótulos, diálogos, bandeja,
-temas, lista de idiomas) em `apps/desktop/ui/locales/<código>.json`.
+Each built-in language has a core catalog and a desktop UI catalog. The core
+catalogs in `crates/cuotai-core/locales/{en-US,es,it}.json` contain the texts
+emitted by the backend. The desktop UI catalogs in
+`apps/desktop/ui/locales/<code>.json` contain shell labels, dialogs, tray
+messages, settings and themes.
 
 ```json
 {
-  "_meta": { "name": "Español" },
-  "common.add": "Añadir cuenta",
-  "quota.count": { "one": "{count} cuota", "other": "{count} cuotas" },
+  "_meta": { "name": "Italiano" },
+  "common.add": "Aggiungi account",
+  "quota.count": { "one": "{count} quota", "other": "{count} quote" },
   "metric.balance": "Saldo: {amount}"
 }
 ```
 
-* `_meta.name` é o nome exibido no seletor (obrigatório).
-* Valores são texto simples; `{variável}` é substituída (não renomeie as variáveis).
-* Plural: objeto com as categorias do `Intl.PluralRules` do idioma (`one`, `other`, `few`, `many`…), escolhido por `{count}`.
-* Chaves ausentes caem para `en-US` e, se também faltarem, a própria chave aparece.
-* O texto é sempre escapado antes de ir para a tela: não use HTML.
-* Frontends **não fazem correspondência por texto**: o core entrega cada
-  texto como `{ id, params, fallback }` (RF8) e o `tl()`/`t()` do
-  `js/i18n.js` resolve `id` no catálogo (UI + core, com pacotes de
-  idioma do usuário por cima).
+- `_meta.name` is required and is shown in the language selector.
+- Values are plain text. `{placeholder}` names are substituted and must not
+  be changed.
+- Plural objects use the language's `Intl.PluralRules` categories and select
+  a form with `{count}`.
+- Missing keys fall back to `en-US`, then to the key itself.
+- Text is escaped before it is rendered; do not add HTML.
+- Frontends resolve stable core message IDs (`{ id, params, fallback }`) rather
+  than matching translated text. `js/i18n.js` resolves IDs against the merged
+  UI and core catalogs, with user language packs taking precedence.
 
-## Embutidos
+## Adding a built-in language
 
-Para incluir um idioma novo no app:
+1. Add `crates/cuotai-core/locales/<code>.json` with every core message ID:
+   `field.*`, `native.*`, `login.*`, `credential_help.*`, `oauth.*`,
+   `access.*`, `edit_error.*`, `query.*`, `note.*`, `remove_error.*`,
+   `remove.kept.*`, `status.*`, `provider.*`, `binding.*`,
+   `metric_window.*`, and `pace.*`. Portuguese is the embedded fallback for
+   `pt-*`; other languages use their catalog and fall back to `en-US`.
+2. Add `apps/desktop/ui/locales/<code>.json` with the UI's `common.*`,
+   `dialog.*`, `tray.*`, `settings.*`, `theme.*`, `account.*`, `card.*`,
+   `delete.*`, `filter.*`, `lang.*`, `metric.*`, `quota.*`, `sort.*`,
+   `time.*`, and `userContent.*` strings.
+3. Add `{ code, name }` to `LOCALES` in `js/i18n.js` and add the language to
+   the locale coverage tests.
 
-* Acrescente um arquivo `crates/cuotai-core/locales/<código>.json` para
-  os ids que o core emite (`field.*`, `native.*`, `login.*`,
-  `credential_help.*`, `oauth.*`, `access.*`, `edit_error.*`,
-  `query.*`, `note.*`, `remove_error.*`, `remove.kept.*`, `status.*`,
-  `provider.*`, `binding.*`, `metric_window.*`, `pace.*`). `pt-BR` é a fonte — sem arquivo, o `fallback`
-  embutido em cada `Localized` aparece em português. Outros idiomas
-  precisam de um arquivo com todas as chaves do core; sem ele, o
-  idioma cai para `en-US`.
-* Acrescente um arquivo `apps/desktop/ui/locales/<código>.json` para
-  os textos da UI (`common.*`, `dialog.*`, `tray.*`, `settings.*`,
-  `theme.*`, `account.*`, `card.*`, `delete.*`, `filter.*`, `lang.*`,
-  `metric.*`, `quota.*`, `sort.*`, `time.*`, `userContent.*`).
-* Acrescente `{ code, name }` em `LOCALES` (`js/i18n.js`).
+The `en-US` fallback catalogs must contain every core and UI key.
 
-`en-US` é o idioma de reserva e deve ter todas as chaves do core e da UI.
+## User-provided languages
 
-## Adicionados pelo usuário (sem recompilar)
-
-Coloque um único arquivo `<pasta de configuração>/cuotai/locales/<código>.json`
-e reinicie o app. Esse arquivo pode misturar chaves da UI e do core —
-substitui qualquer outro catálogo do mesmo código. A pasta é
-`~/Library/Application Support/cuotai` no macOS, `%APPDATA%\cuotai` no
-Windows e `~/.config/cuotai` no Linux, ou o que estiver em
-`CUOTAI_USER_DIR`. O botão de pasta na barra superior copia o caminho.
-Arquivos inválidos são ignorados e o motivo aparece num aviso.
-Um exemplo parcial está em `apps/desktop/examples/user/locales/fr.json`.
+Place a single `<config directory>/cuotai/locales/<code>.json` file and restart
+the app. It can combine UI and core keys and overrides any built-in catalog
+with the same code. The directory is `~/Library/Application Support/cuotai`
+on macOS, `%APPDATA%\cuotai` on Windows and `~/.config/cuotai` on Linux, or
+the value of `CUOTAI_USER_DIR`. The folder button in the top bar copies its
+path. Invalid files are ignored and a warning explains why. A partial example
+is available at `apps/desktop/examples/user/locales/fr.json`.

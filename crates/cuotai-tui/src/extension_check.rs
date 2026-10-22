@@ -57,7 +57,7 @@ pub(crate) async fn run(id: &str, json: bool) -> Result<u8, Box<dyn std::error::
         let mut typed = String::new();
         io::stdin().lock().read_line(&mut typed)?;
         manager
-            .approve(&disclosure.candidate, typed.trim() == answer)
+            .approve(&disclosure.candidate, confirmation_matches(&typed, &answer))
             .map_err(|error| error.resolve(locale))?;
     }
     let reading = manager
@@ -76,6 +76,10 @@ pub(crate) async fn run(id: &str, json: bool) -> Result<u8, Box<dyn std::error::
     } else {
         2
     })
+}
+
+fn confirmation_matches(input: &str, answer: &str) -> bool {
+    input.trim().to_lowercase() == answer.to_lowercase()
 }
 
 /// The `--extension-check` JSON: how the run ended and the checked
@@ -142,6 +146,12 @@ mod tests {
     use super::*;
     use cuotai_core::Config;
     use std::fs;
+
+    #[test]
+    fn confirmation_answer_matches_case_insensitively_with_accents() {
+        assert!(confirmation_matches("SÌ\n", "sì"));
+        assert!(!confirmation_matches("si\n", "sì"));
+    }
 
     /// A sandbox with one extension and its consent file.
     struct Rig {

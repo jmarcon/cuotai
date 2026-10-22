@@ -739,7 +739,7 @@ mod tests {
         // The summary never names a directory, even the refused one.
         let json = serde_json::to_string(&s).unwrap();
         assert!(!json.contains("/Users/ana"), "{json}");
-        for locale in ["pt-BR", "en-US", "es"] {
+        for locale in ["pt-BR", "en-US", "es", "it"] {
             assert!(!s.sources[0]
                 .note
                 .as_ref()

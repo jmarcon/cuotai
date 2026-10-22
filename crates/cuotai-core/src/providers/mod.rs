@@ -603,7 +603,7 @@ mod tests {
         .expect_err("userId missing");
         assert_eq!(&*vault_lacking.note.id, "query.session.missing_cookies");
         for (error, names) in [(&lacking, "serviceToken"), (&vault_lacking, "userId")] {
-            for locale in ["pt-BR", "en-US", "es"] {
+            for locale in ["pt-BR", "en-US", "es", "it"] {
                 let text = error.note.resolve(locale);
                 assert!(text.contains(names), "{locale}: {text}");
                 assert!(!text.contains(SECRET), "{locale}: {text}");

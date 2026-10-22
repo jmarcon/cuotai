@@ -1060,7 +1060,7 @@ fn errors_and_warning_are_translated() {
         .l10n(),
         ServeError::TokenMissing.l10n(),
     ];
-    for locale in ["en-US", "es"] {
+    for locale in ["en-US", "es", "it"] {
         let catalog = core_catalog(locale).unwrap();
         for text in &texts {
             assert!(

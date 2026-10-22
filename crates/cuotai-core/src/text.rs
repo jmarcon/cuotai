@@ -170,6 +170,10 @@ impl Localized {
                 .get(&*self.id)
                 .cloned()
                 .or_else(|| core_catalog_en_us().get(&*self.id).cloned()),
+            Locale::It => core_catalog_it()
+                .get(&*self.id)
+                .cloned()
+                .or_else(|| core_catalog_en_us().get(&*self.id).cloned()),
         };
         let template = template.unwrap_or_else(|| self.fallback.to_string());
         substitute(&template, &self.params, resolved)
@@ -232,7 +236,7 @@ pub fn changelog_title_l10n() -> Localized {
 
 // ---------------------------------------------------------------------------
 // Core catalogs: parsed lazily from `include_str!` so the binary only pays
-// for the JSON once and never blocks startup. The two en-US/es maps share
+// for the JSON once and never blocks startup. The en-US/es/it maps share
 // the same key set; equality of key sets is asserted by a unit test.
 // ---------------------------------------------------------------------------
 
@@ -243,11 +247,12 @@ pub enum Locale {
     Pt,
     EnUs,
     Es,
+    It,
 }
 
 impl Locale {
     /// Mirror the desktop `i18n.js#pickLocale` precedence:
-    /// exact match → language base (`es-AR` → `es`) → `pt-*` → `en-US`
+    /// exact match → language base (`es-AR` → `es`, `it-IT` → `it`) → `pt-*` → `en-US`
     /// for any other locale (so unknown languages still get a translation).
     pub fn resolve(locale: &str) -> Locale {
         let lower = locale.to_ascii_lowercase();
@@ -255,11 +260,16 @@ impl Locale {
             Locale::EnUs
         } else if lower == "es" {
             Locale::Es
+        } else if lower == "it" {
+            Locale::It
         } else if lower.starts_with("pt") {
             Locale::Pt
         } else if lower.starts_with("es") {
             // es-AR, es-MX, es-ES, …
             Locale::Es
+        } else if lower.starts_with("it") {
+            // it-IT, it-CH, …
+            Locale::It
         } else {
             Locale::EnUs
         }
@@ -271,7 +281,7 @@ fn parse_catalog(raw: &'static str) -> BTreeMap<String, String> {
     // `id → template` map; serde_json can't decode both shapes with the
     // same target type, so we ignore `_meta` after a structural check.
     let value: serde_json::Value = serde_json::from_str(raw)
-        .expect("cuotai-core locale JSON must be valid; check locales/{en-US,es}.json");
+        .expect("cuotai-core locale JSON must be valid; check locales/{en-US,es,it}.json");
     let mut map = BTreeMap::new();
     if let serde_json::Value::Object(object) = value {
         for (key, val) in object {
@@ -303,6 +313,12 @@ fn core_catalog_es() -> &'static BTreeMap<String, String> {
     &ES
 }
 
+fn core_catalog_it() -> &'static BTreeMap<String, String> {
+    static IT: LazyLock<BTreeMap<String, String>> =
+        LazyLock::new(|| parse_catalog(include_str!("../locales/it.json")));
+    &IT
+}
+
 /// Lookup the core catalog for `locale`. Returns `None` for pt-* (the
 /// caller should use `Localized::fallback`); otherwise returns the static
 /// map for the resolved language (en-US fallback when a key is absent).
@@ -311,6 +327,7 @@ pub fn core_catalog(locale: &str) -> Option<&'static BTreeMap<String, String>> {
         Locale::Pt => None,
         Locale::EnUs => Some(core_catalog_en_us()),
         Locale::Es => Some(core_catalog_es()),
+        Locale::It => Some(core_catalog_it()),
     }
 }
 
@@ -378,6 +395,7 @@ impl Localized {
             Locale::Pt => "pt-BR",
             Locale::EnUs => "en-US",
             Locale::Es => "es",
+            Locale::It => "it",
         };
         self.resolve(locale_str)
     }
@@ -582,7 +600,7 @@ mod tests {
                 }
             }
         }
-        for locale in ["en-US", "es"] {
+        for locale in ["en-US", "es", "it"] {
             let catalog = core_catalog(locale).expect("shipped catalog");
             let missing: BTreeSet<_> = ids
                 .iter()
@@ -644,6 +662,9 @@ mod tests {
         assert_eq!(Locale::resolve("EN"), Locale::EnUs);
         assert_eq!(Locale::resolve("es"), Locale::Es);
         assert_eq!(Locale::resolve("es-AR"), Locale::Es);
+        assert_eq!(Locale::resolve("it"), Locale::It);
+        assert_eq!(Locale::resolve("it-IT"), Locale::It);
+        assert_eq!(Locale::resolve("it-CH"), Locale::It);
         assert_eq!(Locale::resolve("pt-BR"), Locale::Pt);
         assert_eq!(Locale::resolve("pt-PT"), Locale::Pt);
         assert_eq!(Locale::resolve("fr-FR"), Locale::EnUs); // unknown -> en-US
@@ -701,15 +722,21 @@ mod tests {
     }
 
     #[test]
-    fn catalog_keys_match_between_en_and_es() {
+    fn catalog_keys_match_between_en_es_and_it() {
         let en = parse_catalog(include_str!("../locales/en-US.json"));
         let es = parse_catalog(include_str!("../locales/es.json"));
+        let it = parse_catalog(include_str!("../locales/it.json"));
         let en_keys: BTreeSet<&str> = en.keys().map(String::as_str).collect();
         let es_keys: BTreeSet<&str> = es.keys().map(String::as_str).collect();
+        let it_keys: BTreeSet<&str> = it.keys().map(String::as_str).collect();
         let only_en: Vec<&&str> = en_keys.difference(&es_keys).collect();
-        let only_es: Vec<&&str> = es_keys.difference(&es_keys).collect();
+        let only_es: Vec<&&str> = es_keys.difference(&en_keys).collect();
+        let missing_it: Vec<&&str> = en_keys.difference(&it_keys).collect();
+        let extra_it: Vec<&&str> = it_keys.difference(&en_keys).collect();
         assert!(only_en.is_empty(), "en-only keys: {only_en:?}");
         assert!(only_es.is_empty(), "es-only keys: {only_es:?}");
+        assert!(missing_it.is_empty(), "it-missing keys: {missing_it:?}");
+        assert!(extra_it.is_empty(), "it-only keys: {extra_it:?}");
     }
 
     /// Regression for the smoke bug: `OAuthError::l10n()` emits a

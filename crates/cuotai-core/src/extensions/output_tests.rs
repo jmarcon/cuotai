@@ -383,7 +383,7 @@ fn violations_name_the_field_and_never_carry_the_printed_content() {
         let json = serde_json::to_string(&checked).unwrap();
         assert!(!json.contains(secret), "{json}");
         for text in checked.violations.iter().chain(&checked.notes) {
-            for locale in ["pt-BR", "en-US", "es"] {
+            for locale in ["pt-BR", "en-US", "es", "it"] {
                 assert!(!text.resolve(locale).contains(secret), "{text:?}");
             }
         }
@@ -498,7 +498,7 @@ fn every_output_text_is_translated() {
     texts.push(FailureCategory::InvalidOutput.label());
     let ids: BTreeSet<&str> = texts.iter().map(|text| &*text.id).collect();
     assert_eq!(ids.len(), 20, "{ids:?}");
-    for locale in ["en-US", "es"] {
+    for locale in ["en-US", "es", "it"] {
         let catalog = crate::text::core_catalog(locale).unwrap();
         let missing: Vec<_> = ids
             .iter()
