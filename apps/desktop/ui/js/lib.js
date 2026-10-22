@@ -175,6 +175,25 @@ export const costSetPaths = (source, paths) => call("cost_set_paths", { source, 
 export const costSetOptions = (period, retentionDays) => call("cost_set_options", { period, retentionDays });
 export const costPrices = () => call("cost_prices");
 export const costErase = () => call("cost_erase");
+// PRD 0018 RF2/RF3: o estado das atualizações e as ações do usuário. A interface nunca
+// vê uma URL nem uma assinatura: o backend só entrega o que mostrar (fase, versão,
+// notas, progresso, motivo de estar desligado). `updaterStatus` responde a primeira vez
+// e a cada mudança; `onUpdate` escuta o evento `updater` das duas janelas.
+export const updaterStatus = () => call("updater_status");
+export const setUpdaterAutomatic = (on) => call("updater_set_automatic", { on });
+export const updaterExplanationSeen = () => call("updater_explanation_seen");
+export const updaterCheckNow = () => call("updater_check_now");
+export const updaterInstall = () => call("updater_install");
+export const updaterCancelDownload = () => call("updater_cancel_download");
+export const updaterDismiss = () => call("updater_dismiss");
+export const updaterRestart = () => call("updater_restart");
+const demoUpdateListeners = new Set();
+export const onUpdate = (cb) => {
+  if (isDesktop) return T.event.listen("updater", (e) => cb(e.payload));
+  demoUpdateListeners.add(cb);
+  return Promise.resolve(() => demoUpdateListeners.delete(cb));
+};
+const demoUpdateEmit = (view) => demoUpdateListeners.forEach((cb) => cb(view));
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
   const n = view?.notify?.next;
@@ -1070,6 +1089,28 @@ const demoPrices = () => {
   return { currency: "USD", notice: demoNotice(), tables: [{ origin: "embedded", effective: DEMO_EFFECTIVE, source: "https://claude.com/pricing#api; https://openai.com/api/pricing/" }],
     pricing_file: { path: "/Users/demo/Library/Application Support/cuotai/cost/pricing.json", used: false, error: null }, models };
 };
+// PRD 0018 RF3.1/RF2.5 na demo: os mesmos campos de `UpdateView`. `?update=off` (preferência),
+// `?update=managed` (instalação do Homebrew) e `?update=error` (falha) jogam cada estado.
+const DEMO_UPDATE = new URLSearchParams(location.search).get("update");
+const DEMO_NOTES = "Correções de medição e uma nova opção de atualização automática (PRD 0018).";
+const demoUpdate = {
+  automatic: DEMO_UPDATE !== "off", lastCheck: null, explanationSeen: DEMO_UPDATE === null,
+  phase: DEMO_UPDATE === "error" ? "failed" : DEMO_UPDATE === "fresh" || DEMO_UPDATE === "off" ? "uptodate" : "available",
+  version: "0.72.0", notes: DEMO_NOTES, date: "2026-10-22T12:00:00Z",
+  canInstall: DEMO_UPDATE !== "managed", upgradeCommand: DEMO_UPDATE === "managed" ? "brew upgrade --cask cuotai" : null,
+  progress: null, dismissed: false, error: DEMO_UPDATE === "error" ? "network" : null,
+  disabledReason: DEMO_UPDATE === "managed" ? "homebrew" : DEMO_UPDATE === "off" ? "preference" : null,
+};
+const demoWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const demoUpdateView = () => ({
+  enabled: !demoUpdate.disabledReason, automatic: demoUpdate.automatic, disabled_reason: demoUpdate.disabledReason,
+  channel: "stable", current_version: "0.71.1", last_check: demoUpdate.lastCheck, explanation_pending: demoUpdate.enabled && !demoUpdate.explanationSeen,
+  phase: demoUpdate.phase, version: demoUpdate.phase === "idle" || demoUpdate.phase === "failed" ? null : demoUpdate.version,
+  notes: demoUpdate.phase === "available" ? DEMO_NOTES : null, date: demoUpdate.phase === "available" ? demoUpdate.date : null,
+  can_install: demoUpdate.canInstall, upgrade_command: demoUpdate.upgradeCommand, progress: demoUpdate.progress,
+  dismissed: demoUpdate.dismissed, error: demoUpdate.error,
+  manual_url: "https://github.com/jmarcon/cuotai/releases/latest",
+});
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -1269,6 +1310,44 @@ const demo = {
     return demoCostView();
   },
   cost_erase: async () => { for (const id of Object.keys(DEMO_COST)) demoCost.erased.add(id); return 57; },
+  // PRD 0018 RF2/RF3 na demo do navegador: o mesmo estado que o backend entrega, sem
+  // rede e sem instalar nada. `?update=off` deixa o recurso desligado, `?update=managed`
+  // simula uma cópia do Homebrew (que nunca pede nada) e `?update=error` um erro.
+  updater_status: async () => demoUpdateView(),
+  set_updater_automatic: async ({ on }) => { demoUpdate.automatic = on; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
+  updater_explanation_seen: async () => { demoUpdate.explanationSeen = true; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
+  updater_check_now: async () => {
+    if (!demoUpdateView().enabled) throw "updater_off";
+    Object.assign(demoUpdate, { phase: "checking" });
+    demoUpdateEmit(demoUpdateView());
+    await demoWait(600);
+    const fresh = new URLSearchParams(location.search).has("update-fresh");
+    Object.assign(demoUpdate, { phase: fresh ? "uptodate" : "available", lastCheck: new Date().toISOString(), dismissed: false, progress: null, error: null });
+    demoUpdateEmit(demoUpdateView());
+    return demoUpdateView();
+  },
+  updater_install: async () => {
+    const view = demoUpdateView();
+    if (view.phase !== "available") throw "no_update";
+    Object.assign(demoUpdate, { phase: "downloading", progress: 0, dismissed: false });
+    demoUpdateEmit(demoUpdateView());
+    for (const progress of [18, 47, 78, 100]) {
+      await demoWait(350);
+      if (demoUpdate.phase !== "downloading") return demoUpdateView(); // cancelado
+      demoUpdate.progress = progress;
+      demoUpdateEmit(demoUpdateView());
+    }
+    await demoWait(400);
+    Object.assign(demoUpdate, { phase: "installing", progress: null });
+    demoUpdateEmit(demoUpdateView());
+    await demoWait(400);
+    demoUpdate.phase = "ready";
+    demoUpdateEmit(demoUpdateView());
+    return demoUpdateView();
+  },
+  updater_cancel_download: async () => { if (demoUpdate.phase === "downloading") demoUpdate.phase = "available"; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
+  updater_dismiss: async () => { demoUpdate.dismissed = true; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
+  updater_restart: async () => { window.__lastUpdateRestart = true; },
   hooks_status: async () => demoHooksView(),
   set_hooks_enabled: async ({ on }) => { demoHooks.enabled = on; return demoHooksView(); },
   confirm_hooks: async ({ digest }) => {

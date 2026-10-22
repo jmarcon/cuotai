@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0021 |
-| Status | In progress (RF1–RF4 implemented in 0.68.0; RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 delivered in 0.70.0; RF6, RF8.1, RF8.3 and RF9 pending; every channel stays opt-in and off until the owner enables it) |
+| Status | In progress (RF1–RF4 implemented in 0.68.0; RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 delivered in 0.70.0; RF8.1 delivered in 0.74.0 with PRD 0018; RF6, RF8.3 and RF9 pending; every channel stays opt-in and off until the owner enables it) |
 | Owner | Repository, CI and release (`.github/`, `packaging/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRD 0018 (updater), PRD 0014 (widgets) |
 | Depends on | PRD 0019 RF2 (green CI on three systems) and RF7.1 to RF7.3 (`CHANGELOG.md`) |
@@ -23,7 +23,7 @@
 | RF5 | 0.70.0 | Implemented — one `cargo xtask package-manifests` renderer turns the verified `manifest.json` + `signing-state.json` into every channel manifest (RF5.6): the Homebrew cask and formula (RF5.1), the winget version/installer/locale manifests (RF5.2), the Scoop bucket manifest (RF5.3) and the AUR `PKGBUILD`/`.SRCINFO` (RF5.5), validated per channel before being written and by the channel's own linter in CI. RF5.4 is partial: crates.io metadata, the versioned path dependency, `[package.metadata.binstall]` and `publish = false` on the desktop are in place and the `channel-cargo` job publishes core before tui, but the crates.io token and the first publication are owner actions. RF5.7: five independent opt-in channel jobs (`PUBLISH_*` variables, pre-releases skipped, `continue-on-error`, tag-run-only publishing) can never fail the GitHub Release. The tap/bucket/AUR repositories, the first winget submission and every token remain owner prerequisites. |
 | RF6 | — | Proposed — produced-artifact smoke tests are not implemented as a completed requirement. |
 | RF7 | 0.70.0 | Partial — RF7.2 (README leads with the per-platform installation section, verify-your-download and uninstall semantics) and RF7.3 (`packaging/README.md` documents every template and its maintainer) delivered; the rest of the documentation/layout work remains pending. |
-| RF8 | 0.70.0 | Partial — RF8.2 implemented (per-channel uninstall semantics documented; the winget and Scoop CI tests prove a configuration file survives uninstalling; the cask `zap` is explicit-only). RF8.1 is groundwork only: the per-channel install paths are documented for the updater wave (PRD 0018) to detect; RF8.3 pending. |
+| RF8 | 0.74.0 | Partial — RF8.1 implemented with PRD 0018 (the desktop install-source detector turns the in-app updater off and shows the channel's own upgrade command; the detector lives in the desktop `updater` module, not in the core, because no CLI surface consumes it yet — moving it into `cuotai-core` is the pending part) and RF8.2 implemented (per-channel uninstall semantics documented; the winget and Scoop CI tests prove a configuration file survives uninstalling; the cask `zap` is explicit-only). RF8.3 pending. |
 | RF9 | 0.70.0 | Partial — RF9.1 (owner checklist with the per-channel secrets, enabling variables and repositories in `docs/releasing.md`); the secrets themselves, RF9.3 and the rest remain pending. |
 
 ## 1. Context

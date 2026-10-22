@@ -23,11 +23,14 @@ pub fn view() -> AboutView {
     }
 }
 
-/// Só endereços que o próprio Cuotai publica (o projeto e a lista do core) ou, PRD 0011 RF4.1, as
-/// páginas públicas de status das fontes verificadas do core podem ser abertos: a UI nunca escolhe
-/// o destino, então um texto qualquer vindo dela não vira um comando.
+/// Só endereços que o próprio Cuotai publica (o projeto, a página de lançamentos que o
+/// atualizador oferece quando algo falha — PRD 0018 RF2.3/RF2.5 — e a lista do core) ou,
+/// PRD 0011 RF4.1, as páginas públicas de status das fontes verificadas do core podem ser
+/// abertos: a UI nunca escolhe o destino, então um texto qualquer vindo dela não vira um
+/// comando.
 pub fn is_listed(url: &str) -> bool {
     url == about::PROJECT_REPOSITORY
+        || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
 }

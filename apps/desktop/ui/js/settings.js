@@ -2,12 +2,19 @@
 import { te, t, tl, tle, currentLocale, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, currentSort, deleteWidgetData, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, setWidgets, testHook, themeSwitchHtml, widgetsStatus } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, currentSort, deleteWidgetData, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, setWidgets, testHook, themeSwitchHtml, updaterStatus, widgetsStatus } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
+import { bindUpdates, updatesSectionHtml } from "./updater.js";
 
 let dlg = null;
+
+/** PRD 0018 RF3.1: pinta a seção "Updates" com o estado que o backend acabou de responder. */
+let update = null;
+function paintUpdates(box) {
+  if (box) box.innerHTML = updatesSectionHtml(update);
+}
 
 export async function openSettings(extra = {}) {
   if (dlg?.open) return;
@@ -18,6 +25,9 @@ export async function openSettings(extra = {}) {
   let view = extra.view?.();
   const render = async (message = "", configMessage = "") => {
     const s = await getSettings();
+    // PRD 0018 RF3.1: o estado da atualização entra antes do HTML, para "Sobre" já mostrar
+    // a versão e a fase, e a seção "Updates" ser pintada com o mesmo estado.
+    update = await updaterStatus();
     const nThemes = THEMES.filter((x) => x.user).length;
     const nLocales = LOCALES.filter((x) => x.user).length;
     dlg.innerHTML = `<div class="dlg-body">
@@ -84,6 +94,8 @@ export async function openSettings(extra = {}) {
         <div data-serve><p class="hint">${te("common.loading")}</p></div>
         <div data-hooks><p class="hint">${te("common.loading")}</p></div>
         <div data-widgets><p class="hint">${te("common.loading")}</p></div></section>
+      <section class="set-sec" data-updates><h3>${te("update.title")}</h3>
+        <div data-update-body><p class="hint">${te("common.loading")}</p></div></section>
       <section class="set-sec"><h3>${te("settings.config.title")}</h3>
         <p class="hint">${te("settings.config.help")}</p>
         <div class="path-row"><code title="${esc(configLabel(view))}">${esc(configLabel(view) || "—")}</code></div>
@@ -109,7 +121,7 @@ export async function openSettings(extra = {}) {
         <p class="err" role="alert">${esc(message)}</p>
       </section>
       <section class="set-sec"><h3>${te("settings.about")}</h3>
-        <p class="hint">Cuotai ${esc(s.version)} · ${te("about.license", { license: "MIT" })}</p>
+        <p class="hint">Cuotai ${esc(s.version)} · ${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: t("update.state." + (update?.phase ?? "idle"), { version: update?.version ?? "" }) })}</p>
         <div class="dlg-actions left"><button class="btn" data-libraries>${te("about.libraries")}</button></div></section>
       <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
     </div>`;
@@ -141,6 +153,10 @@ export async function openSettings(extra = {}) {
     dlg.querySelector("#status-queries").onchange = (e) => setStatusEnabled(e.target.checked).then(
       () => { dlg.querySelector("#status-msg").textContent = ""; extra.onChange?.(); },
       (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#status-msg").textContent = errorText(x); });
+    // PRD 0018 RF3.1: o estado das atualizações (interruptor, "Verificar agora", última
+    // verificação, versão, canal e motivo de estar desligado) vem do backend a cada repaint.
+    paintUpdates(dlg.querySelector("[data-update-body]"));
+    bindUpdates(dlg.querySelector("[data-update-body]"));
     bindIntegration(dlg.querySelector("[data-serve]"), extra);
     bindHooks(dlg.querySelector("[data-hooks]"), extra);
     bindWidgets(dlg.querySelector("[data-widgets]"), extra);

@@ -1,6 +1,6 @@
 [package]
 name = "cuotai-desktop"
-version = "0.73.0"
+version = "0.74.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 # PRD 0021 RF5.4: the desktop is a Tauri app, distributed as DMG/installer
@@ -31,9 +31,29 @@ dirs = "6"
 tauri-plugin-dialog = "2"
 # PRD 0003 RF2.2: reset notices (2.x line, compatible with Tauri 2.12).
 tauri-plugin-notification = "=2.7.0"
+# PRD 0018 RF1.1: plugin oficial de atualização, versão 2.x fixada (compativel com Tauri 2.12).
+# O recurso `zip` fica desligado de propósito: ele só existe para desembrulhar os
+# artefatos zipados do updater v1 e para extrair um AppImage comprimido, e nenhum
+# release daqui publica um deles (o manifesto aponta para o `.exe`/`.msi` cru do
+# Windows e para o AppImage cru do Linux). Desligá-lo tira do grafo o `zip 4.x`,
+# que hoje carrega três advisories de extração (RUSTSEC-2026-0367/0368/0369) e
+# faz o `cargo deny` do manifesto do desktop falhar.
+tauri-plugin-updater = { version = "=2.14.0", default-features = false, features = [
+  "rustls-tls",
+  "system-proxy",
+] }
+# PRD 0018 RF4.3: o cliente do plugin usa rustls sem provedor; o app instala o `ring`
+# como provedor padrão do processo (ver `updater::ensure_crypto_provider`).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time", "sync", "macros"] }
+parking_lot = "0.12"
 
 [dev-dependencies]
 tempfile = "3"
-parking_lot = "0.12"
+# PRD 0018 RF1.4: os testes assinam com um par de chaves efêmero (nunca a chave de release).
+minisign = "0.7"
+base64 = "0.22"
+# PRD 0018 RF4.3: servidor TLS local com certificado autoassinado para o teste de recusa.
+rcgen = "0.13"
+tauri = { version = "2", features = ["test"] }

@@ -65,6 +65,68 @@ struct Stored {
     /// ([`WidgetPrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     widgets: Option<serde_json::Value>,
+    /// Update checks of this device (PRD 0018 RF2.1/RF3.3); absent = on,
+    /// nothing recorded yet. Read leniently like `notify`
+    /// ([`UpdaterPrefs::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    updater: Option<serde_json::Value>,
+}
+
+/// PRD 0018 RF2.1/RF3.3: the update-check preferences of this device.
+/// Automatic checks are on by default (RF2.1); `last_check` is the RFC 3339
+/// instant the last check finished; `explanation_seen` records that the
+/// first-run privacy explanation (what a check sends) was shown.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UpdaterPrefs {
+    pub automatic: bool,
+    pub last_check: Option<String>,
+    pub explanation_seen: bool,
+}
+
+impl Default for UpdaterPrefs {
+    fn default() -> Self {
+        Self {
+            automatic: true,
+            last_check: None,
+            explanation_seen: false,
+        }
+    }
+}
+
+impl UpdaterPrefs {
+    /// Each field on its own: an unknown or mistyped value is its default.
+    fn from_value(value: &serde_json::Value) -> Self {
+        let default = Self::default();
+        Self {
+            automatic: value["automatic"].as_bool().unwrap_or(default.automatic),
+            last_check: value["last_check"].as_str().map(str::to_owned),
+            explanation_seen: value["explanation_seen"]
+                .as_bool()
+                .unwrap_or(default.explanation_seen),
+        }
+    }
+}
+
+fn updater_of(stored: &Stored) -> UpdaterPrefs {
+    stored
+        .updater
+        .as_ref()
+        .map(UpdaterPrefs::from_value)
+        .unwrap_or_default()
+}
+
+/// PRD 0018 RF3.3: the update-check preferences stored in `file`.
+pub fn read_updater(file: &Path) -> UpdaterPrefs {
+    updater_of(&read(file))
+}
+
+/// Store the update-check preferences in `file`; the defaults remove the key.
+pub fn write_updater(file: &Path, prefs: &UpdaterPrefs) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.updater = (*prefs != UpdaterPrefs::default())
+            .then(|| serde_json::to_value(prefs).ok())
+            .flatten()
+    })
 }
 
 /// Lead times offered, in minutes ("at the time" is 0).
@@ -973,6 +1035,68 @@ mod tests {
         assert_eq!(motion_of(&stored), "off");
         fs::write(&file, r#"{"hooks":false}"#).unwrap();
         assert!(!hooks_of(&read(&file)), "a hand-edited false is off");
+    }
+
+    /// PRD 0018 RF2.1/RF3.3: automático ligado por padrão, `last_check` e a explicação
+    /// aceitada lenientes, e a gravação preservando os demais campos do arquivo.
+    #[test]
+    fn updater_is_on_by_default_round_trips_and_reads_leniently() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        // Ausente = ligado, nada verificado, explicação ainda pendente (RF2.1).
+        assert_eq!(
+            read_updater(&file),
+            UpdaterPrefs {
+                automatic: true,
+                last_check: None,
+                explanation_seen: false
+            }
+        );
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let prefs = UpdaterPrefs {
+            automatic: false,
+            last_check: Some("2026-10-22T12:00:00Z".into()),
+            explanation_seen: true,
+        };
+        write_updater(&file, &prefs).unwrap();
+        assert_eq!(read_updater(&file), prefs);
+        assert_eq!(motion_of(&read(&file)), "off");
+        // Voltar ao padrão remove a chave, sem tocar nos demais campos.
+        write_updater(&file, &UpdaterPrefs::default()).unwrap();
+        assert_eq!(read(&file).updater, None);
+        assert_eq!(motion_of(&read(&file)), "off");
+        // Um valor editado à mão no tipo errado cai no padrão do campo, não invalida o arquivo.
+        for text in [
+            r#"{"motion":"off","updater":{"automatic":"sim","last_check":7,"explanation_seen":"x"}}"#,
+            r#"{"motion":"off","updater":[]}"#,
+            r#"{"motion":"off","updater":null}"#,
+        ] {
+            fs::write(&file, text).unwrap();
+            assert_eq!(
+                read_updater(&file),
+                UpdaterPrefs {
+                    automatic: true,
+                    last_check: None,
+                    explanation_seen: false
+                },
+                "{text}"
+            );
+            assert_eq!(motion_of(&read(&file)), "off", "{text}");
+        }
+        // Uma data ilegível é preservada como texto (a leitura trata como ausente).
+        fs::write(
+            &file,
+            r#"{"updater":{"automatic":true,"last_check":"quando?","explanation_seen":true}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_updater(&file),
+            UpdaterPrefs {
+                automatic: true,
+                last_check: Some("quando?".into()),
+                explanation_seen: true
+            }
+        );
     }
 
     #[test]

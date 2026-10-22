@@ -9,6 +9,8 @@ import {
   bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, nextNoticeText,
   incidentBadge, incidentHtml, bindStatusLinks,
 } from "./lib.js";
+import { initUpdates, onUpdateState } from "./updater.js";
+import { trayUpdateLine } from "./tray-menu.js";
 
 await boot();
 
@@ -17,6 +19,10 @@ const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
 let selected = null;
+// PRD 0018 RF2.2: o popover da bandeja mostra a mesma linha do menu ("Atualizar X
+// disponível") e o clique abre a janela principal, onde o aviso tem notas e botões.
+await initUpdates();
+onUpdateState(() => render());
 let models = null; // seção de modelos da conta aberta no popover; sobrevive aos redesenhos
 
 function row(r) {
@@ -133,6 +139,9 @@ function incidentsChip(reports, chip, last) {
   return chip(tone, "alert", byProvider.size, lines, t("incident.trayTitle"));
 }
 
+/** PRD 0018 RF2.2: a linha de atualização do popover (mesma frase do menu da bandeja). */
+const updateNoticeHtml = () => trayUpdateLine();
+
 function render() {
   const { view, error } = store;
   const loading = !!view && view.busy.length > 0;
@@ -159,6 +168,7 @@ function render() {
       <button class="icon" data-refresh-all title="${te("common.refresh")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
     <div class="pop-body">${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${error && !view?.reports.length ? `<div class="empty">${esc(error)}</div>` : ""}${body}</div>
+    ${updateNoticeHtml() ? `<p class="pop-notice" data-update-notice><button class="link" data-open-main>${icon("refresh")}<span>${esc(updateNoticeHtml())}</span></button></p>` : ""}
     ${nextNoticeText(view) ? `<p class="pop-notice" data-next-notice>${icon("bell")}<span>${esc(nextNoticeText(view))}</span></p>` : ""}
     <footer class="pop-foot">${alertsHtml(view, reports, error) || '<div class="alerts"></div>'}
       <div class="foot-actions">

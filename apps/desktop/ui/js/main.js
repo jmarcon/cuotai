@@ -7,6 +7,7 @@ import { openExtensionsDialog } from "./extensions-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { costCardHtml, costSoloCardHtml, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
+import { bindUpdateBanner, initUpdates, onUpdateState, updateBannerHtml } from "./updater.js";
 import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
@@ -23,6 +24,7 @@ const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
 const busy = (i) => store.view?.busy.includes(i);
+
 
 // PRD 0015 RF4.1: the core's local cost summary (null before the first answer or when the index cannot be read). It
 // is read again every 30 s (the background scan runs every 5 min), when the window comes back and after Settings.
@@ -289,6 +291,7 @@ function render() {
     ${otherConfigNotice(view) ? `<div class="banner" role="status">${esc(otherConfigNotice(view))}</div>` : ""}
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
+    ${updateBannerHtml()}
     ${view?.history_warning ? `<div class="banner bad" role="status" data-history-warning>${icon("warn")} ${esc(tl(view.history_warning))}</div>` : ""}
     ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${
       view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings>${te("serve.bannerOpen")}</button></div>` : ""}
@@ -434,6 +437,12 @@ initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();
+// PRD 0018 RF2.2: o aviso de atualização (com as notas da versão) vive na janela principal; o
+// estado chega pelo evento do backend, então o menu da bandeja e a janela contam a mesma coisa.
+// A última leitura repinta também, para quem abre o app com uma versão nova já anunciada.
+bindUpdateBanner(root, { rerender: () => render(), onError: (e) => setNotice("bad", errText(e)) });
+await initUpdates();
+onUpdateState(() => render());
 loadLocalCost();
 setInterval(loadLocalCost, 30_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLocalCost(); });

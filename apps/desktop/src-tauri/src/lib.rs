@@ -7,6 +7,7 @@ mod local_cost;
 mod local_server;
 mod notify;
 mod settings;
+mod updater;
 mod user_content;
 mod widgets;
 
@@ -25,6 +26,8 @@ use tauri::{
 type Shared<'a> = State<'a, Arc<Backend>>;
 /// PRD 0015: the local cost, shared with the local server's feed.
 type Cost<'a> = State<'a, Arc<local_cost::LocalCost>>;
+/// PRD 0018: the update state, shared by the commands, the 24-hour task and both windows.
+type Updates<'a> = State<'a, Arc<updater::Service>>;
 
 #[tauri::command]
 async fn get_view(b: Shared<'_>) -> Result<View, String> {
@@ -335,6 +338,10 @@ struct TrayMenuPayload {
     /// PRD 0003 RF3.4: "Next notice: Claude 5h · today, 14:30", when one is ahead.
     #[serde(default)]
     notice: Option<String>,
+    /// PRD 0018 RF2.2: "Update 0.72.0 available" at the top of the menu; clicking opens
+    /// the main window, where the notice lives.
+    #[serde(default)]
+    update: Option<String>,
 }
 
 /// Remove controles, apara e limita o tamanho de uma linha de menu.
@@ -350,6 +357,22 @@ fn clean_menu_line(text: &str) -> String {
 
 fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
+    // PRD 0018 RF2.2: a atualização vem antes de tudo; o resto do menu é o de sempre.
+    if let Some(update) = p
+        .update
+        .as_deref()
+        .map(clean_menu_line)
+        .filter(|u| !u.is_empty())
+    {
+        menu.append(&MenuItem::with_id(
+            app,
+            "update",
+            update,
+            true,
+            None::<&str>,
+        )?)?;
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
     if let Some(notice) = p
         .notice
         .as_deref()
@@ -883,6 +906,66 @@ async fn set_config_file(
         .await
 }
 
+/// PRD 0018 RF3.1: o estado que Settings → Updates e "Sobre" mostram: o interruptor, a
+/// última verificação, a versão atual, o canal, o motivo de estar desligado e a fase
+/// (nada de URL, assinatura ou chave).
+#[tauri::command]
+fn updater_status(u: Updates<'_>) -> updater::UpdateView {
+    u.view()
+}
+
+/// PRD 0018 RF2.1/RF3.2: liga ou desliga a verificação automática (`desktop.json`).
+/// Desligado, nenhum pedido sai. Erro: `unwritable`.
+#[tauri::command]
+fn updater_set_automatic(
+    app: AppHandle,
+    u: Updates<'_>,
+    on: bool,
+) -> Result<updater::UpdateView, String> {
+    u.set_automatic(&app, on)
+}
+
+/// PRD 0018 RF2.1: a explicação do que o pedido envia foi lida e aceita.
+#[tauri::command]
+fn updater_explanation_seen(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView, String> {
+    u.explanation_seen(&app)
+}
+
+/// PRD 0018 RF3.1: "Verificar agora". Com o recurso desligado responde `updater_off` e
+/// não faz pedido algum.
+#[tauri::command]
+async fn updater_check_now(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView, String> {
+    u.check_now(&app).await
+}
+
+/// PRD 0018 RF2.3: "Atualizar agora" — baixa, verifica a assinatura e instala. Erros:
+/// `no_update`, `already_running`, `stale`, `unavailable`.
+#[tauri::command]
+fn updater_install(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView, String> {
+    u.install(&app)
+}
+
+/// PRD 0018 RF2.3: cancela o download em curso; a versão instalada continua intacta.
+#[tauri::command]
+fn updater_cancel_download(app: AppHandle, u: Updates<'_>) -> updater::UpdateView {
+    u.cancel_download(&app)
+}
+
+/// PRD 0018 RF2.2: "Lembrar depois" — o aviso some até a próxima verificação.
+#[tauri::command]
+fn updater_dismiss(app: AppHandle, u: Updates<'_>) -> updater::UpdateView {
+    u.dismiss(&app)
+}
+
+/// PRD 0018 RF2.4: reinicia para terminar a atualização. Um login em andamento bloqueia
+/// com `login_in_progress`; sem pacote pronto responde `no_update`. O backend para o
+/// ciclo de atualização e persiste o estado antes de qualquer reinício.
+#[tauri::command]
+async fn updater_restart(app: AppHandle, b: Shared<'_>, u: Updates<'_>) -> Result<(), String> {
+    let login = b.login_in_progress().await;
+    u.restart(&app, login, || b.prepare_for_restart())
+}
+
 #[tauri::command]
 fn open_settings(app: AppHandle) {
     show_main_window(app.clone());
@@ -1004,11 +1087,18 @@ pub fn run() {
     // PRD 0015 RF4.3: the local server publishes this computer's local cost.
     let local_cost = Arc::new(local_cost::LocalCost::new());
     backend.publish_local_cost(Arc::clone(&local_cost));
+    // PRD 0018 RF2.1/RF2.5: the update service reads `desktop.json`, detects the install
+    // source and decides, before the first request, whether any request may happen.
+    let updates = Arc::new(updater::Service::new());
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        // PRD 0018 RF1.1: official updater plugin (2.x). The web UI never calls it — the
+        // shell exposes the commands above — so no `updater:` capability is needed.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Arc::clone(&backend))
         .manage(local_cost)
+        .manage(Arc::clone(&updates))
         .invoke_handler(tauri::generate_handler![
             get_view,
             refresh_all,
@@ -1035,6 +1125,14 @@ pub fn run() {
             move_account,
             reload_config,
             set_config_file,
+            updater_status,
+            updater_set_automatic,
+            updater_explanation_seen,
+            updater_check_now,
+            updater_install,
+            updater_cancel_download,
+            updater_dismiss,
+            updater_restart,
             about_info,
             open_external,
             config_changed_on_disk,
@@ -1106,6 +1204,9 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "account" | "open" => show_main_window(app.clone()),
+                    // PRD 0018 RF2.2: the update line opens the window, where the notice,
+                    // the release notes and the buttons live.
+                    "update" => show_main_window(app.clone()),
                     "settings" => open_settings(app.clone()),
                     "quit" => app.exit(0),
                     _ => {}
@@ -1133,6 +1234,7 @@ pub fn run() {
                 quit: "Sair".into(),
                 tooltip: "Cuotai".into(),
                 notice: None,
+                update: None,
             };
             if let (Some(tray), Ok(menu)) = (
                 app.tray_by_id("cuotai"),
@@ -1169,6 +1271,9 @@ pub fn run() {
             // PRD 0014 RF1.4: the widget snapshot publisher, on a task of
             // its own so a refresh never waits for a file write.
             tauri::async_runtime::spawn(Arc::clone(&backend).run_widgets());
+            // PRD 0018 RF2.1: the update check on opening and then once every 24 h, only
+            // while the feature is on and the install is not owned by a package manager.
+            tauri::async_runtime::spawn(Arc::clone(&updates).run(app.handle().clone()));
             Ok(())
         })
         .run(tauri::generate_context!())

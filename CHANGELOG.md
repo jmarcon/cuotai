@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-10-22
+
+### Added
+
+- The desktop app now checks for new versions once a day — on opening and then every 24 hours — and shows a notice in the window and in the tray with the release notes; nothing is ever downloaded or installed without your click, the download shows progress and can be cancelled, and the restart that finishes it is refused while a login is in progress. The check sends nothing but the current version, the operating system and this computer's architecture to a public release file, is explained once on first run, and Settings › Updates turns it off, checks now, or shows the last check, the channel and why it is disabled. Every package is verified against the project's public key before it is applied, the endpoint is HTTPS-only and a certificate failure is an error; copies installed by Homebrew, Scoop, winget or a distribution package show that manager's own upgrade command instead (PRD 0018 RF1.1, RF1.4, RF2, RF3, RF4.3; PRD 0021 RF8.1).
+
 ## [0.73.0] - 2026-10-22
 
 ### Added
@@ -619,8 +625,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.73.0...HEAD
-[0.73.0]: https://github.com/jmarcon/cuotai/compare/v0.72.0...v0.73.0
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.74.0...HEAD
+[0.74.0]: https://github.com/jmarcon/cuotai/compare/v0.73.0...v0.74.0
 [0.72.0]: https://github.com/jmarcon/cuotai/compare/v0.71.1...v0.72.0
 [0.71.1]: https://github.com/jmarcon/cuotai/compare/v0.71.0...v0.71.1
 [0.71.0]: https://github.com/jmarcon/cuotai/compare/v0.70.0...v0.71.0

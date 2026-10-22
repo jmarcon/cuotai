@@ -2,6 +2,7 @@
 // As linhas seguem a mesma ordem e os mesmos filtros do popover; o shell só monta o menu nativo.
 import { t } from "./i18n.js";
 import { ageText, bindingPct, blockedText, brand, disabledAccounts, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
+import { updateState } from "./updater.js";
 
 let last = "";
 
@@ -23,6 +24,21 @@ export function trayMenuLines(reports) {
     const chars = [...name], max = 80 - [...suffix].length;
     return `${chars.length <= max ? name : `${chars.slice(0, Math.max(0, max - 1)).join("")}…`}${suffix}`;
   });
+}
+
+/**
+ * PRD 0018 RF2.2: "Update 0.72.0 available" as the first line of the tray menu (or the
+ * phase being acted on). `null` when there is nothing to say; the shell omits the line.
+ */
+export function trayUpdateLine(s = updateState()) {
+  if (!s || !s.enabled || s.dismissed) return null;
+  switch (s.phase) {
+    case "available": return t("update.available", { version: s.version });
+    case "downloading": return t("update.downloading", { version: s.version });
+    case "installing": return t("update.installing", { version: s.version });
+    case "ready": return t("update.ready", { version: s.version });
+    default: return null;
+  }
 }
 
 /** PRD 0010 RF3.3: icon tooltip with the age of the oldest reading on screen ("Cuotai" alone without accounts). */
@@ -47,6 +63,8 @@ export function syncTrayMenu(view) {
     tooltip: trayTooltip(view.reports ?? []),
     // PRD 0003 RF3.4: a line above the accounts and a second tooltip line.
     notice: nextNoticeText(view),
+    // PRD 0018 RF2.2: the update line above everything, while one is pending.
+    update: trayUpdateLine(),
   };
   const key = JSON.stringify(payload);
   if (key === last) return;

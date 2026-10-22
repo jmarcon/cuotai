@@ -319,6 +319,10 @@ pub struct Backend {
     /// PRD 0014 RF1.4: the widget snapshot publisher. Lock-free by design:
     /// a state change only marks it dirty and its own task writes.
     widgets: widgets::Publisher,
+    /// PRD 0018 RF2.4: set before the app restarts to apply an update, so the
+    /// background loops stop asking for provider data instead of being killed
+    /// mid-request.
+    stopping: AtomicBool,
 }
 
 // ---------- DTOs (somente leitura para a UI) ----------
@@ -1179,6 +1183,22 @@ impl Backend {
         self.feed.attach_cost(cost);
     }
 
+    /// PRD 0018 RF2.4: `true` while a login is in progress. A native login (which owns a
+    /// browser/system window and a token rotation) blocks the restart that applies an
+    /// update; the interface says so and the app stays open.
+    pub async fn login_in_progress(&self) -> bool {
+        self.inner.lock().await.login.is_some()
+    }
+
+    /// PRD 0018 RF2.4: stop the refresh cycle cleanly before the restart that applies an
+    /// update. The loops finish their current pass and return; configuration and
+    /// preferences are already persisted (both writers are atomic), so nothing is lost.
+    pub fn prepare_for_restart(&self) {
+        self.stopping.store(true, Ordering::Relaxed);
+        self.notice_nudge.notify_waiters();
+        self.status_nudge.notify_waiters();
+    }
+
     /// Every state change ends here: the UI gets the view, the reset
     /// notice timer recomputes (PRD 0003 RF2.1), the tray icon follows
     /// the providers' outages (PRD 0011 RF4.2), the hooks see the new
@@ -1574,6 +1594,9 @@ impl Backend {
     /// it makes no request.
     pub async fn run_incidents(self: Arc<Self>, app: AppHandle) {
         loop {
+            if self.stopping.load(Ordering::Relaxed) {
+                return;
+            }
             let monitor = {
                 let g = self.inner.lock().await;
                 g.loaded
@@ -1605,6 +1628,10 @@ impl Backend {
     pub async fn run_notices(self: Arc<Self>, app: AppHandle) {
         let notifier = SystemNotifier(app.clone());
         loop {
+            // PRD 0018 RF2.4: no notice is due after the restart that applies an update.
+            if self.stopping.load(Ordering::Relaxed) {
+                return;
+            }
             let tick = {
                 let mut g = self.inner.lock().await;
                 let Inner {
@@ -1864,6 +1891,10 @@ impl Backend {
     /// [`RefreshCycle::pending_now_indices`]).
     pub async fn run_scheduler(self: Arc<Self>, app: AppHandle) {
         loop {
+            // PRD 0018 RF2.4: the restart that applies an update stops the cycle.
+            if self.stopping.load(Ordering::Relaxed) {
+                return;
+            }
             self.ensure_loaded().await;
             let plan: SchedulerPlan = 'plan: {
                 let g = self.inner.lock().await;

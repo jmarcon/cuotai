@@ -3,13 +3,37 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | Proposed |
+| Status | In progress (RF1.1, RF1.4, RF2, RF3 and RF4.3 delivered in 0.74.0; the release-side RFs and the acceptance criteria that need a real signed release and a native runner are still open) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2 and RF3: signed packages and artifact hosting) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status
+
+| Requirement | Version | State |
+|---|---|---|
+| RF1 (mechanism and keys) | 0.74.0 | Partial — the app side is delivered (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands); the pipeline side, which produces the `latest.json` the plugin reads, is still open. |
+| RF2 (flow in the app) | 0.74.0 | Delivered except the cross-OS acceptance smoke, which needs a signed release (owner). |
+| RF3 (Settings and About) | 0.74.0 | Delivered; the three-language smoke and the zero-request test are automated. |
+| RF4 (operational security) | 0.74.0 | Partial — the HTTPS-only endpoint and the certificate failure as an error are delivered and tested, and the procedures are written ([`docs/updater-security.md`](updater-security.md)); the pipeline review of RF4.1 needs the release-side work and the owner-configured environment. |
+
+Owner-blocked, and not claimed as delivered:
+
+- the **production signed release** (the private key lives in the `release`
+  GitHub environment and the owner's Keychain; until the owner uploads the
+  secrets, no real `latest.json` exists and a live check honestly reports
+  `unconfigured`);
+- the **RF2 acceptance smoke** — an app installed on an older version updating
+  to the new one on macOS, Windows and Linux, with a simulated network and
+  signature failure — needs the owner's signing run and native runners;
+- the **package-manager installs seen live**: detection is proven on path
+  fixtures, not on a real Homebrew, Scoop, winget or AUR installation;
+- the **`release` environment protection** (required reviewer, tag-only
+  deployment branches) is a repository setting the owner must turn on, as
+  documented in [`docs/updater-security.md`](updater-security.md).
 
 ## 1. Context
 
@@ -84,3 +108,31 @@ In the 2026-10-19 market analysis: CodexBar uses Sparkle and Homebrew for update
 At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, and a smoke test of the changed interface.
 
 The requirement is only delivered when an app installed on an earlier version updates to the next one with consent, rejects any package with an invalid signature, preserves all the user's data, and with the feature off makes no update request.
+
+## 8. What 0.74.0 verified, and what it could not
+
+Verified in the repository, on every push:
+
+- the RF1.4 acceptance criterion as an integration test against a local server
+  with an ephemeral key pair: a greater version with a valid signature is
+  accepted and verifies the package bytes, a signature from another key and a
+  tampered package are refused, an equal or lower version is ignored and a
+  malformed manifest is a handled error;
+- the RF3.2/RF3.3 acceptance criterion: with the feature off — by preference,
+  by `CUOTAI_UPDATER=off`, by the `CUOTAI_UPDATER_DEFAULT` build key or by a
+  package-manager install — a request-counting server sees **zero** requests,
+  including from *Check now*;
+- RF4.3: a non-HTTPS endpoint is refused before any request and a self-signed
+  certificate produces an error;
+- `cargo deny` over both manifests, which is why the plugin's `zip` feature is
+  off (see [`docs/updater-security.md`](updater-security.md));
+- the three-language smoke of Settings → Updates and the banner.
+
+Not verified here, and therefore not claimed:
+
+- an installed app on an earlier version downloading and applying a real signed
+  release on each of the three operating systems;
+- a live Homebrew, Scoop, winget or AUR install (the detector is proven on path
+  fixtures);
+- the key rotation of the leak procedure, which needs a second key pair and a
+  public release.

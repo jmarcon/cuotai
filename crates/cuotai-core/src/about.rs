@@ -94,7 +94,7 @@ static LIBRARIES: &[Library] = &[
         "MIT OR Apache-2.0",
         "https://github.com/marshallpierce/rust-base64",
         Role::Runtime,
-        &[Core],
+        &[Core, Desktop],
     ),
     lib(
         "chrono",
@@ -190,6 +190,13 @@ static LIBRARIES: &[Library] = &[
         &[Core],
     ),
     lib(
+        "rustls",
+        "Apache-2.0 OR ISC OR MIT",
+        "https://github.com/rustls/rustls",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
         "serde",
         "MIT OR Apache-2.0",
         "https://github.com/serde-rs/serde",
@@ -242,6 +249,13 @@ static LIBRARIES: &[Library] = &[
     ),
     lib(
         "tauri-plugin-notification",
+        "Apache-2.0 OR MIT",
+        "https://github.com/tauri-apps/plugins-workspace",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
+        "tauri-plugin-updater",
         "Apache-2.0 OR MIT",
         "https://github.com/tauri-apps/plugins-workspace",
         Role::Runtime,
@@ -304,11 +318,25 @@ static LIBRARIES: &[Library] = &[
         &[Desktop],
     ),
     lib(
+        "minisign",
+        "MIT",
+        "https://github.com/jedisct1/rust-minisign",
+        Role::Test,
+        &[Desktop],
+    ),
+    lib(
         "parking_lot",
         "MIT OR Apache-2.0",
         "https://github.com/Amanieu/parking_lot",
-        Role::Test,
+        Role::Runtime,
         &[Core, Desktop],
+    ),
+    lib(
+        "rcgen",
+        "MIT OR Apache-2.0",
+        "https://github.com/rustls/rcgen",
+        Role::Test,
+        &[Desktop],
     ),
     lib(
         "tempfile",
