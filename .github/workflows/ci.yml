@@ -40,11 +40,76 @@ jobs:
           components: clippy, rustfmt
       # WebKitGTK is the only system library the desktop build links; the tray
       # library (appindicator) is loaded at run time and no test opens a tray.
-      - name: Install WebKitGTK
+      # The .deb files apt would download for it (~60 MB with dependencies)
+      # are cached, so a cache hit installs offline and never waits on an
+      # Ubuntu mirror (one slow mirror once stalled this step for 22 minutes).
+      # The cached set is the dependency closure missing from one runner
+      # image, so the key carries ImageOS/ImageVersion (GitHub refreshes the
+      # image about weekly); bump APT_CACHE_VERSION to force a fresh download.
+      # Real .deb packages go through dpkg, so headers, pkg-config files,
+      # .so symlinks and maintainer scripts match a normal install.
+      - name: WebKitGTK cache key
+        id: apt-key
         if: runner.os == 'Linux'
+        env:
+          APT_CACHE_VERSION: "1"
+        run: echo "key=apt-webkitgtk-v${APT_CACHE_VERSION}-${ImageOS:-unknown}-${ImageVersion:-unknown}-${RUNNER_ARCH}" >> "$GITHUB_OUTPUT"
+      - name: Restore WebKitGTK packages
+        id: apt-cache
+        if: runner.os == 'Linux'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/cuotai-apt-debs
+          key: ${{ steps.apt-key.outputs.key }}
+      # A miss (or a cache the image no longer accepts) still contacts the
+      # mirror: retries, a per-request stall timeout and the step timeout make
+      # a stuck mirror fail fast instead of eating the job budget.
+      - name: Install WebKitGTK
+        id: apt-install
+        if: runner.os == 'Linux'
+        timeout-minutes: 10
+        env:
+          CACHE_HIT: ${{ steps.apt-cache.outputs.cache-hit }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev
+          set -euo pipefail
+          debs="$HOME/.cache/cuotai-apt-debs"
+          pkgs=(libwebkit2gtk-4.1-dev)
+          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          if [ "$CACHE_HIT" != "true" ]; then
+            rm -rf "$debs"
+            mkdir -p "$debs/partial"
+            sudo apt-get "${net[@]}" update
+            sudo apt-get "${net[@]}" install -y --no-install-recommends --download-only \
+              -o Dir::Cache::archives="$debs" "${pkgs[@]}"
+            # Leave only readable .deb files for the cache upload.
+            sudo rm -rf "$debs/partial" "$debs/lock"
+            sudo chown -R "$(id -u):$(id -g)" "$debs"
+          fi
+          # Install the cached files with every package source disabled: apt
+          # orders them (pre-dependencies included) and either the set is
+          # complete for this image or it fails, without touching the mirror.
+          # (`--no-download` would also refuse the local files themselves.)
+          nosrc="$(mktemp -d)"
+          if sudo apt-get install -y --no-install-recommends \
+              -o Dir::Etc::SourceList=/dev/null -o Dir::Etc::SourceParts="$nosrc" \
+              "$debs"/*.deb; then
+            echo "offline=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Cached WebKitGTK packages did not install offline; installing from the mirror."
+            sudo apt-get "${net[@]}" update
+            sudo apt-get "${net[@]}" install -y --no-install-recommends "${pkgs[@]}"
+          fi
+      # Like the Rust cache, only main writes it; pull requests and other
+      # branches restore main's entry and never save their own.
+      - name: Save WebKitGTK packages
+        if: >-
+          runner.os == 'Linux' && github.ref == 'refs/heads/main' &&
+          steps.apt-cache.outputs.cache-hit != 'true' &&
+          steps.apt-install.outputs.offline == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/cuotai-apt-debs
+          key: ${{ steps.apt-key.outputs.key }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |

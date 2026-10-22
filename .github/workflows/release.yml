@@ -326,10 +326,14 @@ jobs:
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
+      # Retries, a per-request stall timeout and the step timeout make a stuck
+      # Ubuntu mirror fail fast instead of eating the job budget.
       - name: System dependencies (WebKitGTK, AppImage tooling)
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${net[@]}" update
+          sudo apt-get "${net[@]}" install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
@@ -374,10 +378,14 @@ jobs:
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
+      # Retries, a per-request stall timeout and the step timeout make a stuck
+      # Ubuntu mirror fail fast instead of eating the job budget.
       - name: System dependencies (WebKitGTK, AppImage tooling)
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${net[@]}" update
+          sudo apt-get "${net[@]}" install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
@@ -451,11 +459,13 @@ jobs:
           workspaces: . -> target
       - name: Cross-build packages
         if: matrix.packages != ''
+        timeout-minutes: 10
         env:
           PACKAGES: ${{ matrix.packages }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends $PACKAGES
+          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${net[@]}" update
+          sudo apt-get "${net[@]}" install -y --no-install-recommends $PACKAGES
       - name: Cross linker (aarch64 GNU)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
