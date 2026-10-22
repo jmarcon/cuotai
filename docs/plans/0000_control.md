@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-22 |
-| Cuotai version at that date | 0.71.0 |
+| Cuotai version at that date | 0.71.1 |
 | Plans | 21 (12 implemented, 6 in progress, 2 proposed, 1 implemented partial) |
 
 ## 1. How to maintain it
@@ -118,6 +118,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | 0.69.0 | 0019 | RF5 (platform support matrix in `docs/platforms.md`, per-OS TUI smoke test in CI with a no-network fixture, localized-explanation audit) and RF6 (`docs/release-policy.md`: versioning, support and reproducibility; RF6.2 partial — SBOM-attachment proof waits for a real release); docs/CI part without a version bump of its own. RF7.3 (`changelog-draft`), RF7.4 (CI changelog check and pull-request gate), RF7.5 (release/updater notes from the shared parser), RF7.7 (core `changelog::entries()`, TUI What's new, `cuotai --changelog`; desktop screen open) and RF7.8 (plan-link check). |
 | 0.70.0 | 0021; 0019 | 0021 RF5.1–RF5.7 (one `package-manifests` renderer for the Homebrew cask/formula, winget, Scoop and AUR manifests, per-channel validation and opt-in channel jobs that can never fail the release; RF5.4 partial — crates.io token and first publication are owner actions), RF7.2 and RF7.3 (README installation section, `packaging/README.md`), RF8.2 (uninstall keeps user data, proven in CI). PRD 0019 RF4 is superseded and delivered through 0021 RF5. |
 | 0.71.0 | 0014 | RF1 (core widget snapshot: compact `export::v1` subset, atomic `0600` write, 256 KiB deterministic truncation, stale keeps the original age, unavailable never borrows data), RF2.2, RF4 (Settings → Widgets in three languages, off by default, delete on disable), RF5.1 (`widget.json` for Waybar/GNOME/KDE), RF3.2–RF3.5 partial (WidgetKit sources type-checked; `.appex` packaging, app group and signing owner-blocked). |
+| 0.71.1 | 0014 | Build fix: the macOS-only app-group constant of the widget snapshot compiles only on macOS, restoring the Windows and Linux desktop builds (RF2.1). |
 
 ## 4. Dependency graph
 
@@ -294,3 +295,4 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-22 | PRD 0019 RF7.3 (draft generator), RF7.4, RF7.5, RF7.7 and RF7.8 delivered in 0.69.0 (shared changelog parser, TUI What's new, `cuotai --changelog`, CI `changelog-check`/gate); the desktop What's new screen remains open. |
 | 2026-10-22 | PRD 0021 RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 delivered in 0.70.0 (package-manager channels rendered from the verified manifest, opt-in and owner-gated); PRD 0019 RF4 is superseded by this delivery. |
 | 2026-10-22 | PRD 0014 RF1, RF2.2, RF4, RF5.1 and RF3.2–RF3.5 delivered in 0.71.0 (widget snapshot, desktop publisher, Settings → Widgets, type-checked WidgetKit sources); RF2.1/RF2.3 and RF3.1 stay owner-blocked on the Apple developer account and signing. |
+| 2026-10-22 | 0.71.1 fixes the widget app-group constant gating (Windows/Linux desktop build). |

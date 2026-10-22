@@ -25,6 +25,7 @@ pub const MIN_INTERVAL: Duration = Duration::from_secs(15);
 /// PRD 0014 RF2.1: the *app group* the app and a signed widget extension
 /// share. Only a build with the entitlement (PRD 0019) has this folder;
 /// until then [`snapshot_path`] falls back to the per-user data directory.
+#[cfg(target_os = "macos")]
 pub const APP_GROUP: &str = "group.dev.cuotai.desktop";
 
 /// PRD 0014 RF5: the file name every consumer looks for.
@@ -41,7 +42,7 @@ pub fn snapshot_path() -> Option<PathBuf> {
     Some(path.join(FILE_NAME))
 }
 
-/// The *app group* container of [`APP_GROUP`], whether or not it exists.
+/// The *app group* container of `APP_GROUP`, whether or not it exists.
 fn app_group_dir() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
