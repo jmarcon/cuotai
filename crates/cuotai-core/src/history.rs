@@ -1516,7 +1516,7 @@ credential_env = "GROQ_KEY_BETA"
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("history.sqlite3");
         let history = store(&db, "one");
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         let reset = t0() + TimeDelta::hours(5);
         let reading = |used: f64, resets: TimeDelta| Metric {
             resets_at: Some(reset + resets),
