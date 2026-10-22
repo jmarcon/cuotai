@@ -832,6 +832,15 @@ credential_env = "GROQ_KEY_BETA"
         Config::from_toml(toml).unwrap()
     }
 
+    /// Takes the first account out of a parsed test config without `Vec::remove`.
+    pub(super) fn first_account(config: Config) -> Account {
+        config
+            .accounts
+            .into_iter()
+            .next()
+            .expect("the config has an account")
+    }
+
     fn groq(name: &str, env: &str, extra: &str) -> String {
         format!("[[accounts]]\nname = \"{name}\"\nprovider = \"groq\"\ncredential_env = \"{env}\"\n{extra}\n")
     }
@@ -951,7 +960,7 @@ credential_env = "GROQ_KEY_BETA"
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         let fresh = dir.path().join("history").join("history.sqlite3");
         store(&fresh, "one")
             .record(&alpha, t0(), &[quota("5h", Some(1.0), None)])
