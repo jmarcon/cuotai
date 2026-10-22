@@ -156,7 +156,9 @@ fn export(
     let identity = ConfigIdentity::Explicit("events".into());
     Export::from_cycle(config, &identity, cycle, statuses, now, Options::default())
         .accounts
-        .remove(0)
+        .into_iter()
+        .next()
+        .expect("the export holds the first account")
 }
 
 /// Kinds in order, leaving out `usage_updated` (its throttle has a test of
