@@ -16,6 +16,7 @@ pub mod draft;
 pub mod git;
 pub mod manifest;
 pub mod notes;
+pub mod packages;
 pub mod plan_links;
 pub mod sbom;
 pub mod signing;

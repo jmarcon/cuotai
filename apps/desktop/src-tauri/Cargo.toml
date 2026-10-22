@@ -1,8 +1,11 @@
 [package]
 name = "cuotai-desktop"
-version = "0.69.0"
+version = "0.70.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+# PRD 0021 RF5.4: the desktop is a Tauri app, distributed as DMG/installer
+# and through the package-manager channels, never on crates.io.
+publish = false
 
 # Workspace próprio: não altera o workspace do backend/TUI.
 [workspace]

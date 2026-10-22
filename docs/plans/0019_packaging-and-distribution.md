@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0019 |
-| Status | In progress (RF1, RF2 partial, RF3 superseded by PRD 0021 RF1–RF4, RF4 pending in PRD 0021 RF5, RF5, RF6 and RF7; the desktop What's new screen remains open) |
+| Status | In progress (RF1, RF2 partial, RF3 superseded by PRD 0021 RF1–RF4, RF4 superseded by PRD 0021 RF5, RF5, RF6 and RF7; the desktop What's new screen remains open) |
 | Owner | Repository, CI and release (`.github/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRDs 0014 and 0018 |
 | Depends on | none; it is a prerequisite of PRDs 0014 and 0018 |
@@ -24,6 +24,7 @@
 | RF2.3 | 0.27.1 | Tests that need Unix permissions, symlinks or `#!/bin/sh` fakes of `aws`/`bl` are `#[cfg(unix)]`; no test touches the real vault, tray, notifications or browser (in-memory `TokenStore`, desktop backend without Tauri). The per-system coverage table is in `docs/architecture.md` ("Continuous integration"). |
 | RF2 acceptance | partial | Verified locally: workspace and desktop fmt, Clippy and tests pass on macOS (arm64) and Linux (Debian bookworm container, WebKitGTK 4.1); Clippy and the test build pass for `x86_64-pc-windows-gnu` on both workspaces; `actionlint` 1.7.12 accepts the workflow; `cargo deny` passes on both manifests; a planted `clippy::ptr_arg` violation makes the CI Clippy command exit 101. **Missing (owner):** pushing the workflow to GitHub to get a green run on the three hosted runners, including the first native Windows MSVC test run, and a pull request with broken Clippy that fails. |
 | RF3 | 0.68.0 | Superseded and delivered through PRD 0021 RF1–RF4: deterministic tag/version gate, cross-platform artifacts, honest signing/checksum/provenance/SBOM state, draft-to-verified release and safe dry run. No production tag, published release or owner signing secrets are claimed. |
+| RF4 | 0.70.0 | Superseded and delivered through PRD 0021 RF5.1–RF5.5: the Homebrew tap (cask + formula), winget, Scoop, AUR and `cargo install` channels exist as opt-in rendered manifests with per-channel validation; none is enabled yet, which is the owner decision PRD 0021 §8 keeps open. The README leads with the per-platform installation section (RF4.4). RF4.3 (updater off on managed installs) belongs to PRD 0018 with the RF8.1 groundwork documented. |
 | RF5.1 | 0.69.0 (docs, no bump) | `docs/platforms.md` declares per system: credential vault, tray (GNOME AppIndicator note), notifications, browser login, the `aws`/`bl` CLI tools, local cost sources and the local server; re-checked per release through the `docs/releasing.md` checklist. |
 | RF5.2 | 0.69.0 (CI, no bump) | The CI `test` job smoke-tests the TUI binary on Linux, macOS and Windows with the no-network fixture `crates/cuotai-tui/tests/fixtures/smoke.toml`: `--list-providers` exits 0 and `--once` exits 2 (missing configuration, no HTTP). The manual desktop checklist stays in `docs/releasing.md`. |
 | RF5.3 | 0.69.0 (audit, no bump) | Audit evidence in `docs/platforms.md`: every platform-limited feature surfaces a localized explanation (per-OS vault "unavailable" errors, `BrowserUnavailable` with a manual-copy URL, `aws`/`bl` CLI-not-found notes); nothing fails silently. No code change was needed. |

@@ -75,6 +75,13 @@ SUBCOMMANDS:
   changelog-draft     Draft the [Unreleased] section from the commits (RF7.3)
     --repo PATH             repository root (default: .)
     --since REF             default: the last v* tag, else the last version bump
+
+  package-manifests  Render and validate every package-manager channel (RF5.6)
+    --release-manifest PATH  manifest.json, or a directory containing it
+    --repo SLUG              owner/name used for the release download URLs
+    --tag TAG                vX.Y.Z (must match the manifest version)
+    --templates-dir DIR      channel templates (default: packaging)
+    --out DIR                output directory for the rendered manifests
 ";
 
 fn main() -> ExitCode {
@@ -105,6 +112,7 @@ fn run(args: &[String]) -> Res<()> {
         "changelog-check" => changelog_check(&opts),
         "changelog-gate" => changelog_gate(&opts),
         "changelog-draft" => changelog_draft(&opts),
+        "package-manifests" => package_manifests(&opts),
         "help" | "--help" | "-h" => {
             print!("{USAGE}");
             Ok(())
@@ -331,6 +339,37 @@ fn changelog_draft(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
     let since = opts.get("since");
     print!("{}", xtask::draft::run(&repo, since.as_deref())?);
+    Ok(())
+}
+
+fn package_manifests(opts: &Opts) -> Res<()> {
+    let (manifest, signing) =
+        xtask::packages::load_inputs(&PathBuf::from(opts.need("release-manifest")?))?;
+    let templates_dir = opts
+        .path("templates-dir")
+        .unwrap_or_else(|| PathBuf::from("packaging"));
+    let out = PathBuf::from(opts.need("out")?);
+    let request = xtask::packages::RenderRequest {
+        repo: opts.need("repo")?,
+        tag: opts.need("tag")?,
+        manifest,
+        signing,
+    };
+    let rendered = xtask::packages::render_all(&templates_dir, &request)?;
+    xtask::packages::write_rendered(&out, &rendered)?;
+    for file in &rendered {
+        println!("rendered {} ({})", file.path.display(), file.channel);
+    }
+    println!(
+        "rendered {} package-manager manifests for {} ({})",
+        rendered.len(),
+        request.tag,
+        if request.signing.is_some() {
+            "signing state read"
+        } else {
+            "no signing state: unsigned caveats rendered"
+        }
+    );
     Ok(())
 }
 

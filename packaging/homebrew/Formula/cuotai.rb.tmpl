@@ -1,0 +1,28 @@
+# Rendered by `cargo xtask package-manifests` from
+# packaging/homebrew/Formula/cuotai.rb.tmpl. Do not edit by hand (PRD 0021 RF5.6).
+class Cuotai < Formula
+  desc "Terminal dashboard and JSON CLI for AI-provider usage, quotas and costs"
+  homepage "https://github.com/{{REPO}}"
+  # No `version` stanza: Homebrew scans it from the release URLs below
+  # (`brew audit --strict` rejects a redundant version).
+  license any_of: ["MIT", "Apache-2.0"]
+
+  on_macos do
+    on_arm do
+      url "https://github.com/{{REPO}}/releases/download/{{TAG}}/cuotai-{{VERSION}}-aarch64-apple-darwin.tar.gz"
+      sha256 "{{CLI_MACOS_AARCH64_SHA256}}"
+    end
+    on_intel do
+      url "https://github.com/{{REPO}}/releases/download/{{TAG}}/cuotai-{{VERSION}}-x86_64-apple-darwin.tar.gz"
+      sha256 "{{CLI_MACOS_X86_64_SHA256}}"
+    end
+  end
+
+  def install
+    bin.install "cuotai"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/cuotai --version")
+  end
+end

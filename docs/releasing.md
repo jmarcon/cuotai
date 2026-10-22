@@ -1,10 +1,13 @@
 # Releasing Cuotai
 
-This document describes the release pipeline (PRD 0021 RF1–RF4): how a tag
+This document describes the release pipeline (PRD 0021 RF1–RF5): how a tag
 becomes a verified GitHub Release, what is signed and what is not, how to
-rehearse in a fork, and what the owner must configure. Package-manager
-channels (PRD 0021 RF5: Homebrew, winget, Scoop, Cargo, AUR) are **not**
-implemented yet; the pipeline never contacts them.
+rehearse in a fork, the opt-in package-manager channels (RF5), and what the
+owner must configure. A channel is contacted **only** when its repository
+variable (`PUBLISH_HOMEBREW`, `PUBLISH_WINGET`, `PUBLISH_SCOOP`,
+`PUBLISH_CARGO`, `PUBLISH_AUR`) is set to `true`, always after the published
+release has been re-verified; until the owner enables one, the pipeline
+renders and validates it locally and pushes nothing.
 
 ## How a release works
 
@@ -15,7 +18,7 @@ implemented yet; the pipeline never contacts them.
 2. The owner creates an **annotated** tag on `main` and pushes it:
    `git tag -a v0.68.0 -m "v0.68.0" <commit>` then `git push origin v0.68.0`.
 3. `.github/workflows/release.yml` runs: **check → builds → assemble →
-   publish → verify-public**.
+   publish → verify-public → package-manifests → channel jobs**.
 
 ```text
 check ──┬─ desktop-macos ───┐
@@ -25,10 +28,19 @@ check ──┬─ desktop-macos ───┐
         ├─ desktop-linux-arm64 (optional) ───┤
         ├─ cli (7 legs, 2 optional) ─────────┤
         └─ sbom ────────────┴─► assemble ─► publish ─► verify-public
+                                                       │
+                                                       └─► package-manifests
+                                                             ├─► channel-homebrew
+                                                             ├─► channel-winget
+                                                             ├─► channel-scoop
+                                                             ├─► channel-cargo
+                                                             └─► channel-aur
 ```
 
 An interrupted or failing run leaves at most a **draft** release — never a
-public partial one.
+public partial one. The channel jobs run last, are independent of each
+other, and nothing depends on them: a channel failure never affects the
+GitHub Release (RF5.7).
 
 ## Trigger rules (RF1)
 
@@ -191,6 +203,93 @@ claims `signed` dishonestly. Methods: `developer-id`, `ad-hoc`,
   current names with `--clobber`. A published release is never modified or
   deleted: the publish job refuses to touch it.
 
+## Package-manager channels (RF5)
+
+Every channel's manifest is **rendered**, never hand-written. One command
+turns the verified release into all of them:
+
+```sh
+# locally, from the assembly of a run (manifest.json + signing-state.json)
+cargo xtask package-manifests \
+  --release-manifest dist --repo jmarcon/cuotai --tag v0.68.0 \
+  --templates-dir packaging --out rendered
+```
+
+Inputs are the release `manifest.json` (stable file names, sizes, SHA-256)
+and `signing-state.json`; URLs are derived from the repository slug and the
+tag. Rendering is deterministic — the same inputs always produce the same
+bytes — and each channel's output is structurally validated before it is
+written (Ruby block balance and required stanzas, winget YAML fields and
+SHA-256 shape, Scoop JSON with `checkver`/`autoupdate`, PKGBUILD assignments
+and `.SRCINFO` agreement). The templates live in
+[`packaging/`](../packaging/README.md), one directory per channel.
+
+| Channel | Renders | Own linter in CI | Publishes to |
+|---|---|---|---|
+| Homebrew tap (RF5.1) | `Casks/cuotai.rb` (desktop), `Formula/cuotai.rb` (CLI) | `brew style`, `brew audit --strict --online`, `brew install --cask` | `jmarcon/homebrew-cuotai` |
+| winget (RF5.2) | `Cuotai.Cuotai{,.installer,.locale.en-US}.yaml` | `winget validate`, silent install/uninstall | `microsoft/winget-pkgs` |
+| Scoop (RF5.3) | `bucket/cuotai.json` (CLI zip, `checkver: github`) | JSON validation, `scoop install` | `jmarcon/scoop-cuotai` |
+| Cargo (RF5.4) | nothing: crate metadata in `crates/*/Cargo.toml` | `cargo publish --dry-run` | crates.io (`cuotai-core` before `cuotai-tui`) |
+| AUR (RF5.5) | `PKGBUILD` + generated `.SRCINFO` (desktop `.deb`) | `bash -n`, source/checksum agreement | `ssh://aur@aur.archlinux.org/cuotai-bin.git` |
+
+Workflow behaviour (RF5.7):
+
+- `package-manifests` runs after `verify-public` on a tag and after
+  `assemble` on a dispatch; it renders, validates and uploads the
+  `package-manifests` artifact, and never pushes anything.
+- Each channel job is gated by its repository variable
+  (`PUBLISH_HOMEBREW=true`, …) **and** `needs.check.outputs.prerelease != 'true'`:
+  a `-rc` tag never reaches a channel. They run with
+  `continue-on-error`, so a channel failure is visible in the run summary
+  but cannot fail the release; re-running a failed job on GitHub retries only
+  that channel, and a `workflow_dispatch` with a tag rehearses all of them.
+- On a **dry run** every channel job validates only: audit, install and push
+  steps are skipped, because the URLs of a rehearsal tag do not exist and a
+  rehearsal must never write to a tap, bucket, the AUR or crates.io.
+- On a **tag run** the publish steps run with the environment secrets
+  (`HOMEBREW_TAP_TOKEN`, `WINGET_SUBMIT_TOKEN`, `SCOOP_BUCKET_TOKEN`,
+  `AUR_SSH_PRIVATE_KEY`, `CARGO_REGISTRY_TOKEN`) and stop with an explicit
+  error when the secret is missing, instead of half-publishing. Optional
+  gates: `WINGET_SUBMIT=true` (the first winget submission stays manual) and
+  the repository variables `HOMEBREW_TAP_REPO`, `SCOOP_BUCKET_REPO`
+  (default `jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`).
+- The AUR push pins the host key against the fingerprints published on
+  `aur.archlinux.org` and `wingetcreate.exe` is verified against a pinned
+  SHA-256; nothing is fetched unpinned.
+
+### Uninstall keeps your data (RF8.2)
+
+Uninstalling through any channel removes only the application and its
+binaries:
+
+| Channel | What uninstall removes | What it always keeps |
+|---|---|---|
+| `brew uninstall --cask cuotai` | `/Applications/Cuotai.app` | config, databases, Keychain entries |
+| `brew zap --cask cuotai` (opt-in) | + webview caches and the preference plist listed in the cask | config, databases, Keychain entries |
+| `winget uninstall Cuotai.Cuotai` | the installed program files | `%APPDATA%\cuotai`, `%LOCALAPPDATA%\cuotai`, Credential Manager entries |
+| `scoop uninstall cuotai` | the binary | `%APPDATA%\cuotai`, `%LOCALAPPDATA%\cuotai`, Credential Manager entries |
+| `pacman -R cuotai-bin` | packaged files (`/usr/bin/Cuotai`, …) | `~/.config/cuotai`, `~/.local/share/cuotai`, Secret Service entries |
+| `cargo uninstall cuotai-tui` | `~/.cargo/bin/cuotai` | everything else |
+
+Purging the rest is always a manual, explicit step:
+
+```sh
+# macOS: configuration + local databases, then the vault entries
+rm -rf ~/Library/Application\ Support/cuotai
+security delete-generic-password -s cuotai.oauth
+security delete-generic-password -s cuotai.serve
+# Linux
+rm -rf ~/.config/cuotai ~/.local/share/cuotai
+# Windows (PowerShell)
+Remove-Item -Recurse -Force "$env:APPDATA\cuotai", "$env:LOCALAPPDATA\cuotai"
+```
+
+These paths are also how a managed install is recognised (RF8.1 groundwork):
+the Caskroom/Cellar receipt, `%LocalAppData%\Programs\Cuotai`,
+`~\scoop\apps\cuotai\current`, `/usr/bin/Cuotai` and `~/.cargo/bin/cuotai`.
+PRD 0018 later turns the in-app updater off on those installs and shows
+"Update with `brew upgrade`" (or the channel's own command) instead.
+
 ## Verifying a download (what users do)
 
 ```sh
@@ -228,12 +327,30 @@ first real release:
      `cargo tauri signer generate` — and its
      `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the generated public key belongs in
      `tauri.conf.json` when PRD 0018 lands.
-3. Decide on the **retroactive tags** `v0.1.0`… (RF1.3) so the changelog
+   - per channel, one token or key each, never shared (RF9.2):
+     `HOMEBREW_TAP_TOKEN` (contents: write on the tap repository),
+     `SCOOP_BUCKET_TOKEN` (contents: write on the bucket repository),
+     `WINGET_SUBMIT_TOKEN` (a GitHub token allowed to open pull requests in
+     `microsoft/winget-pkgs`), `AUR_SSH_PRIVATE_KEY` (the AUR account's SSH
+     private key) and `CARGO_REGISTRY_TOKEN` (a crates.io token with
+     `publish-new-crate` for `cuotai-core` and `cuotai-tui`).
+3. For each channel the owner wants, create its repository first
+   (`jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`, an AUR account for
+   `cuotai-bin`) and set the repository variable that enables it:
+   `PUBLISH_HOMEBREW`, `PUBLISH_WINGET`, `PUBLISH_SCOOP`, `PUBLISH_CARGO`,
+   `PUBLISH_AUR` = `true`. Optional: `HOMEBREW_TAP_REPO` /
+   `SCOOP_BUCKET_REPO` when the repositories have other names, and
+   `WINGET_SUBMIT=true` once the first `microsoft/winget-pkgs` submission has
+   been reviewed by hand. Unset variables keep a channel off, and the run
+   summary says so.
+4. Decide on the **retroactive tags** `v0.1.0`… (RF1.3) so the changelog
    footer links compare tags instead of commits.
-4. Nothing else: no package manager is contacted yet.
 
 Empty or missing secrets never fail a run midway: every secret-consuming
 script checks presence first and degrades to the honest unsigned state.
+Signing secrets missing means unsigned artifacts, not a failed release; a
+missing *channel* token fails only that channel job (RF5.7), with the message
+naming the secret to add or the variable to unset.
 
 ## Rehearsing in a fork
 
@@ -244,6 +361,10 @@ script checks presence first and degrades to the honest unsigned state.
 3. Check `signing-state.json` in the `release-assembly` artifact: everything
    unsigned, checksum signature absent (dry run) or Sigstore-signed (tag
    run), updater unavailable.
+4. Check the `package-manifests` artifact: cask, formula, the three winget
+   manifests, the Scoop bucket manifest and `PKGBUILD`/`.SRCINFO`, all
+   rendered from the run's own manifest. Enable a channel variable in the
+   fork to exercise its validation steps; nothing is pushed from a dispatch.
 
 ### Release-script harness
 
@@ -280,3 +401,9 @@ assets) — never reuse the tag; if a signing key leaked, rotate it (the
 Sigstore keyless identity needs no rotation; the Tauri updater key does: new
 pair, new `TAURI_SIGNING_PRIVATE_KEY`, the next release carries the new
 public key when PRD 0018 embeds it) and state it in the release notes.
+
+Each channel rolls back on its own, in its own repository: commit the
+previous version's cask/formula back in the tap, restore the previous
+`bucket/cuotai.json`, and `git revert` the last commit in the AUR's
+`cuotai-bin`. crates.io cannot delete a version: `cargo yank --vers <old>`
+plus a new release. For winget, ask the moderators to remove the manifest.

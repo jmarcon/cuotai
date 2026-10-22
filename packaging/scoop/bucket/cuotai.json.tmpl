@@ -1,0 +1,25 @@
+{
+    "version": "{{VERSION}}",
+    "description": "Terminal dashboard and JSON CLI for AI-provider usage, quotas and costs",
+    "homepage": "https://github.com/{{REPO}}",
+    "license": "MIT OR Apache-2.0",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/{{REPO}}/releases/download/{{TAG}}/cuotai-{{VERSION}}-x86_64-pc-windows-msvc.zip",
+            "hash": "{{CLI_WINDOWS_X64_SHA256}}"
+        }{{SCOOP_ARM64}}
+    },
+    "bin": "cuotai.exe",
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/{{REPO}}/releases/download/v$version/cuotai-$version-x86_64-pc-windows-msvc.zip"
+            }{{SCOOP_ARM64_AUTOUPDATE}}
+        }
+    },
+    "notes": [
+        "Uninstalling (scoop uninstall cuotai) removes only the binary; the configuration,",
+        "the local databases and the Windows Credential Manager entries are preserved."
+    ]
+}
