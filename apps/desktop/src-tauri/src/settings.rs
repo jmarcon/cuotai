@@ -1046,11 +1046,11 @@ mod tests {
         write_widgets(&file, &default).unwrap();
         assert!(!fs::read_to_string(&file).unwrap().contains("widgets"));
         // The account limit is bounded; the other fields stay.
-        for accounts in [0, MAX_WIDGET_ACCOUNTS + 1] {
+        for limit in [0, MAX_WIDGET_ACCOUNTS + 1] {
             assert_eq!(
-                default.with_choices(true, false, accounts),
+                default.with_choices(true, false, limit),
                 Err("invalid_widget_accounts"),
-                "{accounts}"
+                "{limit}"
             );
         }
         assert_eq!(
