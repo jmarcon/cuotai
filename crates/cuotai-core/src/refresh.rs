@@ -2366,8 +2366,7 @@ mod tests {
         assert_eq!(key(cycle.last_good_report(2)), Some(("a", 10, READY)));
         assert_eq!(key(cycle.last_good_report(0)), Some(("b", 11, READY)));
 
-        let mut removed = moved.clone();
-        removed.accounts.remove(0);
+        let removed = moved.without_account(0).unwrap();
         cycle
             .apply_edit(&moved, &removed, Edit::Remove(0), Instant::now())
             .unwrap();
