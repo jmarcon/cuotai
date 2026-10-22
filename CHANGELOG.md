@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.71.1] - 2026-10-22
+
+### Fixed
+
+- The desktop builds again on Windows and Linux: the macOS-only app-group constant of the widget snapshot is compiled only on macOS (PRD 0014 RF2.1).
+
 ## [0.71.0] - 2026-10-22
 
 ### Added
 
-- Settings gains a Widgets section that publishes a compact snapshot file (`widget.json`) for macOS widgets and for panels like Waybar, GNOME and KDE — with the binding quota of each account, its real age and, for old data, a dimmed *stale* state; it is off by default, carries no credentials, notes or e-mail unless you ask, and turning it off deletes the file. The macOS WidgetKit extension sources (Summary, Account and History widgets) ship in `apps/desktop/widgets/macos`, type-checked; packaging and signing the extension waits for the Apple developer account (PRD 0014 RF1, RF2.2, RF3.2–RF3.5, RF4, RF5.1).
+- Settings gains a Widgets section that publishes a compact snapshot file (`widget.json`) for macOS widgets and for panels like Waybar, GNOME and KDE — with the binding quota of each account, its real age and, for old data, a dimmed *stale* state; it is off by default, carries no credentials, notes or e-mail unless you ask, and turning it off deletes the file. The macOS WidgetKit extension sources (Summary, Account and History widgets) ship in `apps/desktop/widgets/macos`, type-checked; packaging and signing the extension waits for the Apple developer account (PRD 0014 RF1, RF2.2, RF3.2–RF3.5, RF4, RF5.1, bb52f2f).
 
 ## [0.70.0] - 2026-10-22
 
@@ -601,7 +607,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.71.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.71.1...HEAD
+[0.71.1]: https://github.com/jmarcon/cuotai/compare/v0.71.0...v0.71.1
 [0.71.0]: https://github.com/jmarcon/cuotai/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/jmarcon/cuotai/compare/v0.69.0...v0.70.0
 [0.69.0]: https://github.com/jmarcon/cuotai/compare/v0.68.3...v0.69.0
