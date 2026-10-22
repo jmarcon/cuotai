@@ -787,7 +787,7 @@ async fn answers_and_access_log_carry_no_secrets() {
         "authentication_error"
     );
     for body in &bodies {
-        for secret in [
+        for needle in [
             token.expose(),
             "OPENAI_ADMIN_KEY",
             "hunter2",
@@ -795,7 +795,7 @@ async fn answers_and_access_log_carry_no_secrets() {
             "sk-QUERY",
             "sk-WRONG",
         ] {
-            assert!(!body.contains(secret), "{secret} in {body}");
+            assert!(!body.contains(needle), "{needle} in {body}");
         }
     }
 
