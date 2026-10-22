@@ -817,13 +817,13 @@ mod tests {
 
     #[test]
     fn every_descriptor_keeps_the_level_invariants() {
-        for account in variants() {
-            let access = describe(&account);
+        for case in variants() {
+            let access = describe(&case);
             let at = format!(
                 "{:?} {:?} {}",
-                account.provider,
-                account.params,
-                account.oauth.is_some()
+                case.provider,
+                case.params,
+                case.oauth.is_some()
             );
             // Unavailable always explains itself; the others never carry a reason.
             assert_eq!(
