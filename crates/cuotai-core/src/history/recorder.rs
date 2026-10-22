@@ -361,7 +361,7 @@ mod tests {
     fn switched_off_records_nothing_and_keeps_what_was_recorded() {
         let dir = tempfile::tempdir().unwrap();
         let history = store(&dir.path().join("history.sqlite3"), "one");
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         let recorder = HistoryRecorder::spawn(history.clone());
         let reading = |minutes: i64, used: f64| Report {
             checked_at: t0() + chrono::TimeDelta::minutes(minutes),
