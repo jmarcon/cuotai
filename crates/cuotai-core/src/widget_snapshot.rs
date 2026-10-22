@@ -486,7 +486,7 @@ mod tests {
         assert_eq!(work["freshness"], "fresh");
         assert!(work.get("email").is_none(), "identity is off by default");
         let text = std::fs::read_to_string(&path).unwrap();
-        for secret in [
+        for needle in [
             "ana@example.com",
             "GROQ_API_KEY",
             "secret@",
@@ -495,8 +495,8 @@ mod tests {
             "example.com/usage",
         ] {
             assert!(
-                !text.contains(secret),
-                "the file must not contain {secret:?}"
+                !text.contains(needle),
+                "the file must not contain {needle:?}"
             );
         }
     }
