@@ -1417,8 +1417,8 @@ mod tests {
             vec![vec![], vec![(T, 90)], vec![]]
         );
         let json = serde_json::to_string(&state).unwrap();
-        for secret in ["Work", "5h", "claude", "87.0", "0.87", "91.0"] {
-            assert!(!json.contains(secret), "{secret} in {json}");
+        for needle in ["Work", "5h", "claude", "87.0", "0.87", "91.0"] {
+            assert!(!json.contains(needle), "{needle} in {json}");
         }
         let restored: AlertState = serde_json::from_str(&json).unwrap();
         // Reopened 5 minutes later: the recorded 87% is `prev` of a first
