@@ -201,6 +201,8 @@ The detailed technical documentation lives in **[`docs/`](docs/)**. Some documen
 - **[Configuration example (`cuotai.example.toml`)](cuotai.example.toml)** — A commented reference of every `[[accounts]]` entry and TOML parameter.
 - **[Roadmap (`docs/plans/`)](docs/plans/0000_control.md)** — Product requirement documents (PRDs) with their implementation status and dependencies.
 - **[Releasing (`docs/releasing.md`)](docs/releasing.md)** — The tag-driven release pipeline: dry run, artifact matrix, signing states, verification commands and the owner prerequisites.
+- **[Platform support (`docs/platforms.md`)](docs/platforms.md)** — What works on macOS, Windows and Linux: credential vault, tray, notifications, browser login, the `aws`/`bl` CLI tools, local cost sources and the local server.
+- **[Release policy (`docs/release-policy.md`)](docs/release-policy.md)** — Semantic versioning in 0.x and the breaking-change contracts, migration expectations, latest-stable support, and reproducibility (lockfiles, pinned toolchain, per-release SBOM).
 
 ---
 

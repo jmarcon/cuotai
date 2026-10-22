@@ -13,6 +13,11 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+### Added
+
+- The platform support matrix ([`docs/platforms.md`](docs/platforms.md)) records what works on macOS, Windows and Linux — credential vault, tray, notifications, browser login, the `aws`/`bl` CLI tools, local cost sources and the local server — and the release policy ([`docs/release-policy.md`](docs/release-policy.md)) records the versioning, support and reproducibility rules (PRD 0019 RF5.1, RF5.3, RF6).
+- CI now smoke-tests the TUI binary on Linux, macOS and Windows with a no-network fixture: `--list-providers` must exit 0 and `--once` on accounts without credentials must exit 2 (PRD 0019 RF5.2).
+
 ## [0.68.3] - 2026-10-21
 
 ### Security
