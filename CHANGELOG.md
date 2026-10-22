@@ -13,10 +13,14 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-10-22
+
 ### Added
 
-- The platform support matrix ([`docs/platforms.md`](docs/platforms.md)) records what works on macOS, Windows and Linux — credential vault, tray, notifications, browser login, the `aws`/`bl` CLI tools, local cost sources and the local server — and the release policy ([`docs/release-policy.md`](docs/release-policy.md)) records the versioning, support and reproducibility rules (PRD 0019 RF5.1, RF5.3, RF6).
-- CI now smoke-tests the TUI binary on Linux, macOS and Windows with a no-network fixture: `--list-providers` must exit 0 and `--once` on accounts without credentials must exit 2 (PRD 0019 RF5.2).
+- The About screen gains a *What's new* view and `cuotai --changelog [VERSION]` prints the same history offline — one version or a series like `0.68.x` — without loading the configuration or querying providers, with localized category labels; an unknown version exits 1 (PRD 0019 RF7.7).
+- The release notes and the updater notes now come from the same changelog parser the product reads (`cuotai_core::changelog`), `cargo xtask changelog-draft` drafts the `[Unreleased]` section from the commits since the last tag, and CI checks the changelog format, the PRD references and the plan links on every push, with a `feat`/`fix` gate on pull requests (PRD 0019 RF7.3, RF7.4, RF7.5, RF7.8).
+- The platform support matrix ([`docs/platforms.md`](docs/platforms.md)) records what works on macOS, Windows and Linux — credential vault, tray, notifications, browser login, the `aws`/`bl` CLI tools, local cost sources and the local server — and the release policy ([`docs/release-policy.md`](docs/release-policy.md)) records the versioning, support and reproducibility rules (PRD 0019 RF5.1, RF5.3, RF6, 4d2f80b).
+- CI now smoke-tests the TUI binary on Linux, macOS and Windows with a no-network fixture: `--list-providers` must exit 0 and `--once` on accounts without credentials must exit 2 (PRD 0019 RF5.2, 4d2f80b).
 
 ## [0.68.3] - 2026-10-21
 
@@ -584,7 +588,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.68.3...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.69.0...HEAD
+[0.69.0]: https://github.com/jmarcon/cuotai/compare/v0.68.3...v0.69.0
 [0.68.3]: https://github.com/jmarcon/cuotai/compare/v0.68.2...v0.68.3
 [0.68.2]: https://github.com/jmarcon/cuotai/compare/v0.68.1...v0.68.2
 [0.68.1]: https://github.com/jmarcon/cuotai/compare/v0.68.0...v0.68.1

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0019 |
-| Status | In progress (RF1, RF2 partial, RF3 superseded by PRD 0021 RF1–RF4, RF5, RF6, RF7.1 to RF7.3 and RF7.6) |
+| Status | In progress (RF1, RF2 partial, RF3 superseded by PRD 0021 RF1–RF4, RF4 pending in PRD 0021 RF5, RF5, RF6 and RF7; the desktop What's new screen remains open) |
 | Owner | Repository, CI and release (`.github/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRDs 0014 and 0018 |
 | Depends on | none; it is a prerequisite of PRDs 0014 and 0018 |
@@ -31,8 +31,12 @@
 | RF6.2 | 0.69.0 (docs, partial) | `docs/release-policy.md` documents the reproducibility guarantees: versioned `Cargo.lock`, the pinned toolchain in CI and the per-release SBOM. Partial only because the SBOM attachment claim is proven on a real published release (owner). |
 | RF7.1 | 0.20.0 (no bump) | `CHANGELOG.md` at the root, in English, Keep a Changelog format, `[Unreleased]` on top and one section per version. No tags exist yet, so the footer links compare commits instead of tags. |
 | RF7.2 | 0.20.0 (no bump) | Entries are one sentence from the user's point of view, with the `PRD NNNN RFx` reference and the short commit hash; versions with no user-visible change say so. |
-| RF7.3 | 0.20.0 (no bump) | Maintenance flow in `AGENTS.md` (the `[Unreleased]` update and the `Changelog: skip` footer). The `git-cliff`/`xtask` draft generator is still open. |
+| RF7.3 | 0.20.0 (flow), 0.69.0 (draft) | Maintenance flow in `AGENTS.md` (the `[Unreleased]` update and the `Changelog: skip` footer) plus `cargo xtask changelog-draft`, which prints a draft of the section from the commits since the last tag, grouped by type and carrying each `Refs:` footer; the text is reviewed by a person. |
+| RF7.4 | 0.69.0 | CI `changelog-check` job: the file's format (strict shared parser), every `PRD NNNN RFx` reference and every version the plans mark as delivered; on pull requests the `feat`/`fix` gate with the `Changelog: skip <reason>` escape. |
+| RF7.5 | 0.69.0 | The release body and the updater notes come from the one parsed section of `cuotai_core::changelog`, which the product and the checks share; a missing or empty section still fails the release. |
 | RF7.6 | 0.20.0 (no bump) | Every version from 0.1.0 to 0.20.0 reconstructed from the commits that change the version and from the PRDs' status tables, each entry citing its commit. |
+| RF7.7 | 0.69.0 | Core `changelog::entries()` (version, date, categories, entries, references) embedded offline; TUI `Sobre` -> `Novidades`; `cuotai --changelog [VERSION]`; category labels in pt-BR/en-US/es with the entries kept in English, as the screen states. The desktop About -> What's new is still open. |
+| RF7.8 | 0.69.0 | `changelog-check` compares every delivered version cited by a PRD's status table and by `0000_control.md` against the CHANGELOG sections and fails on divergence. |
 
 The first `cargo deny` also found four `rustls` advisories and a yanked package, fixed in 0.17.1 (`chore(security)`). The `rsa` advisory `RUSTSEC-2023-0071` remains ignored, as no fixed version exists, with the justification recorded in `deny.toml`.
 

@@ -209,6 +209,27 @@ pub fn provider_l10n(provider: crate::Provider) -> Localized {
     Localized::fixed(format!("provider.{}", provider.slug()), provider.label())
 }
 
+/// `changelog.category.<slug>` — the label of a changelog category in the
+/// What's new screen (PRD 0019 RF7.7). The entry text itself stays in
+/// English, the changelog's language.
+pub fn changelog_category_l10n(category: crate::changelog::Category) -> Localized {
+    Localized::fixed(category.l10n_id(), category.fallback_pt())
+}
+
+/// `changelog.entries_language` — the note stating that the entries stay in
+/// English while the labels follow the interface language.
+pub fn changelog_entries_language_l10n() -> Localized {
+    Localized::fixed(
+        crate::changelog::ENTRIES_LANGUAGE_ID,
+        crate::changelog::ENTRIES_LANGUAGE_PT,
+    )
+}
+
+/// `changelog.title` — the What's new screen title.
+pub fn changelog_title_l10n() -> Localized {
+    Localized::fixed(crate::changelog::TITLE_ID, crate::changelog::TITLE_PT)
+}
+
 // ---------------------------------------------------------------------------
 // Core catalogs: parsed lazily from `include_str!` so the binary only pays
 // for the JSON once and never blocks startup. The two en-US/es maps share

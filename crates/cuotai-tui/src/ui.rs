@@ -1,6 +1,7 @@
 use crate::{
     about_view::{AboutView, Reply as AboutReply},
     auth_ui::{LoginTask, Outcome},
+    changelog_view::{ChangelogView, Reply as ChangelogReply},
     cost::LocalCost,
     dashboard::{self, FooterAction},
     extensions_view::{Action as ExtensionAction, ExtensionsView},
@@ -311,6 +312,8 @@ pub async fn run(
     let mut models: Option<ModelsView> = None;
     // "Sobre": libraries and repositories; opened from the dashboard only.
     let mut about: Option<AboutView> = None;
+    // PRD 0019 RF7.7: "Novidades", opened from "Sobre" (`n`); read-only.
+    let mut changelog: Option<ChangelogView> = None;
     // PRD 0011 RF5: the status read in flight and when the next one is due.
     let mut status_job: Option<JoinHandle<Vec<ProviderStatus>>> = None;
     let mut status_due = Instant::now();
@@ -1274,11 +1277,20 @@ pub async fn run(
                     frame_area = frame.area();
                     task.draw(frame)
                 })?;
+            } else if let Some(view) = &mut changelog {
+                let locale = tui_locale();
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    view.draw(frame, locale);
+                    if let Some(anim) = &mut state.anim {
+                        anim.wipe(frame.buffer_mut());
+                    }
+                })?;
             } else if let Some(view) = &mut about {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
                     view.draw(frame);
-                    if let Some(anim) = &state.anim {
+                    if let Some(anim) = &mut state.anim {
                         anim.wipe(frame.buffer_mut());
                     }
                 })?;
@@ -1374,9 +1386,17 @@ pub async fn run(
                     }
                     continue;
                 }
+                if let Some(view) = &mut changelog {
+                    if view.mouse(mouse.kind, mouse.column, mouse.row) == ChangelogReply::Close {
+                        changelog = None;
+                    }
+                    continue;
+                }
                 if let Some(view) = &mut about {
-                    if view.mouse(mouse.kind, mouse.column, mouse.row) == AboutReply::Close {
-                        about = None;
+                    match view.mouse(mouse.kind, mouse.column, mouse.row) {
+                        AboutReply::Close => about = None,
+                        AboutReply::Changelog => changelog = Some(ChangelogView::default()),
+                        AboutReply::Stay => {}
                     }
                     continue;
                 }
@@ -1496,9 +1516,17 @@ pub async fn run(
                     }
                     continue;
                 }
+                if let Some(view) = &mut changelog {
+                    if view.key(key.code) == ChangelogReply::Close {
+                        changelog = None;
+                    }
+                    continue;
+                }
                 if let Some(view) = &mut about {
-                    if view.key(key.code) == AboutReply::Close {
-                        about = None;
+                    match view.key(key.code) {
+                        AboutReply::Close => about = None,
+                        AboutReply::Changelog => changelog = Some(ChangelogView::default()),
+                        AboutReply::Stay => {}
                     }
                     continue;
                 }

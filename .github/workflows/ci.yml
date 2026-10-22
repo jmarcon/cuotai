@@ -107,3 +107,27 @@ jobs:
         with:
           toolchain: 1.99.1
       - run: cargo run -p xtask --locked -- release-check
+
+  # Changelog format, PRD references and plan links (PRD 0019 RF7.4 and
+  # RF7.8). The pull request also passes through the feat/fix changelog
+  # gate, which needs the whole history to read the commits of the PR.
+  changelog-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The gate reads the commits of the pull request; the shallow
+          # default checkout would not have the base.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - run: cargo run -p xtask --locked -- changelog-check
+      - name: changelog gate (feat/fix without the changelog)
+        if: github.event_name == 'pull_request'
+        run: >
+          cargo run -p xtask --locked -- changelog-gate
+          --base ${{ github.event.pull_request.base.sha }}
+          --head ${{ github.event.pull_request.head.sha }}

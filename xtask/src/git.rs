@@ -12,7 +12,7 @@ use crate::{err, Error, Res};
 /// `main_ref` (for example `origin/main`).
 pub fn check_tag_on_main(repo: &Path, tag: &str, main_ref: &str) -> Res<()> {
     let tag_ref = format!("refs/tags/{tag}");
-    let object_type = git(repo, &["cat-file", "-t", &tag_ref]).map_err(|e| {
+    let object_type = run(repo, &["cat-file", "-t", &tag_ref]).map_err(|e| {
         Error::Msg(format!(
             "tag '{tag}' is not available in this checkout: {e}"
         ))
@@ -22,7 +22,7 @@ pub fn check_tag_on_main(repo: &Path, tag: &str, main_ref: &str) -> Res<()> {
             "tag '{tag}' is not an annotated tag; release tags are created with `git tag -a`"
         ));
     }
-    let commit = git(repo, &["rev-parse", &format!("{tag_ref}^{{commit}}")])?;
+    let commit = run(repo, &["rev-parse", &format!("{tag_ref}^{{commit}}")])?;
     let status = Command::new("git")
         .arg("-C")
         .arg(repo)
@@ -43,7 +43,8 @@ pub fn check_tag_on_main(repo: &Path, tag: &str, main_ref: &str) -> Res<()> {
     }
 }
 
-fn git(repo: &Path, args: &[&str]) -> Res<String> {
+/// Runs `git` in `repo` without a shell and returns its standard output.
+pub fn run(repo: &Path, args: &[&str]) -> Res<String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(repo)

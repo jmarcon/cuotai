@@ -1,5 +1,6 @@
 mod about_view;
 mod auth_ui;
+mod changelog_view;
 mod cost;
 mod dashboard;
 mod extension_check;
@@ -70,6 +71,31 @@ struct Args {
     /// Lista os identificadores aceitos na configuração.
     #[arg(long)]
     list_providers: bool,
+    /// Mostra o histórico de versões do CHANGELOG embutido (sem rede e sem
+    /// consultar provedores): tudo, ou só a seção de VERSÃO (uma versão
+    /// como 0.68.2, ou uma série como 0.68.x). Os rótulos de categoria
+    /// seguem o idioma da interface; as entradas continuam em inglês, o
+    /// idioma do changelog, como o próprio comando avisa. Não combina com
+    /// os modos de consulta, com --list-providers nem com as opções de
+    /// custo. Saída 0; 1 em erro local (versão inexistente).
+    #[arg(
+        long,
+        value_name = "VERSÃO",
+        num_args = 0..=1,
+        conflicts_with_all = [
+            "list_providers",
+            "once",
+            "json",
+            "json_v1",
+            "history",
+            "notify",
+            "serve",
+            "watch",
+            "extension_check",
+            "cost_action",
+        ]
+    )]
+    changelog: Option<Option<String>>,
     /// Executa a extensão ID uma vez e mostra o relatório normalizado ou as
     /// violações do contrato (PRD 0017 RF2.4), sem nunca mostrar a saída
     /// bruta. Uma extensão nasce desativada: na primeira vez, e após
@@ -330,6 +356,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             );
         }
         return Ok(0);
+    }
+    // PRD 0019 RF7.7: the embedded changelog, without loading the
+    // accounts' configuration and without touching the network.
+    if let Some(version) = args.changelog.take() {
+        return changelog_view::print(version.as_deref(), ui::tui_locale());
     }
     // PRD 0017 RF2.4: one run of an approved extension, without loading
     // the accounts' configuration.
