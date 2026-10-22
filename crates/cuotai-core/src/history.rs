@@ -1162,7 +1162,7 @@ credential_env = "GROQ_KEY_BETA"
     #[test]
     fn storage_failures_are_errors_never_success() {
         let dir = tempfile::tempdir().unwrap();
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         let metrics = [quota("5h", Some(10.0), Some(100.0))];
         let file = dir.path().join("file");
         std::fs::write(&file, b"").unwrap();
