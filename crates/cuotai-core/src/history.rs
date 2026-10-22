@@ -998,7 +998,7 @@ credential_env = "GROQ_KEY_BETA"
     fn two_instances_write_concurrently_and_writes_are_idempotent() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("history.sqlite3");
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         // TUI and desktop: independent handles on one file, overlapping in
         // half of their readings.
         let barrier = std::sync::Barrier::new(2);
