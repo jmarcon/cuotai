@@ -264,9 +264,14 @@ async fn data_routes_answer_503_until_a_reading_exists() {
         Box::new(move || pending.export()),
     ] {
         let server = start(ServeConfig::default(), source).await;
-        for path in ["/v1/snapshot", "/v1/limits", &format!("/v1/accounts/{key}")] {
+        let paths = ["/v1/snapshot", "/v1/limits", &format!("/v1/accounts/{key}")];
+        for (index, path) in paths.into_iter().enumerate() {
             let response = get(&server, path).await;
-            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE, "{path}");
+            assert_eq!(
+                response.status(),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "endpoint #{index}"
+            );
             assert_json_no_store(&response);
             assert_eq!(
                 response.headers()[header::RETRY_AFTER],
