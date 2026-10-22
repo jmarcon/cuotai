@@ -5105,7 +5105,7 @@ mod tests {
         assert!(view.recording, "on by default");
         assert_eq!(view.to - view.from, chrono::Duration::hours(24));
         let [session] = &view.metrics[..] else {
-            panic!("one metric: {}", view.metrics.len());
+            panic!("expected exactly one metric");
         };
         assert_eq!((session.label.as_str(), session.samples), ("Sessão", 3));
         assert_eq!(session.trend.map(|t| t.last.used), Some(5.0));
