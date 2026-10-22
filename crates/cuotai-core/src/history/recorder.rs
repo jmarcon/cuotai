@@ -400,7 +400,7 @@ mod tests {
     #[test]
     fn storage_failures_and_drops_become_visible_warnings() {
         let dir = tempfile::tempdir().unwrap();
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         // The parent of the file is a file: every write fails.
         let blocked = dir.path().join("file");
         std::fs::write(&blocked, b"").unwrap();
