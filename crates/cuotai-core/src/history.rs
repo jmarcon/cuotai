@@ -1223,7 +1223,7 @@ credential_env = "GROQ_KEY_BETA"
     fn the_file_holds_no_secret_name_or_note() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("history.sqlite3");
-        let mut alpha = config(CONFIG).accounts.remove(0);
+        let mut alpha = first_account(config(CONFIG));
         alpha
             .params
             .insert("region".into(), "us-east-sekrit".into());
