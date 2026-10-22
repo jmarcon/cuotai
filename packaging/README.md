@@ -57,9 +57,9 @@ The evidence below is channel-specific only where noted:
   `$(brew --prefix)/Cellar/cuotai/<version>/bin/cuotai`.
 - winget portable/package-cache copies:
   `%LocalAppData%\Microsoft\WinGet\Packages\...`.
-- winget NSIS and manual NSIS:
-  `%LocalAppData%\Programs\Cuotai` (or `%ProgramFiles%\Cuotai` when elevated).
-  This path is shared and is **not** ownership evidence.
+- winget NSIS and manual NSIS, with Tauri's default current-user mode:
+  `%LocalAppData%\Cuotai`. This path is shared and is **not** ownership
+  evidence. The repository does not enable a per-machine `%ProgramFiles%` mode.
 - Scoop: `~\scoop\apps\cuotai\current\cuotai.exe`.
 - AUR/distribution: `/usr/bin/Cuotai` (package-owned).
 - Cargo: `~/.cargo/bin/cuotai`.

@@ -1054,6 +1054,7 @@ mod detector {
                 Some("winget upgrade Cuotai.Cuotai"),
             ),
             ("/usr/bin/cuotai", InstallSource::LinuxPackage, None),
+            ("/usr/sbin/cuotai", InstallSource::LinuxPackage, None),
             ("/usr/lib/cuotai/cuotai", InstallSource::LinuxPackage, None),
         ];
         for (path, expected, command) in cases {
@@ -1073,6 +1074,8 @@ mod detector {
         for path in [
             "/home/demo/scoop/apps-really/cuotai/Cuotai",
             "C:/tools/scoop/apps/other/Cuotai.exe",
+            "C:/Users/demo/AppData/Local/Cuotai/Cuotai.exe",
+            "C:/Users/demo/AppData/Local/Programs/Cuotai/Cuotai.exe",
             "/home/demo/Caskroom/not-cuotai/Cuotai.app/Contents/MacOS/Cuotai",
             "/home/demo/usr/bin/cuotai",
             // O prefixo do WinGet só vale dentro da pasta que o winget cria (`Packages`

@@ -192,8 +192,8 @@ The user can turn the feature off entirely (**Settings → Updates**), after
 which the app makes no updater request at all. The desktop detects Homebrew
 Caskroom, the exact Scoop `apps\cuotai` component, winget's package-cache path
 and Linux system package roots, and turns the in-app updater off for those
-installs. A normal winget NSIS install shares
-`%LocalAppData%\Programs\Cuotai` with a manual install, so it cannot be
+installs. With Tauri's default current-user NSIS mode, a normal winget install
+shares `%LocalAppData%\Cuotai` with a manual NSIS install, so it cannot be
 classified safely until the packaging contract defines a durable ownership
 marker; `CUOTAI_UPDATER=off` is the honest override in the meantime (PRD 0018
 RF3.2, PRD 0021 RF8.1).

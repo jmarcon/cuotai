@@ -297,9 +297,9 @@ The desktop currently recognises the exact Homebrew Caskroom and Scoop
 `apps\cuotai` paths, winget's package-cache path, and Linux system package
 roots (`/usr/bin`, `/usr/sbin`, `/usr/lib`). PRD 0018 turns the in-app updater
 off for those detected installs and shows the manager's command when one is
-unambiguous. A normal winget NSIS install under
-`%LocalAppData%\Programs\Cuotai` is indistinguishable by path from a manual
-NSIS install, and Cargo-installed copies are not yet detected. The winget
+unambiguous. With Tauri's default current-user NSIS mode, a normal winget
+install under `%LocalAppData%\Cuotai` is indistinguishable by path from a
+manual NSIS install, and Cargo-installed copies are not yet detected. The winget
 template invokes the same release installer with `/S`; `tauri.conf.json`
 defines no custom NSIS hook, so both routes create the same standard Tauri
 uninstall entry and shortcuts. There is no repository-defined receipt, file,

@@ -526,7 +526,8 @@ jobs:
         run: |
           net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
           sudo apt-get "${net[@]}" update
-          sudo apt-get "${net[@]}" install -y --no-install-recommends $PACKAGES
+          read -r -a packages <<< "$PACKAGES"
+          sudo apt-get "${net[@]}" install -y --no-install-recommends "${packages[@]}"
       - name: Cross linker (aarch64 GNU)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
@@ -629,7 +630,8 @@ jobs:
           VERSION: ${{ needs.check.outputs.version }}
         run: |
           set -euo pipefail
-          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          export SOURCE_DATE_EPOCH
           mkdir -p dist fragments
           # cargo-cyclonedx 0.5 writes `<name>.json` for `--format json` and defaults
           # to CycloneDX 1.3, so the spec version is pinned and xtask is pointed
@@ -1125,14 +1127,19 @@ jobs:
           $installer = (Get-ChildItem Env:INSTALLER_URL).Value
           if (-not $installer) { throw "INSTALLER_URL is not set" }
           Start-Process -FilePath $installer -ArgumentList '/S' -Wait
-          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Cuotai\Cuotai.exe")) {
+          $installDir = "$env:LOCALAPPDATA\Cuotai"
+          if (-not (Test-Path "$installDir\Cuotai.exe")) {
             throw "the silent install did not produce Cuotai.exe"
           }
           # RF8.2: uninstall keeps the user data.
           New-Item -ItemType Directory -Force -Path "$env:APPDATA\cuotai" | Out-Null
           Set-Content -Path "$env:APPDATA\cuotai\config.toml" -Value "# uninstall sentinel"
-          $uninstaller = Get-ChildItem "$env:LOCALAPPDATA\Programs\Cuotai" -Filter 'uninstall*.exe' | Select-Object -First 1
-          if ($uninstaller) { Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait }
+          $uninstaller = Get-ChildItem $installDir -Filter 'uninstall*.exe' | Select-Object -First 1
+          if (-not $uninstaller) { throw "the silent install did not produce an uninstaller" }
+          Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait
+          if (Test-Path "$installDir\Cuotai.exe") {
+            throw "the silent uninstall left Cuotai.exe installed"
+          }
           if (-not (Test-Path "$env:APPDATA\cuotai\config.toml")) {
             throw "the uninstaller removed user data; RF8.2 requires it to be preserved"
           }
