@@ -10,7 +10,11 @@
 #
 # Usage: updater-sign.sh <artifact> <fragment.json>
 #   artifact    path to the artifact the manifest will publish
-#   fragment    per-job signing fragment to extend with the updater pair
+#   fragment    per-job signing fragment to extend with the updater proof
+#
+# The artifact keeps the signing record it already has (Authenticode on
+# Windows) and gains the detached `.sig` as `updater_signature`, so one
+# artifact carries two proofs without ever being listed twice.
 #
 # A dry run or a run without the key skips honestly: the fragment then reports
 # the updater as unavailable with the reason, and no `.sig` is claimed.
@@ -65,11 +69,19 @@ case "$encoded" in
 esac
 printf '%s\n' "$encoded" > "$sig"
 
+# One artifact, two proofs (PRD 0018 RF1.1 / PRD 0021 RF3.4): the installer
+# keeps the Authenticode (or unsigned) record it already has, and the detached
+# `.sig` is attached to it as `updater_signature`. Adding a second record with
+# the same payload name is what `signing::merge` rejects, so the artifact would
+# never reach a release.
 jq --arg a "$name" --arg s "$name.sig" '
-  .artifacts = ((.artifacts // []) + [
-    {name: $a, signed: true, method: "tauri-updater-key", status: "signed"},
-    {name: $s, signed: true, method: "tauri-updater-key", status: "signed"}
-  ])
+  (.artifacts // []) as $all
+  | if any($all[]; .name == $a) then
+      $all | map(if .name == $a then . + {updater_signature: $s} else . end)
+    else
+      error("the updater artifact has no existing signing record: \($a)")
+    end as $records
+  | .artifacts = $records
   | .updater = {
       available: true,
       artifacts: ((.updater.artifacts // []) + [$a, $s])

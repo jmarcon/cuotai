@@ -75,14 +75,17 @@ collect() { # <bundle-subdirectory> <expected-extension> <stable-destination-nam
   # Linux package in place while bundling, and nothing rewrites those bytes
   # afterwards, so the signature is final here. Without the overlay there is
   # no `.sig` beside the package, which is the honest unsigned state.
+  #
+  # The package is ONE artifact with TWO proofs: the checksum record every
+  # Linux package has (RF3.1) and, when the bundler signed it, the detached
+  # updater signature. Recording the payload a second time as a
+  # `tauri-updater-key` entry is what `signing::merge` rejects, so it is only
+  # ever attached to the record the payload already has.
   if [ -f "${src}.sig" ]; then
     cp "${src}.sig" "dist/${dest}.sig"
     echo "collected dist/${dest}.sig"
     updater_entries="$(jq -c --arg a "$dest" --arg s "${dest}.sig" '
-      . + [
-        {name: $a, signed: true, method: "tauri-updater-key", status: "signed"},
-        {name: $s, signed: true, method: "tauri-updater-key", status: "signed"}
-      ]
+      . + [$a, $s]
     ' <<<"$updater_entries")"
   fi
 }
@@ -96,7 +99,9 @@ collect deb     "deb"     "$deb"
 collect rpm     "rpm"     "$rpm"
 
 # The updater state follows the signatures: available with exactly the signed
-# artifacts, or unavailable with the reason the key was not configured.
+# payloads and their detached signatures, or unavailable with the reason the
+# key was not configured. Every package has exactly one record, and the ones
+# the bundler signed carry the detached signature as their updater proof.
 jq -n \
   --arg a "$appimage" \
   --arg d "$deb" \
@@ -105,17 +110,17 @@ jq -n \
   --argjson updater "$updater_entries" \
   '
   {
-    artifacts: ([$a, $d, $r] | map({
-      name: .,
+    artifacts: ([$a, $d, $r] | map(. as $name | {
+      name: $name,
       signed: false,
       method: "checksum-signature",
       status: "unsigned",
       note: "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
-    }) + $updater)
+    } + if ($updater | index($name)) then {updater_signature: "\($name).sig"} else {} end))
   }
   | .updater = (if ($updater | length) == 0
       then {available: false, artifacts: [], reason: $reason}
-      else {available: true, artifacts: ($updater | map(.name))}
+      else {available: true, artifacts: $updater}
       end)
   ' > "fragments/linux-${arch}.json"
 

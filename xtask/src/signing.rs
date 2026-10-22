@@ -7,7 +7,7 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Component, Path};
 
-pub const SIGNING_STATE_SCHEMA: u32 = 1;
+pub const SIGNING_STATE_SCHEMA: u32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -80,6 +80,13 @@ pub struct ArtifactSigning {
     pub signed: bool,
     pub method: SigningMethod,
     pub status: SigningStatus,
+    /// The detached updater signature `<name>.sig`, when the artifact's bytes
+    /// also carry the Tauri updater key (PRD 0018 RF1.1). An artifact can have
+    /// two independent proofs — Authenticode (Windows) or the signed
+    /// `SHA256SUMS` (Linux) plus the updater signature — and still is one
+    /// artifact with one record: the payload is never listed twice.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updater_signature: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
 }
@@ -137,6 +144,15 @@ fn validate_artifact(entry: &ArtifactSigning, unresolved_checksum: bool) -> Res<
             "signing artifact '{}' is not a safe basename",
             entry.name
         ));
+    }
+    if let Some(signature) = &entry.updater_signature {
+        let expected = format!("{}.sig", entry.name);
+        if signature != &expected || !safe_basename(signature) {
+            return err(format!(
+                "'{}' has invalid updater signature name '{signature}'",
+                entry.name
+            ));
+        }
     }
     let valid = match entry.method {
         SigningMethod::DeveloperId => {
@@ -207,14 +223,15 @@ fn validate_updater_shape(updater: &UpdaterState) -> Res<()> {
             return err("updater is available but also has an unavailability reason");
         }
         if updater.artifacts.is_empty() {
-            return err("available updater must list the updater archives it produced");
+            return err("available updater must list the updater artifacts it produced");
         }
         let names: HashSet<&str> = updater.artifacts.iter().map(String::as_str).collect();
         if names.len() != updater.artifacts.len() {
             return err("available updater lists the same artifact twice");
         }
-        // A platform that updater-signed only its signatures (Windows: the
-        // installer itself keeps its Authenticode state) still needs one.
+        // Every listed name is an updater artifact of this run: a payload that
+        // is signed only by the updater key, or a detached `.sig` of a payload
+        // that keeps another method (Authenticode, checksum-signature).
         if !updater.artifacts.iter().any(|name| name.ends_with(".sig")) {
             return err("available updater lists no signature file");
         }
@@ -229,22 +246,46 @@ fn validate_updater_shape(updater: &UpdaterState) -> Res<()> {
     Ok(())
 }
 
+/// The updater proof of an artifact: the Tauri updater key either signs the
+/// payload itself (`method = tauri-updater-key`, the macOS archive) or signs a
+/// detached `.sig` next to it (`updater_signature`, the Windows installers and
+/// the Linux packages, which keep Authenticode or checksum-signature trust).
+fn updater_proof(entry: &ArtifactSigning) -> bool {
+    entry.method == SigningMethod::TauriUpdaterKey || entry.updater_signature.is_some()
+}
+
 fn validate_updater_state(updater: &UpdaterState, artifacts: &[ArtifactSigning]) -> Res<()> {
     validate_updater_shape(updater)?;
     if updater.available {
         for name in &updater.artifacts {
-            let Some(entry) = artifacts.iter().find(|entry| entry.name == *name) else {
+            let Some(entry) = artifacts.iter().find(|entry| &entry.name == name) else {
+                // A detached `.sig` is part of the updater state but has no
+                // record of its own: the payload's record carries its proof.
+                if let Some(payload) = name.strip_suffix(".sig") {
+                    if let Some(payload) = artifacts.iter().find(|entry| entry.name == payload) {
+                        if payload.updater_signature.as_deref() == Some(name) {
+                            continue;
+                        }
+                    }
+                }
                 return err(format!(
                     "updater is available but '{name}' has no signing state"
                 ));
             };
-            if entry.method != SigningMethod::TauriUpdaterKey
-                || !entry.signed
-                || entry.status != SigningStatus::Signed
-            {
+            if !updater_proof(entry) {
                 return err(format!(
                     "updater artifact '{name}' is not signed by the updater key"
                 ));
+            }
+            // An artifact whose own bytes are signed has no detached signature name;
+            // when it does, the listed name must be that signature.
+            if let Some(signature) = &entry.updater_signature {
+                if updater.artifacts.iter().all(|listed| listed != signature) {
+                    return err(format!(
+                        "'{}' names updater signature '{signature}', which the updater state does not list",
+                        entry.name
+                    ));
+                }
             }
         }
         let Some(entry) = artifacts.iter().find(|entry| entry.name == "latest.json") else {
@@ -254,9 +295,7 @@ fn validate_updater_state(updater: &UpdaterState, artifacts: &[ArtifactSigning])
             return err("latest.json must use checksum-signature trust");
         }
         for entry in artifacts {
-            if entry.method == SigningMethod::TauriUpdaterKey
-                && !updater.artifacts.contains(&entry.name)
-            {
+            if updater_proof(entry) && !updater.artifacts.contains(&entry.name) {
                 return err(format!(
                     "'{}' is signed by the updater key but the updater state does not list it",
                     entry.name
@@ -265,7 +304,7 @@ fn validate_updater_state(updater: &UpdaterState, artifacts: &[ArtifactSigning])
         }
     } else if artifacts
         .iter()
-        .any(|entry| entry.name == "latest.json" || entry.method == SigningMethod::TauriUpdaterKey)
+        .any(|entry| entry.name == "latest.json" || updater_proof(entry))
     {
         return err("updater is unavailable but updater artifacts have signing entries");
     }
@@ -362,7 +401,30 @@ pub fn merge(
         }
     };
 
+    // A fragment may report the detached `.sig` as part of the updater state
+    // without giving the payload a second record (the payload keeps its own
+    // method). The merged state carries it on the payload's record, so the
+    // published state has exactly one entry per artifact.
+    for entry in &mut artifacts {
+        if updater_proof(entry) {
+            continue;
+        }
+        let signature = format!("{}.sig", entry.name);
+        if updater.artifacts.iter().any(|name| name == &signature) {
+            entry.updater_signature = Some(signature);
+        }
+    }
+
     for artifact in &manifest.artifacts {
+        // A detached `.sig` is covered by the updater proof of the payload it
+        // belongs to, so it needs no record of its own — only its payload.
+        if artifact.name.ends_with(".sig")
+            && artifacts
+                .iter()
+                .any(|entry| entry.updater_signature.as_deref() == Some(artifact.name.as_str()))
+        {
+            continue;
+        }
         if !artifacts.iter().any(|entry| entry.name == artifact.name) {
             return err(format!(
                 "no signing state for '{}'; every artifact must be reported",

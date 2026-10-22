@@ -1,7 +1,7 @@
 // PRD 0018 RF2/RF3 — o aviso de atualização e a seção "Updates" das configurações.
 // A interface nunca vê uma URL de manifesto, uma assinatura ou uma chave: o backend
 // entrega só o que mostrar (fase, versão, notas, progresso, motivo). Todos os textos
-// moram nos três catálogos.
+// moram nos quatro catálogos.
 import { te, t, currentLocale } from "./i18n.js";
 import {
   esc, errText, icon, onUpdate, openExternal, updaterCancelDownload, updaterCheckNow, updaterDismiss,
@@ -124,10 +124,13 @@ export const privacyNoteHtml = () => `<p class="hint" data-update-privacy>${te("
  * última verificação, a versão atual, o canal e o motivo de estar desligado. */
 export function updatesSectionHtml(s, message = "") {
   const off = s && !s.enabled;
+  // A user's own preference must never lock the control needed to turn the
+  // feature back on. Environment/build/package policy still makes it read-only.
+  const switchLocked = off && s.disabled_reason !== "preference";
   const last = s?.last_check ? t("update.lastCheckAt", { date: new Date(s.last_check).toLocaleString(currentLocale()) }) : t("update.lastCheckNever");
   return `<h3>${te("update.title")}</h3>
     ${privacyNoteHtml()}
-    <label class="check"><input id="update-automatic" type="checkbox" ${s?.automatic ? "checked" : ""} ${off ? "disabled" : ""} /> ${te("update.automatic")}</label>
+    <label class="check"><input id="update-automatic" type="checkbox" ${s?.automatic ? "checked" : ""} ${switchLocked ? "disabled" : ""} /> ${te("update.automatic")}</label>
     ${off ? `<p class="hint warn-txt" data-update-off>${te(`update.off.${s.disabled_reason}`)}</p>` : ""}
     <p class="hint">${te("update.version", { version: s?.current_version ?? "—" })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
     <p class="hint" id="update-last-check">${last}</p>

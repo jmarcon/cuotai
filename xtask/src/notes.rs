@@ -31,9 +31,16 @@ pub fn render_body(
             .as_deref()
             .map(|n| format!(" — {n}"))
             .unwrap_or_default();
+        // A second, independent proof of the same bytes: the detached updater
+        // signature beside the package (PRD 0018 RF1.1).
+        let updater = artifact
+            .updater_signature
+            .as_deref()
+            .map(|sig| format!(" (+ `{sig}` by the updater key)"))
+            .unwrap_or_default();
         out.push_str(&format!(
-            "| `{}` | {} | {} | {}, {}{} |\n",
-            artifact.name, platform, signed, artifact.method, artifact.status, note
+            "| `{}` | {} | {} | {}, {}{}{} |\n",
+            artifact.name, platform, signed, artifact.method, artifact.status, updater, note
         ));
     }
     out.push('\n');

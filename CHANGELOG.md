@@ -13,6 +13,13 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.75.1] - 2026-10-22
+
+### Fixed
+
+- The desktop updater now accepts package downloads only from this repository's HTTPS releases, keeps an advertised update available after cancellation, waits for the restart/login gate before starting the installer, treats malformed saved check dates as never checked, lets a user re-enable automatic checks, recognises only Cuotai's Scoop package and gives distribution-neutral Linux guidance (PRD 0018 RF1.3, RF2.3, RF2.4, RF2.5, RF3.1, RF3.2, RF3.3, RF4.3; PRD 0021 RF8.1).
+- Release assembly now represents Authenticode/checksum trust and the detached updater signature as two proofs of one artifact, keeps unsigned rehearsals distinct from incomplete signed releases, exposes updater secrets only to signing steps, and routes branch rehearsals outside the tag-only protected environment (PRD 0018 RF1.1, RF1.2, RF1.3, RF4.1; PRD 0021 RF1.4, RF2, RF3.3, RF3.4, RF4.2).
+
 ## [0.75.0] - 2026-10-22
 
 ### Added
@@ -631,7 +638,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.1...HEAD
+[0.75.1]: https://github.com/jmarcon/cuotai/compare/v0.75.0...v0.75.1
 [0.75.0]: https://github.com/jmarcon/cuotai/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/jmarcon/cuotai/compare/v0.73.0...v0.74.0
 [0.72.0]: https://github.com/jmarcon/cuotai/compare/v0.71.1...v0.72.0

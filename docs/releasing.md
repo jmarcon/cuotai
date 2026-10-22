@@ -327,15 +327,21 @@ cosign verify-blob \
 
 ## Owner prerequisites (one-time, RF9.1)
 
-The pipeline never creates secrets, environments or repositories. Before the
-first real release:
+The pipeline never creates production secrets or repositories. GitHub may
+create the explicitly secretless `rehearsal` environment on first use. Before
+the first real release:
 
-1. Create the **`release` environment** (Settings → Environments) with a
-   **required reviewer** and deployment branches restricted to tags. Without
-   it the jobs still run but no secret is available (everything ships honestly
-   unsigned); a dry run in the owner repository waits for reviewer approval
-   because the build jobs reference the environment. See
-   [`docs/updater-security.md`](updater-security.md) for the updater key's
+1. Create two environments (Settings → Environments):
+   - **`release`**, with a **required reviewer** and deployment branches
+     restricted to tags. Only tag-push jobs route here and can read signing
+     or publishing secrets.
+   - **`rehearsal`**, with no secrets, reviewers or deployment-branch rule.
+     `workflow_dispatch` desktop builds and opt-in channel validation jobs
+     route here, so a branch rehearsal is never blocked by `release`'s
+     tag-only rule. GitHub creates it on the first dispatch if it does not
+     exist yet; creating it explicitly makes the intended lack of secrets
+     and protection visible before that run.
+   See [`docs/updater-security.md`](updater-security.md) for the updater key's
    own requirements.
 2. Add to the `release` environment, as desired:
    - `APPLE_CERTIFICATE` — base64-encoded PKCS#12 (`.p12`);
@@ -374,21 +380,25 @@ first real release:
 4. Decide on the **retroactive tags** `v0.1.0`… (RF1.3) so the changelog
    footer links compare tags instead of commits.
 
-Empty or missing secrets never fail a run midway: every secret-consuming
-script checks presence first and degrades to the honest unsigned state.
-Signing secrets missing means unsigned artifacts, not a failed release; a
+Missing signing credentials degrade honestly during a dispatch rehearsal.
+For a tag release, platform code-signing credentials may still be absent and
+are reported as unsigned, but the Tauri updater key is a release prerequisite:
+no updater signatures, or only part of the required platform set, fails
+assembly instead of publishing a release that strands installed clients. A
 missing *channel* token fails only that channel job (RF5.7), with the message
 naming the secret to add or the variable to unset.
 
 ## Rehearsing in a fork
 
-1. Fork, enable Actions.
-2. **Actions → Release → Run workflow** for a full dry run, or push an
-   annotated `v<version>-rc.1` tag for the full path including a draft
-   pre-release in the fork.
-3. Check `signing-state.json` in the `release-assembly` artifact: everything
-   unsigned, checksum signature absent (dry run) or Sigstore-signed (tag
-   run), updater unavailable.
+1. Fork, enable Actions, and create the secretless/unrestricted `rehearsal`
+   environment.
+2. **Actions → Release → Run workflow** for a full unsigned dry run. To push an
+   annotated `v<version>-rc.1` tag and exercise the signed path, put an
+   **ephemeral** updater key pair in the fork's tag-protected `release`
+   environment; never copy the production key.
+3. Check `signing-state.json` in the `release-assembly` artifact: a dispatch
+   reports the updater unavailable and the checksum signature absent; a tag
+   run reports the updater available and Sigstore-signed checksums.
 4. Check the `package-manifests` artifact: cask, formula, the three winget
    manifests, the Scoop bucket manifest and `PKGBUILD`/`.SRCINFO`, all
    rendered from the run's own manifest. Enable a channel variable in the
@@ -401,13 +411,13 @@ non-symlink package by expected extension in each Tauri bundle directory
 (`*.AppImage`, `*.deb`, `*.rpm`), ignoring Tauri's linuxdeploy `Cuotai.AppDir`
 staging tree and unrelated entries, and copies the updater signature the
 bundler wrote beside each package (PRD 0018 RF1.1). A runnable shell test,
-`scripts/release/test-collect-linux.sh`, asserts the green path (one valid
-package plus an `AppDir` staging tree and an unrelated extension sibling
-collect the right files into `dist/` with the exact stable names), the two
-updater paths (signatures collected and reported; no key → honestly
-unsigned), and three red paths (zero matching files, duplicate same-extension
-matches, and a symlink package). Run it locally before pushing a desktop-
-related change:
+`scripts/release/test-collect-linux.sh`, asserts the collection green path,
+the three ambiguous/unsafe red paths, and the consumer-visible assembly
+contract: Linux checksum trust plus updater proof and Windows Authenticode
+plus updater proof each merge into one artifact record through the real
+`xtask signing-state`; an unsigned rehearsal merges with
+`updater.available=false`. Run it locally before pushing a desktop-related
+change:
 
 ```sh
 bash scripts/release/test-collect-linux.sh

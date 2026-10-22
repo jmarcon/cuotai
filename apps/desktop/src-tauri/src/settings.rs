@@ -95,11 +95,19 @@ impl Default for UpdaterPrefs {
 
 impl UpdaterPrefs {
     /// Each field on its own: an unknown or mistyped value is its default.
+    /// A malformed timestamp is also absent, so the UI never receives
+    /// `Invalid Date` from a hand-edited preference file.
     fn from_value(value: &serde_json::Value) -> Self {
         let default = Self::default();
+        let last_check = value["last_check"].as_str().and_then(|text| {
+            let text = text.trim();
+            chrono::DateTime::parse_from_rfc3339(text)
+                .ok()
+                .map(|_| text.to_owned())
+        });
         Self {
             automatic: value["automatic"].as_bool().unwrap_or(default.automatic),
-            last_check: value["last_check"].as_str().map(str::to_owned),
+            last_check,
             explanation_seen: value["explanation_seen"]
                 .as_bool()
                 .unwrap_or(default.explanation_seen),
@@ -1093,7 +1101,7 @@ mod tests {
             read_updater(&file),
             UpdaterPrefs {
                 automatic: true,
-                last_check: Some("quando?".into()),
+                last_check: None,
                 explanation_seen: true
             }
         );

@@ -108,14 +108,15 @@ impl InstallSource {
         }
     }
 
-    /// O comando que atualiza esta instalação (PRD 0021 RF8.1). deb, rpm e AUR usam o
-    /// gerenciador da distribuição; o app não adivinha qual é, e o AUR pede revisão.
+    /// O comando que atualiza esta instalação (PRD 0021 RF8.1). Uma origem
+    /// Linux genérica pode ser deb, rpm ou AUR, então não prescreve um
+    /// gerenciador que pode nem existir naquela máquina.
     pub fn upgrade_command(self) -> Option<&'static str> {
         match self {
             InstallSource::Homebrew => Some("brew upgrade --cask cuotai"),
             InstallSource::Scoop => Some("scoop update cuotai"),
             InstallSource::Winget => Some("winget upgrade Cuotai.Cuotai"),
-            InstallSource::LinuxPackage => Some("sudo apt upgrade cuotai"),
+            InstallSource::LinuxPackage => None,
             _ => None,
         }
     }
@@ -128,6 +129,7 @@ pub fn detect_in(exe: &Path, appimage: Option<&Path>, writable: bool) -> Install
         return InstallSource::AppImage;
     }
     let path = exe.to_string_lossy().replace('\\', "/");
+    let normalized = path.to_ascii_lowercase();
     // macOS: `/Volumes/<disco>/Cuotai.app/...` é a imagem de disco montada e a App
     // Translocation é um diretório temporário somente leitura. Nenhuma das duas se
     // atualiza no lugar, mesmo quando o caminho parece gravável.
@@ -141,13 +143,12 @@ pub fn detect_in(exe: &Path, appimage: Option<&Path>, writable: bool) -> Install
     if path.contains("/Caskroom/cuotai/") {
         return InstallSource::Homebrew;
     }
-    if path.contains("/scoop/apps/") {
+    // O componente do pacote faz parte da prova: outro aplicativo dentro da
+    // árvore do Scoop não transforma uma cópia direta do Cuotai em gerenciada.
+    if normalized.contains("/scoop/apps/cuotai/") {
         return InstallSource::Scoop;
     }
-    if path
-        .to_lowercase()
-        .contains("/appdata/local/microsoft/winget/packages/")
-    {
+    if normalized.contains("/appdata/local/microsoft/winget/packages/") {
         return InstallSource::Winget;
     }
     if path.starts_with("/usr/bin/")
@@ -240,6 +241,38 @@ pub fn validate_endpoint(url: &Url) -> Result<(), &'static str> {
     Err("insecure_endpoint")
 }
 
+/// RF4.3: o manifesto não é assinado, então o endereço do pacote escolhido
+/// também precisa ficar no canal de release deste repositório. O plugin confere
+/// a assinatura dos bytes, mas sem esta guarda ainda faria o pedido a qualquer
+/// host (inclusive por HTTP) antes de recusá-los.
+pub fn validate_download_url(url: &Url) -> Result<(), &'static str> {
+    if url.scheme() != "https" {
+        return Err("insecure_endpoint");
+    }
+    if url.host_str() != Some("github.com")
+        || url.port_or_known_default() != Some(443)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("insecure_endpoint");
+    }
+    let Some(segments) = url.path_segments() else {
+        return Err("insecure_endpoint");
+    };
+    let segments: Vec<&str> = segments.collect();
+    if segments.len() != 6
+        || segments[..4] != ["jmarcon", "cuotai", "releases", "download"]
+        || segments[4].is_empty()
+        || segments[5].is_empty()
+        || segments[4..].iter().any(|segment| segment.contains('%'))
+    {
+        return Err("insecure_endpoint");
+    }
+    Ok(())
+}
+
 /// Os endpoints da verificação: os de `plugins.updater.endpoints` no `tauri.conf.json`,
 /// ou, em desenvolvimento, o servidor local de [`DEV_ENDPOINT_ENV`].
 fn endpoints_for<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<Url>, &'static str> {
@@ -314,9 +347,10 @@ pub fn error_code(error: &tauri_plugin_updater::Error) -> &'static str {
     }
 }
 
-/// Estado interno do atualizador. O `Update` do plugin não fica guardado: o manifesto
-/// cru (`raw`) permite refazê-lo a cada tentativa — inclusive depois de um cancelamento —
-/// sem uma segunda verificação na rede.
+/// Estado interno do atualizador. O manifesto cru (`raw`) permite refazer o
+/// `Update` sem outra verificação na rede; ele acompanha o download para que
+/// cancelar volte a `Available`, e acompanha os bytes verificados em `Ready`
+/// para que a instalação só comece depois do portão de reinício (RF2.3/RF2.4).
 enum Phase {
     /// Nada a fazer (ainda não verificou, ou o recurso está desligado).
     Idle,
@@ -336,15 +370,21 @@ enum Phase {
     /// Baixando (progresso já baixado/total; `total = None` = tamanho desconhecido).
     Downloading {
         version: String,
+        notes: Option<String>,
+        date: Option<String>,
+        raw: serde_json::Value,
         downloaded: u64,
         total: Option<u64>,
     },
-    /// Baixado, verificado e instalado; falta reiniciar (RF2.4).
+    /// Instalação local em curso depois que o portão de reinício passou.
     Installing {
         version: String,
     },
+    /// Pacote baixado e verificado; nenhum instalador foi iniciado ainda.
     Ready {
         version: String,
+        raw: serde_json::Value,
+        bytes: Vec<u8>,
     },
     Failed {
         code: &'static str,
@@ -495,6 +535,7 @@ impl Service {
                 version,
                 downloaded,
                 total,
+                ..
             } => {
                 let progress = total.filter(|total| *total > 0).map(|total| {
                     ((*downloaded as f64 / total as f64) * 100.0)
@@ -520,7 +561,7 @@ impl Service {
                 false,
                 None,
             ),
-            Phase::Ready { version } => (
+            Phase::Ready { version, .. } => (
                 "ready",
                 Some(version.clone()),
                 None,
@@ -638,18 +679,23 @@ impl Service {
             };
         };
         match updater.check().await {
-            Ok(Some(update)) => Phase::Available {
-                version: update.version.clone(),
-                notes: update.body.clone(),
-                // RF1.4: `pub_date` é o que o manifesto traz; a interface formata.
-                date: update
-                    .raw_json
-                    .get("pub_date")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned),
-                raw: update.raw_json.clone(),
-                dismissed: false,
-            },
+            Ok(Some(update)) => {
+                if let Err(code) = validate_download_url(&update.download_url) {
+                    return Phase::Failed { code };
+                }
+                Phase::Available {
+                    version: update.version.clone(),
+                    notes: update.body.clone(),
+                    // RF1.4: `pub_date` é o que o manifesto traz; a interface formata.
+                    date: update
+                        .raw_json
+                        .get("pub_date")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned),
+                    raw: update.raw_json.clone(),
+                    dismissed: false,
+                }
+            }
             Ok(None) => Phase::UpToDate,
             Err(error) => Phase::Failed {
                 code: error_code(&error),
@@ -657,14 +703,21 @@ impl Service {
         }
     }
 
-    /// RF2.3: "Atualizar agora". Sem este comando nada baixa: baixa com progresso
-    /// cancelável, o plugin verifica a assinatura e instala; a versão atual só é trocada
-    /// quando a instalação termina.
-    pub fn install(self: &Arc<Self>, app: &AppHandle) -> Result<UpdateView, String> {
-        let (raw, version) = {
+    /// RF2.3: "Atualizar agora". Sem este comando nada baixa: baixa com
+    /// progresso cancelável e o plugin verifica a assinatura. Os bytes ficam
+    /// em `Ready`; instalar e reiniciar só acontece em [`Self::restart`],
+    /// depois do portão de login e da persistência do estado.
+    pub fn install<R: Runtime>(self: &Arc<Self>, app: &AppHandle<R>) -> Result<UpdateView, String> {
+        let (raw, version, notes, date) = {
             let phase = self.phase.lock();
             match &*phase {
-                Phase::Available { raw, version, .. } => (raw.clone(), version.clone()),
+                Phase::Available {
+                    raw,
+                    version,
+                    notes,
+                    date,
+                    ..
+                } => (raw.clone(), version.clone(), notes.clone(), date.clone()),
                 Phase::Downloading { .. } | Phase::Installing { .. } => {
                     return Err("already_running".to_string())
                 }
@@ -674,11 +727,15 @@ impl Service {
         let Some(updater) = updater_for(app) else {
             return Err("unavailable".to_string());
         };
-        let Ok(Some(update)) = updater.restore_update(raw) else {
+        let Ok(Some(update)) = updater.restore_update(raw.clone()) else {
             return Err("stale".to_string());
         };
+        validate_download_url(&update.download_url).map_err(str::to_owned)?;
         *self.phase.lock() = Phase::Downloading {
             version: version.clone(),
+            notes,
+            date,
+            raw: raw.clone(),
             downloaded: 0,
             total: None,
         };
@@ -687,26 +744,21 @@ impl Service {
         let service = ServiceHandle(Arc::clone(self));
         let app = app.clone();
         let handle = tauri::async_runtime::spawn(async move {
-            // `download` verifica a assinatura (RF2.3); `install` só roda com os bytes já
-            // conferidos e não é cancelável (é local e rápido: interromper no meio
-            // deixaria o app pela metade).
+            // `download` confere a assinatura (RF2.3). Não chama `install`
+            // aqui: no Windows isso inicia o instalador e encerra o processo.
             match update
                 .download(|chunk, total| service.chunk(&app, chunk, total), || {})
                 .await
             {
                 Err(error) => service.fail(&app, error_code(&error)),
-                Ok(bytes) => {
-                    service.set_phase(
-                        &app,
-                        Phase::Installing {
-                            version: version.clone(),
-                        },
-                    );
-                    match update.install(&bytes) {
-                        Ok(()) => service.set_phase(&app, Phase::Ready { version }),
-                        Err(error) => service.fail(&app, error_code(&error)),
-                    }
-                }
+                Ok(bytes) => service.set_phase(
+                    &app,
+                    Phase::Ready {
+                        version,
+                        raw,
+                        bytes,
+                    },
+                ),
             }
             *service.0.download.lock() = None;
         });
@@ -714,41 +766,106 @@ impl Service {
         Ok(self.view())
     }
 
-    /// RF2.3: cancela o download em curso; a versão instalada continua intacta.
-    pub fn cancel_download(&self, app: &AppHandle) -> UpdateView {
+    /// RF2.3: cancela o download em curso; a versão instalada continua
+    /// intacta e a atualização anunciada volta sem outra consulta à rede.
+    pub fn cancel_download<R: Runtime>(&self, app: &AppHandle<R>) -> UpdateView {
         if let Some(handle) = self.download.lock().take() {
             handle.abort();
         }
         let mut phase = self.phase.lock();
-        if let Phase::Downloading { .. } = &*phase {
-            // A versão anunciada continua válida (o manifesto cru sobrevive): o aviso
-            // volta e "Atualizar agora" pode tentar de novo sem nova verificação.
-            *phase = Phase::Idle;
-        }
+        let previous = std::mem::replace(&mut *phase, Phase::Idle);
+        *phase = match previous {
+            Phase::Downloading {
+                version,
+                notes,
+                date,
+                raw,
+                ..
+            } => Phase::Available {
+                version,
+                notes,
+                date,
+                raw,
+                dismissed: false,
+            },
+            other => other,
+        };
         drop(phase);
         self.emit(app);
         self.view()
     }
 
-    /// RF2.4: reinicia para terminar a atualização. `prepare` é o gancho do backend
-    /// (interromper o ciclo de atualização com cuidado e persistir o estado) e
-    /// `login_in_progress` bloqueia com `login_in_progress` enquanto houver um login.
-    pub fn restart(
+    /// RF2.4: instala e reinicia para terminar a atualização. `prepare` é o
+    /// gancho do backend (interromper o ciclo com cuidado e persistir o estado)
+    /// e `login_in_progress` bloqueia antes de qualquer instalador ser iniciado.
+    pub fn restart<R: Runtime>(
         &self,
-        app: &AppHandle,
+        app: &AppHandle<R>,
         login_in_progress: bool,
         prepare: impl FnOnce(),
     ) -> Result<(), String> {
         if login_in_progress {
             return Err("login_in_progress".to_string());
         }
-        if !matches!(&*self.phase.lock(), Phase::Ready { .. }) {
-            return Err("no_update".to_string());
+        let (version, raw, bytes) = {
+            let mut phase = self.phase.lock();
+            let previous = std::mem::replace(&mut *phase, Phase::Idle);
+            match previous {
+                Phase::Ready {
+                    version,
+                    raw,
+                    bytes,
+                } => (version, raw, bytes),
+                other => {
+                    *phase = other;
+                    return Err("no_update".to_string());
+                }
+            }
+        };
+        let Some(updater) = updater_for(app) else {
+            *self.phase.lock() = Phase::Ready {
+                version,
+                raw,
+                bytes,
+            };
+            return Err("unavailable".to_string());
+        };
+        let Ok(Some(update)) = updater.restore_update(raw.clone()) else {
+            *self.phase.lock() = Phase::Ready {
+                version,
+                raw,
+                bytes,
+            };
+            return Err("stale".to_string());
+        };
+        if let Err(code) = validate_download_url(&update.download_url) {
+            *self.phase.lock() = Phase::Ready {
+                version,
+                raw,
+                bytes,
+            };
+            return Err(code.to_string());
         }
+        *self.phase.lock() = Phase::Installing {
+            version: version.clone(),
+        };
+        self.emit(app);
         prepare();
         self.stopping.store(true, Ordering::Relaxed);
+        // On Windows `install` launches NSIS/MSI and exits immediately, so
+        // cleanup must happen first. On the other platforms it returns and the
+        // explicit restart below finishes the same flow.
         app.cleanup_before_exit();
-        app.restart();
+        match update.install(&bytes) {
+            Ok(()) => app.restart(),
+            Err(error) => {
+                self.stopping.store(false, Ordering::Relaxed);
+                let code = error_code(&error);
+                *self.phase.lock() = Phase::Failed { code };
+                self.emit(app);
+                Err(code.to_string())
+            }
+        }
     }
 
     /// PRD 0018 RF2.1: verifica na abertura e depois uma vez a cada 24 h, enquanto o
@@ -799,7 +916,7 @@ impl Service {
 struct ServiceHandle(Arc<Service>);
 
 impl ServiceHandle {
-    fn chunk(&self, app: &AppHandle, chunk: usize, total: Option<u64>) {
+    fn chunk<R: Runtime>(&self, app: &AppHandle<R>, chunk: usize, total: Option<u64>) {
         let mut phase = self.0.phase.lock();
         if let Phase::Downloading {
             downloaded,
@@ -816,12 +933,12 @@ impl ServiceHandle {
         self.0.emit(app);
     }
 
-    fn set_phase(&self, app: &AppHandle, next: Phase) {
+    fn set_phase<R: Runtime>(&self, app: &AppHandle<R>, next: Phase) {
         *self.0.phase.lock() = next;
         self.0.emit(app);
     }
 
-    fn fail(&self, app: &AppHandle, code: &'static str) {
+    fn fail<R: Runtime>(&self, app: &AppHandle<R>, code: &'static str) {
         self.set_phase(app, Phase::Failed { code });
     }
 }
@@ -914,46 +1031,48 @@ mod detector {
     }
 
     #[test]
-    fn package_managers_own_their_channels_and_their_command() {
+    fn package_managers_own_their_channels_and_honest_commands() {
         let cases = [
             (
                 "/opt/homebrew/Caskroom/cuotai/0.71.1/Cuotai.app/Contents/MacOS/Cuotai",
                 InstallSource::Homebrew,
-                "brew upgrade --cask cuotai",
+                Some("brew upgrade --cask cuotai"),
             ),
             (
                 "/usr/local/Caskroom/cuotai/0.71.1/Cuotai.app/Contents/MacOS/Cuotai",
                 InstallSource::Homebrew,
-                "brew upgrade --cask cuotai",
+                Some("brew upgrade --cask cuotai"),
             ),
             (
-                "C:/Users/demo/scoop/apps/cuotai/current/Cuotai.exe",
+                "C:/Users/demo/Scoop/Apps/Cuotai/current/Cuotai.exe",
                 InstallSource::Scoop,
-                "scoop update cuotai",
+                Some("scoop update cuotai"),
             ),
             (
                 "C:/Users/demo/AppData/Local/Microsoft/WinGet/Packages/Cuotai.Cuotai_MZ394459P08D4Z/Cuotai.exe",
                 InstallSource::Winget,
-                "winget upgrade Cuotai.Cuotai",
+                Some("winget upgrade Cuotai.Cuotai"),
             ),
-            ("/usr/bin/cuotai", InstallSource::LinuxPackage, "sudo apt upgrade cuotai"),
-            ("/usr/lib/cuotai/cuotai", InstallSource::LinuxPackage, "sudo apt upgrade cuotai"),
+            ("/usr/bin/cuotai", InstallSource::LinuxPackage, None),
+            ("/usr/lib/cuotai/cuotai", InstallSource::LinuxPackage, None),
         ];
         for (path, expected, command) in cases {
             let source = detect_in(&exe(path), None, true);
             assert_eq!(source, expected, "{path}");
             assert!(source.managed(), "{path}");
             assert!(!source.can_install(), "{path}");
-            assert_eq!(source.upgrade_command(), Some(command), "{path}");
+            assert_eq!(source.upgrade_command(), command, "{path}");
             assert_ne!(source.reason(), "other", "{path}");
         }
     }
 
     #[test]
     fn a_look_alike_path_outside_the_known_roots_is_not_a_manager() {
-        // `apps-really`, outro cask e uma pasta `/usr/bin` fora da raiz não são gerenciadores.
+        // `apps-really`, outro pacote Scoop, outro cask e uma pasta `/usr/bin`
+        // fora da raiz não são gerenciadores do Cuotai.
         for path in [
             "/home/demo/scoop/apps-really/cuotai/Cuotai",
+            "C:/tools/scoop/apps/other/Cuotai.exe",
             "/home/demo/Caskroom/not-cuotai/Cuotai.app/Contents/MacOS/Cuotai",
             "/home/demo/usr/bin/cuotai",
             // O prefixo do WinGet só vale dentro da pasta que o winget cria (`Packages`
@@ -1061,7 +1180,7 @@ mod schedule {
 
 #[cfg(test)]
 mod endpoint {
-    use super::{validate_endpoint, Url};
+    use super::{validate_download_url, validate_endpoint, Url};
 
     #[test]
     fn only_https_endpoints_are_refused_when_they_are_not_local() {
@@ -1082,6 +1201,29 @@ mod endpoint {
         );
     }
 
+    #[test]
+    fn downloads_are_only_from_this_repositories_https_releases() {
+        let valid: Url =
+            "https://github.com/jmarcon/cuotai/releases/download/v0.76.0/Cuotai_0.76.0_x64-setup.exe"
+                .parse()
+                .unwrap();
+        assert_eq!(validate_download_url(&valid), Ok(()));
+
+        for unsafe_url in [
+            "http://github.com/jmarcon/cuotai/releases/download/v0.76.0/Cuotai.exe",
+            "https://example.com/jmarcon/cuotai/releases/download/v0.76.0/Cuotai.exe",
+            "https://github.com/other/cuotai/releases/download/v0.76.0/Cuotai.exe",
+            "https://github.com/jmarcon/cuotai/releases/latest/download/Cuotai.exe",
+            "https://github.com/jmarcon/cuotai/releases/download/v0.76.0/Cuotai.exe?mirror=1",
+        ] {
+            let url: Url = unsafe_url.parse().unwrap();
+            assert_eq!(
+                validate_download_url(&url),
+                Err("insecure_endpoint"),
+                "{unsafe_url}"
+            );
+        }
+    }
     #[test]
     fn a_development_server_on_localhost_is_the_only_http_exception() {
         for host in [
@@ -1444,10 +1586,23 @@ mod contract {
         // nada é instalado.
         match check(&app) {
             Ok(_found) => panic!("certificado inválido não pode virar atualização"),
-            Err(error) => assert!(
-                matches!(error, tauri_plugin_updater::Error::Reqwest(_)),
-                "{error}"
-            ),
+            Err(tauri_plugin_updater::Error::Reqwest(error)) => {
+                let mut detail = error.to_string();
+                let mut source = std::error::Error::source(&error);
+                while let Some(cause) = source {
+                    detail.push_str(": ");
+                    detail.push_str(&cause.to_string());
+                    source = cause.source();
+                }
+                let detail = detail.to_ascii_lowercase();
+                assert!(
+                    detail.contains("certificate")
+                        || detail.contains("unknownissuer")
+                        || detail.contains("unknown issuer"),
+                    "{detail}"
+                );
+            }
+            Err(error) => panic!("expected an untrusted-certificate error, got {error}"),
         }
     }
 
@@ -1521,7 +1676,7 @@ mod contract {
         let manifest = manifest(
             newer,
             &sign(&key, b"payload", newer),
-            "http://127.0.0.1:1/app.tar.gz",
+            "https://github.com/jmarcon/cuotai/releases/download/v0.2.0/Cuotai.app.tar.gz",
         );
         let server = Local::http(manifest);
         let app = app(&key.pubkey, &server.url);
@@ -1553,6 +1708,125 @@ mod contract {
         let dismissed = service.dismiss(app.handle());
         assert!(dismissed.dismissed);
         assert_eq!(dismissed.version.as_deref(), Some(newer));
+    }
+
+    #[test]
+    fn unsafe_artifact_urls_are_refused_before_any_artifact_request() {
+        let key = keypair();
+        let newer = "0.2.0";
+        let artifact = Local::http("artifact bytes".to_string());
+        for download in [
+            artifact.url.as_str(),
+            "https://example.invalid/jmarcon/cuotai/releases/download/v0.2.0/Cuotai.app.tar.gz",
+        ] {
+            let manifest = manifest(newer, &sign(&key, b"payload", newer), download);
+            let manifest_server = Local::http(manifest);
+            let app = app(&key.pubkey, &manifest_server.url);
+            let service = Service::build(InstallSource::Direct, None, false, false);
+
+            tauri::async_runtime::block_on(service.tick(app.handle()));
+            let view = service.view();
+            assert_eq!(view.phase, "failed", "{download}: {view:?}");
+            assert_eq!(view.error, Some("insecure_endpoint"), "{download}");
+            assert_eq!(manifest_server.count(), 1, "{download}");
+            assert_eq!(artifact.count(), 0, "{download}");
+        }
+    }
+
+    #[test]
+    fn a_restored_update_is_revalidated_before_download() {
+        let key = keypair();
+        let newer = "0.2.0";
+        let artifact = Local::http("must not be requested".to_string());
+        let manifest_server = Local::http(manifest(
+            newer,
+            &sign(&key, b"payload", newer),
+            &artifact.url,
+        ));
+        let app = app(&key.pubkey, &manifest_server.url);
+        // The plugin itself accepts the untrusted URL from the unsigned
+        // manifest; seed the state as though it had been retained/restored.
+        let update = check(&app).expect("manifest read").expect("newer version");
+        let service = Arc::new(Service::build(InstallSource::Direct, None, false, false));
+        *service.phase.lock() = Phase::Available {
+            version: update.version,
+            notes: update.body,
+            date: None,
+            raw: update.raw_json,
+            dismissed: false,
+        };
+
+        assert_eq!(
+            service.install(app.handle()),
+            Err("insecure_endpoint".into())
+        );
+        assert_eq!(service.view().phase, "available");
+        assert_eq!(manifest_server.count(), 1);
+        assert_eq!(artifact.count(), 0);
+    }
+
+    #[test]
+    fn cancelling_restores_the_pending_update_without_another_check() {
+        let key = keypair();
+        let app = app(&key.pubkey, "http://127.0.0.1:1/latest.json");
+        let service = Service::build(InstallSource::Direct, None, false, false);
+        let raw = serde_json::json!({"version": "0.2.0", "platforms": {}});
+        *service.phase.lock() = Phase::Downloading {
+            version: "0.2.0".into(),
+            notes: Some("notes".into()),
+            date: Some("2026-10-22T12:00:00Z".into()),
+            raw: raw.clone(),
+            downloaded: 9,
+            total: Some(10),
+        };
+
+        let view = service.cancel_download(app.handle());
+        assert_eq!(view.phase, "available");
+        assert_eq!(view.version.as_deref(), Some("0.2.0"));
+        assert_eq!(view.notes.as_deref(), Some("notes"));
+        assert_eq!(view.date.as_deref(), Some("2026-10-22T12:00:00Z"));
+        match &*service.phase.lock() {
+            Phase::Available {
+                raw: restored,
+                dismissed,
+                ..
+            } => {
+                assert_eq!(restored, &raw);
+                assert!(!dismissed);
+            }
+            _ => panic!("cancel must restore the pending update"),
+        };
+    }
+
+    #[test]
+    fn a_login_gate_keeps_the_verified_package_ready() {
+        let key = keypair();
+        let app = app(&key.pubkey, "http://127.0.0.1:1/latest.json");
+        let service = Service::build(InstallSource::Direct, None, false, false);
+        let raw = serde_json::json!({"version": "0.2.0", "platforms": {}});
+        *service.phase.lock() = Phase::Ready {
+            version: "0.2.0".into(),
+            raw: raw.clone(),
+            bytes: b"verified package".to_vec(),
+        };
+        let prepared = std::sync::atomic::AtomicBool::new(false);
+
+        assert_eq!(
+            service.restart(app.handle(), true, || {
+                prepared.store(true, Ordering::SeqCst)
+            }),
+            Err("login_in_progress".into())
+        );
+        assert!(!prepared.load(Ordering::SeqCst));
+        match &*service.phase.lock() {
+            Phase::Ready {
+                raw: kept, bytes, ..
+            } => {
+                assert_eq!(kept, &raw);
+                assert_eq!(bytes, b"verified package");
+            }
+            _ => panic!("the login gate must leave the package ready"),
+        };
     }
 
     /// Um `View` de gerenciador de pacotes traz o comando e diz que não atualiza no lugar.
@@ -1620,12 +1894,13 @@ mod contract {
                     Ok(connection) => connection,
                     Err(_) => return,
                 };
+                let _ = socket.set_read_timeout(Some(Duration::from_secs(5)));
                 let mut tls = rustls::StreamOwned::new(connection, socket);
-                let _ = tls.sock.set_read_timeout(Some(Duration::from_secs(5)));
                 let mut request = Vec::new();
                 let mut chunk = [0u8; 1024];
-                // O handshake falha aqui (certificado recusado): o que sobrar é ruído.
-                while let Ok(read) = tls.sock.read(&mut chunk) {
+                // Ler pelo `StreamOwned` dirige o handshake e apresenta de
+                // verdade o certificado autoassinado ao cliente.
+                while let Ok(read) = tls.read(&mut chunk) {
                     if read == 0 {
                         break;
                     }
@@ -1635,7 +1910,7 @@ mod contract {
                     }
                 }
                 let _ = write!(
-                    tls.sock,
+                    tls,
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     body.len(),
                     body

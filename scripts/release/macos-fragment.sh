@@ -29,6 +29,10 @@ if [ -f "dist/Cuotai.app.tar.gz" ] && [ -f "dist/Cuotai.app.tar.gz.sig" ]; then
   has_updater=true
 fi
 
+# One archive with two proofs (PRD 0018 RF1.1): the updater key signs the
+# archive itself and its detached `.sig` is that same proof as a file. A
+# second record with the same payload name is what `signing::merge` rejects,
+# so the signature is attached to the archive's own record instead.
 jq -n \
   --arg dmg "$dmg" \
   --argjson signed "$signed" \
@@ -41,8 +45,8 @@ jq -n \
     artifacts: [
       {name: $dmg, signed: $signed, method: $method, status: $status, note: $note}
     ] + (if $has_updater then [
-      {name: "Cuotai.app.tar.gz", signed: true, method: "tauri-updater-key", status: "signed"},
-      {name: "Cuotai.app.tar.gz.sig", signed: true, method: "tauri-updater-key", status: "signed"}
+      {name: "Cuotai.app.tar.gz", signed: true, method: "tauri-updater-key",
+       status: "signed", updater_signature: "Cuotai.app.tar.gz.sig"}
     ] else [] end),
     updater: (if $has_updater then
       {available: true, artifacts: ["Cuotai.app.tar.gz", "Cuotai.app.tar.gz.sig"]}

@@ -207,6 +207,7 @@ fn unsigned_fragment(manifest: &Manifest) -> Fragment {
                 },
                 status: SigningStatus::Unsigned,
                 note: None,
+                updater_signature: None,
             })
             .collect(),
         updater: None,
@@ -525,31 +526,41 @@ fn signing_state_rejects_updater_availability_contradictions() {
 /// A fragment reporting exactly the files one job owns: the named updater
 /// artifacts are updater-signed, the rest of that job's files keep
 /// checksum-signature trust.
+///
+/// A name listed as `<payload>.sig` is the detached updater proof of the
+/// payload beside it: the payload keeps its own method (Authenticode on
+/// Windows, checksum-signature on Linux) and gains `updater_signature`,
+/// which is what makes one artifact carry two proofs without ever being
+/// reported twice.
 fn updater_signed_fragment(
     manifest: &Manifest,
     owned: &[String],
     updater_artifacts: &[String],
 ) -> Fragment {
-    let is_updater = |name: &str| updater_artifacts.iter().any(|claimed| claimed == name);
+    let claims = |name: &str| updater_artifacts.iter().any(|claimed| claimed == name);
     Fragment {
         artifacts: manifest
             .artifacts
             .iter()
-            .filter(|artifact| owned.contains(&artifact.name))
+            // A detached `.sig` is never an artifact record of its own: the
+            // payload's record carries it as `updater_signature`.
+            .filter(|artifact| owned.contains(&artifact.name) && !artifact.name.ends_with(".sig"))
             .map(|artifact| ArtifactSigning {
                 name: artifact.name.clone(),
-                signed: is_updater(&artifact.name),
-                method: if is_updater(&artifact.name) {
+                signed: claims(&artifact.name),
+                method: if claims(&artifact.name) {
                     SigningMethod::TauriUpdaterKey
                 } else {
                     SigningMethod::ChecksumSignature
                 },
-                status: if is_updater(&artifact.name) {
+                status: if claims(&artifact.name) {
                     SigningStatus::Signed
                 } else {
                     SigningStatus::Unsigned
                 },
                 note: None,
+                updater_signature: claims(&format!("{}.sig", artifact.name))
+                    .then(|| format!("{}.sig", artifact.name)),
             })
             .collect(),
         updater: (!updater_artifacts.is_empty()).then(|| UpdaterState {
@@ -583,7 +594,9 @@ fn signing_state_unions_the_updater_artifacts_of_every_platform() {
     let signed = [
         "Cuotai.app.tar.gz".to_string(),
         "Cuotai.app.tar.gz.sig".to_string(),
+        format!("Cuotai_{v}_amd64.AppImage"),
         format!("Cuotai_{v}_amd64.AppImage.sig"),
+        format!("Cuotai_{v}_x64-setup.exe"),
         format!("Cuotai_{v}_x64-setup.exe.sig"),
     ];
     let payloads = [
@@ -626,20 +639,51 @@ fn signing_state_unions_the_updater_artifacts_of_every_platform() {
         format!("Cuotai_{v}_amd64.rpm"),
     ];
 
-    // The macOS job updater-signs the archive itself; the Windows job signs
-    // the installer, which is also Authenticode-signed; Linux signs each
+    // The macOS job updater-signs the archive itself; the Windows job adds
+    // the detached signature beside an installer that keeps its Authenticode
+    // record; Linux adds the detached signature beside a checksum-signed
     // package. Only the entries each job owns are reported.
     let macos = owned_fragment(&manifest, &macos_names, &macos_names);
     let windows = updater_signed_fragment(
         &manifest,
         &windows_names,
-        &[format!("Cuotai_{v}_x64-setup.exe.sig")],
+        &[
+            format!("Cuotai_{v}_x64-setup.exe"),
+            format!("Cuotai_{v}_x64-setup.exe.sig"),
+        ],
     );
     let linux = updater_signed_fragment(
         &manifest,
         &linux_names,
-        &[format!("Cuotai_{v}_amd64.AppImage.sig")],
+        &[
+            format!("Cuotai_{v}_amd64.AppImage"),
+            format!("Cuotai_{v}_amd64.AppImage.sig"),
+        ],
     );
+    // The Windows installer is Authenticode-signed and the Linux package keeps
+    // checksum-signature trust, so both carry their own method and gain the
+    // detached signature as a second proof; only the macOS archive is signed
+    // in place by the updater key.
+    let mut windows = windows;
+    if let Some(installer) = windows
+        .artifacts
+        .iter_mut()
+        .find(|entry| entry.name == format!("Cuotai_{v}_x64-setup.exe"))
+    {
+        installer.method = SigningMethod::Authenticode;
+        installer.signed = true;
+        installer.status = SigningStatus::Signed;
+    }
+    let mut linux = linux;
+    if let Some(appimage) = linux
+        .artifacts
+        .iter_mut()
+        .find(|entry| entry.name == format!("Cuotai_{v}_amd64.AppImage"))
+    {
+        appimage.method = SigningMethod::ChecksumSignature;
+        appimage.signed = false;
+        appimage.status = SigningStatus::Unsigned;
+    }
     let platform_owned = [
         macos_names.clone(),
         windows_names.clone(),
@@ -668,13 +712,42 @@ fn signing_state_unions_the_updater_artifacts_of_every_platform() {
 
     assert!(state.updater.available);
     assert_eq!(state.updater.artifacts, signed);
+    // Three updater proofs, on three artifacts: the macOS archive is signed in
+    // place, and the Windows installer and the Linux AppImage each carry a
+    // detached `.sig` beside their own method (Authenticode and
+    // checksum-signature). No artifact is reported twice.
     assert_eq!(
         state
             .artifacts
             .iter()
             .filter(|entry| entry.method == SigningMethod::TauriUpdaterKey)
             .count(),
-        4
+        1
+    );
+    assert_eq!(
+        state
+            .artifacts
+            .iter()
+            .filter(|entry| entry.updater_signature.is_some())
+            .count(),
+        3
+    );
+    let installer = state
+        .artifacts
+        .iter()
+        .find(|entry| entry.name == format!("Cuotai_{v}_x64-setup.exe"))
+        .expect("installer record");
+    assert_eq!(installer.method, SigningMethod::Authenticode);
+    assert_eq!(
+        installer.updater_signature.as_deref(),
+        Some(format!("Cuotai_{v}_x64-setup.exe.sig").as_str())
+    );
+    assert!(
+        !state
+            .artifacts
+            .iter()
+            .any(|entry| entry.name.ends_with(".sig")),
+        "a detached signature is the updater proof of its payload, not an artifact of its own"
     );
 
     // One platform reporting the same file twice cannot merge.

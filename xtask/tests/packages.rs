@@ -8,7 +8,7 @@ use std::process::Command;
 use xtask::manifest::{self, Manifest};
 use xtask::packages::{self, RenderRequest};
 use xtask::signing::{
-    ArtifactSigning, ChecksumSigning, ChecksumSigningMethod, SigningMethod, SigningState,
+    self, ArtifactSigning, ChecksumSigning, ChecksumSigningMethod, SigningMethod, SigningState,
     SigningStatus, UpdaterState,
 };
 use xtask::Channel;
@@ -82,7 +82,7 @@ fn artifact_sha(manifest: &Manifest, name: &str) -> String {
 
 fn signing_state(dmg_signed: bool) -> SigningState {
     SigningState {
-        schema: 1,
+        schema: signing::SIGNING_STATE_SCHEMA,
         version: VERSION.into(),
         channel: Channel::Stable,
         artifacts: vec![
@@ -100,6 +100,7 @@ fn signing_state(dmg_signed: bool) -> SigningState {
                     SigningStatus::Unsigned
                 },
                 note: None,
+                updater_signature: None,
             },
             ArtifactSigning {
                 name: format!("Cuotai_{VERSION}_x64-setup.exe"),
@@ -107,6 +108,7 @@ fn signing_state(dmg_signed: bool) -> SigningState {
                 method: SigningMethod::None,
                 status: SigningStatus::Unsigned,
                 note: None,
+                updater_signature: None,
             },
         ],
         checksums: ChecksumSigning {

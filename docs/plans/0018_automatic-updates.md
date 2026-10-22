@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | In progress (RF1–RF4 delivered in 0.74.0 and 0.75.0; the acceptance criteria that need a real signed release and a native runner stay owner-blocked) |
+| Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2 and RF3: signed packages and artifact hosting) |
@@ -15,10 +15,10 @@
 
 | Requirement | Version | State |
 |---|---|---|
-| RF1 (mechanism and keys) | 0.74.0 and 0.75.0 | Delivered — in the app in 0.74.0 (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands) and in the pipeline in 0.75.0 (`xtask updater-manifest` renders the `latest.json` for every platform a run bundled). |
-| RF2 (flow in the app) | 0.74.0 | Delivered except the cross-OS acceptance smoke, which needs a signed release (owner). |
-| RF3 (Settings and About) | 0.74.0 | Delivered; the three-language smoke and the zero-request test are automated. |
-| RF4 (operational security) | 0.74.0 and 0.75.0 | Delivered — the HTTPS-only endpoint and the certificate failure as an error in 0.74.0, and the key custody, leak and loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](updater-security.md)). |
+| RF1 (mechanism and keys) | 0.74.0, 0.75.0 and 0.75.1 | Delivered — in the app in 0.74.0 (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands), in the pipeline in 0.75.0 (`xtask updater-manifest` renders `latest.json`), and hardened in 0.75.1 (one artifact carries its platform/checksum proof plus its detached updater proof without duplicate signing records). |
+| RF2 (flow in the app) | 0.74.0 and 0.75.1 | Delivered except the cross-OS acceptance smoke, which needs a signed release (owner). In 0.75.1 cancellation restores the retained update without another request, and verified bytes wait for the restart/login gate before installation begins. |
+| RF3 (Settings and About) | 0.74.0 and 0.75.1 | Delivered; the four-language UI smoke and the zero-request test are automated. In 0.75.1 malformed persisted check dates become “never checked”, the preference-off switch remains usable, Scoop matching requires the Cuotai component and generic Linux packages no longer receive Debian-only guidance. |
+| RF4 (operational security) | 0.74.0–0.75.1 | Delivered — HTTPS endpoint and real untrusted-certificate coverage in 0.74.0/0.75.1, artifact URLs restricted to this repository's HTTPS release downloads in 0.75.1, and key custody, leak/loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](updater-security.md)). |
 
 Owner-blocked, and not claimed as delivered:
 
@@ -109,7 +109,7 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 
 The requirement is only delivered when an app installed on an earlier version updates to the next one with consent, rejects any package with an invalid signature, preserves all the user's data, and with the feature off makes no update request.
 
-## 8. What 0.74.0 and 0.75.0 verified, and what it could not
+## 8. What 0.74.0–0.75.1 verified, and what it could not
 
 Verified in the repository, on every push:
 
@@ -122,13 +122,19 @@ Verified in the repository, on every push:
   by `CUOTAI_UPDATER=off`, by the `CUOTAI_UPDATER_DEFAULT` build key or by a
   package-manager install — a request-counting server sees **zero** requests,
   including from *Check now*;
-- RF4.3: a non-HTTPS endpoint is refused before any request and a self-signed
-  certificate produces an error;
+- RF4.3: a non-HTTPS endpoint is refused before any request, the selected
+  artifact URL must be an HTTPS release download from this repository both
+  when shown and immediately before download, and the TLS fixture presents a
+  real self-signed certificate that fails as untrusted;
 - `cargo deny` over both manifests, which is why the plugin's `zip` feature is
   off (see [`docs/updater-security.md`](updater-security.md));
-- the four-language smoke of Settings → Updates and the banner;
-- the updater's manifest renderer against real ephemeral-key signatures, and the
-  release scripts' updater-signing paths against a fixture layout.
+- the four-language smoke of Settings → Updates and the banner, including the
+  distinction between a user-disabled (re-enableable) switch and an external
+  policy lock;
+- the updater's manifest renderer against real ephemeral-key signatures, and
+  merge-level release-script fixtures proving Windows/Linux dual proofs keep
+  one signing record per artifact and that unsigned rehearsals stay honestly
+  unavailable.
 
 Not verified here, and therefore not claimed:
 

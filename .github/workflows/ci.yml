@@ -123,6 +123,9 @@ jobs:
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+      # PRD 0018 RF3: render the real Settings/banner module with every
+      # built-in catalog; no browser, package manager or network is involved.
+      - run: node scripts/test-updater-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified

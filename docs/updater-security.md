@@ -20,10 +20,13 @@ pipeline that consumes it.
 - the announced version must be **strictly greater** than the running one
   (the plugin's default comparator), so a replayed or older manifest is
   ignored;
-- the endpoint must be `https`. The plugin validates its configured endpoints
-  at startup and refuses a plain-HTTP endpoint in a release build
-  (`dangerousInsecureTransportProtocol` is left `false`); a certificate
-  failure is an error, never a warning to click past.
+- the manifest endpoint and every selected package URL must use `https`; the
+  package URL must match
+  `github.com/jmarcon/cuotai/releases/download/<tag>/<asset>` and is checked
+  once before the update is shown and again immediately before download;
+- certificate validation is never bypassed. The integration fixture drives a
+  real TLS handshake with a self-signed certificate and requires an
+  untrusted-certificate error;
 
 Every signature the pipeline writes is bound to the release version in the
 minisign trusted comment (`cargo tauri signer sign --app-version`), so a
@@ -62,9 +65,11 @@ Pipeline review result (RF4.1 acceptance):
   checks presence and reports honestly instead of printing the value;
 - the secret is scoped to `github.event_name == 'push'`, so a
   `workflow_dispatch` rehearsal and every pull-request run see an empty value;
-- it is passed to the four desktop build jobs only, all of which declare
-  `environment: release`; no other job (CLI, SBOM, assembly, publish, channel
-  jobs) receives it;
+- tag-push desktop build jobs route to the protected `release` environment;
+  dispatch builds route to the secretless, unrestricted `rehearsal`
+  environment, so the tag-only deployment rule does not block a branch
+  rehearsal. No other job (CLI, SBOM, assembly, publish, channel jobs)
+  receives the updater key;
 - it is used in exactly one place per platform — the updater signature. It is
   never used for code signing, notarization, Authenticode, checksums or the
   GitHub token.
@@ -82,6 +87,13 @@ Pipeline review result (RF4.1 acceptance):
 3. Environment logs: GitHub records every job that references the environment
    and every reviewer's approval, which is the access log for RF4.1. Review
    it after the first releases.
+
+Create a separate **`rehearsal`** environment with no secrets, reviewers or
+deployment-branch rule. The workflow routes `workflow_dispatch` desktop
+builds and opt-in channel validation there, while only tag pushes can route
+to `release`. GitHub creates `rehearsal` on first use when absent; creating it
+explicitly makes its secretless, unprotected contract visible in repository
+settings.
 
 Commands (documented, **not** run by the pipeline — the owner runs them once,
 interactively):
