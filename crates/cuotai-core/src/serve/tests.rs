@@ -811,8 +811,8 @@ async fn answers_and_access_log_carry_no_secrets() {
     for entry in &entries {
         let line = entry.to_string();
         assert!(line.contains(" GET /"), "{line}");
-        for secret in [token.expose(), "Bearer", "sk-QUERY", "sk-WRONG", "t0p", "?"] {
-            assert!(!line.contains(secret), "{secret} in {line}");
+        for needle in [token.expose(), "Bearer", "sk-QUERY", "sk-WRONG", "t0p", "?"] {
+            assert!(!line.contains(needle), "{needle} in {line}");
         }
     }
 }
