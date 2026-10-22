@@ -25,3 +25,6 @@
 /xtask/sbom-desktop.json
 /apps/desktop/src-tauri/sbom-cli.json
 /apps/desktop/src-tauri/sbom-desktop.json
+
+# SwiftPM build output of the WidgetKit sources
+/apps/desktop/widgets/macos/.build/
