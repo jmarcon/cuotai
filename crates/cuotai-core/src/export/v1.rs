@@ -880,8 +880,8 @@ mod tests {
         assert!(accounts[3]["incident"].is_null());
 
         let off = serde_json::to_value(build_with(&config, &cycle, &[], Options::default()));
-        for account in off.unwrap()["accounts"].as_array().unwrap() {
-            assert!(account["incident"].is_null(), "{account}");
+        for entry in off.unwrap()["accounts"].as_array().unwrap() {
+            assert!(entry["incident"].is_null(), "{entry}");
         }
     }
 
