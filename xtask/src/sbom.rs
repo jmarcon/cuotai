@@ -621,8 +621,8 @@ mod tests {
             .unwrap()
             .to_string();
         // The CycloneDX schema requires `urn:uuid:` plus 8-4-4-4-12 hex digits.
-        let uuid = serial.strip_prefix("urn:uuid:").expect("urn:uuid: prefix");
-        let groups: Vec<&str> = uuid.split('-').collect();
+        let serial_body = serial.strip_prefix("urn:uuid:").expect("urn:uuid: prefix");
+        let groups: Vec<&str> = serial_body.split('-').collect();
         assert_eq!(
             groups.iter().map(|g| g.len()).collect::<Vec<_>>(),
             vec![8, 4, 4, 4, 12]
@@ -631,13 +631,13 @@ mod tests {
             groups.iter().all(|g| g
                 .bytes()
                 .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())),
-            "{uuid} must be lowercase hex"
+            "{serial_body} must be lowercase hex"
         );
         // RFC 4122 version 4 and variant 10xx.
-        assert!(groups[2].starts_with('4'), "{uuid} version nibble");
+        assert!(groups[2].starts_with('4'), "{serial_body} version nibble");
         assert!(
             matches!(groups[3].as_bytes()[0], b'8' | b'9' | b'a' | b'b'),
-            "{uuid} variant nibble"
+            "{serial_body} variant nibble"
         );
     }
 }
