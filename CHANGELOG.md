@@ -47,23 +47,23 @@ How to read the history before this file existed:
 
 ### Added
 
-- Settings gains a Widgets section that publishes a compact snapshot file (`widget.json`) for macOS widgets and for panels like Waybar, GNOME and KDE — with the binding quota of each account, its real age and, for old data, a dimmed *stale* state; it is off by default, carries no credentials, notes or e-mail unless you ask, and turning it off deletes the file. The macOS WidgetKit extension sources (Summary, Account and History widgets) ship in `apps/desktop/widgets/macos`, type-checked; packaging and signing the extension waits for the Apple developer account (PRD 0014 RF1, RF2.2, RF3.2–RF3.5, RF4, RF5.1, bb52f2f).
+- Settings gains a Widgets section that publishes a compact snapshot file (`widget.json`) for macOS widgets and for panels like Waybar, GNOME and KDE — with the binding quota of each account, its real age and, for old data, a dimmed *stale* state; it is off by default, carries no credentials, notes or e-mail unless you ask, and turning it off deletes the file. The macOS WidgetKit extension sources (Summary, Account and History widgets) ship in `apps/desktop/widgets/macos`, type-checked; packaging and signing the extension waits for the Apple developer account (PRD 0014 RF1, RF2.2, RF3.2–RF3.5, RF4, RF5.1, 4221f0c).
 
 ## [0.70.0] - 2026-10-22
 
 ### Added
 
-- One `cargo xtask package-manifests` renderer turns the verified release manifest into the Homebrew cask and formula, the three winget manifests, the Scoop bucket manifest and the AUR PKGBUILD with its generated `.SRCINFO`; each channel is opt-in through a repository variable, runs after the release is re-verified, renders and validates without publishing on a dry run, and a channel failure can never fail the GitHub Release (PRD 0021 RF5.1–RF5.7, ad4e3a9; PRD 0019 RF4).
-- The README opens with a per-platform installation section, a verify-your-download block and per-channel uninstall semantics: uninstalling through any channel removes only the application and keeps the configuration, the local databases and the OS vault entries (PRD 0021 RF7.2, RF8.2, ad4e3a9).
+- One `cargo xtask package-manifests` renderer turns the verified release manifest into the Homebrew cask and formula, the three winget manifests, the Scoop bucket manifest and the AUR PKGBUILD with its generated `.SRCINFO`; each channel is opt-in through a repository variable, runs after the release is re-verified, renders and validates without publishing on a dry run, and a channel failure can never fail the GitHub Release (PRD 0021 RF5.1–RF5.7, 72a9592; PRD 0019 RF4).
+- The README opens with a per-platform installation section, a verify-your-download block and per-channel uninstall semantics: uninstalling through any channel removes only the application and keeps the configuration, the local databases and the OS vault entries (PRD 0021 RF7.2, RF8.2, 72a9592).
 
 ## [0.69.0] - 2026-10-22
 
 ### Added
 
-- The About screen gains a *What's new* view and `cuotai --changelog [VERSION]` prints the same history offline — one version or a series like `0.68.x` — without loading the configuration or querying providers, with localized category labels; an unknown version exits 1 (PRD 0019 RF7.7, 92bc9aa).
-- The release notes and the updater notes now come from the same changelog parser the product reads (`cuotai_core::changelog`), `cargo xtask changelog-draft` drafts the `[Unreleased]` section from the commits since the last tag, and CI checks the changelog format, the PRD references and the plan links on every push, with a `feat`/`fix` gate on pull requests (PRD 0019 RF7.3, RF7.4, RF7.5, RF7.8, 92bc9aa).
-- The platform support matrix ([`docs/platforms.md`](docs/platforms.md)) records what works on macOS, Windows and Linux — credential vault, tray, notifications, browser login, the `aws`/`bl` CLI tools, local cost sources and the local server — and the release policy ([`docs/release-policy.md`](docs/release-policy.md)) records the versioning, support and reproducibility rules (PRD 0019 RF5.1, RF5.3, RF6, 4d2f80b).
-- CI now smoke-tests the TUI binary on Linux, macOS and Windows with a no-network fixture: `--list-providers` must exit 0 and `--once` on accounts without credentials must exit 2 (PRD 0019 RF5.2, 4d2f80b).
+- The About screen gains a *What's new* view and `cuotai --changelog [VERSION]` prints the same history offline — one version or a series like `0.68.x` — without loading the configuration or querying providers, with localized category labels; an unknown version exits 1 (PRD 0019 RF7.7, 43bc732).
+- The release notes and the updater notes now come from the same changelog parser the product reads (`cuotai_core::changelog`), `cargo xtask changelog-draft` drafts the `[Unreleased]` section from the commits since the last tag, and CI checks the changelog format, the PRD references and the plan links on every push, with a `feat`/`fix` gate on pull requests (PRD 0019 RF7.3, RF7.4, RF7.5, RF7.8, 43bc732).
+- The platform support matrix ([`docs/platforms.md`](docs/platforms.md)) records what works on macOS, Windows and Linux — credential vault, tray, notifications, browser login, the `aws`/`bl` CLI tools, local cost sources and the local server — and the release policy ([`docs/release-policy.md`](docs/release-policy.md)) records the versioning, support and reproducibility rules (PRD 0019 RF5.1, RF5.3, RF6, cf4c8fb).
+- CI now smoke-tests the TUI binary on Linux, macOS and Windows with a no-network fixture: `--list-providers` must exit 0 and `--once` on accounts without credentials must exit 2 (PRD 0019 RF5.2, cf4c8fb).
 
 ## [0.68.3] - 2026-10-21
 
@@ -114,522 +114,522 @@ How to read the history before this file existed:
 
 ### Added
 
-- `cuotai-core` exposes `extensions::discover`, which reads the script extensions of `<OS local data dir>/cuotai/extensions/<id>/manifest.toml` without running anything: each manifest declares an `id` slug, `name`, `version`, `schema = 1`, a `command` argument vector whose program must be a file inside the extension's folder (never an absolute path, `..`, a link leading out or a `PATH` name), `interval_seconds` (60 at least), `timeout_seconds` (15 by default, 60 at most), optional `description` and `homepage` and the `env` variable names it asks for; unknown fields, a newer schema, invalid values and every folder sharing an `id` are listed with a localized reason instead of stopping the other extensions or anything else from loading, and `Discovery::catalog` gives each valid extension's account type "Extension: {name}" with the new `Extension` access level and its warning "Runs a local program; review the code before enabling." (not offered by the account editors until extensions can run) (PRD 0017 RF1, fb83951).
+- `cuotai-core` exposes `extensions::discover`, which reads the script extensions of `<OS local data dir>/cuotai/extensions/<id>/manifest.toml` without running anything: each manifest declares an `id` slug, `name`, `version`, `schema = 1`, a `command` argument vector whose program must be a file inside the extension's folder (never an absolute path, `..`, a link leading out or a `PATH` name), `interval_seconds` (60 at least), `timeout_seconds` (15 by default, 60 at most), optional `description` and `homepage` and the `env` variable names it asks for; unknown fields, a newer schema, invalid values and every folder sharing an `id` are listed with a localized reason instead of stopping the other extensions or anything else from loading, and `Discovery::catalog` gives each valid extension's account type "Extension: {name}" with the new `Extension` access level and its warning "Runs a local program; review the code before enabling." (not offered by the account editors until extensions can run) (PRD 0017 RF1, 4da7cd8).
 
 ## [0.63.0] - 2026-10-21
 
 ### Changed
 
-- Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan now read their web session the same way whether you pasted it into the system vault or still name an environment variable (`session_env`, `platform_session_env`), with the same queries and precedence as before: a session missing its required cookies (`serviceToken` for the MiMo account session, `api-platform_serviceToken` and `userId` for the MiMo platform session) or an unset variable is reported before any request, naming only the cookies or the variable; Alibaba reports say whether the vault session or the variable was used; the field help, the credential hints and the "configure a session" messages point to pasting the session in the account wizard first, with the variable as an alternative; and the `docs/providers.md` access matrix lists the vault session beside `session_env` (PRD 0016 RF5, ec68e4e).
+- Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan now read their web session the same way whether you pasted it into the system vault or still name an environment variable (`session_env`, `platform_session_env`), with the same queries and precedence as before: a session missing its required cookies (`serviceToken` for the MiMo account session, `api-platform_serviceToken` and `userId` for the MiMo platform session) or an unset variable is reported before any request, naming only the cookies or the variable; Alibaba reports say whether the vault session or the variable was used; the field help, the credential hints and the "configure a session" messages point to pasting the session in the account wizard first, with the variable as an alternative; and the `docs/providers.md` access matrix lists the vault session beside `session_env` (PRD 0016 RF5, cf4ed0c).
 
 ## [0.62.0] - 2026-10-21
 
 ### Added
 
-- A web session now comes with its risk spelled out and a way out: the card of a Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan account whose query uses a session (in the TUI also its details) names the "User session" level and warns "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service." (or that it is read from an environment variable and can move to the vault), the TUI paste step and the desktop "Web session" box show the same level and warning before you paste, and "Forget this session" (F5 twice on the TUI wizard summary, or the button and its confirmation in the desktop account dialog) deletes the session's system vault entry and its reference in the TOML, putting it back when the save is refused; `cuotai-core` adds `user_session::notice`, `paste_notice` and `stage_forget`, and `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored, what is discarded and the risks (PRD 0016 RF4, a525ced).
+- A web session now comes with its risk spelled out and a way out: the card of a Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan account whose query uses a session (in the TUI also its details) names the "User session" level and warns "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service." (or that it is read from an environment variable and can move to the vault), the TUI paste step and the desktop "Web session" box show the same level and warning before you paste, and "Forget this session" (F5 twice on the TUI wizard summary, or the button and its confirmation in the desktop account dialog) deletes the session's system vault entry and its reference in the TOML, putting it back when the save is refused; `cuotai-core` adds `user_session::notice`, `paste_notice` and `stage_forget`, and `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored, what is discarded and the risks (PRD 0016 RF4, fb386d3).
 
 ## [0.61.0] - 2026-10-21
 
 ### Added
 
-- Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan accounts can take a pasted web session: the TUI wizard's new "Colar sessão" step and the desktop account dialog's "Web session" box say where to copy it from, take a masked paste of a `Cookie:` line, a `name=value` list, the browser's cookie table or a copied cURL, keep only the cookies the provider accepts (numbered parts reassembled, the rest discarded before anything is written, errors naming cookies, never values), test it with one read-only query (F4 or "Test session") and store it in the system vault on save, replacing the earlier session of the same account in place; a session is sent only over HTTPS to its declared hosts and never follows a redirect, a rejected one reads "session expired or revoked; paste a new one", and when the cookie table shows an expiry the cards say "expires in N days" and, with usage alerts on, a session ending within 3 days gets a notification of its own (PRD 0016 RF2, RF3, a10d2dc).
+- Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan accounts can take a pasted web session: the TUI wizard's new "Colar sessão" step and the desktop account dialog's "Web session" box say where to copy it from, take a masked paste of a `Cookie:` line, a `name=value` list, the browser's cookie table or a copied cURL, keep only the cookies the provider accepts (numbered parts reassembled, the rest discarded before anything is written, errors naming cookies, never values), test it with one read-only query (F4 or "Test session") and store it in the system vault on save, replacing the earlier session of the same account in place; a session is sent only over HTTPS to its declared hosts and never follows a redirect, a rejected one reads "session expired or revoked; paste a new one", and when the cookie table shows an expiry the cards say "expires in N days" and, with usage alerts on, a session ending within 3 days gets a notification of its own (PRD 0016 RF2, RF3, 2147138).
 
 ## [0.60.0] - 2026-10-21
 
 ### Added
 
-- Web sessions can now live in the system vault instead of an environment variable: `[accounts.session]` keeps only a `credential_ref` and the stored slots, the session itself goes to the Keychain, Credential Manager or Secret Service (or the debug-only SQLite store), and an account that reads its Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan session from `session_env` or `platform_session_env` keeps working and is offered "move to the vault" after an explicit confirmation, F3 twice on the TUI wizard summary or "Move to the vault" twice in the desktop account dialog, which copies the variable's value into the vault and removes the variable from the TOML; `cuotai-core` exposes the per-provider `user_session` descriptors (accepted cookie names, hosts, delivery) and the session never appears in the TOML, `Debug`, errors or reports (PRD 0016 RF1, b000625).
+- Web sessions can now live in the system vault instead of an environment variable: `[accounts.session]` keeps only a `credential_ref` and the stored slots, the session itself goes to the Keychain, Credential Manager or Secret Service (or the debug-only SQLite store), and an account that reads its Xiaomi MiMo, Alibaba Coding Plan or Alibaba Token Plan session from `session_env` or `platform_session_env` keeps working and is offered "move to the vault" after an explicit confirmation, F3 twice on the TUI wizard summary or "Move to the vault" twice in the desktop account dialog, which copies the variable's value into the vault and removes the variable from the TOML; `cuotai-core` exposes the per-provider `user_session` descriptors (accepted cookie names, hosts, delivery) and the session never appears in the TOML, `Debug`, errors or reports (PRD 0016 RF1, ab8bce4).
 
 ## [0.59.0] - 2026-10-21
 
 ### Added
 
-- The local cost estimate is now shown: with a source on, the desktop shows a "Local usage" block (today, yesterday and the saved period, in USD at API prices) in the same place on every Claude or ChatGPT / Codex card, or a card of its own when no account of the tool is configured, and the details break it down by day (an accessible bar chart with its table) and by model, with models without a price shown as "cost unknown"; Settings → Local cost now also chooses each source's directories and shows the prices in effect; the TUI account details carry the same section, `cuotai --cost [--days N] [--json]` prints the estimate after reading what grew in the logs (exit 0, 2 when no source is on or one has no logs or access, 1 for local errors), and `export::v1` (`--json-v1`, `--serve` and the desktop's local server) publishes it as `local_cost`, apart from the providers' reports (PRD 0015 RF4, fbbef8f).
+- The local cost estimate is now shown: with a source on, the desktop shows a "Local usage" block (today, yesterday and the saved period, in USD at API prices) in the same place on every Claude or ChatGPT / Codex card, or a card of its own when no account of the tool is configured, and the details break it down by day (an accessible bar chart with its table) and by model, with models without a price shown as "cost unknown"; Settings → Local cost now also chooses each source's directories and shows the prices in effect; the TUI account details carry the same section, `cuotai --cost [--days N] [--json]` prints the estimate after reading what grew in the logs (exit 0, 2 when no source is on or one has no logs or access, 1 for local errors), and `export::v1` (`--json-v1`, `--serve` and the desktop's local server) publishes it as `local_cost`, apart from the providers' reports (PRD 0015 RF4, af55cf6).
 
 ## [0.58.0] - 2026-10-21
 
 ### Added
 
-- The local cost estimate has its prices: a per-model table of API prices in USD per million tokens (input, output, cache read and cache write) is embedded with the date it took effect and its source, and you can review or override it model by model in your own `pricing.json` beside the local cost preferences (never downloaded); `cuotai --cost-prices [--json]` lists the prices in effect and whether your file is used or ignored (exit 1 when it is invalid), a model without a known price stays "cost unknown" rather than zero, and every estimate says it is at API prices, not a charge (PRD 0015 RF3, 73781dd).
+- The local cost estimate has its prices: a per-model table of API prices in USD per million tokens (input, output, cache read and cache write) is embedded with the date it took effect and its source, and you can review or override it model by model in your own `pricing.json` beside the local cost preferences (never downloaded); `cuotai --cost-prices [--json]` lists the prices in effect and whether your file is used or ignored (exit 1 when it is invalid), a model without a known price stays "cost unknown" rather than zero, and every estimate says it is at API prices, not a charge (PRD 0015 RF3, 2e39718).
 
 ## [0.57.0] - 2026-10-21
 
 ### Added
 
-- Cuotai can follow the local session logs of Claude Code and Codex CLI to count tokens per day and per model, off until you turn a source on: `cuotai --cost-enable claude_code|codex_cli` (or the switch in the desktop's new **Settings → Local cost**) first shows exactly which directories are read, what for and that only numbers (time, model, token counts and an anonymous session digest) are extracted, and reads nothing before you confirm; the logs are indexed incrementally into a private `cost.sqlite3` by a low-priority background scan with limits per cycle that pauses in energy-saving mode and never delays the quota refresh, directories without access become a "no access" state, invalid lines are skipped and counted, conversation content is never read into the index, `--cost-sources`, `--cost-scan`, `--cost-period` and `--cost-retention-days` (120 days by default) list, scan and configure it, and `--cost-disable` or `--cost-erase` remove everything derived (PRD 0015 RF1, RF2, 83b6d95).
+- Cuotai can follow the local session logs of Claude Code and Codex CLI to count tokens per day and per model, off until you turn a source on: `cuotai --cost-enable claude_code|codex_cli` (or the switch in the desktop's new **Settings → Local cost**) first shows exactly which directories are read, what for and that only numbers (time, model, token counts and an anonymous session digest) are extracted, and reads nothing before you confirm; the logs are indexed incrementally into a private `cost.sqlite3` by a low-priority background scan with limits per cycle that pauses in energy-saving mode and never delays the quota refresh, directories without access become a "no access" state, invalid lines are skipped and counted, conversation content is never read into the index, `--cost-sources`, `--cost-scan`, `--cost-period` and `--cost-retention-days` (120 days by default) list, scan and configure it, and `--cost-disable` or `--cost-erase` remove everything derived (PRD 0015 RF1, RF2, 6b70b4d).
 
 ## [0.56.0] - 2026-10-21
 
 ### Added
 
-- The desktop app runs hooks from **Settings → Integration**, off until you turn them on: an editor for the rules of the `hooks.toml` next to the accounts' file (name, events and the command as one field per argument; filters and time limits written by hand are kept), shared with `cuotai --watch --hooks`; turning hooks on, or saving changed rules while they are on, shows a dialog with the exact list of commands and nothing runs until you confirm it (a file edited outside the app asks again, also in a banner on the main window); the confirmed rules run on the events of the app's own readings with no extra query, a **Test** button fires a sample event marked `"sample": true` at a rule, the latest runs are listed from the local run log, and turning hooks off stops them; `cuotai-core` adds `hooks::Document` to read and save the rules over the revision read, `Rule::sample`, `Runner::submit_to` and `RunLog::latest` (PRD 0013 RF4, 050c86a).
+- The desktop app runs hooks from **Settings → Integration**, off until you turn them on: an editor for the rules of the `hooks.toml` next to the accounts' file (name, events and the command as one field per argument; filters and time limits written by hand are kept), shared with `cuotai --watch --hooks`; turning hooks on, or saving changed rules while they are on, shows a dialog with the exact list of commands and nothing runs until you confirm it (a file edited outside the app asks again, also in a banner on the main window); the confirmed rules run on the events of the app's own readings with no extra query, a **Test** button fires a sample event marked `"sample": true` at a rule, the latest runs are listed from the local run log, and turning hooks off stops them; `cuotai-core` adds `hooks::Document` to read and save the rules over the revision read, `Rule::sample`, `Runner::submit_to` and `RunLog::latest` (PRD 0013 RF4, f2193cc).
 
 ## [0.55.0] - 2026-10-21
 
 ### Added
 
-- `cuotai --watch --hooks` runs your own commands on the watch events, from a `hooks.toml` next to the accounts' TOML: each rule lists its events, optional provider, account and threshold filters and a command given as an argument list (never a shell string); hooks are off by default and the exact commands run only after you confirm them in a terminal, again after any change, receive the event as JSON on stdin and in `CUOTAI_EVENT`/`CUOTAI_ACCOUNT`/`CUOTAI_PROVIDER`/`CUOTAI_METRIC` with an environment reduced to `PATH`, `HOME` and `LANG`, are killed past their time limit (10 s by default, 60 s at most), keep at most 16 KiB of output, run at most 4 at once with a bounded queue that drops the oldest run with a warning, never stop the watch when they fail, and each run is logged locally without the payload (PRD 0013 RF3, 5ea7bd1).
+- `cuotai --watch --hooks` runs your own commands on the watch events, from a `hooks.toml` next to the accounts' TOML: each rule lists its events, optional provider, account and threshold filters and a command given as an argument list (never a shell string); hooks are off by default and the exact commands run only after you confirm them in a terminal, again after any change, receive the event as JSON on stdin and in `CUOTAI_EVENT`/`CUOTAI_ACCOUNT`/`CUOTAI_PROVIDER`/`CUOTAI_METRIC` with an environment reduced to `PATH`, `HOME` and `LANG`, are killed past their time limit (10 s by default, 60 s at most), keep at most 16 KiB of output, run at most 4 at once with a bounded queue that drops the oldest run with a warning, never stop the watch when they fail, and each run is logged locally without the payload (PRD 0013 RF3, 016630a).
 
 ## [0.54.0] - 2026-10-21
 
 ### Added
 
-- `cuotai --watch` follows your accounts in the foreground without opening the TUI or needing a terminal and reports one event per real transition between consecutive readings (a quota crossed 75% or 90%, ran out, recovered or reset, an account was blocked or unblocked, a query failed with only its category or recovered, authentication is needed, the provider status changed with `--status`, usage changed at most every 10 minutes), never repeating a condition that persists and treating the first reading of each account as its baseline: `--jsonl` writes one NDJSON payload per line on stdout, flushed at once, with every message on stderr, otherwise each transition is one readable line in local time and `CUOTAI_LANG`; `--events a,b` keeps only those names, `--interval S` (60 to 86400 s, smaller values are rejected, never adjusted) replaces the global `refresh_seconds` for the run while accounts with their own interval keep it and AWS Bedrock never goes below 300 s; it adds no query, can share its refresh cycle with `--serve` in the same process (the server address then goes to stderr), stops cleanly on `SIGINT`, `SIGTERM` and `SIGHUP`, and exits with `0`, `2` when an account's latest reading had failed at shutdown, or `1` for a local error; `cuotai-core` adds `headless::Driver` (the screenless refresh loop `--serve` and `--watch` share), `watch::Watcher`, `watch::with_interval`, `watch::parse_events` and `Event::summary` (PRD 0013 RF2, f6b3272).
+- `cuotai --watch` follows your accounts in the foreground without opening the TUI or needing a terminal and reports one event per real transition between consecutive readings (a quota crossed 75% or 90%, ran out, recovered or reset, an account was blocked or unblocked, a query failed with only its category or recovered, authentication is needed, the provider status changed with `--status`, usage changed at most every 10 minutes), never repeating a condition that persists and treating the first reading of each account as its baseline: `--jsonl` writes one NDJSON payload per line on stdout, flushed at once, with every message on stderr, otherwise each transition is one readable line in local time and `CUOTAI_LANG`; `--events a,b` keeps only those names, `--interval S` (60 to 86400 s, smaller values are rejected, never adjusted) replaces the global `refresh_seconds` for the run while accounts with their own interval keep it and AWS Bedrock never goes below 300 s; it adds no query, can share its refresh cycle with `--serve` in the same process (the server address then goes to stderr), stops cleanly on `SIGINT`, `SIGTERM` and `SIGHUP`, and exits with `0`, `2` when an account's latest reading had failed at shutdown, or `1` for a local error; `cuotai-core` adds `headless::Driver` (the screenless refresh loop `--serve` and `--watch` share), `watch::Watcher`, `watch::with_interval`, `watch::parse_events` and `Event::summary` (PRD 0013 RF2, 4746338).
 
 ## [0.53.0] - 2026-10-21
 
 ### Added
 
-- `cuotai-core` exposes the `events` engine: `events::diff` compares two consecutive `export::v1` readings of an account and returns edge events with stable names (`quota_threshold_crossed`, `quota_exhausted`, `quota_recovered`, `quota_reset`, `account_blocked`, `account_unblocked`, `refresh_failed`, `refresh_recovered`, `auth_required`, `provider_incident`, `usage_updated`), reusing the usage alert, reset, binding metric and provider status rules without any extra query: the first reading only sets a baseline, a condition that persists never repeats, `usage_updated` fires at most once per 600 s per account, the state lives in memory only (a restart builds new baselines), and a payload carries the account, the metric, its current and previous values and, for a failure, only a category (`timeout`, `offline`, `auth_required`, `rate_limited`, `schema_changed`, `provider_error`), never credentials, URLs, notes or raw messages, as documented in `docs/events.md`; a query that runs out of time now reports "The query timed out." instead of the generic network failure (PRD 0013 RF1, 28137a8).
+- `cuotai-core` exposes the `events` engine: `events::diff` compares two consecutive `export::v1` readings of an account and returns edge events with stable names (`quota_threshold_crossed`, `quota_exhausted`, `quota_recovered`, `quota_reset`, `account_blocked`, `account_unblocked`, `refresh_failed`, `refresh_recovered`, `auth_required`, `provider_incident`, `usage_updated`), reusing the usage alert, reset, binding metric and provider status rules without any extra query: the first reading only sets a baseline, a condition that persists never repeats, `usage_updated` fires at most once per 600 s per account, the state lives in memory only (a restart builds new baselines), and a payload carries the account, the metric, its current and previous values and, for a failure, only a category (`timeout`, `offline`, `auth_required`, `rate_limited`, `schema_changed`, `provider_error`), never credentials, URLs, notes or raw messages, as documented in `docs/events.md`; a query that runs out of time now reports "The query timed out." instead of the generic network failure (PRD 0013 RF1, 20d6b97).
 
 ## [0.52.0] - 2026-10-20
 
 ### Added
 
-- The desktop app can run the read-only local server from **Settings → Integration**, off until you turn it on: it serves the app's own readings on `127.0.0.1` at exactly the port you choose (6738 by default) without ever querying a provider per request, shows the effective address or why it is not serving (naming another Cuotai server such as `cuotai --serve` when it holds the port, also in a banner on the main window), can generate a bearer token kept in the system vault and require it, copy it without showing it, replace it or revoke it, turns on "allow browsers" only after you confirm its warning, and closes the port when turned off; `cuotai-core` adds `serve::is_cuotai_server` to recognise a Cuotai server on a port (PRD 0012 RF5, 4795a15).
+- The desktop app can run the read-only local server from **Settings → Integration**, off until you turn it on: it serves the app's own readings on `127.0.0.1` at exactly the port you choose (6738 by default) without ever querying a provider per request, shows the effective address or why it is not serving (naming another Cuotai server such as `cuotai --serve` when it holds the port, also in a banner on the main window), can generate a bearer token kept in the system vault and require it, copy it without showing it, replace it or revoke it, turns on "allow browsers" only after you confirm its warning, and closes the port when turned off; `cuotai-core` adds `serve::is_cuotai_server` to recognise a Cuotai server on a port (PRD 0012 RF5, 0449cfc).
 
 ## [0.51.0] - 2026-10-20
 
 ### Added
 
-- `cuotai --serve` runs the read-only local server in the foreground without opening the TUI or needing a terminal: it keeps refreshing your accounts on their own intervals and serves `/health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` on `127.0.0.1:6738` (or one of the next nine ports when it is taken; `--port N` asks for exactly that port, and `--token-file FILE` requires its bearer token), never querying a provider per request; it prints its address on stdout, logs each request on stderr without headers or query, stops cleanly on `SIGINT`/`SIGTERM` and exits with `0`, `2` when no account was healthy until shutdown, or `1` for a port, configuration or token error; the new `--json-v1` prints the full `export::v1` after one query, `--once` and `--json` are unchanged, and an invalid command-line argument now exits with `1` as documented instead of `2` (PRD 0012 RF4, 2d9cf48).
+- `cuotai --serve` runs the read-only local server in the foreground without opening the TUI or needing a terminal: it keeps refreshing your accounts on their own intervals and serves `/health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` on `127.0.0.1:6738` (or one of the next nine ports when it is taken; `--port N` asks for exactly that port, and `--token-file FILE` requires its bearer token), never querying a provider per request; it prints its address on stdout, logs each request on stderr without headers or query, stops cleanly on `SIGINT`/`SIGTERM` and exits with `0`, `2` when no account was healthy until shutdown, or `1` for a port, configuration or token error; the new `--json-v1` prints the full `export::v1` after one query, `--once` and `--json` are unchanged, and an invalid command-line argument now exits with `1` as documented instead of `2` (PRD 0012 RF4, 6eb4bc2).
 
 ## [0.50.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `serve::LocalServer` behind a new `serve` feature (off by default): a read-only HTTP server bound to `127.0.0.1` (port 6738, falling back to the next nine when taken) that answers `GET /health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` with the `export::v1` contract built from the refresh cycle the front end already runs, never querying a provider per request and answering `503` with `Retry-After` before the first reading, always as JSON with `Cache-Control: no-store`, with bounded connections, header and URL sizes and request time; it refuses non-loopback addresses without an explicit flag and a token, any `Host` other than loopback (DNS rebinding) and requests from web pages unless "allow browsers" is turned on, can require a bearer token generated by Cuotai and kept in the OS vault, and never puts credentials in its answers nor headers or query parameters in its access log (PRD 0012 RF2, RF3, 75f79e9).
+- `cuotai-core` exposes `serve::LocalServer` behind a new `serve` feature (off by default): a read-only HTTP server bound to `127.0.0.1` (port 6738, falling back to the next nine when taken) that answers `GET /health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` with the `export::v1` contract built from the refresh cycle the front end already runs, never querying a provider per request and answering `503` with `Retry-After` before the first reading, always as JSON with `Cache-Control: no-store`, with bounded connections, header and URL sizes and request time; it refuses non-loopback addresses without an explicit flag and a token, any `Host` other than loopback (DNS rebinding) and requests from web pages unless "allow browsers" is turned on, can require a bearer token generated by Cuotai and kept in the OS vault, and never puts credentials in its answers nor headers or query parameters in its access log (PRD 0012 RF2, RF3, 5a7a484).
 
 ## [0.49.0] - 2026-10-20
 
 ### Added
 
-- The TUI and `--once` can show the providers' public status, off until you pass `--status` or set `CUOTAI_STATUS=1`, with `--no-status` always turning it off: each status page of your configured providers is then read without credentials at most once every five minutes, a card shows a badge on its top border for a degraded service, partial or major outage, maintenance or an unreadable page, the details list the full status with the incident, its start, when it was read and the page, `--once` prints a `Status do provedor:` line under the account plus the note on failures during an incident, `--json` keeps its shape, and `export::v1` gains each account's `incident` (PRD 0011 RF5, 9694b24).
+- The TUI and `--once` can show the providers' public status, off until you pass `--status` or set `CUOTAI_STATUS=1`, with `--no-status` always turning it off: each status page of your configured providers is then read without credentials at most once every five minutes, a card shows a badge on its top border for a degraded service, partial or major outage, maintenance or an unreadable page, the details list the full status with the incident, its start, when it was read and the page, `--once` prints a `Status do provedor:` line under the account plus the note on failures during an incident, `--json` keeps its shape, and `export::v1` gains each account's `incident` (PRD 0011 RF5, ce8a06d).
 
 ## [0.48.0] - 2026-10-20
 
 ### Added
 
-- The desktop app can show the providers' public status, off until you turn it on in Settings → Privacy, which explains that the app will then make public, credential-free requests to the listed status domains of your configured providers: cards and the tray popover show a colored badge with an icon and text for a degraded service, partial or major outage, maintenance or an unreadable status page, with an "Open status page" link, the account details show the full status and when it was read, and the tray icon gets a red dot while any configured provider reports a partial outage or worse (PRD 0011 RF4, 4ea2fd9).
+- The desktop app can show the providers' public status, off until you turn it on in Settings → Privacy, which explains that the app will then make public, credential-free requests to the listed status domains of your configured providers: cards and the tray popover show a colored badge with an icon and text for a degraded service, partial or major outage, maintenance or an unreadable status page, with an "Open status page" link, the account details show the full status and when it was read, and the tray icon gets a red dot while any configured provider reports a partial outage or worse (PRD 0011 RF4, 03789e3).
 
 ## [0.47.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` can read the public status of the configured providers, off until the frontend enables it through `Monitor::incidents()`: each verified source is queried once per five minutes through the monitor's own HTTP client and query limit, with no credentials, an identified User-Agent, a 5-second timeout and a 1 MiB cap, and `Monitor::refresh_incidents`/`incident_statuses` report each provider as operational, degraded, partial or major outage, maintenance or unknown, with the active incident's cleaned-up title, start and public link; a failed status query keeps the last reading marked stale and never changes the quota reading, and while the provider reports an incident a failed query (error, rate limit or authentication) gains a note that the failure may not be from the account, plus a suggestion to wait before signing in again for authentication failures, without changing its status (PRD 0011 RF2, RF3, 64f2266).
+- `cuotai-core` can read the public status of the configured providers, off until the frontend enables it through `Monitor::incidents()`: each verified source is queried once per five minutes through the monitor's own HTTP client and query limit, with no credentials, an identified User-Agent, a 5-second timeout and a 1 MiB cap, and `Monitor::refresh_incidents`/`incident_statuses` report each provider as operational, degraded, partial or major outage, maintenance or unknown, with the active incident's cleaned-up title, start and public link; a failed status query keeps the last reading marked stale and never changes the quota reading, and while the provider reports an incident a failed query (error, rate limit or authentication) gains a note that the failure may not be from the account, plus a suggestion to wait before signing in again for authentication failures, without changing its status (PRD 0011 RF2, RF3, b9672a2).
 
 ## [0.46.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `incidents::source` with verified public status endpoints, wire formats, component filters and verification dates for 17 providers, sharing endpoints across related products and explicitly returning no source for the other 19 rather than implying they are operational; the provider guide records source policies and coverage limits, and looking up a source makes no network request or change to the CLI, TUI or desktop (PRD 0011 RF1, 074966d).
+- `cuotai-core` exposes `incidents::source` with verified public status endpoints, wire formats, component filters and verification dates for 17 providers, sharing endpoints across related products and explicitly returning no source for the other 19 rather than implying they are operational; the provider guide records source policies and coverage limits, and looking up a source makes no network request or change to the CLI, TUI or desktop (PRD 0011 RF1, d96e9f8).
 
 ## [0.45.0] - 2026-10-20
 
 ### Added
 
-- `cuotai --notify` now also announces usage alerts while the TUI is open, with the same evaluator as the desktop app: when a quota with a limit reaches 75% or 90% of use, runs out, or has slack again in the next window after it ran out, the header banner shows it ("14:31 · Claude: 90% of the 5-hour window used — Personal: Session (5h) · resets 19:00", in `CUOTAI_LANG`) and the terminal bell rings once (plus OSC 9 on iTerm2, WezTerm and Ghostty); each threshold is announced once per window, oscillating around it stays silent, a refresh's alerts share one bell and further ones wait a minute, a crossing already in the last reading when the TUI opened is not announced, nothing is saved between sessions and no provider is queried for an alert (PRD 0008 RF4, e421c1b).
+- `cuotai --notify` now also announces usage alerts while the TUI is open, with the same evaluator as the desktop app: when a quota with a limit reaches 75% or 90% of use, runs out, or has slack again in the next window after it ran out, the header banner shows it ("14:31 · Claude: 90% of the 5-hour window used — Personal: Session (5h) · resets 19:00", in `CUOTAI_LANG`) and the terminal bell rings once (plus OSC 9 on iTerm2, WezTerm and Ghostty); each threshold is announced once per window, oscillating around it stays silent, a refresh's alerts share one bell and further ones wait a minute, a crossing already in the last reading when the TUI opened is not announced, nothing is saved between sessions and no provider is queried for an alert (PRD 0008 RF4, c635ff5).
 
 ## [0.44.0] - 2026-10-20
 
 ### Added
 
-- `cuotai --notify` (off by default) announces quota resets while the TUI is open, with the same planner as the desktop app: when a used quota of a 5-hour, daily, weekly or monthly window reaches the reset time the provider reported, the header shows a banner ("14:30 · Claude: 5-hour quota reset (Personal)", in `CUOTAI_LANG`) for an hour, the terminal bell rings once (one bell for every account due together) and iTerm2, WezTerm and Ghostty also show an OSC 9 notification, never sent to other terminals or inside tmux and screen; each reset is announced once per session, a reset that passed before the TUI opened is not, nothing is saved, no provider is queried for it, and `--once`, `--json` and `--history` do not accept the flag (PRD 0003 RF4, e5f1573).
+- `cuotai --notify` (off by default) announces quota resets while the TUI is open, with the same planner as the desktop app: when a used quota of a 5-hour, daily, weekly or monthly window reaches the reset time the provider reported, the header shows a banner ("14:30 · Claude: 5-hour quota reset (Personal)", in `CUOTAI_LANG`) for an hour, the terminal bell rings once (one bell for every account due together) and iTerm2, WezTerm and Ghostty also show an OSC 9 notification, never sent to other terminals or inside tmux and screen; each reset is announced once per session, a reset that passed before the TUI opened is not, nothing is saved, no provider is queried for it, and `--once`, `--json` and `--history` do not accept the flag (PRD 0003 RF4, d4305e3).
 
 ### Fixed
 
-- Once a quota's reset time has passed, the TUI card now reads "renova agora" instead of "renova renova agora" (e5f1573).
+- Once a quota's reset time has passed, the TUI card now reads "renova agora" instead of "renova renova agora" (d4305e3).
 
 ## [0.43.0] - 2026-10-20
 
 ### Added
 
-- The desktop app sends a system notification when a quota with a limit crosses a usage threshold ("Claude: 90% of the 5-hour window used", with the account, the metric and the reset time), runs out, or has slack again in the next window after it ran out: the backend judges every reading the refresh applies, with no extra query and also with the window hidden in the tray, notifies each threshold once per window, never repeats after a restart (the state joins the reset notices in `<OS local data dir>/cuotai/notified.json`, digests and dates only, kept for 8 days), puts an account's alerts of one refresh in one notification and sends at most one per minute, grouping the rest (PRD 0008 RF2, 816ce15).
-- **Settings → Notifications** adds **Usage alerts** (off by default, asking the same system permission and sharing the test notification of reset notices), the thresholds as editable chips from 10 to 99% (75 and 90 by default), **Notify exhaustion** and **Notify recovery**, saved in `desktop.json`; the account's bell now mutes its usage alerts too, each quota can be muted in the account details (kept per provider and account name, forgotten when the account is removed), and the card, the tray popover, its menu and the account details highlight an account with an active alert while the exhausted look stays (PRD 0008 RF3, 816ce15).
+- The desktop app sends a system notification when a quota with a limit crosses a usage threshold ("Claude: 90% of the 5-hour window used", with the account, the metric and the reset time), runs out, or has slack again in the next window after it ran out: the backend judges every reading the refresh applies, with no extra query and also with the window hidden in the tray, notifies each threshold once per window, never repeats after a restart (the state joins the reset notices in `<OS local data dir>/cuotai/notified.json`, digests and dates only, kept for 8 days), puts an account's alerts of one refresh in one notification and sends at most one per minute, grouping the rest (PRD 0008 RF2, 251f307).
+- **Settings → Notifications** adds **Usage alerts** (off by default, asking the same system permission and sharing the test notification of reset notices), the thresholds as editable chips from 10 to 99% (75 and 90 by default), **Notify exhaustion** and **Notify recovery**, saved in `desktop.json`; the account's bell now mutes its usage alerts too, each quota can be muted in the account details (kept per provider and account name, forgotten when the account is removed), and the card, the tray popover, its menu and the account details highlight an account with an active alert while the exhausted look stays (PRD 0008 RF3, 251f307).
 
 ## [0.42.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `alerts::evaluate`, which decides from the readings already taken (no extra query) when a quota's consumption deserves a notice: crossing a threshold chosen between 10 and 99% (75 and 90 by default), exhaustion, and slack again in the next window after a notified exhaustion; only quotas with a cap count (never balance, credits, spend, usage, rate limits or missing values), each threshold fires once per window (a query crossing several reports only the highest, `resets_at` drifting up to 2 minutes is the same window), re-arms only after falling 5 points below it or in a new window, and nothing crossed in the past fires on the first reading after opening unless the previous recorded reading is at most 10 minutes older and was still below it; `alerts::AlertState` remembers it with digests and dates only (PRD 0008 RF1, 6bb1783).
+- `cuotai-core` exposes `alerts::evaluate`, which decides from the readings already taken (no extra query) when a quota's consumption deserves a notice: crossing a threshold chosen between 10 and 99% (75 and 90 by default), exhaustion, and slack again in the next window after a notified exhaustion; only quotas with a cap count (never balance, credits, spend, usage, rate limits or missing values), each threshold fires once per window (a query crossing several reports only the highest, `resets_at` drifting up to 2 minutes is the same window), re-arms only after falling 5 points below it or in a new window, and nothing crossed in the past fires on the first reading after opening unless the previous recorded reading is at most 10 minutes older and was still below it; `alerts::AlertState` remembers it with digests and dates only (PRD 0008 RF1, c1d068d).
 
 ## [0.41.0] - 2026-10-20
 
 ### Added
 
-- The desktop app sends a system notification when a quota resets, at the time the provider reported or a chosen lead time before it, scheduled by the app itself so it arrives with the window hidden in the tray: one notice per reset (several metrics of an account resetting together, or everything due after a suspension or a clock change, become one), never repeated after a restart (`<OS data dir>/cuotai/notified.json` keeps only digests and dates for 8 days), a reset missed by more than 10 minutes while the app was closed is not notified late, a postponed reset replaces the pending notice, and no provider is queried for it; the text names only the provider, the account and the metrics, in the language chosen in the app (PRD 0003 RF2, 29dc2cc).
-- **Settings → Notifications** turns quota reset notices on (off by default, asking the system permission first and explaining how to allow it when refused), chooses the lead time (at the time, 5, 15 or 60 min), the filter (only if used, only if exhausted, always) and whether "other" windows count, and sends a test notification; each account gets a bell on its card and in its details, kept per provider and account name in `desktop.json` (a rename turns it back on), and the tray menu, its tooltip and the tray popover show the next notice (PRD 0003 RF3, 29dc2cc).
+- The desktop app sends a system notification when a quota resets, at the time the provider reported or a chosen lead time before it, scheduled by the app itself so it arrives with the window hidden in the tray: one notice per reset (several metrics of an account resetting together, or everything due after a suspension or a clock change, become one), never repeated after a restart (`<OS data dir>/cuotai/notified.json` keeps only digests and dates for 8 days), a reset missed by more than 10 minutes while the app was closed is not notified late, a postponed reset replaces the pending notice, and no provider is queried for it; the text names only the provider, the account and the metrics, in the language chosen in the app (PRD 0003 RF2, 8e570cd).
+- **Settings → Notifications** turns quota reset notices on (off by default, asking the system permission first and explaining how to allow it when refused), chooses the lead time (at the time, 5, 15 or 60 min), the filter (only if used, only if exhausted, always) and whether "other" windows count, and sends a test notification; each account gets a bell on its card and in its details, kept per provider and account name in `desktop.json` (a rename turns it back on), and the tray menu, its tooltip and the tray popover show the next notice (PRD 0003 RF3, 8e570cd).
 
 ## [0.40.0] - 2026-10-20
 
 ### Added
 
-- The desktop account details show the recorded history of each metric as a compact area chart of the last 24 hours, 7 days or 30 days, with the last reading highlighted, a dashed marker at each reset, gaps where nothing was recorded, an equivalent table for screen readers, an explained empty state for an account without history and no animation with reduced motion; **Settings → History** can now turn recording off (on by default; what was recorded stays until erased) and shows the history's size on disk (PRD 0006 RF5, e522b44).
+- The desktop account details show the recorded history of each metric as a compact area chart of the last 24 hours, 7 days or 30 days, with the last reading highlighted, a dashed marker at each reset, gaps where nothing was recorded, an equivalent table for screen readers, an explained empty state for an account without history and no animation with reduced motion; **Settings → History** can now turn recording off (on by default; what was recorded stays until erased) and shows the history's size on disk (PRD 0006 RF5, d25a0cb).
 
 ## [0.39.0] - 2026-10-20
 
 ### Added
 
-- The TUI account details show the recorded history of each metric: a `▁▂▃▄▅▆▇█` sparkline of the last 24 hours, 7 days or 30 days (keys `1`, `2` and `3`) with its minimum, maximum and last value, blanks where nothing was recorded, and only the text summary on a narrow terminal; `cuotai --history [ACCOUNT] [--history-days N] [--json]` prints the series of every account (or one) with the window instances and their peaks, without querying any provider, says there is no data when nothing was recorded, and exits with 0 (data for every account), 2 (an account without data) or 1 (local error) (PRD 0006 RF6, b955116).
+- The TUI account details show the recorded history of each metric: a `▁▂▃▄▅▆▇█` sparkline of the last 24 hours, 7 days or 30 days (keys `1`, `2` and `3`) with its minimum, maximum and last value, blanks where nothing was recorded, and only the text summary on a narrow terminal; `cuotai --history [ACCOUNT] [--history-days N] [--json]` prints the series of every account (or one) with the window instances and their peaks, without querying any provider, says there is no data when nothing was recorded, and exits with 0 (data for every account), 2 (an account without data) or 1 (local error) (PRD 0006 RF6, 01c3256).
 
 ## [0.38.0] - 2026-10-20
 
 ### Added
 
-- Every successful reading is now recorded in the local measurement history by the TUI, the desktop app and `--once`/`--json`, off the refresh's critical path (a bounded queue: a slow disk never delays a query and a full queue drops the reading with a visible warning), skipping a reading identical to the previous one of its metric within 15 minutes unless its window changed; errors and failed logins record nothing. The history keeps 90 days by default (7 to 365 via `--history-days` or Settings → History on the desktop, saved in `desktop.json`), folds samples older than 7 days to one per hour while keeping each window's peak, stays under 64 MiB by deleting the oldest samples with a visible warning, and can be exported to CSV or JSON and erased per account or entirely (with confirmation) from Settings → History. On opening, each account shows its last recorded reading as stale until the first query answers, and the consumption pace projects from the recent slope of the recorded samples when there are enough (PRD 0006 RF2, RF4, e743686).
+- Every successful reading is now recorded in the local measurement history by the TUI, the desktop app and `--once`/`--json`, off the refresh's critical path (a bounded queue: a slow disk never delays a query and a full queue drops the reading with a visible warning), skipping a reading identical to the previous one of its metric within 15 minutes unless its window changed; errors and failed logins record nothing. The history keeps 90 days by default (7 to 365 via `--history-days` or Settings → History on the desktop, saved in `desktop.json`), folds samples older than 7 days to one per hour while keeping each window's peak, stays under 64 MiB by deleting the oldest samples with a visible warning, and can be exported to CSV or JSON and erased per account or entirely (with confirmation) from Settings → History. On opening, each account shows its last recorded reading as stale until the first query answers, and the consumption pace projects from the recent slope of the recorded samples when there are enough (PRD 0006 RF2, RF4, e823792).
 
 ## [0.37.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `history::HistoryStore`, a local measurement history in its own private SQLite file (`<OS local data dir>/cuotai/history/history.sqlite3`, directory `0700` and file `0600` on Unix) shared by every front end pointing at the same TOML: it records per account and metric only numbers and window metadata (never secrets, account names, URLs or notes; a missing value stays `NULL`), keeps an account's series when it is moved and starts a new one when it is renamed or gets another credential, product or region, marks removed accounts for pruning, writes safely from two instances at once, reports every storage failure as an error, and answers `latest` (the last reading per metric with its original time), `series`, `windows` (use per window instance with reset detection) and `bounds` without any network; nothing records into it yet (PRD 0006 RF1, RF3, b89c2d8).
+- `cuotai-core` exposes `history::HistoryStore`, a local measurement history in its own private SQLite file (`<OS local data dir>/cuotai/history/history.sqlite3`, directory `0700` and file `0600` on Unix) shared by every front end pointing at the same TOML: it records per account and metric only numbers and window metadata (never secrets, account names, URLs or notes; a missing value stays `NULL`), keeps an account's series when it is moved and starts a new one when it is renamed or gets another credential, product or region, marks removed accounts for pruning, writes safely from two instances at once, reports every storage failure as an error, and answers `latest` (the last reading per metric with its original time), `series`, `windows` (use per window instance with reset detection) and `bounds` without any network; nothing records into it yet (PRD 0006 RF1, RF3, a0ccecd).
 
 ## [0.36.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes the versioned `export::v1` contract (`Export::from_cycle`), built from the state a `RefreshCycle` already holds without querying any provider: per account its stable key, class, current report, age, freshness, the preserved stale reading, binding metric, pace per metric and usage access descriptor, with credential variable names, URL credentials and (unless "include identity" is on) e-mails redacted and `null` for every missing value, documented in `docs/export-v1.md` with a JSON Schema and a reference output that tests guard against accidental changes (PRD 0012 RF1, ed5f027).
+- `cuotai-core` exposes the versioned `export::v1` contract (`Export::from_cycle`), built from the state a `RefreshCycle` already holds without querying any provider: per account its stable key, class, current report, age, freshness, the preserved stale reading, binding metric, pace per metric and usage access descriptor, with credential variable names, URL credentials and (unless "include identity" is on) e-mails redacted and `null` for every missing value, documented in `docs/export-v1.md` with a JSON Schema and a reference output that tests guard against accidental changes (PRD 0012 RF1, f6221a2).
 
 ## [0.35.1] - 2026-10-20
 
 ### Changed
 
-- `docs/providers.md` gains a usage access matrix with the level, credential class, plan requirement, scope and evidence of every provider and of each mode that changes the queried interface, generated from `cuotai-core`'s `access::describe` and checked by a test that fails with regeneration instructions when they drift, and the new-provider guides list the access descriptor as a mandatory step (PRD 0005 RF5, 40bbc64).
+- `docs/providers.md` gains a usage access matrix with the level, credential class, plan requirement, scope and evidence of every provider and of each mode that changes the queried interface, generated from `cuotai-core`'s `access::describe` and checked by a test that fails with regeneration instructions when they drift, and the new-provider guides list the access descriptor as a mandatory step (PRD 0005 RF5, 21f6567).
 
 ## [0.35.0] - 2026-10-20
 
 ### Added
 
-- Dashboard cards and account details in the TUI and the desktop app show, discreetly, how each account's usage is read (its level and summary); an `Unavailable` account shows its reason instead of a generic failure, and an `Undocumented` account whose response no longer matches the known interface says the interface may have changed and points to the public contract it follows, in Portuguese, English and Spanish; `cuotai-core` serializes the descriptor for the `export::v1` contract while the current `--json` output is unchanged (PRD 0005 RF4, 594aa92).
+- Dashboard cards and account details in the TUI and the desktop app show, discreetly, how each account's usage is read (its level and summary); an `Unavailable` account shows its reason instead of a generic failure, and an `Undocumented` account whose response no longer matches the known interface says the interface may have changed and points to the public contract it follows, in Portuguese, English and Spanish; `cuotai-core` serializes the descriptor for the `export::v1` contract while the current `--json` output is unchanged (PRD 0005 RF4, 1ee824a).
 
 ## [0.34.0] - 2026-10-20
 
 ### Added
 
-- The TUI wizard and the desktop account dialog show how each provider's usage is read: the picker labels every provider `Official`, `Undocumented`, `Derived` or `Unavailable`; the credential step adds, under the credential help, which credential the query needs, its risk (for example "may change without notice"), any plan requirement and, for `Unavailable`, the reason; the per-query cost warning now comes from the same description; and saving an `Unavailable` account shows the reason first and needs an explicit "Save anyway" (a second Enter in the TUI), in Portuguese, English and Spanish (PRD 0005 RF3, 6e448ea).
+- The TUI wizard and the desktop account dialog show how each provider's usage is read: the picker labels every provider `Official`, `Undocumented`, `Derived` or `Unavailable`; the credential step adds, under the credential help, which credential the query needs, its risk (for example "may change without notice"), any plan requirement and, for `Unavailable`, the reason; the per-query cost warning now comes from the same description; and saving an `Unavailable` account shows the reason first and needs an explicit "Save anyway" (a second Enter in the TUI), in Portuguese, English and Spanish (PRD 0005 RF3, ec81587).
 
 ## [0.33.0] - 2026-10-20
 
 ### Added
 
-- `cuotai-core` exposes `access::describe(&Account) -> UsageAccess`, a pure, network-free description of how each account's usage is read: the level (`Official` with a vendor documentation URL, `Undocumented`, `Derived` or `Unavailable` with a mandatory reason), the credential class, the plan requirement, the scope, whether every query is billed and the evidence with its verification date, for all 36 providers and the product/mode/login variants that change the queried interface, with `access.*` texts in the `en-US` and `es` core catalogs and Portuguese fallbacks (PRD 0005 RF1, RF2, 79445c0).
+- `cuotai-core` exposes `access::describe(&Account) -> UsageAccess`, a pure, network-free description of how each account's usage is read: the level (`Official` with a vendor documentation URL, `Undocumented`, `Derived` or `Unavailable` with a mandatory reason), the credential class, the plan requirement, the scope, whether every query is billed and the evidence with its verification date, for all 36 providers and the product/mode/login variants that change the queried interface, with `access.*` texts in the `en-US` and `es` core catalogs and Portuguese fallbacks (PRD 0005 RF1, RF2, 9d4b6b1).
 
 ## [0.32.0] - 2026-10-20
 
 ### Added
 
-- The TUI and `--once` show the consumption pace until the reset: each eligible metric on a dashboard card gets a stage icon (`↓` in reserve, `→` on pace, `↑` above the pace, `✕` limit reached), the details add a line per metric with the stage, whether it lasts until the reset or when it runs out, and the expected use, and `--once` prints a `Ritmo:` line under each eligible metric, in `CUOTAI_LANG`; it is a linear estimate, windows that just opened, have no reset or show a stale reading get none, and `--json` is unchanged (PRD 0007 RF4, 91efa8b).
+- The TUI and `--once` show the consumption pace until the reset: each eligible metric on a dashboard card gets a stage icon (`↓` in reserve, `→` on pace, `↑` above the pace, `✕` limit reached), the details add a line per metric with the stage, whether it lasts until the reset or when it runs out, and the expected use, and `--once` prints a `Ritmo:` line under each eligible metric, in `CUOTAI_LANG`; it is a linear estimate, windows that just opened, have no reset or show a stale reading get none, and `--json` is unchanged (PRD 0007 RF4, 0a94bc8).
 
 ## [0.31.0] - 2026-10-20
 
 ### Added
 
-- The desktop app shows the consumption pace until the reset: a short line under the card's bar for the most restrictive metric ("Week: 8 points in reserve · lasts until the reset", or "runs out at 16:40, 2h 10m before the reset"), the pace of every metric in the details with an "Expected 47% used" mark drawn over the bar, and the same outlook in the tray tooltip and list; it is a linear estimate, windows that just opened or have no reset show nothing, and Settings → Appearance can hide it (on by default, saved in `desktop.json`) (PRD 0007 RF3, f64f5ba).
+- The desktop app shows the consumption pace until the reset: a short line under the card's bar for the most restrictive metric ("Week: 8 points in reserve · lasts until the reset", or "runs out at 16:40, 2h 10m before the reset"), the pace of every metric in the details with an "Expected 47% used" mark drawn over the bar, and the same outlook in the tray tooltip and list; it is a linear estimate, windows that just opened or have no reset show nothing, and Settings → Appearance can hide it (on by default, saved in `desktop.json`) (PRD 0007 RF3, 0f1727d).
 
 ## [0.30.0] - 2026-10-20
 
 ### Added
 
-- The desktop app can group accounts whose quota is used up or blocked in a collapsible "Recharging" section, below the others, where each card shows when it comes back ("Returns Today 14:30", or "Return unknown" when the provider gives no reset time); it is an option in Settings → Appearance, off by default, the group opens and closes with the mouse or Enter/Space, and the manual order holds inside each group without ever changing the order saved in `cuotai.toml` (PRD 0010 RF4, 571fac3).
+- The desktop app can group accounts whose quota is used up or blocked in a collapsible "Recharging" section, below the others, where each card shows when it comes back ("Returns Today 14:30", or "Return unknown" when the provider gives no reset time); it is an option in Settings → Appearance, off by default, the group opens and closes with the mouse or Enter/Space, and the manual order holds inside each group without ever changing the order saved in `cuotai.toml` (PRD 0010 RF4, 32c6e7d).
 
 ## [0.29.0] - 2026-10-20
 
 ### Added
 
-- The TUI and `--once` show how old each reading is: every dashboard card says `há 3 min`, the details add the age plus the measurement time in UTC and in the local time zone, and each `--once` account heading ends with `consultado há 3 min`. When a query fails after a success, the card and the details keep the last valid metrics, still and marked `(desatualizada) há 42 min` with their original age, beside the cause of the failure, until the next successful query; `--json` and the exit codes are unchanged (PRD 0010 RF5, 8f23ed7).
+- The TUI and `--once` show how old each reading is: every dashboard card says `há 3 min`, the details add the age plus the measurement time in UTC and in the local time zone, and each `--once` account heading ends with `consultado há 3 min`. When a query fails after a success, the card and the details keep the last valid metrics, still and marked `(desatualizada) há 42 min` with their original age, beside the cause of the failure, until the next successful query; `--json` and the exit codes are unchanged (PRD 0010 RF5, 07cb225).
 
 ## [0.28.0] - 2026-10-20
 
 ### Added
 
-- The desktop app shows how old each reading is: every card, tray tile, list row, details view and tray menu line says "3 min ago" with a Fresh, Aging or Stale label and icon (the core judges it against the account's refresh interval), and the tray icon tooltip names the oldest reading. When a query fails after a success, the card keeps the last valid metrics dimmed and still, with a "Stale · 42 min ago" badge and the cause of the failure, until the next successful query removes the badge; an authentication failure drops the old values (PRD 0010 RF3, 4a87dbf).
+- The desktop app shows how old each reading is: every card, tray tile, list row, details view and tray menu line says "3 min ago" with a Fresh, Aging or Stale label and icon (the core judges it against the account's refresh interval), and the tray icon tooltip names the oldest reading. When a query fails after a success, the card keeps the last valid metrics dimmed and still, with a "Stale · 42 min ago" badge and the cause of the failure, until the next successful query removes the badge; an authentication failure drops the old values (PRD 0010 RF3, 74aa738).
 
 ## [0.27.1] - 2026-10-19
 
 ### Added
 
-- Every push and pull request is now checked on Linux, macOS and Windows (formatting, Clippy and the tests of the TUI/core and desktop workspaces, plus the dependency-license check); the desktop app gained the Windows icon its Windows build requires, and its test executables now carry the Windows manifest they need to start (PRD 0019 RF2, 4943177).
+- Every push and pull request is now checked on Linux, macOS and Windows (formatting, Clippy and the tests of the TUI/core and desktop workspaces, plus the dependency-license check); the desktop app gained the Windows icon its Windows build requires, and its test executables now carry the Windows manifest they need to start (PRD 0019 RF2, ce12073).
 
 ## [0.27.0] - 2026-10-19
 
 ### Added
 
-- The TUI and `--once` show each account's most restrictive limit, chosen by the core: a dashboard card leads with that metric instead of the first one (an account blocked by the weekly window and free on the 5-hour one shows the week first), the details mark it with "◆ limitante" and a "LIMITE" summary line while every metric stays listed, and `--once` opens with one summary line per account such as `Claude  bloqueada até 14:30 pela janela semanal` (in `CUOTAI_LANG`, local time); `--json` and the exit codes are unchanged (PRD 0009 RF3, 7b73876).
+- The TUI and `--once` show each account's most restrictive limit, chosen by the core: a dashboard card leads with that metric instead of the first one (an account blocked by the weekly window and free on the 5-hour one shows the week first), the details mark it with "◆ limitante" and a "LIMITE" summary line while every metric stays listed, and `--once` opens with one summary line per account such as `Claude  bloqueada até 14:30 pela janela semanal` (in `CUOTAI_LANG`, local time); `--json` and the exit codes are unchanged (PRD 0009 RF3, 5b13fd8).
 
 ## [0.26.0] - 2026-10-19
 
 ### Added
 
-- The desktop app shows each account's most restrictive limit, chosen by the core: the tray ring uses it (an account blocked by the weekly window and free on the 5-hour one shows the week), the list view, tray menu and ring tooltip say "Blocked until <time>" when the account is blocked, each card shows a "Week · 100%" chip next to its state and highlights that window and that metric in the details while every other metric stays visible, and Settings offers an optional "Most restrictive first" order that never rewrites the manual drag-and-drop order shared with the TUI (PRD 0009 RF2, ff3429f).
+- The desktop app shows each account's most restrictive limit, chosen by the core: the tray ring uses it (an account blocked by the weekly window and free on the 5-hour one shows the week), the list view, tray menu and ring tooltip say "Blocked until <time>" when the account is blocked, each card shows a "Week · 100%" chip next to its state and highlights that window and that metric in the details while every other metric stays visible, and Settings offers an optional "Most restrictive first" order that never rewrites the manual drag-and-drop order shared with the TUI (PRD 0009 RF2, 0e07e4d).
 
 ## [0.25.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core`'s `RefreshCycle` keeps each account's last successful reading, with its original `checked_at`, when a later query fails, and exposes it through `last_good_report` only while the current report is not `Ready`; a success replaces it, an authentication failure or an edit to the account discards it, moves and removals carry it with the account, and the current report, `snapshot()` and `--json` stay unchanged. It lasts for the session until local history (PRD 0006) persists it (PRD 0010 RF2, c2ebd6d).
+- `cuotai-core`'s `RefreshCycle` keeps each account's last successful reading, with its original `checked_at`, when a later query fails, and exposes it through `last_good_report` only while the current report is not `Ready`; a success replaces it, an authentication failure or an edit to the account discards it, moves and removals carry it with the account, and the current report, `snapshot()` and `--json` stay unchanged. It lasts for the session until local history (PRD 0006) persists it (PRD 0010 RF2, 6ad2f11).
 
 ## [0.24.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core` exposes `resets::upcoming`, which plans quota reset notices from the readings already taken (no extra query): 5-hour, daily, weekly and monthly quotas (`other` windows on request) with a future reset, filtered by "only if used", "only if exhausted" or "always", with an optional lead time, grouping one account's metrics that reset in the same minute, skipping accounts with notices off, and treating resets that drift by up to 2 minutes as the same one; `Account::key` gives the stable provider-plus-name account key it uses (PRD 0003 RF1, 6d37344).
+- `cuotai-core` exposes `resets::upcoming`, which plans quota reset notices from the readings already taken (no extra query): 5-hour, daily, weekly and monthly quotas (`other` windows on request) with a future reset, filtered by "only if used", "only if exhausted" or "always", with an optional lead time, grouping one account's metrics that reset in the same minute, skipping accounts with notices off, and treating resets that drift by up to 2 minutes as the same one; `Account::key` gives the stable provider-plus-name account key it uses (PRD 0003 RF1, 691e911).
 
 ## [0.23.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core` exposes `pace::assess`, which compares a 5-hour, daily, weekly or monthly quota with a uniform pace until its reset: how far ahead or in reserve the real use is, a stage with a semantic tone, and whether the current pace lasts until the reset or when it runs out, as a linear estimate from recent samples or the window average; it returns nothing for missing data or a window that has just opened, and its labels come in Portuguese, English and Spanish (PRD 0007 RF1, RF2, 51e7f24).
+- `cuotai-core` exposes `pace::assess`, which compares a 5-hour, daily, weekly or monthly quota with a uniform pace until its reset: how far ahead or in reserve the real use is, a stage with a semantic tone, and whether the current pace lasts until the reset or when it runs out, as a linear estimate from recent samples or the window average; it returns nothing for missing data or a window that has just opened, and its labels come in Portuguese, English and Spanish (PRD 0007 RF1, RF2, ae4f1c0).
 
 ## [0.22.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core` exposes `metrics::binding`, which picks the metric that restricts each account the most right now (the exhausted one with the latest return when the account is blocked, otherwise the one with the least left), plus `binding_ratio`/`cmp_binding` to sort accounts by it and a localized one-line summary in Portuguese, English and Spanish (PRD 0009 RF1, RF4, eddf602).
+- `cuotai-core` exposes `metrics::binding`, which picks the metric that restricts each account the most right now (the exhausted one with the latest return when the account is blocked, otherwise the one with the least left), plus `binding_ratio`/`cmp_binding` to sort accounts by it and a localized one-line summary in Portuguese, English and Spanish (PRD 0009 RF1, RF4, cba46ef).
 
 ## [0.21.0] - 2026-10-19
 
 ### Added
 
-- `cuotai-core` exposes `freshness::age` and `freshness::assess`, which tell how old a measurement is and classify it as fresh, aging or stale against the account's effective refresh interval; a system clock that went backwards reads as age zero instead of an error (PRD 0010 RF1, 5fc1e40).
+- `cuotai-core` exposes `freshness::age` and `freshness::assess`, which tell how old a measurement is and classify it as fresh, aging or stale against the account's effective refresh interval; a system clock that went backwards reads as age zero instead of an error (PRD 0010 RF1, b2106f2).
 
 ## [0.20.0] - 2026-10-19
 
 ### Added
 
-- The terminal dashboard animates: gauges and detail bars ease to the new value with 1/8-cell resolution and a level gradient on truecolor terminals, the class label blinks on a change, the account being refreshed shows a spinner, and details, About and Models open and close with a short wipe. `--no-animations` or `CUOTAI_NO_ANIMATIONS` turn it off; it is also off on `TERM=dumb` and over SSH (`CUOTAI_ANIMATIONS=1` re-enables), and an idle terminal does not redraw (PRD 0004 RF4, c84344a).
+- The terminal dashboard animates: gauges and detail bars ease to the new value with 1/8-cell resolution and a level gradient on truecolor terminals, the class label blinks on a change, the account being refreshed shows a spinner, and details, About and Models open and close with a short wipe. `--no-animations` or `CUOTAI_NO_ANIMATIONS` turn it off; it is also off on `TERM=dumb` and over SSH (`CUOTAI_ANIMATIONS=1` re-enables), and an idle terminal does not redraw (PRD 0004 RF4, f57cc3e).
 
 ## [0.19.0] - 2026-10-19
 
 ### Added
 
-- Desktop dialogs open and close with a fade and scale over a blurred backdrop, the details dialog grows from its card, the tray window fades in and its usage rings animate from the previous value, and theme and language switches cross-fade when the system WebView supports it. Reduced or disabled motion keeps everything instant (PRD 0004 RF3, 59f9f22).
+- Desktop dialogs open and close with a fade and scale over a blurred backdrop, the details dialog grows from its card, the tray window fades in and its usage rings animate from the previous value, and theme and language switches cross-fade when the system WebView supports it. Reduced or disabled motion keeps everything instant (PRD 0004 RF3, 251b5bc).
 
 ## [0.18.1] - 2026-10-19
 
 ### Security
 
-- Every request that carries a credential is now refused unless it uses HTTPS (plain HTTP is only allowed to the local machine, for sign-in callbacks), for provider queries and sign-in flows alike. The failure is reported without exposing the address (3855c72).
+- Every request that carries a credential is now refused unless it uses HTTPS (plain HTTP is only allowed to the local machine, for sign-in callbacks), for provider queries and sign-in flows alike. The failure is reported without exposing the address (07918f0).
 
 ## [0.18.0] - 2026-10-19
 
 ### Added
 
-- Desktop dashboard effects: percentages count up to the new value, a level change highlights the card once, exhausting a quota shakes it once, new cards enter in a cascade, reordering slides the cards, removing one shrinks it away, accounts waiting for data show a shimmering skeleton, and hover, focus, the next-query chip and the refresh button react. An idle dashboard runs no animation (PRD 0004 RF2, d89c1b1).
+- Desktop dashboard effects: percentages count up to the new value, a level change highlights the card once, exhausting a quota shakes it once, new cards enter in a cascade, reordering slides the cards, removing one shrinks it away, accounts waiting for data show a shimmering skeleton, and hover, focus, the next-query chip and the refresh button react. An idle dashboard runs no animation (PRD 0004 RF2, d5d3274).
 
 ## [0.17.2] - 2026-10-19
 
 ### Changed
 
-- Cuotai is licensed under `MIT OR Apache-2.0` (`LICENSE-MIT`, `LICENSE-APACHE`), shown in the About screen. The repository gains `CONTRIBUTING.md`, `SECURITY.md` with private vulnerability reporting, issue templates for defects, provider problems and new providers, and a `cargo deny` policy for licenses, advisories and sources (PRD 0019 RF1, 2509443).
+- Cuotai is licensed under `MIT OR Apache-2.0` (`LICENSE-MIT`, `LICENSE-APACHE`), shown in the About screen. The repository gains `CONTRIBUTING.md`, `SECURITY.md` with private vulnerability reporting, issue templates for defects, provider problems and new providers, and a `cargo deny` policy for licenses, advisories and sources (PRD 0019 RF1, 860b961).
 
 ## [0.17.1] - 2026-10-19
 
 ### Security
 
-- Updated `rustls` to 0.23.46, which fixes four advisories (RUSTSEC-2026-0346 to RUSTSEC-2026-0349), and replaced the yanked `yoke-derive` with 0.8.4 (8c72af8).
+- Updated `rustls` to 0.23.46, which fixes four advisories (RUSTSEC-2026-0346 to RUSTSEC-2026-0349), and replaced the yanked `yoke-derive` with 0.8.4 (689d342).
 
 ## [0.17.0] - 2026-10-19
 
 ### Added
 
-- Motion foundation for the desktop app: duration and easing tokens in the theme contract (Win98 steps, CRT without interpolation), support for the system's reduced-motion setting and a new **Settings → Appearance → Animations** option (System, Always, Reduced, Off) (PRD 0004 RF1, 6725548).
+- Motion foundation for the desktop app: duration and easing tokens in the theme contract (Win98 steps, CRT without interpolation), support for the system's reduced-motion setting and a new **Settings → Appearance → Animations** option (System, Always, Reduced, Off) (PRD 0004 RF1, 4c89fad).
 
 ### Changed
 
-- The desktop dashboard now updates card by card instead of redrawing everything, so keyboard focus and scroll position survive a refresh and the usage bars animate to their new value (PRD 0004 RF1, 6725548).
+- The desktop dashboard now updates card by card instead of redrawing everything, so keyboard focus and scroll position survive a refresh and the usage bars animate to their new value (PRD 0004 RF1, 4c89fad).
 
 ## [0.16.0] - 2026-10-18
 
 ### Added
 
-- The About screen of the terminal and desktop apps credits the color palettes behind the themes (Dracula, Catppuccin, GitHub Primer, One Dark, Tokyo Night, Yaru) in a new Themes section and thanks projects created by Brazilians (d407d0d).
+- The About screen of the terminal and desktop apps credits the color palettes behind the themes (Dracula, Catppuccin, GitHub Primer, One Dark, Tokyo Night, Yaru) in a new Themes section and thanks projects created by Brazilians (6493e33).
 
 ## [0.15.0] - 2026-10-18
 
 ### Added
 
-- Each provider card shows how many models were synchronized for the account, in the terminal and in the desktop footer, read from the local cache without any network request (c5d91b5).
+- Each provider card shows how many models were synchronized for the account, in the terminal and in the desktop footer, read from the local cache without any network request (fa8a902).
 
 ### Fixed
 
-- Ollama Cloud accounts no longer fail with an incompatible-response error: the current usage report (requests, tokens and spend per period) is shown as usage metrics, with a note that the API no longer exposes plan limits (1769019).
+- Ollama Cloud accounts no longer fail with an incompatible-response error: the current usage report (requests, tokens and spend per period) is shown as usage metrics, with a note that the API no longer exposes plan limits (a57c62d).
 
 ## [0.14.4] - 2026-10-18
 
 ### Changed
 
-- The desktop open-source libraries section now thanks the projects instead of listing technical details, in Portuguese, English and Spanish (d049838).
+- The desktop open-source libraries section now thanks the projects instead of listing technical details, in Portuguese, English and Spanish (f3f9e42).
 
 ### Fixed
 
-- Re-authenticating an OAuth account whose configuration entry does not change no longer fails with "the new configuration does not match the declared operation" (8716dce).
-- The Bailian sign-in now saves the dedicated profile it generates when the profile field is left blank, instead of failing to save the account (b636d01).
+- Re-authenticating an OAuth account whose configuration entry does not change no longer fails with "the new configuration does not match the declared operation" (e62cd46).
+- The Bailian sign-in now saves the dedicated profile it generates when the profile field is left blank, instead of failing to save the account (506dac6).
 
 ## [0.14.3] - 2026-10-17
 
 ### Added
 
-- An open-source libraries screen in the terminal (About, `?`) and in the desktop app (Settings → About), published by the core and checked against the manifests (b82de6a).
-- Claude and ChatGPT/Codex subscriptions list their models on demand, in the terminal (`m` in the details) and in the desktop Models section (f093d65).
+- An open-source libraries screen in the terminal (About, `?`) and in the desktop app (Settings → About), published by the core and checked against the manifests (e05c708).
+- Claude and ChatGPT/Codex subscriptions list their models on demand, in the terminal (`m` in the details) and in the desktop Models section (776a106).
 
 ### Changed
 
-- Every provider now tries to list the account's models with the credential it already stores for quotas, following the 9router requests. Providers without such an endpoint show a built-in list labelled as not being a query of the account (PRD 0002 RF4, 2ae1e79).
+- Every provider now tries to list the account's models with the credential it already stores for quotas, following the 9router requests. Providers without such an endpoint show a built-in list labelled as not being a query of the account (PRD 0002 RF4, a5c3d1f).
 
 ### Security
 
-- Updated `ratatui` to 0.30, which removes the vulnerable `lru` 0.12 (GHSA-rhfx-m35p-ff5j), and added a test that fails if a vulnerable `lru` returns (c45e6f7).
+- Updated `ratatui` to 0.30, which removes the vulnerable `lru` 0.12 (GHSA-rhfx-m35p-ff5j), and added a test that fails if a vulnerable `lru` returns (d51298a).
 
 ## [0.14.2] - 2026-10-17
 
 ### Added
 
-- Provider logos are vector glyphs painted on a tile in the brand color, sharp at any size and following each theme's corner radius (6d81982).
+- Provider logos are vector glyphs painted on a tile in the brand color, sharp at any size and following each theme's corner radius (5b427c0).
 
 ### Security
 
-- Guard against the unsafe `glib` 0.18 `VariantStrIter` API (GHSA-wrw7-89jp-8q8g): a test fails if the API is used while an affected `glib` is resolved. Nothing in the tree uses it today (fc1ad07).
+- Guard against the unsafe `glib` 0.18 `VariantStrIter` API (GHSA-wrw7-89jp-8q8g): a test fails if the API is used while an affected `glib` is resolved. Nothing in the tree uses it today (c8d49bc).
 
 ## [0.14.1] - 2026-10-17
 
-No user-visible changes (documentation only: PRD 0002 marked as implemented, 089d964).
+No user-visible changes (documentation only: PRD 0002 marked as implemented, 79c9505).
 
 ## [0.14.0] - 2026-10-17
 
 ### Added
 
-- The terminal and the desktop app warn when they are using different configuration files, showing the path of the other app and how to align them, since accounts and model caches are then separate (PRD 0002 RF1.2, 6aaea88).
+- The terminal and the desktop app warn when they are using different configuration files, showing the path of the other app and how to align them, since accounts and model caches are then separate (PRD 0002 RF1.2, 163e42a).
 
 ## [0.13.0] - 2026-10-17
 
 ### Added
 
-- A searchable Models section in the desktop details, tray popover and account dialog, with keyboard navigation, a manual **Sync models** button, and the source and date of every list; a failed sync keeps the previous catalog (PRD 0002 RF6, 7ece4ee).
+- A searchable Models section in the desktop details, tray popover and account dialog, with keyboard navigation, a manual **Sync models** button, and the source and date of every list; a failed sync keeps the previous catalog (PRD 0002 RF6, 055da24).
 
 ## [0.12.0] - 2026-10-17
 
 ### Added
 
-- A Models section in the terminal (`m` in the account details and in the wizard's provider step) with local search, source, count and date, and a manual sync that does not trigger a quota refresh (PRD 0002 RF5, a399455).
+- A Models section in the terminal (`m` in the account details and in the wizard's provider step) with local search, source, count and date, and a manual sync that does not trigger a quota refresh (PRD 0002 RF5, 2c00b88).
 
 ## [0.11.0] - 2026-10-17
 
 ### Added
 
-- Model listing for Groq, AWS Bedrock, Antigravity, Gemini AI Studio, Kimi, Poolside and Alibaba Model Studio through their documented endpoints, and a per-provider matrix of the 36 providers with sources in `docs/providers.md`. Providers without a verified contract show why, without any network request (PRD 0002 RF4, 051b1f5).
+- Model listing for Groq, AWS Bedrock, Antigravity, Gemini AI Studio, Kimi, Poolside and Alibaba Model Studio through their documented endpoints, and a per-provider matrix of the 36 providers with sources in `docs/providers.md`. Providers without a verified contract show why, without any network request (PRD 0002 RF4, a6bbb21).
 
 ## [0.10.0] - 2026-10-17
 
 ### Added
 
-- Model catalogs are cached in a local SQLite file (private permissions, digests only, no secrets). Moving an account keeps its catalog, editing or renaming it starts a new one, removing it discards it, and several windows or processes make a single request. An interrupted sync is shown as interrupted instead of retried (PRD 0002 RF3, 2d7a585).
+- Model catalogs are cached in a local SQLite file (private permissions, digests only, no secrets). Moving an account keeps its catalog, editing or renaming it starts a new one, removing it discards it, and several windows or processes make a single request. An interrupted sync is shown as interrupted instead of retried (PRD 0002 RF3, 86ef2ce).
 
 ## [0.9.0] - 2026-10-17
 
 ### Added
 
-- On-demand model catalog per account: the list, its state (not fetched, ready, failed, unsupported) and a manual re-sync, separate from the quota refresh. Groq is the first provider to list models (PRD 0002 RF2, d1a98ca).
+- On-demand model catalog per account: the list, its state (not fetched, ready, failed, unsupported) and a manual re-sync, separate from the quota refresh. Groq is the first provider to list models (PRD 0002 RF2, dacc619).
 
 ## [0.8.0] - 2026-10-17
 
 ### Added
 
-- The terminal and the desktop app can share one configuration file: the desktop lets you pick the terminal's TOML (or go back to the default), both show the path and where it came from, and they resolve it the same way (`--config`, `CUOTAI_CONFIG`, `./cuotai.toml`, then the OS directory) (PRD 0002 RF1, ec96aff).
+- The terminal and the desktop app can share one configuration file: the desktop lets you pick the terminal's TOML (or go back to the default), both show the path and where it came from, and they resolve it the same way (`--config`, `CUOTAI_CONFIG`, `./cuotai.toml`, then the OS directory) (PRD 0002 RF1, 1288a78).
 
 ## [0.7.2] - 2026-10-17
 
 ### Fixed
 
-- The desktop no longer recomputes the merged translation catalog on every lookup, and no longer shows "0% free" for an available metric that has no measured value (b4df3d1).
+- The desktop no longer recomputes the merged translation catalog on every lookup, and no longer shows "0% free" for an available metric that has no measured value (eca9692).
 
 ## [0.7.1] - 2026-10-17
 
-No user-visible changes (the account identity shown on the cards is now derived in the core, PRD 0001 RF5/RF8, 399fcd3).
+No user-visible changes (the account identity shown on the cards is now derived in the core, PRD 0001 RF5/RF8, 1050448).
 
 ## [0.7.0] - 2026-10-17
 
 ### Added
 
-- Account options declare which authentication modes they apply to. Switching the mode replaces values that no longer apply and shows a warning in the terminal and in the desktop app, and saving an invalid combination is rejected with a clear message (PRD 0001 RF11, acf2849).
+- Account options declare which authentication modes they apply to. Switching the mode replaces values that no longer apply and shows a warning in the terminal and in the desktop app, and saving an invalid combination is rejected with a clear message (PRD 0001 RF11, 0ee19b7).
 
 ### Changed
 
-- Kiro uses a single `auth_method` option that accepts `google`, `github`, `import`, `api_key` and `external_idp` (default `google`); native sign-in is limited to `builder-id` and `idc`. Existing accounts keep loading and being queried (PRD 0001 RF11, acf2849).
+- Kiro uses a single `auth_method` option that accepts `google`, `github`, `import`, `api_key` and `external_idp` (default `google`); native sign-in is limited to `builder-id` and `idc`. Existing accounts keep loading and being queried (PRD 0001 RF11, 0ee19b7).
 
 ## [0.6.0] - 2026-10-17
 
 ### Added
 
-- Every metric carries an explicit `kind` (`quota`, `rate_limit`, `balance`, `credits`, `spend`, `usage`) and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other`) in the snapshot and in `--json` (additive fields), so the desktop app no longer guesses them from labels (PRD 0001 RF10, 0163ec4).
+- Every metric carries an explicit `kind` (`quota`, `rate_limit`, `balance`, `credits`, `spend`, `usage`) and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other`) in the snapshot and in `--json` (additive fields), so the desktop app no longer guesses them from labels (PRD 0001 RF10, 9bfdabf).
 
 ## [0.5.1] - 2026-10-17
 
 ### Fixed
 
-- Reordering or saving accounts no longer writes an empty `params = {}` into accounts that have no parameters (PRD 0001 RF9, 3b483cf).
+- Reordering or saving accounts no longer writes an empty `params = {}` into accounts that have no parameters (PRD 0001 RF9, 62230df).
 
 ## [0.5.0] - 2026-10-17
 
 ### Added
 
-- The core owns the English and Spanish catalogs of every text it hands to a front end (fields, sign-in modes, notes, edit, query and OAuth errors), with a fixed lookup order: exact locale, same language, English, then the embedded Portuguese text. The terminal follows `CUOTAI_LANG` (default `pt-BR`) and user language packs override the catalogs (PRD 0001 RF8, a235808).
+- The core owns the English and Spanish catalogs of every text it hands to a front end (fields, sign-in modes, notes, edit, query and OAuth errors), with a fixed lookup order: exact locale, same language, English, then the embedded Portuguese text. The terminal follows `CUOTAI_LANG` (default `pt-BR`) and user language packs override the catalogs (PRD 0001 RF8, d89c8a2).
 
 ## [0.4.3] - 2026-10-17
 
 ### Changed
 
-- Metric states and credential kinds serialize in one documented format straight from the core (for example `{"state":"available","ratio":0.25,"uncapped":false}`), and the desktop app ignores the ratio of uncapped metrics (PRD 0001 RF7, 6722722).
+- Metric states and credential kinds serialize in one documented format straight from the core (for example `{"state":"available","ratio":0.25,"uncapped":false}`), and the desktop app ignores the ratio of uncapped metrics (PRD 0001 RF7, cb277e3).
 
 ## [0.4.2] - 2026-10-17
 
 ### Fixed
 
-- After a rate limit or an authentication error the retry backoff no longer shortens an interval configured above one hour, which could raise the number of queries on providers billed per request (PRD 0001 RF6, 450831b).
+- After a rate limit or an authentication error the retry backoff no longer shortens an interval configured above one hour, which could raise the number of queries on providers billed per request (PRD 0001 RF6, 3aa6899).
 
 ## [0.4.1] - 2026-10-17
 
-No user-visible changes (an obsolete credential-mode helper was removed from the core, PRD 0001 RF5, 9070400).
+No user-visible changes (an obsolete credential-mode helper was removed from the core, PRD 0001 RF5, 50e1f25).
 
 ## [0.4.0] - 2026-10-17
 
 ### Added
 
-- When saving conflicts with an outside edit, the desktop app offers to reload the configuration without losing the draft, and detects outside changes when the editor opens and when the window regains focus. Validation errors highlight the field that caused them (PRD 0001 RF4, 140236c).
+- When saving conflicts with an outside edit, the desktop app offers to reload the configuration without losing the draft, and detects outside changes when the editor opens and when the window regains focus. Validation errors highlight the field that caused them (PRD 0001 RF4, 83d6b2c).
 
 ### Fixed
 
-- Closing the account dialog no longer leaves the sign-in listener behind (PRD 0001 RF4, 140236c).
+- Closing the account dialog no longer leaves the sign-in listener behind (PRD 0001 RF4, 83d6b2c).
 
 ## [0.3.0] - 2026-10-17
 
 ### Added
 
-- After removing an account, the desktop app can retry deleting its stored credential, which is protected by the core when another account shares it (PRD 0001 RF3, 6caf668).
+- After removing an account, the desktop app can retry deleting its stored credential, which is protected by the core when another account shares it (PRD 0001 RF3, 841d4c5).
 
 ## [0.2.0] - 2026-10-17
 
 ### Added
 
-- Sign-in modes are described by the core, so the terminal and the desktop app render any provider's login without per-provider code. Re-authenticating reuses the account's credential, removes the replaced key only after the configuration is written, keeps shared keys, and reports a failed cleanup as a non-fatal result (PRD 0001 RF2, 65e1039).
+- Sign-in modes are described by the core, so the terminal and the desktop app render any provider's login without per-provider code. Re-authenticating reuses the account's credential, removes the replaced key only after the configuration is written, keeps shared keys, and reports a failed cleanup as a non-fatal result (PRD 0001 RF2, 596309f).
 
 ## [0.1.1] - 2026-10-17
 
-No user-visible changes (a test now counts the real HTTP requests made when editing and removing accounts, PRD 0001 RF1, aeeb460).
+No user-visible changes (a test now counts the real HTTP requests made when editing and removing accounts, PRD 0001 RF1, 4e4facf).
 
 ## [0.1.0] - 2026-10-01
 
-First version. It also covers the work committed up to 2026-10-17 that precedes the `0.1.1` bump (`08c640d` to `5c52723`).
+First version. It also covers the work committed up to 2026-10-17 that precedes the `0.1.1` bump (`bc96d72` to `aeff135`).
 
 ### Added
 
-- A read-only monitor for AI-provider usage, quotas and costs, with a Ratatui terminal dashboard, an account wizard with native sign-in flows and an OS credential vault, and text or JSON snapshots with `--once` and `--json` (1ca290f).
-- 36 providers, with a documented example configuration (`cuotai.example.toml`) and provider notes (1ca290f, 57e2510).
-- A Tauri 2 desktop app with a main window and a tray popover. It manages accounts with OAuth sign-in and reordering, refreshes them incrementally, has a donut view in the popover and a native tray menu, provider logos and a theme catalog, a user folder with language packs, a provider filter (`/` focuses it, `Esc` clears it), a per-card next-query countdown, removal that offers to delete the stored credential, and a global refresh interval in Settings (e0a6a60, 6813ecb, cdc08a2, b01044c, 6cc54bd, a3bc0d7, 5c52723).
-- Providers billed per query, such as AWS Bedrock, are refreshed on a longer floor interval, and configuration writes are atomic, keep comments and reject outside edits (dbe40d6, f61651a).
+- A read-only monitor for AI-provider usage, quotas and costs, with a Ratatui terminal dashboard, an account wizard with native sign-in flows and an OS credential vault, and text or JSON snapshots with `--once` and `--json` (f9eda14).
+- 36 providers, with a documented example configuration (`cuotai.example.toml`) and provider notes (f9eda14, 8d8a97a).
+- A Tauri 2 desktop app with a main window and a tray popover. It manages accounts with OAuth sign-in and reordering, refreshes them incrementally, has a donut view in the popover and a native tray menu, provider logos and a theme catalog, a user folder with language packs, a provider filter (`/` focuses it, `Esc` clears it), a per-card next-query countdown, removal that offers to delete the stored credential, and a global refresh interval in Settings (9916d86, f02b18b, 856a870, 76617a9, 6522ea3, 3cc3602, aeff135).
+- Providers billed per query, such as AWS Bedrock, are refreshed on a longer floor interval, and configuration writes are atomic, keep comments and reject outside edits (1a2f0fc, 0c65c53).
 
 ### Fixed
 
-- A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
+- A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
 [Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.0...HEAD
 [0.75.0]: https://github.com/jmarcon/cuotai/compare/v0.74.0...v0.75.0
@@ -644,85 +644,85 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 [0.68.1]: https://github.com/jmarcon/cuotai/compare/v0.68.0...v0.68.1
 [0.68.0]: https://github.com/jmarcon/cuotai/compare/v0.67.0...v0.68.0
 [0.67.0]: https://github.com/jmarcon/cuotai/compare/v0.66.0...v0.67.0
-[0.66.0]: https://github.com/jmarcon/cuotai/compare/44b1f0f...main
-[0.65.0]: https://github.com/jmarcon/cuotai/commit/44b1f0f
-[0.64.0]: https://github.com/jmarcon/cuotai/commit/fb83951
-[0.63.0]: https://github.com/jmarcon/cuotai/commit/ec68e4e
-[0.62.0]: https://github.com/jmarcon/cuotai/commit/a525ced
-[0.61.0]: https://github.com/jmarcon/cuotai/commit/a10d2dc
-[0.60.0]: https://github.com/jmarcon/cuotai/commit/b000625
-[0.59.0]: https://github.com/jmarcon/cuotai/commit/fbbef8f
-[0.58.0]: https://github.com/jmarcon/cuotai/commit/73781dd
-[0.57.0]: https://github.com/jmarcon/cuotai/commit/83b6d95
-[0.56.0]: https://github.com/jmarcon/cuotai/commit/050c86a
-[0.55.0]: https://github.com/jmarcon/cuotai/commit/5ea7bd1
-[0.54.0]: https://github.com/jmarcon/cuotai/commit/f6b3272
-[0.53.0]: https://github.com/jmarcon/cuotai/commit/28137a8
-[0.52.0]: https://github.com/jmarcon/cuotai/commit/4795a15
-[0.51.0]: https://github.com/jmarcon/cuotai/commit/2d9cf48
-[0.50.0]: https://github.com/jmarcon/cuotai/commit/75f79e9
-[0.49.0]: https://github.com/jmarcon/cuotai/commit/9694b24
-[0.48.0]: https://github.com/jmarcon/cuotai/commit/4ea2fd9
-[0.47.0]: https://github.com/jmarcon/cuotai/commit/64f2266
-[0.46.0]: https://github.com/jmarcon/cuotai/commit/074966d
-[0.45.0]: https://github.com/jmarcon/cuotai/commit/e421c1b
-[0.44.0]: https://github.com/jmarcon/cuotai/commit/e5f1573
-[0.43.0]: https://github.com/jmarcon/cuotai/commit/816ce15
-[0.42.0]: https://github.com/jmarcon/cuotai/commit/6bb1783
-[0.41.0]: https://github.com/jmarcon/cuotai/commit/29dc2cc
-[0.40.0]: https://github.com/jmarcon/cuotai/commit/e522b44
-[0.39.0]: https://github.com/jmarcon/cuotai/commit/b955116
-[0.38.0]: https://github.com/jmarcon/cuotai/commit/e743686
-[0.37.0]: https://github.com/jmarcon/cuotai/commit/b89c2d8
-[0.36.0]: https://github.com/jmarcon/cuotai/commit/ed5f027
-[0.35.1]: https://github.com/jmarcon/cuotai/commit/40bbc64
-[0.35.0]: https://github.com/jmarcon/cuotai/commit/594aa92
-[0.34.0]: https://github.com/jmarcon/cuotai/commit/6e448ea
-[0.33.0]: https://github.com/jmarcon/cuotai/commit/79445c0
-[0.32.0]: https://github.com/jmarcon/cuotai/commit/91efa8b
-[0.31.0]: https://github.com/jmarcon/cuotai/commit/f64f5ba
-[0.30.0]: https://github.com/jmarcon/cuotai/commit/571fac3
-[0.29.0]: https://github.com/jmarcon/cuotai/commit/8f23ed7
-[0.28.0]: https://github.com/jmarcon/cuotai/commit/4a87dbf
-[0.27.1]: https://github.com/jmarcon/cuotai/commit/4943177
-[0.27.0]: https://github.com/jmarcon/cuotai/commit/7b73876
-[0.26.0]: https://github.com/jmarcon/cuotai/commit/ff3429f
-[0.25.0]: https://github.com/jmarcon/cuotai/commit/c2ebd6d
-[0.24.0]: https://github.com/jmarcon/cuotai/commit/6d37344
-[0.23.0]: https://github.com/jmarcon/cuotai/commit/51e7f24
-[0.22.0]: https://github.com/jmarcon/cuotai/commit/eddf602
-[0.21.0]: https://github.com/jmarcon/cuotai/commit/5fc1e40
-[0.20.0]: https://github.com/jmarcon/cuotai/commit/fd1e299
-[0.19.0]: https://github.com/jmarcon/cuotai/commit/59f9f22
-[0.18.1]: https://github.com/jmarcon/cuotai/commit/3855c72
-[0.18.0]: https://github.com/jmarcon/cuotai/compare/a40c90a...a7f9e26
-[0.17.2]: https://github.com/jmarcon/cuotai/compare/8c72af8...a40c90a
-[0.17.1]: https://github.com/jmarcon/cuotai/commit/8c72af8
-[0.17.0]: https://github.com/jmarcon/cuotai/compare/f678811...fc34f8e
-[0.16.0]: https://github.com/jmarcon/cuotai/compare/1769019...f678811
-[0.15.0]: https://github.com/jmarcon/cuotai/compare/b636d01...1769019
-[0.14.4]: https://github.com/jmarcon/cuotai/compare/2ae1e79...b636d01
-[0.14.3]: https://github.com/jmarcon/cuotai/compare/6d81982...2ae1e79
-[0.14.2]: https://github.com/jmarcon/cuotai/compare/089d964...6d81982
-[0.14.1]: https://github.com/jmarcon/cuotai/commit/089d964
-[0.14.0]: https://github.com/jmarcon/cuotai/commit/6aaea88
-[0.13.0]: https://github.com/jmarcon/cuotai/commit/7ece4ee
-[0.12.0]: https://github.com/jmarcon/cuotai/commit/a399455
-[0.11.0]: https://github.com/jmarcon/cuotai/commit/051b1f5
-[0.10.0]: https://github.com/jmarcon/cuotai/commit/2d7a585
-[0.9.0]: https://github.com/jmarcon/cuotai/commit/d1a98ca
-[0.8.0]: https://github.com/jmarcon/cuotai/compare/b4df3d1...ec96aff
-[0.7.2]: https://github.com/jmarcon/cuotai/compare/399fcd3...b4df3d1
-[0.7.1]: https://github.com/jmarcon/cuotai/commit/399fcd3
-[0.7.0]: https://github.com/jmarcon/cuotai/commit/acf2849
-[0.6.0]: https://github.com/jmarcon/cuotai/commit/0163ec4
-[0.5.1]: https://github.com/jmarcon/cuotai/commit/3b483cf
-[0.5.0]: https://github.com/jmarcon/cuotai/commit/a235808
-[0.4.3]: https://github.com/jmarcon/cuotai/commit/6722722
-[0.4.2]: https://github.com/jmarcon/cuotai/commit/450831b
-[0.4.1]: https://github.com/jmarcon/cuotai/commit/9070400
-[0.4.0]: https://github.com/jmarcon/cuotai/commit/140236c
-[0.3.0]: https://github.com/jmarcon/cuotai/commit/6caf668
-[0.2.0]: https://github.com/jmarcon/cuotai/commit/65e1039
-[0.1.1]: https://github.com/jmarcon/cuotai/commit/aeeb460
-[0.1.0]: https://github.com/jmarcon/cuotai/commits/5c52723
+[0.66.0]: https://github.com/jmarcon/cuotai/compare/ae4c0ea...main
+[0.65.0]: https://github.com/jmarcon/cuotai/commit/ae4c0ea
+[0.64.0]: https://github.com/jmarcon/cuotai/commit/4da7cd8
+[0.63.0]: https://github.com/jmarcon/cuotai/commit/cf4ed0c
+[0.62.0]: https://github.com/jmarcon/cuotai/commit/fb386d3
+[0.61.0]: https://github.com/jmarcon/cuotai/commit/2147138
+[0.60.0]: https://github.com/jmarcon/cuotai/commit/ab8bce4
+[0.59.0]: https://github.com/jmarcon/cuotai/commit/af55cf6
+[0.58.0]: https://github.com/jmarcon/cuotai/commit/2e39718
+[0.57.0]: https://github.com/jmarcon/cuotai/commit/6b70b4d
+[0.56.0]: https://github.com/jmarcon/cuotai/commit/f2193cc
+[0.55.0]: https://github.com/jmarcon/cuotai/commit/016630a
+[0.54.0]: https://github.com/jmarcon/cuotai/commit/4746338
+[0.53.0]: https://github.com/jmarcon/cuotai/commit/20d6b97
+[0.52.0]: https://github.com/jmarcon/cuotai/commit/0449cfc
+[0.51.0]: https://github.com/jmarcon/cuotai/commit/6eb4bc2
+[0.50.0]: https://github.com/jmarcon/cuotai/commit/5a7a484
+[0.49.0]: https://github.com/jmarcon/cuotai/commit/ce8a06d
+[0.48.0]: https://github.com/jmarcon/cuotai/commit/03789e3
+[0.47.0]: https://github.com/jmarcon/cuotai/commit/b9672a2
+[0.46.0]: https://github.com/jmarcon/cuotai/commit/d96e9f8
+[0.45.0]: https://github.com/jmarcon/cuotai/commit/c635ff5
+[0.44.0]: https://github.com/jmarcon/cuotai/commit/d4305e3
+[0.43.0]: https://github.com/jmarcon/cuotai/commit/251f307
+[0.42.0]: https://github.com/jmarcon/cuotai/commit/c1d068d
+[0.41.0]: https://github.com/jmarcon/cuotai/commit/8e570cd
+[0.40.0]: https://github.com/jmarcon/cuotai/commit/d25a0cb
+[0.39.0]: https://github.com/jmarcon/cuotai/commit/01c3256
+[0.38.0]: https://github.com/jmarcon/cuotai/commit/e823792
+[0.37.0]: https://github.com/jmarcon/cuotai/commit/a0ccecd
+[0.36.0]: https://github.com/jmarcon/cuotai/commit/f6221a2
+[0.35.1]: https://github.com/jmarcon/cuotai/commit/21f6567
+[0.35.0]: https://github.com/jmarcon/cuotai/commit/1ee824a
+[0.34.0]: https://github.com/jmarcon/cuotai/commit/ec81587
+[0.33.0]: https://github.com/jmarcon/cuotai/commit/9d4b6b1
+[0.32.0]: https://github.com/jmarcon/cuotai/commit/0a94bc8
+[0.31.0]: https://github.com/jmarcon/cuotai/commit/0f1727d
+[0.30.0]: https://github.com/jmarcon/cuotai/commit/32c6e7d
+[0.29.0]: https://github.com/jmarcon/cuotai/commit/07cb225
+[0.28.0]: https://github.com/jmarcon/cuotai/commit/74aa738
+[0.27.1]: https://github.com/jmarcon/cuotai/commit/ce12073
+[0.27.0]: https://github.com/jmarcon/cuotai/commit/5b13fd8
+[0.26.0]: https://github.com/jmarcon/cuotai/commit/0e07e4d
+[0.25.0]: https://github.com/jmarcon/cuotai/commit/6ad2f11
+[0.24.0]: https://github.com/jmarcon/cuotai/commit/691e911
+[0.23.0]: https://github.com/jmarcon/cuotai/commit/ae4f1c0
+[0.22.0]: https://github.com/jmarcon/cuotai/commit/cba46ef
+[0.21.0]: https://github.com/jmarcon/cuotai/commit/b2106f2
+[0.20.0]: https://github.com/jmarcon/cuotai/commit/e04a590
+[0.19.0]: https://github.com/jmarcon/cuotai/commit/251b5bc
+[0.18.1]: https://github.com/jmarcon/cuotai/commit/07918f0
+[0.18.0]: https://github.com/jmarcon/cuotai/compare/5998055...5f91d0f
+[0.17.2]: https://github.com/jmarcon/cuotai/compare/689d342...5998055
+[0.17.1]: https://github.com/jmarcon/cuotai/commit/689d342
+[0.17.0]: https://github.com/jmarcon/cuotai/compare/8e645ee...d826760
+[0.16.0]: https://github.com/jmarcon/cuotai/compare/a57c62d...8e645ee
+[0.15.0]: https://github.com/jmarcon/cuotai/compare/506dac6...a57c62d
+[0.14.4]: https://github.com/jmarcon/cuotai/compare/a5c3d1f...506dac6
+[0.14.3]: https://github.com/jmarcon/cuotai/compare/5b427c0...a5c3d1f
+[0.14.2]: https://github.com/jmarcon/cuotai/compare/79c9505...5b427c0
+[0.14.1]: https://github.com/jmarcon/cuotai/commit/79c9505
+[0.14.0]: https://github.com/jmarcon/cuotai/commit/163e42a
+[0.13.0]: https://github.com/jmarcon/cuotai/commit/055da24
+[0.12.0]: https://github.com/jmarcon/cuotai/commit/2c00b88
+[0.11.0]: https://github.com/jmarcon/cuotai/commit/a6bbb21
+[0.10.0]: https://github.com/jmarcon/cuotai/commit/86ef2ce
+[0.9.0]: https://github.com/jmarcon/cuotai/commit/dacc619
+[0.8.0]: https://github.com/jmarcon/cuotai/compare/eca9692...1288a78
+[0.7.2]: https://github.com/jmarcon/cuotai/compare/1050448...eca9692
+[0.7.1]: https://github.com/jmarcon/cuotai/commit/1050448
+[0.7.0]: https://github.com/jmarcon/cuotai/commit/0ee19b7
+[0.6.0]: https://github.com/jmarcon/cuotai/commit/9bfdabf
+[0.5.1]: https://github.com/jmarcon/cuotai/commit/62230df
+[0.5.0]: https://github.com/jmarcon/cuotai/commit/d89c8a2
+[0.4.3]: https://github.com/jmarcon/cuotai/commit/cb277e3
+[0.4.2]: https://github.com/jmarcon/cuotai/commit/3aa6899
+[0.4.1]: https://github.com/jmarcon/cuotai/commit/50e1f25
+[0.4.0]: https://github.com/jmarcon/cuotai/commit/83d6b2c
+[0.3.0]: https://github.com/jmarcon/cuotai/commit/841d4c5
+[0.2.0]: https://github.com/jmarcon/cuotai/commit/596309f
+[0.1.1]: https://github.com/jmarcon/cuotai/commit/4e4facf
+[0.1.0]: https://github.com/jmarcon/cuotai/commits/aeff135
