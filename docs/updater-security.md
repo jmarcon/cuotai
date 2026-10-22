@@ -189,10 +189,14 @@ consents to an update is the platform artifact downloaded from
 browser would fetch.
 
 The user can turn the feature off entirely (**Settings → Updates**), after
-which the app makes no updater request at all. Installs managed by Homebrew,
-winget, Scoop or a distribution package are detected and the in-app updater is
-turned off for them, so the package manager and the app never compete
-(PRD 0018 RF3.2, PRD 0021 RF8.1).
+which the app makes no updater request at all. The desktop detects Homebrew
+Caskroom, the exact Scoop `apps\cuotai` component, winget's package-cache path
+and Linux system package roots, and turns the in-app updater off for those
+installs. A normal winget NSIS install shares
+`%LocalAppData%\Programs\Cuotai` with a manual install, so it cannot be
+classified safely until the packaging contract defines a durable ownership
+marker; `CUOTAI_UPDATER=off` is the honest override in the meantime (PRD 0018
+RF3.2, PRD 0021 RF8.1).
 
 ## What the pipeline does per platform
 

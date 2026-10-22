@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked) |
+| Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and normal winget ownership still needs a packaging marker) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2 and RF3: signed packages and artifact hosting) |
@@ -20,7 +20,7 @@
 | RF3 (Settings and About) | 0.74.0 and 0.75.1 | Delivered; the four-language UI smoke and the zero-request test are automated. In 0.75.1 malformed persisted check dates become “never checked”, the preference-off switch remains usable, Scoop matching requires the Cuotai component and generic Linux packages no longer receive Debian-only guidance. |
 | RF4 (operational security) | 0.74.0–0.75.1 | Delivered — HTTPS endpoint and real untrusted-certificate coverage in 0.74.0/0.75.1, artifact URLs restricted to this repository's HTTPS release downloads in 0.75.1, and key custody, leak/loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](updater-security.md)). |
 
-Owner-blocked, and not claimed as delivered:
+Open or owner-blocked, and not claimed as delivered:
 
 - the **production signed release** (the private key lives in the `release`
   GitHub environment and the owner's Keychain; until the owner uploads the
@@ -29,8 +29,10 @@ Owner-blocked, and not claimed as delivered:
 - the **RF2 acceptance smoke** — an app installed on an older version updating
   to the new one on macOS, Windows and Linux, with a simulated network and
   signature failure — needs the owner's signing run and native runners;
-- the **package-manager installs seen live**: detection is proven on path
-  fixtures, not on a real Homebrew, Scoop, winget or AUR installation;
+- the **package-manager installs seen live**: Homebrew, Scoop and Linux
+  detection is proven on path fixtures, not real installations; normal winget
+  installs share the NSIS path with manual installs, and the repository has no
+  durable installer/receipt marker to distinguish ownership safely;
 - the **`release` environment protection** (required reviewer, tag-only
   deployment branches) is a repository setting the owner must turn on, as
   documented in [`docs/updater-security.md`](updater-security.md).
@@ -140,7 +142,8 @@ Not verified here, and therefore not claimed:
 
 - an installed app on an earlier version downloading and applying a real signed
   release on each of the three operating systems;
-- a live Homebrew, Scoop, winget or AUR install (the detector is proven on path
-  fixtures);
+- live Homebrew, Scoop, winget or AUR installs; normal winget ownership is not
+  implemented because its NSIS path is also used by manual installs and the
+  repository has no durable ownership marker;
 - the key rotation of the leak procedure, which needs a second key pair and a
   public release.

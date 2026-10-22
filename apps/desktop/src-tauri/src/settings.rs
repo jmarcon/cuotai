@@ -1091,7 +1091,7 @@ mod tests {
             );
             assert_eq!(motion_of(&read(&file)), "off", "{text}");
         }
-        // Uma data ilegível é preservada como texto (a leitura trata como ausente).
+        // Uma data ilegível é descartada para a interface mostrar "nunca verificou".
         fs::write(
             &file,
             r#"{"updater":{"automatic":true,"last_check":"quando?","explanation_seen":true}}"#,

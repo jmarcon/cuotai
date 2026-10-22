@@ -186,12 +186,14 @@ Per platform:
   (verifiable with `gh attestation verify`) on tag runs. Dry runs do not
   request or publish attestations and say so in the workflow summary.
 
-`signing-state.json` (schema version 1) is a first-class output: per artifact
-`{name, signed, method, status, note?}`, the checksum-signature state, and
-the updater state. The assembly **fails** when an artifact has no signing
-entry, when an entry describes a file that does not exist, or when an entry
-claims `signed` dishonestly. Methods: `developer-id`, `ad-hoc`,
-`authenticode`, `tauri-updater-key`, `checksum-signature`, `none`.
+`signing-state.json` (schema version 2) is a first-class output: per artifact
+`{name, signed, method, status, updater_signature?, note?}`, the
+checksum-signature state, and the updater state. `updater_signature` records
+the detached Tauri proof beside a payload that keeps its Authenticode or
+checksum proof. The assembly **fails** when an artifact has no signing entry,
+when an entry describes a file that does not exist, or when an entry claims
+`signed` dishonestly. Methods: `developer-id`, `ad-hoc`, `authenticode`,
+`tauri-updater-key`, `checksum-signature`, `none`.
 
 ## GitHub Releases (RF4)
 
@@ -291,15 +293,17 @@ rm -rf ~/.config/cuotai ~/.local/share/cuotai
 Remove-Item -Recurse -Force "$env:APPDATA\cuotai", "$env:LOCALAPPDATA\cuotai"
 ```
 
-These paths are also how a managed install is recognised (RF8.1 groundwork):
-the Caskroom/Cellar receipt, `%LocalAppData%\Programs\Cuotai`,
-`~\scoop\apps\cuotai\current`, `/usr/bin/Cuotai` and `~/.cargo/bin/cuotai`.
-PRD 0018 turns the in-app updater off on those installs and shows
-"Update with `brew upgrade`" (or the channel's own command) instead. The
-`CUOTAI_UPDATER=off` environment variable forces the same state for any other
-managed install (PRD 0018 RF3.2); the package-manager channels themselves
-publish the same binaries as the GitHub release, so they need no build-time
-switch — the difference is detected at run time.
+The desktop currently recognises the exact Homebrew Caskroom and Scoop
+`apps\cuotai` paths, winget's package-cache path, and Linux system package
+roots (`/usr/bin`, `/usr/sbin`, `/usr/lib`). PRD 0018 turns the in-app updater
+off for those detected installs and shows the manager's command when one is
+unambiguous. A normal winget NSIS install under
+`%LocalAppData%\Programs\Cuotai` is indistinguishable by path from a manual
+NSIS install, and Cargo-installed copies are not yet detected; those packages
+must use `CUOTAI_UPDATER=off` until packaging defines a durable ownership
+marker. The repository does not currently define that marker, so normal
+winget ownership detection remains an explicit PRD 0021 RF8.1 blocker rather
+than delivered behaviour.
 
 ## Updater (PRD 0018)
 
