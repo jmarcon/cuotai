@@ -154,7 +154,7 @@ async fn begin_with(
     endpoints.validate()?;
     let client_id = client_id(config);
     // Validate only: the value is dropped here and resolved again at `finish`.
-    ensure_client_secret_available(config)?;
+    ensure_custom_client_ready(config)?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
         .map_err(|_| OAuthError::Network)?;
@@ -209,7 +209,7 @@ async fn begin_with(
 impl LoopbackLogin {
     async fn finish(self) -> Result<OAuthToken, OAuthError> {
         let callback = self.wait_for_callback().await?;
-        let client_secret = client_secret(&self.config)?;
+        let client_secret = resolve_client_proof(&self.config)?;
         let form = [
             ("grant_type", "authorization_code".to_owned()),
             ("client_id", self.client_id.clone()),
@@ -421,7 +421,7 @@ async fn refresh_with(
         .filter(|value| !value.is_empty())
         .ok_or(OAuthError::Expired)?;
     let client_id = client_id(config);
-    let client_secret = client_secret(config)?;
+    let client_secret = resolve_client_proof(config)?;
     let form = [
         ("grant_type", "refresh_token".to_owned()),
         ("refresh_token", refresh_token.to_owned()),
@@ -525,15 +525,17 @@ fn client_id(config: &OAuthConfig) -> String {
     }
 }
 
-/// Fail early, without keeping the value, when the client secret is missing.
-fn ensure_client_secret_available(config: &OAuthConfig) -> Result<(), OAuthError> {
-    client_secret(config).map(|_| ())
+/// Validates that a custom OAuth client is fully configured, i.e. its secret
+/// variable is present, and keeps nothing.
+fn ensure_custom_client_ready(config: &OAuthConfig) -> Result<(), OAuthError> {
+    resolve_client_proof(config).map(|_| ())
 }
 
-/// Resolves the client secret: the public client's built-in value, or the
-/// environment variable a custom client names. The caller must use the result
-/// only for the request it is building and never store it.
-fn client_secret(config: &OAuthConfig) -> Result<String, OAuthError> {
+/// Resolves the client's exchange value (what Google calls the client secret):
+/// the public client's built-in value, or the environment variable a custom
+/// client names. The caller must use the result only for the request it is
+/// building and never store it.
+fn resolve_client_proof(config: &OAuthConfig) -> Result<String, OAuthError> {
     let configured = config.client_id.trim();
     if configured.is_empty() || configured == CLIENT_ID {
         return Ok(CLIENT_SECRET.to_owned());
