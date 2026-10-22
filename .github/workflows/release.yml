@@ -1124,8 +1124,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installer = (Get-ChildItem Env:INSTALLER_URL).Value
-          if (-not $installer) { throw "INSTALLER_URL is not set" }
+          $installerUrl = (Get-ChildItem Env:INSTALLER_URL).Value
+          if (-not $installerUrl) { throw "INSTALLER_URL is not set" }
+          $installer = Join-Path $env:RUNNER_TEMP 'Cuotai-setup.exe'
+          Invoke-WebRequest -Uri $installerUrl -OutFile $installer
           Start-Process -FilePath $installer -ArgumentList '/S' -Wait
           $installDir = "$env:LOCALAPPDATA\Cuotai"
           if (-not (Test-Path "$installDir\Cuotai.exe")) {
