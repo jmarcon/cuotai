@@ -1,0 +1,20 @@
+# Rendered by `cargo xtask package-manifests`; do not edit by hand (PRD 0021 RF5.6).
+# The NSIS installer accepts the silent switch /S and its uninstaller removes
+# only the application: the configuration, the local databases and the
+# Windows Credential Manager entries survive uninstall (PRD 0021 RF8.2).
+PackageIdentifier: Cuotai.Cuotai
+PackageVersion: {{VERSION}}
+InstallerType: nullsoft
+InstallModes:
+- interactive
+- silent
+InstallerSwitches:
+  Silent: /S
+  SilentWithProgress: /S
+UpgradeBehavior: install
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/{{REPO}}/releases/download/{{TAG}}/Cuotai_{{VERSION}}_x64-setup.exe
+  InstallerSha256: {{NSIS_X64_SHA256}}
+{{ARM64_INSTALLER}}ManifestType: installer
+ManifestVersion: 1.10.0

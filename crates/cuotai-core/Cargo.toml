@@ -3,6 +3,15 @@ name = "cuotai-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# PRD 0021 RF5.4: crates.io metadata. `cuotai-core` is published before
+# `cuotai-tui`, because a published crate cannot depend on a path-only crate.
+description = "Read-only monitor core for AI-provider usage, quotas and costs (Cuotai backend library)."
+readme = "../../README.md"
+keywords = ["ai", "llm", "quota", "usage", "monitoring"]
+categories = ["api-bindings", "asynchronous"]
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 chrono.workspace = true

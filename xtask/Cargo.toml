@@ -10,6 +10,10 @@ description = "Repository automation tasks (release checks, manifest, signing st
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# Package-manager manifests: winget ships YAML, Scoop JSON, Homebrew Ruby and
+# AUR PKGBUILD. Parsing/validating them in Rust keeps the pipeline free of
+# extra runtimes (PRD 0021 RF5.6).
+serde_yaml = "0.9"
 toml = "0.8"
 sha2 = "0.10"
 

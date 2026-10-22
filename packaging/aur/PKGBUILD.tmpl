@@ -1,0 +1,28 @@
+# Rendered by `cargo xtask package-manifests`; do not edit by hand (PRD 0021 RF5.6).
+# Maintainer: the owner's AUR account (see docs/releasing.md, RF5.5).
+pkgname=cuotai-bin
+pkgver={{VERSION}}
+pkgrel=1
+pkgdesc="All your AI quotas, usage limits and costs in one place (desktop app)"
+arch=('x86_64'{{AUR_ARCHES}})
+url="https://github.com/{{REPO}}"
+license=('MIT' 'Apache-2.0')
+depends=('gtk3' 'webkit2gtk-4.1' 'libappindicator-gtk3')
+provides=('cuotai')
+conflicts=('cuotai')
+# Extracted explicitly in package() so the layout does not depend on
+# makepkg's archive handling.
+noextract=("Cuotai_${pkgver}_amd64.deb" "Cuotai_${pkgver}_aarch64.deb")
+source_x86_64=("https://github.com/{{REPO}}/releases/download/{{TAG}}/Cuotai_${pkgver}_amd64.deb")
+sha256sums_x86_64=('{{DEB_AMD64_SHA256}}')
+{{AUR_AARCH64_SOURCE}}
+package() {
+    cd "${srcdir}"
+    bsdtar -xf ./*.deb
+    bsdtar -C "${pkgdir}" -xf data.tar.*
+}
+
+# Uninstall preservation (PRD 0021 RF8.2): `pacman -R cuotai-bin` removes only
+# the packaged files. The configuration (~/.config/cuotai/), the local
+# databases (~/.local/share/cuotai/) and the Secret Service vault entries
+# stay; removing them is a documented manual step (docs/releasing.md).

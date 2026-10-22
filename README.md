@@ -83,7 +83,56 @@ Cuotai ships **36 integrations**. For parameters, default variables and limitati
 
 ---
 
+## Installation
+
+Package-manager channels ship with the release pipeline but stay **off until
+the maintainer enables them**, one at a time. The commands below are what
+each channel installs when it is live; until then use the direct download or
+the source build below. See [`docs/releasing.md`](docs/releasing.md) for the
+channel status and [`packaging/README.md`](packaging/README.md) for the
+manifests.
+
+| Platform | Command | Status |
+|---|---|---|
+| macOS (desktop) | `brew install --cask jmarcon/cuotai/cuotai` | available once the maintainer enables the tap |
+| macOS (TUI/CLI) | `brew install jmarcon/cuotai/cuotai` | available once the maintainer enables the tap |
+| Windows (desktop) | `winget install Cuotai.Cuotai` | available once the first winget submission is accepted |
+| Windows (TUI/CLI) | `scoop bucket add cuotai && scoop install cuotai` | available once the maintainer enables the bucket |
+| Linux (desktop, Arch) | `yay -S cuotai-bin` | available once the AUR package is published |
+| Linux (desktop, Debian/Ubuntu) | download the `.deb` and `sudo apt install ./Cuotai_<version>_amd64.deb` | available with every release |
+| Linux (desktop, Fedora) | download the `.rpm` and `sudo dnf install ./Cuotai_<version>_amd64.rpm` | available with every release |
+| Linux (TUI/CLI) | download `cuotai-<version>-<target>.tar.gz`, extract and run `./cuotai` | available with every release |
+| Any (TUI/CLI) | `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` | works today |
+| Any (TUI/CLI) | `cargo install cuotai-tui --locked` (or `cargo binstall cuotai-tui`) | available once `cuotai-core` and `cuotai-tui` are on crates.io |
+| Any (desktop) | download the `.dmg`, `.exe`, `.msi`, `.AppImage`, `.deb` or `.rpm` from [Releases](https://github.com/jmarcon/cuotai/releases) | available with every release |
+
+Unsigned releases stay honest: macOS shows the Gatekeeper override note, and
+Windows may warn about an unknown publisher. Nothing claims a signature the
+artifact does not have.
+
+### Verify your download
+
+```sh
+shasum -a 256 -c SHA256SUMS                        # every asset in one go
+gh attestation verify Cuotai_0.68.0_universal.dmg --repo jmarcon/cuotai
+```
+
+### Uninstalling
+
+Uninstalling removes the application or binary only. Your configuration
+(`<OS config dir>/cuotai/config.toml`), the local databases and the OS vault
+entries (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+stay behind on purpose; removing them is a documented manual step in
+[`docs/releasing.md`](docs/releasing.md#uninstall-keeps-your-data-rf82). With
+Homebrew, `brew zap --cask cuotai` additionally removes the app's caches and
+preference plist, and only that.
+
+---
+
 ## Getting started
+
+The steps below build Cuotai from source. For prebuilt packages, see
+[Installation](#installation).
 
 ### Prerequisites
 

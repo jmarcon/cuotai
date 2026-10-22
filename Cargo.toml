@@ -3,9 +3,15 @@ members = ["crates/cuotai-core", "crates/cuotai-tui", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.69.0"
+version = "0.70.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+# PRD 0021 RF5.4: shared crates.io metadata. `rust-version` is the floor the
+# pinned 1.99.1 toolchain satisfies and the highest `rust-version` any
+# dependency in Cargo.lock requires.
+rust-version = "1.89"
+repository = "https://github.com/jmarcon/cuotai"
+homepage = "https://github.com/jmarcon/cuotai"
 
 [workspace.dependencies]
 chrono = { version = "0.4", features = ["serde"] }
