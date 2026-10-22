@@ -217,6 +217,7 @@ The requirement is only delivered when a user with no Rust toolchain installs th
 | Create the `release` GitHub environment and secrets (RF9.1) | Any real release | Dry run only |
 | Create retroactive tags for 0.1.0 to the current version (RF1.3) | Changelog footer links | Keep comparing commits until the first real tag |
 | winget `PackageIdentifier` (`Cuotai.Cuotai`) | winget | `Cuotai.Cuotai` |
+| Durable normal-winget ownership marker: either publish a dedicated winget installer or add an NSIS hook/switch that writes and removes a Cuotai-owned source value | Complete RF8.1 without classifying manual NSIS installs as winget | Keep normal winget detection off and tell users to set `CUOTAI_UPDATER=off`; never infer ownership from the shared install path or standard Tauri uninstall entry |
 | Publish `cuotai-core` and `cuotai-tui` on crates.io under these names (RF5.4) | `cargo install` | Document `cargo install --git` |
 | Submit to the official `homebrew-cask` and Scoop `extras` | Wider reach, after notability and signing | Own tap and bucket only |
 | Sign `SHA256SUMS` with Sigstore keyless or a project key (RF3.2) | Integrity verification | Sigstore keyless if supported, else minisign |

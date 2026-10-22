@@ -50,25 +50,34 @@ databases (`<OS local data dir>/cuotai/`) and the OS credential-vault entries
 
 ## Identifying managed installs (RF8.1 groundwork)
 
-The in-app updater (PRD 0018) must stand down on package-manager installs.
-The install locations below identify each channel:
+The evidence below is channel-specific only where noted:
 
-- Homebrew cask: `/Applications/Cuotai.app` installed by `brew` (Caskroom
-  receipt under `$(brew --prefix)/Caskroom/cuotai/`); formula:
+- Homebrew cask: the resolved app path reaches the Caskroom receipt under
+  `$(brew --prefix)/Caskroom/cuotai/`; formula:
   `$(brew --prefix)/Cellar/cuotai/<version>/bin/cuotai`.
-- winget: NSIS default `%LocalAppData%\Programs\Cuotai` (per-machine when
-  elevated: `%ProgramFiles%\Cuotai`).
+- winget portable/package-cache copies:
+  `%LocalAppData%\Microsoft\WinGet\Packages\...`.
+- winget NSIS and manual NSIS:
+  `%LocalAppData%\Programs\Cuotai` (or `%ProgramFiles%\Cuotai` when elevated).
+  This path is shared and is **not** ownership evidence.
 - Scoop: `~\scoop\apps\cuotai\current\cuotai.exe`.
-- AUR/distribution: `/usr/bin/Cuotai` (pacman-owned).
+- AUR/distribution: `/usr/bin/Cuotai` (package-owned).
 - Cargo: `~/.cargo/bin/cuotai`.
 
-**No build-time switch is needed.** Every channel publishes the same binaries
-as the GitHub release (PRD 0021 RF8.3), so a build key cannot distinguish
-them; the desktop app detects a managed install at run time and stands down,
-and `CUOTAI_UPDATER=off` forces that state for anything the detection does
-not recognise (PRD 0018 RF3.2). The templates below therefore stay free of
-updater configuration, and a channel that wants to be explicit can ship it as
-a documented environment variable rather than a separate build.
+The winget manifest invokes the same release NSIS installer as a direct
+download and passes only `/S`. The desktop Tauri configuration defines no
+custom NSIS hook, and Tauri's standard uninstall registry entry and shortcuts
+are therefore identical for winget and manual installs. The repository
+produces no winget-specific receipt, file, registry value or shortcut.
+
+Until the owner chooses a durable marker contract, normal winget NSIS users
+must set `CUOTAI_UPDATER=off`; Settings → Updates displays that override as
+the disabled reason. Treating every shared NSIS path or standard uninstall
+entry as winget-owned is rejected because it would disable safe in-app
+updates for direct-download users. A reliable automatic distinction requires
+either a dedicated winget artifact or an installer hook/switch that writes and
+removes a Cuotai-owned source marker, plus the corresponding winget manifest
+change and review.
 
 Maintainers: templates are owned by the release pipeline (repository
 maintainers); each channel's rendered output is owned by that channel's

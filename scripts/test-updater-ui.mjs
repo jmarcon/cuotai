@@ -101,6 +101,7 @@ for (const { code } of i18n.LOCALES) {
   });
   const policySwitch = policyOff.match(/<input id="update-automatic"[^>]*>/)?.[0] ?? "";
   assert.ok(policySwitch.includes("disabled"), `${code}: external policy switch must stay locked`);
+  assert.ok(policyOff.includes("CUOTAI_UPDATER=off"), `${code}: environment override is not visible`);
 }
 
 console.log("PASS: updater Settings and banner render in pt-BR, en-US, es and it");

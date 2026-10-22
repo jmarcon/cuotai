@@ -299,11 +299,27 @@ roots (`/usr/bin`, `/usr/sbin`, `/usr/lib`). PRD 0018 turns the in-app updater
 off for those detected installs and shows the manager's command when one is
 unambiguous. A normal winget NSIS install under
 `%LocalAppData%\Programs\Cuotai` is indistinguishable by path from a manual
-NSIS install, and Cargo-installed copies are not yet detected; those packages
-must use `CUOTAI_UPDATER=off` until packaging defines a durable ownership
-marker. The repository does not currently define that marker, so normal
-winget ownership detection remains an explicit PRD 0021 RF8.1 blocker rather
-than delivered behaviour.
+NSIS install, and Cargo-installed copies are not yet detected. The winget
+template invokes the same release installer with `/S`; `tauri.conf.json`
+defines no custom NSIS hook, so both routes create the same standard Tauri
+uninstall entry and shortcuts. There is no repository-defined receipt, file,
+registry value or shortcut that proves winget ownership.
+
+Normal winget users must set `CUOTAI_UPDATER=off` for now; Settings → Updates
+then names that override as its disabled reason. Completing RF8.1 needs an
+owner packaging decision:
+
+1. ship a dedicated winget installer artifact, or add a winget-only installer
+   switch/hook that writes and removes a Cuotai-owned source marker; this is
+   reliable but adds an artifact or installer contract and requires a winget
+   manifest update and moderator review; or
+2. keep the shared installer unchanged and retain the documented environment
+   override; this avoids false positives but requires user configuration.
+
+Classifying the shared path or Tauri's generic uninstall entry as winget is
+not an option: it would wrongly turn off in-app updates for manual NSIS
+installs. Until a marker contract is chosen, normal winget ownership remains
+an explicit PRD 0021 RF8.1 blocker rather than delivered behaviour.
 
 ## Updater (PRD 0018)
 
