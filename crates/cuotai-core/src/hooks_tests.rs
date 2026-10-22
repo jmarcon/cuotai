@@ -341,7 +341,7 @@ fn every_message_reads_in_each_catalog() {
     assert_eq!(ids, catalog, "every hooks message is exercised");
     for message in &messages {
         assert!(!message.fallback.contains('{'), "{message:?}");
-        for locale in ["en-US", "es"] {
+        for locale in ["en-US", "es", "it"] {
             let text = message.resolve(locale);
             assert!(!text.contains('{'), "{text}");
             // Spanish shares some words with Portuguese ("eventos").

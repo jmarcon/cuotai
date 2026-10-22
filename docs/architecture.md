@@ -50,7 +50,7 @@ apps/desktop/             Tauri 2 app: main window, tray popover and native menu
 A new provider touches only the core; the TUI and the desktop app render its descriptors and reports generically.
 
 1. Add the variant to `Provider` (`model.rs`: `label`, `slug`, `ALL`), the adapter under `providers/` and its dispatch in `lib.rs`.
-2. **Declare its access descriptor (mandatory).** Add the arm to the exhaustive `match` in `access::classify` (level, credential class, scope, plan requirement, public evidence and the summary/reason texts), one arm per `params` value or login that changes the queried interface, and the `access.summary.<slug>` (plus `access.reason.<slug>` for `Unavailable`) ids in `locales/en-US.json` and `es.json`. The build fails without the arm, and the `access` tests fail without the texts or when `Unavailable` lacks a reason or `Official` lacks a documentation URL.
+2. **Declare its access descriptor (mandatory).** Add the arm to the exhaustive `match` in `access::classify` (level, credential class, scope, plan requirement, public evidence and the summary/reason texts), one arm per `params` value or login that changes the queried interface, and the `access.summary.<slug>` (plus `access.reason.<slug>` for `Unavailable`) ids in `locales/en-US.json`, `es.json` and `it.json`. The build fails without the arm, and the `access` tests fail without the texts or when `Unavailable` lacks a reason or `Official` lacks a documentation URL.
 3. Regenerate the usage access matrix of [`providers.md`](providers.md) with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix`; the same test without the variable fails while the document differs from `access::describe`. A new interface-switching param also goes into the `MODES` list of the `access` tests, which the matrix and the invariant tests walk.
 4. Add the account fields in `account_edit.rs`, the credential help, an example to `cuotai.example.toml` and the `wiremock` contract tests.
 5. A provider that reads usage with a **web session** (PRD 0016) also declares its slot in `user_session::descriptors` (accepted and required cookie names, the only hosts, delivery) and its adapter reads it with `providers::web_session` and sends it with `providers::send_session`; it enters only with evidence that the query is read-only and that the session alone is enough (vendor documentation, or a contract verified in 9router or a community client), recorded as the access descriptor's evidence. The `access` tests fail when a `UserSession` interface has no descriptor or a descriptor has no `UserSession` interface.
@@ -79,7 +79,7 @@ async fn query(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 Structured texts emitted by the core carry `Localized { id, params, fallback }`:
 
 - The **core owns the catalog of the ids it emits**:
-  `crates/cuotai-core/locales/{en-US,es}.json` (loaded through
+  `crates/cuotai-core/locales/{en-US,es,it}.json` (loaded through
   `include_str!` and `serde_json` behind a `LazyLock`). Every core id
   (field.*, native.*, login.*, credential_help.*, oauth.*,
   access.*, edit_error.*, query.*, note.*, remove_error.*,

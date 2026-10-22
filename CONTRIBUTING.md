@@ -54,7 +54,7 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 - **Read-only, no spend:** never send inference requests or any operation that burns credits to measure a limit.
 - **Secrets stay out of everything:** `cuotai.toml` holds only environment-variable **names** or vault references. Credentials never go into TOML, snapshots, events, logs, error messages, tests or screenshots.
 - **Honest errors:** classify missing configuration, authentication, rate limits, network failures and incompatible schemas. Never expose a response body, an authenticated URL or a token. A missing value is never turned into zero.
-- **Business rules live in the core:** `cuotai-core` decides validation, forms, refresh scheduling, queries and persistence. The TUI and the desktop app only present. Structured core texts use `Localized` and must exist in the `en-US` and `es` catalogs.
+- **Business rules live in the core:** `cuotai-core` decides validation, forms, refresh scheduling, queries and persistence. The TUI and the desktop app only present. Structured core texts use `Localized` and must exist in the `en-US`, `es` and `it` catalogs.
 - **Undocumented interfaces:** state the limitation in `docs/providers.md` and prefer failing clearly over guessing.
 
 ## Tests and fixtures
@@ -94,7 +94,7 @@ rehearsal are documented in [`docs/releasing.md`](docs/releasing.md); the versio
 
 ## Documentation language
 
-The README and all documentation are written in **English**, as is usual for open-source repositories. The product itself stays multilingual: UI strings live in the Portuguese, English and Spanish catalogs.
+The README and all documentation are written in **English**, as is usual for open-source repositories. The product itself stays multilingual: UI strings live in the Portuguese, English, Spanish and Italian catalogs.
 
 ## License of contributions
 

@@ -511,7 +511,7 @@ fn sensitive_content_never_reaches_the_index_reports_or_texts() {
         let disclosure = settings.disclosure(scan.source, &f.env);
         outputs.push(serde_json::to_string(&disclosure).unwrap());
         outputs.push(format!("{:?}", index.indexed(scan.source).unwrap()));
-        for locale in ["pt-BR", "en-US", "es"] {
+        for locale in ["pt-BR", "en-US", "es", "it"] {
             outputs.push(scan.summary().resolve(locale));
         }
     }
@@ -716,7 +716,7 @@ fn the_summary_shows_indexed_days_without_content_and_nothing_once_off() {
         serde_json::to_string(&summary).unwrap(),
         format!("{summary:?}"),
     ];
-    for locale in ["pt-BR", "en-US", "es"] {
+    for locale in ["pt-BR", "en-US", "es", "it"] {
         outputs.push(usage.yesterday.line(yesterday_label()).resolve(locale));
         outputs.extend(usage.days.iter().map(|day| day.line().resolve(locale)));
         for source in &summary.sources {

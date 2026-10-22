@@ -10,7 +10,7 @@
 // aninhado, resolvido recursivamente para que rótulos de
 // status/provedor embarcados nas notas também sejam traduzidos.
 //
-// O catálogo do core (crates/cuotai-core/locales/{en-US,es}.json) é carregado
+// O catálogo do core (crates/cuotai-core/locales/{en-US,es,it}.json) é carregado
 // pelo comando Tauri `core_catalog(locale)` e mesclado sob o catálogo de UI:
 // as chaves do core têm prioridade para os ids que o core emite; chaves de
 // UI apenas permanecem no JSON local. Pacotes de idioma do usuário podem
@@ -22,6 +22,7 @@ export const LOCALES = [
   { code: "pt-BR", name: "Português" },
   { code: "en-US", name: "English" },
   { code: "es", name: "Español" },
+  { code: "it", name: "Italiano" },
 ];
 export const FALLBACK = "en-US";
 const KEY = "cuotai.locale";

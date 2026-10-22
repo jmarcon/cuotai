@@ -635,7 +635,7 @@ fn every_summary_reads_in_each_catalog() {
         };
         let summary = event.summary();
         assert!(!summary.fallback.contains('{'), "{kind:?}");
-        for locale in ["en-US", "es"] {
+        for locale in ["en-US", "es", "it"] {
             let text = summary.resolve(locale);
             assert_ne!(text, summary.fallback, "{kind:?} in {locale}");
             assert!(!text.contains('{'), "{text}");
@@ -675,7 +675,7 @@ fn every_summary_reads_in_each_catalog() {
             serde_json::to_value(category).unwrap(),
             serde_json::Value::from(category.name())
         );
-        for locale in ["en-US", "es"] {
+        for locale in ["en-US", "es", "it"] {
             assert_ne!(label.resolve(locale), label.fallback, "{category:?}");
         }
     }
