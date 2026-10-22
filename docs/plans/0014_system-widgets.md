@@ -3,13 +3,25 @@
 | Field | Value |
 |---|---|
 | ID | 0014 |
-| Status | Proposed |
+| Status | Implemented (partial) |
 | Owner | Desktop (macOS) and `cuotai-core` (snapshot file) |
 | Consumers | `apps/desktop`, widget extension (Swift), third-party integrations (Waybar, GNOME, KDE) that read the same file |
 | Depends on | PRD 0012 (RF1: the `export::v1` contract); PRD 0019 (signing and developer profile); it uses PRDs 0006, 0007, 0009 and 0010 |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-22)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | 0.71.0 | Implemented — `widget_snapshot::write(export, path)` in the core (RF1.1: key/name/provider, binding metric, up to N eligible metrics with fraction/unit/window/`resets_at`/`checked_at`/freshness/pace, no credentials, notes or e-mail by default; RF1.2: atomic write, `0600`, 256 KiB cap with deterministic truncation, own `schema` field; RF1.3: stale keeps the original `checked_at`, failed-without-reading stays `unavailable`; RF1.4: a decoupled publisher task in the desktop writes after each relevant change, coalesced to one write every 15 seconds). |
+| RF2 | 0.71.0 | Partial — RF2.2 implemented (the file is written only with widgets on in Settings → Widgets; turning it off deletes the file). RF2.1 and RF2.3 owner-blocked: the *app group* container `group.dev.cuotai.desktop`, entitlements and the provisioning profile need the Apple developer account (PRD 0019); without it the per-OS path resolution falls back to the documented local-data path. |
+| RF3 | 0.71.0 | Partial — RF3.2–RF3.5: the WidgetKit sources in `apps/desktop/widgets/macos` (Summary, Account with an App Intent picker that never shows another account, History) are written and `swiftc -typecheck` passes; they read only the snapshot, show the system relative age, dim stale rows, keep the empty state and carry VoiceOver labels. RF3.1 packaging (`.appex` embedding, `bundle.macOS.files` or a post-processing step) is deliberately unwired: an unsigned extension would fail notarization of the whole app, so it waits for the owner signing prerequisites. Visual acceptance needs a signed build on a clean Mac. |
+| RF4 | 0.71.0 | Implemented — RF4.1: Settings → Widgets with the global switch, include-identity (off by default), maximum published accounts (default 6), the file location and "Delete widget data", in pt-BR/en-US/es. RF4.2: the section explains that macOS decides when to redraw and the data may lag. |
+| RF5 | 0.71.0 | Implemented — RF5.1: the same snapshot is written to `<local data>/cuotai/widget.json` on Windows and Linux for third-party integrations (Waybar, GNOME, KDE), documented in `docs/export-v1.md` and `docs/widgets.md`. |
+
+Owner prerequisites (PRD 0019): a paid Apple developer account, the registered app group, a provisioning profile with the app-group entitlement, Developer ID signing of the app and the `.appex`, notarization of the bundle containing the extension, and the live-widget visual acceptance on a clean Mac.
 
 ## 1. Context
 

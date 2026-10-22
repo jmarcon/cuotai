@@ -4,7 +4,8 @@
 use crate::hooks::{HooksBadge, HooksView, Integration as Hooks, HOOKS_EVENT};
 use crate::local_server::{Feed, FeedSlot, Integration, ServeView};
 use crate::notify::{Notices, SystemNotifier};
-use crate::settings::ServePrefs;
+use crate::settings::{ServePrefs, WidgetPrefs};
+use crate::widgets::{self, WidgetsView};
 use cuotai_core::{
     account_edit::{
         self, build_account, credential_help, default_env, field_descriptors,
@@ -315,6 +316,9 @@ pub struct Backend {
     hooks: Mutex<Hooks>,
     /// The hooks' switch is on: every state change goes to them.
     hooks_on: AtomicBool,
+    /// PRD 0014 RF1.4: the widget snapshot publisher. Lock-free by design:
+    /// a state change only marks it dirty and its own task writes.
+    widgets: widgets::Publisher,
 }
 
 // ---------- DTOs (somente leitura para a UI) ----------
@@ -1070,6 +1074,56 @@ fn config_label(file: &ConfigFile) -> String {
         .unwrap_or_else(|_| file.path.display().to_string())
 }
 
+/// PRD 0014 RF3.2: the recent series of each published account's binding
+/// metric, so the History widget has data to draw. The span follows the
+/// metric's own window (two weeks of samples for a monthly one, a week
+/// otherwise); an account with no samples, no binding or no recorded
+/// history publishes no series at all.
+fn attach_history(
+    snapshot: &mut cuotai_core::widget_snapshot::WidgetSnapshot,
+    export: &Export,
+    store: &HistoryStore,
+    accounts: &[cuotai_core::Account],
+) {
+    let now = chrono::Utc::now();
+    let exported: BTreeMap<&str, &cuotai_core::export::v1::AccountExport> = export
+        .accounts
+        .iter()
+        .map(|account| (account.key.as_str(), account))
+        .collect();
+    for published in &mut snapshot.accounts {
+        let Some(binding) = published.binding.as_ref().map(|binding| binding.index) else {
+            continue;
+        };
+        let Some(exported) = exported.get(published.key.as_str()) else {
+            continue;
+        };
+        // The very metrics the core projected: the preserved ones while the
+        // account is stale, the current ones otherwise.
+        let metrics = exported
+            .last_good
+            .as_ref()
+            .map(|last_good| &last_good.metrics)
+            .or_else(|| exported.report.as_ref().map(|report| &report.metrics));
+        let Some(metric) = metrics.and_then(|metrics| metrics.get(binding)) else {
+            continue;
+        };
+        let range = match metric.window {
+            Some(cuotai_core::MetricWindow::Monthly) => HistoryRange::Month,
+            Some(cuotai_core::MetricWindow::Weekly) => HistoryRange::Week,
+            _ => HistoryRange::Day,
+        };
+        let Some(config_account) = accounts.iter().find(|a| a.key() == published.key) else {
+            continue;
+        };
+        let key = cuotai_core::history::metric_key(metric);
+        let span = range.since(now)..=now;
+        if let Ok(points) = store.series(config_account, &key, span) {
+            published.history = widgets::history(&points, metric.limit);
+        }
+    }
+}
+
 impl Inner {
     /// RF1.2: `CUOTAI_CONFIG` > arquivo escolhido nas configurações > caminho
     /// do SO (nunca `./cuotai.toml` do `cwd`). Carrega via core e troca todo o
@@ -1086,19 +1140,24 @@ impl Backend {
     /// The app's backend with this device's reset notice state (PRD 0003),
     /// status preference (PRD 0011 RF4.3, off until the user opts in),
     /// local server preferences (PRD 0012 RF5, off by default; started by
-    /// [`Self::start_serve`]) and hooks switch (PRD 0013 RF4, off by
-    /// default; the confirmed rules start with the first state change).
+    /// [`Self::start_serve`]), hooks switch (PRD 0013 RF4, off by
+    /// default; the confirmed rules start with the first state change) and
+    /// widget publishing switch (PRD 0014 RF4.1, off by default; the
+    /// publisher task writes with the first state change after it).
     pub fn new(
         notices: Notices,
         status_queries: bool,
         serve: ServePrefs,
         hooks_enabled: bool,
+        widgets: WidgetPrefs,
     ) -> Self {
         let incidents = IncidentMonitor::new();
         incidents.set_enabled(status_queries);
         let serve = Integration::new(serve, Arc::new(cuotai_core::serve::SystemTokenVault));
         let mut hooks = Hooks::default();
         hooks.set_enabled(hooks_enabled);
+        let publisher = widgets::Publisher::new();
+        publisher.set_enabled(widgets.enabled);
         Self {
             inner: Mutex::new(Inner {
                 notices,
@@ -1109,6 +1168,7 @@ impl Backend {
             serve: Mutex::new(serve),
             hooks: Mutex::new(hooks),
             hooks_on: AtomicBool::new(hooks_enabled),
+            widgets: publisher,
             ..Self::default()
         }
     }
@@ -1121,8 +1181,9 @@ impl Backend {
 
     /// Every state change ends here: the UI gets the view, the reset
     /// notice timer recomputes (PRD 0003 RF2.1), the tray icon follows
-    /// the providers' outages (PRD 0011 RF4.2) and the hooks see the new
-    /// state (PRD 0013 RF4).
+    /// the providers' outages (PRD 0011 RF4.2), the hooks see the new
+    /// state (PRD 0013 RF4) and the widget snapshot is marked for its own
+    /// task (PRD 0014 RF1.4, which writes without waiting for anybody).
     async fn emit(&self, app: &AppHandle) {
         let (mut view, watched) = {
             let g = self.inner.lock().await;
@@ -1152,6 +1213,139 @@ impl Backend {
         }
         let _ = app.emit(EVENT, view);
         self.notice_nudge.notify_one();
+        // PRD 0014 RF1.4: the snapshot follows the state changes of its own
+        // task, which coalesces them and writes at most once per interval.
+        self.widgets.mark_dirty();
+    }
+
+    /// PRD 0014 RF4.1/RF2.2: the widget publishing state, the file location
+    /// and whether it is the *app group* an extension can read.
+    pub async fn widgets_view(&self) -> WidgetsView {
+        widgets::view(crate::settings::widget_prefs())
+    }
+
+    /// PRD 0014 RF4.1: turn widget publishing on or off (saved in
+    /// `desktop.json`, off by default), choose whether identity travels
+    /// with it and how many accounts it publishes. Turning it off deletes
+    /// the file; turning it on publishes at once. Errors:
+    /// `invalid_widget_accounts`, `unwritable`.
+    pub async fn set_widgets(
+        &self,
+        app: &AppHandle,
+        enabled: bool,
+        include_identity: bool,
+        max_accounts: usize,
+    ) -> Result<WidgetsView, String> {
+        let prefs = crate::settings::widget_prefs()
+            .with_choices(enabled, include_identity, max_accounts)
+            .map_err(str::to_owned)?;
+        crate::settings::save_widgets(&prefs).map_err(str::to_owned)?;
+        self.widgets.set_enabled(enabled);
+        let path = widgets::snapshot_path();
+        if enabled {
+            self.widgets.mark_dirty();
+        } else {
+            // RF2.2: with the feature off no file is written and an
+            // existing one is gone.
+            self.widgets.reset();
+            widgets::delete(path.as_deref());
+        }
+        self.emit(app).await;
+        Ok(widgets::view(prefs))
+    }
+
+    /// PRD 0014 RF4.1: "Delete widget data". Removes the file now; while
+    /// publishing is on the next state change writes it again.
+    pub async fn delete_widget_data(&self, app: &AppHandle) -> Result<(), String> {
+        let deleted = widgets::delete(widgets::snapshot_path().as_deref());
+        self.widgets.mark_dirty();
+        self.emit(app).await;
+        if !deleted {
+            // Nothing to remove is not a failure; the state still repaints.
+            eprintln!("cuotai: não havia dados de widgets para apagar");
+        }
+        Ok(())
+    }
+
+    /// PRD 0014 RF1.4/RF3.2: the widget publisher, beside
+    /// [`Self::run_scheduler`]. It never queries a provider: it reads the
+    /// state the app already shows, projects it (with the recent series of
+    /// the binding metric while the history records) and writes the file
+    /// off the async runtime. Changes inside the rate-limit window are
+    /// coalesced into the next write, and while the switch is off the task
+    /// stays quiet and the file stays deleted.
+    pub async fn run_widgets(self: Arc<Self>) {
+        loop {
+            if !self.widgets.is_dirty() {
+                self.widgets.wait_nudged().await;
+                continue;
+            }
+            if !self.widgets.is_enabled() {
+                // RF2.2: off, nothing is written (and `set_widgets` removed
+                // the file); the pending change is dropped.
+                self.widgets.reset();
+                continue;
+            }
+            if self.widgets.wait(Instant::now()).is_some() {
+                self.widgets.wait_for_window().await;
+                continue;
+            }
+            self.widgets.take_dirty();
+            let prefs = crate::settings::widget_prefs();
+            if self.write_widget_snapshot(prefs).await {
+                self.widgets.wrote(Instant::now());
+            }
+        }
+    }
+
+    /// Writes the current state once. `true` when the file is on disk and
+    /// publishing is still on (a change that turned it off while the
+    /// payload was being built removes the file instead).
+    async fn write_widget_snapshot(&self, prefs: WidgetPrefs) -> bool {
+        let Some(path) = widgets::snapshot_path() else {
+            return false;
+        };
+        let payload = {
+            let g = self.inner.lock().await;
+            let Some(l) = g.loaded.as_ref() else {
+                return false;
+            };
+            let Some(identity) = l.file.identity().ok() else {
+                return false;
+            };
+            let now = chrono::Utc::now();
+            let export = Export::from_cycle(
+                &l.file.config,
+                &identity,
+                &l.cycle,
+                &l.monitor.incident_statuses(),
+                now,
+                ExportOptions {
+                    include_identity: prefs.include_identity,
+                },
+            );
+            let mut snapshot = cuotai_core::widget_snapshot::WidgetSnapshot::from_export(
+                &export,
+                prefs.max_accounts,
+            );
+            // PRD 0014 RF3.2: the binding metric's recent series, only while
+            // this device records history.
+            if let Some(store) = l.monitor.history() {
+                l.monitor.flush_history(HISTORY_FLUSH);
+                attach_history(&mut snapshot, &export, &store, &l.file.config.accounts);
+            }
+            snapshot
+        };
+        if widgets::publish(payload, path.clone()).await.is_err() {
+            return false;
+        }
+        if crate::settings::widget_prefs().enabled {
+            true
+        } else {
+            // The switch turned off while the payload was being built.
+            widgets::delete(Some(&path));
+            false
+        }
     }
 
     /// PRD 0013 RF4: tell Settings about each hook run. Called once at

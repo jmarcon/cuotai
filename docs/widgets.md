@@ -1,0 +1,126 @@
+# System widgets (PRD 0014)
+
+Cuotai publishes what it already measured into a small JSON file, `widget.json`, that system widgets and third-party integrations read. The extension never queries a provider, never reads a credential and never computes usage: it draws what `cuotai-core` has already computed (the project's rule — see [architecture.md](architecture.md)).
+
+The file is a projection of [`export::v1`](export-v1.md) with **its own** `schema`, so the export can evolve without breaking widgets.
+
+## Where the file lives
+
+| System | Path | Read by |
+|---|---|---|
+| macOS with the *app group* entitlement | `~/Library/Group Containers/group.dev.cuotai.desktop/widget.json` | the app and the signed WidgetKit extension |
+| macOS without it | `~/Library/Application Support/cuotai/widget.json` | third-party panels and scripts only |
+| Windows | `%LOCALAPPDATA%\cuotai\widget.json` | third-party panels and scripts |
+| Linux | `~/.local/share/cuotai/widget.json` | third-party panels and scripts (Waybar, GNOME, KDE) |
+
+The app resolves the *app group* container first and falls back to this user's data directory when the entitlement is missing (an unsigned or unprovisioned build has no container). Settings → Widgets shows the resolved path and states which of the two it is, so the fallback is never a surprise.
+
+With the feature off, **no file is written and an existing one is deleted** (RF2.2). Settings → Widgets also has a "Delete widget data" button.
+
+> macOS: reading the file from a WidgetKit extension needs an [Apple developer account](https://developer.apple.com), the *app group* entitlement `group.dev.cuotai.desktop` and a provisioning profile that includes it. Those are owner prerequisites of [PRD 0019](plans/0019_packaging-and-distribution.md) (Apple Developer account, Developer ID signing, notarization); until they exist, only third-party integrations can read the snapshot.
+
+## Privacy
+
+The file can be read by any process of the same user and by the extension. Therefore it carries **no credentials, no credential variable names, no provider notes, no response bodies and no authenticated URLs** — notes are not projected at all. The e-mail of an account appears only when Settings → Widgets has "include identity (e-mail)" turned on, which is off by default. On Unix the file is written `0600` (readable by its owner only); on Windows the per-user data directory provides the equivalent.
+
+The same rules that apply to [`export::v1`](export-v1.md#what-never-appears) apply here, and `widget_snapshot` inherits the redacted fields it projects.
+
+## Format
+
+Produced by `cuotai_core::widget_snapshot`:
+
+```rust
+use cuotai_core::widget_snapshot::write;
+
+// `export` is the `export::v1` the front end already builds; `max_accounts`
+// is the user's limit from Settings (default 6).
+write(&export, std::path::Path::new("widget.json"), 6)?;
+```
+
+### Top level
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schema` | integer | Always `1`. Its own version, independent of `export::v1`. |
+| `generated_at` | RFC 3339 | When the snapshot was built. |
+| `accounts` | array | The published accounts, in binding order (the most restrictive first). |
+| `truncated` | boolean | `true` when accounts were dropped by the user's limit or by the size cap. |
+
+### Account
+
+| Field | Type | Meaning |
+|---|---|---|
+| `key` | string | `<provider slug>:<name>` (`claude:Work`), the same key as in `export::v1`. A pinned widget matches on it; when the key is gone the widget shows the account as unavailable and never another account. |
+| `name`, `provider` | string | Account name and provider slug. |
+| `email` | string | Only when the user turned identity on; absent otherwise. |
+| `state` | `ready` / `stale` / `unavailable` | `stale`: the current query failed (or is pending) and the metrics are the preserved reading. `unavailable`: nothing to show, current or preserved. |
+| `checked_at` | RFC 3339 or `null` | When the reading shown was **measured**. While stale it is the original time of the preserved reading, never the time the file was written. `null` while `unavailable`. |
+| `freshness` | `fresh` / `aging` / `stale` or `null` | Freshness of the reading shown; `stale` for a preserved one. |
+| `binding` | object or `null` | The metric that restricts the account most (`index`, `label`, `window`, `used_ratio`, `remaining`, `resets_at`, `reason`, `blocked_until`), same shape as `export::v1`. Recomputed over the preserved metrics while stale, so an old bar can be drawn dimmed. `null` while `unavailable`. |
+| `metrics` | array | Up to **4** metrics that have a percentage (the binding one first): `label`, `used_fraction`, `limit`, `unit`, `window`, `resets_at`, and `pace` (PRD 0007) when there is one. A metric without a finite positive `limit` is never published: a percentage is not invented. |
+| `history` | array or absent | Up to **96** points of the binding metric's recent series (`taken_at`, `used_fraction`), present only while this device records history (PRD 0006). The span follows the metric's window. |
+
+### What the file never contains
+
+- An absent value stays `null` (or the metric is left out); it never becomes `0`.
+- Notes, source URLs, credentials, credential variable names, e-mails (unless identity is on) and response bodies.
+- Another account's numbers: an account that failed with no earlier reading is `unavailable` with no metrics at all.
+- A pace on preserved data: the pace belongs to the current reading, so a stale account has none.
+
+### Truncation and size
+
+Accounts are sorted by the binding metric — those with a binding first, the most restrictive (highest `used_ratio`) ahead, ties and the rest by `key`, so the order is total and deterministic. The user's limit drops the tail; if the file would still exceed **256 KiB**, accounts keep being dropped from the tail until it fits. Both steps are deterministic: the same state always produces the same file.
+
+### Atomicity
+
+The write is a temporary file in the same directory followed by a `rename`, with `0600` on Unix (enforced after the rename, so a pre-existing looser file does not survive). A reader therefore never sees a half-written file.
+
+## How often it is written
+
+Every state change of the refresh cycle (a cycle, an account, a preference) marks the snapshot dirty; a task of its own does the write. It coalesces the changes inside the window and writes **at most once every 15 seconds**, so a busy refresh never waits for a file write and never produces a write per account. While the switch is off, the task stays quiet and the file stays deleted.
+
+## The macOS WidgetKit extension
+
+Sources live in [`apps/desktop/widgets/macos`](../apps/desktop/widgets/macos):
+
+| File | What it holds |
+|---|---|
+| `Sources/CuotaiSnapshot.swift` | The file's model and its location (*app group* first, per-user data directory otherwise). |
+| `Sources/WidgetViews.swift` | Shared drawing: the age in the system's relative text, dimmed bars for stale data, the empty state. |
+| `Sources/SummaryWidget.swift` | Summary: each account's binding metric (small, medium, large). |
+| `Sources/AccountWidget.swift` | One account pinned by an App Intent; never falls back to another account. |
+| `Sources/HistoryWidget.swift` | An area chart of the binding metric's series, only when the file carries one. |
+| `Sources/CuotaiWidgets.swift` | The `WidgetBundle` with the three widgets. |
+| `typecheck.sh` | Type-checks the sources with the Command Line Tools. |
+
+### Type-checking without Xcode
+
+The Command Line Tools carry the macOS SDK with WidgetKit, SwiftUI, Charts and AppIntents, so the sources compile without a full Xcode install:
+
+```sh
+apps/desktop/widgets/macos/typecheck.sh            # arm64, macOS 14 target
+apps/desktop/widgets/macos/typecheck.sh x86_64-apple-macosx14.0
+```
+
+Type-checking proves the code compiles; it does not prove the bundle is packaged or signed.
+
+### Building and packaging (owner prerequisites)
+
+Building the `.appex`, embedding it in the Tauri bundle (`bundle.macOS.files` in `tauri.conf.json`), signing both parts with the *app group* entitlement and notarizing them need, from [PRD 0019](plans/0019_packaging-and-distribution.md):
+
+- an Apple Developer account and the Developer ID certificate;
+- the *app group* identifier registered for `dev.cuotai.desktop` (`group.dev.cuotai.desktop`);
+- a provisioning profile that includes the *app group*;
+- notarization of the app with the extension inside.
+
+Until those exist, the unsigned `.appex` is **not** wired into the release bundle: a broken bundle would fail notarization for the whole app. The app keeps publishing the snapshot, which third-party integrations read on every platform.
+
+## For third-party integrations
+
+Read the file, watch its `generated_at` (or use the file's modification time) and respect `state`:
+
+- `ready` — draw the binding metric with `checked_at` as the age;
+- `stale` — draw it dimmed and label it as old; the age belongs to `checked_at`, which is the original measurement time;
+- `unavailable` — say the account is unavailable; never substitute another account.
+
+The local server ([PRD 0012](plans/0012_local-server-and-json-v1.md), `docs/local-server.md`) offers the same state over HTTP for integrations that prefer polling with authentication; the file needs none.

@@ -60,6 +60,11 @@ struct Stored {
     /// requires. Only `true` is stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     hooks: Option<bool>,
+    /// Widget snapshot publishing (PRD 0014 RF4.1); absent = off, the
+    /// owner's choice. Read leniently like `serve`
+    /// ([`WidgetPrefs::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    widgets: Option<serde_json::Value>,
 }
 
 /// Lead times offered, in minutes ("at the time" is 0).
@@ -408,6 +413,104 @@ pub fn save_serve(prefs: &ServePrefs) -> Result<(), &'static str> {
     write_serve(&file, prefs)
 }
 
+/// PRD 0014 RF4.1/RF5: accounts published in `widget.json`: from 1 (the most
+/// restrictive) to [`MAX_WIDGET_ACCOUNTS`]; a value outside reads as the
+/// default.
+pub const MAX_WIDGET_ACCOUNTS: usize = 24;
+
+/// PRD 0014 RF4.1: publishing the widget snapshot of this device. Off by
+/// default (no file is written and an existing one is deleted, RF2.2), with
+/// identity off (no e-mail) and at most [`DEFAULT_WIDGET_ACCOUNTS`]
+/// accounts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct WidgetPrefs {
+    pub enabled: bool,
+    pub include_identity: bool,
+    pub max_accounts: usize,
+}
+
+/// PRD 0014 RF4.1: the account limit offered when none was chosen.
+pub const DEFAULT_WIDGET_ACCOUNTS: usize = 6;
+
+impl Default for WidgetPrefs {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            include_identity: false,
+            max_accounts: DEFAULT_WIDGET_ACCOUNTS,
+        }
+    }
+}
+
+impl WidgetPrefs {
+    /// Each field on its own: an unknown or mistyped value is its default
+    /// (read leniently, like [`ServePrefs::from_value`]).
+    fn from_value(value: &serde_json::Value) -> Self {
+        let default = Self::default();
+        let flag = |key: &str, default: bool| value[key].as_bool().unwrap_or(default);
+        Self {
+            enabled: flag("enabled", default.enabled),
+            include_identity: flag("include_identity", default.include_identity),
+            max_accounts: value["max_accounts"]
+                .as_u64()
+                .and_then(|accounts| usize::try_from(accounts).ok())
+                .filter(|accounts| (1..=MAX_WIDGET_ACCOUNTS).contains(accounts))
+                .unwrap_or(default.max_accounts),
+        }
+    }
+
+    /// The choices from the interface. Error: `invalid_widget_accounts`.
+    pub fn with_choices(
+        mut self,
+        enabled: bool,
+        include_identity: bool,
+        max_accounts: usize,
+    ) -> Result<Self, &'static str> {
+        if !(1..=MAX_WIDGET_ACCOUNTS).contains(&max_accounts) {
+            return Err("invalid_widget_accounts");
+        }
+        self.enabled = enabled;
+        self.include_identity = include_identity;
+        self.max_accounts = max_accounts;
+        Ok(self)
+    }
+}
+
+fn widgets_of(stored: &Stored) -> WidgetPrefs {
+    stored
+        .widgets
+        .as_ref()
+        .map(WidgetPrefs::from_value)
+        .unwrap_or_default()
+}
+
+/// PRD 0014 RF4.1: the widget preferences stored in `file`.
+pub fn read_widgets(file: &Path) -> WidgetPrefs {
+    widgets_of(&read(file))
+}
+
+/// Store the widget preferences in `file`; the defaults remove the key.
+pub fn write_widgets(file: &Path, prefs: &WidgetPrefs) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.widgets = (*prefs != WidgetPrefs::default())
+            .then(|| serde_json::to_value(prefs).ok())
+            .flatten()
+    })
+}
+
+/// PRD 0014 RF4.1: the widget preferences of this device.
+pub fn widget_prefs() -> WidgetPrefs {
+    settings_file()
+        .map(|f| read_widgets(&f))
+        .unwrap_or_default()
+}
+
+/// Store the widget preferences of this device. Error: `unwritable`.
+pub fn save_widgets(prefs: &WidgetPrefs) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    write_widgets(&file, prefs)
+}
+
 /// PRD 0003 RF3: the reset notice preferences stored in `file`.
 pub fn read_notify(file: &Path) -> NotifyPrefs {
     notify_of(&read(file))
@@ -674,6 +777,11 @@ pub struct SettingsView {
     alerts: AlertSettings,
     alert_min: u8,
     alert_max: u8,
+    /// PRD 0014 RF4.1: widget publishing (off by default) and the accepted
+    /// account limit.
+    widgets: WidgetPrefs,
+    widget_accounts_min: usize,
+    widget_accounts_max: usize,
     version: &'static str,
 }
 
@@ -701,6 +809,9 @@ pub fn view() -> SettingsView {
         alerts: alerts_of(&stored),
         alert_min: *THRESHOLD_RANGE.start(),
         alert_max: *THRESHOLD_RANGE.end(),
+        widgets: widgets_of(&stored),
+        widget_accounts_min: 1,
+        widget_accounts_max: MAX_WIDGET_ACCOUNTS,
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -911,6 +1022,55 @@ mod tests {
         fs::write(&file, r#"{"serve":{"enabled":true,"port":80}}"#).unwrap();
         assert_eq!(read_serve(&file).port, 6738);
         assert_eq!(motion_of(&read(&file)), "system");
+    }
+
+    #[test]
+    fn widgets_are_off_without_identity_and_six_accounts_by_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let default = read_widgets(&file);
+        assert_eq!(
+            default,
+            WidgetPrefs {
+                enabled: false,
+                include_identity: false,
+                max_accounts: 6,
+            }
+        );
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let on = default.with_choices(true, true, 3).unwrap();
+        write_widgets(&file, &on).unwrap();
+        assert_eq!(read_widgets(&file), on);
+        assert_eq!(motion_of(&read(&file)), "off", "other fields kept");
+        // Back to the defaults removes the key.
+        write_widgets(&file, &default).unwrap();
+        assert!(!fs::read_to_string(&file).unwrap().contains("widgets"));
+        // The account limit is bounded; the other fields stay.
+        for accounts in [0, MAX_WIDGET_ACCOUNTS + 1] {
+            assert_eq!(
+                default.with_choices(true, false, accounts),
+                Err("invalid_widget_accounts"),
+                "{accounts}"
+            );
+        }
+        assert_eq!(
+            default.with_choices(true, false, 1).unwrap().max_accounts,
+            1
+        );
+        // A hand-edited value of the wrong type is its default, alone.
+        fs::write(
+            &file,
+            r#"{"widgets":{"enabled":true,"include_identity":"yes","max_accounts":0},"motion":"off"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_widgets(&file),
+            WidgetPrefs {
+                enabled: true,
+                ..WidgetPrefs::default()
+            }
+        );
+        assert_eq!(motion_of(&read(&file)), "off");
     }
 
     #[test]
