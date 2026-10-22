@@ -949,10 +949,10 @@ mod tests {
         }
         assert_eq!(fake.titles(), ["Claude: 85% of the 5-hour window used"]);
         let ledger = std::fs::read_to_string(dir.path().join("notified.json")).unwrap();
-        for secret in ["Work", "5h", "claude", "87"] {
+        for needle in ["Work", "5h", "claude", "87"] {
             assert!(
-                !ledger.contains(&format!("\"{secret}")),
-                "{secret}: {ledger}"
+                !ledger.contains(&format!("\"{needle}")),
+                "{needle}: {ledger}"
             );
         }
 
