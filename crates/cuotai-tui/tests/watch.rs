@@ -74,7 +74,7 @@ printf '{{"per5HourPercentage":%s,"per5HourResetTime":%s000}}\n' "$usage" $(( $(
             .env("PATH", path)
             .env_remove("CUOTAI_CONFIG")
             .env_remove("CUOTAI_STATUS")
-            .env_remove("CUOTAI_LANG")
+            .env("CUOTAI_LANG", "pt-BR")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::from(
