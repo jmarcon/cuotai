@@ -2773,22 +2773,33 @@ pub(crate) fn safe(text: &str) -> Cow<'_, str> {
 
 /// Locale for resolving RF8 core messages in the TUI.
 ///
-/// Opt-in via the `CUOTAI_LANG` environment variable; defaults to
-/// `pt-BR` so the Portuguese chrome stays consistent. RFC 5646 codes
-/// are accepted (`en-US`, `es`, `es-AR`, ...); resolution mirrors
-/// `cuotai_core::text::Locale::resolve` so the desktop and the TUI
-/// never disagree about which language a code refers to.
+/// Uses `CUOTAI_LANG` when set, otherwise the operating-system language
+/// when supported, and `en-US` as the fallback.
 pub(crate) fn tui_locale() -> &'static str {
     use std::sync::OnceLock;
     static LOCALE: OnceLock<String> = OnceLock::new();
     LOCALE
         .get_or_init(|| {
-            std::env::var("CUOTAI_LANG")
-                .ok()
-                .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(|| "pt-BR".to_string())
+            let preferred = std::env::var("CUOTAI_LANG").ok();
+            #[cfg(test)]
+            let system = Some("pt-BR".to_string());
+            #[cfg(not(test))]
+            let system = sys_locale::get_locale();
+            tui_locale_for(preferred.as_deref(), system.as_deref())
         })
         .as_str()
+}
+
+fn tui_locale_for(preferred: Option<&str>, system: Option<&str>) -> String {
+    if let Some(preferred) = preferred.filter(|locale| !locale.trim().is_empty()) {
+        return preferred.to_string();
+    }
+    match system.map(cuotai_core::text::Locale::resolve) {
+        Some(cuotai_core::text::Locale::Pt) => "pt-BR",
+        Some(cuotai_core::text::Locale::Es) => "es",
+        Some(cuotai_core::text::Locale::EnUs) | None => "en-US",
+    }
+    .to_string()
 }
 
 /// Resolve a [`cuotai_core::text::Localized`] for the TUI locale.
@@ -2844,6 +2855,21 @@ mod tests {
     use super::*;
     use crate::Provider;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn locale_uses_supported_system_language_or_english_fallback() {
+        assert_eq!(tui_locale_for(None, Some("es-AR")), "es");
+        assert_eq!(tui_locale_for(None, Some("pt_BR.UTF-8")), "pt-BR");
+        assert_eq!(tui_locale_for(None, Some("en-GB")), "en-US");
+        assert_eq!(tui_locale_for(None, Some("fr-FR")), "en-US");
+        assert_eq!(tui_locale_for(None, None), "en-US");
+    }
+
+    #[test]
+    fn locale_environment_override_takes_precedence() {
+        assert_eq!(tui_locale_for(Some("es-AR"), Some("pt-BR")), "es-AR");
+        assert_eq!(tui_locale_for(Some("  "), Some("es-ES")), "es");
+    }
 
     fn account(name: &str, provider: Provider) -> Account {
         Account {
