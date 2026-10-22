@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-10-22
+
+### Added
+
+- Cuotai is now available in Italian: the desktop interface, the core messages and the TUI, where `it` and regional codes such as `it-IT` resolve to the Italian catalog (issue #1).
+
 ## [0.72.0] - 2026-10-22
 
 ### Added
@@ -613,7 +619,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (85206dd).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.72.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.73.0...HEAD
+[0.73.0]: https://github.com/jmarcon/cuotai/compare/v0.72.0...v0.73.0
 [0.72.0]: https://github.com/jmarcon/cuotai/compare/v0.71.1...v0.72.0
 [0.71.1]: https://github.com/jmarcon/cuotai/compare/v0.71.0...v0.71.1
 [0.71.0]: https://github.com/jmarcon/cuotai/compare/v0.70.0...v0.71.0

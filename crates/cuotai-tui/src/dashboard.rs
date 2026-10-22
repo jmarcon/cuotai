@@ -2033,7 +2033,7 @@ mod tests {
     /// a fixture string.
     #[test]
     fn an_extension_account_renders_a_normal_card_in_every_locale() {
-        for locale in ["pt-BR", "en-US", "es"] {
+        for locale in ["pt-BR", "en-US", "es", "it"] {
             let account = Account {
                 name: "quota".into(),
                 provider: Provider::Extension,
@@ -2078,6 +2078,7 @@ mod tests {
                 "pt-BR" => "Extensão",
                 "en-US" => "Extension",
                 "es" => "Extensión",
+                "it" => "Estensione",
                 _ => unreachable!(),
             };
             assert!(

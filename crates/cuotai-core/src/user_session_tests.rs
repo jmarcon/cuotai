@@ -576,12 +576,12 @@ fn malformed_pastes_name_the_cookie_and_never_a_value() {
         let error = reduce(provider, slot, paste, now()).expect_err(id);
         assert_eq!(error.id, id, "{paste}");
         assert!(error.fallback.contains(named), "{}", error.fallback);
-        for locale in ["pt-BR", "en-US", "es"] {
+        for locale in ["pt-BR", "en-US", "es", "it"] {
             let text = error.resolve(locale);
             assert!(!text.contains("SECRET"), "{locale}: {text}");
             assert!(!format!("{error:?}").contains("SECRET"));
         }
-        for locale in ["en-US", "es"] {
+        for locale in ["en-US", "es", "it"] {
             let catalog = crate::text::core_catalog(locale).unwrap();
             assert!(catalog.contains_key(id), "{locale} lacks {id}");
         }

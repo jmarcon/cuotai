@@ -439,7 +439,7 @@ mod tests {
         );
         for warning in [ceiling.warning(), dropped.warning(), status.warning()] {
             let warning = warning.unwrap();
-            for locale in ["en-US", "es"] {
+            for locale in ["en-US", "es", "it"] {
                 let catalog = crate::text::core_catalog(locale).unwrap();
                 assert!(
                     catalog.contains_key(&*warning.id),

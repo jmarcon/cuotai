@@ -540,7 +540,7 @@ async fn a_slow_extension_does_not_delay_a_builtin_account() {
 /// removal (which leaves the installed folder untouched).
 #[tokio::test]
 async fn enable_refresh_disable_and_remove_in_every_locale() {
-    for locale in ["pt-BR", "en-US", "es"] {
+    for locale in ["pt-BR", "en-US", "es", "it"] {
         let rig = Rig::new();
         rig.extension("quota", READY);
 
@@ -589,6 +589,7 @@ async fn enable_refresh_disable_and_remove_in_every_locale() {
             match locale {
                 "pt-BR" => "Extensão",
                 "en-US" => "Extension",
+                "it" => "Estensione",
                 _ => "Extensión",
             },
             "{locale}: the card's access label"

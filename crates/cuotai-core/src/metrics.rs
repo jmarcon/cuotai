@@ -901,7 +901,7 @@ mod tests {
             .iter()
             .map(|b| b.summary(|t| t.format("%H:%M").to_string()))
             .collect();
-        for locale in ["en-US", "es"] {
+        for locale in ["en-US", "es", "it"] {
             let catalog = crate::text::core_catalog(locale).unwrap();
             for text in &texts {
                 let nested = text.params.values().filter_map(|v| match v {

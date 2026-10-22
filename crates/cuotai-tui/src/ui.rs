@@ -2797,6 +2797,7 @@ fn tui_locale_for(preferred: Option<&str>, system: Option<&str>) -> String {
     match system.map(cuotai_core::text::Locale::resolve) {
         Some(cuotai_core::text::Locale::Pt) => "pt-BR",
         Some(cuotai_core::text::Locale::Es) => "es",
+        Some(cuotai_core::text::Locale::It) => "it",
         Some(cuotai_core::text::Locale::EnUs) | None => "en-US",
     }
     .to_string()
@@ -2859,6 +2860,7 @@ mod tests {
     #[test]
     fn locale_uses_supported_system_language_or_english_fallback() {
         assert_eq!(tui_locale_for(None, Some("es-AR")), "es");
+        assert_eq!(tui_locale_for(None, Some("it-IT")), "it");
         assert_eq!(tui_locale_for(None, Some("pt_BR.UTF-8")), "pt-BR");
         assert_eq!(tui_locale_for(None, Some("en-GB")), "en-US");
         assert_eq!(tui_locale_for(None, Some("fr-FR")), "en-US");

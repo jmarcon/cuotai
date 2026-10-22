@@ -883,7 +883,7 @@ mod tests {
             ]);
             texts.extend(access.plan_requirement);
         }
-        for locale in ["en-US", "es"] {
+        for locale in ["en-US", "es", "it"] {
             let catalog = crate::text::core_catalog(locale).expect("shipped catalog");
             let missing: BTreeSet<_> = texts
                 .iter()
@@ -892,7 +892,7 @@ mod tests {
                 .collect();
             assert!(missing.is_empty(), "{locale} lacks {missing:?}");
         }
-        for locale in ["pt-BR", "en-US", "es"] {
+        for locale in ["pt-BR", "en-US", "es", "it"] {
             for text in &texts {
                 assert!(
                     !text.resolve(locale).trim().is_empty(),
