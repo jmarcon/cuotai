@@ -275,84 +275,27 @@ fn check_tauri_conf(root: &Path, version: &Version) -> Res<()> {
 }
 
 /// Extracts the first released `## [X.Y.Z] - YYYY-MM-DD` section immediately
-/// after `[Unreleased]`. Returns `(date, body)` and rejects a workspace
-/// version that appears only in older history.
+/// after `[Unreleased]` from the shared parser (PRD 0019 RF7.4/RF7.5).
+/// Returns `(date, body)` and rejects a workspace version that appears
+/// only in older history; a format violation fails with the parser's exact
+/// line, so the release gate and the repository check never disagree.
 pub fn changelog_section(text: &str, version: &Version) -> Res<(String, String)> {
-    let mut after_unreleased = false;
-    let mut in_section = false;
-    let mut date = String::new();
-    let mut body: Vec<&str> = Vec::new();
-    for line in text.lines() {
-        if !after_unreleased {
-            if line.trim() == "## [Unreleased]" {
-                after_unreleased = true;
-            }
-            continue;
-        }
-        if in_section && line.starts_with("## [") {
-            break;
-        }
-        if !in_section {
-            if !line.starts_with("## [") {
-                continue;
-            }
-            let heading_prefix = format!("## [{version}]");
-            let Some(rest) = line.strip_prefix(&heading_prefix) else {
-                return err(format!(
-                    "CHANGELOG.md: first released section after [Unreleased] is '{line}', expected '## [{version}] - YYYY-MM-DD'"
-                ));
-            };
-            let Some(date_part) = rest.strip_prefix(" - ") else {
-                return err(format!(
-                    "CHANGELOG.md: the heading '{line}' does not match '## [{version}] - YYYY-MM-DD'"
-                ));
-            };
-            let date_text = date_part.trim();
-            if !valid_date(date_text) {
-                return err(format!(
-                    "CHANGELOG.md: '{date_text}' is not a YYYY-MM-DD date"
-                ));
-            }
-            date = date_text.to_string();
-            in_section = true;
-            continue;
-        }
-        body.push(line);
-    }
-    if !after_unreleased {
-        return err("CHANGELOG.md: no '## [Unreleased]' section");
-    }
-    if !in_section {
+    let changelog = crate::changelog::parse(text).map_err(|e| Error::Msg(e.to_string()))?;
+    let Some(first) = changelog.releases.first() else {
         return err(format!(
             "CHANGELOG.md: no released section after [Unreleased] for workspace version {version}"
         ));
+    };
+    if first.version != version.to_string() {
+        return err(format!(
+            "CHANGELOG.md: first released section after [Unreleased] is '## [{}] - {}', expected '## [{version}] - YYYY-MM-DD'",
+            first.version, first.date
+        ));
     }
-    while let Some(last) = body.last() {
-        let t = last.trim();
-        if t.is_empty() || (t.starts_with('[') && t.contains("]: ")) {
-            body.pop();
-        } else {
-            break;
-        }
-    }
-    let meaningful = body
-        .iter()
-        .map(|line| line.trim())
-        .filter(|line| !line.is_empty() && !line.starts_with('#') && !line.starts_with('['))
-        .count();
-    if meaningful == 0 {
+    if first.section.is_empty() {
         return err(format!(
             "CHANGELOG.md: the section for {version} is empty; the release notes come from it"
         ));
     }
-    Ok((date, body.join("\n")))
-}
-
-fn valid_date(text: &str) -> bool {
-    let parts: Vec<&str> = text.split('-').collect();
-    parts.len() == 3
-        && parts[0].len() == 4
-        && parts[1].len() == 2
-        && parts[2].len() == 2
-        && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit()))
+    Ok((first.date.clone(), first.body.clone()))
 }

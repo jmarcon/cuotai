@@ -63,6 +63,18 @@ SUBCOMMANDS:
   verify-download     Re-check downloaded assets against manifest.json (RF4.4)
     --dir DIR
     --manifest PATH
+
+  changelog-check     CHANGELOG format, PRD references and plan links (RF7.4, RF7.8)
+    --repo PATH             repository root (default: .)
+
+  changelog-gate      Pull-request gate: feat/fix in crates/ or apps/ needs the changelog
+    --repo PATH             repository root (default: .)
+    --base REF              base of the pull request (default: HEAD~1)
+    --head REF              head of the pull request (default: HEAD)
+
+  changelog-draft     Draft the [Unreleased] section from the commits (RF7.3)
+    --repo PATH             repository root (default: .)
+    --since REF             default: the last v* tag, else the last version bump
 ";
 
 fn main() -> ExitCode {
@@ -90,6 +102,9 @@ fn run(args: &[String]) -> Res<()> {
         "updater-manifest" => updater_manifest(&opts),
         "merge-sbom" => merge_sbom(&opts),
         "verify-download" => verify_download(&opts),
+        "changelog-check" => changelog_check(&opts),
+        "changelog-gate" => changelog_gate(&opts),
+        "changelog-draft" => changelog_draft(&opts),
         "help" | "--help" | "-h" => {
             print!("{USAGE}");
             Ok(())
@@ -286,6 +301,36 @@ fn verify_download(opts: &Opts) -> Res<()> {
     let manifest = xtask::manifest::load(&PathBuf::from(opts.need("manifest")?))?;
     let count = xtask::manifest::verify_download(&dir, &manifest)?;
     println!("verified {count} downloaded artifacts against the manifest");
+    Ok(())
+}
+
+fn changelog_check(opts: &Opts) -> Res<()> {
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let text = std::fs::read_to_string(repo.join("CHANGELOG.md"))?;
+    xtask::plan_links::run(&repo, &text)?;
+    println!(
+        "changelog check passed: {} released sections, format, PRD references and plan links agree",
+        xtask::changelog::parse(&text)
+            .map_err(|e| Error::Msg(e.to_string()))?
+            .releases
+            .len()
+    );
+    Ok(())
+}
+
+fn changelog_gate(opts: &Opts) -> Res<()> {
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let base = opts.get("base").unwrap_or_else(|| "HEAD~1".to_string());
+    let head = opts.get("head").unwrap_or_else(|| "HEAD".to_string());
+    xtask::changelog_gate::run(&repo, &base, &head)?;
+    println!("changelog gate passed: every feat/fix in {base}..{head} is accounted for");
+    Ok(())
+}
+
+fn changelog_draft(opts: &Opts) -> Res<()> {
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let since = opts.get("since");
+    print!("{}", xtask::draft::run(&repo, since.as_deref())?);
     Ok(())
 }
 

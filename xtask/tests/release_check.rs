@@ -14,9 +14,12 @@ fn write_file(root: &Path, rel: &str, content: &str) {
     std::fs::write(path, content).unwrap();
 }
 
+/// A changelog whose first released section is `version`, followed by a
+/// strictly descending history (the shared parser's format, PRD 0019
+/// RF7.4). `body` is the first section's content.
 fn changelog(version: &str, body: &str) -> String {
     format!(
-        "# Changelog\n\n## [Unreleased]\n\n## [{version}] - 2026-10-21\n\n{body}\n\n## [0.67.0] - 2026-10-20\n\n### Fixed\n\n- Earlier thing.\n"
+        "# Changelog\n\n## [Unreleased]\n\n## [{version}] - 2026-10-21\n\n{body}\n\n## [0.60.0] - 2026-10-20\n\n### Fixed\n\n- Earlier thing.\n"
     )
 }
 
@@ -201,7 +204,7 @@ fn missing_changelog_section_fails() {
     write_file(
         &repo,
         "CHANGELOG.md",
-        &changelog("0.67.0", "### Added\n\n- Only old."),
+        &changelog("0.65.0", "### Added\n\n- Only old."),
     );
     let err = xtask::check::run(&repo, None, None).unwrap_err();
     assert!(
@@ -301,7 +304,7 @@ fn several_problems_are_reported_together() {
     write_file(
         &repo,
         "CHANGELOG.md",
-        &changelog("0.66.0", "### Added\n\n- Old."),
+        &changelog("0.65.0", "### Added\n\n- Old."),
     );
     let err = xtask::check::run(&repo, Some("v0.69.0"), None).unwrap_err();
     let text = err.to_string();

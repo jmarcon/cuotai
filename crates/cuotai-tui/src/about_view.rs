@@ -22,6 +22,8 @@ const YELLOW: Color = Color::Rgb(241, 250, 140);
 pub(crate) enum Reply {
     Stay,
     Close,
+    /// PRD 0019 RF7.7: open the "Novidades" screen from About.
+    Changelog,
 }
 
 #[derive(Default)]
@@ -144,6 +146,9 @@ impl AboutView {
     pub(crate) fn key(&mut self, code: KeyCode) -> Reply {
         match code {
             KeyCode::Esc | KeyCode::Char('q' | '?') | KeyCode::Enter => return Reply::Close,
+            // PRD 0019 RF7.7: What's new (the same history as
+            // `cuotai --changelog`), offline.
+            KeyCode::Char('n') => return Reply::Changelog,
             KeyCode::Down | KeyCode::Char('j' | ']') => self.scroll = self.scroll.saturating_add(1),
             KeyCode::Up | KeyCode::Char('k' | '[') => self.scroll = self.scroll.saturating_sub(1),
             KeyCode::PageDown => self.scroll = self.scroll.saturating_add(10),
@@ -195,6 +200,7 @@ impl AboutView {
         let mut x = areas[1].x;
         for (label, code) in [
             (" ↑↓/PgUp/PgDn rolar", None),
+            ("  n novidades", Some(KeyCode::Char('n'))),
             ("  Esc voltar", Some(KeyCode::Esc)),
         ] {
             let span = Span::styled(label, Style::default().fg(YELLOW));
@@ -279,12 +285,19 @@ mod tests {
     }
 
     #[test]
-    fn footer_click_closes() {
+    fn footer_click_opens_whats_new_and_back() {
         let mut view = AboutView::default();
         render(&mut view, 100, 20);
+        // PRD 0019 RF7.7: `n novidades` is the first clickable action.
         let rect = view.footer[0].0;
         assert_eq!(
             view.mouse(MouseEventKind::Down(MouseButton::Left), rect.x, rect.y),
+            Reply::Changelog
+        );
+        assert_eq!(view.key(KeyCode::Char('n')), Reply::Changelog);
+        let back = view.footer[1].0;
+        assert_eq!(
+            view.mouse(MouseEventKind::Down(MouseButton::Left), back.x, back.y),
             Reply::Close
         );
     }
