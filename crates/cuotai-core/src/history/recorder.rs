@@ -290,7 +290,7 @@ impl HistoryRecorder {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{config, quota, store, t0, CONFIG};
+    use super::super::tests::{config, first_account, quota, store, t0, CONFIG};
     use super::*;
     use crate::{MetricKind, MetricWindow};
 
@@ -312,7 +312,7 @@ mod tests {
     fn records_ready_reports_with_measured_metrics_only() {
         let dir = tempfile::tempdir().unwrap();
         let history = store(&dir.path().join("history.sqlite3"), "one");
-        let alpha = config(CONFIG).accounts.remove(0);
+        let alpha = first_account(config(CONFIG));
         let recorder = HistoryRecorder::spawn(history.clone());
         let limit_only = Metric {
             window: Some(MetricWindow::Other),
