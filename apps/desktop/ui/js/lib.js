@@ -153,6 +153,12 @@ export const setHooksEnabled = (on) => call("set_hooks_enabled", { on });
 export const confirmHooks = (digest) => call("confirm_hooks", { digest });
 export const saveHooks = (revision, rules) => call("save_hooks", { revision, rules });
 export const testHook = (name) => call("test_hook", { name });
+// PRD 0014 RF4.1: the widget snapshot (desktop.json, off by default). Each call answers the new state (the
+// switch, whether identity travels with it, how many accounts, where the file is and whether it is the app
+// group an extension can read). `deleteWidgetData` removes widget.json now.
+export const widgetsStatus = () => call("widgets_status");
+export const setWidgets = (enabled, includeIdentity, maxAccounts) => call("set_widgets", { enabled, includeIdentity, maxAccounts });
+export const deleteWidgetData = () => call("delete_widget_data");
 export const onHookRun = (cb) => {
   if (isDesktop) return T.event.listen("hooks", () => cb());
   demoHookListeners.add(cb);
@@ -748,6 +754,14 @@ function demoServeView() {
     cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
     browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "Com navegadores permitidos, qualquer página aberta no navegador pode ler seu uso no servidor local (com token, qualquer página que o conheça). Ative só se uma página sua precisa desses dados." } };
 }
+// ponytail: demo mirror of the widget snapshot (PRD 0014 RF4.1); nothing is written in the browser. `?widgets`
+// starts with publishing on, so the file path and the macOS prerequisites are visible as in the app.
+const DEMO_WIDGETS = new URLSearchParams(location.search).has("widgets");
+function demoWidgetsView() {
+  const w = demoSettings.widgets;
+  return { prefs: { enabled: w.enabled, include_identity: w.include_identity, max_accounts: w.max_accounts },
+    path: "~/.local/share/cuotai/widget.json (demo)", app_group: DEMO_WIDGETS, macos: true, accounts_min: 1, accounts_max: 24 };
+}
 // ponytail: demo mirror of the backend's hooks (PRD 0013 RF4) with the core's validation, listing and digest reduced
 // to what the screen needs; nothing runs in the browser: a test logs a made-up successful run after a moment.
 // `?hooks=changed` starts with the hooks on and a rule changed since its confirmation (the main-window banner).
@@ -868,7 +882,8 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
 const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} }, statusQueries: DEMO_STATUS != null,
-  serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null } };
+  serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
+  widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
 // Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
 // nenhum catálogo inventado é exibido como real.
@@ -1210,6 +1225,15 @@ const demo = {
     return demoServeView();
   },
   generate_serve_token: async () => { demoSettings.serve.secret = `cuotai_demo_${crypto.randomUUID().replaceAll("-", "")}`; return demoServeView(); },
+  // ponytail: demo mirror of the widget snapshot (PRD 0014 RF4.1); nothing is written in the browser. `?widgets`
+  // starts with publishing on and an account limit already chosen.
+  widgets_status: async () => demoWidgetsView(),
+  set_widgets: async ({ enabled, includeIdentity, maxAccounts }) => {
+    if (!Number.isInteger(maxAccounts) || maxAccounts < 1 || maxAccounts > 24) throw "invalid_widget_accounts";
+    Object.assign(demoSettings.widgets, { enabled, include_identity: includeIdentity, max_accounts: maxAccounts });
+    return demoWidgetsView();
+  },
+  delete_widget_data: async () => { demoSettings.widgets.written = false; },
   revoke_serve_token: async () => { demoSettings.serve.secret = null; return demoServeView(); },
   copy_serve_token: async () => {
     if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token." });

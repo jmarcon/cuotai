@@ -2,7 +2,7 @@
 import { te, t, tl, tle, currentLocale, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, currentSort, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, testHook, themeSwitchHtml } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, currentSort, deleteWidgetData, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, setWidgets, testHook, themeSwitchHtml, widgetsStatus } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -82,7 +82,8 @@ export async function openSettings(extra = {}) {
         <div data-cost-body><p class="hint">${te("common.loading")}</p></div></section>
       <section class="set-sec" data-integration><h3>${te("settings.serve.title")}</h3>
         <div data-serve><p class="hint">${te("common.loading")}</p></div>
-        <div data-hooks><p class="hint">${te("common.loading")}</p></div></section>
+        <div data-hooks><p class="hint">${te("common.loading")}</p></div>
+        <div data-widgets><p class="hint">${te("common.loading")}</p></div></section>
       <section class="set-sec"><h3>${te("settings.config.title")}</h3>
         <p class="hint">${te("settings.config.help")}</p>
         <div class="path-row"><code title="${esc(configLabel(view))}">${esc(configLabel(view) || "—")}</code></div>
@@ -142,6 +143,7 @@ export async function openSettings(extra = {}) {
       (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#status-msg").textContent = errorText(x); });
     bindIntegration(dlg.querySelector("[data-serve]"), extra);
     bindHooks(dlg.querySelector("[data-hooks]"), extra);
+    bindWidgets(dlg.querySelector("[data-widgets]"), extra);
     bindCost(dlg.querySelector("[data-cost-body]"), extra);
     dlg.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => render(errorText(e)));
     const apply = async (path) => {
@@ -504,6 +506,60 @@ async function bindIntegration(sec, extra) {
     sec.querySelector("[data-serve-browsers-cancel]").onclick = () => { confirm.hidden = true; };
   };
   paint(sv);
+}
+
+/** PRD 0014 RF4.1/RF4.2/RF2.3: the widget snapshot of this device, off by default. The switch, whether identity
+ *  (e-mail) travels with it, how many accounts are published, the file location (and whether it is the app group a
+ *  WidgetKit extension can read), and "delete widget data". The redraw of a widget depends on the operating system,
+ *  so the data on it may lag; on macOS the extension also needs a signed app with the app group entitlement. */
+function widgetsHtml(wv, message = "") {
+  const p = wv.prefs ?? { enabled: false, include_identity: false, max_accounts: 6 };
+  const where = wv.app_group
+    ? te("settings.widgets.path.appGroup")
+    : wv.macos ? te("settings.widgets.path.userDataMac") : te("settings.widgets.path.userData");
+  return `<h4>${te("settings.widgets.title")}</h4>
+    <p class="hint">${te("settings.widgets.help")}</p>
+    <label class="check"><input id="widgets-on" type="checkbox" ${p.enabled ? "checked" : ""} /> ${te("settings.widgets.on")}</label>
+    <p class="hint">${te(p.enabled ? "settings.widgets.onState" : "settings.widgets.off")}</p>
+    <label class="check"><input id="widgets-identity" type="checkbox" ${p.include_identity ? "checked" : ""} /> ${te("settings.widgets.identity")}</label>
+    <p class="hint">${te("settings.widgets.identityHelp")}</p>
+    <label class="f"><span>${te("settings.widgets.maxAccounts")}</span>
+      <input id="widgets-max" type="number" inputmode="numeric" min="${esc(wv.accounts_min)}" max="${esc(wv.accounts_max)}" step="1" value="${esc(p.max_accounts)}" />
+      <small>${te("settings.widgets.maxAccountsHelp", { min: wv.accounts_min, max: wv.accounts_max })}</small></label>
+    <p class="hint">${te("settings.widgets.path.label")}</p>
+    <div class="path-row"><code title="${esc(wv.path ?? "")}">${esc(wv.path || "—")}</code></div>
+    <p class="hint">${where}</p>
+    <p class="hint">${te("settings.widgets.redraw")}</p>
+    ${wv.macos && !wv.app_group ? `<p class="hint warn-txt">${icon("warn")} ${te("settings.widgets.macos")}</p>` : ""}
+    <div class="dlg-actions left"><button class="btn danger-btn" data-widgets-delete>${icon("trash")} ${te("settings.widgets.delete")}</button></div>
+    <p class="err" id="widgets-msg" role="alert">${esc(message)}</p>`;
+}
+
+/** Paints the section and binds it. Each change is saved at once and answers the new state; a refused change keeps
+ *  the previous values and says why. */
+async function bindWidgets(sec, extra) {
+  let wv;
+  try { wv = await widgetsStatus(); } catch (e) { sec.querySelector(".hint").textContent = l10nError(e); return; }
+  const paint = (next, message = "") => {
+    wv = next;
+    sec.innerHTML = widgetsHtml(wv, message);
+    const msg = sec.querySelector("#widgets-msg");
+    const save = () => setWidgets(
+      sec.querySelector("#widgets-on").checked,
+      sec.querySelector("#widgets-identity").checked,
+      Number(sec.querySelector("#widgets-max").value));
+    const run = (work) => work().then((answer) => { paint(answer); extra.onChange?.(); }, (e) => { msg.textContent = serveErrorText(e); });
+    sec.querySelector("#widgets-on").onchange = () => run(save);
+    sec.querySelector("#widgets-identity").onchange = () => run(save);
+    sec.querySelector("#widgets-max").onchange = () => run(save);
+    sec.querySelector("[data-widgets-delete]").onclick = () => run(async () => {
+      await deleteWidgetData();
+      return widgetsStatus();
+    }).then(() => {
+      sec.querySelector("#widgets-msg").textContent = t("settings.widgets.deleted");
+    });
+  };
+  paint(wv);
 }
 
 /** Copies a secret fetched on click. WebKit only lets the clipboard follow the click synchronously, so the text goes

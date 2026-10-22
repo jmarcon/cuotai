@@ -8,6 +8,7 @@ mod local_server;
 mod notify;
 mod settings;
 mod user_content;
+mod widgets;
 
 use backend::{
     AccountForm, AccountInput, Backend, FieldChoiceSchema, FormSchema, LoginStartInput,
@@ -576,6 +577,36 @@ async fn hooks_status(app: AppHandle, b: Shared<'_>) -> Result<hooks::HooksView,
     Ok(b.hooks_view(&app).await)
 }
 
+/// PRD 0014 RF4.1: the widget snapshot as Settings shows it: the switch,
+/// whether identity travels with it, how many accounts are published, the
+/// file location and whether it is the *app group* an extension can read.
+#[tauri::command]
+async fn widgets_status(b: Shared<'_>) -> Result<widgets::WidgetsView, String> {
+    Ok(b.widgets_view().await)
+}
+
+/// PRD 0014 RF4.1: publish the snapshot (off by default, saved in
+/// `desktop.json`) or stop and delete the file; `include_identity` and
+/// `max_accounts` travel with the switch. Errors:
+/// `invalid_widget_accounts`, `unwritable`.
+#[tauri::command]
+async fn set_widgets(
+    app: AppHandle,
+    b: Shared<'_>,
+    enabled: bool,
+    include_identity: bool,
+    max_accounts: usize,
+) -> Result<widgets::WidgetsView, String> {
+    b.set_widgets(&app, enabled, include_identity, max_accounts)
+        .await
+}
+
+/// PRD 0014 RF4.1: "Delete widget data" — removes `widget.json` now.
+#[tauri::command]
+async fn delete_widget_data(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
+    b.delete_widget_data(&app).await
+}
+
 /// PRD 0013 RF3.2/RF4: turn the hooks on or off (off by default, saved in
 /// `desktop.json`); on runs only confirmed rules. Error: `unwritable`.
 #[tauri::command]
@@ -968,6 +999,7 @@ pub fn run() {
         settings::status_queries(),
         settings::serve_prefs(),
         settings::hooks_enabled(),
+        settings::widget_prefs(),
     ));
     // PRD 0015 RF4.3: the local server publishes this computer's local cost.
     let local_cost = Arc::new(local_cost::LocalCost::new());
@@ -1036,6 +1068,9 @@ pub fn run() {
             confirm_hooks,
             save_hooks,
             test_hook,
+            widgets_status,
+            set_widgets,
+            delete_widget_data,
             cost_status,
             cost_usage,
             cost_enable,
@@ -1131,6 +1166,9 @@ pub fn run() {
             tauri::async_runtime::spawn(Arc::clone(&backend).run_notices(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).run_incidents(app.handle().clone()));
             tauri::async_runtime::spawn(Arc::clone(&backend).start_serve(app.handle().clone()));
+            // PRD 0014 RF1.4: the widget snapshot publisher, on a task of
+            // its own so a refresh never waits for a file write.
+            tauri::async_runtime::spawn(Arc::clone(&backend).run_widgets());
             Ok(())
         })
         .run(tauri::generate_context!())

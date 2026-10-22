@@ -81,3 +81,7 @@ A value the provider did not report stays `null`; it never becomes `0`. This hol
 - The TOML path (only its digest) and account configuration such as `credential_env`, `oauth` or `params`.
 
 The export holds only what the dashboard already shows. Any process that can read it, for example any local process of the same user while the [local server](local-server.md) is on, can read your usage data.
+
+## Widget snapshot (`widget.json`)
+
+PRD 0014 projects a compact subset of this contract into a file for system widgets and third-party panels: `<local data>/cuotai/widget.json` (the *app group* container on a macOS build with the entitlement). It has **its own** `schema` version and is documented in [widgets.md](widgets.md): what it carries (binding metric, up to four metrics with a percentage, `checked_at`, freshness, pace and a short history series), what it never carries (notes, credentials, e-mail unless identity is on), the deterministic truncation at the account limit and 256 KiB, the atomic `0600` write, and the once-per-15-seconds rate limit.

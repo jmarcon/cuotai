@@ -33,6 +33,7 @@ pub mod text;
 mod transport;
 pub mod user_session;
 pub mod watch;
+pub mod widget_snapshot;
 
 /// RF2 shared login driver, re-exported for convenience.
 pub use oauth::login;
