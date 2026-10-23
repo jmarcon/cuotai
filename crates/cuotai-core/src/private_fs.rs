@@ -15,6 +15,7 @@ pub(crate) fn ensure_dir(dir: &Path) -> io::Result<()> {
     if let Some(parent) = dir.parent().filter(|parent| !parent.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
     }
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
