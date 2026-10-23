@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0029 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (`Account::id`, `ConfigFile`, `account_edit`, state migrations, vault index), desktop and TUI |
 | Consumers | `apps/desktop` (account form, bells, mutes, tray selection), `crates/cuotai-tui` (wizard, `--notify`), `export::v1`/`--serve`/`--watch` consumers, hooks, PRDs 0024, 0025, 0026 |
 | Depends on | PRD 0001 (`ConfigFile`, `account_edit`), PRD 0016 (RF1, RF4: `[accounts.session]`, `stage_forget`) |
@@ -17,7 +17,7 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF0 | — | Proposed (precursor: ships in the first public release, `v0.80.0`, wave 5a of `0000_control.md`). |
+| RF0 | vNEXT | Implemented: account TOML accepts the future `id` key and a missing `name` while rejecting other unknown keys; validation permits an unnamed account only when it has no provider peer; `ConfigFile` preserves existing ids without generating them. |
 | RF1 | — | Proposed. |
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |

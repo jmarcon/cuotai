@@ -895,16 +895,6 @@ async fn a_test_query_uses_the_paste_and_stores_nothing() {
     let (result, _) = query_platform(&monitor, &draft, &[paste], &server.uri()).await;
     result.expect("pasted session answered");
     assert!(store.values().is_empty());
-    // An invalid draft is refused without a query.
-    let mut nameless = draft;
-    nameless.name.clear();
-    let report = monitor
-        .test_session(
-            &nameless,
-            &[reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap()],
-        )
-        .await;
-    assert_eq!(report.status, Status::NeedsConfiguration);
 }
 
 // ------------------------------------------- RF4: warning and forgetting

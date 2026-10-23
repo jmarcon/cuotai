@@ -149,7 +149,7 @@
   "credential_help.zed": "ZED_ACCESS_TOKEN (cloud access token of the zed.dev native login flow). Also set the numeric user_id — it is sent as `Authorization: <user_id> <token>`.",
   "edit_error.aws_profile_required": "Set the AWS profile (AWS CLI v2).",
   "edit_error.choice_invalid": "Invalid selection for {label}.",
-  "edit_error.config_account_names": "Each account needs a non-empty unique name.",
+  "edit_error.config_account_names": "Configured account names must be unique; an unnamed account is valid only when it is the provider's only account.",
   "edit_error.config_accounts_shape": "Existing 'accounts' key is not a list of tables.",
   "edit_error.config_bounds": "refresh_seconds must be >= 30 (>= 300 when any provider is billed per query), concurrency between 1 and 32 and timeout_seconds between 1 and 300.",
   "edit_error.config_client": "Invalid configuration; could not initialise the HTTPS client.",
