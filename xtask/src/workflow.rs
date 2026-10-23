@@ -432,11 +432,17 @@ fn check_triggers(name: &str, root: &Mapping) -> Res<()> {
 }
 
 /// PRD 0039 RF8.6: `CI result` is the one required check, so it must wait
-/// for every other job of ci.yml and always run.
+/// for every other job of ci.yml and run unless the whole run was cancelled
+/// (a superseded run must not post a red required check; a timed-out job still
+/// fails it because the run itself is not cancelled).
 fn check_ci_result_policy(jobs: &Mapping) -> Res<()> {
     let result = mapping(need(jobs, "ci-result", "ci jobs")?, "ci-result job")?;
-    if scalar(result, "name") != Some("CI result") || scalar(result, "if") != Some("always()") {
-        return err("ci.yml job ci-result must be named 'CI result' and run with if: always()");
+    if scalar(result, "name") != Some("CI result")
+        || scalar(result, "if") != Some("${{ !cancelled() }}")
+    {
+        return err(
+            "ci.yml job ci-result must be named 'CI result' and run with if: ${{ !cancelled() }}",
+        );
     }
     let needs: BTreeSet<&str> = scalar_sequence(result, "needs")?.into_iter().collect();
     for key in jobs.keys() {
@@ -950,6 +956,15 @@ mod tests {
         assert!(check_text(Path::new("release.yml"), RELEASE_WORKFLOW).is_ok());
         assert!(check_text(Path::new("external-rules.yml"), EXTERNAL_RULES_WORKFLOW).is_ok());
         assert!(check_text(Path::new("codeql.yml"), CODEQL_WORKFLOW).is_ok());
+    }
+
+    #[test]
+    fn rejects_ci_result_that_runs_on_cancelled_or_never_runs() {
+        for replacement in ["if: always()", "if: success()"] {
+            let unsafe_workflow = CI_WORKFLOW.replacen("if: ${{ !cancelled() }}", replacement, 1);
+            assert_ne!(unsafe_workflow, CI_WORKFLOW);
+            assert!(check_text(Path::new("ci.yml"), &unsafe_workflow).is_err());
+        }
     }
 
     #[test]

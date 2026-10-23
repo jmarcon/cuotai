@@ -444,12 +444,16 @@ jobs:
   # success for required checks, but a skipped *matrix* job reports under its
   # unexpanded name (`test (${{ matrix.os }})`), so a required
   # `test (ubuntu-latest)` would wait forever on a documentation-only change.
-  # This job always runs and fails when any job it waits for failed or was
-  # cancelled; "skipped" is accepted only because `changes` itself succeeded.
+  # This job runs unless the whole workflow run was cancelled (a newer push
+  # superseded it through the concurrency group): the newer run then provides
+  # the check, and a cancelled run must not post a red required check. In every
+  # other case it fails when any job it waits for failed or was cancelled (a
+  # timeout, for example); "skipped" is accepted only because `changes` itself
+  # succeeded.
   ci-result:
     name: CI result
     needs: [changes, test, deny, version-check, changelog-check, release-preflight]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
