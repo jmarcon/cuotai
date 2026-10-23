@@ -1,176 +1,319 @@
-//! Pull-request changelog gate (PRD 0019 RF7.4): a commit that touches
-//! `crates/` or `apps/` with a `feat` or `fix` subject must change
-//! `CHANGELOG.md`, unless its body carries the `Changelog: skip` footer
-//! with a reason (AGENTS.md).
+//! The commit gate (PRD 0039 RF2; replaces the PRD 0019 RF7.4 gate under
+//! the same `changelog-gate` command). Every non-merge commit of a pull
+//! request (`base..head`) or of a push to `main` (`before..after`) is
+//! checked against the commit contract of [`crate::commits`], and every
+//! problem is reported together:
 //!
-//! The gate is deliberately dumb about content: it asks whether the file
-//! moved in the pull request and whether the commits that deliver user
-//! visible work are accounted for. The reviewed wording is the author's
-//! job, `cargo xtask changelog-draft` only suggests it.
+//! 1. the header is conventional;
+//! 2. a user-visible commit touching product paths says what changed
+//!    (`Changelog: <sentence>`) or why not (`Changelog: skip <reason>`);
+//! 3. a breaking commit carries its `BREAKING CHANGE:` migration;
+//! 4. no commit but a release commit changes a version location, a
+//!    workspace lockfile entry or `CHANGELOG.md` (a `docs(changelog)` commit
+//!    with `Changelog-Edit:` may correct released prose);
+//! 5. a release commit changes only the release file set and passes
+//!    `release prepare --check`;
+//! 6. no trailer carries a skip-CI marker;
+//! 7. each sentence passes a light lint, and every `Refs:` plan reference
+//!    exists.
 
 use std::path::Path;
 
-use crate::{err, git, Res};
+use crate::commits::{self, Commit, Reference};
+use crate::release::{self, Tree};
+use crate::{git, Res};
 
-/// One commit of the pull request, as read from `git log`.
-struct Commit {
-    sha: String,
-    subject: String,
-    body: String,
-    files: Vec<String>,
+/// Paths whose change is user-visible (shipped code, licenses, notices).
+fn is_product(path: &str) -> bool {
+    path.starts_with("crates/")
+        || path.starts_with("apps/")
+        || path.starts_with("LICENSE")
+        || path == "THIRD_PARTY_NOTICES"
 }
 
-impl Commit {
-    /// `feat`, `feat(scope)`, `fix!`… — the two user-visible types.
-    fn is_user_visible(&self) -> bool {
-        let Some(kind) = self.subject.split(['(', '!', ':']).next() else {
-            return false;
-        };
-        matches!(kind, "feat" | "fix")
-    }
-
-    fn touches_product(&self) -> bool {
-        self.files
-            .iter()
-            .any(|path| path.starts_with("crates/") || path.starts_with("apps/"))
-    }
-
-    fn changes_changelog(&self) -> bool {
-        self.files.iter().any(|path| path == "CHANGELOG.md")
-    }
-
-    /// `Changelog: skip` plus a reason (never the bare footer).
-    fn has_skip_with_reason(&self) -> bool {
-        self.body.lines().any(|line| {
-            let Some(reason) = line.trim().strip_prefix("Changelog: skip") else {
-                return false;
-            };
-            let reason = reason.trim_start_matches([':', '-', ' ']).trim();
-            !reason.is_empty()
-        })
-    }
-}
-
-/// Fails when the pull request `base..head` carries a `feat`/`fix` commit
-/// touching `crates/` or `apps/`, changes no changelog content, and
-/// justifies no `Changelog: skip` footer with a reason. `base` and `head`
-/// are refs (or SHAs) the checkout already has.
-pub fn run(repo: &Path, base: &str, head: &str) -> Res<()> {
-    let commits = commits(repo, base, head)?;
-    // RF7.4 gates the pull request, not each commit: one changelog entry
-    // may land in its own commit of the same pull request (RF7.3).
-    if commits.iter().any(|commit| commit.changes_changelog()) {
-        return Ok(());
-    }
+/// Checks `base..head`; returns how many commits were checked.
+pub fn run(repo: &Path, base: &str, head: &str) -> Res<usize> {
+    let commits = commits::load(repo, &format!("{base}..{head}"))?;
+    let plans = crate::plan_links::Plans::read(repo).ok();
     let mut problems: Vec<String> = Vec::new();
     for commit in &commits {
-        if !commit.is_user_visible() || !commit.touches_product() {
-            continue;
+        let files = commits::files(repo, &commit.sha)?;
+        for problem in check_commit(repo, commit, &files, plans.as_ref())? {
+            problems.push(format!("{} {}: {problem}", commit.short(), commit.subject));
         }
-        if commit.has_skip_with_reason() {
-            continue;
-        }
-        problems.push(format!(
-            "{} {} touches crates/ or apps/ but the pull request changes no CHANGELOG.md and the commit justifies no 'Changelog: skip <reason>' footer",
-            commit.sha, commit.subject
-        ));
     }
     if !problems.is_empty() {
-        return err(format!(
-            "changelog gate failed ({} problem(s)):\n - {}",
+        return crate::err(format!(
+            "commit gate failed ({} problem(s)):\n - {}\n\nAmend the commit message on your branch \
+             (`git commit --amend` for the last commit, `git rebase --exec` for older ones) and \
+             push again. AGENTS.md (\"How to deliver a change\") has the template.",
             problems.len(),
             problems.join("\n - ")
         ));
     }
-    Ok(())
+    Ok(commits.len())
 }
 
-/// The commits of `base..head`, oldest first, with their touched files.
-fn commits(repo: &Path, base: &str, head: &str) -> Res<Vec<Commit>> {
-    let range = format!("{base}..{head}");
-    // 0x1f separates records, 0x1e the fields: a message may contain any
-    // other character.
-    let format = "--format=%H%x1f%s%x1f%B%x1e";
-    let log = git::run(repo, &["log", format, &range])?;
+/// Every problem of one commit, without the commit prefix.
+fn check_commit(
+    repo: &Path,
+    commit: &Commit,
+    files: &[String],
+    plans: Option<&crate::plan_links::Plans>,
+) -> Res<Vec<String>> {
     let mut out = Vec::new();
-    for record in log.split('\u{1e}') {
-        let record = record.trim_start_matches(['\n', '\r']);
-        if record.trim().is_empty() {
-            continue;
+    if let Err(problem) = &commit.header {
+        out.push(format!("rule 1: {problem}"));
+    }
+    out.extend(commit.problems.iter().map(|p| format!("trailers: {p}")));
+    let release = commit.release_version().is_some();
+
+    if !release {
+        // Rule 2.
+        if commit.is_user_visible()
+            && files.iter().any(|f| is_product(f))
+            && commit.trailers.sentences.is_empty()
+            && commit.trailers.skip.is_none()
+        {
+            out.push(
+                "rule 2: user-visible change without a changelog entry: add a \
+                 'Changelog: <one sentence for the user>.' trailer, or 'Changelog: skip <reason>'"
+                    .to_string(),
+            );
         }
-        let mut fields = record.split('\u{1f}');
-        let sha = fields.next().unwrap_or_default().trim().to_string();
-        let subject = fields.next().unwrap_or_default().to_string();
-        let body = fields.next().unwrap_or_default().to_string();
-        if sha.is_empty() {
-            continue;
+        // Rule 3 (an empty footer is already a trailer problem).
+        if commit.is_breaking()
+            && commit.trailers.breaking.is_none()
+            && !commit
+                .problems
+                .iter()
+                .any(|p| p.contains("BREAKING CHANGE"))
+        {
+            out.push(
+                "rule 3: breaking commit without its migration: add 'BREAKING CHANGE: <what users must change>'"
+                    .to_string(),
+            );
         }
-        let files = git::run(
-            repo,
-            &["diff-tree", "--no-commit-id", "--name-only", "-r", &sha],
-        )?;
-        out.push(Commit {
-            sha,
-            subject,
-            body,
-            files: files.lines().map(str::to_string).collect(),
-        });
+        // Rule 4.
+        for change in version_changes(repo, &commit.sha, files)? {
+            out.push(format!(
+                "rule 4: {change}; versions move only in the release commit of \
+                 `cargo xtask release prepare`: drop this hunk"
+            ));
+        }
+        if files.iter().any(|f| f == "CHANGELOG.md") {
+            let allowed = commit
+                .header
+                .as_ref()
+                .is_ok_and(|h| h.kind == "docs" && h.scope.as_deref() == Some("changelog"))
+                && commit.trailers.changelog_edit.is_some();
+            if !allowed {
+                out.push(
+                    "rule 4: changes CHANGELOG.md: entries are generated at release time from the \
+                     'Changelog:' trailer; drop the CHANGELOG.md hunk (a prose fix of a released \
+                     section is a 'docs(changelog)' commit with 'Changelog-Edit: <reason>')"
+                        .to_string(),
+                );
+            } else if let Some(problem) = changelog_edit_problem(repo, &commit.sha)? {
+                out.push(format!("rule 4: {problem}"));
+            }
+        }
+        if commit.trailers.version_override.is_some() {
+            out.push("rule 4: 'Version-Override:' belongs only in a release commit".to_string());
+        }
+    } else {
+        // Rule 5.
+        for file in files.iter().filter(|f| !release::in_release_set(f)) {
+            out.push(format!(
+                "rule 5: a release commit changes only the release file set, not {file}"
+            ));
+        }
+        if let Err(problem) = release::check_release(repo, &commit.sha) {
+            out.push(format!("rule 5: {problem}"));
+        }
+    }
+    // Rule 6.
+    for (key, value) in &commit.trailers.all {
+        if commits::has_skip_marker(&format!("{key}: {value}")) {
+            out.push(format!(
+                "rule 6: trailer '{key}' carries a skip-CI marker, which would skip CI on the release PR"
+            ));
+        }
+    }
+    // Rule 7.
+    for sentence in &commit.trailers.sentences {
+        out.extend(
+            commits::lint_sentence(sentence)
+                .into_iter()
+                .map(|p| format!("rule 7: {p}")),
+        );
+    }
+    if let Some(plans) = plans {
+        for reference in &commit.trailers.refs {
+            if let Reference::Plan { prd, rf } = reference {
+                if let Some(problem) = plans.missing(prd, rf) {
+                    out.push(format!("rule 7: Refs: PRD {prd} {rf}: {problem}"));
+                }
+            }
+        }
     }
     Ok(out)
+}
+
+/// The version values a commit changes (RF1.3), described for the message.
+fn version_changes(repo: &Path, sha: &str, files: &[String]) -> Res<Vec<String>> {
+    type Extract = fn(&str) -> Vec<String>;
+    let watched: [(&str, Extract); 6] = [
+        ("Cargo.toml", |t| {
+            toml_path(t, &["workspace", "package", "version"])
+        }),
+        ("apps/desktop/src-tauri/Cargo.toml", |t| {
+            toml_path(t, &["package", "version"])
+        }),
+        ("apps/desktop/src-tauri/tauri.conf.json", |t| {
+            serde_json::from_str::<serde_json::Value>(t)
+                .ok()
+                .and_then(|v| v.get("version")?.as_str().map(str::to_string))
+                .into_iter()
+                .collect()
+        }),
+        ("crates/cuotai-tui/Cargo.toml", |t| {
+            toml_path(t, &["dependencies", "cuotai-core", "version"])
+        }),
+        ("Cargo.lock", |t| {
+            lock_versions(t, &["cuotai-core", "cuotai-tui"])
+        }),
+        ("apps/desktop/src-tauri/Cargo.lock", |t| {
+            lock_versions(t, &["cuotai-core", "cuotai-desktop"])
+        }),
+    ];
+    let parent = format!("{sha}^");
+    if git::run(repo, &["rev-parse", "--verify", "--quiet", &parent]).is_err() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for (path, extract) in watched {
+        if !files.iter().any(|f| f == path) {
+            continue;
+        }
+        let before = Tree::Rev(repo, parent.clone())
+            .read(path)
+            .map(|t| extract(&t))
+            .unwrap_or_default();
+        let after = Tree::Rev(repo, sha.to_string())
+            .read(path)
+            .map(|t| extract(&t))
+            .unwrap_or_default();
+        if before != after {
+            out.push(format!(
+                "changes the version in {path} ({} -> {})",
+                before.join(", "),
+                after.join(", ")
+            ));
+        }
+    }
+    Ok(out)
+}
+
+fn toml_path(text: &str, keys: &[&str]) -> Vec<String> {
+    let Ok(doc) = text.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    let mut value = &doc;
+    for key in keys {
+        let Some(next) = value.get(key) else {
+            return Vec::new();
+        };
+        value = next;
+    }
+    value.as_str().map(str::to_string).into_iter().collect()
+}
+
+fn lock_versions(text: &str, names: &[&str]) -> Vec<String> {
+    let Ok(doc) = text.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    let Some(packages) = doc.get("package").and_then(|p| p.as_array()) else {
+        return Vec::new();
+    };
+    names
+        .iter()
+        .flat_map(|name| {
+            packages
+                .iter()
+                .filter(move |p| p.get("name").and_then(|n| n.as_str()) == Some(*name))
+                .filter_map(move |p| {
+                    p.get("version")
+                        .and_then(|v| v.as_str())
+                        .map(|v| format!("{name} {v}"))
+                })
+        })
+        .collect()
+}
+
+/// A `Changelog-Edit` commit may reword released sections and the
+/// preface/footer, but never touch `[Unreleased]`, add or remove a section
+/// or change how many entries a section has.
+fn changelog_edit_problem(repo: &Path, sha: &str) -> Res<Option<String>> {
+    let parse = |rev: String| -> Option<crate::changelog::Changelog> {
+        let text = Tree::Rev(repo, rev).read("CHANGELOG.md").ok()?;
+        crate::changelog::parse(&text).ok()
+    };
+    let (Some(before), Some(after)) = (parse(format!("{sha}^")), parse(sha.to_string())) else {
+        return Ok(Some(
+            "the CHANGELOG.md edit leaves a file the shared parser rejects".to_string(),
+        ));
+    };
+    if before.unreleased != after.unreleased {
+        return Ok(Some(
+            "a Changelog-Edit commit must not touch [Unreleased]".to_string(),
+        ));
+    }
+    let shape = |c: &crate::changelog::Changelog| -> Vec<(String, usize)> {
+        c.releases
+            .iter()
+            .map(|r| {
+                (
+                    r.version.clone(),
+                    r.section.categories.iter().map(|b| b.entries.len()).sum(),
+                )
+            })
+            .collect()
+    };
+    if shape(&before) != shape(&after) {
+        return Ok(Some(
+            "a Changelog-Edit commit may reword released entries but not add or remove sections or entries"
+                .to_string(),
+        ));
+    }
+    Ok(None)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn commit(subject: &str, body: &str, files: &[&str]) -> Commit {
-        Commit {
-            sha: "abc1234".into(),
-            subject: subject.into(),
-            body: body.into(),
-            files: files.iter().map(|f| (*f).to_string()).collect(),
-        }
+    #[test]
+    fn product_paths() {
+        assert!(is_product("crates/cuotai-core/src/lib.rs"));
+        assert!(is_product("apps/desktop/ui/index.html"));
+        assert!(is_product("LICENSE-MIT"));
+        assert!(is_product("THIRD_PARTY_NOTICES"));
+        assert!(!is_product("docs/plans/0000_control.md"));
+        assert!(!is_product("xtask/src/main.rs"));
     }
 
     #[test]
-    fn user_visible_types_are_feat_and_fix() {
-        assert!(commit("feat(x): a", "", &[]).is_user_visible());
-        assert!(commit("fix!: a", "", &[]).is_user_visible());
-        assert!(commit("feat(oauth): a", "", &[]).is_user_visible());
-        assert!(!commit("docs: a", "", &[]).is_user_visible());
-        assert!(!commit("chore(deps): a", "", &[]).is_user_visible());
-        assert!(!commit("refactor(core): a", "", &[]).is_user_visible());
-    }
-
-    #[test]
-    fn skip_needs_a_reason() {
-        assert!(commit("feat: a", "Changelog: skip: docs only", &[]).has_skip_with_reason());
-        assert!(commit(
-            "feat: a",
-            "Refs: PRD 0019 RF7\nChangelog: skip - internal only",
-            &[]
-        )
-        .has_skip_with_reason());
-        assert!(!commit("feat: a", "Changelog: skip", &[]).has_skip_with_reason());
-        assert!(!commit("feat: a", "Changelog: skip\n", &[]).has_skip_with_reason());
-        assert!(
-            !commit("feat: a", "changelog: skip: lowercase does not count", &[])
-                .has_skip_with_reason()
+    fn lock_and_toml_extraction() {
+        let lock = "[[package]]\nname = \"cuotai-core\"\nversion = \"0.79.0\"\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.0\"\n";
+        assert_eq!(
+            lock_versions(lock, &["cuotai-core", "cuotai-tui"]),
+            ["cuotai-core 0.79.0"]
         );
-    }
-
-    #[test]
-    fn product_paths_and_changelog_are_recognized() {
-        let product = commit("feat: a", "", &["crates/cuotai-core/src/lib.rs"]);
-        assert!(product.touches_product());
-        assert!(!product.changes_changelog());
-        let doc = commit("feat: a", "", &["docs/plans/0000_control.md"]);
-        assert!(!doc.touches_product());
-        let both = commit(
-            "fix: a",
-            "",
-            &["apps/desktop/src-tauri/src/x.rs", "CHANGELOG.md"],
+        let tui = "[dependencies]\ncuotai-core = { path = \"x\", version = \"0.79\" }\n";
+        assert_eq!(
+            toml_path(tui, &["dependencies", "cuotai-core", "version"]),
+            ["0.79"]
         );
-        assert!(both.touches_product() && both.changes_changelog());
     }
 }

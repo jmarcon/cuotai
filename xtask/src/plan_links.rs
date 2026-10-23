@@ -22,6 +22,7 @@ pub fn run(root: &Path, text: &str) -> Res<()> {
     let mut problems = Vec::new();
     check_references(&changelog, &plans, &mut problems);
     check_delivered_versions(root, &changelog, &mut problems);
+    check_footer_links(text, &changelog, &mut problems);
     if !problems.is_empty() {
         return err(format!(
             "changelog/plan check failed ({} problem(s)):\n - {}",
@@ -33,12 +34,12 @@ pub fn run(root: &Path, text: &str) -> Res<()> {
 }
 
 /// Every plan of `docs/plans`, keyed by its number, loaded once.
-struct Plans {
+pub struct Plans {
     by_number: BTreeMap<String, String>,
 }
 
 impl Plans {
-    fn read(root: &Path) -> Res<Plans> {
+    pub fn read(root: &Path) -> Res<Plans> {
         let dir = root.join("docs/plans");
         let entries = std::fs::read_dir(&dir)
             .map_err(|e| Error::Msg(format!("cannot read {}: {e}", dir.display())))?;
@@ -66,6 +67,18 @@ impl Plans {
 
     fn body(&self, number: &str) -> Option<&str> {
         self.by_number.get(number).map(String::as_str)
+    }
+
+    /// Why `PRD prd rf` does not resolve, or `None` when it does (the
+    /// commit gate checks `Refs:` trailers with it, PRD 0039 RF2).
+    pub fn missing(&self, prd: &str, rf: &str) -> Option<String> {
+        match self.body(prd) {
+            None => Some(format!("there is no docs/plans/{prd}_*.md plan")),
+            Some(body) if !has_requirement(body, rf) => {
+                Some(format!("docs/plans/{prd}_*.md has no {rf}"))
+            }
+            Some(_) => None,
+        }
     }
 }
 
@@ -103,6 +116,80 @@ fn check_references(changelog: &Changelog, plans: &Plans, problems: &mut Vec<Str
                 "{reference}: docs/plans/{prd}_*.md has no {rf}",
                 prd = reference.prd,
                 rf = reference.rf
+            ));
+        }
+    }
+}
+
+/// PRD 0039 RF9.5: every released section has a footer link; an internal
+/// version (up to [`crate::release::LAST_INTERNAL_VERSION`], never tagged)
+/// links commits, never a `v*` tag or a moving branch; a published version
+/// compares tags; `[Unreleased]` compares the newest version with `HEAD`.
+fn check_footer_links(text: &str, changelog: &Changelog, problems: &mut Vec<String>) {
+    let links: BTreeMap<&str, &str> = text
+        .lines()
+        .filter_map(|line| {
+            let rest = line.strip_prefix('[')?;
+            let (label, url) = rest.split_once("]: ")?;
+            Some((label, url.trim()))
+        })
+        .collect();
+    let internal = |version: &str| {
+        crate::Version::parse(version).is_ok_and(|v| v <= crate::release::LAST_INTERNAL_VERSION)
+    };
+    let moving = |url: &str| url.ends_with("...main") || url.ends_with("/main");
+    match (links.get("Unreleased"), changelog.releases.first()) {
+        (None, _) => problems.push("CHANGELOG.md: no [Unreleased] footer link".to_string()),
+        (Some(url), newest) => {
+            if !url.ends_with("...HEAD") {
+                problems.push(format!(
+                    "CHANGELOG.md: the [Unreleased] link must compare with HEAD: {url}"
+                ));
+            }
+            if let Some(newest) = newest {
+                let tagged = format!("/compare/v{}...HEAD", newest.version);
+                if internal(&newest.version) {
+                    if url.contains("/compare/v") {
+                        problems.push(format!(
+                            "CHANGELOG.md: [Unreleased] compares a tag, but {} is an internal version without one: {url}",
+                            newest.version
+                        ));
+                    }
+                } else if !url.ends_with(&tagged) {
+                    problems.push(format!(
+                        "CHANGELOG.md: [Unreleased] must compare v{}...HEAD: {url}",
+                        newest.version
+                    ));
+                }
+            }
+        }
+    }
+    for release in &changelog.releases {
+        let Some(url) = links.get(release.version.as_str()) else {
+            problems.push(format!(
+                "CHANGELOG.md: [{}] has no footer link",
+                release.version
+            ));
+            continue;
+        };
+        if internal(&release.version) {
+            if url.contains("/compare/v") || url.contains("...v") || moving(url) {
+                problems.push(format!(
+                    "CHANGELOG.md: [{}] is an internal version (no tag): its link must compare commits, not tags or main: {url}",
+                    release.version
+                ));
+            }
+        } else if !url.ends_with(&format!("...v{}", release.version)) {
+            problems.push(format!(
+                "CHANGELOG.md: [{0}] must compare up to the tag v{0}: {url}",
+                release.version
+            ));
+        }
+    }
+    for label in links.keys() {
+        if *label != "Unreleased" && changelog.find(label).is_none() {
+            problems.push(format!(
+                "CHANGELOG.md: footer link [{label}] has no section"
             ));
         }
     }

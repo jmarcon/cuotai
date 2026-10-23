@@ -1,10 +1,10 @@
 //! Behavior-level tests for the changelog and plan-control checks (PRD 0019
-//! RF7.4/RF7.8) and for the draft generator (RF7.3): the format, the
-//! references, the divergence with the plan tables, the pull-request gate
-//! and the grouped draft over real commits.
+//! RF7.4/RF7.8, PRD 0039 RF9.5): the format, the references, the
+//! divergence with the plan tables and the footer links. The commit gate
+//! and `release prepare` have their own temp-repository tests
+//! (`commit_gate.rs`, `release_prepare.rs`).
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::Path;
 
 use xtask::changelog::parse;
 
@@ -27,8 +27,9 @@ All notable changes to Cuotai are recorded here.
 
 - An old thing fixed (PRD 0001 RF1).
 
-[Unreleased]: https://example/compare/v0.2.0...HEAD
-[0.2.0]: https://example/compare/v0.1.0...v0.2.0
+[Unreleased]: https://example/compare/abc1234...HEAD
+[0.2.0]: https://example/compare/def5678...abc1234
+[0.1.0]: https://example/commit/def5678
 ";
 
 const PLAN: &str = "\
@@ -171,215 +172,6 @@ fn format_violations_fail_the_check() {
     }
 }
 
-// --------------------------------------------------------------------------
-// The pull-request gate and the draft generator need real commits.
-// --------------------------------------------------------------------------
-
-fn git(repo: &Path, args: &[&str]) -> String {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .env("GIT_AUTHOR_DATE", "2026-10-21T00:00:00Z")
-        .env("GIT_COMMITTER_DATE", "2026-10-21T00:00:00Z")
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "git {args:?} failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    String::from_utf8_lossy(&output.stdout).into_owned()
-}
-
-/// A git repository whose first commit holds the fixture, so every later
-/// commit is a pull-request candidate.
-fn repo_fixture() -> (tempfile::TempDir, PathBuf) {
-    let dir = tempfile::tempdir().unwrap();
-    let repo = dir.path().to_path_buf();
-    let root = dir.path();
-    write_file(root, "CHANGELOG.md", CHANGELOG);
-    write_file(root, "docs/plans/0019_packaging.md", PLAN);
-    write_file(root, "docs/plans/0001_core.md", PLAN_0001);
-    write_file(root, "docs/plans/0000_control.md", CONTROL);
-    write_file(root, "crates/core/lib.rs", "// v1\n");
-    write_file(
-        root,
-        "Cargo.toml",
-        "[workspace.package]\nversion = \"0.2.0\"\n",
-    );
-    git(&repo, &["init", "-b", "main", "-q"]);
-    git(&repo, &["config", "user.email", "test@example.com"]);
-    git(&repo, &["config", "user.name", "Test"]);
-    git(&repo, &["add", "-A"]);
-    git(&repo, &["commit", "-q", "-m", "chore: fixture"]);
-    (dir, repo)
-}
-
-fn commit(repo: &Path, message: &str, file: &str, content: &str) {
-    let path = repo.join(file);
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, content).unwrap();
-    git(repo, &["add", "-A"]);
-    git(repo, &["commit", "-q", "-m", message]);
-}
-
-#[test]
-fn feature_without_changelog_fails_the_gate() {
-    let (_d, repo) = repo_fixture();
-    commit(
-        &repo,
-        "feat(core): add a thing",
-        "crates/core/lib.rs",
-        "// v2\n",
-    );
-    let error = xtask::changelog_gate::run(&repo, "HEAD~1", "HEAD")
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("changelog gate failed"), "{error}");
-    assert!(error.contains("feat(core): add a thing"), "{error}");
-}
-
-#[test]
-fn feature_with_a_skip_footer_and_a_reason_passes() {
-    let (_d, repo) = repo_fixture();
-    commit(
-        &repo,
-        "fix(core): internal tweak\n\nChangelog: skip: no user-visible change",
-        "crates/core/lib.rs",
-        "// v2\n",
-    );
-    xtask::changelog_gate::run(&repo, "HEAD~1", "HEAD").unwrap();
-}
-
-#[test]
-fn one_unjustified_commit_fails_the_whole_pull_request() {
-    let (_d, repo) = repo_fixture();
-    commit(
-        &repo,
-        "feat(core): justified\n\nChangelog: skip: internal only",
-        "crates/core/lib.rs",
-        "// v2\n",
-    );
-    commit(
-        &repo,
-        "fix(desktop): unjustified",
-        "apps/desktop/src/main.rs",
-        "// v1\n",
-    );
-    let error = xtask::changelog_gate::run(&repo, "HEAD~2", "HEAD")
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("fix(desktop): unjustified"), "{error}");
-    assert!(!error.contains("feat(core): justified"), "{error}");
-}
-
-#[test]
-fn skip_without_a_reason_fails_the_gate() {
-    let (_d, repo) = repo_fixture();
-    commit(
-        &repo,
-        "fix(core): internal tweak\n\nChangelog: skip",
-        "crates/core/lib.rs",
-        "// v2\n",
-    );
-    let error = xtask::changelog_gate::run(&repo, "HEAD~1", "HEAD")
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("Changelog: skip"), "{error}");
-}
-
-#[test]
-fn feature_that_changes_the_changelog_passes() {
-    let (_d, repo) = repo_fixture();
-    commit(
-        &repo,
-        "feat(core): add a thing\n\nRefs: PRD 0019 RF7.7",
-        "crates/core/lib.rs",
-        "// v2\n",
-    );
-    commit(
-        &repo,
-        "docs: changelog entry\n",
-        "CHANGELOG.md",
-        &CHANGELOG.replace(
-            "## [Unreleased]\n",
-            "## [Unreleased]\n\n### Added\n\n- A new thing you can do (PRD 0019 RF7.7, abc1234).\n",
-        ),
-    );
-    xtask::changelog_gate::run(&repo, "HEAD~2", "HEAD").unwrap();
-}
-
-#[test]
-fn commits_outside_the_product_are_never_gated() {
-    let (_d, repo) = repo_fixture();
-    commit(
-        &repo,
-        "feat(docs): document a thing",
-        "README.md",
-        "# docs\n",
-    );
-    xtask::changelog_gate::run(&repo, "HEAD~1", "HEAD").unwrap();
-}
-
-#[test]
-fn draft_groups_the_commits_since_the_given_ref() {
-    let (_d, repo) = repo_fixture();
-    commit(
-        &repo,
-        "feat(cli): add --changelog\n\nRefs: PRD 0019 RF7.7",
-        "crates/core/lib.rs",
-        "// v2\n",
-    );
-    commit(
-        &repo,
-        "fix(core): wrong date\n",
-        "crates/core/lib.rs",
-        "// v3\n",
-    );
-    commit(
-        &repo,
-        "test(core): add a case",
-        "crates/core/lib.rs",
-        "// v4\n",
-    );
-    let draft = xtask::draft::run(&repo, Some("HEAD~3")).unwrap();
-    assert!(draft.contains("### Added"), "{draft}");
-    assert!(
-        draft.contains("- feat(cli): add --changelog (PRD 0019 RF7.7,"),
-        "{draft}"
-    );
-    assert!(draft.contains("### Fixed"), "{draft}");
-    assert!(draft.contains("- fix(core): wrong date ("), "{draft}");
-    assert!(!draft.contains("test(core): add a case"), "{draft}");
-}
-
-#[test]
-fn draft_without_a_tag_falls_back_to_the_last_version_bump() {
-    let (_d, repo) = repo_fixture();
-    // The bump of 0.3.0 is the last release point while no tag exists, so
-    // the draft covers only the commits after it.
-    write_file(
-        &repo,
-        "Cargo.toml",
-        "[workspace.package]\nversion = \"0.3.0\"\n",
-    );
-    git(&repo, &["add", "-A"]);
-    git(&repo, &["commit", "-q", "-m", "chore: bump"]);
-    commit(
-        &repo,
-        "feat(core): after the bump\n\nRefs: PRD 0019 RF1",
-        "crates/core/lib.rs",
-        "// v2\n",
-    );
-    let draft = xtask::draft::run(&repo, None).unwrap();
-    assert!(
-        draft.contains("feat(core): after the bump (PRD 0019 RF1,"),
-        "{draft}"
-    );
-    assert!(!draft.contains("chore: bump"), "{draft}");
-}
-
 #[test]
 fn parsed_entries_expose_refs_hashes_and_breaking() {
     let changelog = parse(
@@ -394,4 +186,70 @@ fn parsed_entries_expose_refs_hashes_and_breaking() {
         2,
         "RF5/RF8 is two requirements"
     );
+}
+
+#[test]
+fn footer_links_of_internal_versions_compare_commits() {
+    for (broken, expected) in [
+        (
+            CHANGELOG.replace(
+                "[0.2.0]: https://example/compare/def5678...abc1234",
+                "[0.2.0]: https://example/compare/v0.1.0...v0.2.0",
+            ),
+            "[0.2.0] is an internal version",
+        ),
+        (
+            CHANGELOG.replace(
+                "[0.2.0]: https://example/compare/def5678...abc1234",
+                "[0.2.0]: https://example/compare/def5678...main",
+            ),
+            "[0.2.0] is an internal version",
+        ),
+        (
+            CHANGELOG.replace(
+                "[Unreleased]: https://example/compare/abc1234...HEAD",
+                "[Unreleased]: https://example/compare/v0.2.0...HEAD",
+            ),
+            "[Unreleased] compares a tag",
+        ),
+        (
+            CHANGELOG.replace("[0.1.0]: https://example/commit/def5678\n", ""),
+            "[0.1.0] has no footer link",
+        ),
+    ] {
+        let dir = fixture(&broken);
+        let error = check(dir.path()).unwrap_err();
+        assert!(error.contains(expected), "unexpected error: {error}");
+    }
+}
+
+#[test]
+fn footer_links_of_published_versions_compare_tags() {
+    let published = CHANGELOG
+        .replace(
+            "## [Unreleased]\n",
+            "## [Unreleased]\n\n## [0.80.0] - 2026-10-24\n\n### Added\n\n- Published (PRD 0019 RF7.7; 1234abc).\n",
+        )
+        .replace(
+            "[Unreleased]: https://example/compare/abc1234...HEAD\n",
+            "[Unreleased]: https://example/compare/v0.80.0...HEAD\n[0.80.0]: https://example/compare/abc1234...v0.80.0\n",
+        );
+    check(fixture(&published).path()).unwrap();
+    let stale = published.replace(
+        "[Unreleased]: https://example/compare/v0.80.0...HEAD",
+        "[Unreleased]: https://example/compare/abc1234...HEAD",
+    );
+    let error = check(fixture(&stale).path()).unwrap_err();
+    assert!(error.contains("must compare v0.80.0...HEAD"), "{error}");
+}
+
+#[test]
+fn next_token_in_plans_is_accepted_between_releases() {
+    let dir = fixture(CHANGELOG);
+    write_file(
+        dir.path(),
+        "docs/plans/0019_packaging.md",
+        &PLAN.replace("| RF1 | 0.1.0 | License. |", "| RF1 | vNEXT | License. |"),
+    );
+    check(dir.path()).unwrap();
 }
