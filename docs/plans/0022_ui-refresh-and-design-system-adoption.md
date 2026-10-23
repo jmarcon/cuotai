@@ -35,7 +35,7 @@
 | RF14 | — | Proposed. |
 | RF15 | — | Proposed. The Cuotai theme shipped in 0.76.0; Dracula is still `DEFAULT_THEME`. |
 | RF16 | — | Proposed. |
-| RF17 | vNEXT | RF17.4 and RF17.7 delivered: Settings renders one localized Updates heading owned by the updater section, with rendered four-locale coverage; the en-US remaining-share unit and its direct quota compositions say "left", with rendered four-locale coverage and UI-owned catalog parity. RF17.1–RF17.3, RF17.5–RF17.6 and RF17.8–RF17.9 remain proposed. |
+| RF17 | vNEXT | RF17.2, RF17.4 and RF17.7 delivered: the update banner renders a localized date-only release date with the year instead of the raw ISO timestamp, with rendered four-locale coverage; Settings renders one localized Updates heading owned by the updater section, with rendered four-locale coverage; the en-US remaining-share unit and its direct quota compositions say "left", with rendered four-locale coverage and UI-owned catalog parity. RF17.1, RF17.3, RF17.5–RF17.6 and RF17.8–RF17.9 remain proposed. |
 | RF18 | — | Proposed. The mockup generator is committed with this PRD (`assets/0022/after/src/`). |
 | RF19 | — | Proposed. |
 
