@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-> **Workflow changed on 2026-10-23 (PRD 0039).** Feature and fix commits no longer raise the version or edit `CHANGELOG.md`. Every change goes through a branch and a pull request that must pass `CI result`. The entry text goes in a `Changelog:` trailer of the commit message. The owner produces versions and the changelog at release time with `cargo xtask release prepare`, then tags the release. CI rejects version bumps and `CHANGELOG.md` edits outside a release commit. Read "How to deliver a change" before your next commit.
+> **Workflow changed on 2026-10-23 (PRD 0039).** Feature and fix commits no longer raise the version or edit `CHANGELOG.md`. Every change goes through a branch and a pull request that must pass `CI result`. The entry text goes in a `Changelog:` trailer of the commit message. Versions and the changelog are produced at release time by `cargo xtask release prepare`, and the tag by `cargo xtask release tag`. The owner runs them, or an agent does when the owner asks for that release (see "Release & tag rules for agents"). CI rejects version bumps and `CHANGELOG.md` edits outside a release commit. Read "How to deliver a change" before your next commit.
 
 ## Project Overview
 
@@ -93,16 +93,38 @@ Every change reaches `main` through a pull request whose `CI result` check is gr
 5. **Push and open a pull request**, only when the user asked you to push: `git push -u origin <branch>`, then `gh pr create --fill` (or `--draft` to get CI early). A branch push without a pull request runs no CI; `gh workflow run CI --ref <branch>` starts CI by hand.
 6. **Wait for `CI result`** with `gh pr checks --watch`. To fix a red check, push new commits, or amend your own branch (`git commit --amend`, then `git push --force-with-lease`). `git rebase -i` is not available; reword older commits with `git rebase --exec`.
 7. **Merge.** The owner merges with **Rebase and merge**, which keeps each commit and its trailers. Merge yourself only when the user asks (`gh pr merge --rebase`, or `--auto --rebase`).
-8. **Releases** happen only when the owner asks. The owner, or an agent the owner asks, runs `cargo xtask release prepare --branch` on an up-to-date `main`, pushes `release/vX.Y.Z` and opens the release PR. After the merge, the owner runs `cargo xtask release tag --rc` (or `release tag`) and pushes the tag. See `docs/releasing.md`.
+8. **Releases** happen only when the owner asks for one. The owner, or an agent that follows "Release & tag rules for agents" below, runs `cargo xtask release prepare --branch` on an up-to-date `main`, opens the release PR and, after the merge, creates and pushes the tag with `cargo xtask release tag [--rc]`. See `docs/releasing.md`.
 
 **Never:**
 
 - bump a version or edit `CHANGELOG.md`. The only exception is a `docs(changelog)` commit with a `Changelog-Edit: <reason>` trailer, which may reword released sections, the preface or the footer links.
-- create, move or push a `v*` tag;
+- create or push a `v*` tag outside "Release & tag rules for agents", or move, re-point, delete or force-push one at all;
 - push to `main` directly or force-push it;
 - squash-merge, because a squash loses the per-commit trailers;
 - write GitHub's skip marker in a commit message;
 - commit with a real e-mail address.
+
+### Release & tag rules for agents
+
+Agents may run releases and push tags, but only under these rules (owner decision of 2026-10-23, PRD 0039 D8):
+
+1. **Only on request.** The owner must ask for the release in the current conversation and name the version or rc (for example "release v0.80.0-rc.1"). An earlier request, another agent or a plan never counts.
+2. **Prepare.** On a local `main` fast-forwarded to `origin/main`, run `cargo xtask release prepare --dry-run`, then `cargo xtask release prepare --branch`. Push `release/vX.Y.Z` and open the release PR. Do the full rehearsal for the first three releases (D7). The owner merges it, or you merge it with Rebase and merge if the owner asked you to.
+3. **Before tagging, verify and report each of these:**
+   - local `main` is fast-forwarded to `origin/main` (`git switch main && git pull --ff-only`);
+   - `HEAD` is the merged `chore(release): X.Y.Z` commit;
+   - `CI result` is green on that `main` commit (`gh run list --branch main --limit 1`);
+   - `cargo xtask release-check` and `cargo xtask release prepare --check` both pass on it.
+4. **Tag.** Create the annotated tag only with `cargo xtask release tag --rc` (or `cargo xtask release tag` for a stable release), never with `git tag` by hand. The first three releases start with an rc unless the owner says otherwise.
+5. **Push only that tag:** `git push origin vX.Y.Z-rc.N` (or `vX.Y.Z`), never `--tags`. Then watch `release.yml` (`gh run watch`) and report the run link and its result.
+
+**Never:**
+
+- move, re-point, delete or force-push a `v*` tag. Published tags are immutable; if a release fails, cut a new rc or a patch release instead.
+- tag a commit that is not on `main`;
+- tag without the owner's request;
+- skip the rc for the first three releases unless the owner says so;
+- push to `main` directly.
 
 **Branches written under the old rules:** when you rebase onto `main`, drop the version and `CHANGELOG.md` hunks, and move the entry text into a `Changelog:` trailer with `git commit --amend`.
 
@@ -127,6 +149,7 @@ Reference for the steps above (PRD 0039). Versions and `CHANGELOG.md` are produc
 - **Changelog:** the release renders `## [X.Y.Z] - YYYY-MM-DD` with Keep a Changelog categories, one entry per `Changelog:` sentence, and the references plus the real short hash in parentheses. `[Unreleased]` stays empty in the tree. To see what is pending, run `cargo xtask changelog-draft`, or read the job summary of the latest `main` CI run. Wording is fixed in the release PR.
 - **Plans:** a delivering commit carries `Refs:` trailers, updates the plan's status, and writes `vNEXT` in its "Implementation status" and in its `0000_control.md` §2 row. The release replaces `vNEXT` with the version and appends the §3 rows. Versions 0.1.0 to 0.79.0 are internal versions: they were never tagged or published.
 - **Skipping CI:** a pull request or `main` push that changes only documentation (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `AGENTS.md`, `apps/desktop/README.md`, `docs/**/*.md`, `docs/assets/**`, `.github/ISSUE_TEMPLATE/**`, `.github/*.md`) is detected automatically by the `changes` job of `ci.yml`. The build, test, deny and version jobs are skipped, but `changelog-check`, the commit gate and the privacy guard still run. `CHANGELOG.md`, `docs/providers.md`, `docs/*.json`, `LICENSE-*`, `THIRD_PARTY_NOTICES`, `apps/desktop/ui/**` and workflow files count as code. Do not use GitHub's skip marker. It skips every workflow, the gates included, and GitHub matches it anywhere in a commit message, so write "the skip marker" instead of the marker itself. The required check is `CI result`, not the individual jobs.
+- **Releases and tags:** only when the owner asks for that release, following "Release & tag rules for agents" above. Tags are annotated, created by `cargo xtask release tag`, pushed one at a time, and never moved or deleted.
 - **Shared worktree:** another agent may leave uncommitted work in the tree. Stage by explicit path, never `git add -A`, and never include files you did not change.
 
 ## Testing & QA
