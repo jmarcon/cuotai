@@ -209,7 +209,7 @@ graph LR
   P26["0026 Stats and timeline"]:::todo
   P27["0027 Catalog and detection"]:::todo
   P28["0028 Contract health"]:::todo
-  P29R0["0029 RF0 precursor (TOML tolerates id)"]:::todo
+  P29R0["0029 RF0 precursor (TOML tolerates id)"]:::done
   P29["0029 Account identity"]:::todo
   P30["0030 Cost value and sources"]:::todo
   P31["0031 Integrations contract"]:::todo
