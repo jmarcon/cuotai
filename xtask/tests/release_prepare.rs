@@ -422,7 +422,7 @@ fn branch_refuses_staged_work_and_untracked_release_files() {
     let error = prepare::run(&repo, &options(false, true))
         .unwrap_err()
         .to_string();
-    assert!(error.contains("modified or untracked"), "{error}");
+    assert!(error.contains("differ from HEAD"), "{error}");
     assert!(error.contains("docs/draft.md"), "{error}");
     std::fs::remove_file(repo.join("docs/draft.md")).unwrap();
 
@@ -431,6 +431,30 @@ fn branch_refuses_staged_work_and_untracked_release_files() {
     let files = git(&repo, &["show", "--name-only", "--format=", "HEAD"]);
     assert!(!files.contains("notes.txt"), "{files}");
     assert!(git(&repo, &["status", "--porcelain"]).contains("?? notes.txt"));
+}
+
+#[test]
+fn hand_edited_version_files_are_refused_before_anything_is_computed() {
+    let (_d, repo) = repo();
+    feature_and_fix(&repo);
+    // A manual attempt left the computed version in Cargo.toml.
+    let bumped = read(&repo, "Cargo.toml").replace("0.79.0", "0.80.0");
+    write_file(&repo, "Cargo.toml", &bumped);
+    for opts in [options(true, false), options(false, true)] {
+        let error = prepare::run(&repo, &opts).unwrap_err().to_string();
+        assert!(error.contains("differ from HEAD"), "{error}");
+        assert!(error.contains("Cargo.toml"), "{error}");
+    }
+    assert!(git(&repo, &["branch", "--list", "release/*"])
+        .trim()
+        .is_empty());
+    // The same hand edit, committed outside a release commit.
+    git(&repo, &["add", "Cargo.toml"]);
+    git(&repo, &["commit", "-q", "-m", "chore: bump by hand"]);
+    let error = prepare::run(&repo, &options(true, false))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("raised by hand"), "{error}");
 }
 
 #[test]

@@ -60,6 +60,31 @@ pub struct Outcome {
 /// "nothing to release" (RF3.5).
 pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     let work = Tree::Work(repo);
+    // Before anything is computed: the release file set must match HEAD. A
+    // hand-edited version location would otherwise become the "current"
+    // version and silently drop out of the files the release writes and
+    // commits. The dry run checks the version locations and the changelog
+    // too (it computes from them); a write also needs every plan file
+    // tracked and clean.
+    let mut status_args = vec!["status", "--porcelain", "--untracked-files=all", "--"];
+    status_args.extend(super::RELEASE_FILES);
+    if !opts.dry_run {
+        status_args.extend(["README.md", "docs"]);
+    }
+    let dirty: Vec<String> = git::run(repo, &status_args)?
+        .lines()
+        .filter(|line| {
+            let path = line.get(3..).unwrap_or_default().trim();
+            super::in_release_set(path)
+        })
+        .map(str::to_string)
+        .collect();
+    if !dirty.is_empty() {
+        return err(format!(
+            "these release files differ from HEAD (modified, staged or untracked); versions and the changelog are written only by release prepare, so commit, discard or move them first:\n{}",
+            dirty.join("\n")
+        ));
+    }
     let current = workspace_version(&work.read("Cargo.toml")?)?;
     let mut warnings = Vec::new();
     if opts.refresh && opts.version.is_some() {
@@ -71,8 +96,9 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     let base = release_base(repo, "HEAD", None)?;
     let pending = pending_release(repo, &base, "HEAD", &current)?;
     if current > base.version && pending.is_none() {
-        warnings.push(format!(
-            "the workspace declares {current}, above the release base {}, but no release commit prepared it",
+        return err(format!(
+            "HEAD declares {current}, above the release base {}, but no 'chore(release): {current}' commit prepared it: \
+             a version was raised by hand; revert that change and let release prepare compute the version",
             base.describe()
         ));
     }
