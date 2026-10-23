@@ -280,6 +280,9 @@ jobs:
       # PRD 0018 RF3: render the real Settings/banner module with every
       # built-in catalog; no browser, package manager or network is involved.
       - run: node scripts/test-updater-ui.mjs
+      # PRD 0022 RF17.7: render the remaining-share unit in every built-in
+      # locale and keep the UI-owned catalog key sets in parity.
+      - run: node scripts/test-card-wording-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified

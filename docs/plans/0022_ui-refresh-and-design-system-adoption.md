@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0022 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | desktop (`apps/desktop/ui`: tray popover, main window, dialogs, settings window; `apps/desktop/src-tauri`: tray icon, theme default handoff; `apps/desktop/tools`: contrast gate, screenshot pipeline), TUI (`crates/cuotai-tui`: color rules only) |
 | Consumers | every desktop screen; PRDs 0023–0028, 0032, 0035 and 0036, whose desktop visuals are built from the components this PRD ships; `docs/gui-features.md`, `docs/themes.md`, `README.md` screenshots |
 | Depends on | PRD 0020 (RF1, RF2: the settings window and its sidebar registry) for RF9; none for the other RFs |
@@ -35,7 +35,7 @@
 | RF14 | — | Proposed. |
 | RF15 | — | Proposed. The Cuotai theme shipped in 0.76.0; Dracula is still `DEFAULT_THEME`. |
 | RF16 | — | Proposed. |
-| RF17 | — | Proposed (fix requirements). |
+| RF17 | vNEXT | RF17.7 delivered: the en-US remaining-share unit and its direct quota compositions say "left", with rendered four-locale coverage and UI-owned catalog parity. RF17.1–RF17.6 and RF17.8–RF17.9 remain proposed. |
 | RF18 | — | Proposed. The mockup generator is committed with this PRD (`assets/0022/after/src/`). |
 | RF19 | — | Proposed. |
 
