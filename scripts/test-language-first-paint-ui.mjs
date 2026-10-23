@@ -58,7 +58,7 @@ async function runPrePaintBootstrap(page, storedLocale, systemLanguages, storage
 
   const htmlUrl = new URL(`apps/desktop/ui/${page}`, root);
   const html = await readFile(fileURLToPath(htmlUrl), "utf8");
-  const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  const bootstrap = html.split("<script>", 2)[1]?.split("</script>", 1)[0];
   assert.ok(bootstrap, `${page}: missing pre-paint bootstrap`);
   try {
     vm.runInThisContext(bootstrap, { filename: fileURLToPath(htmlUrl) });
