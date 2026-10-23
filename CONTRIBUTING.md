@@ -92,7 +92,7 @@ Releases are prepared by the owner (PRD 0039) and published by a tag through
 cargo xtask changelog-draft                         # what the next release would contain
 cargo xtask release prepare --dry-run               # next version, section and diffs
 cargo xtask release prepare --branch                # release commit on release/vX.Y.Z
-cargo xtask release tag --rc                        # after the release PR merged (owner)
+cargo xtask release tag --rc                        # after the merge; owner, or an agent on request
 ```
 
 The full procedure, the dry run (**Actions → Release → Run workflow**, which

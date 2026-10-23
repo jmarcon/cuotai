@@ -49,7 +49,7 @@ on demand by the owner (PRD 0039 D8):
    **Actions → Release → Run workflow** on `release/vX.Y.Z` with
    **full_rehearsal**.
 4. **Merge** with **Rebase and merge**.
-5. **Tag** (owner only):
+5. **Tag** (the owner, or an agent under the rules below, after the release PR merged):
 
    ```sh
    git switch main && git pull --ff-only
@@ -562,6 +562,27 @@ credentials may still be absent and are reported as unsigned. A missing
 *channel* token fails only that channel job (RF5.7), with the message naming
 the secret to add or the variable to unset.
 
+### Agents releasing and tagging
+
+The release flow is agentic: an agent may prepare a release, open the
+release PR, and create and push the tag, under the "Release & tag rules for
+agents" of [`AGENTS.md`](../AGENTS.md). In short:
+
+- The owner must ask for the release in the current conversation and name
+  the version or rc.
+- Before tagging, the agent verifies and reports all of these: local `main`
+  is fast-forwarded to `origin/main`; `HEAD` is the merged
+  `chore(release): X.Y.Z` commit; `CI result` is green on it; and
+  `release-check` and `release prepare --check` pass.
+- The annotated tag comes only from `cargo xtask release tag [--rc]`, never
+  from `git tag` by hand.
+- The agent pushes only that one tag (never `--tags`), then watches
+  `release.yml` and reports the result.
+- No `v*` tag is ever moved, re-pointed, deleted or force-pushed. A failed
+  release is followed by a new rc or a patch release, never a moved tag.
+- The first three releases start with an rc unless the owner says otherwise
+  (D7).
+
 ## Branch and tag protection (PRD 0039 RF7, owner)
 
 Repository settings are not managed from code. The owner applies them once
@@ -577,8 +598,8 @@ gh api -X PATCH repos/jmarcon/cuotai \
 
 # main: pull request required (0 approvals: the owner and the agents share
 # one identity), the "CI result" check required and up to date, linear
-# history, no force push, no deletion. The repository admin role may bypass
-# for emergencies; the commit gate still checks such pushes afterwards.
+# history, no force push, no deletion. Nobody pushes to main directly: the
+# admin role may bypass the checks only through a pull request merge.
 gh api -X POST repos/jmarcon/cuotai/rulesets --input - <<'JSON'
 {
   "name": "main",
@@ -586,7 +607,7 @@ gh api -X POST repos/jmarcon/cuotai/rulesets --input - <<'JSON'
   "enforcement": "active",
   "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
   "bypass_actors": [
-    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" }
   ],
   "rules": [
     { "type": "deletion" },
@@ -607,31 +628,47 @@ gh api -X POST repos/jmarcon/cuotai/rulesets --input - <<'JSON'
 }
 JSON
 
-# v* tags: only the admin role may create, move or delete them, so nobody
-# starts a release by accident and a published tag never moves.
+# v* tags, creation: only the admin role may create them (the owner, and
+# agents acting with the owner's token under the AGENTS.md release rules).
 gh api -X POST repos/jmarcon/cuotai/rulesets --input - <<'JSON'
 {
-  "name": "release tags",
+  "name": "release tags: creation",
   "target": "tag",
   "enforcement": "active",
   "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
   "bypass_actors": [
     { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
   ],
-  "rules": [ { "type": "creation" }, { "type": "update" }, { "type": "deletion" } ]
+  "rules": [ { "type": "creation" } ]
 }
 JSON
 
-gh api repos/jmarcon/cuotai/rulesets          # verify both are active
+# v* tags, immutability: nobody may move or delete one, admins included (no
+# bypass actors). A bad release is recovered with a new version, never by
+# re-pointing a tag.
+gh api -X POST repos/jmarcon/cuotai/rulesets --input - <<'JSON'
+{
+  "name": "release tags: immutable",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "bypass_actors": [],
+  "rules": [ { "type": "update" }, { "type": "deletion" } ]
+}
+JSON
+
+gh api repos/jmarcon/cuotai/rulesets          # verify all three are active
 ```
 
-`actor_id: 5` is the repository admin role and `integration_id: 15368` is
-GitHub Actions, the app that reports `CI result`. Because the agents push
-with the owner's identity, the admin bypass also applies to them: the
-"never push to main, never tag" rules of `AGENTS.md` and the commit gate on
-`main` pushes are what hold agents to the flow. A stricter variant is
-`"bypass_mode": "pull_request"` on the `main` ruleset, which allows the
-bypass only when merging a pull request, never on a direct push. Code
+`actor_id: 5` is the repository admin role, and `integration_id: 15368` is
+GitHub Actions, the app that reports `CI result`.
+
+The agents push with the owner's identity, so they hold the same rights.
+On `main` the bypass is `pull_request`: it applies only to merging a pull
+request and never to a direct push, for the owner and for agents alike.
+Agents can create `v*` tags. The release rules of `AGENTS.md` decide when
+they may; the immutability ruleset makes sure no one, the owner included,
+can move or delete a published tag. Code
 scanning does not block merges yet (D13); enable code-scanning merge
 protection for high and critical alerts once the flow has run for a few
 weeks. Check the result once: a direct push to `main` without the bypass is
