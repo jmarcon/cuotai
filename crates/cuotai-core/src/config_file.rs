@@ -198,12 +198,18 @@ impl ConfigFile {
                     validation(None, "edit_error.config_not_utf8", "arquivo nao e UTF-8")
                 })?;
                 // ConfigError messages are fixed strings and never echo the body.
-                let config = Config::from_toml(text).map_err(|_| {
-                    validation(
-                        None,
-                        "edit_error.config_toml_invalid",
-                        "arquivo TOML invalido",
-                    )
+                // Preserve the field/account detail of the metered compatibility
+                // boundary; other malformed documents keep the generic load error.
+                let config = Config::from_toml(text).map_err(|error| {
+                    if matches!(error, crate::ConfigError::MeteredRefreshFloor { .. }) {
+                        validation_note(None, config_error_note(&error))
+                    } else {
+                        validation(
+                            None,
+                            "edit_error.config_toml_invalid",
+                            "arquivo TOML invalido",
+                        )
+                    }
                 })?;
                 Ok(Self {
                     config,
@@ -1044,6 +1050,40 @@ provider = "anthropic_api"
         assert!(err.is_validation(), "expected Validation, got {err:?}");
         let rendered = err.message();
         assert!(!rendered.contains("segredo"), "{rendered}");
+    }
+
+    #[test]
+    fn metered_floor_load_error_names_field_and_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        fs::write(
+            &path,
+            r#"
+refresh_seconds = 120
+concurrency = 1
+timeout_seconds = 5
+
+[[accounts]]
+name = "bedrock-test"
+provider = "aws_bedrock"
+refresh_seconds = 200
+params = { profile = "validation" }
+"#,
+        )
+        .unwrap();
+
+        let err = match load_at(&path, false) {
+            Ok(_) => panic!("metered override below 300 must be rejected"),
+            Err(error) => error,
+        };
+        let note = err.l10n();
+        assert_eq!(note.id, "edit_error.config_metered_refresh_floor");
+        for locale in ["pt-BR", "en-US", "es", "it"] {
+            let resolved = note.resolve(locale);
+            assert!(resolved.contains("accounts[0].refresh_seconds"));
+            assert!(resolved.contains("bedrock-test"));
+            assert!(resolved.contains("300"));
+        }
     }
 
     #[cfg(unix)]
