@@ -1,0 +1,20 @@
+// Waybar configuration used for the screenshot: a clock on the left and the
+// Cuotai example module on the right. Copy the "custom/cuotai" block into
+// your own config; the script path is where you saved cuotai-waybar.sh.
+{
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "modules-left": ["clock"],
+    "modules-right": ["custom/cuotai"],
+    "clock": {
+        "format": "{:%a %d  %H:%M}"
+    },
+    "custom/cuotai": {
+        "exec": "/etc/widget-shots/waybar/cuotai-waybar.sh /tmp/cuotai/widget.json",
+        "return-type": "json",
+        "interval": 30,
+        "format": "◔ {}",
+        "tooltip": true
+    }
+}

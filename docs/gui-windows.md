@@ -59,6 +59,10 @@ Cuotai lives in the **notification area** (the system tray). Closing the main wi
 
 The taskbar and the native menu are drawn by Windows, so they do not appear in the screenshots; the popover above is the app's own window.
 
+## Widgets
+
+Cuotai has no Windows widget (nothing on the Widgets board or the taskbar beyond the tray icon). The tray popover above is the at-a-glance view. With **Settings → Widgets** on, the app writes `%LOCALAPPDATA%\cuotai\widget.json` for third-party tools; its format is in [widgets.md](widgets.md#windows).
+
 ## Details, history and local cost
 
 The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings → Local cost** can count Claude Code and Codex CLI tokens from their local logs, in your user profile (`%USERPROFILE%\.claude`, `%USERPROFILE%\.config\claude` or `CLAUDE_CONFIG_DIR`, and `%USERPROFILE%\.codex` or `CODEX_HOME`), only after you accept a dialog that lists the exact folders.

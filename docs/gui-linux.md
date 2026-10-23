@@ -55,6 +55,16 @@ Cuotai lives in the **system tray** through a status-notifier (AppIndicator) ico
 
 The panel and the native menu are drawn by your desktop, so they do not appear in the screenshots; the popover above is the app's own window.
 
+## Widgets
+
+Cuotai ships no native Linux widget. With **Settings → Widgets** on, the app writes `~/.local/share/cuotai/widget.json`, and panels read it. [widgets.md](widgets.md#linux-waybar) has an example **Waybar** module, a short `jq` script:
+
+<div align="center">
+  <img src="assets/screenshots/widgets/linux-waybar.png" alt="Waybar with the Cuotai example module: Work 80%, Team 65% (stale), Personal 42%" width="100%" />
+</div>
+
+That is a real Waybar screenshot (headless sway, example data). There is no GNOME Shell extension or Plasma widget; a panel tool that shows a command's output can run the same script.
+
 ## Details, history and local cost
 
 The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings → Local cost** can count Claude Code and Codex CLI tokens from their local logs (`~/.config/claude`, `~/.claude` or `CLAUDE_CONFIG_DIR`, and `~/.codex` or `CODEX_HOME`), only after you accept a dialog that lists the exact folders.

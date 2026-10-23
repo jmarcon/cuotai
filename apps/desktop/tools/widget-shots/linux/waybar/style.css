@@ -1,0 +1,36 @@
+/* Style used for the screenshot. The module's class follows the most
+   restrictive account: normal, warning (>= 75 %), critical (>= 90 %),
+   exhausted, unavailable or off. */
+* {
+    font-family: "Noto Sans", sans-serif;
+    font-size: 13px;
+}
+
+window#waybar {
+    background: #1e222a;
+    color: #d8dee9;
+}
+
+#clock,
+#custom-cuotai {
+    padding: 0 12px;
+}
+
+#custom-cuotai.warning {
+    color: #ebcb8b;
+}
+
+#custom-cuotai.critical,
+#custom-cuotai.exhausted {
+    color: #bf616a;
+}
+
+#custom-cuotai.unavailable,
+#custom-cuotai.off {
+    color: #7b8394;
+}
+
+tooltip {
+    background: #2e3440;
+    border: 1px solid #4c566a;
+}

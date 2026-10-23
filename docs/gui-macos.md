@@ -58,6 +58,17 @@ Cuotai lives in the **menu bar**. Closing the main window (red button or Cmd-W) 
 
 The native menu and the system menu bar are drawn by macOS, so they do not appear in the screenshots; the popover above is the app's own window.
 
+## Widgets
+
+Cuotai has three WidgetKit widgets: **Summary** (small, medium, large), **Account** (one pinned account; small, medium) and **History** (medium). They only read the `widget.json` the app writes while **Settings → Widgets** is on.
+
+<div align="center">
+  <img src="assets/screenshots/widgets/macos-gallery-light.png" alt="Cuotai macOS widgets, light mode" width="48%" />
+  <img src="assets/screenshots/widgets/macos-gallery-dark.png" alt="Cuotai macOS widgets, dark mode" width="48%" />
+</div>
+
+These images are the widgets' SwiftUI views rendered off-screen from an example file, not a desktop capture: the widget extension is not in the release bundle yet, because it needs the Apple developer account for signing and the *app group*. Every family, the states and how the images are made are in [widgets.md](widgets.md#widgets).
+
 ## Details, history and local cost
 
 The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings → Local cost** can count Claude Code and Codex CLI tokens from their local logs; on macOS it reads `~/.config/claude` and `~/.claude` (or `CLAUDE_CONFIG_DIR`) and `~/.codex` (or `CODEX_HOME`), only after you accept a dialog that lists the exact folders. If macOS asks whether Cuotai may access files in a protected folder, that is the OS prompt for those directories; declining just leaves the source without data.

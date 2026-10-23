@@ -19,6 +19,66 @@ With the feature off, **no file is written and an existing one is deleted** (RF2
 
 > macOS: reading the file from a WidgetKit extension needs an [Apple developer account](https://developer.apple.com), the *app group* entitlement `group.dev.cuotai.desktop` and a provisioning profile that includes it. Those are owner prerequisites of [PRD 0019](plans/0019_packaging-and-distribution.md) (Apple Developer account, Developer ID signing, notarization); until they exist, only third-party integrations can read the snapshot.
 
+## Widgets
+
+Every image below is drawn from the same example `widget.json` ([`fixtures/widget.json`](../apps/desktop/tools/widget-shots/fixtures/widget.json), `example.com` only, no real account) by the scripts in [`apps/desktop/tools/widget-shots`](../apps/desktop/tools/widget-shots/README.md), which also explain how to regenerate them.
+
+### macOS (WidgetKit)
+
+<p align="center">
+  <img src="assets/screenshots/widgets/macos-gallery-light.png" alt="Cuotai macOS widgets, light mode: Summary (large and small), History (medium) and Account (small)" width="100%" />
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/widgets/macos-gallery-dark.png" alt="Cuotai macOS widgets, dark mode: Summary (large and small), History (medium) and Account (small)" width="100%" />
+</p>
+
+> **Rendered, not captured.** These are the shipped SwiftUI entry views (`Sources/*.swift`) drawn off-screen with `ImageRenderer`, because the signed `.appex` does not exist yet (see [Building and packaging](#building-and-packaging-owner-prerequisites)). The widget background is approximated with a solid card, and the relative age is frozen at render time ("2 min, 0 secs"); on the desktop the system advances it. The e-mail appears because the example file was written with "include identity" on. The live-widget check on a clean Mac is still pending.
+
+| Widget | Family | Light | Dark |
+|---|---|---|---|
+| Summary | small | [png](assets/screenshots/widgets/macos-summary-small-light.png) | [png](assets/screenshots/widgets/macos-summary-small-dark.png) |
+| Summary | medium | [png](assets/screenshots/widgets/macos-summary-medium-light.png) | [png](assets/screenshots/widgets/macos-summary-medium-dark.png) |
+| Summary | large | [png](assets/screenshots/widgets/macos-summary-large-light.png) | [png](assets/screenshots/widgets/macos-summary-large-dark.png) |
+| Account | small | [png](assets/screenshots/widgets/macos-account-small-light.png) | [png](assets/screenshots/widgets/macos-account-small-dark.png) |
+| Account | medium | [png](assets/screenshots/widgets/macos-account-medium-light.png) | [png](assets/screenshots/widgets/macos-account-medium-dark.png) |
+| Account, pinned account removed | small | [png](assets/screenshots/widgets/macos-account-unavailable-light.png) | [png](assets/screenshots/widgets/macos-account-unavailable-dark.png) |
+| History | medium | [png](assets/screenshots/widgets/macos-history-medium-light.png) | [png](assets/screenshots/widgets/macos-history-medium-dark.png) |
+| Empty state (no snapshot) | small | [png](assets/screenshots/widgets/macos-empty-small-light.png) | [png](assets/screenshots/widgets/macos-empty-small-dark.png) |
+
+The widgets declare no accessory (Lock Screen) family.
+
+### Linux (Waybar)
+
+<p align="center">
+  <img src="assets/screenshots/widgets/linux-waybar.png" alt="Waybar with the Cuotai example module: Work 80%, Team 65% (stale), Personal 42%" width="100%" />
+</p>
+
+A real screenshot: Waybar running in a headless sway session (in a container) with the example module [`cuotai-waybar.sh`](../apps/desktop/tools/widget-shots/linux/waybar/cuotai-waybar.sh). The module only reads `widget.json` with `jq` and prints Waybar's JSON protocol: the first three accounts as `text`, one line per account as `tooltip`, and a `class` after the most restrictive account (`normal`, `warning` from 75 %, `critical` from 90 %, `exhausted`, `unavailable`, or `off` when the file is absent). To use it, save the script, make it executable and add the module to your Waybar config:
+
+```jsonc
+"custom/cuotai": {
+    "exec": "~/.config/waybar/cuotai-waybar.sh",
+    "return-type": "json",
+    "interval": 30
+}
+```
+
+Read right after the example file was written, the tooltip says:
+
+```text
+Work (claude): 80% Week, 2 min ago
+Team (copilot): 65% Premium requests, 3 h ago, stale
+Personal (codex): 42% Session (5h), 4 min ago
+Lab (gemini): unavailable
+```
+
+GNOME and KDE: Cuotai ships no GNOME Shell extension or Plasma widget, and neither desktop has a light headless capture path, so there is no image. Panel tools that run a command and show its output can run the same script and use its `text` field.
+
+### Windows
+
+Windows has no Cuotai widget: PRD 0014 delivers no native widget there. The app only writes `%LOCALAPPDATA%\cuotai\widget.json` for third-party tools; at-a-glance usage lives in the notification-area popover (screenshots in [gui-windows.md](gui-windows.md#notification-area)).
+
 ## Privacy
 
 The file can be read by any process of the same user and by the extension. Therefore it carries **no credentials, no credential variable names, no provider notes, no response bodies and no authenticated URLs** — notes are not projected at all. The e-mail of an account appears only when Settings → Widgets has "include identity (e-mail)" turned on, which is off by default. On Unix the file is written `0600` (readable by its owner only); on Windows the per-user data directory provides the equivalent.
@@ -123,4 +183,4 @@ Read the file, watch its `generated_at` (or use the file's modification time) an
 - `stale` — draw it dimmed and label it as old; the age belongs to `checked_at`, which is the original measurement time;
 - `unavailable` — say the account is unavailable; never substitute another account.
 
-The local server ([PRD 0012](plans/0012_local-server-and-json-v1.md), `docs/local-server.md`) offers the same state over HTTP for integrations that prefer polling with authentication; the file needs none.
+The local server ([PRD 0012](plans/0012_local-http-server-and-export-contract.md), [local-server.md](local-server.md)) offers the same state over HTTP for integrations that prefer polling with authentication; the file needs none.
