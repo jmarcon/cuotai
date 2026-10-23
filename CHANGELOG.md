@@ -9,7 +9,8 @@ How to read the history before this file existed:
 - The versions up to `0.20.0` were **reconstructed** (PRD 0019, RF7.6) from the commits that change the version in `Cargo.toml` and from the status tables of the plans. Nothing here is invented: every entry cites its commit.
 - A commit belongs to the version its tree declares. The date is the UTC date of the commit that raised the version, so a version that gathered more commits afterwards (for example `0.14.3`) may include entries committed a few hours later.
 - Commits with no effect for the user (`refactor`, `test`, `style`, `docs`, `chore`) do not appear, except security fixes in dependencies. A version made only of such commits says so.
-- No Git tags exist yet, so the comparison links at the bottom point at commits. They become tag comparisons when the release pipeline (PRD 0019, RF3) starts tagging.
+- Versions `0.1.0` to `0.79.0` are **internal versions**: each was raised by the commit that delivered it, and none was tagged or published. Their comparison links at the bottom point at the commits that raised the version, and a version a plan cites from that period means "the tree state at that commit".
+- From the release flow of PRD 0039 on, a section is written once per release by `cargo xtask release prepare` from the commits' `Changelog:` trailers, the version is the one that release publishes, and its link compares release tags.
 
 ## [Unreleased]
 
@@ -700,29 +701,30 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.79.0...HEAD
-[0.79.0]: https://github.com/jmarcon/cuotai/compare/v0.78.0...v0.79.0
-[0.78.0]: https://github.com/jmarcon/cuotai/compare/v0.77.1...v0.78.0
-[0.77.1]: https://github.com/jmarcon/cuotai/compare/v0.77.0...v0.77.1
-[0.77.0]: https://github.com/jmarcon/cuotai/compare/v0.76.1...v0.77.0
-[0.76.1]: https://github.com/jmarcon/cuotai/compare/v0.76.0...v0.76.1
-[0.76.0]: https://github.com/jmarcon/cuotai/compare/v0.75.3...v0.76.0
-[0.75.3]: https://github.com/jmarcon/cuotai/compare/v0.75.2...v0.75.3
-[0.75.2]: https://github.com/jmarcon/cuotai/compare/v0.75.1...v0.75.2
-[0.75.1]: https://github.com/jmarcon/cuotai/compare/v0.75.0...v0.75.1
-[0.75.0]: https://github.com/jmarcon/cuotai/compare/v0.74.0...v0.75.0
-[0.74.0]: https://github.com/jmarcon/cuotai/compare/v0.73.0...v0.74.0
-[0.72.0]: https://github.com/jmarcon/cuotai/compare/v0.71.1...v0.72.0
-[0.71.1]: https://github.com/jmarcon/cuotai/compare/v0.71.0...v0.71.1
-[0.71.0]: https://github.com/jmarcon/cuotai/compare/v0.70.0...v0.71.0
-[0.70.0]: https://github.com/jmarcon/cuotai/compare/v0.69.0...v0.70.0
-[0.69.0]: https://github.com/jmarcon/cuotai/compare/v0.68.3...v0.69.0
-[0.68.3]: https://github.com/jmarcon/cuotai/compare/v0.68.2...v0.68.3
-[0.68.2]: https://github.com/jmarcon/cuotai/compare/v0.68.1...v0.68.2
-[0.68.1]: https://github.com/jmarcon/cuotai/compare/v0.68.0...v0.68.1
-[0.68.0]: https://github.com/jmarcon/cuotai/compare/v0.67.0...v0.68.0
-[0.67.0]: https://github.com/jmarcon/cuotai/compare/v0.66.0...v0.67.0
-[0.66.0]: https://github.com/jmarcon/cuotai/compare/ae4c0ea...main
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/2bbb39a...HEAD
+[0.79.0]: https://github.com/jmarcon/cuotai/compare/f4e2e54...2bbb39a
+[0.78.0]: https://github.com/jmarcon/cuotai/compare/d265960...f4e2e54
+[0.77.1]: https://github.com/jmarcon/cuotai/compare/239aa90...d265960
+[0.77.0]: https://github.com/jmarcon/cuotai/compare/1fdf6a4...239aa90
+[0.76.1]: https://github.com/jmarcon/cuotai/compare/409d81a...1fdf6a4
+[0.76.0]: https://github.com/jmarcon/cuotai/compare/8f3de4d...409d81a
+[0.75.3]: https://github.com/jmarcon/cuotai/compare/e53df73...8f3de4d
+[0.75.2]: https://github.com/jmarcon/cuotai/compare/04c4b15...e53df73
+[0.75.1]: https://github.com/jmarcon/cuotai/compare/e07641f...04c4b15
+[0.75.0]: https://github.com/jmarcon/cuotai/compare/d9e2f12...e07641f
+[0.74.0]: https://github.com/jmarcon/cuotai/compare/59a9173...d9e2f12
+[0.73.0]: https://github.com/jmarcon/cuotai/compare/180809d...59a9173
+[0.72.0]: https://github.com/jmarcon/cuotai/compare/89a37b4...180809d
+[0.71.1]: https://github.com/jmarcon/cuotai/compare/4221f0c...89a37b4
+[0.71.0]: https://github.com/jmarcon/cuotai/compare/72a9592...4221f0c
+[0.70.0]: https://github.com/jmarcon/cuotai/compare/43bc732...72a9592
+[0.69.0]: https://github.com/jmarcon/cuotai/compare/ed55701...43bc732
+[0.68.3]: https://github.com/jmarcon/cuotai/compare/7bc177d...ed55701
+[0.68.2]: https://github.com/jmarcon/cuotai/compare/339ac25...7bc177d
+[0.68.1]: https://github.com/jmarcon/cuotai/compare/bc4f61d...339ac25
+[0.68.0]: https://github.com/jmarcon/cuotai/compare/be95c74...bc4f61d
+[0.67.0]: https://github.com/jmarcon/cuotai/compare/53d559a...be95c74
+[0.66.0]: https://github.com/jmarcon/cuotai/compare/ae4c0ea...53d559a
 [0.65.0]: https://github.com/jmarcon/cuotai/commit/ae4c0ea
 [0.64.0]: https://github.com/jmarcon/cuotai/commit/4da7cd8
 [0.63.0]: https://github.com/jmarcon/cuotai/commit/cf4ed0c
