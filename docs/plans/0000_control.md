@@ -6,7 +6,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 |---|---|
 | Last updated | 2026-10-23 |
 | Cuotai version at that date | 0.79.0 |
-| Plans | 38 (12 implemented, 4 awaiting owner verification, 4 in progress, 18 proposed); number 0022 is reserved for the UI refresh and design-system adoption PRD, not yet written |
+| Plans | 39 (12 implemented, 4 awaiting owner verification, 4 in progress, 19 proposed) |
 
 ## 1. How to maintain it
 
@@ -43,7 +43,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2), RF7.1 to RF7.3 and RF7.6 (`CHANGELOG.md`, no bump), RF2 partial (0.27.1), RF3 superseded and delivered via 0021 RF1–RF4 (0.68.0), RF5 and RF6 (0.69.0, docs/CI, no bump), RF7.3 draft, RF7.4, RF7.5, RF7.7 and RF7.8 (0.69.0), RF4 superseded and delivered via 0021 RF5 (0.70.0) | — | — | Prerequisite of 0014 and 0018. RF2 is still owner-blocked for hosted proof. RF6.2's SBOM-attachment proof waits for a real published release (owner). The desktop About -> What's new screen remains open (RF7.7). |
 | [0020](0020_settings-window-redesign.md) | Settings window redesign | Proposed | — | — | 0018, 0019 | Usability and design of settings: a dedicated window with a sidebar of seven pages, rows with short descriptions, apply-at-once, search and live sync. Replaces the 12-section popup dialog. Amended on 2026-10-23: the sidebar follows `docs/design-system.md` DS-CMP-SEG-5 (RF2.5, superseding RF2.1), and the `localStorage` preferences move to `desktop.json` with a one-time migration (RF7.2, review item SET-01). |
 | [0021](0021_release-pipeline-and-package-managers.md) | Release pipeline and package-manager publishing | In progress | RF1–RF4 (0.68.0, hardened in 0.75.1–0.75.3); RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 (0.70.0); RF8.1 desktop partial (0.74.0/0.75.1) and shared core/desktop/CLI implementation (0.77.0); RF9.2 and RF9.5 (0.75.2, hardened in 0.75.3); RF9.3 and RF9.4 (repository operations, no product version bump); RF6 and RF8.3 pending | 0019 (RF2, RF7.1 to RF7.3) | 0018, 0019 (RF7.5) | RF8.1 now has one offline typed classifier and CLI report for every durable path proof. Normal winget ownership remains owner-blocked on a durable installer marker, and live package-manager acceptance remains an owner run. The monthly/manual RF9.3 workflow continues to guard reviewed external-policy bytes and semantic action pins. Reconciled on 2026-10-23: the review's phase split is not adopted; open items are RF6 (DIST-09 CLI artifact smoke, wave 5a), the RF5 owner actions and the optional APT/RPM repository (RF9.3 was delivered meanwhile). |
-| 0022 | UI refresh and design-system adoption | Reserved | — | — | — | Number reserved for the PRD that adopts `docs/design-system.md` in the desktop (and the TUI color rules); written later. Wave 5c after 0020. |
+| [0022](0022_ui-refresh-and-design-system-adoption.md) | UI refresh and design-system adoption | Proposed | — | 0020 (RF1, RF2; for RF9) | 0004, 0023, 0024, 0025, 0026, 0027, 0028, 0029, 0034 | Adopts `docs/design-system.md` in every desktop screen (19 RFs): tokens and new roles, continuous meters with the pace corridor, figure block, status-line overflow order, time chips, ring glyph and tab rings, honest-data marks, monogram, tray views and density presets (renders 0025 RF9), header/footer simplification, settings and language-selector visuals, charts, motion reduced to DS §7, accessibility (`role=meter`, names, focus, polite announcements with a static change marker, `<html lang>`), an overflow and `en-XA` check, Cuotai as the default theme for new installs only, softer shadows and a strict-contrast CI gate with a shrinking baseline (8 themes to migrate), TUI `NO_COLOR` and palette, nine fix requirements (RF17: tray TDZ, ISO date, 520 px topbar, duplicate heading, literal colors, `lang`, "left", template menu-bar icon with 0025 RF3.1, `pt` flag) and a committed screenshot pipeline. De/Para of 54 before and 71 after images. Owner decision 2026-10-23: no logotype in the tray overview header (drill-ins and the main topbar only). Wave 5c after 0020; 0025's visuals go with or after it and 0035 builds on its tokens. |
 | [0023](0023_paid-extra-usage-and-overage-alerts.md) | Paid extra usage (overage) detection and alerts | Proposed | — | — | 0008, 0009, 0012, 0013, 0022 | Normalized `billing = overage` on metrics, overage state per account, "extra usage started" alert once per billing cycle, `overage_started`/`overage_ended` events and an additive `overage` object in `export::v1`. RF1.4 fixes a bug: Claude extra usage (and Grok on-demand, Kiro overage) is a capped `Quota` today and can become the binding limit, get a pace and fire threshold alerts. Extends 0008, 0009, 0012 and 0013; supersedes the 0008 §4 "alerting about accumulated spend" non-goal for overage only. Amended 2026-10-23: RF10 `Metric::scope` (MET-01) shares the RF1 predicate so a model-scoped exhaustion never blocks the account; `billing` is additive (decision L); Claude extra usage is in US dollars (decision R), with the dollars-versus-cents scale still to verify against the owner's account (RF2.6, §2.1). |
 | [0024](0024_predictive-pace-alerts-and-suggestions.md) | Pace-based predictive alerts and action suggestions | Proposed | — | 0006, 0007, 0008 | 0010, 0013, 0022, 0023, 0025, 0029, 0031, 0032 | Time chips from core keys (DS-CMP-TIME, points by default, percent as a user setting relative to the expected use, decision M), `AlertKind::ProjectedExhaustion` off by default with the stricter union of criteria (decision B: recent source with a 30-minute span or 20 % of the window, Fresh reading, two confirmations, margin hysteresis; FIX-11, FIX-12), `quota_exhaustion_projected`, and the advisory "best account now" in TOML groups (decision C, replacing the same-provider suggestion). Extends 0007, 0008 and 0012. |
 | [0025](0025_menu-bar-presentation-and-opinionated-settings.md) | Menu-bar presentation and an opinionated settings surface | Proposed | — | 0020 (RF1, RF2; for RF4, RF5 and RF9); 0029 (for RF2) | 0008, 0009, 0010, 0011, 0018, 0022, 0023, 0024 | Core `tray::summary` with four styles (`TightestPercent` monochrome by default, with a colored variant option, decision N), menu-bar account selection and order with a live preview, the Menu bar page and the Advanced group per DS-CMP-SEG-5, a custom display mode (Detailed / Standard / Minimal / Custom, RF9), and a first-run step that turns on the recommended notices (consent for 0024's predictive alert) and asks the update question (0018 RF2.6, decision F). RF8 `--status-line` moved to 0031. |
@@ -196,7 +196,7 @@ graph LR
   P19["0019 Distribution"]:::wip
   P20["0020 Settings window"]:::todo
   P21["0021 Release and packages"]:::wip
-  P22["0022 UI refresh (reserved)"]:::todo
+  P22["0022 UI refresh"]:::todo
   P23["0023 Overage and model scope"]:::todo
   P24["0024 Predictive alerts and best account"]:::todo
   P25["0025 Menu bar and settings"]:::todo
@@ -228,6 +228,7 @@ graph LR
   P24 --> P6
   P24 --> P7
   P24 --> P8
+  P22 --> P20
   P25 --> P20
   P25 --> P29
   P26 --> P6
@@ -284,7 +285,6 @@ graph LR
   P18 -.-> P21
   P20 -.-> P18
   P20 -.-> P19
-  P22 -.-> P20
   P23 -.-> P8
   P23 -.-> P9
   P23 -.-> P12
@@ -293,6 +293,7 @@ graph LR
   P24 -.-> P23
   P24 -.-> P25
   P24 -.-> P29
+  P25 -.-> P22
   P25 -.-> P23
   P25 -.-> P24
   P25 -.-> P18
@@ -310,6 +311,7 @@ graph LR
   P31 -.-> P33
   P32 -.-> P29
   P33 -.-> P11
+  P35 -.-> P22
   P36 -.-> P28
   P36 -.-> P33
   P37 -.-> P23
@@ -317,7 +319,7 @@ graph LR
   P38 -.-> P36
 ```
 
-PRD 0022 (UI refresh, reserved) is also a weak dependency of the desktop visuals of 0023–0028, 0032, 0035 and 0036; only its edge to 0020 is drawn until it is written.
+PRD 0022 (UI refresh) is also a weak dependency of the desktop visuals of 0023, 0024, 0026–0028, 0032 and 0036; only its edges to 0020, 0025 and 0035 are drawn, for readability.
 
 ### What each plan unblocks
 
@@ -338,7 +340,8 @@ PRD 0022 (UI refresh, reserved) is also a weak dependency of the desktop visuals
 | 0016 | 0029 | 0027 |
 | 0017 | 0028 (RF7) | 0027 |
 | 0019 | 0014, 0018, 0021, 0039 | 0020 |
-| 0020 | 0025 (RF4, RF5, RF9) | 0022 |
+| 0020 | 0022 (RF9), 0025 (RF4, RF5, RF9) | — |
+| 0022 | — | 0023, 0024, 0025, 0026, 0027, 0028, 0032, 0035, 0036 |
 | 0021 | 0028 (RF8), 0039 | 0018 |
 | 0023 | — | 0024, 0025, 0026, 0030, 0037, 0038 |
 | 0024 | — | 0025, 0026, 0031 |
@@ -366,7 +369,7 @@ New plans that add requirements to delivered or proposed ones, without rewriting
 | 0008 | 0023, 0024, 0029, 0032, 0036 | `OverageStarted`/`OverageCapReached` and `ProjectedExhaustion`; supersede the §4 pace-notice non-goal and, for overage only, the accumulated-spend non-goal; one core preferences source, the closed-app marker and quiet hours (0032); pool alert (0036). |
 | 0009 | 0023, 0026, 0033, 0036 | Overage and model-scoped metrics excluded from the binding metric (MET-01); binding returns on a timeline; labelled chips; binding per sub-account. |
 | 0010 | 0033 | Optional `as_of` (narrowing the §4 `Report` non-goal), reset-aware restore, metered cadence. |
-| 0011 | 0028, 0031, 0033, 0037, 0038 | Status component check in the canary; incident state in `/v1/limits`; stale incident expiry (FIX-09). Fix requirement for the `gemini_api` scope recorded in the plan. |
+| 0011 | 0022, 0028, 0031, 0033, 0037, 0038 | Template-compatible outage badge on the menu-bar icon (0022 RF17.8 with 0025 RF3.1); status component check in the canary; incident state in `/v1/limits`; stale incident expiry (FIX-09). Fix requirement for the `gemini_api` scope recorded in the plan. |
 | 0012 | 0023, 0024, 0028, 0029, 0031, 0036 | Additive `overage`, `billing`, `scope`, `group`, `best`, `delta_ratio`, `failure`, `id` and `sub_accounts`; token by default, exact port, `HEAD`, ETag, v1 window and `/v1/stats` (0031). |
 | 0013 | 0023, 0024, 0026, 0031, 0032, 0036 | Events `overage_started`, `overage_ended`, `quota_exhaustion_projected`, `session_expiring`, `quota_reset_soon`; persisted journal; signal exit codes and hook hardening (0031); `quiet` hook filter (0032). |
 | 0014 | 0023 | Overage object in the widget snapshot. |
@@ -392,7 +395,7 @@ The waves respect the strong dependencies; within each wave the order is by prio
 | 5a (implement now) | Fix requirements of delivered plans (0001 FIX-08, 0011 `gemini_api` scope, 0016 "Paste a new session" and test before save, 0017 FIX-03/04/05); the P1 fixes recorded in later plans that need no new design (INT-04 `--serve` token by default, FIX-01/02 hook hardening, FIX-09, FIX-10, FIX-11); DOC-01..04 (DOC-01 and DOC-02 corrected in the plans on 2026-10-23; DOC-03 `docs/tui.md` pace wording and DOC-04 `CUOTAI_CONFIG` in `AGENTS.md`/`README.md` pending); 0021 RF6 (DIST-09 CLI artifact smoke) | Security and correctness first; small, independent `fix` commits. |
 | 5a′ (process, before 5b) | 0039 | The release flow changes how every later delivery is versioned (trailers and `vNEXT` instead of per-commit bumps), so it lands before the next feature wave; its cutover PR also ends the version-bump conflicts between parallel branches. |
 | 5b | 0029 RF0, then the rest of 0029 | RF0 ships first as a precursor release (the TOML tolerates `id` and a missing `name`) so a downgrade after the identity release keeps working; then stable account identity, before anything that keys preferences or history by account (critical path below). |
-| 5c | 0020, then 0022 | The settings window (with SET-01 and the DS-CMP-SEG-5 sidebar), then the UI refresh that adopts the design system. |
+| 5c | 0020, then 0022 | The settings window (with SET-01 and the DS-CMP-SEG-5 sidebar), then the UI refresh that adopts the design system (its RF17 fixes, RF1 tokens and RF15 gate can start alongside 0020; RF9 waits for 0020 RF1–RF2). 0025's visuals go with or after 0022; 0035 builds on 0022's tokens and `lang` fix. |
 | 5d (market parity) | 0023 (with MET-01 `scope`), 0024, 0028 (RF1 first; local canary), 0026, 0025, 0027 | They close the 2026-10-22 parity gaps (section 7). 0023 RF1 goes first because it fixes the overage misclassification that 0024 and 0026 would otherwise inherit. |
 | 5e | 0030, 0031, 0032, 0033, 0034, 0035 | Cost, integrations, notification policy, reset-aware readings, then the English source locale before the new languages. |
 | 5f (providers) | 0036, 0037 | New providers; the owner runs 9router locally and has an ElevenLabs account, so both can be verified live. |
@@ -469,6 +472,7 @@ Recorded on 2026-10-23 (review item PROC-03). The 2026-10-21 decisions come from
 | 2026-10-23 | Cuotai's own theme merged in 0.76.0; it becomes the default for new installs together with PRD 0022. | 0022, themes |
 | 2026-10-23 | No GitHub release or tag exists yet: every install channel (GitHub Releases, Homebrew, winget, Scoop, AUR, crates.io) is still pending, and the updater has nothing to check against. | 0018, 0019, 0021, 1.0 criteria (§5.1) |
 | 2026-10-23 | Criteria for 1.0 (§5.1). | all |
+| 2026-10-23 | The CuotAI logotype stays out of the tray overview header (filter tabs only); it appears in the main-window topbar and in drill-in headers (Stats, Settings, details). | 0022 RF7.3 |
 
 ## 7. Market parity map (2026-10-22, updated 2026-10-23)
 
@@ -580,3 +584,4 @@ Claims of a paid macOS menu-bar monitor (WhatsMyUsage) compared with Cuotai at 0
 | 2026-10-23 | 0.78.0 delivers INT-04 of the 2026-10-21 review for PRD 0012: `cuotai --serve` requires a token by default (`serve::resolve_token`, `--no-token` opt-out), a breaking change for tokenless CLI clients. |
 | 2026-10-23 | Requirements review of 2026-10-21 and owner decisions A–R applied: new status "Awaiting owner verification" (0003, 0008, 0012, 0016) with the §2.1 owner checklist; 0014 back to in progress; 0018 gains RF2.6; PRDs 0023–0028, 0020, 0018 and 0021 amended (local canary, best account in groups, percent pace, model scope, US-dollar Claude extra usage, sign-in-method catalog, colored menu bar, display mode, SET-01, DS-CMP-SEG-5); fix-requirement rows in 0001, 0011, 0016 and 0017; DOC-01 and DOC-02 corrected; PRDs 0029–0038 added (Proposed), 0038 deferred to the backlog; waves 5a–5f, 1.0 criteria and the decisions log (§6.1) added; dependency graph, extensions and parity map updated. |
 | 2026-10-23 | PRD 0039 added (Proposed): release flow and changelog automation — versions and the changelog generated at release time by `cargo xtask release prepare` from conventional commits with `Changelog:` trailers, a release PR, owner-pushed tags, `vNEXT` in plans, a PR flow with a `main` ruleset and CI on pull requests; placed in wave 5a′, before the next feature wave. |
+| 2026-10-23 | PRD 0022 written (Proposed), replacing the reserved row: UI refresh and design-system adoption with 19 RFs (tokens, components, motion, accessibility, i18n check, Cuotai as the new-install default theme, strict-contrast gate, TUI colors, nine fix requirements, screenshot pipeline), a De/Para section pairing the 54 "before" screenshots with the 71 "after" mockups (committed under `assets/0022/after/` with their generator); edges 0022 → 0020 (strong), 0025 and 0035 → 0022 (weak); owner decision on the logotype placement logged in §6.1. |

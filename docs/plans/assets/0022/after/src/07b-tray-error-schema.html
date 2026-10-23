@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en-US" data-theme="dracula" data-mode="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=380, initial-scale=1" />
+<title>07b tray schema error</title>
+<link rel="stylesheet" href="../../../../../../apps/desktop/ui/css/themes.css" />
+<link rel="stylesheet" href="../../../../../../apps/desktop/ui/css/themes/index.css" />
+<link rel="stylesheet" href="common.css" />
+<style>
+html, body { width: 380px; height: 600px !important; overflow: hidden; }
+
+.pop { display: flex; flex-direction: column; width: 380px; height: 600px; border: var(--border-w) solid var(--border); border-radius: var(--radius-lg); background: var(--bg); overflow: hidden; }
+.ph { display: flex; align-items: center; gap: var(--space-2); height: 48px; padding: 0 var(--space-3) 0 var(--space-3); background: var(--surface); border-bottom: var(--border-w) solid var(--border); flex: none; }
+.ph h1 { margin: 0; font-size: var(--text-lg); line-height: 1.3; font-weight: 650; }
+.tabs { display: flex; align-items: center; gap: var(--space-0); }
+.tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 28px; min-width: 28px; padding: 0 4px; border: var(--border-w) solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); font-size: var(--text-base); }
+.tab.all { gap: 6px; padding: 0 var(--space-2); color: var(--fg); font-weight: 500; }
+.tab.on { background: var(--surface-2); border-color: var(--border); color: var(--fg); }
+.tab .cnt { font-size: var(--text-sm); color: var(--fg-muted); font-weight: 500; }
+.tab .tw { display: inline-flex; align-items: flex-start; gap: 2px; }
+.tab .tst { display: grid; place-items: center; width: 10px; height: 10px; margin-top: -3px; } /* outside the tile, top right, never over the logo */
+.pbody { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.pf { display: flex; align-items: center; gap: var(--space-1); height: 44px; padding: 0 var(--space-2); background: var(--surface); border-top: var(--border-w) solid var(--border); flex: none; }
+.pf .btn { padding: 0 var(--space-2); flex: none; }
+.pf .btn.warn { color: var(--warn); }
+.notice { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); background: var(--surface); border-top: var(--border-w) solid var(--border); font-size: var(--text-sm); flex: none; }
+.row { border-bottom: var(--border-w) solid var(--border); }
+.rh { display: flex; gap: var(--space-3); width: 100%; padding: var(--space-3); border: 0; background: transparent; text-align: left; align-items: flex-start; }
+.rc { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.r1 { display: flex; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+.r1 .nm { font-size: var(--text-base); line-height: 22px; font-weight: 600; white-space: nowrap; }
+.r1 .plan { margin-top: 2px; }
+.r1 .nm.tr { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.r1 .ac { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 22px; color: var(--fg-muted); }
+.r1 > svg.i { color: var(--fg-muted); margin-left: -4px; align-self: center; }
+.fg { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0; white-space: nowrap; margin-left: auto; flex: none; } /* owner 2026-10-23: unit word below the figure */
+.fg b { font-size: var(--text-xl); line-height: 1.1; font-weight: 700; }
+.fg.wrapfig { white-space: normal; text-align: right; max-width: 52%; }
+.fg.wrapfig b { font-size: var(--text-lg); line-height: 1.2; }
+.fg small { font-size: var(--text-2xs); line-height: 1.1; color: var(--fg-muted); font-weight: 400; letter-spacing: 0; }
+.rm { margin: 2px 0; }
+.stl.x { font-weight: 500; }
+.stl > svg.ring { margin-top: 2px; }
+.rc > .stl { flex-wrap: nowrap; gap: var(--space-2); height: 20px; overflow: hidden; align-items: flex-start; }
+.stl-l { flex: 1 1 0; min-width: 0; height: 20px; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 0 6px; overflow: hidden; }
+.stl-l > * { height: 20px; display: inline-flex; align-items: center; }
+.stl-l .det { white-space: nowrap; }
+.retw { flex: none; margin-left: auto; height: 20px; display: inline-flex; align-items: center; }
+.ret { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-sm); font-weight: 500; color: var(--fg-muted); white-space: nowrap; }
+.sublim { font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc { gap: 4px; padding: 0 var(--space-2); }
+.row.open { background: var(--surface); border-radius: var(--radius-md); margin: var(--space-1) var(--space-2); border: var(--border-w) solid var(--border); }
+.row.open .rh { padding: var(--space-3) var(--space-3); }
+.rb { padding: var(--space-1) var(--space-3) var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+.sub { display: flex; flex-direction: column; gap: 6px; }
+.s1 { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-2); }
+.sl { font-size: var(--text-base); font-weight: 500; white-space: nowrap; }
+.s1 .sf { text-align: right; min-width: 0; }
+.sf b { font-size: var(--text-lg); font-weight: 700; } .sf small { font-size: var(--text-sm); color: var(--fg-muted); margin-left: 3px; }
+.s3 { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px var(--space-2); font-size: var(--text-sm); }
+.s3 .pc { white-space: nowrap; } .s3 .mono { margin-left: auto; white-space: nowrap; }
+.pc { display: inline-flex; align-items: center; gap: 4px; }
+.s3 .mono { font-size: var(--text-micro); }
+.lines { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
+.lines > div { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.acts { display: flex; gap: var(--space-1); margin-left: calc(-1 * var(--space-2)); }
+.sechead { padding: var(--space-3) var(--space-4) var(--space-1); }
+
+/* reset timeline */
+.tl { padding: var(--space-4) var(--space-4) var(--space-3); border-top: var(--border-w) solid var(--border); }
+.tl-h { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3); }
+.tl-h h2 { margin: 0; font-size: var(--text-base); font-weight: 650; }
+.tl-body { position: relative; padding-left: 28px; }
+.tl-now { height: 16px; position: relative; } .tl-now span { position: absolute; left: -2px; top: 0; color: var(--fg-muted); font-size: var(--text-micro); }
+.tl-body::before { content: ""; position: absolute; left: 28px; top: 14px; bottom: 22px; width: 1px; background: var(--fg-muted); }
+.tl-lane { position: relative; display: flex; align-items: center; height: 28px; }
+.tl-t { position: absolute; left: -28px; width: 28px; display: grid; place-items: center; }
+.tl-plot { position: relative; flex: 1; height: 100%; }
+.tl-base { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--border); }
+.tl-line { position: absolute; left: 0; top: calc(50% - 1px); height: 2px; background: currentColor; }
+.tl-dot { position: absolute; top: calc(50% - 4px); width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: currentColor; }
+.tl-lbl { position: absolute; top: 2px; margin-left: 10px; font-size: var(--text-micro); color: var(--fg); line-height: 1; white-space: nowrap; }
+.tl-lbl.left { margin-left: 0; transform: translateX(calc(-100% - 10px)); }
+.tl-later { position: absolute; right: 0; top: 7px; font-size: var(--text-micro); color: var(--fg-muted); display: inline-flex; align-items: center; gap: 2px; background: var(--bg); padding-left: 6px; }
+.tl-ax { position: relative; height: 18px; margin-top: 4px; }
+.tl-ax span { position: absolute; top: 4px; }
+.tl-unk { display: flex; flex-direction: column; gap: 4px; margin-top: var(--space-2); padding-left: 28px; }
+.tl-unk .u { display: inline-flex; align-items: center; gap: 6px; }
+
+.rgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); padding: var(--space-3); }
+.rt { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: var(--space-3) var(--space-1) var(--space-2); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.rw { position: relative; display: grid; place-items: center; }
+.rw svg.ring { position: absolute; inset: 0; }
+.rw .rv { position: relative; font-size: var(--text-base); font-weight: 700; line-height: 1; }
+.rw .rv.s { font-size: var(--text-md); }
+.rt .t { display: flex; align-items: center; gap: 4px; max-width: 100%; padding: 0 var(--space-1); font-size: var(--text-sm); font-weight: 600; }
+.rt .s { display: flex; align-items: center; gap: 3px; max-width: 100%; padding: 0 var(--space-1); font-size: var(--text-micro); font-weight: 600; white-space: nowrap; }
+.cr { display: flex; align-items: center; gap: var(--space-2); height: 44px; padding: 0 var(--space-3); border-bottom: var(--border-w) solid var(--border); }
+.cr .nm { flex: 1; min-width: 0; font-size: var(--text-base); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr .cb { position: relative; width: 72px; flex: none; }
+.cr .cb .mtr { margin: 0; }
+.cr .cb .pt { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--fg); border-radius: 1px; }
+.cr .cf { width: 78px; flex: none; text-align: right; white-space: nowrap; font-size: var(--text-base); font-weight: 700; }
+.cr .cf small { font-size: var(--text-sm); font-weight: 400; color: var(--fg-muted); margin-left: 2px; }
+.cr > svg.i:last-child { color: var(--fg-muted); }
+
+</style>
+</head>
+<body class="">
+<div class="pop"><header class="ph"><div class="tabs" role="tablist"><button class="tab all " role="tab" aria-label="All accounts, tightest limit 22% left"><svg class="ring" width="16" height="16" viewBox="0 0 28 28" role="img" aria-label="22%"><g fill="none" stroke-width="5" stroke-linecap="round"><path d="M21.78 21.78A11 11 0 1 1 21.78 6.22" stroke="var(--track)"/><path d="M21.78 21.78A11 11 0 0 1 11.26 24.65" stroke="var(--bad)"/></g></svg><span>All</span><span class="cnt">7</span></button><button class="tab " role="tab" aria-label="Claude Code, 2"><span class="tw"><span class="tile" style="--s:20px;--c:#d97757;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/claude.svg)"><i></i></span><i class="tst" aria-hidden="true"><svg class="ring" width="10" height="10" viewBox="0 0 28 28" role="img" aria-label="22%"><g fill="none" stroke-width="5.4" stroke-linecap="round"><path d="M21.78 21.78A11 11 0 1 1 21.78 6.22" stroke="var(--track)"/><path d="M21.78 21.78A11 11 0 0 1 11.26 24.65" stroke="var(--bad)"/></g></svg></i></span><span class="cnt">2</span></button><button class="tab " role="tab" aria-label="OpenAI Codex"><span class="tw"><span class="tile" style="--s:20px;--c:#111113;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/codex.svg)"><i></i></span></span></button><button class="tab " role="tab" aria-label="Cursor"><span class="tw"><span class="tile" style="--s:20px;--c:#1c1c1e;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/cursor.svg)"><i></i></span><i class="tst" aria-hidden="true"><svg class="ring" width="10" height="10" viewBox="0 0 28 28" role="img" aria-label="0%"><g fill="none" stroke-width="5.4" stroke-linecap="round"><path d="M21.78 21.78A11 11 0 1 1 21.78 6.22" stroke="var(--bad)" stroke-opacity=".55"/></g></svg></i></span></button><button class="tab on" role="tab" aria-label="Kimi"><span class="tw"><span class="tile" style="--s:20px;--c:#1783ff;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/kimi.svg)"><i></i></span><i class="tst" aria-hidden="true"><svg class="i s12 r-bad" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg></i></span></button><button class="tab " role="tab" aria-label="Groq"><span class="tw"><span class="tile" style="--s:20px;--c:#f55036;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/groq.svg)"><i></i></span><i class="tst" aria-hidden="true"><svg class="ring" width="10" height="10" viewBox="0 0 28 28" role="img" aria-label="74%"><g opacity=".5" stroke-dasharray="0.1 4.2" fill="none" stroke-width="5.4" stroke-linecap="round"><path d="M21.78 21.78A11 11 0 1 1 21.78 6.22" stroke="var(--track)"/><path d="M21.78 21.78A11 11 0 1 1 9.32 4.05" stroke="var(--good)"/></g></svg></i></span></button><button class="tab " role="tab" aria-label="Anthropic API"><span class="tw"><span class="tile" style="--s:20px;--c:#d97757;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/anthropic.svg)"><i></i></span><i class="tst" aria-hidden="true"><svg class="i s12 r-accent" viewBox="0 0 24 24" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></i></span></button></div><span class="grow"></span></header><div class="pbody"><article class="row open">
+  <button class="rh" aria-expanded="true">
+    <span class="tile" style="--s:32px;--c:#1783ff;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/kimi.svg)"><i></i></span>
+    <div class="rc">
+      <div class="r1"><span class="nm " >Kimi</span><span class="ac trunc">ops@example.com</span><span class="fg  wrapfig"><b class="r-bad">Error</b></span><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
+      
+      <div class="stl" title="Unexpected response · the provider changed its answer"><span class="stl-l"><svg class="i s12 r-bad" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span class="lbl r-bad">Unexpected response</span><span class="det">· the provider changed its answer</span></span></div>
+    </div>
+  </button>
+  <div class="rb">
+    <div class="call critical"><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><div>The provider changed its response, so Cuotai cannot read the limits yet. <b>Report a problem</b> so it can be fixed.</div></div>
+    <div class="call neutral"><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><div><b style="font-weight:650">What changed</b><div style="margin-top:4px">The provider changed five_hour.utilization (number → string).</div>
+      <div class="mono sm" style="margin-top:6px;display:flex;flex-direction:column;gap:2px"><span>five_hour.utilization</span><span>weekly.resets_at</span><span>weekly.limit</span></div>
+      <div class="sm muted" style="margin-top:6px">Values are never recorded.</div></div></div>
+    <div class="lines"><div class="muted ln"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg><span class="txt">Official · usage API</span></div><div class="muted ln"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span class="txt"><span class="chip plain" title="">Verified 2 months ago</span></span></div></div>
+    <div class="acts"><button class="btn secondary sm" style="margin-left:var(--space-2)"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg> Report a problem</button><button class="btn ghost sm"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg> Try again</button></div></div>
+</article></div><footer class="pf">
+  <button class="btn ghost sm" aria-keyshortcuts="Meta+,"><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg> <span>Settings</span></button>
+  <button class="btn ghost sm"><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> <span>Stats</span></button>
+  <span class="grow"></span>
+  <span class="mono sm muted nowrap" title="1 min ago">1 min ago</span>
+  <button class="ib" aria-label="Refresh all"><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
+</footer></div>
+<script>(() => { document.querySelectorAll(".rc > .stl").forEach((s) => { const l = s.querySelector(".stl-l"); if (!l) return; const over = () => l.scrollHeight > l.clientHeight + 1 || l.scrollWidth > l.clientWidth + 1; const steps = []; const lbl = l.querySelector(".lbl");
+  if (over() && lbl && lbl.dataset.c) { lbl.textContent = lbl.dataset.c; steps.push("compact label"); }
+  if (over()) { const d = []; l.querySelectorAll(".det, .chip").forEach((e) => { d.push(e.textContent.trim()); e.style.display = "none"; }); if (d.length) steps.push("dropped: " + d.join(" | ")); }
+  if (over() && lbl) { lbl.style.cssText += ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%"; steps.push("truncated label"); }
+  if (steps.length) s.dataset.fit = steps.join("; "); }); })();</script>
+</body>
+</html>

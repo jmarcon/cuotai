@@ -7,7 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, tray), `crates/cuotai-tui`, PRDs 0012 and 0013 |
 | Depends on | PRD 0005 (RF1) to tell "provider incident" from "interface changed"; not required |
-| Extended by | PRD 0028 (RF4.5: the local canary checks that fixed status components still exist), PRD 0031 (`incident.state` per account and the worst case in `/v1/limits`), PRD 0033 (stale status readings ignored for the tray dot and expired to `unknown` after about 30 minutes), PRD 0037 and PRD 0038 (one more incident source each) |
+| Extended by | PRD 0022 (RF17.8, with PRD 0025 RF3.1: the RF4.2 outage dot becomes a template-compatible cut-out badge on a monochrome menu-bar icon), PRD 0028 (RF4.5: the local canary checks that fixed status components still exist), PRD 0031 (`incident.state` per account and the worst case in `/v1/limits`), PRD 0033 (stale status readings ignored for the tray dot and expired to `unknown` after about 30 minutes), PRD 0037 and PRD 0038 (one more incident source each) |
 | Date | 2026-10-19 |
 
 ## Implementation status

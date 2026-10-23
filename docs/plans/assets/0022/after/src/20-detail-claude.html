@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en-US" data-theme="dracula" data-mode="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=560, initial-scale=1" />
+<title>20 detail Claude</title>
+<link rel="stylesheet" href="../../../../../../apps/desktop/ui/css/themes.css" />
+<link rel="stylesheet" href="../../../../../../apps/desktop/ui/css/themes/index.css" />
+<link rel="stylesheet" href="common.css" />
+<style>
+html, body { width: 560px; height: 1620px !important; overflow: hidden; }
+
+.pop { display: flex; flex-direction: column; width: 380px; height: 600px; border: var(--border-w) solid var(--border); border-radius: var(--radius-lg); background: var(--bg); overflow: hidden; }
+.ph { display: flex; align-items: center; gap: var(--space-2); height: 48px; padding: 0 var(--space-3) 0 var(--space-3); background: var(--surface); border-bottom: var(--border-w) solid var(--border); flex: none; }
+.ph h1 { margin: 0; font-size: var(--text-lg); line-height: 1.3; font-weight: 650; }
+.tabs { display: flex; align-items: center; gap: var(--space-0); }
+.tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 28px; min-width: 28px; padding: 0 4px; border: var(--border-w) solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); font-size: var(--text-base); }
+.tab.all { gap: 6px; padding: 0 var(--space-2); color: var(--fg); font-weight: 500; }
+.tab.on { background: var(--surface-2); border-color: var(--border); color: var(--fg); }
+.tab .cnt { font-size: var(--text-sm); color: var(--fg-muted); font-weight: 500; }
+.tab .tw { display: inline-flex; align-items: flex-start; gap: 2px; }
+.tab .tst { display: grid; place-items: center; width: 10px; height: 10px; margin-top: -3px; } /* outside the tile, top right, never over the logo */
+.pbody { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.pf { display: flex; align-items: center; gap: var(--space-1); height: 44px; padding: 0 var(--space-2); background: var(--surface); border-top: var(--border-w) solid var(--border); flex: none; }
+.pf .btn { padding: 0 var(--space-2); flex: none; }
+.pf .btn.warn { color: var(--warn); }
+.notice { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); background: var(--surface); border-top: var(--border-w) solid var(--border); font-size: var(--text-sm); flex: none; }
+.row { border-bottom: var(--border-w) solid var(--border); }
+.rh { display: flex; gap: var(--space-3); width: 100%; padding: var(--space-3); border: 0; background: transparent; text-align: left; align-items: flex-start; }
+.rc { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.r1 { display: flex; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+.r1 .nm { font-size: var(--text-base); line-height: 22px; font-weight: 600; white-space: nowrap; }
+.r1 .plan { margin-top: 2px; }
+.r1 .nm.tr { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.r1 .ac { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 22px; color: var(--fg-muted); }
+.r1 > svg.i { color: var(--fg-muted); margin-left: -4px; align-self: center; }
+.fg { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0; white-space: nowrap; margin-left: auto; flex: none; } /* owner 2026-10-23: unit word below the figure */
+.fg b { font-size: var(--text-xl); line-height: 1.1; font-weight: 700; }
+.fg.wrapfig { white-space: normal; text-align: right; max-width: 52%; }
+.fg.wrapfig b { font-size: var(--text-lg); line-height: 1.2; }
+.fg small { font-size: var(--text-2xs); line-height: 1.1; color: var(--fg-muted); font-weight: 400; letter-spacing: 0; }
+.rm { margin: 2px 0; }
+.stl.x { font-weight: 500; }
+.stl > svg.ring { margin-top: 2px; }
+.rc > .stl { flex-wrap: nowrap; gap: var(--space-2); height: 20px; overflow: hidden; align-items: flex-start; }
+.stl-l { flex: 1 1 0; min-width: 0; height: 20px; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 0 6px; overflow: hidden; }
+.stl-l > * { height: 20px; display: inline-flex; align-items: center; }
+.stl-l .det { white-space: nowrap; }
+.retw { flex: none; margin-left: auto; height: 20px; display: inline-flex; align-items: center; }
+.ret { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-sm); font-weight: 500; color: var(--fg-muted); white-space: nowrap; }
+.sublim { font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc { gap: 4px; padding: 0 var(--space-2); }
+.row.open { background: var(--surface); border-radius: var(--radius-md); margin: var(--space-1) var(--space-2); border: var(--border-w) solid var(--border); }
+.row.open .rh { padding: var(--space-3) var(--space-3); }
+.rb { padding: var(--space-1) var(--space-3) var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+.sub { display: flex; flex-direction: column; gap: 6px; }
+.s1 { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-2); }
+.sl { font-size: var(--text-base); font-weight: 500; white-space: nowrap; }
+.s1 .sf { text-align: right; min-width: 0; }
+.sf b { font-size: var(--text-lg); font-weight: 700; } .sf small { font-size: var(--text-sm); color: var(--fg-muted); margin-left: 3px; }
+.s3 { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px var(--space-2); font-size: var(--text-sm); }
+.s3 .pc { white-space: nowrap; } .s3 .mono { margin-left: auto; white-space: nowrap; }
+.pc { display: inline-flex; align-items: center; gap: 4px; }
+.s3 .mono { font-size: var(--text-micro); }
+.lines { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
+.lines > div { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.acts { display: flex; gap: var(--space-1); margin-left: calc(-1 * var(--space-2)); }
+.sechead { padding: var(--space-3) var(--space-4) var(--space-1); }
+
+/* reset timeline */
+.tl { padding: var(--space-4) var(--space-4) var(--space-3); border-top: var(--border-w) solid var(--border); }
+.tl-h { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3); }
+.tl-h h2 { margin: 0; font-size: var(--text-base); font-weight: 650; }
+.tl-body { position: relative; padding-left: 28px; }
+.tl-now { height: 16px; position: relative; } .tl-now span { position: absolute; left: -2px; top: 0; color: var(--fg-muted); font-size: var(--text-micro); }
+.tl-body::before { content: ""; position: absolute; left: 28px; top: 14px; bottom: 22px; width: 1px; background: var(--fg-muted); }
+.tl-lane { position: relative; display: flex; align-items: center; height: 28px; }
+.tl-t { position: absolute; left: -28px; width: 28px; display: grid; place-items: center; }
+.tl-plot { position: relative; flex: 1; height: 100%; }
+.tl-base { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--border); }
+.tl-line { position: absolute; left: 0; top: calc(50% - 1px); height: 2px; background: currentColor; }
+.tl-dot { position: absolute; top: calc(50% - 4px); width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: currentColor; }
+.tl-lbl { position: absolute; top: 2px; margin-left: 10px; font-size: var(--text-micro); color: var(--fg); line-height: 1; white-space: nowrap; }
+.tl-lbl.left { margin-left: 0; transform: translateX(calc(-100% - 10px)); }
+.tl-later { position: absolute; right: 0; top: 7px; font-size: var(--text-micro); color: var(--fg-muted); display: inline-flex; align-items: center; gap: 2px; background: var(--bg); padding-left: 6px; }
+.tl-ax { position: relative; height: 18px; margin-top: 4px; }
+.tl-ax span { position: absolute; top: 4px; }
+.tl-unk { display: flex; flex-direction: column; gap: 4px; margin-top: var(--space-2); padding-left: 28px; }
+.tl-unk .u { display: inline-flex; align-items: center; gap: 6px; }
+
+body { background: var(--bg); }
+.dlg { width: 100%; height: 100%; }
+.dlg-b { flex: 1; min-height: 0; overflow: hidden; }
+.dh-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dh-t .n { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xl); font-weight: 650; line-height: 1.25; }
+.kv { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; padding: var(--space-2) var(--space-3); border-top: var(--border-w) solid var(--border); font-size: var(--text-md); }
+.kv:first-child { border-top: 0; }
+.kv .k { width: 120px; color: var(--fg-muted); flex: none; }
+.lim { padding: var(--space-3); border-top: var(--border-w) solid var(--border); display: flex; gap: var(--space-2); align-items: flex-start; }
+.lim:first-child { border-top: 0; }
+.lim .sub { flex: 1; min-width: 0; }
+.lim.hid .sub { opacity: 0.45; }
+.sech { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-2); padding: 0 var(--space-1); }
+.sech h2 { margin: 0; font-size: var(--text-lg); font-weight: 650; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+.chartbox { padding: var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--surface); margin-top: var(--space-3); }
+.bars { position: relative; height: 112px; margin-left: 40px; display: flex; align-items: flex-end; gap: var(--space-1); border-bottom: 1px solid var(--border); }
+.bars .g { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); }
+.bars .gl { position: absolute; left: -40px; width: 34px; text-align: right; transform: translateY(-50%); }
+.bars .b { position: relative; flex: 1; border-radius: var(--radius-xs) var(--radius-xs) 0 0; background: var(--chart-neutral); min-height: 1px; }
+.bars .b.hatch { background: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px), color-mix(in srgb, var(--track) 40%, transparent); }
+.bars .b.today { background: var(--accent); }
+.bars .b span { position: absolute; top: -16px; left: 0; right: 0; text-align: center; color: var(--fg-muted); font: var(--text-micro) var(--font-mono); }
+.bars .b.today span { color: var(--fg); }
+.bx { display: flex; gap: var(--space-1); margin-left: 40px; margin-top: 4px; }
+.bx span { flex: 1; text-align: center; }
+.bx span.t { color: var(--fg); font-weight: 600; }
+.disc2 { display: flex; align-items: center; gap: var(--space-2); height: 44px; padding: 0 var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--surface); font-size: var(--text-base); width: 100%; text-align: left; }
+.disc2 .v { margin-left: auto; color: var(--fg-muted); font-size: var(--text-sm); }
+.lab { display: flex; flex-direction: column; gap: 6px; }
+.lab > .t { font-size: var(--text-md); font-weight: 500; }
+.lab > .h { font-size: var(--text-sm); color: var(--fg-muted); }
+.pv { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--fg-muted); flex: none; }
+.btn .cnt { color: var(--fg-muted); }
+.issue { margin: 0; max-height: 240px; overflow: auto; padding: var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); font-size: var(--text-sm); line-height: 1.5; white-space: pre; }
+.disc3 > summary { list-style: none; cursor: pointer; }
+.cwrap { font-size: var(--text-md); color: var(--fg-muted); line-height: 1.35; }
+
+</style>
+</head>
+<body class="">
+<div class="dlg" role="dialog" aria-modal="true">
+  <div class="dlg-h"><span class="tile" style="--s:40px;--c:#d97757;--g:#fff;--m:url(../../../../../../apps/desktop/ui/img/providers/claude.svg)"><i></i><span class="mg" style="height:16px;font-size:10px" aria-hidden="true">WO</span></span><div class="dh-t grow"><div class="n">work@example.com <span class="plan">Max</span></div><span class="muted md">Claude Code</span></div>
+    <button class="ib w" aria-label="Edit account"><svg class="i s18" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/></svg></button><button class="ib w" aria-label="Remove account"><svg class="i s18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button><button class="ib w" aria-label="Close"><svg class="i s18" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+  <div class="dlg-b">
+    <div class="call critical"><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><div><b>Partial outage</b> · Elevated errors on claude.ai & Claude Code<div class="sm muted" style="margin-top:2px">Since 17:32 · read 2 min ago. This may not be caused by your account.</div></div><button class="btn ghost sm act">Open status page <svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button></div>
+    <section>
+      <div class="sech"><h2>Limits</h2><span class="sm muted">Binding limit: Weekly</span></div>
+      <div class="grp">
+        <div class="lim"><div class="sub"><div class="s1"><span class="sl">5-hour session</span><span class="grow"></span><span class="sf"><b>66%</b><small>left</small></span></div><div class="mtr warn  " role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="66" aria-valuetext="66% left"><span class="mf" style="width:66%"></span><span class="pm" style="left:39%;width:10%"></span></div><div class="s3"><span class="r-good pc"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> 22 points in reserve</span><span class="mono muted">Resets 20:32 · in 2h 11m</span></div></div><button class="ib" aria-label="Hide this limit"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        <div class="lim"><div class="sub"><div class="s1"><span class="sl">Weekly</span><span class="chip accent">Binding</span><span class="grow"></span><span class="sf"><b>22%</b><small>left</small></span></div><div class="mtr bad  " role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="22" aria-valuetext="22% left"><span class="mf" style="width:22%"></span><span class="pm" style="left:37%;width:10%"></span></div><div class="s3"><span class="r-warn pc"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> 20 points ahead of pace</span><span class="mono muted">Resets Sun 17:20 · in 2d 23h</span></div></div><button class="ib" aria-label="Hide this limit"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        <div class="lim hid"><div class="sub"><div class="s1"><span class="sl">Sonnet weekly</span><span class="grow"></span><span class="sf"><b>88%</b><small>left</small></span></div><div class="mtr good  " role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="88" aria-valuetext="88% left"><span class="mf" style="width:88%"></span><span class="pm" style="left:65%;width:10%"></span></div><div class="s3"><span class="r-good pc"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> 18 points in reserve</span><span class="mono muted">Resets Sun 17:20 · in 2d 23h</span></div></div><button class="ib" aria-label="Show this limit"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></button></div>
+      </div>
+      <div class="call warning" style="margin-top:var(--space-3)"><svg class="i " viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div>At this rate the weekly limit runs out around <b>Sat 10:20</b>, 1d 7h before it resets.</div><button class="btn ghost sm act"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M3.26 15.33A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.67C19.41 13.96 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.41 5.96-2.74 7.33"/></svg> Alert me</button></div>
+    </section>
+    <section>
+      <div class="sech"><h2>Reading</h2></div>
+      <div class="grp">
+        <div class="kv"><span class="k">Last reading</span><span>18:20 · 1 min ago</span><span class="grow"></span><span class="chip good"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> Fresh</span></div>
+        <div class="kv"><span class="k">Access level</span><span>Undocumented · usage page of the web app</span><span class="grow"></span><span class="chip plain" title="Verified 20 Aug 2026"><svg class="i s12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> Verified 2 months ago</span></div>
+        <div class="kv"><span class="k">Next refresh</span><span class="mono">in 38 s</span><span class="grow"></span><span class="muted sm">every 5 min</span></div>
+      </div>
+    </section>
+    <section>
+      <div class="sech"><h2>Local cost</h2><span class="sm muted">Estimate at API prices, on this computer</span></div>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Today</div><div class="v">≈$0.11</div><div class="c">468K tokens · plus unpriced</div></div>
+        <div class="kpi"><div class="l">Yesterday</div><div class="v">—</div><div class="c">No usage</div></div>
+        <div class="kpi"><div class="l">7 days</div><div class="v">≈$1.41</div><div class="c">2M tokens · plus unpriced</div></div>
+      </div>
+      <div class="chartbox"><div style="margin-bottom:22px" class="sm muted">Estimated cost per day, last 7 days</div>
+  <div class="bars" role="img" aria-label="Estimated cost per day: Fri $0.31, Sat $0.24, Sun $0.47, Mon $0.19, Tue unknown, Wed $0.09, Today $0.11"><div class="g" style="bottom:112px"><span class="gl axis">$0.50</span></div><div class="g" style="bottom:56px"><span class="gl axis">$0.25</span></div><div class="b " style="height:69.44px"><span>≈$0.31</span></div><div class="b " style="height:53.76px"><span>≈$0.24</span></div><div class="b " style="height:105.28px"><span>≈$0.47</span></div><div class="b " style="height:42.56px"><span>≈$0.19</span></div><div class="b unk hatch" style="height:112px" title="Cost unknown"><span>—</span></div><div class="b " style="height:20.16px"><span>≈$0.09</span></div><div class="b today" style="height:24.64px"><span>≈$0.11</span></div><span class="gl axis" style="position:absolute;left:-40px;width:34px;text-align:right;bottom:-7px">$0</span></div>
+  <div class="bx axis"><span class="">Fri</span><span class="">Sat</span><span class="">Sun</span><span class="">Mon</span><span class="">Tue</span><span class="">Wed</span><span class="t">Today</span></div>
+  <div class="sm muted" style="margin-top:var(--space-2)">Tuesday has no price for one model, so its cost is unknown, not zero. Amounts are estimates.</div></div>
+      <div style="margin-top:var(--space-3)"><button class="disc2"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span>Models and daily table</span><span class="v">6 models</span></button></div>
+    </section>
+    <section>
+      <div class="sech"><h2>History</h2><div class="seg mono" role="radiogroup"><button>24h</button><button class="on">7d</button><button>30d</button></div></div>
+      <div class="chartbox" style="margin-top:0">
+        <div class="sm muted" style="margin-bottom:var(--space-2)">Weekly limit, share left</div>
+        <svg viewBox="0 0 480 150" width="100%" role="img" aria-label="Weekly limit, percent left over 7 days. Lowest 8 percent before the Sunday reset, highest 100 percent, last 22 percent." style="display:block">
+  <g class="axis" fill="var(--fg-muted)" font-family="var(--font-mono)" font-size="11">
+    <text x="28" y="12" text-anchor="end">100</text><text x="28" y="73" text-anchor="end">50</text><text x="28" y="134" text-anchor="end">0</text>
+    <text x="48.730357142857144" y="146" text-anchor="middle">Fri 16</text><text x="173.87321428571428" y="146" text-anchor="middle">Sun 18</text><text x="299.0160714285715" y="146" text-anchor="middle">Tue 20</text><text x="424.1589285714286" y="146" text-anchor="middle">Thu 22</text>
+  </g>
+  <line x1="34" x2="472" y1="8" y2="8" stroke="var(--border)" stroke-dasharray="3 3"/><line x1="34" x2="472" y1="69" y2="69" stroke="var(--border)" stroke-dasharray="3 3"/>
+  <line x1="34" x2="472" y1="130" y2="130" stroke="var(--border)"/>
+  <path d="M34.0 85.5L41.8 85.0L49.6 86.3L49.6 130L34.0 130Z" fill="color-mix(in srgb, var(--info) 18%, transparent)"/><path d="M34.0 85.5L41.8 85.0L49.6 86.3" fill="none" stroke="var(--info)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="M88.8 94.3L96.6 97.3L104.4 99.4L112.2 97.3L120.0 101.0L127.9 100.4L135.7 102.8L143.5 105.5L151.3 105.8L159.1 109.7L167.0 111.3L174.8 111.8L182.6 114.0L190.4 115.8L198.3 117.9L206.1 117.3L213.9 119.8L213.9 130L88.8 130Z" fill="color-mix(in srgb, var(--info) 18%, transparent)"/><path d="M88.8 94.3L96.6 97.3L104.4 99.4L112.2 97.3L120.0 101.0L127.9 100.4L135.7 102.8L143.5 105.5L151.3 105.8L159.1 109.7L167.0 111.3L174.8 111.8L182.6 114.0L190.4 115.8L198.3 117.9L206.1 117.3L213.9 119.8" fill="none" stroke="var(--info)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="M221.7 9.2L229.5 11.6L237.4 16.0L245.2 18.1L253.0 22.2L260.8 24.2L268.6 25.5L276.5 28.7L284.3 31.0L292.1 35.5L299.9 40.0L307.8 39.9L315.6 43.5L323.4 46.7L331.2 50.2L339.0 51.6L346.9 56.9L354.7 60.5L362.5 62.7L370.3 65.7L378.1 66.8L386.0 69.6L393.8 72.5L401.6 75.7L409.4 81.1L417.3 81.0L425.1 84.0L432.9 87.7L440.7 89.7L448.5 94.9L456.4 98.8L464.2 100.4L472.0 103.2L472.0 130L221.7 130Z" fill="color-mix(in srgb, var(--info) 18%, transparent)"/><path d="M221.7 9.2L229.5 11.6L237.4 16.0L245.2 18.1L253.0 22.2L260.8 24.2L268.6 25.5L276.5 28.7L284.3 31.0L292.1 35.5L299.9 40.0L307.8 39.9L315.6 43.5L323.4 46.7L331.2 50.2L339.0 51.6L346.9 56.9L354.7 60.5L362.5 62.7L370.3 65.7L378.1 66.8L386.0 69.6L393.8 72.5L401.6 75.7L409.4 81.1L417.3 81.0L425.1 84.0L432.9 87.7L440.7 89.7L448.5 94.9L456.4 98.8L464.2 100.4L472.0 103.2" fill="none" stroke="var(--info)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+  <line x1="219.10714285714286" x2="219.10714285714286" y1="8" y2="130" stroke="var(--fg-muted)" stroke-dasharray="4 3"/>
+  <circle cx="472" cy="103.16" r="3.5" fill="var(--info)"/>
+</svg>
+        <div class="sm muted" style="display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-2)"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="16" height="8"><line x1="0" x2="16" y1="4" y2="4" stroke="var(--fg-muted)" stroke-dasharray="4 3"/></svg> Reset</span><span class="grow"></span><span>Lowest <b class="mono" style="color:var(--fg);font-weight:600">8%</b></span><span>Highest <b class="mono" style="color:var(--fg);font-weight:600">100%</b></span><span>Last <b class="mono" style="color:var(--fg);font-weight:600">22%</b></span></div>
+      </div>
+      <div class="sm muted" style="margin-top:var(--space-2)">No readings between Fri 02:00 and 15:00: the computer was asleep. History is kept for 30 days.</div>
+    </section>
+    <button class="disc2"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span>Models</span><span class="v">6 available</span></button>
+  </div>
+  <div class="dlg-f"><button class="btn"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg> Refresh now</button><button class="btn"><svg class="i s14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/></svg> Edit account</button></div></div>
+<script>(() => { document.querySelectorAll(".rc > .stl").forEach((s) => { const l = s.querySelector(".stl-l"); if (!l) return; const over = () => l.scrollHeight > l.clientHeight + 1 || l.scrollWidth > l.clientWidth + 1; const steps = []; const lbl = l.querySelector(".lbl");
+  if (over() && lbl && lbl.dataset.c) { lbl.textContent = lbl.dataset.c; steps.push("compact label"); }
+  if (over()) { const d = []; l.querySelectorAll(".det, .chip").forEach((e) => { d.push(e.textContent.trim()); e.style.display = "none"; }); if (d.length) steps.push("dropped: " + d.join(" | ")); }
+  if (over() && lbl) { lbl.style.cssText += ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%"; steps.push("truncated label"); }
+  if (steps.length) s.dataset.fit = steps.join("; "); }); })();</script>
+</body>
+</html>

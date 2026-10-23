@@ -1,0 +1,474 @@
+{
+ "01-tray-overview": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 88
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 83
+  }
+ ],
+ "01b-tray-overview-scrolled": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 88
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 83
+  }
+ ],
+ "01c-tray-rings-view": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.trunc",
+   "text": "work@example.com",
+   "sw": 118,
+   "cw": 77
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.trunc",
+   "text": "side@example.com",
+   "sw": 114,
+   "cw": 77
+  }
+ ],
+ "01d-tray-compact-view": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.nm",
+   "text": "work@example.com",
+   "sw": 136,
+   "cw": 112
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.nm",
+   "text": "side@example.com",
+   "sw": 131,
+   "cw": 112
+  }
+ ],
+ "01e-tray-minimal-view": [],
+ "01f-tray-percent-mode": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 88
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 83
+  },
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "compact label"
+  }
+ ],
+ "02-tray-incidents": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 88
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 83
+  }
+ ],
+ "03-tray-account-claude-expanded": [],
+ "05-tray-detail-cursor-extra": [],
+ "06-tray-groq-stale": [],
+ "07-tray-error": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 65
+  }
+ ],
+ "07b-tray-error-schema": [
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "dropped: · the provider changed its answer"
+  }
+ ],
+ "09-tray-overview-light": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 88
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 83
+  }
+ ],
+ "10-main-overview": [],
+ "11-main-overview-full": [],
+ "13-main-update-available": [],
+ "14-main-empty": [],
+ "15-main-narrow": [],
+ "20-detail-claude": [],
+ "31-account-add-catalog": [],
+ "31b-account-add-catalog-search": [],
+ "32-account-add-claude": [],
+ "07c-report-problem": [],
+ "40-extensions": [],
+ "50-settings-general": [],
+ "50-settings-general-language": [],
+ "50-settings-general-language-14": [],
+ "50-settings-dashboard": [],
+ "50-settings-display-custom": [],
+ "50-settings-menubar": [],
+ "50-settings-alerts": [],
+ "50-settings-advanced": [],
+ "70-stats": [],
+ "70b-stats-scrolled": [],
+ "01-tray-overview.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 80
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 50
+  },
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "dropped: · no saldo extra"
+  }
+ ],
+ "03-tray-account-claude-expanded.pt-BR": [
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "compact label"
+  }
+ ],
+ "05-tray-detail-cursor-extra.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 87
+  },
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "dropped: · no saldo extra"
+  }
+ ],
+ "10-main-overview.pt-BR": [],
+ "15-main-narrow.pt-BR": [],
+ "31-account-add-catalog.pt-BR": [],
+ "50-settings-general.pt-BR": [],
+ "50-settings-general-language.pt-BR": [],
+ "50-settings-menubar.pt-BR": [],
+ "50-settings-alerts.pt-BR": [],
+ "70-stats.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "work@example.com",
+   "sw": 129,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "side@example.com",
+   "sw": 125,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.sub.sm.trunc",
+   "text": "me@example.com",
+   "sw": 111,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.sub.sm.trunc",
+   "text": "dev@example.com",
+   "sw": 114,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.sub.sm.trunc",
+   "text": "ops@example.com",
+   "sw": 114,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.sub.sm.trunc",
+   "text": "team@example.com",
+   "sw": 122,
+   "cw": 107
+  }
+ ],
+ "01-tray-overview.es": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 79
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 20
+  },
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "compact label"
+  },
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "dropped: · con saldo extra"
+  }
+ ],
+ "03-tray-account-claude-expanded.es": [
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "compact label"
+  }
+ ],
+ "05-tray-detail-cursor-extra.es": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 87
+  },
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "dropped: · con saldo extra"
+  }
+ ],
+ "10-main-overview.es": [],
+ "15-main-narrow.es": [],
+ "31-account-add-catalog.es": [],
+ "50-settings-general.es": [],
+ "50-settings-general-language.es": [],
+ "50-settings-menubar.es": [],
+ "50-settings-alerts.es": [],
+ "70-stats.es": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "work@example.com",
+   "sw": 129,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "side@example.com",
+   "sw": 125,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.sub.sm.trunc",
+   "text": "dev@example.com",
+   "sw": 114,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.sub.sm.trunc",
+   "text": "ops@example.com",
+   "sw": 114,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.sub.sm.trunc",
+   "text": "team@example.com",
+   "sw": 122,
+   "cw": 111
+  }
+ ],
+ "01-tray-overview.it": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 77
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 104
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 27
+  }
+ ],
+ "03-tray-account-claude-expanded.it": [],
+ "05-tray-detail-cursor-extra.it": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 86
+  },
+  {
+   "kind": "status-line-yielded",
+   "ok": true,
+   "sel": "div.stl",
+   "text": "dropped: · su saldo extra"
+  }
+ ],
+ "10-main-overview.it": [],
+ "15-main-narrow.it": [],
+ "31-account-add-catalog.it": [],
+ "50-settings-general.it": [],
+ "50-settings-general-language.it": [],
+ "50-settings-menubar.it": [],
+ "50-settings-alerts.it": [],
+ "70-stats.it": [],
+ "01-tray-overview.cuotai": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 88
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 83
+  }
+ ],
+ "01-tray-overview.cuotai-light": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 88
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 83
+  }
+ ],
+ "10-main-overview.cuotai": [],
+ "10-main-overview.cuotai-light": []
+}

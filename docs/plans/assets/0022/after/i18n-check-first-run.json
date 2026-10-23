@@ -1,0 +1,696 @@
+{
+ "01-tray-overview": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 66
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 103
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 72
+  }
+ ],
+ "01b-tray-overview-scrolled": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 66
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 103
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 72
+  }
+ ],
+ "01c-tray-rings-view": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.trunc",
+   "text": "work@example.com",
+   "sw": 118,
+   "cw": 77
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.trunc",
+   "text": "side@example.com",
+   "sw": 114,
+   "cw": 77
+  }
+ ],
+ "01d-tray-compact-view": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.nm",
+   "text": "work@example.com",
+   "sw": 136,
+   "cw": 110
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.nm",
+   "text": "side@example.com",
+   "sw": 131,
+   "cw": 110
+  }
+ ],
+ "02-tray-incidents": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 66
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 103
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 72
+  }
+ ],
+ "03-tray-account-claude-expanded": [],
+ "05-tray-detail-cursor-extra": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 85
+  }
+ ],
+ "06-tray-groq-stale": [],
+ "07-tray-error": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 54
+  }
+ ],
+ "09-tray-overview-light": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 66
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 103
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 72
+  }
+ ],
+ "10-main-overview": [],
+ "11-main-overview-full": [],
+ "13-main-update-available": [],
+ "14-main-empty": [],
+ "15-main-narrow": [],
+ "20-detail-claude": [],
+ "31-account-add-catalog": [],
+ "31b-account-add-catalog-search": [],
+ "32-account-add-claude": [],
+ "40-extensions": [],
+ "50-settings-general": [],
+ "50-settings-general-language": [
+  {
+   "kind": "overlap",
+   "ok": false,
+   "sel": "span.grow.nowrap x span",
+   "text": "English (US) | Português (Brasil)"
+  }
+ ],
+ "50-settings-dashboard": [],
+ "50-settings-menubar": [],
+ "50-settings-alerts": [],
+ "50-settings-advanced": [],
+ "70-stats": [],
+ "70b-stats-scrolled": [],
+ "01-tray-overview.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 28
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 74
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· no saldo extra",
+   "sw": 87,
+   "cw": 64
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 36
+  }
+ ],
+ "03-tray-account-claude-expanded.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.nm.tr",
+   "text": "work@example.com",
+   "sw": 136,
+   "cw": 121
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· acaba sáb. 10:20",
+   "sw": 105,
+   "cw": 91
+  }
+ ],
+ "05-tray-detail-cursor-extra.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 56
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· no saldo extra",
+   "sw": 87,
+   "cw": 46
+  }
+ ],
+ "10-main-overview.pt-BR": [],
+ "15-main-narrow.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· a consulta expirou. Nova tentativa em 4 min",
+   "sw": 272,
+   "cw": 257
+  }
+ ],
+ "31-account-add-catalog.pt-BR": [],
+ "50-settings-general.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar configurações",
+   "sw": 132,
+   "cw": 116
+  }
+ ],
+ "50-settings-general-language.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar configurações",
+   "sw": 132,
+   "cw": 116
+  },
+  {
+   "kind": "overlap",
+   "ok": false,
+   "sel": "span.grow.nowrap x span",
+   "text": "Português (Brasil) | Português (Brasil)"
+  }
+ ],
+ "50-settings-menubar.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar configurações",
+   "sw": 132,
+   "cw": 116
+  }
+ ],
+ "50-settings-alerts.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar configurações",
+   "sw": 132,
+   "cw": 116
+  }
+ ],
+ "70-stats.pt-BR": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "work@example.com",
+   "sw": 129,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "side@example.com",
+   "sw": 125,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "div.sub.sm.trunc",
+   "text": "me@example.com",
+   "sw": 111,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "div.sub.sm.trunc",
+   "text": "dev@example.com",
+   "sw": 114,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "div.sub.sm.trunc",
+   "text": "ops@example.com",
+   "sw": 114,
+   "cw": 107
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "div.sub.sm.trunc",
+   "text": "team@example.com",
+   "sw": 122,
+   "cw": 107
+  }
+ ],
+ "01-tray-overview.es": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· se agota sáb 10:20",
+   "sw": 116,
+   "cw": 83
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 27
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 74
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· con saldo extra",
+   "sw": 93,
+   "cw": 78
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 0
+  },
+  {
+   "kind": "outside-viewport",
+   "ok": false,
+   "sel": "b.r-accent",
+   "text": "Inicio de sesión requerido",
+   "right": 386
+  }
+ ],
+ "03-tray-account-claude-expanded.es": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.nm.tr",
+   "text": "work@example.com",
+   "sw": 136,
+   "cw": 120
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· se agota sáb 10:20",
+   "sw": 116,
+   "cw": 65
+  }
+ ],
+ "05-tray-detail-cursor-extra.es": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 56
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· con saldo extra",
+   "sw": 93,
+   "cw": 60
+  }
+ ],
+ "10-main-overview.es": [],
+ "15-main-narrow.es": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· se agota a las sáb 10:20, 1d 7h antes del reinicio",
+   "sw": 305,
+   "cw": 294
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· la consulta agotó el tiempo. Reintento en 4 min",
+   "sw": 291,
+   "cw": 239
+  }
+ ],
+ "31-account-add-catalog.es": [],
+ "50-settings-general.es": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar en la configuración",
+   "sw": 161,
+   "cw": 116
+  }
+ ],
+ "50-settings-general-language.es": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar en la configuración",
+   "sw": 161,
+   "cw": 116
+  },
+  {
+   "kind": "overlap",
+   "ok": false,
+   "sel": "span.grow.nowrap x span",
+   "text": "Español | Português (Brasil)"
+  }
+ ],
+ "50-settings-menubar.es": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar en la configuración",
+   "sw": 161,
+   "cw": 116
+  }
+ ],
+ "50-settings-alerts.es": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Buscar en la configuración",
+   "sw": 161,
+   "cw": 116
+  }
+ ],
+ "70-stats.es": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "work@example.com",
+   "sw": 129,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "div.ttl.trunc",
+   "text": "side@example.com",
+   "sw": 125,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "div.sub.sm.trunc",
+   "text": "dev@example.com",
+   "sw": 114,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "div.sub.sm.trunc",
+   "text": "ops@example.com",
+   "sw": 114,
+   "cw": 111
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "div.sub.sm.trunc",
+   "text": "team@example.com",
+   "sw": 122,
+   "cw": 111
+  }
+ ],
+ "01-tray-overview.it": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· dura fino al reset",
+   "sw": 102,
+   "cw": 93
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "me@example.com",
+   "sw": 103,
+   "cw": 24
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 72
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· su saldo extra",
+   "sw": 86,
+   "cw": 81
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· dura fino al reset",
+   "sw": 102,
+   "cw": 99
+  },
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "api@example.com",
+   "sw": 103,
+   "cw": 11
+  }
+ ],
+ "03-tray-account-claude-expanded.it": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.nm.tr",
+   "text": "work@example.com",
+   "sw": 136,
+   "cw": 117
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· dura fino al reset",
+   "sw": 102,
+   "cw": 93
+  }
+ ],
+ "05-tray-detail-cursor-extra.it": [
+  {
+   "kind": "truncated",
+   "ok": true,
+   "sel": "span.ac.trunc",
+   "text": "dev@example.com",
+   "sw": 106,
+   "cw": 54
+  },
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.det",
+   "text": "· su saldo extra",
+   "sw": 86,
+   "cw": 63
+  }
+ ],
+ "10-main-overview.it": [],
+ "15-main-narrow.it": [],
+ "31-account-add-catalog.it": [],
+ "50-settings-general.it": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Cerca nelle impostazioni",
+   "sw": 148,
+   "cw": 116
+  }
+ ],
+ "50-settings-general-language.it": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Cerca nelle impostazioni",
+   "sw": 148,
+   "cw": 116
+  },
+  {
+   "kind": "overlap",
+   "ok": false,
+   "sel": "span.grow.nowrap x span",
+   "text": "Italiano | English (US)"
+  }
+ ],
+ "50-settings-menubar.it": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Cerca nelle impostazioni",
+   "sw": 148,
+   "cw": 116
+  }
+ ],
+ "50-settings-alerts.it": [
+  {
+   "kind": "truncated",
+   "ok": false,
+   "sel": "span.hold.trunc",
+   "text": "Cerca nelle impostazioni",
+   "sw": 148,
+   "cw": 116
+  }
+ ],
+ "70-stats.it": []
+}

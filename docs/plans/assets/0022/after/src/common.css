@@ -1,0 +1,166 @@
+/* Cuotai "AFTER" mockups (PRD 0022). Built on docs/design-system.md.
+   Colors come ONLY from the real theme tokens (apps/desktop/ui/css/themes.css + themes/*.css), linked by each page.
+   This file adds the tokens the design system marks as "new" (spacing, radius-xs, type scale, scrim, ...) and the components of DS section 4. */
+:root {
+  /* DS-TOK-SPC */
+  --space-0: 2px; --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  /* DS-TOK-RAD */
+  --radius-xs: 4px;
+  /* DS-TOK-TYP-3 */
+  --text-2xs: 10px; --text-micro: 11px; --text-sm: 12px; --text-md: 13px; --text-base: 14px; --text-lg: 16px; --text-xl: 18px; --text-figure: 24px; --text-hero: 30px;
+  /* DS section 3.1 new roles (defaults derived from existing roles) */
+  --scrim: color-mix(in srgb, #000 50%, transparent);
+  --bad-fg: var(--accent-fg);
+  --focus: var(--accent);
+  --chart-neutral: color-mix(in srgb, var(--fg-muted) 55%, transparent);
+  /* user decision 7: softened card shadow (in-flow surfaces) */
+  --shadow-card: 0 1px 2px color-mix(in srgb, #000 16%, transparent);
+  --dialog-sm: 440px; --dialog-md: 560px; --dialog-lg: 680px;
+}
+html, body { height: auto !important; min-height: 100%; }
+body { font: var(--text-base)/1.4 var(--font-ui); font-variant-numeric: tabular-nums; overflow: hidden; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--fg-muted); }
+.r-good { color: var(--good); } .r-warn { color: var(--warn); } .r-bad { color: var(--bad); }
+.r-info { color: var(--info); } .r-accent { color: var(--accent); } .r-muted { color: var(--fg-muted); }
+.micro { font-size: var(--text-micro); line-height: 1.3; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); }
+.sm { font-size: var(--text-sm); line-height: 1.35; }
+.md { font-size: var(--text-md); line-height: 1.4; }
+.grow { flex: 1; min-width: 0; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; flex: none; }
+svg.i.s12 { width: 12px; height: 12px; } svg.i.s14 { width: 14px; height: 14px; } svg.i.s18 { width: 18px; height: 18px; } svg.i.s22 { width: 22px; height: 22px; }
+
+/* provider tile (DS-ID-3): brand color + white glyph mask */
+.tile { position: relative; display: inline-grid; place-items: center; flex: none; width: var(--s, 32px); height: var(--s, 32px); border-radius: var(--logo-radius); background: var(--c, #888); font-weight: 700; color: #fff; font-size: calc(var(--s, 32px) * 0.4); }
+.tile i { position: absolute; inset: 19%; background: var(--g, #fff); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+
+/* buttons (DS-CMP-BTN) */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-sm); background: var(--btn-bg); color: var(--btn-fg); font-size: var(--text-base); white-space: nowrap; }
+.btn.sm { height: 26px; font-size: var(--text-md); }
+.btn.lg { height: 34px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.btn.outline { background: transparent; color: var(--fg); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--fg); }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: var(--bad-fg); font-weight: 600; }
+.btn.disabled { opacity: 0.45; }
+.ib { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); flex: none; }
+.ib.w { width: 32px; height: 32px; }
+.ib.on { background: var(--surface-2); color: var(--fg); }
+.kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 var(--space-1); border: var(--border-w) solid var(--border); border-radius: var(--radius-xs); font: var(--text-micro) var(--font-mono); color: var(--fg-muted); }
+.plan { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border: var(--border-w) solid var(--border); border-radius: var(--radius-xs); font: var(--text-micro) var(--font-mono); color: var(--fg-muted); flex: none; }
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-pill); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; color: var(--fg-muted); background: color-mix(in srgb, currentColor 16%, transparent); }
+.chip.good { color: var(--good); } .chip.warn { color: var(--warn); } .chip.bad { color: var(--bad); } .chip.info { color: var(--info); } .chip.accent { color: var(--accent); }
+.chip.plain { font-weight: 500; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+
+/* segmented control (DS-CMP-SEG) */
+.seg { display: inline-flex; padding: var(--space-0); border-radius: var(--radius-sm); background: var(--surface-2); flex: none; }
+.seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 24px; padding: 0 var(--space-3); border: 0; border-radius: max(var(--radius-xs), calc(var(--radius-sm) - 2px)); background: transparent; color: var(--fg-muted); font-size: var(--text-sm); }
+.seg.tall button { height: 28px; font-size: var(--text-md); }
+.seg button.on { background: var(--surface); color: var(--fg); font-weight: 600; }
+.seg.mono button { font-family: var(--font-mono); }
+.seg.fill { display: flex; } .seg.fill button { flex: 1; }
+
+/* switch (DS-CMP-SW) */
+.sw { position: relative; width: 36px; height: 20px; border-radius: var(--radius-pill); background: var(--track); flex: none; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--switch-knob); }
+.sw.on { background: var(--accent); } .sw.on::after { left: 18px; }
+/* circular check (DS-CMP-CHK-1) */
+.cc { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: var(--border-w) solid var(--border); flex: none; color: transparent; }
+.cc.on { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.cc svg.i { width: 12px; height: 12px; stroke-width: 3; }
+/* field / select / search */
+.field { white-space: nowrap; display: flex; align-items: center; gap: var(--space-2); height: 32px; padding: 0 var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-sm); background: var(--input-bg); color: var(--fg); font-size: var(--text-base); }
+.field .hold { color: var(--fg-muted); white-space: nowrap; }
+.field.sel { justify-content: space-between; min-width: 150px; }
+.field.s30 { height: 30px; }
+
+/* meters (DS-CMP-MTR): one continuous, solid bar; pace corridor on bars >= 6 px, 2 px tick on 4 px bars; hatch = unknown; dotted + dim = stale */
+.mtr { position: relative; height: 6px; border-radius: var(--radius-pill); background: var(--track); --fill: var(--good); }
+.mtr.thin { height: 4px; }
+.mtr.good { --fill: var(--good); } .mtr.warn { --fill: var(--warn); } .mtr.bad { --fill: var(--bad); } .mtr.info { --fill: var(--info); }
+.mtr .mf { display: block; height: 100%; min-width: 6px; border-radius: inherit; background: var(--fill); }
+.mtr.thin .mf { min-width: 4px; }
+.mtr.none { background: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px), color-mix(in srgb, var(--track) 40%, transparent); }
+.mtr.dim { opacity: 0.5; outline: 1px dotted var(--fg-muted); outline-offset: 2px; }
+.mtr .pm { position: absolute; top: -1px; bottom: -1px; min-width: 4px; border-radius: 1px; background: color-mix(in srgb, var(--fg) 28%, transparent); pointer-events: none; } /* translucent band, no border, no handle look */
+.mtr.thin .pm { top: -3px; bottom: -3px; width: 2px; min-width: 0; margin-left: -1px; border: 0; border-radius: 1px; background: var(--fg); }
+/* honest data (DS-CMP-HON) */
+.hatch { background: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px), color-mix(in srgb, var(--track) 40%, transparent); }
+.dotted { outline: 1px dotted var(--fg-muted); outline-offset: 2px; }
+/* account monogram (DS-CMP-MONO) */
+.tile .mg { position: absolute; right: -4px; bottom: -4px; display: inline-flex; align-items: center; padding: 0 3px; border: var(--border-w) solid var(--border); border-radius: var(--radius-pill); background: var(--surface); color: var(--fg); font-weight: 700; letter-spacing: 0; line-height: 1; }
+.bar { height: 4px; border-radius: var(--radius-pill); background: var(--track); overflow: hidden; }
+.bar > span { display: block; height: 100%; border-radius: inherit; background: var(--fill, var(--good)); }
+.bar.good { --fill: var(--good); } .bar.warn { --fill: var(--warn); } .bar.bad { --fill: var(--bad); }
+.dim { opacity: 0.5; }
+.sring { vertical-align: -2px; }
+
+/* status line (DS-CMP-STL) */
+.stl { display: flex; flex-wrap: wrap; row-gap: 4px; align-items: flex-start; gap: 4px var(--space-1); min-width: 0; font-size: var(--text-sm); line-height: 1.35; }
+.stl .lbl { font-weight: 600; white-space: nowrap; }
+.stl .det { color: var(--fg-muted); min-width: 0; flex: 0 1 auto; } /* wraps instead of truncating (i18n check) */
+.stl > svg.i, .stl > .dot { margin-top: 2px; }
+.stl .rst { margin-left: auto; padding-left: var(--space-1); white-space: nowrap; font: var(--text-micro) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--fg-muted); display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.stl .lbl.fgc { color: var(--fg); }
+
+/* callout (DS-CMP-CALL) */
+.call { display: flex; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); font-size: var(--text-md); line-height: 1.4; color: var(--fg); --c: var(--fg-muted); }
+.call > svg.i { color: var(--c); margin-top: 1px; }
+.call.info { --c: var(--info); background: color-mix(in srgb, var(--info) 12%, var(--surface)); }
+.call.warning { --c: var(--warn); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); border: var(--border-w) solid color-mix(in srgb, var(--warn) 55%, var(--surface)); }
+.call.critical { --c: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--surface)); }
+.call.accent { --c: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.call b { color: var(--c); font-weight: 600; }
+.call.neutral b { color: var(--fg); }
+.call .act { margin-left: auto; align-self: center; }
+
+/* list groups (DS-CMP-LIST) */
+.grp-h { display: flex; align-items: baseline; justify-content: space-between; padding: 0 var(--space-1) var(--space-1); }
+.grp-h .hint { font-size: var(--text-sm); color: var(--fg-muted); }
+.grp { border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; }
+.li { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-2) var(--space-3); border-top: var(--border-w) solid var(--border); }
+.li:first-child { border-top: 0; }
+.li.two { min-height: 52px; }
+.li .ttl { font-size: var(--text-base); line-height: 1.3; }
+.li .sub { font-size: var(--text-md); color: var(--fg-muted); line-height: 1.35; }
+.li .insetl { font-size: var(--text-sm); color: var(--fg-muted); }
+.li.inset { min-height: 32px; background: var(--surface-2); }
+
+/* KPI (DS-CMP-KPI) */
+.kpi { padding: var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--surface); min-width: 0; }
+.kpi .l { font-size: var(--text-sm); color: var(--fg-muted); }
+.kpi .v { font-size: var(--text-figure); line-height: 1.1; font-weight: 700; margin: var(--space-1) 0; }
+.kpi .v small { font-size: var(--text-sm); font-weight: 400; color: var(--fg-muted); margin-left: 3px; }
+.kpi .c { font-size: var(--text-sm); color: var(--fg-muted); }
+
+/* chart bits (DS-CHT) */
+.axis { font: var(--text-micro) var(--font-mono); color: var(--fg-muted); }
+
+/* ring: the "C" of Cuotai (user decision 1) */
+.ring { flex: none; }
+
+/* dialog (DS-CMP-DLG) */
+.dlg { display: flex; flex-direction: column; background: var(--surface); border: var(--border-w) solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.dlg-h { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); }
+.dlg-h h1 { font-size: var(--text-xl); line-height: 1.25; font-weight: 650; margin: 0; }
+.dlg-b { padding: var(--space-5); padding-top: var(--space-2); display: flex; flex-direction: column; gap: var(--space-5); }
+.dlg-f { display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-5); border-top: var(--border-w) solid var(--border); }
+h2.sec { margin: 0; }
+
+.mgl { display: inline-block; width: var(--s, 12px); height: var(--s, 12px); background: currentColor; -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; flex: none; }
+
+/* The CuotAI logotype (DS-ID-2; shipped as `wordmark()` in js/lib.js): the four-arc mark is the capital C, "uot" in the text
+   color, "AI" in the logo's pink. Copied from the shipped CSS with image paths relative to this folder. */
+.wordmark { display: inline-flex; align-items: baseline; white-space: nowrap; line-height: 1; margin: 0; font-weight: 650; }
+.wordmark.main { font-size: 16px; }
+.wordmark.tray { font-size: 15px; }
+.wm-c { display: inline-block; flex: none; width: 0.632em; height: 0.735em; margin: 0 0.03em -0.012em 0; background: url("img/logo-on-dark.svg") -0.1125em -0.1125em / 0.96em 0.96em no-repeat; }
+:root[data-mode="light"] .wm-c { background-image: url("img/logo-on-light.svg"); }
+.wm-ai { color: #ff79c6; }
+:root[data-mode="light"] .wm-ai { color: #990058; }
+.wm-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

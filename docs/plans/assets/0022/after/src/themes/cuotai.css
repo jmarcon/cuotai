@@ -1,0 +1,57 @@
+/* Cuotai — the app's own pastel theme: blue-leaning grays, a lilac accent and pastel states.
+   Palette, roles and contrast ratios: css/themes/README.md ("The Cuotai theme"). */
+:root[data-theme="cuotai"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #1b1f28;
+  --surface: #232835;
+  --surface-2: #2d3342;
+  --border: #3c4354;
+  --fg: #e4e9f3;
+  --fg-muted: #a9b2c6;
+  --accent: #c6bdf5;
+  --accent-fg: #1b1f28;
+  --good: #76d3c6;
+  --warn: #ecd28a;
+  --bad: #e68f98;
+  --info: #8fb2ee;
+  --track: #353c4c;
+  --scrim: color-mix(in srgb, #0b0e14 55%, transparent);
+  --bad-fg: #1b1f28;
+  --focus: #c6bdf5;
+  --chart-neutral: #7d879d;
+  --hatch: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px);
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 6px rgba(8, 11, 20, 0.25);
+  --shadow-card: 0 1px 6px rgba(8, 11, 20, 0.25);
+  --shadow-dialog: 0 20px 48px rgba(8, 11, 20, 0.5);
+}
+
+:root[data-theme="cuotai"][data-mode="light"] {
+  color-scheme: light;
+  --bg: #e8ecf3;
+  --surface: #f6f8fb;
+  --surface-2: #e1e6ef;
+  --border: #c6cedb;
+  --fg: #252b37;
+  --fg-muted: #525c6f;
+  --accent: #5f55b0;
+  --accent-fg: #ffffff;
+  --good: #1a6b70;
+  --warn: #83601a;
+  --bad: #94384b;
+  --info: #35629f;
+  --track: #d3dae5;
+  --scrim: color-mix(in srgb, #1b2130 35%, transparent);
+  --bad-fg: #ffffff;
+  --focus: #5f55b0;
+  --chart-neutral: #808ba0;
+  --hatch: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px);
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 6px rgba(52, 64, 92, 0.12);
+  --shadow-card: 0 1px 6px rgba(52, 64, 92, 0.12);
+  --shadow-dialog: 0 20px 48px rgba(52, 64, 92, 0.24);
+}
