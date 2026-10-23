@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Browser-free UI smoke for PRD 0018 RF3: render the real updater module with
-// every built-in catalog and exercise the preference/policy switch boundary.
+// Browser-free UI smoke for PRD 0018 RF3 and PRD 0022 RF17.4: render the
+// production Settings page and updater banner with every built-in catalog.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -10,12 +10,19 @@ const storage = new Map();
 globalThis.window = {};
 globalThis.document = {
   hidden: false,
+  body: { append: () => {} },
+  activeElement: null,
   documentElement: {
     lang: "",
     dataset: {},
     toggleAttribute: () => {},
   },
   addEventListener: () => {},
+};
+document.activeElement = document.body;
+globalThis.MutationObserver = class {
+  observe() {}
+  disconnect() {}
 };
 globalThis.matchMedia = () => ({
   matches: false,
@@ -43,9 +50,38 @@ globalThis.fetch = async (relative) => {
 
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const updater = await import("../apps/desktop/ui/js/updater.js");
+const settings = await import("../apps/desktop/ui/js/settings.js");
 await i18n.initI18n();
 await updater.initUpdates();
 await new Promise((resolve) => setTimeout(resolve, 0));
+const SETTINGS_CAPTURED = Symbol("settings-captured");
+let capturedSettingsHtml = "";
+document.createElement = (tag) => {
+  assert.equal(tag, "dialog", "Settings must create a dialog");
+  return {
+    open: false,
+    className: "",
+    addEventListener: () => {},
+    showModal: () => {},
+    set innerHTML(html) {
+      capturedSettingsHtml = html;
+      throw SETTINGS_CAPTURED;
+    },
+  };
+};
+const settingsPageHtml = async () => {
+  capturedSettingsHtml = "";
+  document.hidden = true;
+  try {
+    await settings.openSettings();
+    assert.fail("Settings rendered without capturing its production HTML");
+  } catch (error) {
+    assert.equal(error, SETTINGS_CAPTURED, "Settings failed before rendering its production HTML");
+  } finally {
+    document.hidden = false;
+  }
+  return capturedSettingsHtml;
+};
 
 const base = {
   enabled: true,
@@ -68,6 +104,7 @@ const base = {
 };
 
 let expectedUpdateKeys;
+const renderedHeadings = [];
 for (const { code } of i18n.LOCALES) {
   const catalogPath = new URL(`apps/desktop/ui/locales/${code}.json`, root);
   const catalog = JSON.parse(await readFile(fileURLToPath(catalogPath), "utf8"));
@@ -77,8 +114,13 @@ for (const { code } of i18n.LOCALES) {
 
   await i18n.setLocale(code);
   const section = updater.updatesSectionHtml(base);
+  const page = await settingsPageHtml();
+  const headings = Array.from(page.matchAll(/<h3>([^<]*)<\/h3>/g), (match) => match[1])
+    .filter((heading) => heading === catalog["update.title"]);
+  assert.match(section, /^<section class="set-sec" data-updates>/, `${code}: updater section wrapper missing`);
+  assert.deepEqual(headings, [catalog["update.title"]], `${code}: Settings must render exactly one updater heading`);
+  renderedHeadings.push(`${code}: ${headings[0]}`);
   assert.match(section, /id="update-automatic"/, `${code}: settings switch missing`);
-  assert.ok(section.includes(catalog["update.title"]), `${code}: updater title did not render`);
   assert.ok(!section.includes("update."), `${code}: untranslated updater key rendered`);
 
   const banner = updater.updateBannerHtml();
@@ -104,4 +146,5 @@ for (const { code } of i18n.LOCALES) {
   assert.ok(policyOff.includes("CUOTAI_UPDATER=off"), `${code}: environment override is not visible`);
 }
 
-console.log("PASS: updater Settings and banner render in pt-BR, en-US, es and it");
+console.log(`Rendered updater headings: ${renderedHeadings.join(" | ")}`);
+console.log("PASS: updater Settings renders one heading in pt-BR, en-US, es and it; banners and controls render");

@@ -10,12 +10,6 @@ import { bindUpdates, updatesSectionHtml } from "./updater.js";
 
 let dlg = null;
 
-/** PRD 0018 RF3.1: pinta a seção "Updates" com o estado que o backend acabou de responder. */
-let update = null;
-function paintUpdates(box) {
-  if (box) box.innerHTML = updatesSectionHtml(update);
-}
-
 export async function openSettings(extra = {}) {
   if (dlg?.open) return;
   dlg = document.createElement("dialog");
@@ -25,9 +19,8 @@ export async function openSettings(extra = {}) {
   let view = extra.view?.();
   const render = async (message = "", configMessage = "") => {
     const s = await getSettings();
-    // PRD 0018 RF3.1: o estado da atualização entra antes do HTML, para "Sobre" já mostrar
-    // a versão e a fase, e a seção "Updates" ser pintada com o mesmo estado.
-    update = await updaterStatus();
+    // Fetch once so the Updates section and About summary render the same backend state.
+    const update = await updaterStatus();
     const nThemes = THEMES.filter((x) => x.user).length;
     const nLocales = LOCALES.filter((x) => x.user).length;
     dlg.innerHTML = `<div class="dlg-body">
@@ -94,8 +87,7 @@ export async function openSettings(extra = {}) {
         <div data-serve><p class="hint">${te("common.loading")}</p></div>
         <div data-hooks><p class="hint">${te("common.loading")}</p></div>
         <div data-widgets><p class="hint">${te("common.loading")}</p></div></section>
-      <section class="set-sec" data-updates><h3>${te("update.title")}</h3>
-        <div data-update-body><p class="hint">${te("common.loading")}</p></div></section>
+      ${updatesSectionHtml(update)}
       <section class="set-sec"><h3>${te("settings.config.title")}</h3>
         <p class="hint">${te("settings.config.help")}</p>
         <div class="path-row"><code title="${esc(configLabel(view))}">${esc(configLabel(view) || "—")}</code></div>
@@ -153,9 +145,7 @@ export async function openSettings(extra = {}) {
     dlg.querySelector("#status-queries").onchange = (e) => setStatusEnabled(e.target.checked).then(
       () => { dlg.querySelector("#status-msg").textContent = ""; extra.onChange?.(); },
       (x) => { e.target.checked = !e.target.checked; dlg.querySelector("#status-msg").textContent = errorText(x); });
-    // PRD 0018 RF3.1: o estado das atualizações (interruptor, "Verificar agora", última
-    // verificação, versão, canal e motivo de estar desligado) vem do backend a cada repaint.
-    paintUpdates(dlg.querySelector("[data-update-body]"));
+    // PRD 0018 RF3.1: updater controls use the state fetched for this Settings render.
     bindUpdates(dlg.querySelector("[data-update-body]"));
     bindIntegration(dlg.querySelector("[data-serve]"), extra);
     bindHooks(dlg.querySelector("[data-hooks]"), extra);
