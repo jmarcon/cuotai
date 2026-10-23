@@ -204,16 +204,35 @@ pub fn update_footer(text: &str, version: &str, from: &str) -> Result<String, St
 /// code blocks and outside inline code spans.
 fn map_prose(text: &str, mut edit: impl FnMut(&str) -> String) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut fenced = false;
+    // The open fence: its character (` or ~) and its length (CommonMark: a
+    // fence closes only on the same character, at least as long, with
+    // nothing but spaces after it).
+    let mut fence: Option<(char, usize)> = None;
     for line in text.split_inclusive('\n') {
-        if line.trim_start().starts_with("```") {
-            fenced = !fenced;
-            out.push_str(line);
-            continue;
-        }
-        if fenced {
-            out.push_str(line);
-            continue;
+        let trimmed = line.trim_start();
+        let run = |c: char| trimmed.chars().take_while(|&x| x == c).count();
+        let marker = ['`', '~']
+            .into_iter()
+            .map(|c| (c, run(c)))
+            .find(|(_, n)| *n >= 3);
+        match (fence, marker) {
+            (None, Some(open)) => {
+                fence = Some(open);
+                out.push_str(line);
+                continue;
+            }
+            (Some((c, n)), Some((mc, mn)))
+                if c == mc && mn >= n && trimmed[mn..].trim().is_empty() =>
+            {
+                fence = None;
+                out.push_str(line);
+                continue;
+            }
+            (Some(_), _) => {
+                out.push_str(line);
+                continue;
+            }
+            (None, None) => {}
         }
         for (index, segment) in line.split('`').enumerate() {
             if index > 0 {
@@ -542,6 +561,20 @@ mod tests {
             "| RF2 | 0.80.0 | done |\nKeep `vNEXT` and vNEXTx and avNEXT.\n```\nvNEXT\n```\nAlso (0.80.0).\n"
         );
         assert_eq!(count_next(&out), 0);
+    }
+
+    #[test]
+    fn next_token_inside_tilde_and_long_fences_is_kept() {
+        let text = "a vNEXT\n~~~\nvNEXT\n```\nvNEXT\n~~~\nb vNEXT\n````md\n```\nvNEXT\n```\nvNEXT\n````\nc vNEXT\n";
+        let (out, count) = replace_next(text, "0.80.0");
+        assert_eq!(count, 3, "{out}");
+        assert_eq!(
+            out,
+            "a 0.80.0\n~~~\nvNEXT\n```\nvNEXT\n~~~\nb 0.80.0\n````md\n```\nvNEXT\n```\nvNEXT\n````\nc 0.80.0\n"
+        );
+        // A shorter or different closing fence does not close the block.
+        let open = "~~~~\nvNEXT\n~~~\nvNEXT\n";
+        assert_eq!(count_next(open), 0);
     }
 
     #[test]
