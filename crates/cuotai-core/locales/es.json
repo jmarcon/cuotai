@@ -592,6 +592,7 @@
   "note.kimi.balance_semantics": "El saldo de caja puede ser negativo (deuda); el saldo del voucher siempre es no negativo.",
   "note.kimi.no_membership_quota_endpoint": "Sin esta clave no hay un endpoint público para la cuota de Kimi Code/Membership con esta clave; el uso de la suscripción queda restringido a la consola y al CLI propietario.",
   "note.kimi.platform_key_scope": "La clave de la plataforma kimi.com / kimi.ai es independiente de la cuota de la membresía de kimi.com; use la clave en el endpoint de la plataforma.",
+  "note.metered.interval_raised": "El intervalo configurado de {configured} s se elevó a {effective} s porque este proveedor cobra por consulta.",
   "note.mimo_platform.cash_balance": "Saldo de caja: {value} {currency}.",
   "note.mimo_platform.console_api_reference": "Fuente: {base}. Las rutas de la consola web no están documentadas públicamente (referencia: CodexBar MIT, MiMoUsageFetcher.swift); pueden cambiar sin aviso.",
   "note.mimo_platform.gift_balance": "Saldo de regalo: {value} {currency}.",

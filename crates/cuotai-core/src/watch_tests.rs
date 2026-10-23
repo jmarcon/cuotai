@@ -236,7 +236,7 @@ fn interval_is_bounded_and_respects_overrides_and_the_metered_floor() {
     };
     let fast = with_interval(&config, 60).unwrap();
     fast.validate().unwrap();
-    assert_eq!(effective(&fast), [60, 45, 300, 3_600]);
+    assert_eq!(effective(&fast), [60, 45, 900, 3_600]);
     let slow = with_interval(&config, 900).unwrap();
     assert_eq!(effective(&slow), [900, 45, 900, 3_600]);
 }

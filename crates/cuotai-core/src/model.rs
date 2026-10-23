@@ -132,21 +132,25 @@ impl Provider {
 
     /// True when the provider charges per outgoing query and a tight
     /// polling interval would burn money. Frontends use this to surface a
-    /// cost advisory and `Config::validate` uses it to clamp the
-    /// effective interval (per-account override and global fallback) to
-    /// at least [`Self::METERED_MIN_REFRESH_SECONDS`]. The list starts
-    /// with `AwsBedrock` (Cost Explorer charges per query); every other
-    /// provider is free to add itself here when evidence of billing
-    /// surfaces, but no provider is metered without that proof.
+    /// cost advisory; configuration validation and effective-interval
+    /// computation use the same classification. The list starts with
+    /// `AwsBedrock` (Cost Explorer charges per query); every other provider
+    /// is free to add itself here when evidence of billing surfaces, but no
+    /// provider is metered without that proof.
     pub fn is_metered(self) -> bool {
         matches!(self, Self::AwsBedrock)
     }
 
-    /// Minimum effective polling interval for metered providers. Same
-    /// value applied to per-account overrides and the global fallback so
-    /// a metered account is never polled more often than this regardless
-    /// of how the user wires the configuration.
-    pub const METERED_MIN_REFRESH_SECONDS: u64 = 300;
+    /// Default polling interval for a metered account without an override.
+    pub const METERED_DEFAULT_REFRESH_SECONDS: u64 = 3600;
+
+    /// Minimum effective polling interval for metered providers.
+    pub const METERED_MIN_REFRESH_SECONDS: u64 = 900;
+
+    /// Smallest metered override accepted from existing configuration.
+    /// Values below the effective floor are raised at runtime; values below
+    /// this compatibility boundary remain invalid.
+    pub const METERED_MIN_CONFIGURED_REFRESH_SECONDS: u64 = 300;
 
     /// Stable snake_case slug (the serde representation of the variant).
     /// Used to build RF8 text ids such as `field.kiro.auth_method.label`
@@ -319,10 +323,45 @@ impl Account {
     /// agree without duplicating magic numbers.
     pub const MIN_REFRESH_SECONDS: u64 = 30;
 
-    /// Effective polling interval for this account: own override if set,
-    /// otherwise the supplied `global_refresh_seconds` fallback.
+    /// Effective polling interval for this account. Non-metered accounts use
+    /// their override or the supplied global fallback. Metered accounts use
+    /// their one-hour default when no override exists, and accepted overrides
+    /// below the effective floor are raised to that floor.
     pub fn effective_refresh_seconds(&self, global_refresh_seconds: u64) -> u64 {
-        self.refresh_seconds.unwrap_or(global_refresh_seconds)
+        if !self.provider.is_metered() {
+            return self.refresh_seconds.unwrap_or(global_refresh_seconds);
+        }
+        self.refresh_seconds
+            .map(|seconds| seconds.max(Provider::METERED_MIN_REFRESH_SECONDS))
+            .unwrap_or(Provider::METERED_DEFAULT_REFRESH_SECONDS)
+    }
+
+    /// User-visible explanation when a compatible metered override is raised
+    /// to the effective floor. Invalid values below 300 seconds never reach a
+    /// report because configuration validation rejects them.
+    pub fn metered_interval_note(&self) -> Option<crate::text::Localized> {
+        let configured = self.refresh_seconds?;
+        if !self.provider.is_metered()
+            || !(Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS
+                ..Provider::METERED_MIN_REFRESH_SECONDS)
+                .contains(&configured)
+        {
+            return None;
+        }
+        Some(crate::text::Localized::with_params(
+            "note.metered.interval_raised",
+            crate::text::params([
+                ("configured", crate::text::ParamValue::from(configured)),
+                (
+                    "effective",
+                    crate::text::ParamValue::from(Provider::METERED_MIN_REFRESH_SECONDS),
+                ),
+            ]),
+            format!(
+                "O intervalo configurado de {configured} s foi elevado para {} s porque o provedor é cobrado por consulta.",
+                Provider::METERED_MIN_REFRESH_SECONDS
+            ),
+        ))
     }
 
     /// The dynamic extension id for an extension-backed account.

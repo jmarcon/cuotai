@@ -109,7 +109,7 @@ fn metered_refresh_floor_error(
     ConfigError::MeteredRefreshFloor {
         field: field.into(),
         account,
-        minimum: Provider::METERED_MIN_REFRESH_SECONDS,
+        minimum: Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS,
     }
 }
 
@@ -127,21 +127,10 @@ impl Config {
         {
             return Err(ConfigError::Bounds);
         }
-        // `access::describe` publishes this same classification from
-        // `Provider::is_metered`; validation uses that canonical source
-        // directly instead of building the full localized descriptor.
-        for (index, account) in self.accounts.iter().enumerate() {
-            if account.refresh_seconds.is_none()
-                && account.provider.is_metered()
-                && self.refresh_seconds < Provider::METERED_MIN_REFRESH_SECONDS
-            {
-                return Err(metered_refresh_floor_error(
-                    index,
-                    account,
-                    "refresh_seconds",
-                ));
-            }
-        }
+        // Metered accounts without an override use their provider-specific
+        // default, not the global interval. Explicit overrides preserve the
+        // former 300-second configuration boundary for compatibility and are
+        // raised later when they fall below the effective 900-second floor.
         let invalid_names = self.accounts.iter().enumerate().any(|(index, account)| {
             let name = account.name.trim();
             if name.is_empty() {
@@ -171,7 +160,7 @@ impl Config {
                     return Err(ConfigError::Bounds);
                 }
                 if account.provider.is_metered()
-                    && override_seconds < Provider::METERED_MIN_REFRESH_SECONDS
+                    && override_seconds < Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS
                 {
                     return Err(metered_refresh_floor_error(
                         index,
@@ -726,7 +715,7 @@ impl Monitor {
                 },
             )
             .await;
-        let (status, metrics, notes, notes_l10n, source) = match result {
+        let (status, metrics, mut notes, mut notes_l10n, source) = match result {
             Ok(data) => (
                 Status::Ready,
                 data.metrics,
@@ -744,6 +733,10 @@ impl Monitor {
                 (error.status, Vec::new(), plain, l10n, String::new())
             }
         };
+        if let Some(note) = account.metered_interval_note() {
+            notes.push(note.text().to_owned());
+            notes_l10n.push(note);
+        }
         Report {
             account: account.name.clone(),
             provider: account.provider,
@@ -1642,10 +1635,7 @@ credential_env = "OPENAI_ADMIN_KEY"
     }
 
     // -------------------------------------------------------------------
-    // RF6: metered provider floors. The cost-explorer account must never
-    // be polled more often than METERED_MIN_REFRESH_SECONDS (300) per
-    // query; the global fallback must enforce the same floor when no
-    // per-account override is present.
+    // PRD 0033 RF5.1–RF5.2: metered defaults, effective floor and note.
     // -------------------------------------------------------------------
 
     fn aws_account(override_seconds: Option<u64>) -> Account {
@@ -1675,65 +1665,139 @@ credential_env = "OPENAI_ADMIN_KEY"
         };
         assert_eq!(field, expected_field);
         assert_eq!(account, expected_account);
-        assert_eq!(*minimum, Provider::METERED_MIN_REFRESH_SECONDS);
+        assert_eq!(*minimum, Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS);
         assert!(error.to_string().contains(expected_field));
         assert!(error.to_string().contains(expected_account));
         error
     }
 
     #[test]
-    fn validate_accepts_small_global_when_metered_account_has_own_interval() {
-        let config = Config {
-            refresh_seconds: 120,
-            accounts: vec![aws_account(Some(3600))],
-            ..Config::default()
-        };
-
-        assert!(config.validate().is_ok());
-    }
-
-    #[test]
-    fn validate_rejects_small_global_for_metered_account_without_override() {
+    fn validate_uses_metered_default_instead_of_global_interval() {
         let config = Config {
             refresh_seconds: 120,
             accounts: vec![aws_account(None)],
             ..Config::default()
         };
 
-        metered_floor_error(&config, "refresh_seconds", "bedrock-test");
+        config.validate().expect("metered default is valid");
+        assert_eq!(
+            config.accounts[0].effective_refresh_seconds(config.refresh_seconds),
+            Provider::METERED_DEFAULT_REFRESH_SECONDS
+        );
+        assert!(config.accounts[0].metered_interval_note().is_none());
     }
 
     #[test]
-    fn validate_checks_metered_override_at_floor_boundary() {
-        let mut config = Config {
+    fn validate_raises_compatible_metered_overrides_with_a_note() {
+        for configured in [600, 899] {
+            let config = Config {
+                refresh_seconds: 120,
+                accounts: vec![aws_account(Some(configured))],
+                ..Config::default()
+            };
+
+            config.validate().expect("compatible override is valid");
+            assert_eq!(
+                config.accounts[0].effective_refresh_seconds(config.refresh_seconds),
+                Provider::METERED_MIN_REFRESH_SECONDS
+            );
+            let note = config.accounts[0]
+                .metered_interval_note()
+                .expect("raised override has a note");
+            assert_eq!(note.id, "note.metered.interval_raised");
+            assert_eq!(
+                note.params.get("configured"),
+                Some(&crate::text::ParamValue::Text(configured.to_string()))
+            );
+            assert_eq!(
+                note.params.get("effective"),
+                Some(&crate::text::ParamValue::Text("900".into()))
+            );
+        }
+    }
+
+    #[test]
+    fn validate_accepts_effective_floor_without_a_raise_note() {
+        let config = Config {
             refresh_seconds: 120,
-            accounts: vec![aws_account(Some(Provider::METERED_MIN_REFRESH_SECONDS))],
+            accounts: vec![aws_account(Some(900))],
             ..Config::default()
         };
-        assert!(
-            config.validate().is_ok(),
-            "an override at the floor is valid"
-        );
 
-        config.accounts[0].refresh_seconds =
-            Some(Provider::METERED_MIN_REFRESH_SECONDS.saturating_sub(1));
-        metered_floor_error(&config, "accounts[0].refresh_seconds", "bedrock-test");
+        config.validate().expect("effective floor is valid");
+        assert_eq!(
+            config.accounts[0].effective_refresh_seconds(config.refresh_seconds),
+            900
+        );
+        assert!(config.accounts[0].metered_interval_note().is_none());
     }
 
     #[test]
-    fn validate_does_not_enforce_metered_floor_for_non_metered_accounts() {
+    fn validate_rejects_metered_override_below_compatibility_floor() {
+        let config = Config {
+            refresh_seconds: 120,
+            accounts: vec![aws_account(Some(200))],
+            ..Config::default()
+        };
+
+        let error = metered_floor_error(&config, "accounts[0].refresh_seconds", "bedrock-test");
+        let note = edit_error::config_error_note(&error);
+        for locale in ["pt-BR", "en-US", "es", "it"] {
+            let resolved = note.resolve(locale);
+            assert!(resolved.contains("accounts[0].refresh_seconds"));
+            assert!(resolved.contains("bedrock-test"));
+            assert!(resolved.contains("300"));
+        }
+    }
+
+    #[test]
+    fn validate_leaves_non_metered_account_cadence_unchanged() {
         let config = Config {
             refresh_seconds: 30,
             accounts: vec![Account {
                 name: "openai".into(),
                 provider: Provider::OpenAiApi,
                 credential_env: Some("OPENAI_ADMIN_KEY".into()),
+                refresh_seconds: Some(60),
                 ..Account::default()
             }],
             ..Config::default()
         };
 
-        assert!(config.validate().is_ok());
+        config.validate().expect("non-metered account is valid");
+        assert_eq!(
+            config.accounts[0].effective_refresh_seconds(config.refresh_seconds),
+            60
+        );
+        assert!(config.accounts[0].metered_interval_note().is_none());
+    }
+
+    #[tokio::test]
+    async fn monitor_report_surfaces_the_raised_metered_interval_note() {
+        let mut account = aws_account(Some(600));
+        account.params.clear();
+        let config = Config {
+            accounts: vec![account],
+            ..Config::default()
+        };
+        let creds: Arc<dyn Credentials> = Arc::new(NoCreds);
+        let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
+        let session =
+            Arc::new(oauth::OAuthSession::new(Arc::clone(&store), Arc::clone(&creds)).unwrap());
+        let monitor = Monitor::with_oauth(config, creds, session).unwrap();
+
+        let report = monitor.refresh_account(0).await;
+        let position = report
+            .notes_l10n
+            .iter()
+            .position(|note| note.id == "note.metered.interval_raised")
+            .expect("account report includes the cadence note");
+        assert_eq!(report.notes[position], report.notes_l10n[position].fallback);
+        for locale in ["pt-BR", "en-US", "es", "it"] {
+            let resolved = report.notes_l10n[position].resolve(locale);
+            assert!(resolved.contains("600"));
+            assert!(resolved.contains("900"));
+        }
     }
 
     #[tokio::test]

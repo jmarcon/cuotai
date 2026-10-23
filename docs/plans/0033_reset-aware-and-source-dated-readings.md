@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0033 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (`RefreshCycle`, `resets`, `freshness`, `Report`, metered cadence), desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray), `crates/cuotai-tui` (cards, `--once`), `--watch`/`--serve`, `export::v1` consumers |
 | Depends on | PRD 0001 (`RefreshCycle` deadlines), PRD 0003 (RF1: reset planner), PRD 0006 (RF2: restored readings), PRD 0007 (pace line), PRD 0009 (binding chip), PRD 0010 (RF1, RF2: freshness, last valid reading) |
@@ -21,7 +21,7 @@
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
+| RF5 | vNEXT | RF5.1–RF5.2 delivered: metered accounts use a 3600 s default; compatible 300–899 s overrides run at 900 s and add `note.metered.interval_raised` to the account report; smaller overrides retain the field- and account-specific rejection. RF5.3–RF5.4 remain proposed. |
 | RF6 | — | Proposed. |
 
 ## 1. Context
