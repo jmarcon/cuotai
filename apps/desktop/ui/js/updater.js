@@ -120,27 +120,31 @@ export function bindUpdateBanner(root, { rerender, onError }) {
 /** PRD 0018 RF2.1/RF3.1: o que a verificação envia (primeira execução e Settings). */
 export const privacyNoteHtml = () => `<p class="hint" data-update-privacy>${te("update.privacy")}</p>`;
 
-/** PRD 0018 RF3.1/RF2.5: a seção "Updates" — o interruptor, "Verificar agora", a data da
- * última verificação, a versão atual, o canal e o motivo de estar desligado. */
+/** PRD 0018 RF3.1/RF2.5: the complete Settings "Updates" section, including its
+ * single heading, switch, last check, current version, channel and disabled reason. */
 export function updatesSectionHtml(s, message = "") {
   const off = s && !s.enabled;
   // A user's own preference must never lock the control needed to turn the
   // feature back on. Environment/build/package policy still makes it read-only.
   const switchLocked = off && s.disabled_reason !== "preference";
   const last = s?.last_check ? t("update.lastCheckAt", { date: new Date(s.last_check).toLocaleString(currentLocale()) }) : t("update.lastCheckNever");
-  return `<h3>${te("update.title")}</h3>
-    ${privacyNoteHtml()}
-    <label class="check"><input id="update-automatic" type="checkbox" ${s?.automatic ? "checked" : ""} ${switchLocked ? "disabled" : ""} /> ${te("update.automatic")}</label>
-    ${off ? `<p class="hint warn-txt" data-update-off>${te(`update.off.${s.disabled_reason}`)}</p>` : ""}
-    <p class="hint">${te("update.version", { version: s?.current_version ?? "—" })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
-    <p class="hint" id="update-last-check">${last}</p>
-    <div class="dlg-actions left">
-      <button class="btn" data-update-check ${off ? "disabled" : ""}>${te("update.checkNow")}</button>
-      ${s?.upgrade_command ? `<code class="update-cmd">${esc(s.upgrade_command)}</code>` : ""}
-      ${!off && !s?.can_install ? `<button class="btn" data-update-manual>${te("update.manual")}</button>` : ""}
+  return `<section class="set-sec" data-updates>
+    <h3>${te("update.title")}</h3>
+    <div data-update-body>
+      ${privacyNoteHtml()}
+      <label class="check"><input id="update-automatic" type="checkbox" ${s?.automatic ? "checked" : ""} ${switchLocked ? "disabled" : ""} /> ${te("update.automatic")}</label>
+      ${off ? `<p class="hint warn-txt" data-update-off>${te(`update.off.${s.disabled_reason}`)}</p>` : ""}
+      <p class="hint">${te("update.version", { version: s?.current_version ?? "—" })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
+      <p class="hint" id="update-last-check">${last}</p>
+      <div class="dlg-actions left">
+        <button class="btn" data-update-check ${off ? "disabled" : ""}>${te("update.checkNow")}</button>
+        ${s?.upgrade_command ? `<code class="update-cmd">${esc(s.upgrade_command)}</code>` : ""}
+        ${!off && !s?.can_install ? `<button class="btn" data-update-manual>${te("update.manual")}</button>` : ""}
+      </div>
+      <p class="hint" data-update-phase>${phaseText(s)}</p>
+      <p class="err" id="update-msg" role="alert">${esc(message)}</p>
     </div>
-    <p class="hint" data-update-phase>${phaseText(s)}</p>
-    <p class="err" id="update-msg" role="alert">${esc(message)}</p>`;
+  </section>`;
 }
 
 /** Uma linha honesta sobre o que está acontecendo agora. */
