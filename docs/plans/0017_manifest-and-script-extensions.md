@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui`, `apps/desktop`, extension authors |
 | Depends on | PRD 0005 (RF1: the `Extension` level) |
+| Extended by | PRD 0028 (manifest `overrides`, `[[secrets]]` in the vault, `min_cuotai` and ignored `x-*` tables) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
@@ -92,6 +93,16 @@ In the 2026-10-19 market analysis, ClaudeBar accepts "any quota source a script 
 - **Security:** extensions run with the user's powers. The design limits what Cuotai hands them (no credentials), validates what they return and requires consent and integrity. The residual risk (the extension does whatever it wants with the user's network and files) is documented.
 - **Read-only:** the contract has no actions; the extension returns data.
 - **Compatibility:** a versioned `schema`, additive within the version.
+
+### Fix requirements (2026-10-21 review)
+
+Added on 2026-10-23 (owner decision J): defects found by the 2026-10-21 requirements review in this delivered plan, in an area no new PRD covers. They are non-functional requirements of this plan, delivered as `fix` commits.
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| FIX-03 | Move the consent record from `extensions/consent.json` (`consent.rs`, about line 207, inside the folder extensions can write) to `<data dir>/cuotai/consent/extensions.json` with `0600` permissions, migrating an existing record once. | Tests: the record lives at the new path with `0600` (Unix); an old record is migrated and removed; an extension cannot reach the file from its own folder. |
+| FIX-04 | The integrity digest covers the manifest and `command[0]` only (`consent.rs`, about lines 46–55). It becomes a sorted digest of every file in the extension folder (relative path, mode and content), and the consent disclosure shows the interpreter of a `#!` line when `command[0]` is a script. | Tests: changing any file in the folder asks for consent again; a script's shebang interpreter appears in the disclosure. |
+| FIX-05 | On Unix, refuse to run an extension whose folder (or any parent up to the extensions root) is writable by group or others, closing the window between the digest (`runner.rs`, about line 523) and the execution (about line 526). | `#[cfg(unix)]` tests: a group- or world-writable folder is refused with a localized reason; a `0700` folder runs. |
 
 ## 7. Order of execution and verification
 

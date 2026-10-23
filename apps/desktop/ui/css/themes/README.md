@@ -1,6 +1,7 @@
 # Cuotai themes
 
 A theme = a `css/themes/<id>.css` file + an entry in `js/themes.js` + an `@import` in `css/themes/index.css`.
+Themes supply color roles and theme character only; shapes, sizes, components and motion rules live in [`docs/design-system.md`](../../../../../docs/design-system.md).
 
 ## Selectors
 

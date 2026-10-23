@@ -5,12 +5,12 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-10-23 |
-| Cuotai version at that date | 0.78.0 |
-| Plans | 21 (12 implemented, 7 in progress, 2 proposed) |
+| Cuotai version at that date | 0.79.0 |
+| Plans | 38 (12 implemented, 4 awaiting owner verification, 4 in progress, 18 proposed); number 0022 is reserved for the UI refresh and design-system adoption PRD, not yet written |
 
 ## 1. How to maintain it
 
-- **Possible statuses:** `Proposed` (written, no code), `In progress` (part of the RFs delivered), `Implemented` (all RFs delivered and verified), `Superseded` or `Cancelled` (with the reason in the Notes column).
+- **Possible statuses:** `Proposed` (written, no code), `In progress` (part of the RFs delivered), `Awaiting owner verification` (every RF delivered and covered by automated tests; only a manual owner smoke or a live account check remains, listed in §2.1), `Implemented` (all RFs delivered and verified), `Superseded` or `Cancelled` (with the reason in the Notes column). A reserved number appears as `Reserved` until its PRD is written. A plan placed in the backlog keeps its status and is marked "deferred" in §5.
 - **Terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. The acronym is kept so references in code, commits and plans stay stable.
 - **When delivering an RF:** record the version and the commit in the plan itself, in the "Implementation status" section (as in PRD 0002); then update this file's row and the "Delivered by version" table (section 3).
 - **Commit traceability:** the commit that delivers an RF carries the footer `Refs: PRD 0006 RF2` (one line per requirement). When PRD 0019 RF7 is implemented, `CHANGELOG.md` becomes the source of these deliveries and section 3 of this file points to it.
@@ -24,25 +24,60 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 |---|---|---|---|---|---|---|
 | [0001](0001_core-support-for-graphical-frontends.md) | Core support for graphical front ends | Implemented | 0.7.x | — | — | Foundation of the desktop app and the descriptor contract. |
 | [0002](0002_on-demand-model-catalog.md) | On-demand model catalog | Implemented | RF1 to RF6, 0.8.0 to 0.14.0 | — | — | After delivery, every provider except Alibaba Cloud started trying to list models (commit `a5c3d1f`). |
-| [0003](0003_quota-reset-notifications.md) | Quota reset notifications | In progress | RF1 (0.24.0), RF2, RF3 partial (0.41.0), RF4 (0.44.0) | — | — | RF1: the pure `resets::upcoming` planner and `Account::key` (provider slug + name, reused by 0012 RF1.1) in the core. RF2: core `resets::plan` and `Ledger` (`notified.json`, digests and dates, 8 days), desktop `Notifier` and backend timer. RF3: Settings → Notifications (off by default), per-account bell, permission request, test notification and the next notice in the tray. RF4: `cuotai --notify` (off by default) reuses `resets::plan` for a header banner, one `BEL` and OSC 9 on iTerm2/WezTerm/Ghostty only, per session with no persistence; `--once`/`--json`/`--history` reject the flag. **Owner-blocked (RF3):** smoke on the packaged macOS app with a human granting and denying the system permission and a real notice arriving with the window hidden; Windows and Linux when available. Reused by 0008. |
+| [0003](0003_quota-reset-notifications.md) | Quota reset notifications | Awaiting owner verification | RF1 (0.24.0), RF2, RF3 partial (0.41.0), RF4 (0.44.0) | — | — | RF1: the pure `resets::upcoming` planner and `Account::key` (provider slug + name, reused by 0012 RF1.1) in the core. RF2: core `resets::plan` and `Ledger` (`notified.json`, digests and dates, 8 days), desktop `Notifier` and backend timer. RF3: Settings → Notifications (off by default), per-account bell, permission request, test notification and the next notice in the tray. RF4: `cuotai --notify` (off by default) reuses `resets::plan` for a header banner, one `BEL` and OSC 9 on iTerm2/WezTerm/Ghostty only, per session with no persistence; `--once`/`--json`/`--history` reject the flag. **Owner verification (RF3, §2.1):** smoke on the packaged macOS app with a human granting and denying the system permission and a real notice arriving with the window hidden; Windows and Linux when available. Reused by 0008. Extended by 0029 (account id), 0031 (`quota_reset_soon`), 0032 (lock-screen names, cross-process dedup) and 0033 (refresh 30 s after a reset). |
 | [0004](0004_animations-and-visual-effects.md) | Animations and visual effects | Implemented | RF1 (0.17.0, `4c89fad`), RF2 (0.18.0, `d5d3274`), RF3 (0.19.0, `251b5bc`), RF4 (0.20.0) | — | — | Motion tokens, dashboard effects, dialogs, tray and the TUI animation engine. |
 | [0005](0005_usage-access-level.md) | Usage access level | Implemented | RF1, RF2 (0.33.0), RF3 (0.34.0), RF4 (0.35.0), RF5 (0.35.1) | — | — | Prerequisite of 0015, 0016 and 0017. RF1 and RF2 delivered in the core: `access::describe` (level, credential class, plan, scope, `metered`, evidence with `verified_on`, localized summary/hint/risk/reason) for the 36 providers and their switching modes, exhaustive on `Provider`, with `access.*` texts in `en-US`/`es`. RF3: the TUI wizard and the desktop dialog show the level in the picker, the credential notes under the credential help, the cost warning from the descriptor (`Provider::cost_advisory` removed) and a "Save anyway" confirmation for `Unavailable`, all from `account_edit::draft_access`. RF4: TUI and desktop cards and details show "level · summary" and the core's `UsageAccess::explain` (an `Unavailable` reason, a changed undocumented interface with its reference) in place of the generic failure; `UsageAccess` serializes for `export::v1`, where it enters as `access` with 0012 RF1.1; `--json` unchanged. RF5: `docs/providers.md` carries the usage access matrix (level, credential, plan, scope, evidence per provider and mode) generated from `access::describe` by a core test that fails on drift with regeneration instructions (`CUOTAI_REGENERATE_DOCS=1`); the new-provider guides in `AGENTS.md`, `docs/architecture.md` and `CONTRIBUTING.md` list the access descriptor as mandatory. |
 | [0006](0006_local-measurement-history.md) | Local measurement history | Implemented | RF1, RF3 (0.37.0), RF2, RF4 (0.38.0), RF6 (0.39.0), RF5 (0.40.0) | — | — | Foundation of 0007 (projection), 0008, 0010 and 0014. RF1 and RF3: `history::HistoryStore` (private `history.sqlite3`, WAL, versioned schema, digests only, `NULL` for missing values) and the network-free `latest`, `series`, `windows` and `bounds`. RF2: `Monitor::with_history` records every `Ready` reading from a worker thread with a bounded queue (dropped readings and storage failures shown as warnings), compacting repeats within 15 minutes; wired into the TUI, the desktop and `--once`/`--json`, it also restores the last reading as stale on opening (0010 RF2.3) and feeds the recent slope of the pace (0007 RF1.5). RF4: retention (90 days, 7 to 365 via `--history-days` or `desktop.json`), hourly reduction after 7 days keeping each window's peak, a 64 MiB ceiling with a visible warning, CSV/JSON export and per-account or total erasure with confirmation in Settings → History. RF6: core `HistoryStore::account_history` / `MetricHistory` (points, windows, trend, sparkline levels) and `HistoryRange`; TUI details sparkline per metric over 24 h, 7 d or 30 d (`1`/`2`/`3`) degrading to minimum, maximum and last on narrow terminals; `cuotai --history [ACCOUNT] [--history-days N] [--json]` with exit 0/2/1. RF5: the Tauri command `account_history(index, generation, range, metric_key)` returns the core's placed `MetricHistory::chart` (bucket peaks, end point, resets) and window instances, refused as `stale` for another generation; the desktop details draw a compact area chart per metric (24 h, 7 d, 30 d) with an equivalent screen-reader table, an explained empty state and reduced motion respected; Settings → History adds the recording switch (`Monitor::set_history_recording`, `desktop.json`) and the size on disk (`HistoryStore::size_on_disk`). |
 | [0007](0007_pace-until-reset.md) | Pace until the reset | Implemented | RF1, RF2 (0.23.0), RF3 (0.31.0), RF4 (0.32.0) | — | 0006 | RF1 and RF2 delivered: `pace::assess` and its localized labels in the core; `pace::Point` is the sample 0006 RF3 returns. Without history it uses the average since the start of the window. RF3: the desktop shows the pace under the card bar, per metric in the details (expected mark over the bar) and in the tray, with an on-by-default switch in Settings → Appearance. RF4: the TUI cards show a stage icon per eligible metric, the details a pace line per metric, and `--once` a `Ritmo:` line; `--json` is unchanged and pace enters `export::v1` with 0012. |
-| [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | In progress | RF1 (0.42.0), RF2, RF3 partial (0.43.0), RF4 (0.45.0) | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. RF1: the pure `alerts::evaluate` in the core (thresholds 10–99%, 75 and 90 by default, exhaustion and recovery, once per window instance with the 2-minute drift, the highest of several, 5-point hysteresis, no notice of a past crossing on the first reading unless the previous recorded reading is at most 10 minutes older and still below it) and `AlertState` (digests and dates). RF2: the state persisted in 0003's `notified.json` (8 days), the desktop backend judging every report the cycle applies (the restored 0006 reading as the first `prev`), one notification per account and refresh, at most one per minute with the excess grouped, `alerts::notice` texts. RF3: Settings → Notifications "Usage alerts" (off by default), threshold chips 10–99, exhaustion and recovery switches in `desktop.json`, 0003's permission request, test button and bell reused, per-metric mute in the details, highlighted card, tray and details. RF4: `cuotai --notify` also judges every report the TUI's cycle applies with `alerts::evaluate` (core defaults, session-only `AlertState`) and shows the `alerts::notice` text in 0003's header banner with the same single `BEL` and OSC 9, at most one alert pass per minute; `--once`/`--json`/`--history` still reject the flag. **Owner-blocked (RF3):** smoke on the packaged macOS app with a human granting and denying the system permission, a real alert with the window hidden and preferences surviving a restart; Windows and Linux when available. |
+| [0008](0008_usage-threshold-alerts.md) | Usage threshold alerts | Awaiting owner verification | RF1 (0.42.0), RF2, RF3 partial (0.43.0), RF4 (0.45.0) | 0003 (RF2 and RF3) | 0006 | Reuses 0003's deliverer, permission and preferences. RF1: the pure `alerts::evaluate` in the core (thresholds 10–99%, 75 and 90 by default, exhaustion and recovery, once per window instance with the 2-minute drift, the highest of several, 5-point hysteresis, no notice of a past crossing on the first reading unless the previous recorded reading is at most 10 minutes older and still below it) and `AlertState` (digests and dates). RF2: the state persisted in 0003's `notified.json` (8 days), the desktop backend judging every report the cycle applies (the restored 0006 reading as the first `prev`), one notification per account and refresh, at most one per minute with the excess grouped, `alerts::notice` texts. RF3: Settings → Notifications "Usage alerts" (off by default), threshold chips 10–99, exhaustion and recovery switches in `desktop.json`, 0003's permission request, test button and bell reused, per-metric mute in the details, highlighted card, tray and details. RF4: `cuotai --notify` also judges every report the TUI's cycle applies with `alerts::evaluate` (core defaults, session-only `AlertState`) and shows the `alerts::notice` text in 0003's header banner with the same single `BEL` and OSC 9, at most one alert pass per minute; `--once`/`--json`/`--history` still reject the flag. **Owner verification (RF3, §2.1):** smoke on the packaged macOS app with a human granting and denying the system permission, a real alert with the window hidden and preferences surviving a restart; Windows and Linux when available. |
 | [0009](0009_binding-limit-indicator.md) | Binding limit indicator | Implemented | RF1, RF4 (0.22.0), RF2 (0.26.0), RF3 (0.27.0) | — | — | `metrics::binding` and its localized summary in the core, read by the desktop (ring, list, card chip, highlighted metric, opt-in "most restrictive first" order) and by the TUI (card leads with the binding metric, details marker) and `--once` (one summary line per account). Consumed by 0007, 0012 and 0014; 0012 RF1.1 adds it to `export::v1`. |
 | [0010](0010_measurement-age-and-stale-reading.md) | Measurement age and stale reading | Implemented | RF1 (0.21.0), RF2 (0.25.0), RF3 (0.28.0), RF5 (0.29.0), RF4 (0.30.0) | — | 0006 | RF1 and RF2 delivered in the core: `freshness::age`/`assess` and the per-account last valid reading (`RefreshCycle::last_good_report`). RF3: the desktop shows the age and freshness on cards, tray, menu and icon tooltip, and the preserved reading as stale with the failure cause. RF5: the TUI cards and details and `--once` show the relative age (details also in UTC and local time) and the preserved reading marked `(desatualizada)`; `--json` unchanged. RF4: optional, display-only "Recharging" group on the desktop (Settings → Appearance, off by default) with the return time. RF2.3 holds per session only until 0006 RF2 persists the reading and loads it on opening (the plan's own "without history" branch). |
 | [0011](0011_provider-incident-status.md) | Provider incident status | Implemented | RF1 (0.46.0), RF2, RF3 (0.47.0), RF4 (0.48.0), RF5 (0.49.0) | — | 0005 | Core verified-source registry: exhaustive 36-provider mapping, 17 scoped public sources and 19 explicit `None`, Statuspage v2 and verified native AWS/Google formats, anonymized captures and boundary tests; source/terms audit in `docs/providers.md`. Core status client: opt-in `IncidentMonitor` (off by default) on the `Monitor`'s HTTP client and semaphore, credential-free identified requests, 5 s timeout, 1 MiB cap, per-URL 5-minute cache with coalescing and stale fallback, normalized scoped states with sanitized incident title/start/link; failed queries during an incident gain an explanatory note (plus wait-before-reauthenticating for authentication) without changing `Status`. RF4: Settings → Privacy opt-in switch (off by default, `desktop.json`) with the explanation and the queried domains; card badge and "Open status page" through the allow-listed `open_external`; details, tray popover and an outage dot on the tray icon. RF5: TUI/CLI opt-in with `--status` or `CUOTAI_STATUS=1`, `--no-status` overriding both; card badge, details status block and a `--once` line; `--json` unchanged; `incident` in `export::v1`. Owner decision: opt-in, off until enabled; `--no-status` remains an override. |
-| [0012](0012_local-http-server-and-export-contract.md) | Local HTTP server and `export::v1` contract | In progress | RF1 (0.36.0), RF2, RF3 (0.50.0), RF4 (0.51.0), RF5 partial (0.52.0); review fix INT-04 (0.78.0) | — | 0005, 0007, 0009, 0010, 0011 | The `v1` contract is additive: new fields enter as the plans are delivered. RF1 delivered in the core: `export::v1::Export::from_cycle` with key, class, current report, age, freshness, the preserved `last_good` reading with `stale` (0010), `binding` (0009), `pace` per metric (0007), `access` (0005) and, since 0.49.0, the provider's `incident` (0011 RF5). Redacted notes and `source`, e-mail only with "include identity", `null` for missing values; `docs/export-v1.md`, a JSON Schema and a reference output guarded by tests. Owner decision: the server is off by default, loopback only, suggested port 6738. RF2 and RF3 delivered in the core: `serve::LocalServer` behind the `serve` feature (off by default), `httparse`, port 6738 (IANA-unassigned, checked) with fallback to the next nine, `GET`-only `/health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` from the front end's cycle without queries (`503` + `Retry-After` before data), JSON with `no-store`, bounded connections, sizes and time; loopback bind unless an explicit flag plus token, loopback `Host` only, browser `Origin` refused unless "allow browsers", optional bearer token in the OS vault, access log without headers or query. RF4: `cuotai --serve [--port N] [--token-file FILE]` in the foreground without a TUI or terminal over a headless refresh cycle (no query per request), loopback only, explicit `--port` without fallback, URL on stdout and the access log on stderr, clean `SIGINT`/`SIGTERM` shutdown, exit 0/2 (no healthy account until shutdown)/1 (local error, invalid arguments included); `--json-v1` prints the `Export`; `--once`/`--json` unchanged. RF5: desktop Settings → Integration (off by default, `serve` in `desktop.json`): switch, exact port (6738 by default, no fallback), token generated into the OS vault, copied without display, renewed and revoked, "allow browsers" behind its warning, effective address; served from the app's own cycle (a feed published on every state change, no second cycle); state, bind errors and a port held by another Cuotai server (core `serve::is_cuotai_server`) in Settings and a main-window banner. **Owner-blocked (RF5):** the acceptance smoke on the packaged app in the owner's profile with the token in the login Keychain (turn on, `curl` with the token, revoke, turn off); the debug binary, the core vault and a real Keychain round trip were verified locally. |
+| [0012](0012_local-http-server-and-export-contract.md) | Local HTTP server and `export::v1` contract | Awaiting owner verification | RF1 (0.36.0), RF2, RF3 (0.50.0), RF4 (0.51.0), RF5 partial (0.52.0); review fix INT-04 (0.78.0) | — | 0005, 0007, 0009, 0010, 0011 | The `v1` contract is additive: new fields enter as the plans are delivered. RF1 delivered in the core: `export::v1::Export::from_cycle` with key, class, current report, age, freshness, the preserved `last_good` reading with `stale` (0010), `binding` (0009), `pace` per metric (0007), `access` (0005) and, since 0.49.0, the provider's `incident` (0011 RF5). Redacted notes and `source`, e-mail only with "include identity", `null` for missing values; `docs/export-v1.md`, a JSON Schema and a reference output guarded by tests. Owner decision: the server is off by default, loopback only, suggested port 6738. RF2 and RF3 delivered in the core: `serve::LocalServer` behind the `serve` feature (off by default), `httparse`, port 6738 (IANA-unassigned, checked) with fallback to the next nine, `GET`-only `/health`, `/v1/snapshot`, `/v1/accounts/{key}` and `/v1/limits` from the front end's cycle without queries (`503` + `Retry-After` before data), JSON with `no-store`, bounded connections, sizes and time; loopback bind unless an explicit flag plus token, loopback `Host` only, browser `Origin` refused unless "allow browsers", optional bearer token in the OS vault, access log without headers or query. RF4: `cuotai --serve [--port N] [--token-file FILE]` in the foreground without a TUI or terminal over a headless refresh cycle (no query per request), loopback only, explicit `--port` without fallback, URL on stdout and the access log on stderr, clean `SIGINT`/`SIGTERM` shutdown, exit 0/2 (no healthy account until shutdown)/1 (local error, invalid arguments included); `--json-v1` prints the `Export`; `--once`/`--json` unchanged. RF5: desktop Settings → Integration (off by default, `serve` in `desktop.json`): switch, exact port (6738 by default, no fallback), token generated into the OS vault, copied without display, renewed and revoked, "allow browsers" behind its warning, effective address; served from the app's own cycle (a feed published on every state change, no second cycle); state, bind errors and a port held by another Cuotai server (core `serve::is_cuotai_server`) in Settings and a main-window banner. **Owner verification (RF5, §2.1):** the acceptance smoke on the packaged app in the owner's profile with the token in the login Keychain (turn on, `curl` with the token, revoke, turn off); the debug binary, the core vault and a real Keychain round trip were verified locally. |
 | [0013](0013_watch-and-event-hooks.md) | `watch` and event hooks | Implemented | RF1 (0.53.0), RF2 (0.54.0), RF3 (0.55.0), RF4 (0.56.0); review fixes FIX-01, FIX-02 (0.77.1) | 0012 (RF1) | 0003, 0008, 0009, 0011 | Hooks run user commands; consent is mandatory. RF1: the pure core `events::diff` over two consecutive `export::v1` accounts with an in-memory `EventState` (restart = new baselines): eleven stable edge events reusing `alerts::evaluate` (0008), the new `resets::passed` (0003), the binding metric (0009) and the provider status (0011); the first reading is a baseline, `usage_updated` at most once per 600 s per account, failures as a category only (deadlines now `query.timeout`, told apart from `offline`); `docs/events.md`. RF2: `cuotai --watch [--interval S] [--events list] [--jsonl]` over the core's new `headless::Driver` (shared with `--serve` in one process) and `watch::Watcher`: NDJSON or readable lines, `--interval` 60–86 400 s rejected below (never adjusted) with per-account intervals and the 300 s Bedrock floor kept, clean `SIGINT`/`SIGTERM`/`SIGHUP`, exit 0/2/1. RF3: `cuotai --watch --hooks` with the core `hooks` module: `hooks.toml` next to the accounts' TOML (argument-vector commands, no shell, unknown keys rejected), off by default and run only after a typed terminal confirmation of the exact commands kept as a SHA-256 of the rules per file (any change asks again; without a terminal a local error before any query), the event on stdin and in `CUOTAI_*` variables, `env_clear` plus `PATH`/`HOME`/`LANG`, the temporary directory as cwd, a 10 s (≤ 60 s) timeout that kills, 16 KiB of output, 4 at once with a 64-run queue that drops the oldest and warns, failures isolated from the cycle, and a payload-free `runs.log`. RF4: desktop Settings → Integration → Hooks (off by default): a rule editor saved through the core `hooks::Document` over the revision read, the exact-command confirmation dialog sharing the CLI's consent, the confirmed rules run over the app's own cycle (no query), a **Test** sample (`sample: true`) and the latest runs from `runs.log`; changed files stop the rules and ask again. |
-| [0014](0014_system-widgets.md) | System widgets (macOS) | Implemented (partial) | RF1, RF4, RF5 (0.71.0); RF2.1/RF2.3 and RF3.1 owner-blocked | 0012 (RF1), 0019 | 0006, 0007, 0009, 0010 | Core `widget_snapshot` (atomic, `0600`, 256 KiB cap), the desktop publisher and Settings → Widgets delivered; the WidgetKit sources are written and type-checked, but the `.appex` packaging/signing and the app group wait for the Apple developer account (PRD 0019). |
-| [0015](0015_estimated-cost-from-local-logs.md) | Estimated cost from local logs | Implemented | RF1, RF2 (0.57.0), RF3 (0.58.0), RF4 (0.59.0) | 0005 | 0006 | Never reads conversation content. RF4: core `cost::summarize`/`Scanner::summary` give every front end one `CostSummary` (per source today, yesterday and the span, by day and by model, state and an explained note); desktop "Local usage" block on every Claude and ChatGPT / Codex card (or a card of its own), details with an accessible bar chart and tables, Settings → Local cost directories and price table; TUI details section and `cuotai --cost [--days N] [--json]`; `local_cost` in `export::v1`. RF1 and RF2: core `cost` module, off by default, with per-source consent recorded as the digest of the `Disclosure` (exact directories, purpose, only numbers extracted) in a private `settings.json`; Claude Code and Codex CLI adapters behind a `Source` trait (formats confirmed against ccusage and openai/codex) that extract only time, model, token counts and a session digest, invalid lines counted, no access as a state; the incremental `cost.sqlite3` index (per-file control, growth, truncation and rotation, request dedup) filled by a bounded, low-priority background `CostWorker` that pauses in energy-saving mode; period and 120-day retention; turning off or erasing removes everything derived. Surfaces: `cuotai --cost-sources/--cost-enable/--cost-disable/--cost-erase/--cost-scan/--cost-period/--cost-retention-days` and the desktop's Settings → Local cost. RF3: an embedded per-model table of API prices in USD per million tokens with its effective date and source, overridden model by model by the user's manual `pricing.json` (owner decision: no download; an invalid file is ignored as a whole), the pure `cost::estimate` (total of the priced part, per model, tokens, unknown share, tables used; unknown models never zero; exact integer sums rounded half up) and the "estimate at API prices, not a charge" notice; `cuotai --cost-prices [--json]` lists the prices in effect. RF4 (display, `--cost`, `local_cost`) pending. |
-| [0016](0016_user-pasted-session.md) | User-pasted session | In progress | RF1 (0.60.0), RF2, RF3 (0.61.0), RF4 (0.62.0), RF5 partial (0.63.0); review fix FIX-06 (0.77.1) | 0005 | — | Alternative to automatic cookie import, which the project does not adopt; owner decision: manual paste only. RF1: core `user_session` descriptors (cookie names, hosts, delivery) for Xiaomi MiMo and Alibaba Coding/Token Plan, `[accounts.session]` with a `credential_ref` and the stored slots, the session in the `TokenStore` vault entry keyed by reference, provider and slot, read by queries through `Credentials`; `session_env` keeps working and the TUI wizard (F3 twice) and the desktop dialog ("Move to the vault" twice) migrate it with explicit consent. RF2 and RF3: `user_session::reduce` keeps only the accepted cookies of a `Cookie:` line, list, inspector table or cURL (fragments reassembled, errors naming cookies only), the TUI "Colar sessão" step and the desktop "Web session" box paste (masked), preview, test (`Monitor::test_session`) and save it, replacing the same vault entry; `providers::send_session` sends it only over HTTPS to its declared hosts and never through a redirect, a rejected session reads "session expired or revoked", and a known expiry reaches `Report::session_expires_at`, the cards ("expires in N days") and an `AlertKind::SessionExpiring` alert under 3 days. RF4: `user_session::notice`/`paste_notice` put the `UserSession` level and the "full login session" warning on the cards (TUI and desktop), the TUI details and both paste steps, and `user_session::stage_forget` behind "Forget this session" (TUI summary F5 twice, desktop dialog button twice) deletes the vault entry and the reference, restored when the save is refused; `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored and discarded, and the risks. Removing an account does not delete its session entry yet (the docs say to forget it first). RF5: the Xiaomi MiMo and Alibaba Coding/Token Plan adapters read every session through its descriptor (`providers::web_session`), from the vault or from the `session_env`-style variable kept as an alternative, refusing a session without its required cookies before any request; Alibaba reports say which source answered; field help, hints and guidance point to the paste first; the `docs/providers.md` matrix lists the vault session; an `access` test ties every `UserSession` interface to a descriptor (RF5.2). **Owner-blocked (RF5):** a live Alibaba Coding Plan and Qwen Cloud Token Plan console session to confirm that the reduced cookie set (`login_aliyunid_*`, `csrf`, `cna`, `sec_token`) is enough before any of them is marked required; CodexBar sends the whole console cookie jar. |
+| [0014](0014_system-widgets.md) | System widgets (macOS) | In progress | RF1, RF4, RF5 (0.71.0); RF2.1/RF2.3 and RF3.1 owner-blocked | 0012 (RF1), 0019 | 0006, 0007, 0009, 0010 | Core `widget_snapshot` (atomic, `0600`, 256 KiB cap), the desktop publisher and Settings → Widgets delivered; the WidgetKit sources are written and type-checked, but the `.appex` packaging/signing and the app group wait for the Apple developer account (PRD 0019). RF5 (`widget.json` for Windows/Linux) stays, owner decision G of 2026-10-23 (review item WID-01 is obsolete). |
+| [0015](0015_estimated-cost-from-local-logs.md) | Estimated cost from local logs | Implemented | RF1, RF2 (0.57.0), RF3 (0.58.0), RF4 (0.59.0) | 0005 | 0006 | Never reads conversation content. RF4: core `cost::summarize`/`Scanner::summary` give every front end one `CostSummary` (per source today, yesterday and the span, by day and by model, state and an explained note); desktop "Local usage" block on every Claude and ChatGPT / Codex card (or a card of its own), details with an accessible bar chart and tables, Settings → Local cost directories and price table; TUI details section and `cuotai --cost [--days N] [--json]`; `local_cost` in `export::v1`. RF1 and RF2: core `cost` module, off by default, with per-source consent recorded as the digest of the `Disclosure` (exact directories, purpose, only numbers extracted) in a private `settings.json`; Claude Code and Codex CLI adapters behind a `Source` trait (formats confirmed against ccusage and openai/codex) that extract only time, model, token counts and a session digest, invalid lines counted, no access as a state; the incremental `cost.sqlite3` index (per-file control, growth, truncation and rotation, request dedup) filled by a bounded, low-priority background `CostWorker` that pauses in energy-saving mode; period and 120-day retention; turning off or erasing removes everything derived. Surfaces: `cuotai --cost-sources/--cost-enable/--cost-disable/--cost-erase/--cost-scan/--cost-period/--cost-retention-days` and the desktop's Settings → Local cost. RF3: an embedded per-model table of API prices in USD per million tokens with its effective date and source, overridden model by model by the user's manual `pricing.json` (owner decision: no download; an invalid file is ignored as a whole), the pure `cost::estimate` (total of the priced part, per model, tokens, unknown share, tables used; unknown models never zero; exact integer sums rounded half up) and the "estimate at API prices, not a charge" notice; `cuotai --cost-prices [--json]` lists the prices in effect. Extended by 0030 (plan value, new sources, price age). |
+| [0016](0016_user-pasted-session.md) | User-pasted session | Awaiting owner verification | RF1 (0.60.0), RF2, RF3 (0.61.0), RF4 (0.62.0), RF5 partial (0.63.0); review fix FIX-06 (0.77.1) | 0005 | — | Alternative to automatic cookie import, which the project does not adopt; owner decision: manual paste only. RF1: core `user_session` descriptors (cookie names, hosts, delivery) for Xiaomi MiMo and Alibaba Coding/Token Plan, `[accounts.session]` with a `credential_ref` and the stored slots, the session in the `TokenStore` vault entry keyed by reference, provider and slot, read by queries through `Credentials`; `session_env` keeps working and the TUI wizard (F3 twice) and the desktop dialog ("Move to the vault" twice) migrate it with explicit consent. RF2 and RF3: `user_session::reduce` keeps only the accepted cookies of a `Cookie:` line, list, inspector table or cURL (fragments reassembled, errors naming cookies only), the TUI "Colar sessão" step and the desktop "Web session" box paste (masked), preview, test (`Monitor::test_session`) and save it, replacing the same vault entry; `providers::send_session` sends it only over HTTPS to its declared hosts and never through a redirect, a rejected session reads "session expired or revoked", and a known expiry reaches `Report::session_expires_at`, the cards ("expires in N days") and an `AlertKind::SessionExpiring` alert under 3 days. RF4: `user_session::notice`/`paste_notice` put the `UserSession` level and the "full login session" warning on the cards (TUI and desktop), the TUI details and both paste steps, and `user_session::stage_forget` behind "Forget this session" (TUI summary F5 twice, desktop dialog button twice) deletes the vault entry and the reference, restored when the save is refused; `docs/providers.md` and `docs/oauth.md` describe the flow, what is stored and discarded, and the risks. Removing an account does not delete its session entry yet (the docs say to forget it first). RF5: the Xiaomi MiMo and Alibaba Coding/Token Plan adapters read every session through its descriptor (`providers::web_session`), from the vault or from the `session_env`-style variable kept as an alternative, refusing a session without its required cookies before any request; Alibaba reports say which source answered; field help, hints and guidance point to the paste first; the `docs/providers.md` matrix lists the vault session; an `access` test ties every `UserSession` interface to a descriptor (RF5.2). **Owner verification (RF5, §2.1):** a live Alibaba Coding Plan and Qwen Cloud Token Plan console session to confirm that the reduced cookie set (`login_aliyunid_*`, `csrf`, `cna`, `sec_token`) is enough before any of them is marked required; CodexBar sends the whole console cookie jar. Fix requirements of the 2026-10-21 review ("Paste a new session", mandatory test before save) are listed in the plan. |
 | [0017](0017_manifest-and-script-extensions.md) | Manifest and script extensions | Implemented | RF1 (0.64.0), RF2 (0.65.0), RF2.4, RF3, RF4 (0.66.0), RF5 (0.67.0); review fixes FIX-03, FIX-04, FIX-05 (0.77.1) | 0005 | — | Core-managed extension accounts now have consent, integrity/revocation, shared runner/backoff, safe lifecycle states and isolated refreshes; TUI and desktop list/manage/test/enable/disable/create/remove extensions, cards show `Extension`, and `docs/extensions.md` plus three-locale lifecycle/card tests and CLI smoke cover the flow. |
-| [0018](0018_automatic-updates.md) | Automatic updates for the desktop app | In progress | RF1.1, RF1.4, RF2, RF3, RF4.3 (0.74.0); RF1.2, RF1.3, RF4.1, RF4.2 (0.75.0); reviewer hardening across RF1–RF4 (0.75.1); shared install-source adoption (0.77.0) | 0019 (RF2 and RF3) | 0019 (RF7) | Daily signed-update check with consent, Settings → Updates and About in four languages; since 0.77.0 its package ownership, disable reason and upgrade command come from the same typed core detector the CLI exposes. The production signed release, cross-OS update smoke, live package-manager installs, normal winget ownership marker and `release` environment protection remain open or owner-blocked. |
+| [0018](0018_automatic-updates.md) | Automatic updates for the desktop app | In progress | RF1.1, RF1.4, RF2, RF3, RF4.3 (0.74.0); RF1.2, RF1.3, RF4.1, RF4.2 (0.75.0); reviewer hardening across RF1–RF4 (0.75.1); shared install-source adoption (0.77.0) | 0019 (RF2 and RF3) | 0019 (RF7) | Daily signed-update check with consent, Settings → Updates and About in four languages; since 0.77.0 its package ownership, disable reason and upgrade command come from the same typed core detector the CLI exposes. The production signed release, cross-OS update smoke, live package-manager installs, normal winget ownership marker and `release` environment protection remain open or owner-blocked. **RF2.6 added on 2026-10-23** (decision F, review item UPD-01): no update check before the user answers the first-run question (asked in 0025 RF6.5); it keeps the plan in progress. |
 | [0019](0019_packaging-and-distribution.md) | Packaging, license, changelog and distribution | In progress | RF1 (0.17.2), RF7.1 to RF7.3 and RF7.6 (`CHANGELOG.md`, no bump), RF2 partial (0.27.1), RF3 superseded and delivered via 0021 RF1–RF4 (0.68.0), RF5 and RF6 (0.69.0, docs/CI, no bump), RF7.3 draft, RF7.4, RF7.5, RF7.7 and RF7.8 (0.69.0), RF4 superseded and delivered via 0021 RF5 (0.70.0) | — | — | Prerequisite of 0014 and 0018. RF2 is still owner-blocked for hosted proof. RF6.2's SBOM-attachment proof waits for a real published release (owner). The desktop About -> What's new screen remains open (RF7.7). |
-| [0020](0020_settings-window-redesign.md) | Settings window redesign | Proposed | — | — | 0018, 0019 | Usability and design of settings: a dedicated window with a sidebar of seven pages, rows with short descriptions, apply-at-once, search and live sync. Replaces the 12-section popup dialog; no new settings or preference changes. |
-| [0021](0021_release-pipeline-and-package-managers.md) | Release pipeline and package-manager publishing | In progress | RF1–RF4 (0.68.0, hardened in 0.75.1–0.75.3); RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 (0.70.0); RF8.1 desktop partial (0.74.0/0.75.1) and shared core/desktop/CLI implementation (0.77.0); RF9.2 and RF9.5 (0.75.2, hardened in 0.75.3); RF9.3 and RF9.4 (repository operations, no product version bump); RF6 and RF8.3 pending | 0019 (RF2, RF7.1 to RF7.3) | 0018, 0019 (RF7.5) | RF8.1 now has one offline typed classifier and CLI report for every durable path proof. Normal winget ownership remains owner-blocked on a durable installer marker, and live package-manager acceptance remains an owner run. The monthly/manual RF9.3 workflow continues to guard reviewed external-policy bytes and semantic action pins. |
+| [0020](0020_settings-window-redesign.md) | Settings window redesign | Proposed | — | — | 0018, 0019 | Usability and design of settings: a dedicated window with a sidebar of seven pages, rows with short descriptions, apply-at-once, search and live sync. Replaces the 12-section popup dialog. Amended on 2026-10-23: the sidebar follows `docs/design-system.md` DS-CMP-SEG-5 (RF2.5, superseding RF2.1), and the `localStorage` preferences move to `desktop.json` with a one-time migration (RF7.2, review item SET-01). |
+| [0021](0021_release-pipeline-and-package-managers.md) | Release pipeline and package-manager publishing | In progress | RF1–RF4 (0.68.0, hardened in 0.75.1–0.75.3); RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 (0.70.0); RF8.1 desktop partial (0.74.0/0.75.1) and shared core/desktop/CLI implementation (0.77.0); RF9.2 and RF9.5 (0.75.2, hardened in 0.75.3); RF9.3 and RF9.4 (repository operations, no product version bump); RF6 and RF8.3 pending | 0019 (RF2, RF7.1 to RF7.3) | 0018, 0019 (RF7.5) | RF8.1 now has one offline typed classifier and CLI report for every durable path proof. Normal winget ownership remains owner-blocked on a durable installer marker, and live package-manager acceptance remains an owner run. The monthly/manual RF9.3 workflow continues to guard reviewed external-policy bytes and semantic action pins. Reconciled on 2026-10-23: the review's phase split is not adopted; open items are RF6 (DIST-09 CLI artifact smoke, wave 5a), the RF5 owner actions and the optional APT/RPM repository (RF9.3 was delivered meanwhile). |
+| 0022 | UI refresh and design-system adoption | Reserved | — | — | — | Number reserved for the PRD that adopts `docs/design-system.md` in the desktop (and the TUI color rules); written later. Wave 5c after 0020. |
+| [0023](0023_paid-extra-usage-and-overage-alerts.md) | Paid extra usage (overage) detection and alerts | Proposed | — | — | 0008, 0009, 0012, 0013, 0022 | Normalized `billing = overage` on metrics, overage state per account, "extra usage started" alert once per billing cycle, `overage_started`/`overage_ended` events and an additive `overage` object in `export::v1`. RF1.4 fixes a bug: Claude extra usage (and Grok on-demand, Kiro overage) is a capped `Quota` today and can become the binding limit, get a pace and fire threshold alerts. Extends 0008, 0009, 0012 and 0013; supersedes the 0008 §4 "alerting about accumulated spend" non-goal for overage only. Amended 2026-10-23: RF10 `Metric::scope` (MET-01) shares the RF1 predicate so a model-scoped exhaustion never blocks the account; `billing` is additive (decision L); Claude extra usage is in US dollars (decision R), with the dollars-versus-cents scale still to verify against the owner's account (RF2.6, §2.1). |
+| [0024](0024_predictive-pace-alerts-and-suggestions.md) | Pace-based predictive alerts and action suggestions | Proposed | — | 0006, 0007, 0008 | 0010, 0013, 0022, 0023, 0025, 0029, 0031, 0032 | Time chips from core keys (DS-CMP-TIME, points by default, percent as a user setting relative to the expected use, decision M), `AlertKind::ProjectedExhaustion` off by default with the stricter union of criteria (decision B: recent source with a 30-minute span or 20 % of the window, Fresh reading, two confirmations, margin hysteresis; FIX-11, FIX-12), `quota_exhaustion_projected`, and the advisory "best account now" in TOML groups (decision C, replacing the same-provider suggestion). Extends 0007, 0008 and 0012. |
+| [0025](0025_menu-bar-presentation-and-opinionated-settings.md) | Menu-bar presentation and an opinionated settings surface | Proposed | — | 0020 (RF1, RF2; for RF4, RF5 and RF9); 0029 (for RF2) | 0008, 0009, 0010, 0011, 0018, 0022, 0023, 0024 | Core `tray::summary` with four styles (`TightestPercent` monochrome by default, with a colored variant option, decision N), menu-bar account selection and order with a live preview, the Menu bar page and the Advanced group per DS-CMP-SEG-5, a custom display mode (Detailed / Standard / Minimal / Custom, RF9), and a first-run step that turns on the recommended notices (consent for 0024's predictive alert) and asks the update question (0018 RF2.6, decision F). RF8 `--status-line` moved to 0031. |
+| [0026](0026_usage-statistics-reset-timeline-and-event-journal.md) | Usage statistics, reset timeline and event journal | Proposed | — | 0006; 0013 and 0029 (for RF3) | 0009, 0022, 0023, 0024, 0028, 0031 | Core `stats::summarize`, `resets::timeline`, a secret-free event journal keyed by the 0029 account id, desktop Stats view (DS-CMP-STATS-1), "limits come back" timeline, TUI screen and `--stats`/`--timeline`/`--events-log`. `/v1/stats` is served by 0031 (decision P). Extends 0006, 0009 and 0013. |
+| [0027](0027_provider-catalog-search-and-local-credential-detection.md) | Provider catalog, search and local-credential detection | Proposed | — | 0005 | 0016, 0017, 0022, 0025, 0036 | Core catalog entry per provider and mode grouped by **sign-in method** (DS-CMP-LIST-6; categories stay search terms), core search for both editors, a searchable desktop grid/list and TUI type-to-filter, and consent-gated, presence-only detection of local tools (Gemini CLI, Copilot CLI, OpenCode, Cursor CLI and others, with "to verify" entries; decision Q) that offers the existing import or login flow. Extends 0005. |
+| [0028](0028_provider-contract-health-and-support.md) | Provider contract health and support | Proposed | — | 0005; 0017 (for RF7); 0021 RF8.1 (for RF8) | 0011, 0012, 0013, 0018, 0019, 0022, 0036 | Redacted schema-drift paths, a secret-free "Report a problem" draft, a generated issue template, a **local** contract canary on the owner's machine with a CI fixture dry run and a `verified_on` patch for the owner to commit (decisions A and K; CAN-01..05), a fixture anonymizer, per-interface `verified_on` (90/180 days) and `access.risk.subscription_token`, extension overrides, vault secrets, `min_cuotai` and `x-*` (EXT-01), the opt-in CLI update notice reusing the core install-source detector delivered in 0.77.0 (DIST-12), GitHub-only support (decision O), model listing gated on evidence with the static 9router lists removed (CAT-01, CAT-02) and a per-adapter label snapshot. Extends 0002, 0005, 0006, 0011, 0012, 0017, 0019 and 0021. |
+| [0029](0029_stable-account-identity.md) | Stable account identity | Proposed | — | 0001, 0016 | — | Random stable `id` per account written by `ConfigFile`, migration of every `Account::key` consumer (bell, `notified.json`, history, alert marks, `desktop.json`, `/v1/accounts/{key}`), `id` beside `key` in `export::v1`, session cleanup on removal (FIX-06), a key index for the vault (FIX-07), and the account name optional unless two accounts share a provider. RF0 is a precursor release in which the TOML tolerates `id` and a missing `name`, so a later downgrade keeps working; the identity release itself is therefore additive (minor bump, no `BREAKING CHANGE` footer). Wave 5b (RF0 first); its RF2 is a prerequisite of 0025 RF2 and 0026 RF3, its RF1 of 0030 RF1. |
+| [0030](0030_cost-plan-value-sources-and-price-age.md) | Cost: plan value, sources and price age | Proposed | — | 0015; 0029 RF1 (for RF1) | 0023, 0027 | Plan value against the API-price estimate, new local log sources, price-table age, unpriced models and a `pricing.json` template, the 1-hour cache-write column (FIX-13), the largest `output_tokens` per request (FIX-14), and a display-only manual `fx_rate`. Extends 0015. |
+| [0031](0031_integrations-and-automation-contract.md) | Integrations and automation contract | Proposed | — | 0012, 0013; 0025 RF1 (for RF2, the status line); 0026 RF1 and its own INT-04 token default (for RF11, `/v1/stats`) | 0024, 0028, 0029, 0033 | Recipes (Waybar, SketchyBar, tmux), shell completions, the worst-case summary in `/v1/limits`, the `--serve` token required by default (decision H), the v1 support window and open enums, generation cache and ETag, new events (`session_expiring`, `quota_reset_soon`), `provider_incident` dedup (FIX-15), `--status-line` (moved from 0025 RF8), exact port and `HEAD`, exit 0 on a signal stop with `--strict-exit`, and `/v1/stats` with its security rules (decision P). |
+| [0032](0032_notification-delivery-policy.md) | Notification delivery policy | Proposed | — | 0003, 0008, 0013 | 0020, 0022, 0025, 0029 | Quiet hours with a digest (DEC-03), the "crossed while closed" marker (ALR-01), hiding account names on the lock screen, cross-process dedup through the shared ledger, one core-owned alert-preferences source and the recovery rule without `resets_at`. |
+| [0033](0033_reset-aware-and-source-dated-readings.md) | Reset-aware and source-dated readings | Proposed | — | 0003, 0006, 0010 | 0011 | One query 30 s after a reset notice, never metered (RST-01, decision I); a restored reading drops metrics whose reset passed (RES-01); optional `as_of`; chip and pace line each name their metric; stale incident readings expire (FIX-09); future samples rejected (FIX-10); metered cadence 3600 s default, 900 s floor, cross-process last-query lock. |
+| [0034](0034_english-source-locale.md) | English source locale | Proposed | — | — | — | Core `Localized` fallback in en-US, pt-BR becomes a catalog, the TUI age text localized (I18N-01, decision E); `AGENTS.md`, `text.rs` docs and `docs/architecture.md` updated in the same delivery; `export::v1` fallback values change (documented). |
+| [0035](0035_additional-ui-languages.md) | Additional UI languages | Proposed | — | 0034 (RF2, RF3) | 0020, 0022 | zh-CN, fr, de, ja, ko, hi-IN, id-ID, ru, tr and vi in the core, desktop and TUI catalogs, with completeness tests, plural rules, locale formatting, CJK/Devanagari/Vietnamese typography, length budgets and a review process. |
+| [0036](0036_9router-and-aggregator-providers.md) | 9router and aggregator/routing providers | Proposed | — | 0005, 0010, 0012, 0029 (for RF5) | 0011, 0022, 0024, 0027, 0028, 0033 | A 9router account shows the quotas of every connection added in 9router in a dedicated section, generalized to other aggregation and routing services. Wave 5f (the owner runs 9router locally, so live verification is feasible). |
+| [0037](0037_elevenlabs-provider.md) | ElevenLabs provider | Proposed | — | 0005 | 0006, 0007, 0008, 0009, 0011, 0023, 0027, 0028 | ElevenLabs credits as a monthly quota with its reset, plus extra usage. Wave 5f (the owner has an account). |
+| [0038](0038_openrouter-provider.md) | OpenRouter provider | Proposed | — | 0005 | 0023, 0027, 0028, 0036 | OpenRouter's own credits and key limits. **Deferred by the owner on 2026-10-23** (backlog, §5); its open questions stay open until it is resumed. |
+| [0039](0039_release-flow-and-changelog-automation.md) | Release flow and changelog automation | Proposed | — | 0019 (RF2, RF7), 0021 (RF1, RF4, RF9) | — | Versions and `CHANGELOG.md` are produced at release time instead of in every commit: feature/fix commits carry a `Changelog:` trailer (plus `Refs:` and `BREAKING CHANGE:`) and never touch the five version locations; `cargo xtask release prepare` computes the next SemVer from the commits since the last release, writes every version location, both lockfiles, the section with real short hashes and the plans' `vNEXT` tokens, and produces a release PR; the owner tags after merge and `release.yml` runs unchanged. Adds a PR flow with a `main` ruleset, CI on pull requests and `main` only, a `release-preflight` job, and extends (does not duplicate) the documentation-only skip of `6638c69`. Supersedes 0019 RF7.3 and RF7.4's first bullet. **Wave: before the next feature wave (5b)**, because it changes how every delivery is versioned; owner decisions D1–D13 in its §13. |
+
+### 2.1 Owner verification checklist
+
+Every item below waits only for the owner: the code is delivered and covered by automated tests. When an item passes, record the date and the version in the plan's "Implementation status", move the plan to `Implemented` here if nothing else remains, and add a line to section 8.
+
+| Plan | Item | Procedure | Done when |
+|---|---|---|---|
+| 0003 RF3 | Notification permission on the packaged app | Install the packaged macOS build (not `tauri dev`); Settings → Alerts → turn on reset notices; grant the system prompt; set a quota whose `resets_at` is a few minutes ahead (a fake `bl` provider or a real 5-hour window); hide the window and wait; then repeat with a fresh profile and **deny** the prompt and confirm the guidance appears. Windows and Linux when a machine is available. | A real notice arrives with the window hidden; denial shows the guidance and sends nothing. |
+| 0008 RF3 | Usage alert on the packaged app | Same build and profile; turn on usage alerts (75 %, 90 %); drive an account across 90 % (fake provider); hide the window; restart the app and check the preferences survived. | One alert arrives with the window hidden; preferences survive the restart. |
+| 0012 RF5 | Local server token in the login Keychain | Packaged app in the owner's profile: Settings → Integrations → turn on the server; copy the token; `curl -H "Authorization: Bearer <token>" http://127.0.0.1:6738/v1/limits`; revoke and repeat (expect 401); turn off (connection refused). | All four steps behave as described; the token never appears on screen. |
+| 0016 RF5 | Live Alibaba session cookies | With a live Alibaba Coding Plan and a Qwen Cloud Token Plan console session, paste the session in the editor and run the test query; repeat with only `login_aliyunid_*`, `csrf`, `cna` and `sec_token`. | The reduced cookie set answers; the result (cookies required) is recorded in `docs/providers.md`. |
+| 0018 | Signed update from an older version | After the `release` environment secrets exist (`docs/updater-security.md`): publish a signed release, install the previous version on macOS, Windows and Linux, update in place; repeat with a tampered signature and with the network cut. Turn on the `release` environment protection. Check one Homebrew, Scoop, winget or AUR install hands over to its manager. | The update applies with consent; tampered and offline cases fail safely; managed installs show the manager's command. |
+| 0019 RF2 | Green hosted CI | Push the branch; confirm the CI run is green on Linux, macOS and Windows; open a pull request with a deliberate Clippy warning and confirm it fails. | Both runs behave; links recorded in the plan. |
+| 0019 RF6.2 | SBOM attached to a real release | After the first real tag, download the release assets and check the CycloneDX SBOM is attached and verifies. | The SBOM is present and verifies. |
+| 0014 RF2.1, RF2.3, RF3.1 | Widgets | Needs the Apple developer account: create the app group, sign the `.appex`, install the packaged app and add the widget. | The widget shows the snapshot; recorded in the plan. |
+| 0023 RF2.6 (when delivered) | Claude extra-usage scale | With extra usage enabled on the owner's Claude account, compare one live `extra_usage` response with the amount the Claude web console shows at the same moment. | The scale (dollars or cents) is recorded in `docs/providers.md` and the adapter converts accordingly. |
+| 0028 RF4 (when delivered) | Local canary | Install the scheduled task of `docs/canary.md` on the owner's machine; after two daily runs review the report and commit the `verified_on` patch. | Two runs without alerts; the evidence patch is committed by the owner. |
 
 ## 3. Delivered by version
 
@@ -135,30 +170,51 @@ Solid arrows are strong dependencies; dashed ones, weak. The arrow points from a
 ```mermaid
 graph LR
   classDef done fill:#d8f0e4,stroke:#2a7d55
+  classDef await fill:#e3ecfb,stroke:#3b6db3
   classDef wip fill:#fbefcf,stroke:#b07d00
   classDef todo fill:#eef1f4,stroke:#7a8794
+  classDef deferred fill:#f4eef4,stroke:#8a6d8a,stroke-dasharray:4 3
 
   P1["0001 Core and front ends"]:::done
   P2["0002 Model catalog"]:::done
-  P3["0003 Reset notifications"]:::wip
+  P3["0003 Reset notifications"]:::await
   P4["0004 Animations"]:::done
   P5["0005 Access level"]:::done
   P6["0006 History"]:::done
   P7["0007 Pace"]:::done
-  P8["0008 Threshold alerts"]:::wip
+  P8["0008 Threshold alerts"]:::await
   P9["0009 Binding limit"]:::done
   P10["0010 Measurement age"]:::done
   P11["0011 Incident status"]:::done
-  P12["0012 Server and export v1"]:::wip
+  P12["0012 Server and export v1"]:::await
   P13["0013 Watch and hooks"]:::done
-  P14["0014 Widgets"]:::todo
+  P14["0014 Widgets"]:::wip
   P15["0015 Cost from logs"]:::done
-  P16["0016 Pasted session"]:::wip
+  P16["0016 Pasted session"]:::await
   P17["0017 Extensions"]:::done
   P18["0018 Automatic updates"]:::wip
   P19["0019 Distribution"]:::wip
   P20["0020 Settings window"]:::todo
   P21["0021 Release and packages"]:::wip
+  P22["0022 UI refresh (reserved)"]:::todo
+  P23["0023 Overage and model scope"]:::todo
+  P24["0024 Predictive alerts and best account"]:::todo
+  P25["0025 Menu bar and settings"]:::todo
+  P26["0026 Stats and timeline"]:::todo
+  P27["0027 Catalog and detection"]:::todo
+  P28["0028 Contract health"]:::todo
+  P29R0["0029 RF0 precursor (TOML tolerates id)"]:::todo
+  P29["0029 Account identity"]:::todo
+  P30["0030 Cost value and sources"]:::todo
+  P31["0031 Integrations contract"]:::todo
+  P32["0032 Notification policy"]:::todo
+  P33["0033 Reset-aware readings"]:::todo
+  P34["0034 English source locale"]:::todo
+  P35["0035 More UI languages"]:::todo
+  P36["0036 9router and aggregators"]:::todo
+  P37["0037 ElevenLabs"]:::todo
+  P38["0038 OpenRouter (deferred)"]:::deferred
+  P39["0039 Release flow"]:::todo
 
   P8 --> P3
   P13 --> P12
@@ -168,6 +224,44 @@ graph LR
   P16 --> P5
   P17 --> P5
   P18 --> P19
+  P21 --> P19
+  P24 --> P6
+  P24 --> P7
+  P24 --> P8
+  P25 --> P20
+  P25 --> P29
+  P26 --> P6
+  P26 --> P13
+  P26 --> P29
+  P27 --> P5
+  P28 --> P5
+  P28 --> P17
+  P28 --> P21
+  P29 --> P29R0
+  P29R0 --> P1
+  P29 --> P1
+  P29 --> P16
+  P30 --> P15
+  P30 --> P29
+  P31 --> P12
+  P31 --> P13
+  P31 --> P25
+  P31 --> P26
+  P32 --> P3
+  P32 --> P8
+  P32 --> P13
+  P33 --> P3
+  P33 --> P6
+  P33 --> P10
+  P35 --> P34
+  P36 --> P5
+  P36 --> P10
+  P36 --> P12
+  P36 --> P29
+  P37 --> P5
+  P38 --> P5
+  P39 --> P19
+  P39 --> P21
 
   P7 -.-> P6
   P8 -.-> P6
@@ -187,39 +281,134 @@ graph LR
   P14 -.-> P7
   P14 -.-> P9
   P14 -.-> P10
+  P18 -.-> P21
   P20 -.-> P18
   P20 -.-> P19
-  P21 --> P19
-  P18 -.-> P21
+  P22 -.-> P20
+  P23 -.-> P8
+  P23 -.-> P9
+  P23 -.-> P12
+  P23 -.-> P13
+  P24 -.-> P13
+  P24 -.-> P23
+  P24 -.-> P25
+  P24 -.-> P29
+  P25 -.-> P23
+  P25 -.-> P24
+  P25 -.-> P18
+  P26 -.-> P23
+  P26 -.-> P24
+  P27 -.-> P16
+  P27 -.-> P17
+  P28 -.-> P12
+  P28 -.-> P18
+  P28 -.-> P36
+  P30 -.-> P23
+  P31 -.-> P24
+  P31 -.-> P28
+  P31 -.-> P29
+  P31 -.-> P33
+  P32 -.-> P29
+  P33 -.-> P11
+  P36 -.-> P28
+  P36 -.-> P33
+  P37 -.-> P23
+  P38 -.-> P23
+  P38 -.-> P36
 ```
+
+PRD 0022 (UI refresh, reserved) is also a weak dependency of the desktop visuals of 0023–0028, 0032, 0035 and 0036; only its edge to 0020 is drawn until it is written.
 
 ### What each plan unblocks
 
 | Plan | Unblocks (strong) | Benefits (weak) |
 |---|---|---|
-| 0003 | 0008 | 0013 |
-| 0005 | 0015, 0016, 0017 | 0011, 0012 |
-| 0006 | — | 0007, 0008, 0010, 0014, 0015 |
-| 0007 | — | 0012, 0014 |
-| 0008 | — | 0013 |
-| 0009 | — | 0012, 0013, 0014 |
-| 0010 | — | 0012, 0014 |
-| 0011 | — | 0012, 0013 |
-| 0012 | 0013, 0014 | — |
-| 0019 | 0014, 0018 | — |
+| 0001 | 0029 | — |
+| 0003 | 0008, 0032, 0033 | 0013 |
+| 0005 | 0015, 0016, 0017, 0027, 0028, 0036, 0037, 0038 | 0011, 0012 |
+| 0006 | 0024, 0026, 0033 | 0007, 0008, 0010, 0014, 0015 |
+| 0007 | 0024 | 0012, 0014 |
+| 0008 | 0024, 0032 | 0013, 0023 |
+| 0009 | — | 0012, 0013, 0014, 0023 |
+| 0010 | 0033, 0036 | 0012, 0014 |
+| 0011 | — | 0012, 0013, 0033 |
+| 0012 | 0013, 0014, 0031, 0036 | 0023, 0028 |
+| 0013 | 0026 (RF3), 0031, 0032 | 0023, 0024 |
+| 0015 | 0030 | — |
+| 0016 | 0029 | 0027 |
+| 0017 | 0028 (RF7) | 0027 |
+| 0019 | 0014, 0018, 0021, 0039 | 0020 |
+| 0020 | 0025 (RF4, RF5, RF9) | 0022 |
+| 0021 | 0028 (RF8), 0039 | 0018 |
+| 0023 | — | 0024, 0025, 0026, 0030, 0037, 0038 |
+| 0024 | — | 0025, 0026, 0031 |
+| 0025 | 0031 (status line) | 0024 |
+| 0026 | 0031 (`/v1/stats`) | — |
+| 0028 | — | 0031, 0036 |
+| 0029 | 0025 (RF2), 0026 (RF3), 0030 (RF1), 0036 (RF5) | 0024, 0031, 0032 |
+| 0033 | — | 0031, 0036 |
+| 0034 | 0035 | — |
+| 0036 | — | 0028, 0038 |
+
+### Extensions between plans
+
+New plans that add requirements to delivered or proposed ones, without rewriting them. Each extended plan carries an "Extended by" line in its header.
+
+| Plan | Extended by | What is added (and which non-goal is superseded, if any) |
+|---|---|---|
+| 0001 | 0029, 0034 | Stable account `id` (0029); English core fallback (0034). Fix requirement FIX-08 (metered floor per account) recorded in the plan. |
+| 0002 | 0028, 0036, 0038 | Model listing gated on evidence, static 9router lists and the Copilot token exchange removed (0028 RF10); aggregator and OpenRouter adapters. |
+| 0003 | 0029, 0031, 0032, 0033 | Ledger keyed by id; `quota_reset_soon`; lock-screen names and cross-process dedup; one refresh 30 s after a reset, superseding the §4 "query at the reset" non-goal (0033). |
+| 0004 | 0022 | Reduced-motion change marker, polite `aria-live`, TUI `NO_COLOR` and theme colors. |
+| 0005 | 0027, 0028, 0036, 0037, 0038 | Catalog entry by sign-in method (0027); per-interface `verified_on`, drift paths and `access.risk.subscription_token` (0028); aggregator credential class (0036); new descriptors. |
+| 0006 | 0026, 0028, 0029, 0033 | Aggregates and the journal table, narrowing the §4 "history of errors" non-goal to failure categories (0026); label snapshot and aliases (0028 RF11); series keyed by id; reset-aware restore and future samples rejected (0033). |
+| 0007 | 0024, 0033 | Time chips in points or percent; supersedes the §4 "recommending a switch" non-goal for same-provider or grouped accounts (advisory only); "hysteresis" wording corrected (DOC-06); both chips name their metric (0033). |
+| 0008 | 0023, 0024, 0029, 0032, 0036 | `OverageStarted`/`OverageCapReached` and `ProjectedExhaustion`; supersede the §4 pace-notice non-goal and, for overage only, the accumulated-spend non-goal; one core preferences source, the closed-app marker and quiet hours (0032); pool alert (0036). |
+| 0009 | 0023, 0026, 0033, 0036 | Overage and model-scoped metrics excluded from the binding metric (MET-01); binding returns on a timeline; labelled chips; binding per sub-account. |
+| 0010 | 0033 | Optional `as_of` (narrowing the §4 `Report` non-goal), reset-aware restore, metered cadence. |
+| 0011 | 0028, 0031, 0033, 0037, 0038 | Status component check in the canary; incident state in `/v1/limits`; stale incident expiry (FIX-09). Fix requirement for the `gemini_api` scope recorded in the plan. |
+| 0012 | 0023, 0024, 0028, 0029, 0031, 0036 | Additive `overage`, `billing`, `scope`, `group`, `best`, `delta_ratio`, `failure`, `id` and `sub_accounts`; token by default, exact port, `HEAD`, ETag, v1 window and `/v1/stats` (0031). |
+| 0013 | 0023, 0024, 0026, 0031, 0032, 0036 | Events `overage_started`, `overage_ended`, `quota_exhaustion_projected`, `session_expiring`, `quota_reset_soon`; persisted journal; signal exit codes and hook hardening (0031); `quiet` hook filter (0032). |
+| 0014 | 0023 | Overage object in the widget snapshot. |
+| 0015 | 0030 | Plan value, new sources, price age, `fx_rate`; DOC-02 wording corrected (no price download). |
+| 0016 | 0029 | Vault session removed with the account (FIX-06). Fix requirements ("Paste a new session", test before save) recorded in the plan. |
+| 0017 | 0028 | Manifest `overrides`, vault `[[secrets]]` (EXT-01), `min_cuotai` and ignored `x-*` tables. Fix requirements FIX-03, FIX-04, FIX-05 recorded in the plan. |
+| 0018 | 0025, 0028 | RF2.6 "ask before the first check" (superseding RF2.1's default), asked in 0025's first run; the core install-source detector is already delivered (0.77.0) and serves 0028's CLI notice. |
+| 0019 | 0028 | `SUPPORT.md` beside the RF1 community files (GitHub only). |
+| 0020 | 0022, 0025 | Menu bar page, Advanced group and display mode; supersedes the §4 "no new settings" non-goal for the listed preferences (0025); RF2.1 superseded by DS-CMP-SEG-5 and RF7.2 amended for `desktop.json` (SET-01). |
+| 0021 | 0028 | RF8.1's install-source detector (in the core since 0.77.0) is reused by 0028's opt-in CLI update notice (DIST-12). |
 
 ## 5. Suggested delivery order
 
-The waves respect the strong dependencies; within each wave the order is by priority (impact against competitors, according to the 2026-10-19 market analysis).
+The waves respect the strong dependencies; within each wave the order is by priority. Waves 0–3 are history; wave 4 (market parity, 2026-10-22) is replaced by wave 5d. Waves 5a–5f were set by the owner on 2026-10-23 (review item PROC-02).
 
 | Wave | Plans | Why |
 |---|---|---|
-| 0 (under way) | 0003 | Infrastructure reused by the others (0004 is done). |
-| 1 (no dependencies) | 0019 (RF1: license, done), 0006, 0007, 0009, 0005, 0012, 0011, 0020 | They unblock almost everything; 0006 and 0007 close the biggest gap against competitors (history and pace). |
-| 2 | 0008, 0010, 0018, 0013, 0016, 0015, 0017, 0021 | They depend on items from wave 0 or 1. |
-| 3 | 0014 | Depends on 0012's contract and 0019's pipeline, plus an Apple developer account. |
+| 0 (done) | 0003 | Infrastructure reused by the others (0004 is done). |
+| 1 (done) | 0019 (RF1), 0006, 0007, 0009, 0005, 0012, 0011 | They unblocked almost everything. |
+| 2 (done but owner checks) | 0008, 0010, 0018, 0013, 0016, 0015, 0017, 0021 | Delivered; owner verifications in §2.1. |
+| 3 | 0014 | Waits for the Apple developer account (see the last row). |
+| 4 (2026-10-22) | *replaced by 5d* | — |
+| 5a (implement now) | Fix requirements of delivered plans (0001 FIX-08, 0011 `gemini_api` scope, 0016 "Paste a new session" and test before save, 0017 FIX-03/04/05); the P1 fixes recorded in later plans that need no new design (INT-04 `--serve` token by default, FIX-01/02 hook hardening, FIX-09, FIX-10, FIX-11); DOC-01..04 (DOC-01 and DOC-02 corrected in the plans on 2026-10-23; DOC-03 `docs/tui.md` pace wording and DOC-04 `CUOTAI_CONFIG` in `AGENTS.md`/`README.md` pending); 0021 RF6 (DIST-09 CLI artifact smoke) | Security and correctness first; small, independent `fix` commits. |
+| 5a′ (process, before 5b) | 0039 | The release flow changes how every later delivery is versioned (trailers and `vNEXT` instead of per-commit bumps), so it lands before the next feature wave; its cutover PR also ends the version-bump conflicts between parallel branches. |
+| 5b | 0029 RF0, then the rest of 0029 | RF0 ships first as a precursor release (the TOML tolerates `id` and a missing `name`) so a downgrade after the identity release keeps working; then stable account identity, before anything that keys preferences or history by account (critical path below). |
+| 5c | 0020, then 0022 | The settings window (with SET-01 and the DS-CMP-SEG-5 sidebar), then the UI refresh that adopts the design system. |
+| 5d (market parity) | 0023 (with MET-01 `scope`), 0024, 0028 (RF1 first; local canary), 0026, 0025, 0027 | They close the 2026-10-22 parity gaps (section 7). 0023 RF1 goes first because it fixes the overage misclassification that 0024 and 0026 would otherwise inherit. |
+| 5e | 0030, 0031, 0032, 0033, 0034, 0035 | Cost, integrations, notification policy, reset-aware readings, then the English source locale before the new languages. |
+| 5f (providers) | 0036, 0037 | New providers; the owner runs 9router locally and has an ElevenLabs account, so both can be verified live. |
+| Backlog / deferred | 0038 | OpenRouter, deferred by the owner on 2026-10-23; status stays Proposed and its open questions stay open until it is resumed. |
+| After the Apple account | 0014 (RF2.1, RF2.3, RF3.1) | Needs the Apple developer account and signing. |
 
-Critical path of distribution: **0019 → 0018**. Critical path of integrations: **0012 → 0013 and 0014**. Critical path of alerts: **0003 → 0008**.
+Critical path of distribution: **0019 → 0021 → 0018**. Critical path of integrations: **0012 → 0013 and 0014 → 0031**. Critical path of alerts: **0003 → 0008 → 0024 → 0032**. Critical path of settings: **0020 → 0022 → 0025**. Critical path of identity: **0029 RF0 (precursor release) → 0029 RF1, RF2 before 0025 RF2, 0026 RF3, 0030 RF1 and 0036 RF5**. Critical path of statistics: **0026 RF1 → 0031 RF11 (`/v1/stats`, with INT-04)**. Critical path of languages: **0034 → 0035**.
+
+### 5.1 Criteria for version 1.0
+
+Version 1.0 ships only when all of these hold (owner decision of 2026-10-23):
+
+1. **Signed distribution:** macOS notarized with a Developer ID, Windows signed, the updater signed, and the release pipeline (0021) publishing them.
+2. **No open P1:** every P1 item of the 2026-10-21 review is delivered (wave 5a, 0029 and the P1 rows of later plans).
+3. **`export::v1` frozen:** additive changes only from then on, with the support window of PRD 0031.
+4. **PRD 0029 delivered (RF0 precursor included):** stable account identity, so history, alerts and preferences survive renames in 1.x.
 
 ## 6. Decisions for the project owner
 
@@ -234,7 +423,80 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | ~~Reset notices on by default or not~~ | 0003 (RF3) | **Decided on 2026-10-20: off by default**; nothing is notified until the user turns on Settings → Notifications (delivered in 0.41.0). |
 | ~~Provider status on by default or not~~ | 0011 | **Decided on 2026-10-20: opt-in, off until enabled**, with `--no-status` as an override; RF1 only registers verified sources, without making requests. |
 
-## 7. History of this file
+### 6.1 Decisions log (2026-10-21 review and 2026-10-23 refinements)
+
+Recorded on 2026-10-23 (review item PROC-03). The 2026-10-21 decisions come from the requirements review of the plans against 0.67.0; the 2026-10-23 rows refine them (decisions A–R) and add new requirements.
+
+| Date | Decision | Affects |
+|---|---|---|
+| 2026-10-21 | Accounts get a stable internal identity; the name becomes a label. | 0029 |
+| 2026-10-21 | Model catalog policy: only providers with documented or live-verified listing interfaces list models; the static 9router lists go; the Copilot token exchange goes. | 0028 RF10, 0002 |
+| 2026-10-21 | `cuotai --serve` requires a token by default. | 0031 |
+| 2026-10-21 | Quiet hours per weekday with a digest; exhaustion breaks the silence. | 0032 |
+| 2026-10-21 | Refresh an account once shortly after a reset notice, never a metered one. | 0033 |
+| 2026-10-21 | `export::v1` stays supported for at least 90 days after a v2. | 0031 |
+| 2026-10-21 | The desktop updater asks before its first check. | 0018 RF2.6, 0025 RF6.5 |
+| 2026-10-21 | The core `Localized` fallback becomes en-US. | 0034 |
+| 2026-10-21 | New status "Awaiting owner verification" and a single owner checklist. | §1, §2.1 |
+| 2026-10-23 | A: the contract canary is local (owner's machine, vault tokens, shapes only); CI keeps only a fixture dry run. | 0028 RF4 |
+| 2026-10-23 | B: the pace alert uses the union of criteria (recent source with ≥ 30 min of samples or ≥ 20 % of the window, Fresh, ≥ 3 samples, ≥ 25 % used, two confirmations, margin hysteresis); off by default; the first-run **Turn on** is consent; `--notify` never enables it. | 0024 RF2, 0025 RF6.6 |
+| 2026-10-23 | C: "best account now" in TOML groups (no group = same provider), non-Fresh demoted or excluded, model-scoped metrics excluded, reset-aware ranking, `best` in `/v1/limits`, `group` in `AccountExport`. | 0024 RF7 |
+| 2026-10-23 | D: the ≥ 30-minute sample span applies to the alert only; the displayed pace keeps its rule with a "recent" marker. | 0024 |
+| 2026-10-23 | E: the English source locale is its own PRD, updating `AGENTS.md` in the same delivery. | 0034 |
+| 2026-10-23 | F: the updater asks before the first check, in the first-run step. | 0018 RF2.6, 0025 RF6.5 |
+| 2026-10-23 | G: `widget.json` for Windows and Linux stays (0014 RF5). | 0014 |
+| 2026-10-23 | H: `--serve` token required by default (`0600` file, `--no-token` opt-out), minor bump with a migration note. | 0031 |
+| 2026-10-23 | I: refresh 30 s after a reset notice, never for metered accounts. | 0033 RF1 |
+| 2026-10-23 | J: fix requirements for delivered plans with no new PRD in the area are dated rows in the original plan. | 0001, 0011, 0016, 0017 |
+| 2026-10-23 | K: the canary emits a `verified_on` report or patch; the owner commits it. | 0028 RF4.4 |
+| 2026-10-23 | L: `Metric::billing` (and `scope`) are additive, non-breaking: minor bump, no `BREAKING CHANGE` footer. | 0023 |
+| 2026-10-23 | M: pace deviation in points by default, percent (relative to expected use, "20% faster than pace") as a user setting; the core provides both values. | 0024 RF1.3 |
+| 2026-10-23 | N: menu-bar default style "Tightest %" as a monochrome template, with a colored variant in Settings. | 0025 RF3.6 |
+| 2026-10-23 | O: support only through GitHub (Issues and Discussions), no e-mail; triage target 3 days; `verified_on` stale at 90 days, failing at 180. | 0028 RF6, RF9 |
+| 2026-10-23 | P: `/v1/stats` in the local server with the security rules (token, loopback, redaction, no secrets, rate limit). | 0031, 0026 |
+| 2026-10-23 | Q: Gemini CLI and other CLIs with detectable local credentials in the presence-only, consent-gated detection table. | 0027 RF6 |
+| 2026-10-23 | R: Claude extra usage is in US dollars; the dollars-versus-cents scale is still verified against the owner's account. | 0023 RF2.6 |
+| 2026-10-23 | The account name is optional, required only when two accounts share a provider. | 0029 |
+| 2026-10-23 | Ten more UI languages: zh-CN, fr, de, ja, ko, hi-IN, id-ID, ru, tr, vi. | 0035 |
+| 2026-10-23 | 9router support with a dedicated section, generalized to aggregators; ElevenLabs and OpenRouter as dedicated provider PRDs. | 0036, 0037, 0038 |
+| 2026-10-23 | **OpenRouter deferred by the owner**; its open questions stay open until it is resumed (backlog, §5). | 0038 |
+| 2026-10-23 | Custom display mode (Detailed, Standard, Minimal, Custom) for rows in the tray and the main window. | 0025 RF9 |
+| 2026-10-23 | The desktop settings sidebar follows DS-CMP-SEG-5; the provider catalog is grouped by sign-in method (DS-CMP-LIST-6). | 0020, 0025, 0027 |
+| 2026-10-23 | Bedrock metered cadence: 3600 s default, 900 s floor, a cross-process last-query lock. | 0033, 0001 FIX-08 |
+| 2026-10-23 | A README for end users (GUI first) with technical content moved to `docs/`; Cuotai's own pastel theme; commit identity uses the GitHub noreply address only. | README, themes, `AGENTS.md` (outside the plans) |
+| 2026-10-23 | PRD 0029 gains an RF0 precursor release (the TOML tolerates `id` and a missing `name`), so the identity release is additive: minor bump, no `BREAKING CHANGE` footer. | 0029 |
+| 2026-10-23 | Every recommendation in the open questions of PRDs 0029–0035 is accepted by the owner. | 0029, 0030, 0031, 0032, 0033, 0034, 0035 |
+| 2026-10-23 | Cuotai's own theme merged in 0.76.0; it becomes the default for new installs together with PRD 0022. | 0022, themes |
+| 2026-10-23 | No GitHub release or tag exists yet: every install channel (GitHub Releases, Homebrew, winget, Scoop, AUR, crates.io) is still pending, and the updater has nothing to check against. | 0018, 0019, 0021, 1.0 criteria (§5.1) |
+| 2026-10-23 | Criteria for 1.0 (§5.1). | all |
+
+## 7. Market parity map (2026-10-22, updated 2026-10-23)
+
+Claims of a paid macOS menu-bar monitor (WhatsMyUsage) compared with Cuotai at 0.75.x, and the plan requirement that delivers each one. "Delivered" rows cite the existing plan.
+
+| Market claim | Cuotai today | Delivered by |
+|---|---|---|
+| Tells you when you'll run out, in plain words | Delivered: `pace::assess`, `projected_exhaustion_at`, `pace.runs_out_at` | 0007 RF1–RF4; Cuotai's own time chips ("↑ Runs out ≈18:53", "10 pts ahead" or "20% faster than pace", "↺ Returns 19:30") in 0024 RF1 and RF6 |
+| Warns you from your pace 15/30/60 minutes ahead | Partial: fixed thresholds only | 0024 RF2–RF5 (off by default, stricter criteria) |
+| Notices the moment paid extra usage starts and keeps a $ meter running | Partial and inconsistent per provider; Claude extra usage misclassified | 0023 RF1–RF8 (bug fix in RF1.4; Claude in US dollars, RF2.6) |
+| Limit hit · on extra $6.25 card state | Missing | 0023 RF3.3 and RF7.1 |
+| Opinionated settings: four tabs, sensible defaults | 0020 proposes seven pages | 0020 RF2.5 and 0025 RF5 (DS-CMP-SEG-5 everyday pages plus Advanced) and RF6 (first-run defaults) |
+| No data-source pickers | Every connection mode offered equally | 0027 RF5 and 0025 RF5.4 |
+| Native feel | Static tray icon, no title | 0025 RF3 (monochrome template, optional colored variant) |
+| Menu-bar styles (Meters, Logos + %, Tightest %, Icon only) with account choice, order and live preview | Missing | 0025 RF1–RF4 |
+| Compact or detailed rows | Fixed row layout | 0025 RF9 (display presets and Custom) |
+| Reset timeline "limits come back" 24 h / 7 d | Missing (only the "Recharging" group, 0010 RF4) | 0026 RF2 and RF5 |
+| Stats: limit hits 7 d, average peak, extra spent, peak per day 7 d / 30 d, by account, recent events, history kept N days | History per metric only (0006) | 0026 RF1, RF3, RF4 and RF6; `/v1/stats` in 0031 |
+| Searchable Add-account catalog with a one-line auth hint | Plain `<select>` | 0027 RF1–RF4 (grouped by sign-in method) |
+| Quick setup from tools already on the machine | Cursor import on request only | 0027 RF6–RF7 (presence only, consent-gated, more CLIs) |
+| Maintained like a product: vendor API changes fixed fast | Users find breakage | 0028 RF1, RF4 (local canary), RF5, RF6, RF7, RF10 and RF11 |
+| Support by e-mail | Issue templates only | Not matched by design: GitHub Issues and Discussions only (decision O, 0028 RF9), with a "Report a problem" draft (RF2) |
+| Updates | Desktop updater (0018) | 0018 (asks first, RF2.6); CLI notice in 0028 RF8 |
+| Tells you what to do | Missing | 0024 RF7 (advisory "best account now" in groups) |
+| About 69 supported agents | 36 providers | Not claimed: no verified list; additions go through provider PRDs (0036 aggregators, 0037 ElevenLabs; 0038 OpenRouter deferred) and the new-provider template (0027 §4) |
+| Interface in many languages | Four languages | 0034 and 0035 (ten more) |
+
+## 8. History of this file
 
 | Date | Change |
 |---|---|
@@ -309,9 +571,12 @@ Critical path of distribution: **0019 → 0018**. Critical path of integrations:
 | 2026-10-22 | 0.75.1 hardens PRD 0018 RF1–RF4 with PRD 0021 RF1–RF4 and RF8.1 partial: duplicate-free dual-proof signing, safe rehearsal environment routing, repository-bound HTTPS artifact downloads, retained cancel/restart state, honest package guidance, sanitized preferences and real TLS/four-locale tests. Normal winget ownership remains pending on a durable installer/receipt marker. |
 | 2026-10-22 | PRD 0021 RF9.4 delivered as documentation without a version bump: the release runbook now gives executable GitHub/channel/crates.io/winget rollback commands with verification, records what already-downloaded updater bytes do, and links the exact one-key transition and Apple/Windows/Sigstore credential-rotation procedures. |
 | 2026-10-22 | PRD 0021 RF9.2 and RF9.5 delivered in 0.75.2: least-privilege workflow scopes and step-owned secrets, fork-safe triggers, bounded opt-in builds with explicit optional targets, Cargo caches/timeouts, a cheap routine dispatch plus explicit full artifact rehearsal, early required-credential gating, and the fixture-tested `workflow-check` CI guard. |
+| 2026-10-22 | PRDs 0023 to 0028 added (Proposed) from the market parity review: overage detection and alerts, pace-based predictive alerts and suggestions, menu-bar presentation and opinionated settings, usage statistics with the reset timeline and event journal, provider catalog with search and local-credential detection, and provider contract health and support; number 0022 reserved for the UI refresh PRD; "Extensions between plans" table and the market parity map (section 7) added; "History of this file" becomes section 8. |
 | 2026-10-23 | 0.75.3 hardens PRD 0021 RF9.2 and RF9.5: secretless dispatch never evaluates production updater credentials, pushed tags retain the required-credential gate, and the workflow guard rejects dynamic whole-secret-context expressions; `ctutils` 0.4.4 resolves RUSTSEC-2026-0385. |
 | 2026-10-23 | PRD 0021 RF9.3 delivered without a product version bump: the monthly/manual external-rules workflow compares reviewed Homebrew, winget and Scoop hashes, verifies semantic GitHub Action pins with official APIs, preserves failed checks as `could_not_check`, and opens or refreshes one review issue. |
 | 2026-10-23 | PRD 0021 RF9.3 hardened without a product version bump: missing/malformed action release comments and unresolved tags can no longer pass as clean, issue lookup covers every page, and the unstable rendered winget page was replaced by the official raw Markdown source with a two-fetch byte-stability gate. |
 | 2026-10-23 | PRD 0021 RF8.1's shared implementation delivered in 0.77.0: install-source detection moved from the desktop to one typed core function, desktop updater behavior stayed identical, and the offline CLI reports source, disable reason and upgrade command. Normal current-user winget ownership and live package-manager acceptance remain owner-blocked. |
 | 2026-10-23 | 0.77.1 delivers the 2026-10-21 review's security fixes FIX-01 to FIX-06 for PRDs 0013 (hook process tree and private working directory), 0017 (consent file location and migration, whole-folder digest with the interpreter in the disclosure, Unix permission refusal) and 0016 (vault session deleted on account removal and provider switch). |
 | 2026-10-23 | 0.78.0 delivers INT-04 of the 2026-10-21 review for PRD 0012: `cuotai --serve` requires a token by default (`serve::resolve_token`, `--no-token` opt-out), a breaking change for tokenless CLI clients. |
+| 2026-10-23 | Requirements review of 2026-10-21 and owner decisions A–R applied: new status "Awaiting owner verification" (0003, 0008, 0012, 0016) with the §2.1 owner checklist; 0014 back to in progress; 0018 gains RF2.6; PRDs 0023–0028, 0020, 0018 and 0021 amended (local canary, best account in groups, percent pace, model scope, US-dollar Claude extra usage, sign-in-method catalog, colored menu bar, display mode, SET-01, DS-CMP-SEG-5); fix-requirement rows in 0001, 0011, 0016 and 0017; DOC-01 and DOC-02 corrected; PRDs 0029–0038 added (Proposed), 0038 deferred to the backlog; waves 5a–5f, 1.0 criteria and the decisions log (§6.1) added; dependency graph, extensions and parity map updated. |
+| 2026-10-23 | PRD 0039 added (Proposed): release flow and changelog automation — versions and the changelog generated at release time by `cargo xtask release prepare` from conventional commits with `Changelog:` trailers, a release PR, owner-pushed tags, `vNEXT` in plans, a PR flow with a `main` ruleset and CI on pull requests; placed in wave 5a′, before the next feature wave. |

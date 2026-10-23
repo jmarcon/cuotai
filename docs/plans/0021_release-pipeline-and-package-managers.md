@@ -8,7 +8,8 @@
 | Consumers | end users, PRD 0018 (updater), PRD 0014 (widgets) |
 | Depends on | PRD 0019 RF2 (green CI on three systems) and RF7.1 to RF7.3 (`CHANGELOG.md`) |
 | Benefits from | PRD 0018 (update artifacts), PRD 0019 RF7.5 (release notes from the changelog) |
-| Date | 2026-10-21 |
+| Extended by | PRD 0028 (RF8.2 and RF8.3: the CLI update notice reuses the core detector delivered in 0.77.0; review item DIST-12) |
+| Date | 2026-10-21; reconciled 2026-10-23 with the 2026-10-21 requirements review |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
@@ -25,6 +26,19 @@
 | RF7 | 0.70.0 | Partial — RF7.2 (README leads with the per-platform installation section, verify-your-download and uninstall semantics) and RF7.3 (`packaging/README.md` documents every template and its maintainer) delivered; the rest of the documentation/layout work remains pending. |
 | RF8 | 0.74.0, 0.75.1 and 0.77.0 | Partial — RF8.1's implementation is delivered: `cuotai_core::install_source::detect_install_source` is the single typed classifier used by the desktop and by the offline `cuotai --install-source` report. It covers direct/AppImage, DMG/translocation/read-only, Homebrew Caskroom and Cellar with their distinct commands, the exact `cuotai` Scoop component, winget's package-cache path, generic Linux package roots and Cargo's configured/default bin. Core boundary tests keep the real Tauri current-user and `Programs\Cuotai` NSIS paths direct, and the desktop regression test preserves updater reasons, commands and installability. A normal winget NSIS install still shares `%LocalAppData%\Cuotai` with a manual install, so ownership remains owner-blocked on a durable installer/receipt marker rather than an unsafe heuristic; live package-manager acceptance also remains an owner run. RF8.2 is implemented; RF8.3 is pending. |
 | RF9 | 0.70.0, 0.75.2 and 0.75.3; no product version bump for RF9.3 or RF9.4 | Partial — RF9.1 is the owner checklist with the per-channel secrets, enabling variables and repositories in `docs/releasing.md`. RF9.2 and RF9.5 are implemented in 0.75.2: workflow-level read-only permissions, write scopes only on owning jobs, every secret confined to its owning step and unavailable in the `rehearsal` environment, fork-safe CI/release triggers, a bounded/optional build matrix gated to tag pushes or an explicit full rehearsal, Cargo caches and per-job timeouts. `cargo xtask workflow-check`, run by CI and the release preflight, enforces permissions, timeouts, action pins, secret owners, triggers, gates and the exact matrix with failure fixtures; 0.75.3 additionally confines prerequisite credential inspection to pushed tags and rejects dynamic whole-secret-context expressions. RF9.3 is the monthly/manual `.github/workflows/external-rules.yml`, the reviewed `.github/external-rules-baseline.json` policy hashes and the fixture-tested `cargo xtask external-rules-check`; it checks every workflow action through GitHub's Releases and Git Data APIs when a semantic release comment exists, treats a missing/malformed comment or unresolved tag as `could_not_check`, and opens or refreshes one deduplicated issue after paginating all open issues. Policy sources must return identical bytes across two fetches; winget hashes the official source Markdown rather than request-dependent Microsoft Learn HTML. RF9.4 is the executable rollback/yank and credential-rotation runbook. Owner creation and protection of the `release` environment remains a prerequisite rather than delivered code. |
+
+### Reconciliation with the 2026-10-21 review (2026-10-23)
+
+The review proposed splitting this plan into two phases (DIST-01 to DIST-12). The split is **not adopted**: by 0.70.0 the "phase 1" items DIST-01 to DIST-06 and DIST-08 were delivered (and DIST-03/04 exceeded: ARM64, musl, MSI, SBOM and cosign are already produced), so the plan keeps its single RF list. What stays open here:
+
+| Open item | Requirement | Who |
+|---|---|---|
+| Smoke of the produced CLI artifacts (`--version`, `--list-providers`, `--once` with the example configuration, no network) on every system, blocking the release (review item DIST-09) | RF6.1 (and RF6.2, RF6.3) | Repository; wave 5a of `0000_control.md` |
+| Monthly workflow re-reading the Homebrew and winget policies and the action pins | RF9.3 | Repository |
+| Tap and bucket repositories, the first manual winget submission, the crates.io token and first publication, the AUR key and account | RF5.1–RF5.5, RF9.1 | Owner actions |
+| Hosted APT/RPM repository | RF5.5 (optional) | Owner decision (§8) |
+
+The review's DIST-12 (the core detects the install origin and the updater hands over to the manager) was delivered with RF8.1 in 0.77.0; only the opt-in CLI update notice that reuses it remains, in **PRD 0028 RF8.2 and RF8.3**.
 
 ## 1. Context
 

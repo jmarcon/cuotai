@@ -3,10 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | 0012 |
-| Status | In progress |
+| Status | Awaiting owner verification (every RF delivered; only the owner smoke listed in `0000_control.md` §2.1 remains; status introduced on 2026-10-23) |
 | Owner | `cuotai-core` (contract and server), TUI/CLI and desktop |
 | Consumers | `crates/cuotai-tui` (`--serve`), `apps/desktop` (embedded server), third-party integrations, PRDs 0013 and 0014 |
 | Depends on | none; it incorporates the results of PRDs 0005, 0007, 0009, 0010 and 0011 as they are delivered |
+| Extended by | PRD 0023 (`overage` object, `billing` and `scope`), PRD 0024 (`group`, `best` in `/v1/limits`, `pace.delta_ratio`), PRD 0028 (`failure` object), PRD 0029 (stable account `id` beside `key`), PRD 0031 (token required by default with `--no-token`, exact port in the CLI and the desktop, `HEAD`, generation cache with ETag/304, a 90-day v1 window after v2 with `/health` `schemas`, `/v1/stats`), PRD 0036 (additive `sub_accounts`) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

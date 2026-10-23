@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (tray, cards, popover), `crates/cuotai-tui` (`dashboard.rs`), PRDs 0007, 0012 and 0014 |
 | Depends on | none |
+| Extended by | PRD 0023 (overage and model-scoped metrics excluded from the binding metric, MET-01), PRD 0026 (reset timeline), PRD 0033 (the card chip and the pace line each name their metric), PRD 0036 (binding per aggregator sub-account) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-19)

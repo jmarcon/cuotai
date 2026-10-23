@@ -3,9 +3,10 @@
 | Field | Value |
 |---|---|
 | ID | 0003 |
-| Status | In progress |
+| Status | Awaiting owner verification (every RF delivered; only the owner smoke listed in `0000_control.md` §2.1 remains; status introduced on 2026-10-23) |
 | Owner | `cuotai-core` and desktop (TUI optional) |
 | Consumers | `apps/desktop`, `crates/cuotai-tui` |
+| Extended by | PRD 0029 (`Account::key` → stable account id for the bell and `notified.json`), PRD 0031 (`quota_reset_soon` event), PRD 0032 (hide account names on the lock screen; cross-process dedup through the shared `notified.json` ledger, `--notify` kept), PRD 0033 (one refresh 30 s after a reset notice) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-20)
@@ -41,7 +42,7 @@ People with window-based subscriptions (Claude 5h/week, Codex, Copilot, Kimi…)
 
 ## 4. Non-goals
 
-- Querying the provider at the reset moment to confirm the new balance. There is a cost per query (AWS Cost Explorer) and there are rate limits; the normal refresh cycle stays the same.
+- Querying the provider at the reset moment to confirm the new balance. There is a cost per query (AWS Cost Explorer) and there are rate limits; the normal refresh cycle stays the same. *Superseded by PRD 0033 RF1 (owner decision I, 2026-10-23): one query of the account 30 s after a reset notice fires, never for a metered account.*
 - Notifying with the app closed, starting with the system, remote push or e-mail.
 - Consumption notices ("below 20%"), which are left to their own PRD, and changes to `Report`, `Snapshot` or the `--json` output.
 - Inventing a reset time when the provider does not report `resets_at`.

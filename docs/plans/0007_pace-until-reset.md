@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray), `crates/cuotai-tui`, PRDs 0008, 0012 and 0014 |
 | Depends on | none; PRD 0006 improves the projection but is not required |
+| Extended by | PRD 0024 (time chips in points or percent, the best account in comparable groups, stricter span for the alert), PRD 0033 (the binding chip and the pace line each name their metric) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-19)
@@ -39,7 +40,7 @@ Knowing that 40% is left does not say whether that is slack or danger: it depend
 ## 4. Non-goals
 
 - Predicting future consumption by learning, seasonality or working hours.
-- Alerting (PRD 0008) or recommending a switch of provider.
+- Alerting (PRD 0008) or recommending a switch of provider. *Superseded for accounts of the same provider or of one user-defined group by PRD 0024 RF7 (advisory only; amended 2026-10-23).*
 - Balance metrics, accumulated spend or short rate limits, which have no uniform consumption window.
 - Changing `Report`, `Snapshot` or the current `--json` output; pace is derived on read.
 
@@ -50,14 +51,14 @@ Knowing that 40% is left does not say whether that is slack or danger: it depend
 - **RF1.1** Create `pace::assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> Option<Pace>`, a pure function with no network and no internal clock. `Pace` is `Serialize` and carries: `elapsed_fraction`, `expected_used_fraction`, `used_fraction`, `delta_points` (real minus expected, in percentage points), `stage`, `projected_exhaustion_at: Option<DateTime<Utc>>` and `lasts_until_reset: bool`.
 - **RF1.2** Eligibility: `kind = Quota`, `window` in `window_5h`, `daily`, `weekly` or `monthly`, a finite and positive `limit`, a finite `used`, a future `resets_at`. `RateLimit`, `Balance`, `Credits`, `Spend`, `Usage` and `other` are left out. A missing piece of data returns `None`, never a default value.
 - **RF1.3** Window length: `window_5h` = 5 h, `daily` = 24 h, `weekly` = 7 days. `monthly` = the calendar-month interval ending at `resets_at` (28 to 31 days). The start is `resets_at − length`. If the provider returns a known start in `period`, it takes precedence when coherent.
-- **RF1.4** Expected consumption = `elapsed / length`. Stages, with a 5-percentage-point hysteresis:
+- **RF1.4** Expected consumption = `elapsed / length`. Stages, with a fixed ±5-percentage-point band around the expected use (stateless: each reading is classified on its own, with no memory of the previous stage; corrected wording on 2026-10-23, review item DOC-06 — the band was called a "hysteresis"):
   - `Reserve` (`delta_points ≤ −5`): below the pace;
   - `OnPace` (between −5 and +5);
   - `Ahead` (`delta_points ≥ +5`): above the pace;
   - `Exhausted` (`used ≥ limit`).
 - **RF1.5** Projection: `projected_exhaustion_at = start + elapsed × limit / used` when `used > 0`. If `used` is zero, or the projection falls after `resets_at`, `lasts_until_reset = true` and there is no exhaustion date. With `recent` (PRD 0006), use the slope of the last 2 hours (or 10% of the window, whichever is greater) when there are at least 3 samples; otherwise, the average since the start of the window. The source used is recorded in `Pace`.
 - **RF1.6** Freshly started window: if less than 5% of the length or less than 10 minutes has passed, there is no assessment (`None`), to avoid absurd projections from a single prompt.
-- **Acceptance criterion:** table tests with a fixed clock cover 5 h, daily, weekly and monthly windows (February and a 31-day month), `used = 0`, `used ≥ limit`, a zero or missing `limit`, a past `resets_at`, non-finite values, a freshly started window, a projection before and after the reset, hysteresis at the thresholds, and recent slope versus average.
+- **Acceptance criterion:** table tests with a fixed clock cover 5 h, daily, weekly and monthly windows (February and a 31-day month), `used = 0`, `used ≥ limit`, a zero or missing `limit`, a past `resets_at`, non-finite values, a freshly started window, a projection before and after the reset, the band boundaries (−5 and +5 points), and recent slope versus average.
 
 ### RF2 — Localized labels and display contract (high priority)
 

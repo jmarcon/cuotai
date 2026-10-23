@@ -6,6 +6,7 @@
 | Status | Implemented (0.7.x) |
 | Owner | Backend (`cuotai-core`) |
 | Consumers | `apps/desktop` (Tauri), `cuotai-tui` |
+| Extended by | PRD 0029 (stable account `id` in the TOML and the account operations), PRD 0034 (English core fallback of `Localized`) |
 | Date | 2026-10-01 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. The acronym is kept so that references in the code, commits and other plans stay stable.
@@ -171,6 +172,14 @@ While integrating, gaps appeared that only the core can solve. Today the desktop
 - **Compatibility:** the TUI keeps working and starts consuming the same APIs. No format change in `cuotai.toml`.
 - **UI independence:** the core does not depend on Tauri, Ratatui or any window framework.
 - **Quality:** `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all -- --check` pass. Provider tests use deterministic local fixtures.
+
+### Fix requirements (2026-10-21 review)
+
+Added on 2026-10-23 (owner decision J): defects found by the 2026-10-21 requirements review in this delivered plan, in an area no new PRD covers. They are non-functional requirements of this plan, delivered as `fix` commits.
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| FIX-08 | `Config::validate` (`lib.rs`, about lines 105–115) rejects a global `refresh_seconds` below 300 even when the AWS Bedrock account sets its own interval. The metered floor applies only to metered accounts **without** their own override, is checked per account, and the error names the field and the account (`accounts[N].refresh_seconds`, or the global key) instead of the generic `ConfigError::Bounds`. The metered default and floor themselves (3600 s default, 900 s floor, a cross-process last-query lock) are set by PRD 0033. | Validation tests: a global 120 s with a Bedrock account at 3600 s is accepted; a Bedrock account without an override under a global 120 s is rejected with a message naming the field; non-metered accounts are unaffected. |
 
 ## Technical assessment — core and TUI (2026-10-01, historical)
 

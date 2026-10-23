@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui` (`wizard.rs`, `dashboard.rs`), `apps/desktop` (`account-dialog.js`, cards) |
 | Depends on | none (it is a prerequisite of PRDs 0016 and 0017) |
+| Extended by | PRD 0027 (searchable catalog entry on the access descriptor, grouped by sign-in method), PRD 0028 (per-interface `verified_on`, drift paths, `access.risk.subscription_token`), PRD 0036 (aggregator credential class, scope and `via` evidence), PRD 0037 (ElevenLabs descriptor), PRD 0038 (OpenRouter descriptor) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

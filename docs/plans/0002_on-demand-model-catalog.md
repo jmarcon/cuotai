@@ -6,6 +6,7 @@
 | Status | Implemented (0.14.x) |
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui`, `apps/desktop` |
+| Extended by | PRD 0028 (RF10: model listing gated on evidence, removal of the static 9router lists in `providers/builtin_models.rs` that contradict §4, and of the Copilot token exchange), PRD 0036 (9router and aggregator providers), PRD 0038 (one more verified model-catalog adapter) |
 | Date | 2026-10-16 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

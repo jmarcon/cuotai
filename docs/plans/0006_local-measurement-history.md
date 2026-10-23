@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (details), `crates/cuotai-tui` (details and `--history`), PRDs 0007, 0008, 0012 and 0014 |
 | Depends on | none |
+| Extended by | PRD 0026 (statistics over stored windows, event journal), PRD 0028 (RF11: per-adapter label snapshot and alias table so series survive label changes), PRD 0029 (stable account ids replace the identity digest as the series key), PRD 0033 (reset-aware restore of the last reading; samples more than 5 minutes in the future rejected) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
@@ -53,7 +54,7 @@ The 2026-10-19 market analysis showed history and trend in CodexBar (charts and 
 
 ## 4. Non-goals
 
-- History of errors, free-form notes or any provider text: only numeric values and window metadata.
+- History of errors, free-form notes or any provider text: only numeric values and window metadata. *Narrowed by PRD 0026 RF3: an event journal stores event names and failure categories only.*
 - Synchronization between machines, the cloud or user accounts.
 - Retroactive billing: history starts at the first recorded reading; the past is never reconstructed.
 - Changing `Report`, `Snapshot`, scheduling or the current `--json` output.

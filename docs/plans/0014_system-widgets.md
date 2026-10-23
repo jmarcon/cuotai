@@ -3,10 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | 0014 |
-| Status | Implemented (partial) |
+| Status | In progress (RF1, RF4 and RF5 delivered in 0.71.0; RF2.1/RF2.3 and RF3.1 wait for the Apple developer account; RF5 `widget.json` for Windows/Linux kept, owner decision G of 2026-10-23) |
 | Owner | Desktop (macOS) and `cuotai-core` (snapshot file) |
 | Consumers | `apps/desktop`, widget extension (Swift), third-party integrations (Waybar, GNOME, KDE) that read the same file |
 | Depends on | PRD 0012 (RF1: the `export::v1` contract); PRD 0019 (signing and developer profile); it uses PRDs 0006, 0007, 0009 and 0010 |
+| Extended by | PRD 0023 (RF6.2: overage object in the widget snapshot) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

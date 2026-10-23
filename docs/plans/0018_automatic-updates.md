@@ -3,11 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1 and the shared install-source contract adopted in 0.77.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and normal winget ownership still needs a packaging marker) |
+| Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1 and the shared install-source contract adopted in 0.77.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and normal winget ownership still needs a packaging marker; RF2.6, added on 2026-10-23, is proposed) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2 and RF3: signed packages and artifact hosting) |
-| Date | 2026-10-19 |
+| Extended by | PRD 0025 (RF6.5: the first-run step hosts the update question of RF2.6), PRD 0028 (RF8.2 and RF8.3: the core install-source detector delivered in 0.77.0 serves a CLI update notice) |
+| Date | 2026-10-19; amended 2026-10-23 (review item UPD-01, owner decision F: RF2.6 "ask before the first check" supersedes the on-by-default part of RF2.1) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
@@ -18,7 +19,8 @@
 | RF1 (mechanism and keys) | 0.74.0, 0.75.0 and 0.75.1 | Delivered — in the app in 0.74.0 (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands), in the pipeline in 0.75.0 (`xtask updater-manifest` renders `latest.json`), and hardened in 0.75.1 (one artifact carries its platform/checksum proof plus its detached updater proof without duplicate signing records). |
 | RF2 (flow in the app) | 0.74.0, 0.75.1 and 0.77.0 | Delivered except the cross-OS acceptance smoke, which needs a signed release (owner). In 0.75.1 cancellation restores the retained update and verified bytes wait for the restart/login gate; in 0.77.0 the desktop consumes the core's typed install-source result without changing its installability, guidance or request policy. |
 | RF3 (Settings and About) | 0.74.0, 0.75.1 and 0.77.0 | Delivered; the four-language UI smoke and zero-request test are automated. In 0.75.1 malformed persisted dates, preference re-enabling, Scoop boundaries and Linux guidance were corrected. In 0.77.0 package-manager ownership/reasons and upgrade commands come from the same core function exposed by the offline CLI, with Cargo and Homebrew Cellar included. |
-| RF4 (operational security) | 0.74.0–0.75.1 | Delivered — HTTPS endpoint and real untrusted-certificate coverage in 0.74.0/0.75.1, artifact URLs restricted to this repository's HTTPS release downloads in 0.75.1, and key custody, leak/loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](updater-security.md)). |
+| RF2.6 (ask before the first check) | — | Proposed (2026-10-23). |
+| RF4 (operational security) | 0.74.0–0.75.1 | Delivered — HTTPS endpoint and real untrusted-certificate coverage in 0.74.0/0.75.1, artifact URLs restricted to this repository's HTTPS release downloads in 0.75.1, and key custody, leak/loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](../updater-security.md)). |
 
 Open or owner-blocked, and not claimed as delivered:
 
@@ -35,7 +37,7 @@ Open or owner-blocked, and not claimed as delivered:
   durable installer/receipt marker to distinguish ownership safely;
 - the **`release` environment protection** (required reviewer, tag-only
   deployment branches) is a repository setting the owner must turn on, as
-  documented in [`docs/updater-security.md`](updater-security.md).
+  documented in [`docs/updater-security.md`](../updater-security.md).
 
 ## 1. Context
 
@@ -74,11 +76,12 @@ In the 2026-10-19 market analysis: CodexBar uses Sparkle and Homebrew for update
 
 ### RF2 — Flow in the app (high priority)
 
-- **RF2.1** Automatic check on opening and then once every 24 hours, only if the user has not turned it off (default: on, with a clear explanation on first run of what is sent). The request carries only the current version, the operating system and the architecture that the endpoint requires, with no user or machine identifier.
+- **RF2.1** *Superseded on 2026-10-23 by RF2.6 for the default ("default: on").* Automatic check on opening and then once every 24 hours, only if the user has not turned it off (default: on, with a clear explanation on first run of what is sent). The request carries only the current version, the operating system and the architecture that the endpoint requires, with no user or machine identifier.
 - **RF2.2** On finding a new version, show a notice in the main window and in the tray menu ("Update 0.18.0 available"), with the release notes (the matching section of `CHANGELOG.md`, PRD 0019 RF7.5) and the **Update now** and **Remind me later** buttons. Nothing downloads or installs without a click.
 - **RF2.3** Installation: download, verify the signature, apply and ask for a restart, showing progress and allowing the download to be cancelled. On failure (network, signature, space, permission), show a localized message, keep the current version intact and offer the manual download link.
 - **RF2.4** Before restarting, save the necessary state (configuration, preferences). The refresh cycle and logins in progress are interrupted cleanly; a native login in progress blocks the update with a notice.
 - **RF2.5** When the app runs from a location that does not allow self-update (a mounted disk image, a read-only folder, an installation managed by a package manager), explain and guide the user instead of failing.
+- **RF2.6** **Ask before the first check (2026-10-23, review item UPD-01, decision F).** No update request is made before the user answers one question: "Check for updates automatically?", in a single dialog that states exactly what a check sends (the current version, the operating system and the architecture) and that nothing downloads or installs without a click. The question lives in the first-run step of PRD 0025 RF6.5 (and, until that step exists, in a one-time dialog on the first launch of the delivering version). **Yes** turns on the RF2.1 schedule; **No** leaves it off (Settings → Updates can change it later); closing without an answer makes no request and asks again on the next launch. Existing profiles that already turned the check off keep it off; profiles that never answered are asked once. A package-managed install (PRD 0021 RF8.1, PRD 0028 RF8.1) is never asked and shows the manager's command. **Acceptance criterion:** a request-counting server sees zero updater requests before the answer, with **No**, after closing the dialog, and on a package-managed install; one check after **Yes**; the dialog in every UI language.
 - **Acceptance criterion:** a smoke test on macOS, Windows and Linux (when there is a package) updating from an old version to the new one, with a simulated network and signature failure; the configuration and accounts persist.
 
 ### RF3 — Settings and About (medium priority)
@@ -133,7 +136,7 @@ Verified in the repository, on every push:
   when shown and immediately before download, and the TLS fixture presents a
   real self-signed certificate that fails as untrusted;
 - `cargo deny` over both manifests, which is why the plugin's `zip` feature is
-  off (see [`docs/updater-security.md`](updater-security.md));
+  off (see [`docs/updater-security.md`](../updater-security.md));
 - the four-language smoke of Settings → Updates and the banner, including the
   distinction between a user-disabled (re-enableable) switch and an external
   policy lock;

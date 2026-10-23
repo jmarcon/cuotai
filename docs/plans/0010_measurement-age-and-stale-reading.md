@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray), `crates/cuotai-tui`, PRDs 0012 and 0014 |
 | Depends on | PRD 0006 (RF3: `latest`) to survive a restart; the rest works without it |
+| Extended by | PRD 0033 (optional `as_of` where the provider dates its data; a restored reading drops metrics whose `resets_at` has passed; metered cadence 3600 s default, 900 s floor) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
@@ -44,9 +45,9 @@ In the 2026-10-19 market analysis: Quotum shows how long ago each account was me
 
 ## 4. Non-goals
 
-- Querying faster because the data is old: the scheduling and the 300 s floor of AWS Bedrock stay.
+- Querying faster because the data is old: the scheduling and the 300 s floor of AWS Bedrock stay. *The Bedrock floor itself becomes 900 s with a 3600 s default in PRD 0033 (owner decision, 2026-10-23); querying faster because data is old stays a non-goal.*
 - Inventing values or borrowing the reading of another account or product.
-- Changing the format of `Report` or the current `--json` (the stale reading enters through the versioned contract of PRD 0012).
+- Changing the format of `Report` or the current `--json` (the stale reading enters through the versioned contract of PRD 0012). *Narrowed by PRD 0033: an optional, additive `as_of` on `Report` where the provider dates its data.*
 
 ## 5. Functional requirements
 

@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop`, `crates/cuotai-tui`, PRD 0012 (contract field) |
 | Depends on | PRD 0005 (`LocalCli`/estimate access label); it uses PRD 0006 |
+| Extended by | PRD 0030 (plan value against the API-price estimate, new local sources, price-table age, models without a price and a `pricing.json` template, the 1-hour cache-write column, the largest `output_tokens` per request, a display-only manual `fx_rate`) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-21)
@@ -38,7 +39,7 @@ Window-based subscriptions (Claude, Codex) do not report how much a session woul
 
 - Compute, locally and optionally, tokens and estimated cost per day, per model and per tool from CLI logs, **without ever reading or storing the content of conversations**.
 - Label the result as an estimate at API prices, separate from the providers' real billing.
-- Work offline, with no credentials and no network (except an optional price-table update).
+- Work offline, with no credentials and no network: prices change only through the embedded table and the user's manual `pricing.json` (owner decision of 2026-10-21; wording corrected on 2026-10-23, review item DOC-02).
 
 ## 4. Non-goals
 
@@ -68,7 +69,7 @@ Window-based subscriptions (Claude, Codex) do not report how much a session woul
 ### RF3 — Prices and computation (high priority)
 
 - **RF3.1** A per-model price table embedded in the binary (USD per million tokens: input, output, cache), with an effective date and a source. A model with no known price appears as "cost unknown", never as zero.
-- **RF3.2** An optional table update through a signed file download, or manual review by the user in `pricing.json` (the user's preference wins over the embedded one). No automatic update by default.
+- **RF3.2** The user's manual `pricing.json` overrides the embedded table model by model; there is no download of any table, signed or not (owner decision of 2026-10-21, as delivered in 0.58.0; wording corrected on 2026-10-23, review item DOC-02).
 - **RF3.3** The computation is `cost::estimate(usage, prices) -> Estimate` in the core, a pure function. The result carries the total, the cost per model, tokens, the share with an unknown price and the date of the table used.
 - **RF3.4** The text always says "estimate at API prices, not a charge". Values never sum different currencies; everything is in USD.
 - **Acceptance criterion:** table tests with known tokens and prices, an unknown model, cache, rounding and the user's table overriding the embedded one.

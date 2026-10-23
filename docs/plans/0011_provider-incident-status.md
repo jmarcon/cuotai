@@ -7,6 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, tray), `crates/cuotai-tui`, PRDs 0012 and 0013 |
 | Depends on | PRD 0005 (RF1) to tell "provider incident" from "interface changed"; not required |
+| Extended by | PRD 0028 (RF4.5: the local canary checks that fixed status components still exist), PRD 0031 (`incident.state` per account and the worst case in `/v1/limits`), PRD 0033 (stale status readings ignored for the tray dot and expired to `unknown` after about 30 minutes), PRD 0037 and PRD 0038 (one more incident source each) |
 | Date | 2026-10-19 |
 
 ## Implementation status
@@ -105,6 +106,14 @@ CodexBar polls the providers' status pages and shows incident badges in the menu
 - **Robustness:** the `Unknown` state is the right answer to any doubt; "operational" is never asserted without a valid reading.
 - **Cost:** light, cached requests with no credential; no effect on quota scheduling.
 - **Rights:** respect the pages' terms of use and `robots`/rate limits; no HTML scraping.
+
+### Fix requirements (2026-10-21 review)
+
+Added on 2026-10-23 (owner decision J): defects found by the 2026-10-21 requirements review in this delivered plan, in an area no new PRD covers. They are non-functional requirements of this plan, delivered as `fix` commits.
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| FIX-G1 | `gemini_api` status scope (open item, owner accepted on 2026-10-23): the Google Cloud status source for `gemini_api` may assert "operational" from a product-wide Cloud Monitoring component that does not cover the Gemini API. Its scope maps to `None` (no source) or, if a source stays, its state is limited to `unknown`, never `operational`; `docs/providers.md` records the reason. | The per-provider source table test expects `None` (or an `unknown`-only scope) for `gemini_api`; no fixture yields "operational" for it. |
 
 ## 7. Order of execution and verification
 

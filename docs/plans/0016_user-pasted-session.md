@@ -3,10 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | 0016 |
-| Status | In progress |
+| Status | Awaiting owner verification (every RF delivered; only the owner smoke listed in `0000_control.md` §2.1 remains; status introduced on 2026-10-23) |
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui` (`wizard.rs`), `apps/desktop` (`account-dialog.js`) |
 | Depends on | PRD 0005 (RF1: the `UserSession` level) |
+| Extended by | PRD 0029 (removing an account or switching its provider deletes its vault session with rollback, review item FIX-06) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
@@ -95,6 +96,15 @@ In the 2026-10-19 market analysis, CodexBar covers dozens of providers by cookie
 - **Security:** a session is a high-value secret. Never in the TOML, snapshots, events, logs, exports (PRD 0012), hooks (PRD 0013) or error messages; zero the buffer when possible; no telemetry.
 - **Privacy and terms:** use depends on the provider's terms. The documentation says so and the access level exposes the risk.
 - **Compatibility:** existing accounts and TOML do not change without consent.
+
+### Fix requirements (2026-10-21 review)
+
+Added on 2026-10-23 (owner decision J): defects found by the 2026-10-21 requirements review in this delivered plan, in an area no new PRD covers. They are non-functional requirements of this plan, delivered as `fix` commits.
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| FIX-S1 | "Paste a new session" (open item, owner accepted on 2026-10-23): a card or details whose session was rejected (`session expired or revoked`) offers a direct **Paste a new session** action that opens the RF2/RF3 paste step for that account, in the TUI and the desktop, instead of only the editor. | TUI and desktop tests: a rejected session shows the action; it opens the paste step on that account; a successful paste replaces the vault entry in place. |
+| FIX-S2 | Mandatory test before save (open item, owner accepted on 2026-10-23): a pasted session is saved only after the RF3 test query succeeds (or the user explicitly chooses "Save anyway" after a transport failure, never after a rejection); Cuotai never stores the whole cookie jar — only the descriptor's cookies — for every provider, Alibaba included, until the owner's live check confirms the reduced set (RF5). | Tests: a rejected test blocks the save; a transport failure offers "Save anyway"; a cookie outside the descriptor never reaches the vault. |
 
 ## 7. Order of execution and verification
 

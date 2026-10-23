@@ -8,7 +8,8 @@
 | Consumers | `apps/desktop/ui` (new `settings.html`), `apps/desktop/src-tauri` (window, menu, capabilities) |
 | Depends on | none |
 | Benefits from | PRD 0018 (an Updates page), PRD 0019 RF7.7 (What's new in About) |
-| Date | 2026-10-21 |
+| Extended by | PRD 0025 (Menu bar page, Advanced group, display mode, first-run defaults), PRD 0022 (UI refresh visuals) |
+| Date | 2026-10-21; amended 2026-10-23 (review item SET-01: preferences move to `desktop.json`; RF2.1 superseded by `docs/design-system.md` DS-CMP-SEG-5) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 
@@ -51,7 +52,7 @@ The desktop already has what a better design needs: 14 themes with a token contr
 
 ## 4. Non-goals
 
-- New settings, new preferences or any change to `desktop.json`, the TOML or core contracts. This is a redesign of presentation and navigation.
+- New settings, new preferences or any change to `desktop.json`, the TOML or core contracts. This is a redesign of presentation and navigation. *Superseded by PRD 0025 for the preferences listed in its §7, and by RF7.2 (2026-10-23, review item SET-01) for moving the `localStorage` preferences into `desktop.json`.*
 - A TUI settings screen.
 - A theme editor or an import/export of preferences.
 - Platform-specific forks of the interface: one layout serves macOS, Windows and Linux (see the owner decision in section 8).
@@ -70,7 +71,7 @@ The desktop already has what a better design needs: 14 themes with a token contr
 
 ### RF2 — Navigation and information architecture (high priority)
 
-- **RF2.1** A left **sidebar** of seven pages, in this order, with an icon and a one- or two-word label each, and **About** separated at the bottom:
+- **RF2.1** *Superseded on 2026-10-23 by `docs/design-system.md` DS-CMP-SEG-5 (see RF2.5); the table below is kept as the original plan.* A left **sidebar** of seven pages, in this order, with an icon and a one- or two-word label each, and **About** separated at the bottom:
 
   | Page | Holds (today's section) |
   |---|---|
@@ -82,10 +83,26 @@ The desktop already has what a better design needs: 14 themes with a token contr
   | Files | Accounts file and the themes-and-languages folder |
   | About | Version, license, open-source libraries and, when present, What's new and Updates |
 
+- **RF2.5** **Sidebar per DS-CMP-SEG-5 (2026-10-23).** Order: **General**, **Dashboard**, **Menu bar**, **Alerts**, **Data & privacy**, a collapsible **Advanced** group (**Integrations**, **Local cost**, **Extensions**, **Files**), then **About** separated at the bottom. Each entry is icon + one- or two-word label; the Advanced group is a disclosure whose open state is remembered, and its pages are reachable by search while it is collapsed.
+
+  | Page | Holds (today's section) |
+  |---|---|
+  | General | Appearance (theme, light/dark mode, animations), Language and "Show the recommended setup again" (PRD 0025 RF6.4) |
+  | Dashboard | Accounts (list, add, edit, remove, order), group "Recharging", consumption pace and its unit (PRD 0024 RF1.3), display mode (PRD 0025 RF9) and the Refresh interval |
+  | Menu bar | PRD 0025 RF4 (style, colored variant, accounts and order, live preview) |
+  | Alerts | Quota-reset notices, usage alerts, predictive warnings (PRD 0024), extra usage (PRD 0023), with the test notice |
+  | Data & privacy | History, the provider status pages and local-tool detection (PRD 0027 RF6.5) |
+  | Advanced › Integrations | Local server (address, port, token, browsers) and Hooks |
+  | Advanced › Local cost | Local cost sources, directories, prices and retention |
+  | Advanced › Extensions | Extension list, consent and secrets (PRDs 0017 and 0028 RF7) |
+  | Advanced › Files | Accounts file and the themes-and-languages folder |
+  | About | Version, license, open-source libraries, What's new and Updates (PRD 0018) |
+
+  The parity checklist of RF10.2 maps to this table; where this plan says "seven pages" it now means the DS-CMP-SEG-5 list.
 - **RF2.2** Each page opens with its title and **groups** of rows (a small-caps group label over one rounded card). A page holds at most 8 rows before the extra rows go into a disclosure (RF5.2). The selected page is marked by an accent bar and a heavier label, and it is remembered between openings.
 - **RF2.3** Deep content (the hook rule editor, the price table, the directory pickers of the cost sources) opens as a **second level inside the window** (a sub-page with a back button, or a sheet), never as another popup stacked over the window.
 - **RF2.4** The page list lives in one registry (page id, icon, label key, order). Adding a page is one registry entry plus its module; no page is a hard-coded block of the shell.
-- **Acceptance criterion:** all 12 sections of the current dialog map to a page in the table above (parity checklist in RF10); every page is reachable from the sidebar with the keyboard; the last page is restored.
+- **Acceptance criterion:** all 12 sections of the current dialog map to a page in the RF2.5 table (parity checklist in RF10); every page is reachable from the sidebar with the keyboard; the last page is restored.
 
 ### RF3 — Row anatomy and shared components (high priority)
 
@@ -121,9 +138,9 @@ The desktop already has what a better design needs: 14 themes with a token contr
 ### RF7 — Live sync with the other windows (high priority)
 
 - **RF7.1** A change made in the settings window reaches the main and tray windows **immediately**, without a restart: theme and mode, language, animations, account order, grouping, pace display, refresh interval and the rest. The shell broadcasts one event (`settings-changed`, with the key that changed) and each window re-reads what it needs.
-- **RF7.2** Preferences that today live in `localStorage` of the main window (theme, mode, language, animations, order, grouping) are shared across windows through the existing storage events or the same event channel, so a window never shows a stale choice.
+- **RF7.2** *Amended on 2026-10-23 (review item SET-01).* Preferences that today live in `localStorage` of the main window (theme, mode, language, animations, account order, grouping) move to `desktop.json`, which becomes their **single source**: every window reads them from the shell and writes them through one command, and the RF7.1 `settings-changed` event carries the change, so no storage-event synchronization is needed. On the first launch of the delivering version, a **one-time migration** copies each value found in `localStorage` into `desktop.json` when the file has no value for that key, records `migrations.local_storage = 1`, and then clears the migrated `localStorage` keys; a value already in `desktop.json` wins. Unknown or invalid values are dropped with the default kept.
 - **RF7.3** Opening settings does not reload or re-render the main window, and closing it leaves the main window's scroll, focus and filter untouched.
-- **Acceptance criterion:** with both windows open, switching theme, language, order and the refresh interval in settings changes the main window and the tray popover at once; a manual check confirms that the dashboard scroll position survives.
+- **Acceptance criterion:** with both windows open, switching theme, language, order and the refresh interval in settings changes the main window and the tray popover at once; a manual check confirms that the dashboard scroll position survives; migration tests: `localStorage` values reach `desktop.json` once, an existing `desktop.json` value wins, a second launch migrates nothing, invalid values fall back to defaults.
 
 ### RF8 — Accessibility, keyboard and size (high priority)
 
@@ -145,7 +162,7 @@ The desktop already has what a better design needs: 14 themes with a token contr
 
 - **RF10.1** The old settings dialog is **removed** when the window ships (no second copy to maintain). The `open-settings` event and the dialog code are deleted, and the entry points of RF1.3 are repointed.
 - **RF10.2** A **parity checklist** lists every control of the current dialog (every button, switch, field and selector across the 12 sections) with its new page, row and component. A smoke test walks the checklist and fails when a control is missing or unreachable. Safety behaviors move unchanged: the cost-source consent, the server browser-access confirmation, the hooks consent, the history erase confirmation and the status-page disclosure.
-- **RF10.3** Existing preferences keep their keys and values; nothing is migrated. Rolling back the version leaves preferences intact.
+- **RF10.3** Existing `desktop.json` preferences keep their keys and values. *Amended on 2026-10-23:* the RF7.2 `localStorage` preferences are migrated once into `desktop.json`; rolling back to a version before the migration finds the cleared `localStorage` and falls back to defaults for those six choices (documented in the changelog), while every `desktop.json` preference stays intact.
 - **RF10.4** The page modules are split by page (`ui/js/settings/<page>.js`, each under about 300 lines) with the shared row/components in one module, replacing the 843-line file. Business rules stay in the core and the shell commands; the page modules only present and call them.
 - **Acceptance criterion:** the parity test passes with 100% of controls mapped; `node --check` passes on every module; the old `settings.js` dialog and its CSS are gone; the existing shell and core tests still pass.
 
@@ -166,7 +183,7 @@ The desktop already has what a better design needs: 14 themes with a token contr
 
 1. **RF1 and RF7:** the window, the entry points, the page and anchor parameters and the cross-window sync, with the shell and the old pages' content hosted as they are. Nothing is lost at this point.
 2. **RF3 and RF4:** the row and component set, the apply-at-once rules and the in-row feedback.
-3. **RF2 and RF5:** the sidebar, the seven pages moved one at a time (General and Dashboard first, then Notifications, Data & privacy, Integrations, Files, About), each rewritten to the copy budget.
+3. **RF2 and RF5:** the sidebar, the RF2.5 pages moved one at a time (General and Dashboard first, then Alerts, Data & privacy, the Advanced pages and About), each rewritten to the copy budget.
 4. **RF6, RF8 and RF9:** search, accessibility and the visual pass over the reference themes.
 5. **RF10 and RF11:** parity test, removal of the old dialog, the guide.
 
@@ -187,4 +204,4 @@ The requirement is only delivered when every setting of today is reachable from 
 
 ![Proposed settings window: sidebar of pages, rows with one-line descriptions, changes saved as you make them](assets/0020_settings-proposed.png)
 
-*Two of the seven pages (Dashboard and Notifications) and the map from today's 12 sections to the new pages. Rendered with the app's own Dracula tokens; it is a design reference, not an implementation.*
+*Two of the original seven pages (Dashboard and Notifications; the sidebar is now DS-CMP-SEG-5, RF2.5) and the map from today's 12 sections to the new pages. Rendered with the app's own Dracula tokens; it is a design reference, not an implementation.*

@@ -58,6 +58,7 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 - **Honest errors:** classify missing configuration, authentication, rate limits, network failures and incompatible schemas. Never expose a response body, an authenticated URL or a token. A missing value is never turned into zero.
 - **Business rules live in the core:** `cuotai-core` decides validation, forms, refresh scheduling, queries and persistence. The TUI and the desktop app only present. Structured core texts use `Localized` and must exist in the `en-US`, `es` and `it` catalogs.
 - **Undocumented interfaces:** state the limitation in `docs/providers.md` and prefer failing clearly over guessing.
+- **Desktop UI follows the design system:** changes to `apps/desktop/ui` use the components, tokens, chart types, wording and motion rules of [`docs/design-system.md`](docs/design-system.md) and pass its PR checklist.
 
 ## Tests and fixtures
 

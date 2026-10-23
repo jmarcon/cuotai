@@ -3,10 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | 0008 |
-| Status | In progress |
+| Status | Awaiting owner verification (every RF delivered; only the owner smoke listed in `0000_control.md` §2.1 remains; status introduced on 2026-10-23) |
 | Owner | `cuotai-core`, desktop (TUI optional) |
 | Consumers | `apps/desktop`, `crates/cuotai-tui`, PRD 0013 (events) |
 | Depends on | PRD 0003 (RF2 and RF3: `Notifier` deliverer, permission, `notified.json` and preferences); PRD 0006 is optional |
+| Extended by | PRD 0023 (overage alert), PRD 0024 (pace-based projected-exhaustion alert), PRD 0029 (alert marks keyed by stable account id), PRD 0032 (one core-owned alert-preferences source; per-window thresholds later; a drop of 20 points or more counts as recovery when there is no `resets_at`; a crossing that happened while the app was closed is marked on the card without a notification; quiet hours and digest), PRD 0036 (pool alert for aggregator sub-accounts) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-20)
@@ -42,9 +43,9 @@ People working with 5-hour and weekly windows find out the quota ran out when th
 
 ## 4. Non-goals
 
-- The reset notice (PRD 0003) and a pace-based notice (PRD 0007), which may become a future option.
+- The reset notice (PRD 0003) and a pace-based notice (PRD 0007), which may become a future option. *The pace-based notice is superseded by PRD 0024 RF2.*
 - E-mail, remote push, webhooks (PRD 0013) and notices with the app closed.
-- Alerting about balance, accumulated spend or short rate limits.
+- Alerting about balance, accumulated spend or short rate limits. *For paid overage only, superseded by PRD 0023 RF4 (one "extra usage started" notice per billing cycle).*
 - A "do not disturb" schedule mode in this version.
 
 ## 5. Functional requirements
