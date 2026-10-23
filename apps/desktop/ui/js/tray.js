@@ -19,10 +19,6 @@ const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
 let selected = null;
-// PRD 0018 RF2.2: o popover da bandeja mostra a mesma linha do menu ("Atualizar X
-// disponível") e o clique abre a janela principal, onde o aviso tem notas e botões.
-await initUpdates();
-onUpdateState(() => render());
 let models = null; // seção de modelos da conta aberta no popover; sobrevive aos redesenhos
 
 function row(r) {
@@ -211,5 +207,9 @@ initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();
+// PRD 0018 RF2.2: the tray popover shows the same update line as the native
+// menu; subscribe only after every render dependency has been initialized.
+await initUpdates();
+onUpdateState(() => render());
 
 if (window.__TAURI__) window.__TAURI__.event.listen("user-content-changed", () => location.reload());
