@@ -527,6 +527,34 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
     {
         return err("release prerequisite gate must cover tag pushes and explicit full rehearsals");
     }
+    let prerequisite_step = steps(prerequisites)?
+        .into_iter()
+        .find(|step| scalar(step, "name") == Some("Validate required release credentials"))
+        .ok_or_else(|| Error::Msg("release prerequisite validation step is missing".into()))?;
+    let prerequisite_env = mapping(
+        need(
+            prerequisite_step,
+            "env",
+            "release prerequisite validation step",
+        )?,
+        "release prerequisite validation environment",
+    )?;
+    for (name, expected) in [
+        (
+            "HAS_TAURI_SIGNING_PRIVATE_KEY",
+            "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
+        ),
+        (
+            "HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+            "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}",
+        ),
+    ] {
+        if scalar(prerequisite_env, name) != Some(expected) {
+            return err(
+                "release prerequisite secrets must be inspected only during pushed tag runs",
+            );
+        }
+    }
 
     for job_name in RELEASE_HEAVY_JOBS {
         let job = mapping(
@@ -656,10 +684,26 @@ fn collect_secret_references_in_text(text: &str, references: &mut BTreeSet<Strin
     let bytes = text.as_bytes();
     let mut search_from = 0;
     while let Some(offset) = text[search_from..].find("secrets") {
-        let mut index = search_from + offset + "secrets".len();
+        let secret_start = search_from + offset;
+        let identifier_end = secret_start + "secrets".len();
+        let is_identifier_byte = |byte: &u8| byte.is_ascii_alphanumeric() || *byte == b'_';
+        if bytes
+            .get(secret_start.wrapping_sub(1))
+            .is_some_and(is_identifier_byte)
+            || bytes.get(identifier_end).is_some_and(is_identifier_byte)
+        {
+            search_from = identifier_end;
+            continue;
+        }
+
+        let mut index = identifier_end;
         while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
             index += 1;
         }
+        let inside_expression = text[..secret_start]
+            .rfind("${{")
+            .is_some_and(|open| !text[open + 3..secret_start].contains("}}"))
+            && text[index..].contains("}}");
 
         let name = match bytes.get(index) {
             Some(b'.') => {
@@ -713,6 +757,7 @@ fn collect_secret_references_in_text(text: &str, references: &mut BTreeSet<Strin
                 }
                 Some(&text[start..end])
             }
+            _ if inside_expression => Some("<dynamic-secret-reference>"),
             _ => None,
         };
         if let Some(name) = name {
@@ -878,6 +923,16 @@ mod tests {
     }
 
     #[test]
+    fn accepts_owned_named_secret_syntaxes() {
+        let bracketed_workflow = RELEASE_WORKFLOW.replacen(
+            "${{ secrets.HOMEBREW_TAP_TOKEN }}",
+            "${{ secrets['HOMEBREW_TAP_TOKEN'] }}",
+            1,
+        );
+        assert!(check_text(Path::new("release.yml"), &bracketed_workflow).is_ok());
+    }
+
+    #[test]
     fn rejects_dynamic_secret_reference() {
         let unsafe_workflow = fixture("valid").replacen(
             "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n",
@@ -885,6 +940,25 @@ mod tests {
             1,
         );
         assert!(check_text(Path::new("fixture.yml"), &unsafe_workflow).is_err());
+    }
+    #[test]
+    fn rejects_bare_secret_context() {
+        let unsafe_workflow = fixture("valid").replacen(
+            "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n",
+            "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n        env:\n          TOKENS: ${{ toJSON(secrets) }}\n",
+            1,
+        );
+        assert!(check_text(Path::new("fixture.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_unguarded_prerequisite_secret_lookup() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
+            "${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
+            1,
+        );
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
     }
 
     #[test]

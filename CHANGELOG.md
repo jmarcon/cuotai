@@ -13,6 +13,16 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.75.3] - 2026-10-23
+
+### Fixed
+
+- Secretless release rehearsals no longer evaluate production updater credentials, and the workflow policy now rejects whole-secret-context expressions while continuing to permit owned named secrets (PRD 0021 RF9.2, RF9.5).
+
+### Security
+
+- Updated `ctutils` to 0.4.4 in both lockfiles to fix timing side-channel advisory RUSTSEC-2026-0385.
+
 ## [0.75.2] - 2026-10-22
 
 ### Changed
@@ -645,7 +655,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.2...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.3...HEAD
+[0.75.3]: https://github.com/jmarcon/cuotai/compare/v0.75.2...v0.75.3
 [0.75.2]: https://github.com/jmarcon/cuotai/compare/v0.75.1...v0.75.2
 [0.75.1]: https://github.com/jmarcon/cuotai/compare/v0.75.0...v0.75.1
 [0.75.0]: https://github.com/jmarcon/cuotai/compare/v0.74.0...v0.75.0
