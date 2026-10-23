@@ -1,32 +1,40 @@
-# Continuous integration (PRD 0019, RF2). Runs on every push and pull request
-# on Linux, macOS and Windows. Uses no secrets: `pull_request` (never
-# `pull_request_target`) gives fork pull requests a read-only token and no
-# repository secrets. Actions are pinned by commit hash (tag in the comment).
+# Continuous integration (PRD 0019 RF2, PRD 0039 RF8) on Linux, macOS and
+# Windows. It runs on pull requests (the quality gate before main), on pushes
+# to main (post-merge verification, cache warming, and the commit gate for a
+# push that bypassed the ruleset), on manual dispatch (any ref) and on merge
+# queue groups. A push to any other branch starts nothing: open a (draft) pull
+# request or dispatch the workflow. Tags start no CI run; release.yml owns them.
+# Uses no secrets: `pull_request` (never `pull_request_target`) gives fork pull
+# requests a read-only token and no repository secrets. Actions are pinned by
+# commit hash (tag in the comment).
 #
 # Documentation-only changes skip the build and test work: the `changes` job
 # classifies the diff of the push or pull request and every heavy job runs only
 # when it touched something that is not documentation. `changelog-check` (and
 # the privacy guard) always run, and `ci-result` is the single check to require
 # in branch protection: it passes when the jobs that ran passed or were skipped.
-# `[skip ci]` in a commit message is GitHub's own manual opt-out (AGENTS.md).
+# GitHub's skip marker in a commit message is its own manual opt-out; the
+# commit gate rejects it in trailers (AGENTS.md).
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  merge_group:
 
 permissions:
   contents: read
 
-# A push is classified by its own before..after diff, so a later documentation
-# push must never cancel (or replace as "pending") the run of an earlier code
-# push on main or a tag: that code would then be tested by nobody. Those runs
-# are keyed by commit and never cancelled. Pull requests and other branches
-# are classified against the whole change (base...head, or the default
-# branch), so superseding an older run there is safe.
+# A push to main is classified by its own before..after diff, so a later
+# documentation push must never cancel (or replace as "pending") the run of an
+# earlier code push: that code would then be tested by nobody. Those runs are
+# keyed by commit and never cancelled. Pull requests are classified against
+# the whole change (base...head), so superseding an older run there is safe.
 concurrency:
-  group: ci-${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -35,8 +43,12 @@ env:
 jobs:
   # Documentation-only detection. The heavy jobs below run only when
   # `code == true`. Anything that is not clearly documentation counts as code,
-  # and so does every case where the diff cannot be computed (a tag, a force
-  # push whose previous tip is gone, an empty diff such as `--allow-empty`).
+  # and so does every case where the diff cannot be computed (a dispatch, a
+  # merge group, a force push whose previous tip is gone, an empty diff such
+  # as `--allow-empty`). `release_tooling` (PRD 0039 RF8.2) is true when the
+  # change touches what the release flow runs (xtask, workflows, release
+  # scripts, packaging templates, the Tauri configs, deny.toml) and starts the
+  # `release-preflight` job; it is also true whenever the diff is undecidable.
   # Documentation is an allow-list of paths that no build, test or shipped
   # artifact reads:
   #   - README.md, CONTRIBUTING.md, SECURITY.md, AGENTS.md, apps/desktop/README.md
@@ -57,6 +69,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.classify.outputs.code }}
+      release_tooling: ${{ steps.classify.outputs.release_tooling }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -85,9 +98,7 @@ jobs:
               range="$BASE_SHA...$HEAD_SHA"
               ;;
             push)
-              if [[ "$REF" == refs/tags/* ]]; then
-                why="tag push"
-              elif [ "$BEFORE" = "$zero" ]; then
+              if [ "$BEFORE" = "$zero" ]; then
                 # New branch: compare with the default branch.
                 if git rev-parse --verify --quiet "refs/remotes/origin/$DEFAULT_BRANCH^{commit}" >/dev/null; then
                   range="origin/$DEFAULT_BRANCH...$AFTER"
@@ -106,6 +117,7 @@ jobs:
           esac
 
           code=true
+          tooling=true
           if [ -n "$range" ]; then
             list="$(mktemp)"
             # --no-renames lists both sides of a move, so a file moved out of
@@ -113,6 +125,7 @@ jobs:
             if git diff -z --name-only --no-renames "$range" > "$list"; then
               total=0
               code_files=0
+              tooling_files=0
               while IFS= read -r -d '' file; do
                 total=$((total + 1))
                 case "$file" in
@@ -121,9 +134,16 @@ jobs:
                   docs/*.md | docs/assets/* | .github/ISSUE_TEMPLATE/* | .github/*.md) kind=docs ;;
                   *) kind=code ;;
                 esac
+                case "$file" in
+                  xtask/* | .github/workflows/* | scripts/release/* | packaging/* | deny.toml | apps/desktop/src-tauri/tauri*.json)
+                    tooling_files=$((tooling_files + 1)) ;;
+                esac
                 echo "$kind  $file"
                 if [ "$kind" = code ]; then code_files=$((code_files + 1)); fi
               done < "$list"
+              if [ "$total" -gt 0 ] && [ "$tooling_files" -eq 0 ]; then
+                tooling=false
+              fi
               if [ "$total" -eq 0 ]; then
                 why="empty diff for $range"
               elif [ "$code_files" -eq 0 ]; then
@@ -138,11 +158,13 @@ jobs:
           fi
 
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "code=$code ($why)"
+          echo "release_tooling=$tooling" >> "$GITHUB_OUTPUT"
+          echo "code=$code release_tooling=$tooling ($why)"
           {
             echo "### Change classification"
             echo
             echo "- code: \`$code\`"
+            echo "- release tooling: \`$tooling\`"
             echo "- reason: $why"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -245,8 +267,12 @@ jobs:
             apps/desktop/src-tauri -> target
           # Only main writes the cache: pull requests reuse it without poisoning it.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo fmt --all -- --check
-      - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+      # Formatting is OS-independent: check it once (RF8.5). Clippy stays on
+      # all three systems because of cfg-gated code.
+      - if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+      - if: runner.os == 'Linux'
+        run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
@@ -309,13 +335,15 @@ jobs:
       - run: cargo run -p xtask --locked -- release-check
       - run: cargo run -p xtask --locked -- workflow-check
 
-  # Changelog format, PRD references and plan links (PRD 0019 RF7.4 and
-  # RF7.8). The pull request also passes through the feat/fix changelog
-  # gate, which needs the whole history to read the commits of the PR.
-  # This is the light job that always runs, documentation-only changes
-  # included: plan links live in docs/plans, and the privacy guard (no
-  # personal e-mail in tracked files) is part of `cargo test`, which the
-  # skipped matrix would otherwise have run.
+  # Changelog format, PRD references, plan links and footer links (PRD 0019
+  # RF7.4/RF7.8, PRD 0039 RF9.5), plus the commit gate (PRD 0039 RF2) over
+  # the pull request (base..head) or the push to main (before..after, falling
+  # back to the merge base with main after a force push), which needs the
+  # whole history. This is the light job that always runs, documentation-only
+  # changes included: plan links live in docs/plans, and the privacy guard
+  # (no personal e-mail in tracked files) is part of `cargo test`, which the
+  # skipped matrix would otherwise have run. On main it also writes the next
+  # version and its would-be section to the job summary (RF8.4).
   changelog-check:
     needs: changes
     runs-on: ubuntu-latest
@@ -335,17 +363,85 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo run -p xtask --locked -- changelog-check
-      - name: changelog gate (feat/fix without the changelog)
-        if: github.event_name == 'pull_request'
-        run: >
-          cargo run -p xtask --locked -- changelog-gate
-          --base ${{ github.event.pull_request.base.sha }}
-          --head ${{ github.event.pull_request.head.sha }}
+      - name: commit gate (PRD 0039 RF2)
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then
+            base="$BASE_SHA"
+            head="$HEAD_SHA"
+          else
+            head="$AFTER"
+            if [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              base="$BEFORE"
+            else
+              base="$(git merge-base origin/main "$AFTER")"
+            fi
+          fi
+          cargo run -p xtask --locked -- changelog-gate --base "$base" --head "$head"
+      - name: next release (job summary)
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "### Unreleased on main"
+            echo
+            echo '```markdown'
+            cargo run -q -p xtask --locked -- changelog-draft
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       # The test matrix runs this too; it only needs its own step when the
       # matrix is skipped.
       - name: privacy guard (documentation-only changes)
         if: needs.changes.outputs.code != 'true'
         run: cargo test -p xtask --locked --test privacy
+
+  # Release preflight (PRD 0039 RF8.3): read-only, no secrets. Runs when the
+  # change touches release tooling and on every release PR (head branch
+  # release/v*), where it also proves the release commit with
+  # `release prepare --check`. The full artifact rehearsal stays manual
+  # (Actions -> Release -> Run workflow with full_rehearsal).
+  release-preflight:
+    needs: changes
+    if: needs.changes.outputs.release_tooling == 'true' || startsWith(github.head_ref, 'release/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the release base and the commits since it
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo build -p xtask --locked
+      - run: ./target/debug/xtask workflow-check
+      - run: ./target/debug/xtask release-check
+      - name: release prepare --dry-run (scratch clone)
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/release-scratch"
+          git clone --quiet --no-local . "$scratch"
+          ./target/debug/xtask release prepare --dry-run --repo "$scratch"
+      - name: release prepare --check (release PR)
+        if: startsWith(github.head_ref, 'release/v')
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: ./target/debug/xtask release prepare --check --rev "$HEAD_SHA"
+      - run: bash scripts/release/test-collect-linux.sh
+      - run: cargo test -p xtask --locked --test packages
 
   # The one check to require in branch protection. Skipped jobs count as
   # success for required checks, but a skipped *matrix* job reports under its
@@ -355,7 +451,7 @@ jobs:
   # cancelled; "skipped" is accepted only because `changes` itself succeeded.
   ci-result:
     name: CI result
-    needs: [changes, test, deny, version-check, changelog-check]
+    needs: [changes, test, deny, version-check, changelog-check, release-preflight]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
