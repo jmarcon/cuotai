@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0001 |
-| Status | Implemented (0.7.x) |
+| Status | Implemented (0.7.x; FIX-08 in vNEXT) |
 | Owner | Backend (`cuotai-core`) |
 | Consumers | `apps/desktop` (Tauri), `cuotai-tui` |
 | Extended by | PRD 0029 (stable account `id` in the TOML and the account operations), PRD 0034 (English core fallback of `Localized`) |
@@ -11,9 +11,9 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. The acronym is kept so that references in the code, commits and other plans stay stable.
 
-## Implementation status (2026-10-17)
+## Implementation status (2026-10-23)
 
-All RFs were implemented in the core, the TUI and the desktop app, one at a time, with validation (`cargo fmt`, `clippy -D warnings`, workspace and desktop tests, TUI and desktop UI smoke tests) before each version.
+All RFs were implemented in the core, the TUI and the desktop app, one at a time, with validation (`cargo fmt`, `clippy -D warnings`, workspace and desktop tests, TUI and desktop UI smoke tests) before each version. FIX-08 was delivered as the core-only correction listed below.
 
 | RF | Version | Delivery |
 |---|---|---|
@@ -28,6 +28,7 @@ All RFs were implemented in the core, the TUI and the desktop app, one at a time
 | RF9 | 0.5.1 | Shared order without a spurious `params = {}` in the TOML. |
 | RF10 | 0.6.0 | `Metric.kind` and `Metric.window` filled in by the adapters; text-based recognition is gone. |
 | RF11 | 0.7.0 | Applicability per option and authentication type, replacement with a warning and validation in `build_account`. |
+| FIX-08 | vNEXT | Metered refresh floors are validated per account: an account override is independent of the global interval, and a rejection identifies the field and account through a localized error. |
 
 Section 2 and the "Technical assessment" describe the situation of 2026-10-01, before the implementation.
 
