@@ -330,13 +330,18 @@ fn matching<'a>(changelog: &'a Changelog, wanted: &str) -> Selection<'a> {
     }
 }
 
-/// Whether the minor series `"X.Y."` has a version in `first..=last`.
+/// Whether the minor series `"X.Y."` has a version in `first..=last`. Only
+/// exactly `"X.Y."` is a series: `"0.79.1."` (from `0.79.1.x`) is not.
 fn series_overlaps(series: &str, first: &str, last: &str) -> bool {
     let minor = |text: &str| -> Option<(u64, u64)> {
         let mut parts = text.split('.');
         Some((parts.next()?.parse().ok()?, parts.next()?.parse().ok()?))
     };
-    match (minor(series), minor(first), minor(last)) {
+    let exact_series = series.strip_suffix('.').and_then(|prefix| {
+        let (major, minor) = prefix.split_once('.')?;
+        Some((major.parse().ok()?, minor.parse().ok()?))
+    });
+    match (exact_series, minor(first), minor(last)) {
         (Some(wanted), Some(first), Some(last)) => first <= wanted && wanted <= last,
         _ => false,
     }
@@ -556,7 +561,18 @@ mod tests {
             }
         }
         // Outside every range.
-        for wanted in ["9.9.9", "0.79.1", "0.82.x", "1.0", "x"] {
+        // Extra components are not a minor series, even inside the range.
+        for wanted in [
+            "9.9.9",
+            "0.79.1",
+            "0.82.x",
+            "1.0",
+            "x",
+            "0.79.1.x",
+            "0.79.1.",
+            "0.5.garbage.x",
+            "0.5.0.x",
+        ] {
             assert!(matching(&changelog, wanted).is_empty(), "{wanted}");
         }
         // The text names the history and explains why.
