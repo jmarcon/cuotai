@@ -659,3 +659,80 @@ fn tag_creates_annotated_rc_and_stable_tags_once() {
         .to_string();
     assert!(error.contains("already tagged"), "{error}");
 }
+
+/// The first release after the internal versions were folded into the
+/// pre-release history: the base is still the internal 0.79.0 baseline, the
+/// new section lands between `[Unreleased]` and the history, and the
+/// rendered file passes every check (golden of the dry run).
+#[test]
+fn the_first_release_goes_above_the_pre_release_history() {
+    let (_d, repo) = repo();
+    commit(
+        &repo,
+        "docs(changelog): consolidate internal versions\n\nChangelog-Edit: owner decision",
+        "CHANGELOG.md",
+        PRE_RELEASE_CHANGELOG,
+    );
+    let (feat, fix) = feature_and_fix(&repo);
+    let (f, x) = (short(&repo, &feat), short(&repo, &fix));
+    // The internal baseline: the commit that set 0.79.0 (the fixture root).
+    let root = git(&repo, &["rev-list", "--max-parents=0", "HEAD"]);
+    let base = short(&repo, root.trim());
+
+    let outcome = prepare::run(&repo, &options(true, false)).unwrap().unwrap();
+    assert_eq!(outcome.version.to_string(), "0.80.0");
+    let change = outcome
+        .changes
+        .iter()
+        .find(|c| c.path == "CHANGELOG.md")
+        .expect("the changelog changes");
+    assert_eq!(change.old, PRE_RELEASE_CHANGELOG);
+    let expected = format!(
+        "\
+# Changelog
+
+Preface.
+
+## [Unreleased]
+
+## [0.80.0] - {DATE}
+
+### Added
+
+- You can sort accounts by name (PRD 0001 RF2; {f}).
+
+### Fixed
+
+- The order survives a restart ({x}).
+
+## Pre-release history (0.1.0–0.79.0, internal builds, never published)
+
+A summary of the internal builds.
+
+### Added
+
+- Base (PRD 0001 RF1).
+
+[Unreleased]: https://github.com/o/r/compare/v0.80.0...HEAD
+[0.80.0]: https://github.com/o/r/compare/{base}...v0.80.0
+"
+    );
+    assert_eq!(change.new, expected);
+    let parsed = xtask::changelog::parse(&change.new).unwrap();
+    assert_eq!(parsed.releases.len(), 1);
+    assert_eq!(parsed.pre_release.unwrap().last, "0.79.0");
+    // Nothing was written by the dry run.
+    assert_eq!(read(&repo, "CHANGELOG.md"), PRE_RELEASE_CHANGELOG);
+    let draft = prepare::draft(&repo, DATE).unwrap();
+    assert!(
+        draft.starts_with("Next version: 0.80.0 (minor bump from 0.79.0 at "),
+        "{draft}"
+    );
+
+    // The real run passes every check too.
+    prepare_branch(&repo);
+    xtask::check::run(&repo, None, None).unwrap();
+    xtask::plan_links::run(&repo, &read(&repo, "CHANGELOG.md")).unwrap();
+    release::check_release(&repo, "HEAD").unwrap();
+    xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
+}

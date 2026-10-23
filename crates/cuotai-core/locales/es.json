@@ -1082,6 +1082,7 @@
   "changelog.category.removed": "Eliminado",
   "changelog.category.security": "Seguridad",
   "changelog.entries_language": "Las entradas se mantienen en inglés, el idioma del registro de cambios.",
+  "changelog.pre_release_note": "La versión \"{wanted}\" fue una compilación interna y nunca se publicó. Sus cambios se resumen en el historial previo al lanzamiento ({range}).",
   "changelog.title": "Novedades",
   "changelog.unknown_version": "La versión \"{wanted}\" no está en el registro de cambios. Versiones conocidas: {known}.",
   "cost.confirm.answer": "sí",

@@ -376,12 +376,15 @@ fn changelog_check(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
     let text = std::fs::read_to_string(repo.join("CHANGELOG.md"))?;
     xtask::plan_links::run(&repo, &text)?;
+    let changelog = xtask::changelog::parse(&text).map_err(|e| Error::Msg(e.to_string()))?;
+    let history = changelog
+        .pre_release
+        .as_ref()
+        .map(|h| format!(" plus the pre-release history ({})", h.range()))
+        .unwrap_or_default();
     println!(
-        "changelog check passed: {} released sections, format, PRD references and plan links agree",
-        xtask::changelog::parse(&text)
-            .map_err(|e| Error::Msg(e.to_string()))?
-            .releases
-            .len()
+        "changelog check passed: {} released sections{history}, format, PRD references and plan links agree",
+        changelog.releases.len()
     );
     Ok(())
 }

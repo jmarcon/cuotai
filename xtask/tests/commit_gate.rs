@@ -240,3 +240,89 @@ fn skip_markers_in_trailers_unknown_refs_and_bad_headers_fail() {
         "{error}"
     );
 }
+
+#[test]
+fn folding_internal_versions_into_the_pre_release_history_is_a_changelog_edit() {
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "docs(changelog): consolidate internal versions\n\nChangelog-Edit: owner decision\nChangelog: skip internal history only",
+        "CHANGELOG.md",
+        PRE_RELEASE_CHANGELOG,
+    );
+    gate(&repo, "HEAD~1").unwrap();
+    // Rewording the summary, entry count included, stays an edit.
+    commit(
+        &repo,
+        "docs(changelog): reword the history\n\nChangelog-Edit: clearer summary",
+        "CHANGELOG.md",
+        &PRE_RELEASE_CHANGELOG.replace(
+            "- Base (PRD 0001 RF1).\n",
+            "- The base (PRD 0001 RF1).\n- More.\n",
+        ),
+    );
+    gate(&repo, "HEAD~1").unwrap();
+    // Re-ranging or removing it is not.
+    commit(
+        &repo,
+        "docs(changelog): widen the history\n\nChangelog-Edit: wrong",
+        "CHANGELOG.md",
+        &PRE_RELEASE_CHANGELOG.replace("0.1.0–0.79.0", "0.1.0–0.78.0"),
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(error.contains("pre-release range"), "{error}");
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "docs(changelog): consolidate\n\nChangelog-Edit: owner decision",
+        "CHANGELOG.md",
+        PRE_RELEASE_CHANGELOG,
+    );
+    commit(
+        &repo,
+        "docs(changelog): drop the history\n\nChangelog-Edit: wrong",
+        "CHANGELOG.md",
+        &support::CHANGELOG.replace("Preface.", "Preface again."),
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("must not remove the pre-release history"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_published_version_never_folds_into_the_pre_release_history() {
+    let (_d, repo) = support::repo();
+    let published = support::CHANGELOG.replace(
+        "## [0.79.0]",
+        "## [0.80.0] - 2026-10-24\n\n### Added\n\n- Published (2222222).\n\n## [0.79.0]",
+    );
+    commit(
+        &repo,
+        "docs(changelog): fixture with a release\n\nChangelog-Edit: fixture",
+        "CHANGELOG.md",
+        &published,
+    );
+    commit(
+        &repo,
+        "docs(changelog): fold everything\n\nChangelog-Edit: wrong",
+        "CHANGELOG.md",
+        &PRE_RELEASE_CHANGELOG.replace("0.1.0–0.79.0", "0.1.0–0.80.0"),
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(error.contains("[0.80.0] is a published version"), "{error}");
+    // Folding only the internal ones keeps the published section intact.
+    let kept = PRE_RELEASE_CHANGELOG.replace(
+        "## Pre-release history",
+        "## [0.80.0] - 2026-10-24\n\n### Added\n\n- Published (2222222).\n\n## Pre-release history",
+    );
+    git(&repo, &["reset", "-q", "--hard", "HEAD~1"]);
+    commit(
+        &repo,
+        "docs(changelog): fold the internal ones\n\nChangelog-Edit: owner decision",
+        "CHANGELOG.md",
+        &kept,
+    );
+    gate(&repo, "HEAD~1").unwrap();
+}

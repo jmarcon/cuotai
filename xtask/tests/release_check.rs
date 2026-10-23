@@ -346,3 +346,33 @@ fn binary_end_to_end() {
     assert!(!bad.status.success());
     assert!(String::from_utf8_lossy(&bad.stderr).contains("differs from the workspace version"));
 }
+
+/// Before the first release, the workspace's internal version has no
+/// section of its own: the pre-release history that covers it stands in,
+/// but such a version can never be tagged.
+#[test]
+fn an_internal_version_is_covered_by_the_pre_release_history() {
+    let (_d, repo) = fixture();
+    let history = "# Changelog\n\n## [Unreleased]\n\n## Pre-release history (0.1.0–0.79.0, internal builds, never published)\n\n### Added\n\n- Everything so far.\n";
+    write_file(&repo, "CHANGELOG.md", history);
+    let report = xtask::check::run(&repo, None, None).unwrap();
+    assert_eq!(report.version.to_string(), VERSION);
+    assert_eq!(report.changelog_date, "");
+    assert!(report.changelog_body.contains("Everything so far."));
+    let err = xtask::check::run(&repo, Some(&format!("v{VERSION}")), None).unwrap_err();
+    assert!(
+        err.to_string().contains("never tagged or published"),
+        "unexpected error: {err}"
+    );
+    // A range that does not cover the workspace version does not help.
+    write_file(
+        &repo,
+        "CHANGELOG.md",
+        &history.replace("0.1.0–0.79.0", "0.1.0–0.60.0"),
+    );
+    let err = xtask::check::run(&repo, None, None).unwrap_err();
+    assert!(
+        err.to_string().contains("no released section"),
+        "unexpected error: {err}"
+    );
+}

@@ -1082,6 +1082,7 @@
   "changelog.category.removed": "Removed",
   "changelog.category.security": "Security",
   "changelog.entries_language": "The entries stay in English, the language of the changelog.",
+  "changelog.pre_release_note": "Version \"{wanted}\" was an internal build and was never published. Its changes are summarized in the pre-release history ({range}).",
   "changelog.title": "What's new",
   "changelog.unknown_version": "Version \"{wanted}\" is not in the changelog. Known versions: {known}.",
   "cost.confirm.answer": "yes",

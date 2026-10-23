@@ -96,7 +96,9 @@ struct Args {
     install_source: bool,
     /// Mostra o histórico de versões do CHANGELOG embutido (sem rede e sem
     /// consultar provedores): tudo, ou só a seção de VERSÃO (uma versão
-    /// como 0.68.2, ou uma série como 0.68.x). Os rótulos de categoria
+    /// como 0.68.2, ou uma série como 0.68.x). Uma versão interna nunca
+    /// publicada (0.1.0 a 0.79.0) mostra o histórico de pré-lançamento
+    /// que a resume, com um aviso. Os rótulos de categoria
     /// seguem o idioma da interface; as entradas continuam em inglês, o
     /// idioma do changelog, como o próprio comando avisa. Não combina com
     /// os modos de consulta, com --list-providers nem com as opções de

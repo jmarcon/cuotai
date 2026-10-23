@@ -13,7 +13,7 @@ fn parse_ok(text: &str) -> Changelog {
 #[test]
 fn embedded_changelog_parses() {
     let changelog = entries();
-    assert!(!changelog.releases.is_empty());
+    assert!(!changelog.releases.is_empty() || changelog.pre_release.is_some());
     // Descending order and dated sections. That the top released section
     // is the current version is the release gate's rule
     // (`xtask release-check`, PRD 0021 RF1.2), not the parser's.
@@ -30,10 +30,131 @@ fn embedded_changelog_parses() {
         assert!(!release.section.is_empty(), "[{}]", release.version);
         assert!(!release.body.trim().is_empty(), "[{}]", release.version);
     }
-    // The first version exists and its entries keep working.
-    let first = changelog.releases.last().expect("0.1.0");
-    assert_eq!(first.version, "0.1.0");
-    assert!(!first.section.categories.is_empty());
+    // The first version exists and its entries keep working: its own
+    // section, or the start of the pre-release history that summarizes
+    // the internal builds (PRD 0039 D11).
+    match &changelog.pre_release {
+        Some(history) => {
+            assert_eq!(history.first, "0.1.0");
+            assert!(history.covers("0.1.0") && history.covers(&history.last));
+            assert!(!history.section.categories.is_empty());
+            assert!(!history.body.trim().is_empty());
+            assert!(changelog.knows("0.1.0"));
+        }
+        None => {
+            let first = changelog.releases.last().expect("0.1.0");
+            assert_eq!(first.version, "0.1.0");
+            assert!(!first.section.categories.is_empty());
+        }
+    }
+}
+
+const WITH_HISTORY: &str = "# C\n\nPreface.\n\n## [Unreleased]\n\n## [0.80.0] - 2026-10-24\n\n### Added\n\n- New (PRD 0039 RF4, abc1234).\n\n## Pre-release history (0.1.0–0.79.0, internal builds, never published)\n\nThese builds were never published.\n\n### Added\n\n- The dashboard (PRD 0001 RF2).\n\n### Security\n\n- HTTPS only.\n\n[Unreleased]: https://example/compare/v0.80.0...HEAD\n[0.80.0]: https://example/compare/abc1234...v0.80.0\n";
+
+#[test]
+fn parses_the_pre_release_history_as_a_distinct_last_section() {
+    let changelog = parse_ok(WITH_HISTORY);
+    assert_eq!(changelog.releases.len(), 1);
+    assert_eq!(changelog.releases[0].version, "0.80.0");
+    let history = changelog.pre_release.as_ref().expect("history");
+    assert_eq!(
+        history.title,
+        "Pre-release history (0.1.0–0.79.0, internal builds, never published)"
+    );
+    assert_eq!(
+        (history.first.as_str(), history.last.as_str()),
+        ("0.1.0", "0.79.0")
+    );
+    assert_eq!(history.range(), "0.1.0–0.79.0");
+    assert_eq!(
+        history.section.paragraphs,
+        ["These builds were never published."]
+    );
+    assert_eq!(history.section.categories.len(), 2);
+    assert!(!history.body.contains("[Unreleased]:"), "{}", history.body);
+    // Covered versions are known without a section of their own.
+    for version in ["0.1.0", "0.5.0", "0.14.3", "0.79.0"] {
+        assert!(changelog.knows(version), "{version}");
+        assert!(changelog.find(version).is_none(), "{version}");
+        assert!(changelog.pre_release_of(version).is_some(), "{version}");
+    }
+    assert!(changelog.knows("0.80.0"));
+    assert!(changelog.pre_release_of("0.80.0").is_none());
+    assert!(!changelog.knows("0.79.1"));
+    assert!(!changelog.knows("0.5"));
+    // Its references count like any other section's.
+    let refs: Vec<String> = changelog
+        .references()
+        .iter()
+        .map(|r| r.to_string())
+        .collect();
+    assert_eq!(refs, ["PRD 0039 RF4", "PRD 0001 RF2"]);
+    // Parsing is stable: the same text gives the same model.
+    assert_eq!(parse_ok(WITH_HISTORY), changelog);
+    // A changelog with only the history (before the first release) parses.
+    let only = WITH_HISTORY
+        .replace(
+            "## [0.80.0] - 2026-10-24\n\n### Added\n\n- New (PRD 0039 RF4, abc1234).\n\n",
+            "",
+        )
+        .replace("[0.80.0]: https://example/compare/abc1234...v0.80.0\n", "");
+    let only = parse_ok(&only);
+    assert!(only.releases.is_empty());
+    assert!(only.knows("0.79.0"));
+}
+
+#[test]
+fn rejects_a_misplaced_or_malformed_pre_release_history() {
+    // Not the last section.
+    let after = WITH_HISTORY.replace(
+        "[Unreleased]: ",
+        "## [0.0.1] - 2026-09-01\n\n### Added\n\n- Old.\n\n[Unreleased]: ",
+    );
+    let error = parse(&after).unwrap_err();
+    assert!(error.message.contains("is the last section"), "{error}");
+    // Overlapping a released version.
+    let overlap = WITH_HISTORY.replace("0.1.0–0.79.0", "0.1.0–0.80.0");
+    let error = parse(&overlap).unwrap_err();
+    assert!(error.message.contains("is not newer"), "{error}");
+    // Before [Unreleased].
+    let error =
+        parse("# C\n\n## Pre-release history (0.1.0–0.2.0)\n\n### Added\n\n- X.\n").unwrap_err();
+    assert!(
+        error.message.contains("unreleased section comes first"),
+        "{error}"
+    );
+    // Hyphen instead of en dash, missing parenthesis, bad version, reversed.
+    for heading in [
+        "Pre-release history (0.1.0-0.79.0)",
+        "Pre-release history (0.1.0–0.79.0",
+        "Pre-release history (0.1–0.79.0)",
+        "Pre-release history (0.79.0–0.1.0)",
+        "Pre-release history",
+    ] {
+        let text = WITH_HISTORY.replace(
+            "Pre-release history (0.1.0–0.79.0, internal builds, never published)",
+            heading,
+        );
+        assert!(parse(&text).is_err(), "{heading}");
+    }
+    // A note-less heading is fine.
+    let bare = WITH_HISTORY.replace(", internal builds, never published)", ")");
+    assert_eq!(parse_ok(&bare).pre_release.unwrap().last, "0.79.0");
+    // Empty, or with an empty category.
+    let empty = "# C\n\n## [Unreleased]\n\n## Pre-release history (0.1.0–0.2.0)\n\n";
+    assert!(parse(empty).unwrap_err().message.contains("is empty"));
+    let empty_category =
+        "# C\n\n## [Unreleased]\n\n## Pre-release history (0.1.0–0.2.0)\n\n### Added\n";
+    assert!(parse(empty_category)
+        .unwrap_err()
+        .message
+        .contains("of the pre-release history"));
+    // Twice.
+    let twice = WITH_HISTORY.replace(
+        "[Unreleased]: ",
+        "## Pre-release history (0.0.1–0.0.2)\n\n### Added\n\n- X.\n\n[Unreleased]: ",
+    );
+    assert!(parse(&twice).is_err());
 }
 
 #[test]

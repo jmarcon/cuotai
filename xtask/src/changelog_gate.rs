@@ -282,7 +282,8 @@ fn lock_versions(text: &str, names: &[&str]) -> Vec<String> {
 
 /// A `Changelog-Edit` commit may reword released sections and the
 /// preface/footer, but never touch `[Unreleased]`, add or remove a section
-/// or change how many entries a section has.
+/// or change how many entries a section has. The one structural edit it may
+/// make is folding internal versions into the pre-release history.
 fn changelog_edit_problem(repo: &Path, sha: &str) -> Res<Option<String>> {
     let parse = |rev: String| -> Option<crate::changelog::Changelog> {
         let text = Tree::Rev(repo, rev).read("CHANGELOG.md").ok()?;
@@ -309,7 +310,40 @@ fn changelog_edit_problem(repo: &Path, sha: &str) -> Res<Option<String>> {
             })
             .collect()
     };
-    if shape(&before) != shape(&after) {
+    // The pre-release history (PRD 0039 D11) may be introduced, folding the
+    // internal versions' sections into it, and reworded freely (it is a
+    // summary), but never removed, re-ranged or widened over a published
+    // version.
+    match (&before.pre_release, &after.pre_release) {
+        (Some(_), None) => {
+            return Ok(Some(
+                "a Changelog-Edit commit must not remove the pre-release history".to_string(),
+            ))
+        }
+        (Some(old), Some(new)) if (&old.first, &old.last) != (&new.first, &new.last) => {
+            return Ok(Some(format!(
+                "a Changelog-Edit commit must not change the pre-release range ({} -> {})",
+                old.range(),
+                new.range()
+            )))
+        }
+        _ => {}
+    }
+    let folded = |version: &str| after.pre_release_of(version).is_some();
+    for release in before.releases.iter().filter(|r| folded(&r.version)) {
+        if !crate::Version::parse(&release.version)
+            .is_ok_and(|v| v <= release::LAST_INTERNAL_VERSION)
+        {
+            return Ok(Some(format!(
+                "[{}] is a published version: only internal versions (up to {}) fold into the pre-release history",
+                release.version,
+                release::LAST_INTERNAL_VERSION
+            )));
+        }
+    }
+    let mut kept = shape(&before);
+    kept.retain(|(version, _)| !folded(version));
+    if kept != shape(&after) {
         return Ok(Some(
             "a Changelog-Edit commit may reword released entries but not add or remove sections or entries"
                 .to_string(),

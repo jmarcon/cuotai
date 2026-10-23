@@ -14,7 +14,8 @@ pub struct CheckReport {
     pub channel: Channel,
     /// The validated tag, when one was supplied.
     pub tag: Option<String>,
-    /// Date of the `## [X.Y.Z] - <date>` changelog heading.
+    /// Date of the `## [X.Y.Z] - <date>` changelog heading; empty for an
+    /// internal version covered by the pre-release history.
     pub changelog_date: String,
     /// Body of the version's changelog section (release-notes source).
     pub changelog_body: String,
@@ -138,6 +139,11 @@ pub fn run_files(files: &Files, tag: Option<&str>) -> Res<CheckReport> {
     // Tag rules (RF1.1): format, version equality, channel classification.
     let mut parsed_tag = None;
     if let Some(tag) = tag {
+        if matches!(&changelog, Some((date, _)) if date.is_empty()) {
+            problems.push(format!(
+                "tag '{tag}': {version} is an internal version summarized by the pre-release history; internal versions are never tagged or published"
+            ));
+        }
         match parse_tag(tag) {
             Ok(t) => {
                 if t.version != version {
@@ -336,8 +342,22 @@ fn check_tauri_conf(files: &Files, version: &Version) -> Res<()> {
 /// Returns `(date, body)` and rejects a workspace version that appears
 /// only in older history; a format violation fails with the parser's exact
 /// line, so the release gate and the repository check never disagree.
+///
+/// Before the first release the workspace still carries an internal
+/// version (up to [`crate::release::LAST_INTERNAL_VERSION`]) that has no
+/// section of its own: when no released section exists and the pre-release
+/// history covers it, the history stands in, with an empty date (internal
+/// builds were never published, so no release notes are made from it).
 pub fn changelog_section(text: &str, version: &Version) -> Res<(String, String)> {
     let changelog = crate::changelog::parse(text).map_err(|e| Error::Msg(e.to_string()))?;
+    let internal = *version <= crate::release::LAST_INTERNAL_VERSION;
+    if let (true, None, Some(history)) = (
+        internal,
+        changelog.releases.first(),
+        changelog.pre_release_of(&version.to_string()),
+    ) {
+        return Ok((String::new(), history.body.clone()));
+    }
     let Some(first) = changelog.releases.first() else {
         return err(format!(
             "CHANGELOG.md: no released section after [Unreleased] for workspace version {version}"

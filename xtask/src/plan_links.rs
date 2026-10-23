@@ -3,7 +3,8 @@
 //! * every `PRD NNNN RFx` cited by a changelog entry points to a real
 //!   requirement of an existing plan (RF7.4);
 //! * every version a plan (or `0000_control.md`) marks as delivered exists
-//!   as a `CHANGELOG.md` section (RF7.8).
+//!   as a `CHANGELOG.md` section (RF7.8), or, for an internal build
+//!   (0.1.0–0.79.0), falls in the pre-release history's range.
 //!
 //! The changelog itself is parsed by [`crate::changelog`], the same file the
 //! product compiles in, so the two never disagree about the format.
@@ -23,6 +24,7 @@ pub fn run(root: &Path, text: &str) -> Res<()> {
     check_references(&changelog, &plans, &mut problems);
     check_delivered_versions(root, &changelog, &mut problems);
     check_footer_links(text, &changelog, &mut problems);
+    check_pre_release(&changelog, &mut problems);
     if let Some(control) = control_text(root) {
         problems.extend(plan_graph_problems(&control));
     }
@@ -121,6 +123,24 @@ fn check_references(changelog: &Changelog, plans: &Plans, problems: &mut Vec<Str
                 rf = reference.rf
             ));
         }
+    }
+}
+
+/// The pre-release history summarizes internal builds only: its range ends
+/// at or before [`crate::release::LAST_INTERNAL_VERSION`], so a published
+/// version can never hide in it (owner decision of 2026-10-23, PRD 0039
+/// D11).
+fn check_pre_release(changelog: &Changelog, problems: &mut Vec<String>) {
+    let Some(history) = &changelog.pre_release else {
+        return;
+    };
+    let last = crate::Version::parse(&history.last);
+    if !last.is_ok_and(|v| v <= crate::release::LAST_INTERNAL_VERSION) {
+        problems.push(format!(
+            "CHANGELOG.md: the pre-release history ends at {}, after the last internal version {}: published versions get their own section",
+            history.last,
+            crate::release::LAST_INTERNAL_VERSION
+        ));
     }
 }
 
@@ -248,7 +268,10 @@ fn cited_versions(cell: &str) -> Vec<String> {
 /// status" table of every plan (`| RF1.1 | 0.27.1 | … |`). A cell that
 /// names a version the changelog does not have is a divergence.
 fn check_delivered_versions(root: &Path, changelog: &Changelog, problems: &mut Vec<String>) {
-    let known = |version: &str| changelog.find(version).is_some();
+    // A version is known by its own section or, for an internal build, by
+    // the pre-release history that summarizes it (PRD 0039 D11): the §3
+    // rows of 0.1.0–0.79.0 stay the per-version detail.
+    let known = |version: &str| changelog.knows(version);
     match control_table(root) {
         Some((name, table)) => {
             for line in table.lines() {
