@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0039 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | Repository process and tooling: `AGENTS.md` ("Versioning, Commits & Changelog"), `xtask` (`changelog_gate.rs`, `draft.rs`, `check.rs`, `plan_links.rs`, new `commits.rs` and `release/`), `.github/workflows/ci.yml`, `.github/workflows/release.yml` (check job only), `docs/releasing.md`, `docs/release-policy.md`, `CONTRIBUTING.md` |
 | Consumers | the owner and every agent that delivers a change; the release pipeline of PRD 0021; the changelog and What's new of PRD 0019 RF7; the plan control (`0000_control.md`) |
 | Depends on | PRD 0019 (RF2 CI, RF7 changelog format, gate, draft and plan links), PRD 0021 (RF1 tag trigger and `release-check`, RF4 release notes, RF9 workflow policy) |
@@ -17,16 +17,16 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
-| RF10 | — | Proposed. |
+| RF1 | vNEXT | `xtask/src/commits.rs`: the shared header and trailer parser (`Changelog:`, `Changelog-Category:`, `Refs:` with plans and issues, `BREAKING CHANGE:`, `Changelog-Edit:`, `Version-Override:`), the skip-marker check and the sentence lint, with unit tests for every trailer form. |
+| RF2 | vNEXT | `changelog-gate` rewritten as the commit gate (rules 1–7 plus `Refs:` resolution against the plans), wired on pull requests and on pushes to `main`; temp-repository tests in `xtask/tests/commit_gate.rs`. |
+| RF3 | vNEXT | Release base (newest stable tag, else the last version-changing commit; rc tags never), bump table and pure `next_version`, `--version` override rules; table-driven tests. |
+| RF4 | vNEXT | `cargo xtask release prepare` with `--dry-run`, `--branch`, `--refresh`, `--check` and `--rev`; line-targeted edits of the five locations, the `cuotai-tui` requirement and both lockfiles (verified with `cargo metadata --locked --offline`), the section with real short hashes and footer links; golden and temp-repository tests in `xtask/tests/release_prepare.rs`. The entry renders as `<sentence>[. Migration: <migration>] (<refs>; <hash>).` (the sentence keeps a period before the migration). `changelog-draft` became the would-be-section view. |
+| RF5 | vNEXT (partial) | `cargo xtask release tag [--rc]` (annotated, message = section, rc numbering, refusal on an existing stable tag or a commit not on `origin/main`) and `release prepare --check` in `release.yml`'s `check` job. Pending: the fork rehearsal and the first release candidate (D9: `v0.80.0-rc.1` when a feature has landed); RF5.5 automation declined (D6). |
+| RF6 | vNEXT | `vNEXT` replacement outside code in `docs/**/*.md` and `README.md`, the control header and the generated §3 rows; `--check` and `release.yml` reject a leftover token. |
+| RF7 | — | Documented in `docs/releasing.md` ("Branch and tag protection") with the exact `gh api` commands; applying the rulesets and the merge settings is an owner action. Agent rules in `AGENTS.md` ("How to deliver a change"). |
+| RF8 | vNEXT | `ci.yml` triggers (pull requests, `main` pushes, dispatch, merge groups; no tags, no other branches), `release_tooling` output and `release-preflight` job, the gate on `main` pushes, the next-version job summary, `cargo fmt` once on Linux, `CI result` aggregating the preflight; `workflow-check` enforces the triggers and the aggregate. The optional `root`/`desktop` split of RF8.2(b) is not done. |
+| RF9 | vNEXT | Cutover: `AGENTS.md` rewritten ("How to deliver a change" and "Versioning, Commits & Changelog", with the dated notice), `docs/releasing.md`, `docs/release-policy.md`, `CONTRIBUTING.md`, `docs/architecture.md`, amendment notes in PRDs 0019 and 0021; the footer links of 0.66.0–0.79.0 compare commits and `changelog-check` validates them; no tag at cutover. |
+| RF10 | — | Deferred until after the first release (D12). |
 
 ## 1. Context
 
@@ -150,7 +150,7 @@ Conventional commits stay the source of truth; a commit's message carries everyt
 
 - **RF4.1** `cargo xtask release prepare [--version X.Y.Z] [--date YYYY-MM-DD] [--dry-run] [--branch] [--refresh] [--check]` runs from a clean worktree on an up-to-date `main` (it refuses a dirty tree in any file it writes, and warns when `HEAD` is not `origin/main`). `--date` defaults to today in UTC.
 - **RF4.2** It renders the section `## [X.Y.Z] - YYYY-MM-DD` with the parser's category order, one entry per `Changelog:` sentence, commits in chronological order inside each category. Entries carried over from a non-empty `[Unreleased]` (cutover only, RF9.3) come first in their category, verbatim.
-- **RF4.3** Entry format (canonical, golden-tested): `- [**Breaking**: ]<sentence without its final period>[ Migration: <migration>] (<references>; <hash>).` — references grouped by plan in first-appearance order (`PRD 0018 RF1.2, RF1.3; PRD 0021 RF2`), then issues (`issue #2`), then the 7-character short hash (longer when Git needs it to be unambiguous). A commit with several sentences repeats its references and hash on each.
+- **RF4.3** Entry format (canonical, golden-tested): `- [**Breaking**: ]<sentence without its final period>[. Migration: <migration without its final period>] (<references>; <hash>).` — references grouped by plan in first-appearance order (`PRD 0018 RF1.2, RF1.3; PRD 0021 RF2`), then issues (`issue #2`), then the 7-character short hash (longer when Git needs it to be unambiguous). A commit with several sentences repeats its references and hash on each.
 - **RF4.4** It writes, and only writes, the **release file set**:
   1. `Cargo.toml` `[workspace.package] version`;
   2. `apps/desktop/src-tauri/Cargo.toml` `[package] version`;
