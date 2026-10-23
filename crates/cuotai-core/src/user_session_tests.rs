@@ -895,6 +895,24 @@ async fn a_test_query_uses_the_paste_and_stores_nothing() {
     let (result, _) = query_platform(&monitor, &draft, &[paste], &server.uri()).await;
     result.expect("pasted session answered");
     assert!(store.values().is_empty());
+    let requests_before_invalid = server.received_requests().await.unwrap().len();
+    // A genuinely invalid draft is still refused without a query. A missing
+    // name is valid for a lone provider under PRD 0029 RF0, so use a polling
+    // interval below the existing boundary instead.
+    let mut invalid = draft;
+    invalid.refresh_seconds = Some(1);
+    let report = monitor
+        .test_session(
+            &invalid,
+            &[reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap()],
+        )
+        .await;
+    assert_eq!(report.status, Status::NeedsConfiguration);
+    assert_eq!(
+        server.received_requests().await.unwrap().len(),
+        requests_before_invalid,
+        "an invalid draft must not reach the provider"
+    );
 }
 
 // ------------------------------------------- RF4: warning and forgetting
