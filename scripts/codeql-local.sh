@@ -1,6 +1,8 @@
 #!/bin/sh
-# Runs CodeQL locally with the query suites of GitHub's code-scanning default
-# setup, so findings show up before a push instead of as alerts on GitHub.
+# Runs CodeQL locally with the same languages and query suites as the
+# .github/workflows/codeql.yml workflow (the `default` code-scanning suite of
+# each language), so findings show up before a push instead of as alerts on
+# GitHub.
 #
 # Usage: sh scripts/codeql-local.sh [--swift] [--keep] [language ...]
 #
@@ -14,9 +16,11 @@
 # The analyzed tree is a snapshot of the tracked and untracked-but-not-ignored
 # files (`git ls-files -co --exclude-standard`), so `target/`, `node_modules/`,
 # local configs and nested agent worktrees are not scanned. Databases, SARIF
-# and CSV go to ${CUOTAI_CODEQL_DIR:-${TMPDIR:-/tmp}/cuotai-codeql}, never
-# inside the repository. Results can differ slightly from GitHub's default
-# setup when the local CLI or query packs are a different version.
+# and CSV go to ${CUOTAI_CODEQL_DIR}, or to a fresh per-run directory
+# ${TMPDIR:-/tmp}/cuotai-codeql.XXXXXX when it is unset (so concurrent runs
+# never delete each other's snapshot; the path is printed, remove old ones
+# yourself), never inside the repository. Results can differ slightly from
+# GitHub's when the local CLI or query packs are a different version.
 #
 # Exit codes: 0 no findings, 3 findings reported, 1 tool or usage error.
 set -eu
@@ -34,11 +38,17 @@ fi
 
 repo=$(git rev-parse --show-toplevel 2>/dev/null) || die "run inside the Cuotai git repository"
 tmp=${TMPDIR:-/tmp}
-out=${CUOTAI_CODEQL_DIR:-${tmp%/}/cuotai-codeql}
-out=${out%/}
-case "$out/" in
-    "$repo"/*) die "CUOTAI_CODEQL_DIR must be outside the repository ($out)" ;;
-esac
+if [ -n "${CUOTAI_CODEQL_DIR:-}" ]; then
+    out=${CUOTAI_CODEQL_DIR%/}
+else
+    out=""
+fi
+check_outside() {
+    case "$1/" in
+        "$repo"/*) die "CUOTAI_CODEQL_DIR must be outside the repository ($1)" ;;
+    esac
+}
+[ -z "$out" ] || check_outside "$out"
 
 langs=""
 keep=0
@@ -47,7 +57,7 @@ for arg in "$@"; do
         --swift) langs="$langs swift" ;;
         --keep) keep=1 ;;
         -h | --help)
-            sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         rust | python | javascript-typescript | actions | swift) langs="$langs $arg" ;;
@@ -67,7 +77,14 @@ case " $langs " in
     *" swift "*) [ "$(uname -s)" = Darwin ] || die "swift needs macOS (WidgetKit SDK)" ;;
 esac
 
-mkdir -p "$out" || die "cannot create $out"
+if [ -z "$out" ]; then
+    # A unique directory per run: two concurrent runs used to share one
+    # snapshot and the first to finish deleted the other's sources.
+    out=$(mktemp -d "${tmp%/}/cuotai-codeql.XXXXXX") || die "cannot create a run directory in $tmp"
+    check_outside "$out"
+else
+    mkdir -p "$out" || die "cannot create $out"
+fi
 src="$out/src"
 rm -rf "$src"
 mkdir -p "$src"
