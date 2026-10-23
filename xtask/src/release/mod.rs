@@ -337,6 +337,12 @@ pub fn is_covered(text: &str, sha: &str) -> bool {
         .any(|token| is_hex_abbreviation(token) && sha.starts_with(token))
 }
 
+/// How many lines (entries) of `text` cite `sha` ([`is_covered`] per line):
+/// a commit with N `Changelog:` sentences needs N entries.
+pub fn coverage_count(text: &str, sha: &str) -> usize {
+    text.lines().filter(|line| is_covered(line, sha)).count()
+}
+
 /// 7–40 lowercase hexadecimal characters.
 pub fn is_hex_abbreviation(token: &str) -> bool {
     (7..=40).contains(&token.len())
@@ -422,10 +428,13 @@ pub fn check_release(repo: &Path, rev: &str) -> Res<CheckOutcome> {
     match parsed.releases.first() {
         Some(first) if first.version == version.to_string() => {
             for (commit, short) in &commits {
-                if !commit.trailers.sentences.is_empty() && !is_covered(&first.body, &commit.sha) {
+                let wanted = commit.trailers.sentences.len();
+                let cited = coverage_count(&first.body, &commit.sha);
+                if cited < wanted {
                     problems.push(format!(
-                        "{short} {} has a Changelog: sentence but the [{version}] section does not cite it",
-                        commit.subject
+                        "{short} {} has {wanted} Changelog: sentence(s) but the [{version}] section cites it in {cited} entr{}: every sentence needs its entry (run release prepare --refresh to restore it)",
+                        commit.subject,
+                        if cited == 1 { "y" } else { "ies" }
                     ));
                 }
             }

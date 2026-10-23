@@ -10,8 +10,8 @@ use std::process::Command;
 
 use super::render::{self, Entries};
 use super::{
-    bump_of, is_covered, pending_release, release_base, release_commits, workspace_version, Base,
-    Tree,
+    bump_of, coverage_count, pending_release, release_base, release_commits, workspace_version,
+    Base, Tree,
 };
 use crate::commits::{self, Bump};
 use crate::{err, git, Error, Res, Version};
@@ -199,15 +199,27 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         .join("\n");
     let mut added = 0usize;
     for (commit, short) in &commits {
-        if refreshing && is_covered(&existing, &commit.sha) {
-            continue;
-        }
+        // Every `Changelog:` sentence needs its own entry. On a refresh the
+        // entries already citing the commit count (edited wording wins), and
+        // only the missing ones are added back, preferring sentences whose
+        // generated line is not present verbatim.
+        let cited = if refreshing {
+            coverage_count(&existing, &commit.sha)
+        } else {
+            0
+        };
+        let mut missing = commit.trailers.sentences.len().saturating_sub(cited);
         for sentence in &commit.trailers.sentences {
+            if missing == 0 {
+                break;
+            }
+            let line = render::entry(commit, sentence, short);
+            if refreshing && existing.lines().any(|l| l == line) {
+                continue;
+            }
+            missing -= 1;
             added += 1;
-            entries
-                .entry(commit.category())
-                .or_default()
-                .push(render::entry(commit, sentence, short));
+            entries.entry(commit.category()).or_default().push(line);
         }
     }
     if refreshing && !opts.refresh && added == 0 {

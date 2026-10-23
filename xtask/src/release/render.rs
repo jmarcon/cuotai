@@ -234,17 +234,53 @@ fn map_prose(text: &str, mut edit: impl FnMut(&str) -> String) -> String {
             }
             (None, None) => {}
         }
-        for (index, segment) in line.split('`').enumerate() {
-            if index > 0 {
-                out.push('`');
-            }
-            if index % 2 == 0 {
-                out.push_str(&edit(segment));
+        out.push_str(&map_inline_prose(line, &mut edit));
+    }
+    out
+}
+
+/// CommonMark code spans inside one line: a run of N backticks opens a span
+/// that the next run of exactly N backticks closes (``` ``vNEXT`` ``` is
+/// code); a run without a matching closer is literal text. Only the text
+/// outside spans goes through `edit`.
+fn map_inline_prose(line: &str, edit: &mut impl FnMut(&str) -> String) -> String {
+    let bytes = line.as_bytes();
+    let run_at = |i: usize| bytes[i..].iter().take_while(|&&b| b == b'`').count();
+    let mut out = String::with_capacity(line.len());
+    let mut prose_start = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'`' {
+            i += 1;
+            continue;
+        }
+        let open = run_at(i);
+        // Look for a closing run of exactly the same length.
+        let mut j = i + open;
+        let mut close = None;
+        while j < bytes.len() {
+            if bytes[j] == b'`' {
+                let n = run_at(j);
+                if n == open {
+                    close = Some(j);
+                    break;
+                }
+                j += n;
             } else {
-                out.push_str(segment);
+                j += 1;
             }
         }
+        match close {
+            Some(j) => {
+                out.push_str(&edit(&line[prose_start..i]));
+                out.push_str(&line[i..j + open]);
+                i = j + open;
+                prose_start = i;
+            }
+            None => i += open,
+        }
     }
+    out.push_str(&edit(&line[prose_start..]));
     out
 }
 
@@ -472,7 +508,7 @@ mod tests {
     fn grouped_references_round_trip_through_the_shared_parser() {
         let c = commit(
             "feat: a",
-            "Changelog: X.\nRefs: PRD 0018 RF1.2, RF1.3, RF4\nRefs: PRD 0021 RF2\nRefs: PRD 0021 RF5.1\nRefs: #7",
+            "Changelog: X.\nRefs: PRD 0018 RF1.2, RF1.3, RF4\nRefs: PRD 0021 RF2\nRefs: PRD 0021 RF5.1\nRefs: PRD 0013 FIX-01, FIX-02\nRefs: #7",
         );
         let line = entry(&c, "The updater checks daily.", "abcdef1");
         let doc =
@@ -561,6 +597,18 @@ mod tests {
             "| RF2 | 0.80.0 | done |\nKeep `vNEXT` and vNEXTx and avNEXT.\n```\nvNEXT\n```\nAlso (0.80.0).\n"
         );
         assert_eq!(count_next(&out), 0);
+    }
+
+    #[test]
+    fn next_token_inside_multi_backtick_spans_is_kept() {
+        let text = "Use ``vNEXT`` and ``a ` vNEXT`` but vNEXT; `x` vNEXT ``` vNEXT\n";
+        let (out, count) = replace_next(text, "0.80.0");
+        assert_eq!(
+            out,
+            "Use ``vNEXT`` and ``a ` vNEXT`` but 0.80.0; `x` 0.80.0 ``` 0.80.0\n"
+        );
+        assert_eq!(count, 3);
+        assert_eq!(count_next("Only ``vNEXT`` here.\n"), 0);
     }
 
     #[test]
