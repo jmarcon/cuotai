@@ -998,16 +998,23 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
     let height = w.outer_size().map(|s| s.height as f64).unwrap_or(600.0);
     let scale = w.scale_factor().unwrap_or(1.0);
     // The screen that holds the icon that was clicked, not the one where the
-    // popover was last shown.
-    let screen = w
-        .monitor_from_point(anchor.x, anchor.y)
-        .ok()
-        .flatten()
-        .or_else(|| w.current_monitor().ok().flatten())
-        .map(|m| {
-            let (p, s) = (m.position(), m.size());
-            (p.x as f64, p.y as f64, s.width as f64, s.height as f64)
-        });
+    // popover was last shown. The anchor is in physical pixels, so it is
+    // matched against each monitor's physical rectangle: tao's
+    // `monitor_from_point` compares with macOS points (`CGDisplayBounds`) and
+    // would pick a screen to the right of a Retina one for an icon past the
+    // middle of its menu bar.
+    let rect = |m: &tauri::Monitor| {
+        let (p, s) = (m.position(), m.size());
+        (p.x as f64, p.y as f64, s.width as f64, s.height as f64)
+    };
+    let monitors: Vec<_> = w
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(rect)
+        .collect();
+    let screen = screen_containing(anchor, &monitors)
+        .or_else(|| w.current_monitor().ok().flatten().map(|m| rect(&m)));
     let (x, y) = popover_origin(anchor, (width, height), screen, scale);
     let _ = w.set_position(PhysicalPosition::new(x, y));
     #[cfg(target_os = "macos")]
@@ -1017,6 +1024,17 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+/// The first screen, as `(x, y, width, height)` in physical pixels, whose
+/// rectangle holds `anchor`.
+fn screen_containing(
+    anchor: PhysicalPosition<f64>,
+    screens: &[(f64, f64, f64, f64)],
+) -> Option<(f64, f64, f64, f64)> {
+    screens.iter().copied().find(|&(x, y, w, h)| {
+        anchor.x >= x && anchor.x < x + w && anchor.y >= y && anchor.y < y + h
+    })
 }
 
 /// Where the popover's top-left corner goes, in physical pixels: centred on the
@@ -1562,6 +1580,31 @@ mod tests {
             2.0,
         );
         assert_eq!(x, 2880.0 + 3024.0 - 760.0 - 16.0);
+    }
+
+    #[test]
+    fn popover_screen_is_found_in_physical_pixels() {
+        use super::screen_containing;
+        use tauri::PhysicalPosition;
+        // A 1512x982 pt Retina screen with a 2560x1440 pt Retina screen to its
+        // right, as tao reports them (points times each screen's scale).
+        let main = (0.0, 0.0, 3024.0, 1964.0);
+        let right = (3024.0, 0.0, 5120.0, 2880.0);
+        let screens = [main, right];
+        // An icon at x = 1300 pt of the main menu bar arrives as x = 2600 px:
+        // in points it would fall on the right screen; in pixels it stays home.
+        assert_eq!(
+            screen_containing(PhysicalPosition::new(2600.0, 40.0), &screens),
+            Some(main)
+        );
+        assert_eq!(
+            screen_containing(PhysicalPosition::new(4000.0, 40.0), &screens),
+            Some(right)
+        );
+        assert_eq!(
+            screen_containing(PhysicalPosition::new(9000.0, 40.0), &screens),
+            None
+        );
     }
 
     #[test]
