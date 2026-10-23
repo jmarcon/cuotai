@@ -126,6 +126,8 @@ Dependency licenses, advisories and sources are checked with `cargo deny` (see [
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push and pull request (PRD 0019, RF2). On Linux, macOS and Windows it runs the commands above for both workspaces: `cargo fmt --check`, `cargo clippy --all-targets -D warnings` and `cargo test`, with `--locked`. A separate Linux job runs `cargo deny` on both workspaces. Each job has a timeout, the token is read-only (`contents: read`), every action is pinned by commit hash, the workflow uses no secrets, and pull requests (forks included) run with `pull_request`, never `pull_request_target`. The `target/` cache is only written from `main`.
 
+A first `changes` job classifies the diff of the push (`before..after`) or pull request (`base...head`). When it touches only documentation (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `AGENTS.md`, `docs/**/*.md`, `docs/assets/**`, `.github/ISSUE_TEMPLATE/**`), the test matrix, `cargo deny` and the version check are skipped; `changelog-check` and the privacy guard still run. Anything else counts as code, including `CHANGELOG.md`, `docs/providers.md`, `docs/*.json`, the licenses, `THIRD_PARTY_NOTICES`, `apps/desktop/ui/**` and the workflows, as does any case where the diff cannot be computed (tags, force pushes whose previous tip is gone, empty diffs). The `CI result` job always runs and is the check to require in branch protection. `[skip ci]` in a commit message is GitHub's manual opt-out and should not be used on source changes.
+
 Platform coverage of the test suite:
 
 | Area | Linux | macOS | Windows |

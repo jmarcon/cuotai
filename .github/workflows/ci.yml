@@ -2,6 +2,13 @@
 # on Linux, macOS and Windows. Uses no secrets: `pull_request` (never
 # `pull_request_target`) gives fork pull requests a read-only token and no
 # repository secrets. Actions are pinned by commit hash (tag in the comment).
+#
+# Documentation-only changes skip the build and test work: the `changes` job
+# classifies the diff of the push or pull request and every heavy job runs only
+# when it touched something that is not documentation. `changelog-check` (and
+# the privacy guard) always run, and `ci-result` is the single check to require
+# in branch protection: it passes when the jobs that ran passed or were skipped.
+# `[skip ci]` in a commit message is GitHub's own manual opt-out (AGENTS.md).
 name: CI
 
 on:
@@ -11,17 +18,136 @@ on:
 permissions:
   contents: read
 
+# A push is classified by its own before..after diff, so a later documentation
+# push must never cancel (or replace as "pending") the run of an earlier code
+# push on main or a tag: that code would then be tested by nobody. Those runs
+# are keyed by commit and never cancelled. Pull requests and other branches
+# are classified against the whole change (base...head, or the default
+# branch), so superseding an older run there is safe.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
 
 jobs:
+  # Documentation-only detection. The heavy jobs below run only when
+  # `code == true`. Anything that is not clearly documentation counts as code,
+  # and so does every case where the diff cannot be computed (a tag, a force
+  # push whose previous tip is gone, an empty diff such as `--allow-empty`).
+  # Documentation is an allow-list of paths that no build, test or shipped
+  # artifact reads:
+  #   - README.md, CONTRIBUTING.md, SECURITY.md, AGENTS.md, apps/desktop/README.md
+  #   - docs/**/*.md and docs/assets/** (screenshots)
+  #   - .github/ISSUE_TEMPLATE/** and .github/*.md
+  # Deliberately code, although they look like documentation:
+  #   - CHANGELOG.md (embedded in the binaries and parsed by tests and release-check)
+  #   - docs/providers.md (a core test compares its access matrix with the code)
+  #   - docs/*.json (the export schema and example are read by core tests)
+  #   - LICENSE-*, THIRD_PARTY_NOTICES (shipped in the packages and the About box)
+  #   - apps/desktop/ui/** (the whole folder is embedded in the desktop app)
+  #   - .github/workflows/** and every other file
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The previous tip of a push and the merge base of a pull request
+          # are not in a shallow checkout.
+          fetch-depth: 0
+      - name: Classify the changed files
+        id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zero=0000000000000000000000000000000000000000
+          range=""
+          why=""
+          case "$EVENT" in
+            pull_request)
+              range="$BASE_SHA...$HEAD_SHA"
+              ;;
+            push)
+              if [[ "$REF" == refs/tags/* ]]; then
+                why="tag push"
+              elif [ "$BEFORE" = "$zero" ]; then
+                # New branch: compare with the default branch.
+                if git rev-parse --verify --quiet "refs/remotes/origin/$DEFAULT_BRANCH^{commit}" >/dev/null; then
+                  range="origin/$DEFAULT_BRANCH...$AFTER"
+                else
+                  why="new branch without a default branch to compare with"
+                fi
+              elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                range="$BEFORE..$AFTER"
+              else
+                why="previous tip $BEFORE is not in the history (force push)"
+              fi
+              ;;
+            *)
+              why="event $EVENT"
+              ;;
+          esac
+
+          code=true
+          if [ -n "$range" ]; then
+            list="$(mktemp)"
+            # --no-renames lists both sides of a move, so a file moved out of
+            # a code path into docs/ still counts as a code change.
+            if git diff -z --name-only --no-renames "$range" > "$list"; then
+              total=0
+              code_files=0
+              while IFS= read -r -d '' file; do
+                total=$((total + 1))
+                case "$file" in
+                  docs/providers.md) kind=code ;;
+                  README.md | CONTRIBUTING.md | SECURITY.md | AGENTS.md | apps/desktop/README.md) kind=docs ;;
+                  docs/*.md | docs/assets/* | .github/ISSUE_TEMPLATE/* | .github/*.md) kind=docs ;;
+                  *) kind=code ;;
+                esac
+                echo "$kind  $file"
+                if [ "$kind" = code ]; then code_files=$((code_files + 1)); fi
+              done < "$list"
+              if [ "$total" -eq 0 ]; then
+                why="empty diff for $range"
+              elif [ "$code_files" -eq 0 ]; then
+                code=false
+                why="$total changed file(s), all documentation"
+              else
+                why="$code_files of $total changed file(s) are not documentation"
+              fi
+            else
+              why="cannot diff $range"
+            fi
+          fi
+
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code=$code ($why)"
+          {
+            echo "### Change classification"
+            echo
+            echo "- code: \`$code\`"
+            echo "- reason: $why"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   test:
     name: test (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -147,6 +273,8 @@ jobs:
   # Dependency licenses, advisories and sources (PRD 0019, RF1.3). cargo-deny
   # finds the root `deny.toml` by walking up from either manifest.
   deny:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -165,6 +293,8 @@ jobs:
   # lockfiles, tauri.conf.json and the top released CHANGELOG section agree.
   # The same check runs with the tag in release.yml before any build.
   version-check:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -180,7 +310,12 @@ jobs:
   # Changelog format, PRD references and plan links (PRD 0019 RF7.4 and
   # RF7.8). The pull request also passes through the feat/fix changelog
   # gate, which needs the whole history to read the commits of the PR.
+  # This is the light job that always runs, documentation-only changes
+  # included: plan links live in docs/plans, and the privacy guard (no
+  # personal e-mail in tracked files) is part of `cargo test`, which the
+  # skipped matrix would otherwise have run.
   changelog-check:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -193,6 +328,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
+      # Only xtask is built here; main writes the cache like in `test`.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo run -p xtask --locked -- changelog-check
       - name: changelog gate (feat/fix without the changelog)
         if: github.event_name == 'pull_request'
@@ -200,3 +339,29 @@ jobs:
           cargo run -p xtask --locked -- changelog-gate
           --base ${{ github.event.pull_request.base.sha }}
           --head ${{ github.event.pull_request.head.sha }}
+      # The test matrix runs this too; it only needs its own step when the
+      # matrix is skipped.
+      - name: privacy guard (documentation-only changes)
+        if: needs.changes.outputs.code != 'true'
+        run: cargo test -p xtask --locked --test privacy
+
+  # The one check to require in branch protection. Skipped jobs count as
+  # success for required checks, but a skipped *matrix* job reports under its
+  # unexpanded name (`test (${{ matrix.os }})`), so a required
+  # `test (ubuntu-latest)` would wait forever on a documentation-only change.
+  # This job always runs and fails when any job it waits for failed or was
+  # cancelled; "skipped" is accepted only because `changes` itself succeeded.
+  ci-result:
+    name: CI result
+    needs: [changes, test, deny, version-check, changelog-check]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the jobs this run waited for
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e '.changes.result == "success" and all(.[]; .result == "success" or .result == "skipped")' > /dev/null
