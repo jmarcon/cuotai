@@ -74,14 +74,30 @@ SUBCOMMANDS:
   changelog-check     CHANGELOG format, PRD references and plan links (RF7.4, RF7.8)
     --repo PATH             repository root (default: .)
 
-  changelog-gate      Pull-request gate: feat/fix in crates/ or apps/ needs the changelog
+  changelog-gate      Commit gate (PRD 0039 RF2): conventional header, Changelog:
+                      trailer, no version/CHANGELOG edits outside a release commit
     --repo PATH             repository root (default: .)
-    --base REF              base of the pull request (default: HEAD~1)
-    --head REF              head of the pull request (default: HEAD)
+    --base REF              first excluded commit (default: HEAD~1)
+    --head REF              last checked commit (default: HEAD)
 
-  changelog-draft     Draft the [Unreleased] section from the commits (RF7.3)
+  changelog-draft     Print the next version and its would-be section (PRD 0039 RF4.8)
     --repo PATH             repository root (default: .)
-    --since REF             default: the last v* tag, else the last version bump
+    --date YYYY-MM-DD       section date (default: today, UTC)
+
+  release prepare     Compute the next version and write the release (PRD 0039 RF4)
+    --repo PATH             repository root (default: .)
+    --version X.Y.Z         override the computed version (RF3.4)
+    --date YYYY-MM-DD       section date (default: today, UTC)
+    --dry-run               print the version, rationale and diffs; write nothing
+    --branch                commit 'chore(release): X.Y.Z' on a new release/vX.Y.Z
+    --refresh               re-render the prepared version's section (after an rc)
+    --check                 verify a release commit instead (RF4.7)
+    --rev REF               commit checked by --check (default: HEAD)
+
+  release tag         Create the local annotated tag of the release commit (RF5.2)
+    --repo PATH             repository root (default: .)
+    --rc                    tag vX.Y.Z-rc.N instead of vX.Y.Z
+    --main REF              branch the commit must be on (default: origin/main)
 
   package-manifests  Render and validate every package-manager channel (RF5.6)
     --release-manifest PATH  manifest.json, or a directory containing it
@@ -117,6 +133,9 @@ fn run(args: &[String]) -> Res<()> {
         eprint!("{USAGE}");
         return err("missing subcommand");
     };
+    if sub == "release" {
+        return release(&args[1..]);
+    }
     let opts = Opts::parse(&args[1..])?;
     match sub.as_str() {
         "release-check" => release_check(&opts),
@@ -369,16 +388,158 @@ fn changelog_gate(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
     let base = opts.get("base").unwrap_or_else(|| "HEAD~1".to_string());
     let head = opts.get("head").unwrap_or_else(|| "HEAD".to_string());
-    xtask::changelog_gate::run(&repo, &base, &head)?;
-    println!("changelog gate passed: every feat/fix in {base}..{head} is accounted for");
+    let checked = xtask::changelog_gate::run(&repo, &base, &head)?;
+    println!(
+        "commit gate passed: {checked} commit(s) in {base}..{head} follow the commit contract"
+    );
     Ok(())
 }
 
 fn changelog_draft(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
-    let since = opts.get("since");
-    print!("{}", xtask::draft::run(&repo, since.as_deref())?);
+    let date = opts
+        .get("date")
+        .unwrap_or_else(xtask::release::prepare::today_utc);
+    print!("{}", xtask::release::prepare::draft(&repo, &date)?);
     Ok(())
+}
+
+/// `release prepare|tag` (PRD 0039 RF4/RF5): `--key value` options plus
+/// boolean flags.
+fn release(args: &[String]) -> Res<()> {
+    const FLAGS: [&str; 5] = ["--dry-run", "--branch", "--refresh", "--check", "--rc"];
+    let Some(action) = args.first() else {
+        return err("usage: cargo xtask release prepare|tag [OPTIONS]");
+    };
+    let flags: Vec<&str> = args[1..]
+        .iter()
+        .map(String::as_str)
+        .filter(|a| FLAGS.contains(a))
+        .collect();
+    let rest: Vec<String> = args[1..]
+        .iter()
+        .filter(|a| !FLAGS.contains(&a.as_str()))
+        .cloned()
+        .collect();
+    let opts = Opts::parse(&rest)?;
+    let flag = |name: &str| flags.contains(&name);
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    match action.as_str() {
+        "prepare" if flag("--check") => {
+            let rev = opts.get("rev").unwrap_or_else(|| "HEAD".to_string());
+            let outcome = xtask::release::check_release(&repo, &rev)?;
+            println!(
+                "release check passed: {} covers the {} commit(s) since {}",
+                outcome.version,
+                outcome.commits,
+                outcome.base.describe()
+            );
+            Ok(())
+        }
+        "prepare" => release_prepare(&repo, &opts, &flag),
+        "tag" => {
+            let main_ref = opts
+                .get("main")
+                .unwrap_or_else(|| "origin/main".to_string());
+            let tagged = xtask::release::tag::run(&repo, flag("--rc"), &main_ref)?;
+            println!(
+                "created the annotated tag {} on {}. Push it to start release.yml:\n  git push origin {}",
+                tagged.tag,
+                &tagged.sha[..7],
+                tagged.tag
+            );
+            Ok(())
+        }
+        other => err(format!(
+            "unknown release action '{other}' (expected prepare or tag)"
+        )),
+    }
+}
+
+fn release_prepare(repo: &Path, opts: &Opts, flag: &dyn Fn(&str) -> bool) -> Res<()> {
+    let version = opts
+        .get("version")
+        .map(|v| Version::parse(&v))
+        .transpose()?;
+    let date = opts
+        .get("date")
+        .unwrap_or_else(xtask::release::prepare::today_utc);
+    let options = xtask::release::prepare::Options {
+        version,
+        date,
+        dry_run: flag("--dry-run"),
+        branch: flag("--branch"),
+        refresh: flag("--refresh"),
+        verify_lockfiles: true,
+    };
+    if options.dry_run && options.branch {
+        return err("--dry-run and --branch exclude each other");
+    }
+    warn_if_not_main(repo);
+    let Some(outcome) = xtask::release::prepare::run(repo, &options)? else {
+        let base = xtask::release::release_base(repo, "HEAD", None)?;
+        let message = format!(
+            "{}: no user-visible commit since {} (pass --version X.Y.Z to release anyway)",
+            xtask::release::prepare::NOTHING,
+            base.describe()
+        );
+        if options.dry_run {
+            println!("{message}");
+            return Ok(());
+        }
+        return err(message);
+    };
+    for warning in &outcome.warnings {
+        eprintln!("warning: {warning}");
+    }
+    println!(
+        "next version: {} ({} bump from {})",
+        outcome.version,
+        outcome.bump.as_str(),
+        outcome.base.describe()
+    );
+    for line in &outcome.rationale {
+        println!("  {line}");
+    }
+    println!("\n{}", outcome.section);
+    if options.dry_run {
+        for change in &outcome.changes {
+            print!(
+                "{}",
+                xtask::release::render::unified_diff(&change.path, &change.old, &change.new)
+            );
+        }
+        println!("\ndry run: nothing was written");
+        return Ok(());
+    }
+    println!(
+        "wrote {} file(s); release-check and changelog-check passed",
+        outcome.changes.len()
+    );
+    match &outcome.branch {
+        Some(branch) => println!(
+            "committed on {branch}. Next:\n  git push -u origin {branch}\n  gh pr create --base main --head {branch} --title \"chore(release): {v}\" --body \"$(git log -1 --format=%b)\"\nAfter the rebase-merge: git switch main && git pull --ff-only && cargo xtask release tag --rc",
+            v = outcome.version
+        ),
+        None => println!(
+            "review the changes, then commit them as 'chore(release): {}' (or rerun with --branch)",
+            outcome.version
+        ),
+    }
+    Ok(())
+}
+
+/// RF4.1: prepare runs on an up-to-date main; anything else is a warning.
+fn warn_if_not_main(repo: &Path) {
+    let head = xtask::git::run(repo, &["rev-parse", "HEAD"]);
+    let main = xtask::git::run(repo, &["rev-parse", "--verify", "--quiet", "origin/main"]);
+    if let (Ok(head), Ok(main)) = (head, main) {
+        if head.trim() != main.trim() {
+            eprintln!(
+                "warning: HEAD is not origin/main; a release is normally prepared from an up-to-date main"
+            );
+        }
+    }
 }
 
 fn package_manifests(opts: &Opts) -> Res<()> {
