@@ -236,8 +236,8 @@ OpenRouter does expose a per-upstream breakdown: `/activity` rows carry `provide
 ### RF14 — Documentation, changelog and plan control (low priority)
 
 - **RF14.1** `docs/providers.md` (main-integrations row, generated matrix, model-catalog matrix), `README.md` (supported providers), `cuotai.example.toml`, `docs/architecture.md` (count), the `credential_help` and a short "OpenRouter: which key do I need?" paragraph explaining inference key versus management key.
-- **RF14.2** `CHANGELOG.md` `[Unreleased]` **Added** entry, one sentence from the user's point of view with the PRD reference; the `feat(provider)` commit raises the minor version (all version files equal, per `AGENTS.md`), updates this PRD's status and `docs/plans/0000_control.md`, and carries `Refs: PRD 0038 RF1` (one line per requirement delivered). `THIRD_PARTY_NOTICES` needs no entry: no upstream code is adapted, the contract comes from OpenRouter's public documentation.
-- **Acceptance criterion:** the documentation drift tests, the version check and the changelog check pass.
+- **RF14.2** The `feat(provider)` commit carries a `Changelog:` trailer (one sentence from the user's point of view) and `Refs: PRD 0038 RF1` (one line per requirement delivered), writes `vNEXT` in this PRD's status and its `docs/plans/0000_control.md` row, and touches no version location (PRD 0039). `THIRD_PARTY_NOTICES` needs no entry: no upstream code is adapted, the contract comes from OpenRouter's public documentation.
+- **Acceptance criterion:** the documentation drift tests and the commit gate pass.
 
 ## 6. Non-functional requirements
 

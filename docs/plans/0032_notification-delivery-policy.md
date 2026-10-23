@@ -6,8 +6,8 @@
 | Status | Proposed |
 | Owner | `cuotai-core` (`notify_prefs`, quiet-hours decision, digest, `AlertState`, `resets::Ledger`), desktop and TUI |
 | Consumers | `apps/desktop` (Settings → Notifications, delivery, cards and details), `crates/cuotai-tui` (`--notify`), `--watch` hooks, PRDs 0023 and 0024 (their alerts follow the same policy) |
-| Depends on | PRD 0003 (RF1–RF4: reset planner, ledger, delivery), PRD 0008 (RF1–RF4: `alerts::evaluate`, `AlertState`, preferences), PRD 0013 (RF3: hooks) |
-| Benefits from | PRD 0029 (RF2: state keyed by account `id`), PRD 0020 (Settings rows), PRD 0022 (UI refresh: marker visuals), PRD 0025 (RF6: recommended defaults) |
+| Depends on | PRD 0003 (RF1–RF4: reset planner, ledger, delivery), PRD 0008 (RF1–RF4: `alerts::evaluate`, `AlertState`, preferences), PRD 0013 (RF3: hooks); PRD 0029 (RF2: state keyed by account `id`) for RF1.3 |
+| Benefits from | PRD 0020 (Settings rows), PRD 0022 (UI refresh: marker visuals), PRD 0025 (RF6: recommended defaults) |
 | Extends | PRD 0003 RF2/RF4 (quiet hours, cross-process ledger, private texts), PRD 0008 RF1/RF2/RF3/RF4 (deferred marks, missed-crossing marker, recovery without reset, single preference source), PRD 0013 RF3 (`quiet` filter) |
 | Date | 2026-10-23 |
 

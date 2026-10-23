@@ -6,7 +6,7 @@
 | Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1 and the shared install-source contract adopted in 0.77.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and normal winget ownership still needs a packaging marker; RF2.6, added on 2026-10-23, is proposed) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
-| Depends on | PRD 0019 (RF2 and RF3: signed packages and artifact hosting) |
+| Depends on | PRD 0019 (RF2: CI) and PRD 0021 (RF1–RF4, which supersede PRD 0019 RF3: signed packages and artifact hosting) |
 | Extended by | PRD 0025 (RF6.5: the first-run step hosts the update question of RF2.6), PRD 0028 (RF8.2 and RF8.3: the core install-source detector delivered in 0.77.0 serves a CLI update notice) |
 | Date | 2026-10-19; amended 2026-10-23 (review item UPD-01, owner decision F: RF2.6 "ask before the first check" supersedes the on-by-default part of RF2.1) |
 
