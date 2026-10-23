@@ -49,6 +49,18 @@ chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time", "sync", "macros"] }
 parking_lot = "0.12"
 
+# The tray popover is a non-activating NSPanel that joins every Space, full-screen
+# ones included (`macos_popover` in lib.rs). Both crates are already in the graph
+# through Tauri/tao; the versions follow theirs.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSPanel",
+  "NSResponder",
+  "NSWindow",
+] }
+
 [dev-dependencies]
 tempfile = "3"
 # PRD 0018 RF1.4: os testes assinam com um par de chaves efêmero (nunca a chave de release).
