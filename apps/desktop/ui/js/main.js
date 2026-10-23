@@ -7,7 +7,7 @@ import { openExtensionsDialog } from "./extensions-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { costCardHtml, costSoloCardHtml, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
-import { bindUpdateBanner, initUpdates, onUpdateState, updateBannerHtml } from "./updater.js";
+import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml } from "./updater.js";
 import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
@@ -437,12 +437,13 @@ initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();
-// PRD 0018 RF2.2: o aviso de atualização (com as notas da versão) vive na janela principal; o
-// estado chega pelo evento do backend, então o menu da bandeja e a janela contam a mesma coisa.
-// A última leitura repinta também, para quem abre o app com uma versão nova já anunciada.
+// PRD 0018 RF2.2/RF2.6: the backend state repaints update notices, while the main
+// window alone hosts the one-time consent dialog. Its native modal layer does not
+// block backend or tray startup; closing it records nothing and sends nothing.
 bindUpdateBanner(root, { rerender: () => render(), onError: (e) => setNotice("bad", errText(e)) });
 await initUpdates();
 onUpdateState(() => render());
+await promptForUpdateConsent();
 loadLocalCost();
 setInterval(loadLocalCost, 30_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLocalCost(); });

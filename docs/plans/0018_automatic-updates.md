@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1 and the shared install-source contract adopted in 0.77.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and normal winget ownership still needs a packaging marker; RF2.6, added on 2026-10-23, is proposed) |
+| Status | In progress (RF1–RF4 delivered in 0.74.0–0.75.1, the shared install-source contract adopted in 0.77.0 and RF2.6's pre-request consent gate delivered in vNEXT; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and normal winget ownership still needs a packaging marker) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2: CI) and PRD 0021 (RF1–RF4, which supersede PRD 0019 RF3: signed packages and artifact hosting) |
@@ -19,7 +19,7 @@
 | RF1 (mechanism and keys) | 0.74.0, 0.75.0 and 0.75.1 | Delivered — in the app in 0.74.0 (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands), in the pipeline in 0.75.0 (`xtask updater-manifest` renders `latest.json`), and hardened in 0.75.1 (one artifact carries its platform/checksum proof plus its detached updater proof without duplicate signing records). |
 | RF2 (flow in the app) | 0.74.0, 0.75.1 and 0.77.0 | Delivered except the cross-OS acceptance smoke, which needs a signed release (owner). In 0.75.1 cancellation restores the retained update and verified bytes wait for the restart/login gate; in 0.77.0 the desktop consumes the core's typed install-source result without changing its installability, guidance or request policy. |
 | RF3 (Settings and About) | 0.74.0, 0.75.1 and 0.77.0 | Delivered; the four-language UI smoke and zero-request test are automated. In 0.75.1 malformed persisted dates, preference re-enabling, Scoop boundaries and Linux guidance were corrected. In 0.77.0 package-manager ownership/reasons and upgrade commands come from the same core function exposed by the offline CLI, with Cargo and Homebrew Cellar included. |
-| RF2.6 (ask before the first check) | — | Proposed (2026-10-23). |
+| RF2.6 (ask before the first check) | vNEXT | Delivered — a persisted answer gates the scheduler, the manual command and the request boundary in Rust. The one-time dialog discloses the exact request fields and click-only download/install in all four UI languages; its Yes, No and close paths are exercised through the production UI modules. A request-counting backend test proves zero requests while unanswered, after No and under every existing off policy, and one scheduled check after Yes; legacy profiles with an explicit off preference migrate as answered and stay off. |
 | RF4 (operational security) | 0.74.0–0.75.1 | Delivered — HTTPS endpoint and real untrusted-certificate coverage in 0.74.0/0.75.1, artifact URLs restricted to this repository's HTTPS release downloads in 0.75.1, and key custody, leak/loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](../updater-security.md)). |
 
 Open or owner-blocked, and not claimed as delivered:
@@ -127,6 +127,14 @@ Verified in the repository, on every push:
   by `CUOTAI_UPDATER=off`, by the `CUOTAI_UPDATER_DEFAULT` build key or by a
   package-manager install — a request-counting server sees **zero** requests,
   including from *Check now*;
+- RF2.6: absent, legacy-on and malformed preferences are all unanswered and
+  produce zero requests from the scheduler and *Check now*; **No** persists an
+  answered off preference with zero requests, **Yes** starts the existing daily
+  schedule and produces one request when due, and every environment, build and
+  package-manager policy continues to produce zero requests. The production UI
+  smoke covers Yes, No and close (which records no answer), renders the dialog
+  in all four built-in languages and keeps the question hidden for managed
+  installs.
 - the 0.77.0 shared-source regression: core path/environment tests cover every
   source and its boundaries, while the desktop view receives the same disable
   reasons, upgrade commands and installability after deleting its private

@@ -515,7 +515,7 @@ dialog.extensions-dlg {
   width: min(680px, calc(100vw - 32px));
   padding: 20px;
 }
-.extensions-dlg .dlg-head,
+.dlg-head,
 .extension-title,
 .extension-actions,
 .extension-confirm {
@@ -523,7 +523,7 @@ dialog.extensions-dlg {
   align-items: center;
   gap: 8px;
 }
-.extensions-dlg .dlg-head h2 {
+.dlg-head h2 {
   flex: 1;
   font-size: 18px;
 }

@@ -3,22 +3,33 @@
 // entrega só o que mostrar (fase, versão, notas, progresso, motivo). Todos os textos
 // moram nos quatro catálogos.
 import { te, t, currentLocale } from "./i18n.js";
+import { showDialog } from "./motion.js";
 import {
-  esc, errText, fmtDate, icon, onUpdate, openExternal, updaterCancelDownload, updaterCheckNow,
-  updaterDismiss, updaterExplanationSeen, updaterInstall, updaterRestart, updaterStatus, setUpdaterAutomatic,
+  esc, errText, fmtDate, icon, onUpdate, openExternal, updaterAnswerAutomatic, updaterCancelDownload, updaterCheckNow,
+  updaterDismiss, updaterInstall, updaterRestart, updaterStatus, setUpdaterAutomatic,
 } from "./lib.js";
 
 let status = null;
 const listeners = new Set();
 let started = false;
+let initialStatus = null;
+let consentPrompted = false;
+
+const publish = (view) => {
+  status = view;
+  listeners.forEach((cb) => cb(view));
+  return view;
+};
 
 /** Lê o estado uma vez e passa a reagir ao evento `updater` das duas janelas. */
 export async function initUpdates() {
   if (!started) {
     started = true;
-    onUpdate((view) => { status = view; listeners.forEach((cb) => cb(view)); });
-    updaterStatus().then((view) => { status = view; listeners.forEach((cb) => cb(view)); }, () => {});
+    onUpdate(publish);
+    initialStatus = updaterStatus().then(publish, () => null);
   }
+  await initialStatus;
+  return status;
 }
 
 /** O último estado recebido (null antes da primeira resposta). */
@@ -34,8 +45,7 @@ export function onUpdateState(cb) {
 /** PRD 0018 RF2.2: o aviso da janela principal. Nada baixa sem "Atualizar agora". */
 export function updateBannerHtml() {
   const s = status;
-  if (!s) return "";
-  if (s.explanation_pending) return explanationHtml();
+  if (!s || s.consent_pending) return "";
   if (!s.enabled) return "";
   switch (s.phase) {
     case "available":
@@ -53,11 +63,58 @@ export function updateBannerHtml() {
   }
 }
 
-/** PRD 0018 RF2.1: primeira execução, o que o pedido envia. */
-const explanationHtml = () => `<div class="banner" role="status" data-update-banner data-update-explain>
-  <b>${te("update.explain.title")}</b> ${te("update.explain.body")}
-  <div class="dlg-actions left"><button class="btn primary" data-update-explain-ok>${te("common.close")}</button></div>
+/**
+ * PRD 0018 RF2.6 / DS-CMP-DLG-1, DS-CMP-DLG-2, DS-CMP-DLG-4,
+ * DS-CMP-BTN-2, DS-CMP-BTN-4, DS-A11Y-1, DS-A11Y-2 and DS-A11Y-5:
+ * one focused consent dialog in the main window. Closing it records nothing,
+ * so this session continues without a request and the question returns on the
+ * next launch.
+ */
+export const updateConsentDialogHtml = () => `<div class="dlg-body">
+  <header class="dlg-head">
+    <h2 id="update-consent-title">${te("update.consent.title")}</h2>
+    <button class="icon" data-update-consent-close title="${te("common.close")}" aria-label="${te("common.close")}">${icon("x")}</button>
+  </header>
+  <p>${te("update.consent.body")}</p>
+  <p class="err" data-update-consent-error role="alert"></p>
+  <div class="dlg-actions">
+    <button class="btn" data-update-consent-no>${te("update.consent.no")}</button>
+    <button class="btn primary" data-update-consent-yes>${te("update.consent.yes")}</button>
+  </div>
 </div>`;
+
+export async function promptForUpdateConsent() {
+  const current = await initUpdates();
+  if (!current?.consent_pending || consentPrompted) return false;
+  consentPrompted = true;
+  const dlg = document.createElement("dialog");
+  dlg.className = "dlg update-consent";
+  dlg.setAttribute("aria-labelledby", "update-consent-title");
+  dlg.innerHTML = updateConsentDialogHtml();
+  document.body.append(dlg);
+  const no = dlg.querySelector("[data-update-consent-no]");
+  const yes = dlg.querySelector("[data-update-consent-yes]");
+  const error = dlg.querySelector("[data-update-consent-error]");
+  const answer = async (on) => {
+    no.disabled = true;
+    yes.disabled = true;
+    try {
+      publish(await updaterAnswerAutomatic(on));
+      dlg.close();
+    } catch (reason) {
+      no.disabled = false;
+      yes.disabled = false;
+      error.textContent = errText(reason);
+    }
+  };
+  dlg.addEventListener("close", () => dlg.remove(), { once: true });
+  dlg.querySelector("[data-update-consent-close]").onclick = () => dlg.close();
+  no.onclick = () => answer(false);
+  yes.onclick = () => answer(true);
+  showDialog(dlg);
+  no.focus();
+  return true;
+}
 
 const availableHtml = (s) => {
   const releaseDate = fmtDate(s.date);
@@ -104,7 +161,6 @@ const failedHtml = (s) => `<div class="banner bad" role="alert" data-update-bann
 export function bindUpdateBanner(root, { rerender, onError }) {
   root.addEventListener("click", async (e) => {
     const t = e.target;
-    if (t.closest("[data-update-explain-ok]")) return updaterExplanationSeen().catch(() => {});
     if (t.closest("[data-update-now]")) return updaterInstall().then(rerender, onError);
     if (t.closest("[data-update-later]")) return updaterDismiss().then(rerender, onError);
     if (t.closest("[data-update-cancel]")) return updaterCancelDownload().then(rerender, onError);
@@ -126,17 +182,19 @@ export const privacyNoteHtml = () => `<p class="hint" data-update-privacy>${te("
 /** PRD 0018 RF3.1/RF2.5: the complete Settings "Updates" section, including its
  * single heading, switch, last check, current version, channel and disabled reason. */
 export function updatesSectionHtml(s, message = "") {
+  const pending = !!s?.consent_pending;
   const off = s && !s.enabled;
-  // A user's own preference must never lock the control needed to turn the
-  // feature back on. Environment/build/package policy still makes it read-only.
-  const switchLocked = off && s.disabled_reason !== "preference";
+  // A user's answered preference must never lock the control needed to turn
+  // checks back on. The unanswered gate and external policies stay read-only.
+  const switchLocked = pending || (off && s.disabled_reason !== "preference");
   const last = s?.last_check ? t("update.lastCheckAt", { date: new Date(s.last_check).toLocaleString(currentLocale()) }) : t("update.lastCheckNever");
+  const offText = pending ? te("update.consent.pending") : off ? te(`update.off.${s.disabled_reason}`) : "";
   return `<section class="set-sec" data-updates>
     <h3>${te("update.title")}</h3>
     <div data-update-body>
       ${privacyNoteHtml()}
       <label class="check"><input id="update-automatic" type="checkbox" ${s?.automatic ? "checked" : ""} ${switchLocked ? "disabled" : ""} /> ${te("update.automatic")}</label>
-      ${off ? `<p class="hint warn-txt" data-update-off>${te(`update.off.${s.disabled_reason}`)}</p>` : ""}
+      ${off ? `<p class="hint warn-txt" data-update-off>${offText}</p>` : ""}
       <p class="hint">${te("update.version", { version: s?.current_version ?? "—" })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
       <p class="hint" id="update-last-check">${last}</p>
       <div class="dlg-actions left">
@@ -153,7 +211,7 @@ export function updatesSectionHtml(s, message = "") {
 /** Uma linha honesta sobre o que está acontecendo agora. */
 const phaseText = (s) => {
   if (!s) return t("common.loading");
-  if (s.explanation_pending) return t("update.pendingExplanation");
+  if (s.consent_pending) return t("update.consent.pending");
   if (!s.enabled) return t(`update.off.${s.disabled_reason}`);
   switch (s.phase) {
     case "checking": return t("update.state.checking");

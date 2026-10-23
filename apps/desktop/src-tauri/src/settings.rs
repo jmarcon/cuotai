@@ -65,40 +65,34 @@ struct Stored {
     /// ([`WidgetPrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     widgets: Option<serde_json::Value>,
-    /// Update checks of this device (PRD 0018 RF2.1/RF3.3); absent = on,
-    /// nothing recorded yet. Read leniently like `notify`
-    /// ([`UpdaterPrefs::from_value`]).
+    /// Update checks of this device (PRD 0018 RF2.6/RF3.3); absent means
+    /// the one-time question has not been answered and checks stay off.
+    /// Read leniently like `notify` ([`UpdaterPrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     updater: Option<serde_json::Value>,
 }
 
-/// PRD 0018 RF2.1/RF3.3: the update-check preferences of this device.
-/// Automatic checks are on by default (RF2.1); `last_check` is the RFC 3339
-/// instant the last check finished; `explanation_seen` records that the
-/// first-run privacy explanation (what a check sends) was shown.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// PRD 0018 RF2.6/RF3.3: the update-check preferences of this device.
+/// `consent_answered` is the hard privacy gate: automatic and manual checks
+/// stay off until the one-time question is answered. `last_check` is the
+/// RFC 3339 instant the last check finished.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct UpdaterPrefs {
     pub automatic: bool,
     pub last_check: Option<String>,
-    pub explanation_seen: bool,
-}
-
-impl Default for UpdaterPrefs {
-    fn default() -> Self {
-        Self {
-            automatic: true,
-            last_check: None,
-            explanation_seen: false,
-        }
-    }
+    pub consent_answered: bool,
 }
 
 impl UpdaterPrefs {
-    /// Each field on its own: an unknown or mistyped value is its default.
-    /// A malformed timestamp is also absent, so the UI never receives
-    /// `Invalid Date` from a hand-edited preference file.
+    /// Each field on its own: an unknown or mistyped value is its safe
+    /// default. Profiles written before RF2.6 with an explicit
+    /// `automatic: false` already opted out, so they count as answered and
+    /// remain off without seeing the question.
     fn from_value(value: &serde_json::Value) -> Self {
-        let default = Self::default();
+        let automatic = value["automatic"].as_bool();
+        let consent_answered = value["consent_answered"]
+            .as_bool()
+            .unwrap_or(automatic == Some(false));
         let last_check = value["last_check"].as_str().and_then(|text| {
             let text = text.trim();
             chrono::DateTime::parse_from_rfc3339(text)
@@ -106,11 +100,9 @@ impl UpdaterPrefs {
                 .map(|_| text.to_owned())
         });
         Self {
-            automatic: value["automatic"].as_bool().unwrap_or(default.automatic),
+            automatic: consent_answered && automatic.unwrap_or(false),
             last_check,
-            explanation_seen: value["explanation_seen"]
-                .as_bool()
-                .unwrap_or(default.explanation_seen),
+            consent_answered,
         }
     }
 }
@@ -128,7 +120,7 @@ pub fn read_updater(file: &Path) -> UpdaterPrefs {
     updater_of(&read(file))
 }
 
-/// Store the update-check preferences in `file`; the defaults remove the key.
+/// Store the update-check preferences in `file`; the unanswered defaults remove the key.
 pub fn write_updater(file: &Path, prefs: &UpdaterPrefs) -> Result<(), &'static str> {
     update(file, |s| {
         s.updater = (*prefs != UpdaterPrefs::default())
@@ -1045,56 +1037,66 @@ mod tests {
         assert!(!hooks_of(&read(&file)), "a hand-edited false is off");
     }
 
-    /// PRD 0018 RF2.1/RF3.3: automático ligado por padrão, `last_check` e a explicação
-    /// aceitada lenientes, e a gravação preservando os demais campos do arquivo.
+    /// PRD 0018 RF2.6/RF3.3: absent and malformed preferences are safely
+    /// unanswered and off; an explicit legacy opt-out stays answered and off.
     #[test]
-    fn updater_is_on_by_default_round_trips_and_reads_leniently() {
+    fn updater_consent_round_trips_and_migrates_an_existing_opt_out() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("desktop.json");
-        // Ausente = ligado, nada verificado, explicação ainda pendente (RF2.1).
-        assert_eq!(
-            read_updater(&file),
-            UpdaterPrefs {
-                automatic: true,
-                last_check: None,
-                explanation_seen: false
-            }
-        );
+        // Absent = no answer, no automatic or manual request.
+        assert_eq!(read_updater(&file), UpdaterPrefs::default());
         update(&file, |s| s.motion = Some("off".into())).unwrap();
         let prefs = UpdaterPrefs {
-            automatic: false,
+            automatic: true,
             last_check: Some("2026-10-22T12:00:00Z".into()),
-            explanation_seen: true,
+            consent_answered: true,
         };
         write_updater(&file, &prefs).unwrap();
         assert_eq!(read_updater(&file), prefs);
         assert_eq!(motion_of(&read(&file)), "off");
-        // Voltar ao padrão remove a chave, sem tocar nos demais campos.
+
+        // Returning to the unanswered safe default removes the key without
+        // touching unrelated settings.
         write_updater(&file, &UpdaterPrefs::default()).unwrap();
         assert_eq!(read(&file).updater, None);
         assert_eq!(motion_of(&read(&file)), "off");
-        // Um valor editado à mão no tipo errado cai no padrão do campo, não invalida o arquivo.
+
+        // A wrong type falls back to the safe field default and never opens
+        // the network gate.
         for text in [
-            r#"{"motion":"off","updater":{"automatic":"sim","last_check":7,"explanation_seen":"x"}}"#,
+            r#"{"motion":"off","updater":{"automatic":"yes","last_check":7,"consent_answered":"yes"}}"#,
             r#"{"motion":"off","updater":[]}"#,
             r#"{"motion":"off","updater":null}"#,
         ] {
             fs::write(&file, text).unwrap();
+            assert_eq!(read_updater(&file), UpdaterPrefs::default(), "{text}");
+            assert_eq!(motion_of(&read(&file)), "off", "{text}");
+        }
+
+        // Profiles that explicitly turned the old preference off keep it off
+        // and do not get asked again, regardless of the old explanation flag.
+        for explanation_seen in [false, true] {
+            fs::write(
+                &file,
+                format!(
+                    r#"{{"updater":{{"automatic":false,"explanation_seen":{explanation_seen}}}}}"#
+                ),
+            )
+            .unwrap();
             assert_eq!(
                 read_updater(&file),
                 UpdaterPrefs {
-                    automatic: true,
+                    automatic: false,
                     last_check: None,
-                    explanation_seen: false
-                },
-                "{text}"
+                    consent_answered: true,
+                }
             );
-            assert_eq!(motion_of(&read(&file)), "off", "{text}");
         }
-        // Uma data ilegível é descartada para a interface mostrar "nunca verificou".
+
+        // A malformed date is discarded without changing an answered choice.
         fs::write(
             &file,
-            r#"{"updater":{"automatic":true,"last_check":"quando?","explanation_seen":true}}"#,
+            r#"{"updater":{"automatic":true,"last_check":"when?","consent_answered":true}}"#,
         )
         .unwrap();
         assert_eq!(
@@ -1102,7 +1104,7 @@ mod tests {
             UpdaterPrefs {
                 automatic: true,
                 last_check: None,
-                explanation_seen: true
+                consent_answered: true,
             }
         );
     }
