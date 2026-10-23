@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "policies": [
+    {
+      "name": "Homebrew Acceptable Casks",
+      "url": "https://docs.brew.sh/Acceptable-Casks",
+      "sha256": "0654dee8c9e0781e65f24feabf6cb8e94eea147854e2d01c9d6536e30f6e7497",
+      "fetched_on": "2026-10-23"
+    },
+    {
+      "name": "Homebrew Package Acceptance Policy",
+      "url": "https://docs.brew.sh/Package-Acceptance-Policy",
+      "sha256": "6385a5414bced93ed824f3bcebc8b7de48fad013974261efd2e75f9793bceec5",
+      "fetched_on": "2026-10-23"
+    },
+    {
+      "name": "WinGet manifest repository submission policy",
+      "url": "https://learn.microsoft.com/en-us/windows/package-manager/package/repository",
+      "sha256": "ef138c779077b91b2ae8064ad2aebaf3177daf8524a6e87429a8e4eb4b375d28",
+      "fetched_on": "2026-10-23"
+    },
+    {
+      "name": "Scoop App Manifest Autoupdate conventions",
+      "url": "https://raw.githubusercontent.com/wiki/ScoopInstaller/Scoop/App-Manifest-Autoupdate.md",
+      "sha256": "c55db318c29532bb5b22da6dd3663fde726c93be0376b2cee33e70fe9b180749",
+      "fetched_on": "2026-10-23"
+    }
+  ]
+}

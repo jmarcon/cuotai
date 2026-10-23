@@ -1,7 +1,7 @@
-//! Static policy checks for GitHub Actions workflows (PRD 0021 RF9.2/RF9.5).
-//! The guard intentionally knows the two repository workflows: changing a
-//! permission, secret owner or release target requires an explicit policy
-//! update instead of silently widening the pipeline.
+//! Static policy checks for GitHub Actions workflows (PRD 0021 RF9.2/RF9.3/RF9.5).
+//! The guard intentionally knows the repository workflows: changing a
+//! permission, secret owner, scheduled monitor or release target requires an
+//! explicit policy update instead of silently widening the pipeline.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -311,13 +311,16 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
         let job_name = string(job_key, "job id")?;
         let job = mapping(job_value, &format!("job {job_name}"))?;
         check_timeout(job_name, job)?;
-        check_job_permissions(job_name, job)?;
+        check_job_permissions(name, job_name, job)?;
         check_job_secrets(job_name, job)?;
         check_action_pins(job_name, job)?;
     }
 
     if name == "release.yml" {
         check_release_policy(jobs)?;
+    }
+    if name == "external-rules.yml" {
+        check_external_rules_policy(jobs, text)?;
     }
     Ok(())
 }
@@ -377,6 +380,26 @@ fn check_triggers(name: &str, root: &Mapping) -> Res<()> {
             return err("full_rehearsal must be an optional boolean defaulting to false");
         }
     }
+    if name == "external-rules.yml" {
+        let actual: BTreeSet<&str> = on
+            .keys()
+            .map(|key| string(key, "trigger"))
+            .collect::<Res<_>>()?;
+        let expected = BTreeSet::from(["schedule", "workflow_dispatch"]);
+        if actual != expected {
+            return err("external-rules.yml may trigger only monthly and by workflow_dispatch");
+        }
+        let schedule = need(on, "schedule", "external-rules triggers")?
+            .as_sequence()
+            .ok_or_else(|| Error::Msg("external-rules schedule must be a sequence".into()))?;
+        if schedule.len() != 1 {
+            return err("external-rules.yml must have exactly one monthly schedule");
+        }
+        let schedule = mapping(&schedule[0], "external-rules schedule")?;
+        if scalar(schedule, "cron") != Some("17 8 1 * *") {
+            return err("external-rules.yml must run monthly on the first day");
+        }
+    }
     Ok(())
 }
 
@@ -389,15 +412,16 @@ fn check_timeout(job_name: &str, job: &Mapping) -> Res<()> {
     }
 }
 
-fn check_job_permissions(job_name: &str, job: &Mapping) -> Res<()> {
-    let expected: &[(&str, &str)] = match job_name {
-        "assemble" => &[
+fn check_job_permissions(workflow_name: &str, job_name: &str, job: &Mapping) -> Res<()> {
+    let expected: &[(&str, &str)] = match (workflow_name, job_name) {
+        ("release.yml", "assemble") => &[
             ("contents", "read"),
             ("id-token", "write"),
             ("attestations", "write"),
         ],
-        "publish" => &[("contents", "write"), ("attestations", "read")],
-        "verify-public" => &[("contents", "read"), ("attestations", "read")],
+        ("release.yml", "publish") => &[("contents", "write"), ("attestations", "read")],
+        ("release.yml", "verify-public") => &[("contents", "read"), ("attestations", "read")],
+        ("external-rules.yml", "issue") => &[("issues", "write")],
         _ => &[],
     };
     let permissions = job.get(Value::String("permissions".into()));
@@ -588,6 +612,35 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
         {
             return err(format!(
                 "release desktop target {name} drifted from the bounded RF2 matrix"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn check_external_rules_policy(jobs: &Mapping, text: &str) -> Res<()> {
+    let actual: BTreeSet<&str> = jobs
+        .keys()
+        .map(|key| string(key, "external-rules job id"))
+        .collect::<Res<_>>()?;
+    if actual != BTreeSet::from(["check", "issue"]) {
+        return err("external-rules.yml jobs drifted from the checked RF9.3 design");
+    }
+    let issue = mapping(need(jobs, "issue", "external-rules jobs")?, "issue job")?;
+    if scalar(issue, "needs") != Some("check")
+        || normalized_condition(issue) != "needs.check.outputs.needs_attention == 'true'"
+    {
+        return err("the issue job must run only when the external check needs attention");
+    }
+    for required in [
+        "cargo run -p xtask --locked -- external-rules-check",
+        "state=open",
+        "External rules or action pins need review",
+        "repos/$REPOSITORY/issues/$existing",
+    ] {
+        if !text.contains(required) {
+            return err(format!(
+                "external-rules.yml is missing checked behavior: {required}"
             ));
         }
     }

@@ -91,7 +91,14 @@ SUBCOMMANDS:
     --out DIR                output directory for the rendered manifests
 
   workflow-check      Enforce GitHub Actions least privilege and cost guardrails (RF9)
-    --workflow PATH         workflow to inspect (repeat; default: ci.yml and release.yml)
+    --workflow PATH         workflow to inspect (repeat; default: every .yml/.yaml workflow)
+
+  external-rules-check
+                       Compare external policy hashes and GitHub Action releases (RF9.3)
+    --repo PATH             repository root (default: .)
+    --baseline PATH         committed baseline (default: .github/external-rules-baseline.json)
+    --json-out PATH         machine-readable report
+    --markdown-out PATH     issue-ready report
 ";
 
 fn main() -> ExitCode {
@@ -124,6 +131,7 @@ fn run(args: &[String]) -> Res<()> {
         "changelog-draft" => changelog_draft(&opts),
         "package-manifests" => package_manifests(&opts),
         "workflow-check" => workflow_check(&opts),
+        "external-rules-check" => external_rules_check(&opts),
         "help" | "--help" | "-h" => {
             print!("{USAGE}");
             Ok(())
@@ -404,13 +412,45 @@ fn package_manifests(opts: &Opts) -> Res<()> {
     Ok(())
 }
 
+fn external_rules_check(opts: &Opts) -> Res<()> {
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let baseline = opts
+        .path("baseline")
+        .unwrap_or_else(|| repo.join(".github/external-rules-baseline.json"));
+    let github_token = std::env::var("GITHUB_TOKEN").ok();
+    let report = xtask::external_rules::run(&repo, &baseline, github_token.as_deref())?;
+    if let Some(path) = opts.get("json-out") {
+        write_json(Path::new(&path), &report)?;
+    }
+    if let Some(path) = opts.get("markdown-out") {
+        std::fs::write(&path, report.markdown())?;
+    }
+    println!(
+        "external rules check: {} policy pages, {} action pins, {}",
+        report.policies.len(),
+        report.actions.len(),
+        if report.needs_attention {
+            "review required"
+        } else {
+            "no drift detected"
+        }
+    );
+    for policy in &report.policies {
+        println!("policy {:?}: {:?}", policy.name, policy.status);
+    }
+    for action in &report.actions {
+        println!("action {}: {:?}", action.action, action.status);
+    }
+    Ok(())
+}
+
 fn workflow_check(opts: &Opts) -> Res<()> {
     let mut workflows = opts.all("workflow");
     if workflows.is_empty() {
-        workflows.extend([
-            ".github/workflows/ci.yml".to_string(),
-            ".github/workflows/release.yml".to_string(),
-        ]);
+        workflows = xtask::external_rules::workflow_files(Path::new(".github/workflows"))?
+            .into_iter()
+            .map(|path| path.display().to_string())
+            .collect();
     }
     for workflow in &workflows {
         xtask::workflow::check_file(Path::new(workflow))?;

@@ -1,7 +1,7 @@
-//! Release automation for Cuotai (PRD 0021 RF1–RF5): version/tag checks,
-//! artifact manifest + checksums, signing state, release notes, the updater
-//! manifest and the package-manager manifests. Library half; `main.rs` is a
-//! thin CLI over it.
+//! Release automation for Cuotai (PRD 0021 RF1–RF5/RF9): version/tag checks,
+//! artifact manifest + checksums, signing state, release notes, updater and
+//! package-manager manifests, workflow policy, and external-rule drift.
+//! Library half; `main.rs` is a thin CLI over it.
 
 /// The changelog format itself (PRD 0019 RF7.4): one parser, compiled from
 /// the core's file so the repository checks and the product read exactly
@@ -13,6 +13,7 @@ pub mod changelog;
 pub mod changelog_gate;
 pub mod check;
 pub mod draft;
+pub mod external_rules;
 pub mod git;
 pub mod manifest;
 pub mod notes;

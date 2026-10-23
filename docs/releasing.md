@@ -111,6 +111,53 @@ free-tier budget.
   unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,
   a bypassable heavy-job condition and a missing prerequisite dependency.
 
+## Monthly external-rule and action-pin review (RF9.3)
+
+`.github/workflows/external-rules.yml` runs at 08:17 UTC on the first day of
+every month and also supports `workflow_dispatch`. It invokes the same
+implementation tested by the workspace:
+
+```sh
+cargo xtask external-rules-check \
+  --json-out external-rules-report.json \
+  --markdown-out external-rules-report.md
+```
+
+The command fetches and SHA-256 hashes the four authoritative documents in
+`.github/external-rules-baseline.json`: Homebrew's Acceptable Casks and
+Package Acceptance Policy pages, Microsoft's winget manifest-repository
+submission page, and Scoop's App Manifest Autoupdate conventions. The
+baseline records each URL, hash and fetch date. It is intentionally read-only
+to automation: after reviewing a changed page, update the baseline in a pull
+request; the scheduled workflow never accepts a new hash by itself.
+
+Every external `uses:` line in every `.github/workflows/*.yml` or `.yaml` file
+is discovered. Full commit SHAs remain mandatory. For a `# vX.Y.Z` comment,
+the checker uses GitHub's official Releases API to find the latest published
+release and the Git Data API to prove that the commented tag resolves to the
+pinned SHA. A newer semantic version, a tag/SHA mismatch or a policy hash
+change requires review. The release pipeline currently calls `cargo tauri`
+directly, not `tauri-apps/tauri-action`; if a Tauri action is introduced later,
+the directory scan includes it without a second allowlist.
+
+The workflow gives its check job only read access. A separate job receives
+only `issues: write`, and only when the report needs attention. It opens the
+fixed-title issue **External rules or action pins need review**, or replaces
+the body of the existing open issue with that title, so repeated runs cannot
+create duplicates. A clean run creates and updates nothing.
+
+Limits are explicit rather than optimistic:
+
+- `dtolnay/rust-toolchain` is pinned by commit but its comment is the Rust
+  toolchain version, not a `vX.Y.Z` action release, so it is listed as
+  `not_verifiable`; its SHA is still enforced by `workflow-check`.
+- A GitHub repository with no published Releases and an action from another
+  registry cannot be compared to a GitHub latest release. Both are listed as
+  `not_verifiable`, never as current.
+- A network, API, authentication, rate-limit or response-parsing failure is
+  `could_not_check` and makes the report require attention. It is never
+  converted to “unchanged” or “current”.
+
 ## Artifacts (RF2)
 
 Stable names (package manifests can rely on them):

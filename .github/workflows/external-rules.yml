@@ -1,0 +1,78 @@
+# Monthly release-policy and action-pin drift monitor (PRD 0021 RF9.3).
+# Policy baselines never change here: a maintainer reviews the source diff and
+# updates .github/external-rules-baseline.json in a pull request.
+name: External rules
+
+on:
+  schedule:
+    - cron: "17 8 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-rules
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      needs_attention: ${{ steps.rules.outputs.needs_attention }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - name: Check external rules and action releases
+        id: rules
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cargo run -p xtask --locked -- external-rules-check \
+            --json-out external-rules-report.json \
+            --markdown-out external-rules-report.md
+          echo "needs_attention=$(jq -r .needs_attention external-rules-report.json)" >> "$GITHUB_OUTPUT"
+      - name: Preserve report that needs review
+        if: steps.rules.outputs.needs_attention == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: external-rules-report
+          path: external-rules-report.md
+          if-no-files-found: error
+          retention-days: 30
+
+  issue:
+    needs: check
+    if: needs.check.outputs.needs_attention == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: external-rules-report
+      - name: Open or refresh the deduplicated review issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          title="External rules or action pins need review"
+          existing="$(gh api --method GET "repos/$REPOSITORY/issues" \
+            -f state=open -f per_page=100 \
+            --jq 'map(select(.title == "External rules or action pins need review" and (has("pull_request") | not)))[0].number // empty')"
+          body="$(cat external-rules-report.md)"
+          if [ -n "$existing" ]; then
+            gh api --method PATCH "repos/$REPOSITORY/issues/$existing" -f body="$body" >/dev/null
+            echo "Updated issue #$existing"
+          else
+            gh api --method POST "repos/$REPOSITORY/issues" -f title="$title" -f body="$body" >/dev/null
+            echo "Opened one review issue"
+          fi
