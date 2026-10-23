@@ -61,27 +61,27 @@ cargo xtask release-check --tag v0.68.0            # + tag format and version ma
 cargo xtask release-check --tag v0.68.0 --require-main origin/main   # + git ancestry (needs the tag locally)
 ```
 
-## Secretless rehearsal (RF1.4, RF9.5)
+## Secretless rehearsal modes (RF1.4, RF9.5)
 
-**Actions → Release → Run workflow**, optionally with a tag name (default:
-`v<workspace version>`). A dispatch is deliberately a cheap, honest preflight:
+Choose **Actions → Release → Run workflow**, optionally provide a tag name
+(default: `v<workspace version>`), and select one of two modes:
 
-- `release-check` validates the five version locations, both lockfiles, the
-  changelog section and the requested tag syntax;
-- `workflow-check` audits both workflows for least-privilege permissions,
-  per-job timeouts, full action SHA pins, step-owned secrets, the bounded RF2
-  matrix and tag-only heavy jobs;
-- the run summary states that desktop bundles, full CLI builds, SBOM,
-  assembly, publication and channel jobs were not run;
-- no `release` environment is entered, no secret is requested, no artifact is
-  advertised, and no release or package-manager repository is contacted.
+- Leave **full_rehearsal** off for the routine cheap preflight.
+  `release-check` validates the five version locations, both lockfiles, the
+  changelog section and requested tag syntax; `workflow-check` audits
+  permissions, timeouts, action pins, step-owned secrets, the bounded matrix
+  and execution gates. Only `check` runs.
+- Select **full_rehearsal** to exercise RF1.4 deliberately. The prerequisite
+  gate and bounded desktop/CLI/SBOM jobs run in the secretless `rehearsal`
+  environment, assembly records updater and checksum signatures as
+  unavailable, and the complete unsigned artifact set plus rendered package
+  manifests is uploaded to the workflow run.
 
-This preflight is not presented as an artifact rehearsal. To exercise the
-complete artifact path before a real release, push an annotated `-rc.N` tag in
-a fork. Use an **ephemeral** updater key in that fork's tag-protected `release`
-environment; never copy a production credential. The release candidate builds
-the bounded matrix and publishes a GitHub pre-release, but package-manager jobs
-remain disabled because pre-release tags never reach channels.
+Neither dispatch mode creates a GitHub Release, publishes an attestation,
+contacts a package-manager repository or receives a production secret.
+`full_rehearsal` is intentionally opt-in because it consumes the same hosted
+runner matrix as a release; leaving it off keeps the routine path within the
+free-tier budget.
 
 ## Workflow security and cost guardrails (RF9.2, RF9.5)
 
@@ -93,21 +93,23 @@ remain disabled because pre-release tags never reach channels.
   own registry token in the single publish step.
 - CI uses `pull_request`, never `pull_request_target`, and references no
   secret. Release triggers are exactly `v*` tag pushes and
-  `workflow_dispatch`; a dispatch runs only the secretless `check` job.
+  `workflow_dispatch`; dispatch is cheap by default and heavy work requires
+  the explicit `full_rehearsal` input.
 - Signing credentials and per-target publishing tokens appear only in the
   `env` block of the step that consumes them. `HOMEBREW_TAP_TOKEN`,
   `SCOOP_BUCKET_TOKEN` and `WINGET_SUBMIT_TOKEN` are separate credentials,
-  stored only in the protected `release` environment. The AUR SSH key and
-  crates.io token are likewise isolated to their own publish steps.
-- Desktop bundles, the seven-row CLI matrix and the aggregate SBOM run only
-  for a pushed tag. Windows ARM64, Linux ARM64 and the two ARM64 CLI rows are
-  explicitly optional; every other RF2 artifact remains required.
+  stored only in the owner-configured `release` environment. The AUR SSH key
+  and crates.io token are likewise isolated to their own publish steps.
+- Desktop bundles, the seven-row CLI matrix and aggregate SBOM run only for a
+  pushed tag or an explicit full rehearsal. Windows ARM64, Linux ARM64 and
+  the two ARM64 CLI rows are optional; every other RF2 artifact is required.
 - `Swatinem/rust-cache` is enabled for Cargo builds. Jobs that compile the
   desktop cache both `.` and `apps/desktop/src-tauri`; root-only Cargo jobs
   cache `.`. Every job has `timeout-minutes`.
 - `cargo xtask workflow-check` enforces these invariants in CI and before a
-  release build. Its fixture tests prove that broad permissions, a missing
-  timeout, an unpinned action and a secret in a non-owning step fail closed.
+  release build. Tests prove failures for broad permissions, missing timeouts,
+  unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,
+  a bypassable heavy-job condition and a missing prerequisite dependency.
 
 ## Artifacts (RF2)
 
@@ -285,10 +287,10 @@ Workflow behaviour (RF5.7):
   run with `continue-on-error`, so a channel failure is visible in the run
   summary but cannot fail the already-published GitHub Release; re-running
   failed jobs retries only those channels.
-- The dispatch preflight does not build release assets or run channel tools.
-  Renderers and validators remain covered by `cargo test -p xtask`; an
-  operator can also run the documented `cargo xtask package-manifests`
-  command locally against an assembly before enabling a production channel.
+- The routine dispatch does not build release assets or run channel tools.
+  An explicit full rehearsal renders and uploads `package-manifests`, while
+  all external channel jobs remain tag-only; renderers and validators also
+  remain covered by `cargo test -p xtask`.
 - On a stable **tag run** the publish steps use only their owning environment
   secret (`HOMEBREW_TAP_TOKEN`, `WINGET_SUBMIT_TOKEN`,
   `SCOOP_BUCKET_TOKEN`, `AUR_SSH_PRIVATE_KEY`, or
@@ -386,9 +388,9 @@ The pipeline never creates production secrets, environments or repositories.
 Before the first real release:
 
 1. Create the **`release`** environment (Settings → Environments), with a
-   **required reviewer** and deployment branches restricted to tags. Only
-   tag-push jobs enter it; the dispatch preflight never enters an environment
-   and cannot read signing or publishing secrets. See
+   **required reviewer** and deployment branches restricted to tags. Tag-push
+   jobs enter it; dispatch rehearsals instead enter the separate, secretless
+   `rehearsal` environment and cannot read signing or publishing secrets. See
    [`docs/updater-security.md`](updater-security.md) for the updater key's own
    requirements.
 2. Add to the `release` environment, as desired:
@@ -430,30 +432,29 @@ Before the first real release:
 4. Decide on the **retroactive tags** `v0.1.0`… (RF1.3) so the changelog
    footer links compare tags instead of commits.
 
-The dispatch preflight never requests signing credentials. For a tag release,
-platform code-signing credentials may still be absent and are reported as
-unsigned, but the Tauri updater key is a release prerequisite: no updater
-signatures, or only part of the required platform set, fails assembly instead
-of publishing a release that strands installed clients. A missing *channel*
-token fails only that channel job (RF5.7), with the message naming the secret
-to add or the variable to unset.
+The dispatch modes never request signing credentials. For a tag release, the
+required updater key and password are checked before any heavy job starts;
+the gate lists either missing secret by name. Optional platform code-signing
+credentials may still be absent and are reported as unsigned. A missing
+*channel* token fails only that channel job (RF5.7), with the message naming
+the secret to add or the variable to unset.
 
 ## Rehearsing in a fork
 
 1. Fork and enable Actions. Do not copy any production secret.
-2. **Actions → Release → Run workflow** for the cheap secretless preflight.
-   Confirm that only `check` ran and that its summary explicitly lists the
-   skipped heavy surfaces.
-3. For a complete artifact rehearsal, put an **ephemeral** updater key pair
-   in the fork's tag-protected `release` environment, push an annotated
-   `v<version>-rc.1` tag, and wait for the pre-release pipeline.
-4. Check `signing-state.json` in the `release-assembly` artifact: the updater
-   is available only for payloads signed by the ephemeral key, while
-   `SHA256SUMS` is signed by the fork workflow's Sigstore identity.
-5. Check the `package-manifests` renderer locally against that assembly.
-   Channel jobs intentionally do not run for `-rc` tags; use throwaway
-   repositories and a stable test version only when rehearsing an external
-   channel, never the production target or credentials.
+2. **Actions → Release → Run workflow** with **full_rehearsal** off. Confirm
+   that only `check` ran and that its summary identifies the skipped work.
+3. Run it again with **full_rehearsal** selected. The full bounded matrix,
+   SBOM and assembly run without production secrets; publish, public
+   verification and every external channel job stay skipped.
+4. Download `release-assembly`. Confirm `manifest.json` and
+   `signing-state.json` truthfully mark updater/checksum signatures
+   unavailable, no `latest.json` is claimed, and the package-manager manifests
+   are present in their separate artifact.
+5. If production-like updater signing also needs rehearsal, use an
+   **ephemeral** updater key in the fork's tag-protected `release` environment
+   and push an annotated `v<version>-rc.1` tag. This creates a GitHub
+   pre-release in the fork, never a stable release or package-manager update.
 
 ### Release-script harness
 

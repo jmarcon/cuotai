@@ -10,6 +10,27 @@ use serde_yaml::{Mapping, Value};
 
 use crate::{err, Error, Res};
 
+const RELEASE_JOBS: &[&str] = &[
+    "check",
+    "release-prerequisites",
+    "desktop-macos",
+    "desktop-windows",
+    "desktop-windows-arm64",
+    "desktop-linux",
+    "desktop-linux-arm64",
+    "cli",
+    "sbom",
+    "assemble",
+    "publish",
+    "verify-public",
+    "package-manifests",
+    "channel-homebrew",
+    "channel-winget",
+    "channel-scoop",
+    "channel-cargo",
+    "channel-aur",
+];
+
 const RELEASE_HEAVY_JOBS: &[&str] = &[
     "desktop-macos",
     "desktop-windows",
@@ -18,6 +39,18 @@ const RELEASE_HEAVY_JOBS: &[&str] = &[
     "desktop-linux-arm64",
     "cli",
     "sbom",
+];
+
+const HEAVY_JOB_CONDITION: &str = "(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)";
+const RELEASE_OR_REHEARSAL_ENVIRONMENT: &str =
+    "${{ github.event_name == 'push' && 'release' || 'rehearsal' }}";
+const REHEARSAL_SECRET_JOBS: &[&str] = &[
+    "release-prerequisites",
+    "desktop-macos",
+    "desktop-windows",
+    "desktop-windows-arm64",
+    "desktop-linux",
+    "desktop-linux-arm64",
 ];
 
 const SECRET_OWNERS: &[(&str, &str, &str)] = &[
@@ -105,6 +138,16 @@ const SECRET_OWNERS: &[(&str, &str, &str)] = &[
         "APPLE_TEAM_ID",
         "desktop-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY",
+        "release-prerequisites",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+        "release-prerequisites",
+        "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
@@ -314,6 +357,25 @@ fn check_triggers(name: &str, root: &Mapping) -> Res<()> {
         {
             return err("release.yml push trigger must be limited to v* tags");
         }
+
+        let dispatch = mapping(
+            need(on, "workflow_dispatch", "release triggers")?,
+            "workflow_dispatch trigger",
+        )?;
+        let inputs = mapping(
+            need(dispatch, "inputs", "workflow_dispatch trigger")?,
+            "workflow_dispatch inputs",
+        )?;
+        let full_rehearsal = mapping(
+            need(inputs, "full_rehearsal", "workflow_dispatch inputs")?,
+            "full_rehearsal input",
+        )?;
+        if boolean(full_rehearsal, "default") != Some(false)
+            || boolean(full_rehearsal, "required") != Some(false)
+            || scalar(full_rehearsal, "type") != Some("boolean")
+        {
+            return err("full_rehearsal must be an optional boolean defaulting to false");
+        }
     }
     Ok(())
 }
@@ -407,10 +469,16 @@ fn check_job_secrets(job_name: &str, job: &Mapping) -> Res<()> {
             uses_environment_secret |= secret != "GITHUB_TOKEN";
         }
     }
-    if uses_environment_secret && scalar(job, "environment") != Some("release") {
-        return err(format!(
-            "job {job_name} must read its owned secrets from the release environment"
-        ));
+    if uses_environment_secret {
+        let environment = scalar(job, "environment");
+        let allowed = environment == Some("release")
+            || (REHEARSAL_SECRET_JOBS.contains(&job_name)
+                && environment == Some(RELEASE_OR_REHEARSAL_ENVIRONMENT));
+        if !allowed {
+            return err(format!(
+                "job {job_name} must read owned secrets from release, or from the secretless rehearsal environment on dispatch"
+            ));
+        }
     }
     Ok(())
 }
@@ -440,17 +508,39 @@ fn check_action_pins(job_name: &str, job: &Mapping) -> Res<()> {
 }
 
 fn check_release_policy(jobs: &Mapping) -> Res<()> {
+    let actual: BTreeSet<&str> = jobs
+        .keys()
+        .map(|key| string(key, "release job id"))
+        .collect::<Res<_>>()?;
+    let expected: BTreeSet<&str> = RELEASE_JOBS.iter().copied().collect();
+    if actual != expected {
+        return err("release jobs drifted from the bounded RF2/RF5 policy");
+    }
+
+    let prerequisites = mapping(
+        need(jobs, "release-prerequisites", "release jobs")?,
+        "job release-prerequisites",
+    )?;
+    if scalar(prerequisites, "needs") != Some("check")
+        || normalized_condition(prerequisites) != HEAVY_JOB_CONDITION
+        || scalar(prerequisites, "environment") != Some(RELEASE_OR_REHEARSAL_ENVIRONMENT)
+    {
+        return err("release prerequisite gate must cover tag pushes and explicit full rehearsals");
+    }
+
     for job_name in RELEASE_HEAVY_JOBS {
         let job = mapping(
             need(jobs, job_name, "release jobs")?,
             &format!("job {job_name}"),
         )?;
-        let condition = scalar(job, "if").unwrap_or_default();
-        if !condition.contains("github.event_name == 'push'")
-            || !condition.contains("startsWith(github.ref, 'refs/tags/')")
-        {
+        if scalar_sequence(job, "needs")? != ["check", "release-prerequisites"] {
             return err(format!(
-                "heavy job {job_name} must run only for a pushed tag"
+                "heavy job {job_name} must wait for the release prerequisite gate"
+            ));
+        }
+        if normalized_condition(job) != HEAVY_JOB_CONDITION {
+            return err(format!(
+                "heavy job {job_name} must run only for a pushed tag or explicit full rehearsal"
             ));
         }
     }
@@ -474,6 +564,15 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
         }
     }
     Ok(())
+}
+
+fn normalized_condition(job: &Mapping) -> &str {
+    let condition = scalar(job, "if").unwrap_or_default().trim();
+    condition
+        .strip_prefix("${{")
+        .and_then(|condition| condition.strip_suffix("}}"))
+        .map(str::trim)
+        .unwrap_or(condition)
 }
 
 fn check_cli_matrix(job: &Mapping) -> Res<()> {
@@ -536,19 +635,7 @@ fn secret_references(value: &Value) -> BTreeSet<String> {
 
 fn collect_secret_references(value: &Value, references: &mut BTreeSet<String>) {
     match value {
-        Value::String(text) => {
-            let mut rest = text.as_str();
-            while let Some(index) = rest.find("secrets.") {
-                rest = &rest[index + "secrets.".len()..];
-                let end = rest
-                    .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
-                    .unwrap_or(rest.len());
-                if end > 0 {
-                    references.insert(rest[..end].to_string());
-                }
-                rest = &rest[end..];
-            }
-        }
+        Value::String(text) => collect_secret_references_in_text(text, references),
         Value::Sequence(sequence) => {
             for item in sequence {
                 collect_secret_references(item, references);
@@ -562,6 +649,76 @@ fn collect_secret_references(value: &Value, references: &mut BTreeSet<String>) {
         }
         Value::Tagged(tagged) => collect_secret_references(&tagged.value, references),
         Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
+}
+
+fn collect_secret_references_in_text(text: &str, references: &mut BTreeSet<String>) {
+    let bytes = text.as_bytes();
+    let mut search_from = 0;
+    while let Some(offset) = text[search_from..].find("secrets") {
+        let mut index = search_from + offset + "secrets".len();
+        while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+            index += 1;
+        }
+
+        let name = match bytes.get(index) {
+            Some(b'.') => {
+                index += 1;
+                while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+                    index += 1;
+                }
+                let start = index;
+                while bytes
+                    .get(index)
+                    .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+                {
+                    index += 1;
+                }
+                (index > start)
+                    .then_some(&text[start..index])
+                    .or(Some("<dynamic-secret-reference>"))
+            }
+            Some(b'[') => {
+                index += 1;
+                while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+                    index += 1;
+                }
+                let Some(quote @ (b'\'' | b'"')) = bytes.get(index).copied() else {
+                    references.insert("<dynamic-secret-reference>".to_string());
+                    search_from = index;
+                    continue;
+                };
+                let start = index + 1;
+                index = start;
+                while bytes
+                    .get(index)
+                    .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+                {
+                    index += 1;
+                }
+                if index == start || bytes.get(index) != Some(&quote) {
+                    references.insert("<dynamic-secret-reference>".to_string());
+                    search_from = index;
+                    continue;
+                }
+                let end = index;
+                index += 1;
+                while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+                    index += 1;
+                }
+                if bytes.get(index) != Some(&b']') {
+                    references.insert("<dynamic-secret-reference>".to_string());
+                    search_from = index;
+                    continue;
+                }
+                Some(&text[start..end])
+            }
+            _ => None,
+        };
+        if let Some(name) = name {
+            references.insert(name.to_string());
+        }
+        search_from = index.max(search_from + 1);
     }
 }
 
@@ -613,6 +770,7 @@ mod tests {
     fn fixture(name: &str) -> &'static str {
         match name {
             "valid" => include_str!("../tests/fixtures/workflows/valid.yml"),
+            "bracket-secret" => include_str!("../tests/fixtures/workflows/bracket-secret.yml"),
             "broad-permissions" => {
                 include_str!("../tests/fixtures/workflows/broad-permissions.yml")
             }
@@ -623,9 +781,18 @@ mod tests {
         }
     }
 
+    const CI_WORKFLOW: &str = include_str!("../../.github/workflows/ci.yml");
+    const RELEASE_WORKFLOW: &str = include_str!("../../.github/workflows/release.yml");
+
     #[test]
     fn accepts_least_privilege_fixture() {
         assert!(check_text(Path::new("fixture.yml"), fixture("valid")).is_ok());
+    }
+
+    #[test]
+    fn accepts_repository_workflows() {
+        assert!(check_text(Path::new("ci.yml"), CI_WORKFLOW).is_ok());
+        assert!(check_text(Path::new("release.yml"), RELEASE_WORKFLOW).is_ok());
     }
 
     #[test]
@@ -646,5 +813,84 @@ mod tests {
     #[test]
     fn rejects_secret_in_non_owning_step() {
         assert!(check_text(Path::new("fixture.yml"), fixture("misplaced-secret")).is_err());
+    }
+
+    #[test]
+    fn rejects_bracket_secret_outside_an_owning_step() {
+        assert!(check_text(Path::new("fixture.yml"), fixture("bracket-secret")).is_err());
+    }
+
+    #[test]
+    fn rejects_pull_request_target() {
+        let unsafe_workflow =
+            CI_WORKFLOW.replacen("  pull_request:\n", "  pull_request_target:\n", 1);
+        assert!(check_text(Path::new("ci.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_secret_job_without_release_environment() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}\n",
+            "    environment: rehearsal\n",
+            1,
+        );
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_non_conjunctive_heavy_job_gate() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: [check, release-prerequisites]\n    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)",
+            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: [check, release-prerequisites]\n    if: github.event_name == 'push' || !startsWith(github.ref, 'refs/tags/')",
+            1,
+        );
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_unbounded_cli_matrix() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, archive: zip, optional: true }",
+            "          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, archive: zip, optional: true }\n          - { os: ubuntu-latest, target: powerpc64le-unknown-linux-gnu, archive: tar, optional: true }",
+            1,
+        );
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_unchecked_release_job() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "jobs:\n",
+            "jobs:\n  extra-heavy:\n    runs-on: ubuntu-latest\n    timeout-minutes: 60\n    steps:\n      - run: cargo build --workspace\n",
+            1,
+        );
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_heavy_job_without_prerequisite_gate() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "    needs: [check, release-prerequisites]\n",
+            "    needs: check\n",
+            1,
+        );
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_dynamic_secret_reference() {
+        let unsafe_workflow = fixture("valid").replacen(
+            "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n",
+            "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n        env:\n          TOKEN: ${{ secrets[env.SECRET_NAME] }}\n",
+            1,
+        );
+        assert!(check_text(Path::new("fixture.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_full_rehearsal_enabled_by_default() {
+        let unsafe_workflow =
+            RELEASE_WORKFLOW.replacen("        default: false\n", "        default: true\n", 1);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
     }
 }

@@ -1,15 +1,15 @@
 # Release pipeline (PRD 0021 RF1–RF5/RF9). One annotated `vX.Y.Z` (or
 # `vX.Y.Z-rc.N`) tag on `main` builds every artifact, assembles the manifest,
 # checksums and signing state, and publishes a GitHub Release as
-# draft → verified → published. `workflow_dispatch` is deliberately a cheap,
-# secretless rehearsal: it validates the requested tag/version and the
-# workflow policy, but heavy builds and publication run only for pushed tags.
+# draft → verified → published. A routine `workflow_dispatch` is a cheap,
+# secretless preflight; selecting `full_rehearsal` builds and uploads the same
+# artifacts without creating a Release or contacting a package manager.
 #
 # Security: every action is pinned by commit hash (tag in the comment); the
 # default token is read-only; `contents: write` exists only in the publish
-# job, behind the protected `release` environment; GitHub expressions reach
-# shell scripts only through environment variables; secrets are checked for
-# presence and never echoed.
+# job, behind the owner-configured `release` environment; GitHub expressions
+# reach shell scripts only through environment variables; secrets are checked
+# for presence and never echoed.
 name: Release
 
 on:
@@ -21,6 +21,11 @@ on:
         description: "Tag to rehearse (vX.Y.Z or vX.Y.Z-rc.N); empty = v<workspace version>. A dispatch never publishes."
         required: false
         type: string
+      full_rehearsal:
+        description: "Build and upload every artifact without publishing. Leave off for the cheap preflight."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -48,6 +53,7 @@ jobs:
       channel: ${{ steps.result.outputs.channel }}
       prerelease: ${{ steps.result.outputs.prerelease }}
       tag: ${{ steps.result.outputs.tag }}
+      dry_run: ${{ steps.result.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -65,6 +71,7 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
+          FULL_REHEARSAL: ${{ inputs.full_rehearsal }}
         run: |
           set -euo pipefail
           cargo build -p xtask --locked
@@ -73,8 +80,10 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             # Dry run: the tag may not exist, so no git ancestry check.
             [ -n "$INPUT_TAG" ] && args+=(--tag "$INPUT_TAG")
+            dry_run=true
           else
             args+=(--tag "$REF_NAME" --require-main origin/main)
+            dry_run=false
           fi
           ./target/debug/xtask "${args[@]}"
           {
@@ -82,24 +91,58 @@ jobs:
             echo "channel=$(jq -r .channel check.json)"
             echo "prerelease=$(jq -r .prerelease check.json)"
             echo "tag=$(jq -r .tag check.json)"
+            echo "dry_run=$dry_run"
           } >> "$GITHUB_OUTPUT"
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             {
               echo "### Secretless release rehearsal"
               echo
-              echo "Version/tag and workflow policy passed. Heavy artifact, SBOM, desktop bundle and channel jobs are tag-only (RF9.5)."
-              echo "No release or package-manager repository was contacted and no release-environment secret was requested."
+              if [ "$FULL_REHEARSAL" = "true" ]; then
+                echo "Full artifact rehearsal requested. Build, SBOM and assembly jobs run; publishing and package-manager writes remain disabled."
+              else
+                echo "Version/tag and workflow policy passed. Enable **full_rehearsal** explicitly to spend runner time building artifacts."
+                echo "Heavy build, SBOM and assembly jobs were skipped."
+              fi
+              echo "No GitHub Release or package-manager repository will be modified by a dispatch."
             } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  release-prerequisites:
+    name: required release credentials
+    needs: check
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    steps:
+      - name: Validate required release credentials
+        env:
+          HAS_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "dispatch rehearsal: release credentials are intentionally unavailable"
+            exit 0
+          fi
+          missing=()
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY)
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::missing required release-environment secrets: %s\n' "${missing[*]}"
+            exit 1
           fi
 
   desktop-macos:
     name: desktop (macOS universal)
-    needs: check
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [check, release-prerequisites]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: macos-latest
     timeout-minutes: 90
-    # Heavy jobs run only for pushed tags and enter the protected environment.
-    environment: release
+    # Tag pushes use the owner-configured `release` environment. Dispatch
+    # rehearsals use the separate secretless `rehearsal` environment.
+    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
@@ -176,11 +219,11 @@ jobs:
 
   desktop-windows:
     name: desktop (Windows x64)
-    needs: check
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [check, release-prerequisites]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: windows-latest
     timeout-minutes: 90
-    environment: release
+    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
@@ -253,12 +296,12 @@ jobs:
   # empty fragment and the manifest lists the artifacts as not produced.
   desktop-windows-arm64:
     name: desktop (Windows ARM64, optional)
-    needs: check
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [check, release-prerequisites]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: windows-11-arm
     continue-on-error: true
     timeout-minutes: 90
-    environment: release
+    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
@@ -339,14 +382,14 @@ jobs:
 
   desktop-linux:
     name: desktop (Linux x64)
-    needs: check
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [check, release-prerequisites]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-22.04 # oldest supported glibc (RF2)
     timeout-minutes: 90
     # The Tauri updater key lives here (PRD 0018 RF4.1): the Linux packages
-    # are updater-signed while bundling, so this job needs the secret from the
-    # protected environment.
-    environment: release
+    # are updater-signed while bundling, so tag jobs use the owner-configured
+    # environment while rehearsals use a secretless environment.
+    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
@@ -381,7 +424,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         # PRD 0018 RF1.1: `createUpdaterArtifacts` is enabled through the
         # release-time overlay, and only when the key exists — a build without
-        # it must still bundle when a platform code-signing credential is absent.
+        # it must still bundle during a secretless dispatch rehearsal.
         # Nothing rewrites these package bytes afterwards, so the signatures
         # the bundler writes here are the final ones.
         run: |
@@ -413,12 +456,12 @@ jobs:
 
   desktop-linux-arm64:
     name: desktop (Linux ARM64, optional)
-    needs: check
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [check, release-prerequisites]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-24.04-arm
     continue-on-error: true
     timeout-minutes: 90
-    environment: release
+    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
@@ -484,8 +527,8 @@ jobs:
   # RF2.2: plain cargo build per target; tarballs on Unix, zip on Windows.
   cli:
     name: cli (${{ matrix.target }})
-    needs: check
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [check, release-prerequisites]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.optional == true }}
     timeout-minutes: 45
@@ -610,8 +653,8 @@ jobs:
   # RF2: CycloneDX SBOM generated by a Cargo tool (no Node/Python).
   sbom:
     name: SBOM (CycloneDX)
-    needs: check
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [check, release-prerequisites]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -707,6 +750,7 @@ jobs:
       VERSION: ${{ needs.check.outputs.version }}
       CHANNEL: ${{ needs.check.outputs.channel }}
       TAG: ${{ needs.check.outputs.tag }}
+      DRY_RUN: ${{ needs.check.outputs.dry_run }}
       REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -776,9 +820,15 @@ jobs:
           add_platform linux-aarch64-deb "Cuotai_${VERSION}_aarch64.deb"
           add_platform linux-aarch64-rpm "Cuotai_${VERSION}_aarch64.rpm"
 
-          # Tag releases require a complete updater-signature set. A missing
-          # or partially signed required platform fails before publication.
-          if [ "$updater_count" -gt 0 ]; then
+          # A dispatch run has no updater key, so no build produces a `.sig`
+          # and every platform above stays uncollected: the honest state is
+          # "updater unavailable", not a fail-closed manifest read. Only a run
+          # that signed at least one platform reaches `updater-manifest`, which
+          # still fails a partially signed required set (`--require`).
+          if [ "$DRY_RUN" = "true" ] && [ "$updater_count" -eq 0 ]; then
+            printf '{"artifacts": []}\n' > fragments/assemble.json
+            echo "dry-run: no updater key, so no updater artifact was signed; latest.json not generated (stated in signing-state.json)"
+          elif [ "$updater_count" -gt 0 ]; then
             epoch="$(git show -s --format=%ct HEAD)"
             pub_date="$(date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ)"
             # `--require` names the platforms a complete release must serve, so
@@ -806,19 +856,33 @@ jobs:
       - name: Manifest and SHA256SUMS
         run: ./target/debug/xtask release-manifest --artifacts-dir dist --version "$VERSION" --channel "$CHANNEL" --out-dir dist
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        if: needs.check.outputs.dry_run != 'true'
       - name: Sign SHA256SUMS (Sigstore keyless)
+        if: needs.check.outputs.dry_run != 'true'
         run: cosign sign-blob --yes --output-signature dist/SHA256SUMS.sig --output-certificate dist/SHA256SUMS.pem dist/SHA256SUMS
       - name: Signing state
-        run: >-
-          ./target/debug/xtask signing-state
-          --version "$VERSION" --channel "$CHANNEL"
-          --manifest dist/manifest.json --fragments-dir fragments
-          --checksums signed
-          --checksums-status "signed by the GitHub Actions OIDC identity (Sigstore keyless)"
-          --out dist/signing-state.json
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            checksums=unavailable
+            status="dry-run: checksum signature not produced (dispatch runs never publish)"
+          else
+            checksums=signed
+            status="signed by the GitHub Actions OIDC identity (Sigstore keyless)"
+          fi
+          ./target/debug/xtask signing-state \
+            --version "$VERSION" --channel "$CHANNEL" \
+            --manifest dist/manifest.json --fragments-dir fragments \
+            --checksums "$checksums" --checksums-status "$status" \
+            --out dist/signing-state.json
       - name: Release notes
         run: ./target/debug/xtask release-notes --changelog CHANGELOG.md --version "$VERSION" --manifest dist/manifest.json --signing-state dist/signing-state.json --repo "$REPO" --out dist/release-body.md
+      - name: Dry-run attestation note
+        if: needs.check.outputs.dry_run == 'true'
+        run: |
+          echo "dry-run: attestable artifacts produced; provenance attestations are not published on dispatch runs" >> "$GITHUB_STEP_SUMMARY"
       - name: Build provenance attestation
+        if: needs.check.outputs.dry_run != 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*
@@ -830,7 +894,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # RF4.1/RF4.3: tag runs only, behind the protected `release` environment.
+  # RF4.1/RF4.3: tag runs only, behind the owner-configured `release` environment.
   # A failed or interrupted run leaves at most a draft.
   publish:
     name: draft, verify and publish the GitHub Release
@@ -924,22 +988,22 @@ jobs:
 
   # RF5.6: one renderer turns the verified release into every channel's
   # manifests. It reads only `manifest.json`/`signing-state.json` from the
-  # assembly — never a rebuilt file — after the published release is verified.
+  # assembly — never a rebuilt file — and runs after the release has been
+  # re-verified (or after the full dry-run assembly on a dispatch).
   package-manifests:
     name: render package-manager manifests
     needs: [check, assemble, publish, verify-public]
     if: >-
-      ${{ always() && github.event_name == 'push'
-          && startsWith(github.ref, 'refs/tags/')
-          && needs.check.result == 'success'
+      ${{ always() && needs.check.result == 'success'
           && needs.check.outputs.prerelease != 'true'
           && needs.assemble.result == 'success'
-          && needs.verify-public.result == 'success' }}
+          && (needs.check.outputs.dry_run == 'true' || needs.verify-public.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       TAG: ${{ needs.check.outputs.tag }}
       REPO: ${{ github.repository }}
+      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

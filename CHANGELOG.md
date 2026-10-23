@@ -17,7 +17,7 @@ How to read the history before this file existed:
 
 ### Changed
 
-- Release workflows now enforce least privilege mechanically: read-only defaults, write/OIDC scopes only on their owning jobs, secrets only on their consuming steps, tag-only heavy builds, the bounded optional matrix, Cargo caches and per-job timeouts; routine dispatches are cheap secretless policy/version preflights, while full artifact rehearsals use release-candidate tags in a fork (PRD 0021 RF9.2, RF9.5).
+- Release workflows now enforce least privilege mechanically: read-only defaults, write/OIDC scopes only on their owning jobs, secrets only on their consuming steps, a bounded optional matrix, Cargo caches and per-job timeouts; routine dispatches are cheap secretless policy/version preflights, while the explicit full-rehearsal input builds and uploads artifacts without publishing. Tag releases now reject missing updater credentials before spending the heavy-job budget (PRD 0021 RF9.2, RF9.5).
 - Release operators now have an executable bad-release rollback and signing-key rotation runbook: GitHub Release quarantine, exact Homebrew/Scoop/AUR/crates.io/winget actions with per-step verification, the limits for already-downloaded updates, the updater's single-key transition release, and Apple, Windows and keyless-checksum credential handling (PRD 0021 RF9.4).
 
 ## [0.75.1] - 2026-10-22
