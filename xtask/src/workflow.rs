@@ -319,6 +319,9 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
     if name == "release.yml" {
         check_release_policy(jobs)?;
     }
+    if name == "ci.yml" {
+        check_ci_result_policy(jobs)?;
+    }
     if name == "external-rules.yml" {
         check_external_rules_policy(jobs, text)?;
     }
@@ -380,6 +383,24 @@ fn check_triggers(name: &str, root: &Mapping) -> Res<()> {
             return err("full_rehearsal must be an optional boolean defaulting to false");
         }
     }
+    if name == "ci.yml" {
+        // PRD 0039 RF8.1: pull requests, pushes to main, manual dispatch and
+        // merge groups; never tags (release.yml owns them) nor other branches.
+        let actual: BTreeSet<&str> = on
+            .keys()
+            .map(|key| string(key, "trigger"))
+            .collect::<Res<_>>()?;
+        let expected = BTreeSet::from(["pull_request", "push", "workflow_dispatch", "merge_group"]);
+        if actual != expected {
+            return err(
+                "ci.yml must trigger exactly on pull_request, push (main), workflow_dispatch and merge_group",
+            );
+        }
+        let push = mapping(need(on, "push", "ci triggers")?, "ci push trigger")?;
+        if push.len() != 1 || scalar_sequence(push, "branches")? != ["main"] {
+            return err("ci.yml push trigger must be limited to the main branch (no tags)");
+        }
+    }
     if name == "external-rules.yml" {
         let actual: BTreeSet<&str> = on
             .keys()
@@ -398,6 +419,25 @@ fn check_triggers(name: &str, root: &Mapping) -> Res<()> {
         let schedule = mapping(&schedule[0], "external-rules schedule")?;
         if scalar(schedule, "cron") != Some("17 8 1 * *") {
             return err("external-rules.yml must run monthly on the first day");
+        }
+    }
+    Ok(())
+}
+
+/// PRD 0039 RF8.6: `CI result` is the one required check, so it must wait
+/// for every other job of ci.yml and always run.
+fn check_ci_result_policy(jobs: &Mapping) -> Res<()> {
+    let result = mapping(need(jobs, "ci-result", "ci jobs")?, "ci-result job")?;
+    if scalar(result, "name") != Some("CI result") || scalar(result, "if") != Some("always()") {
+        return err("ci.yml job ci-result must be named 'CI result' and run with if: always()");
+    }
+    let needs: BTreeSet<&str> = scalar_sequence(result, "needs")?.into_iter().collect();
+    for key in jobs.keys() {
+        let job = string(key, "job id")?;
+        if job != "ci-result" && !needs.contains(job) {
+            return err(format!(
+                "ci.yml job ci-result must wait for job {job} (it is the only required check)"
+            ));
         }
     }
     Ok(())
@@ -971,6 +1011,23 @@ mod tests {
         let unsafe_workflow =
             CI_WORKFLOW.replacen("  pull_request:\n", "  pull_request_target:\n", 1);
         assert!(check_text(Path::new("ci.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn ci_runs_on_main_pushes_only_and_aggregates_every_job() {
+        let tags = CI_WORKFLOW.replacen(
+            "  push:\n    branches: [main]\n",
+            "  push:\n    branches: [main]\n    tags: [\"v*\"]\n",
+            1,
+        );
+        assert!(check_text(Path::new("ci.yml"), &tags).is_err());
+        let every_branch = CI_WORKFLOW.replacen("  push:\n    branches: [main]\n", "  push:\n", 1);
+        assert!(check_text(Path::new("ci.yml"), &every_branch).is_err());
+        let unaggregated = CI_WORKFLOW.replacen(", release-preflight]", "]", 1);
+        assert!(check_text(Path::new("ci.yml"), &unaggregated)
+            .unwrap_err()
+            .to_string()
+            .contains("release-preflight"));
     }
 
     #[test]

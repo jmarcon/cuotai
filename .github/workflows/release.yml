@@ -86,6 +86,16 @@ jobs:
             dry_run=false
           fi
           ./target/debug/xtask "${args[@]}"
+          # PRD 0039 RF5.4: a tag publishes only a complete release commit
+          # (computed version, every user-visible commit covered, no vNEXT
+          # left). A dispatch checks it when it runs on a release commit
+          # (for example the full rehearsal of a release branch).
+          subject="$(git log -1 --format=%s)"
+          if [ "$EVENT_NAME" != "workflow_dispatch" ] || [[ "$subject" == "chore(release): "* ]]; then
+            ./target/debug/xtask release prepare --check
+          else
+            echo "dispatch on a non-release commit: release prepare --check skipped"
+          fi
           {
             echo "version=$(jq -r .version check.json)"
             echo "channel=$(jq -r .channel check.json)"
