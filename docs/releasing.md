@@ -549,9 +549,10 @@ Before the first real release:
    `WINGET_SUBMIT=true` once the first `microsoft/winget-pkgs` submission has
    been reviewed by hand. Unset variables keep a channel off, and the run
    summary says so.
-4. Retroactive tags `v0.1.0`… (RF1.3) were **declined** (PRD 0039 D10): the
-   internal versions' footer links compare commits, and tags start with the
-   first real release.
+4. Retroactive tags `v0.1.0`… (RF1.3) were **declined** (PRD 0039 D10):
+   the internal versions are summarized by one "Pre-release history
+   (0.1.0–0.79.0, …)" section at the bottom of `CHANGELOG.md`, with no
+   footer link of their own, and tags start with the first real release.
 5. Apply the branch and tag rulesets and the merge settings of
    "Branch and tag protection" below.
 

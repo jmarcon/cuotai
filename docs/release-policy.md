@@ -91,4 +91,6 @@ or empty, and re-runs `release prepare --check` on the tagged commit.
 Versions 0.1.0 to 0.79.0 are **internal versions**: each was raised by the
 commit that delivered it and none was tagged or published. They are not
 tagged retroactively (PRD 0039 D10); the first published release follows
-them.
+them. `CHANGELOG.md` summarizes them in one "Pre-release history" section
+instead of one section per version, and `cuotai --changelog` with an
+internal version prints that history.
