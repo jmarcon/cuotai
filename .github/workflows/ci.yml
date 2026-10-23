@@ -337,9 +337,9 @@ jobs:
 
   # Changelog format, PRD references, plan links and footer links (PRD 0019
   # RF7.4/RF7.8, PRD 0039 RF9.5), plus the commit gate (PRD 0039 RF2) over
-  # the pull request (base..head) or the push to main (before..after, falling
-  # back to the merge base with main after a force push), which needs the
-  # whole history. This is the light job that always runs, documentation-only
+  # the pull request (base..head) or the push to main (before..after; a
+  # previous tip lost to a force push is fetched, else the gate fails
+  # closed), which needs the whole history. This is the light job that always runs, documentation-only
   # changes included: plan links live in docs/plans, and the privacy guard
   # (no personal e-mail in tracked files) is part of `cargo test`, which the
   # skipped matrix would otherwise have run. On main it also writes the next
@@ -372,20 +372,17 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash
+        # A push is checked from its previous tip. The gate fetches that
+        # commit when a force push removed it from the history, and fails
+        # closed when it cannot be recovered: it never compares the new tip
+        # with itself.
         run: |
           set -euo pipefail
           if [ "$EVENT" = pull_request ]; then
-            base="$BASE_SHA"
-            head="$HEAD_SHA"
+            cargo run -p xtask --locked -- changelog-gate --base "$BASE_SHA" --head "$HEAD_SHA"
           else
-            head="$AFTER"
-            if [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-              base="$BEFORE"
-            else
-              base="$(git merge-base origin/main "$AFTER")"
-            fi
+            cargo run -p xtask --locked -- changelog-gate --before "$BEFORE" --head "$AFTER"
           fi
-          cargo run -p xtask --locked -- changelog-gate --base "$base" --head "$head"
       - name: next release (job summary)
         if: github.event_name == 'push'
         shell: bash

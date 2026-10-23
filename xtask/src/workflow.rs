@@ -321,6 +321,13 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
     }
     if name == "ci.yml" {
         check_ci_result_policy(jobs)?;
+        // PRD 0039 RF2.2: a push is gated from its previous tip through the
+        // fail-closed `--before` resolution, never a hand-made fallback range.
+        if !text.contains("changelog-gate --before \"$BEFORE\"") {
+            return err(
+                "ci.yml must run the commit gate on pushes with `changelog-gate --before \"$BEFORE\"`",
+            );
+        }
     }
     if name == "external-rules.yml" {
         check_external_rules_policy(jobs, text)?;
@@ -1023,6 +1030,15 @@ mod tests {
         assert!(check_text(Path::new("ci.yml"), &tags).is_err());
         let every_branch = CI_WORKFLOW.replacen("  push:\n    branches: [main]\n", "  push:\n", 1);
         assert!(check_text(Path::new("ci.yml"), &every_branch).is_err());
+        let open_gate = CI_WORKFLOW.replacen(
+            "changelog-gate --before \"$BEFORE\" --head \"$AFTER\"",
+            "changelog-gate --base \"$AFTER\" --head \"$AFTER\"",
+            1,
+        );
+        assert!(check_text(Path::new("ci.yml"), &open_gate)
+            .unwrap_err()
+            .to_string()
+            .contains("--before"));
         let unaggregated = CI_WORKFLOW.replacen(", release-preflight]", "]", 1);
         assert!(check_text(Path::new("ci.yml"), &unaggregated)
             .unwrap_err()

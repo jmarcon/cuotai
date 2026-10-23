@@ -9,7 +9,10 @@ use std::path::Path;
 use std::process::Command;
 
 use super::render::{self, Entries};
-use super::{bump_of, is_covered, release_base, release_commits, workspace_version, Base, Tree};
+use super::{
+    bump_of, is_covered, pending_release, release_base, release_commits, workspace_version, Base,
+    Tree,
+};
 use crate::commits::{self, Bump};
 use crate::{err, git, Error, Res, Version};
 
@@ -53,9 +56,6 @@ pub struct Outcome {
     pub branch: Option<String>,
 }
 
-/// Raised (as `Ok(None)`) when nothing user-visible landed since the base.
-pub const NOTHING: &str = "nothing to release";
-
 /// Computes the release; writes it unless `--dry-run`. `Ok(None)` means
 /// "nothing to release" (RF3.5).
 pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
@@ -65,53 +65,81 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     if opts.refresh && opts.version.is_some() {
         return err("--refresh keeps the prepared version; it cannot be combined with --version");
     }
-    let base = if opts.refresh {
-        release_base(repo, "HEAD", Some(&current))?
-    } else {
-        release_base(repo, "HEAD", None)?
-    };
-    if !opts.refresh && base.version != current {
+    // The base is always published (a stable tag or the internal baseline);
+    // a release prepared after it but not tagged yet is `pending`, and its
+    // section is refreshed instead of getting a second one.
+    let base = release_base(repo, "HEAD", None)?;
+    let pending = pending_release(repo, &base, "HEAD", &current)?;
+    if current > base.version && pending.is_none() {
         warnings.push(format!(
-            "the workspace declares {current} but the release base is {}",
+            "the workspace declares {current}, above the release base {}, but no release commit prepared it",
             base.describe()
-        ));
-    }
-    if !opts.refresh && has_rc_without_stable(repo, &current)? {
-        warnings.push(format!(
-            "v{current} has release candidates but no stable tag: use --refresh to continue {current} instead of preparing a new version"
         ));
     }
     let commits = release_commits(repo, &base.sha, "HEAD")?;
     let (bump, rationale) = bump_of(&commits, &base.version);
     let computed = commits::next_version(&base.version, bump);
-    let version = if opts.refresh {
-        if bump != Bump::None && computed != current {
+    let recorded = pending.as_ref().and_then(|p| p.version_override.clone());
+    let (version, overridden) = if opts.refresh {
+        if pending.is_none() {
             return err(format!(
-                "the commits since {} make the next version {computed}, not {current}: prepare a new version instead of --refresh",
+                "--refresh needs a prepared release without a stable tag, but {current} is the published base {}",
                 base.describe()
             ));
         }
-        current.clone()
-    } else {
-        match &opts.version {
-            Some(over) => {
-                if *over <= current {
-                    return err(format!(
-                        "--version {over} must be greater than the current version {current}"
-                    ));
-                }
-                if *over < computed {
-                    return err(format!(
-                        "--version {over} is lower than the computed {computed} ({} bump)",
-                        bump.as_str()
-                    ));
-                }
-                over.clone()
+        match &recorded {
+            Some(over) if computed > *over => {
+                return err(format!(
+                    "the commits since {} make the next version {computed}, above the recorded Version-Override {over}: prepare a new version instead of --refresh",
+                    base.describe()
+                ))
             }
-            None if bump == Bump::None => return Ok(None),
-            None => computed.clone(),
+            Some(_) => {}
+            None if bump != Bump::None && computed != current => {
+                return err(format!(
+                    "the commits since {} make the next version {computed}, not {current}: prepare a new version instead of --refresh",
+                    base.describe()
+                ))
+            }
+            None => {}
         }
+        (current.clone(), recorded.is_some())
+    } else if let Some(over) = &opts.version {
+        if pending.is_none() && *over <= current {
+            return err(format!(
+                "--version {over} must be greater than the current version {current}"
+            ));
+        }
+        if *over < computed {
+            return err(format!(
+                "--version {over} is lower than the computed {computed} ({} bump)",
+                bump.as_str()
+            ));
+        }
+        (over.clone(), true)
+    } else if pending.is_some() {
+        match &recorded {
+            Some(over) if *over >= computed => (over.clone(), true),
+            _ => (computed.clone(), false),
+        }
+    } else if bump == Bump::None {
+        return Ok(None);
+    } else {
+        (computed.clone(), false)
     };
+    if let Some(pending) = &pending {
+        if version != pending.version {
+            return err(format!(
+                "{} was prepared at {} but has no stable tag, and the commits since {} now make {version}: \
+                 tag it first (`cargo xtask release tag`, then prepare again), or keep {} with --refresh",
+                pending.version,
+                &pending.sha[..7],
+                base.describe(),
+                pending.version
+            ));
+        }
+    }
+    let refreshing = pending.is_some();
     for (commit, short) in &commits {
         if commit.bump(&base.version) != Bump::None
             && commit.trailers.sentences.is_empty()
@@ -127,10 +155,10 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     // The section (RF4.2/RF4.6).
     let changelog = work.read("CHANGELOG.md")?;
     let v = version.to_string();
-    let mut entries: Entries = if opts.refresh {
+    let mut entries: Entries = if refreshing {
         let body = render::section_body(&changelog, &v).ok_or_else(|| {
             Error::Msg(format!(
-                "--refresh needs an existing [{v}] section in CHANGELOG.md"
+                "the prepared release {v} has no [{v}] section in CHANGELOG.md"
             ))
         })?;
         render::entries_of(&body)
@@ -143,19 +171,25 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
+    let mut added = 0usize;
     for (commit, short) in &commits {
-        if opts.refresh && is_covered(&existing, &commit.sha) {
+        if refreshing && is_covered(&existing, &commit.sha) {
             continue;
         }
         for sentence in &commit.trailers.sentences {
+            added += 1;
             entries
                 .entry(commit.category())
                 .or_default()
                 .push(render::entry(commit, sentence, short));
         }
     }
+    if refreshing && !opts.refresh && added == 0 {
+        // Prepared and complete: the next step is the tag, not a new commit.
+        return Ok(None);
+    }
     let section = render::section(&v, &opts.date, &entries);
-    let replace = opts.refresh.then_some(v.as_str());
+    let replace = refreshing.then_some(v.as_str());
     let new_changelog =
         render::insert_section(&changelog, &section, replace).map_err(Error::Msg)?;
     let new_changelog =
@@ -219,7 +253,9 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         push(&path, text, new);
     }
 
-    let message = message(&base, &version, bump, &rationale, &section, opts);
+    let message = message(
+        &base, &version, bump, &rationale, &section, refreshing, overridden,
+    );
     let mut outcome = Outcome {
         base,
         current,
@@ -237,14 +273,26 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     }
 
     let paths: Vec<&str> = outcome.changes.iter().map(|c| c.path.as_str()).collect();
-    let mut status_args = vec!["status", "--porcelain", "--untracked-files=no", "--"];
+    // Every path the release writes must be tracked and unmodified: an
+    // untracked file (another worktree user's draft with `vNEXT`) is
+    // refused, never adopted.
+    let mut status_args = vec!["status", "--porcelain", "--untracked-files=all", "--"];
     status_args.extend(paths.iter().copied());
     let dirty = git::run(repo, &status_args)?;
     if !dirty.trim().is_empty() {
         return err(format!(
-            "these release files have uncommitted changes; commit or discard them first:\n{}",
+            "these release files are modified or untracked; commit, discard or move them first:\n{}",
             dirty.trim_end()
         ));
+    }
+    if opts.branch {
+        let staged = git::run(repo, &["diff", "--cached", "--name-only"])?;
+        if !staged.trim().is_empty() {
+            return err(format!(
+                "the index already holds staged changes, which the release commit would include; unstage them first:\n{}",
+                staged.trim_end()
+            ));
+        }
     }
     let branch = format!("release/v{}", outcome.version);
     if opts.branch && git::run(repo, &["rev-parse", "--verify", "--quiet", &branch]).is_ok() {
@@ -265,11 +313,14 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         let mut add = vec!["add", "--"];
         add.extend(paths.iter().copied());
         git::run(repo, &add)?;
+        let mut only = vec!["--"];
+        only.extend(paths.iter().copied());
         super::git_with_message(
             repo,
             "CUOTAI_RELEASE_MSG",
             &outcome.message,
             &["commit", "--cleanup=verbatim"],
+            &only,
         )?;
         outcome.branch = Some(branch);
     }
@@ -285,13 +336,7 @@ pub fn draft(repo: &Path, date: &str) -> Res<String> {
         ..Options::default()
     };
     match run(repo, &opts)? {
-        None => {
-            let base = release_base(repo, "HEAD", None)?;
-            Ok(format!(
-                "Nothing to release: no user-visible commit since {}.\n",
-                base.describe()
-            ))
-        }
+        None => Ok(format!("{}\n", idle_status(repo)?)),
         Some(outcome) => Ok(format!(
             "Next version: {} ({} bump from {}).\n\n{}",
             outcome.version,
@@ -302,6 +347,24 @@ pub fn draft(repo: &Path, date: &str) -> Res<String> {
     }
 }
 
+/// Why `run` had nothing to do: no user-visible commit since the base, or
+/// a prepared release that only waits for its tag.
+pub fn idle_status(repo: &Path) -> Res<String> {
+    let current = workspace_version(&Tree::Work(repo).read("Cargo.toml")?)?;
+    let base = release_base(repo, "HEAD", None)?;
+    Ok(match pending_release(repo, &base, "HEAD", &current)? {
+        Some(pending) => format!(
+            "Nothing new to release: {} is prepared at {} and waits for its tag (cargo xtask release tag --rc).",
+            pending.version,
+            &pending.sha[..7]
+        ),
+        None => format!(
+            "Nothing to release: no user-visible commit since {}.",
+            base.describe()
+        ),
+    })
+}
+
 /// The release commit message (RF4.5), with every skip-CI marker
 /// neutralized.
 fn message(
@@ -310,9 +373,10 @@ fn message(
     bump: Bump,
     rationale: &[String],
     section: &str,
-    opts: &Options,
+    refresh: bool,
+    overridden: bool,
 ) -> String {
-    let refresh = if opts.refresh { " (refresh)" } else { "" };
+    let refresh = if refresh { " (refresh)" } else { "" };
     let mut out = format!("chore(release): {version}{refresh}\n\n");
     out.push_str(&format!(
         "Release {version}: {} bump from {}.\n\n",
@@ -330,16 +394,10 @@ fn message(
     out.push_str(&format!(
         "\n\nVersion {version}.\n\nChangelog: skip release commit\n"
     ));
-    if opts.version.is_some() {
+    if overridden {
         out.push_str(&format!("Version-Override: {version}\n"));
     }
     commits::neutralize_skip_markers(&out) + "\n"
-}
-
-fn has_rc_without_stable(repo: &Path, version: &Version) -> Res<bool> {
-    let rcs = git::run(repo, &["tag", "--list", &format!("v{version}-rc.*")])?;
-    let stable = git::run(repo, &["tag", "--list", &format!("v{version}")])?;
-    Ok(!rcs.trim().is_empty() && stable.trim().is_empty())
 }
 
 /// Replaces `version = "old"` inside `[section]` (exactly once).

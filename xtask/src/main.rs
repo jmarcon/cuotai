@@ -78,6 +78,8 @@ SUBCOMMANDS:
                       trailer, no version/CHANGELOG edits outside a release commit
     --repo PATH             repository root (default: .)
     --base REF              first excluded commit (default: HEAD~1)
+    --before SHA            a push's previous tip instead of --base; fetched when
+                            missing, and the gate fails closed when it cannot be
     --head REF              last checked commit (default: HEAD)
 
   changelog-draft     Print the next version and its would-be section (PRD 0039 RF4.8)
@@ -386,8 +388,13 @@ fn changelog_check(opts: &Opts) -> Res<()> {
 
 fn changelog_gate(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
-    let base = opts.get("base").unwrap_or_else(|| "HEAD~1".to_string());
     let head = opts.get("head").unwrap_or_else(|| "HEAD".to_string());
+    let base = match (opts.get("base"), opts.get("before")) {
+        (Some(_), Some(_)) => return err("--base and --before exclude each other"),
+        (None, Some(before)) => xtask::changelog_gate::push_base(&repo, &before)?,
+        (Some(base), None) => base,
+        (None, None) => "HEAD~1".to_string(),
+    };
     let checked = xtask::changelog_gate::run(&repo, &base, &head)?;
     println!(
         "commit gate passed: {checked} commit(s) in {base}..{head} follow the commit contract"
@@ -422,7 +429,52 @@ fn release(args: &[String]) -> Res<()> {
         .cloned()
         .collect();
     let opts = Opts::parse(&rest)?;
+    // Every flag and option is checked against the action, so a
+    // safety-looking flag the action ignores (`tag --dry-run`) is an error.
+    let (allowed_flags, allowed_options): (&[&str], &[&str]) = match action.as_str() {
+        "prepare" => (
+            &["--dry-run", "--branch", "--refresh", "--check"],
+            &["repo", "version", "date", "rev"],
+        ),
+        "tag" => (&["--rc"], &["repo", "main"]),
+        other => {
+            return err(format!(
+                "unknown release action '{other}' (expected prepare or tag)"
+            ))
+        }
+    };
+    if let Some(bad) = flags.iter().find(|f| !allowed_flags.contains(f)) {
+        return err(format!(
+            "release {action} does not accept {bad} (allowed: {})",
+            allowed_flags.join(", ")
+        ));
+    }
+    if let Some(bad) = opts
+        .0
+        .keys()
+        .find(|k| !allowed_options.contains(&k.as_str()))
+    {
+        return err(format!("release {action} does not accept --{bad}"));
+    }
     let flag = |name: &str| flags.contains(&name);
+    if flag("--check") {
+        if let Some(bad) = ["--dry-run", "--branch", "--refresh"]
+            .into_iter()
+            .find(|f| flag(f))
+        {
+            return err(format!(
+                "--check verifies a release commit; it cannot be combined with {bad}"
+            ));
+        }
+        if let Some(bad) = ["version", "date"]
+            .into_iter()
+            .find(|k| opts.0.contains_key(*k))
+        {
+            return err(format!("--check cannot be combined with --{bad}"));
+        }
+    } else if opts.0.contains_key("rev") {
+        return err("--rev is only valid with --check");
+    }
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
     match action.as_str() {
         "prepare" if flag("--check") => {
@@ -477,11 +529,9 @@ fn release_prepare(repo: &Path, opts: &Opts, flag: &dyn Fn(&str) -> bool) -> Res
     }
     warn_if_not_main(repo);
     let Some(outcome) = xtask::release::prepare::run(repo, &options)? else {
-        let base = xtask::release::release_base(repo, "HEAD", None)?;
         let message = format!(
-            "{}: no user-visible commit since {} (pass --version X.Y.Z to release anyway)",
-            xtask::release::prepare::NOTHING,
-            base.describe()
+            "{} (pass --version X.Y.Z to release anyway)",
+            xtask::release::prepare::idle_status(repo)?
         );
         if options.dry_run {
             println!("{message}");

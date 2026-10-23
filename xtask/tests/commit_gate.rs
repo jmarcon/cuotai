@@ -11,6 +11,51 @@ fn gate(repo: &Path, base: &str) -> Result<usize, String> {
 }
 
 #[test]
+fn a_push_without_a_recoverable_previous_tip_fails_closed() {
+    let (_d, repo) = support::repo();
+    let tip = head(&repo);
+    let error = xtask::changelog_gate::push_base(&repo, &"0".repeat(40))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("no previous tip"), "{error}");
+    // Gone from the history and no origin to fetch it from.
+    let unknown = "1234567".repeat(6)[..40].to_string();
+    let error = xtask::changelog_gate::push_base(&repo, &unknown)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("fails closed"), "{error}");
+    assert_eq!(xtask::changelog_gate::push_base(&repo, &tip).unwrap(), tip);
+}
+
+#[test]
+fn a_previous_tip_missing_locally_is_fetched_from_origin() {
+    let (_d, origin) = support::repo();
+    let dir = tempfile::tempdir().unwrap();
+    let clone = dir.path().join("clone");
+    let status = std::process::Command::new("git")
+        .args(["clone", "-q"])
+        .arg(&origin)
+        .arg(&clone)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    // The commit exists only in origin until the gate fetches it.
+    let missing = commit(&origin, "docs: later", "docs/later.md", "Later.\n");
+    let present = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&clone)
+        .args(["cat-file", "-e", &format!("{missing}^{{commit}}")])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(!present.success());
+    assert_eq!(
+        xtask::changelog_gate::push_base(&clone, &missing).unwrap(),
+        missing
+    );
+}
+
+#[test]
 fn feature_with_a_trailer_passes() {
     let (_d, repo) = support::repo();
     let (_feat, _fix) = feature_and_fix(&repo);

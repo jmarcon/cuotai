@@ -31,6 +31,35 @@ fn is_product(path: &str) -> bool {
         || path == "THIRD_PARTY_NOTICES"
 }
 
+/// RF2.2: the base of a push to `main` is its previous tip. When that commit
+/// is not in the checkout (a force push), it is fetched from `origin`; when
+/// it still cannot be recovered, or the push created the branch, the gate
+/// fails closed instead of checking an empty range.
+pub fn push_base(repo: &Path, before: &str) -> Res<String> {
+    if before.is_empty() || before.bytes().all(|b| b == b'0') {
+        return crate::err(
+            "the push has no previous tip (it created the branch): the commit gate cannot \
+             tell which commits are new; run it with an explicit --base",
+        );
+    }
+    if !before.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return crate::err(format!("--before '{before}' is not a commit hash"));
+    }
+    let exists =
+        |repo: &Path| git::run(repo, &["cat-file", "-e", &format!("{before}^{{commit}}")]).is_ok();
+    if !exists(repo) {
+        let _ = git::run(repo, &["fetch", "--no-tags", "--quiet", "origin", before]);
+    }
+    if !exists(repo) {
+        return crate::err(format!(
+            "the previous tip {before} of this push is not available (force push?) and could \
+             not be fetched: the commit gate fails closed. Check the pushed commits by hand \
+             with `cargo xtask changelog-gate --base <last good commit> --head <new tip>`"
+        ));
+    }
+    Ok(before.to_string())
+}
+
 /// Checks `base..head`; returns how many commits were checked.
 pub fn run(repo: &Path, base: &str, head: &str) -> Res<usize> {
     let commits = commits::load(repo, &format!("{base}..{head}"))?;
