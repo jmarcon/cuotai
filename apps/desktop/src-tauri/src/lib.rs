@@ -914,8 +914,9 @@ fn updater_status(u: Updates<'_>) -> updater::UpdateView {
     u.view()
 }
 
-/// PRD 0018 RF2.1/RF3.2: liga ou desliga a verificação automática (`desktop.json`).
-/// Desligado, nenhum pedido sai. Erro: `unwritable`.
+/// PRD 0018 RF2.6/RF3.2: enables or disables automatic checks in `desktop.json`
+/// after the one-time answer. Off sends no request. Errors:
+/// `updater_consent_required`, `unwritable`.
 #[tauri::command]
 fn updater_set_automatic(
     app: AppHandle,
@@ -925,10 +926,15 @@ fn updater_set_automatic(
     u.set_automatic(&app, on)
 }
 
-/// PRD 0018 RF2.1: a explicação do que o pedido envia foi lida e aceita.
+/// PRD 0018 RF2.6: records the one-time answer; "Yes" enables the schedule and
+/// "No" leaves it off. The backend opens its request gate only after persistence.
 #[tauri::command]
-fn updater_explanation_seen(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView, String> {
-    u.explanation_seen(&app)
+fn updater_answer_automatic(
+    app: AppHandle,
+    u: Updates<'_>,
+    on: bool,
+) -> Result<updater::UpdateView, String> {
+    u.answer_automatic(&app, on)
 }
 
 /// PRD 0018 RF3.1: "Verificar agora". Com o recurso desligado responde `updater_off` e
@@ -1305,8 +1311,9 @@ pub fn run() {
     // PRD 0015 RF4.3: the local server publishes this computer's local cost.
     let local_cost = Arc::new(local_cost::LocalCost::new());
     backend.publish_local_cost(Arc::clone(&local_cost));
-    // PRD 0018 RF2.1/RF2.5: the update service reads `desktop.json`, detects the install
-    // source and decides, before the first request, whether any request may happen.
+    // PRD 0018 RF2.6/RF2.5: the update service reads `desktop.json`, detects the
+    // install source and keeps both scheduled and manual requests behind the persisted
+    // one-time answer before the first possible request.
     let updates = Arc::new(updater::Service::new());
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -1345,7 +1352,7 @@ pub fn run() {
             set_config_file,
             updater_status,
             updater_set_automatic,
-            updater_explanation_seen,
+            updater_answer_automatic,
             updater_check_now,
             updater_install,
             updater_cancel_download,
@@ -1491,8 +1498,9 @@ pub fn run() {
             // PRD 0014 RF1.4: the widget snapshot publisher, on a task of
             // its own so a refresh never waits for a file write.
             tauri::async_runtime::spawn(Arc::clone(&backend).run_widgets());
-            // PRD 0018 RF2.1: the update check on opening and then once every 24 h, only
-            // while the feature is on and the install is not owned by a package manager.
+            // PRD 0018 RF2.1/RF2.6: the update check on opening and every 24 h starts
+            // only after the affirmative one-time answer and while no preference or
+            // package policy turns it off.
             tauri::async_runtime::spawn(Arc::clone(&updates).run(app.handle().clone()));
             Ok(())
         })

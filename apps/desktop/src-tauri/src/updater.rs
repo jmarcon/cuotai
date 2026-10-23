@@ -5,11 +5,12 @@
 //! plugin verificar a assinatura do pacote baixado e decide o que a janela principal e a
 //! bandeja mostram.
 //!
-//! Privacidade (RF2.1): a verificação só acontece com o recurso ligado — a preferência de
-//! `desktop.json`, nenhuma variável de ambiente ou chave de build desligando, e nenhuma
-//! instalação gerenciada por um gerenciador de pacotes (RF3.2/RF2.5). O pedido é um GET
-//! de um `latest.json` público: a versão atual, o sistema e a arquitetura ficam neste
-//! computador, porque o plugin as usa para escolher a entrada `platforms` do manifesto.
+//! Privacy (RF2.6): no automatic or manual check can happen before the one-time
+//! answer. After "Yes", the `desktop.json` preference must still be on, no
+//! environment or build key may disable it, and a package manager must not own
+//! the installation (RF3.2/RF2.5). The disclosed check context is limited to the
+//! current app version, operating system and architecture; no account, usage,
+//! name or machine identifier is included.
 //!
 //! A assinatura (RF4.1) é conferida pelo plugin contra a chave pública de
 //! `tauri.conf.json` (`plugins.updater.pubkey`, gerada por `cargo tauri signer generate`);
@@ -90,9 +91,10 @@ pub fn detect() -> InstallSource {
     )
 }
 
-/// PRD 0018 RF3.2/RF2.5: por que o atualizador está desligado agora, nesta ordem: o
-/// ambiente vence a chave de build, que vence o gerenciador de pacotes, e desligar pelo
-/// usuário é o último motivo. `None` = pode verificar.
+/// PRD 0018 RF3.2/RF2.5: why the updater is off after the question was answered.
+/// The environment takes precedence over the build key, then package ownership,
+/// then the user's preference. A pending answer is a separate hard gate and is
+/// never reported as an off preference.
 pub fn disabled_reason(
     prefs: &UpdaterPrefs,
     env_off: bool,
@@ -108,7 +110,7 @@ pub fn disabled_reason(
     if let Some(reason) = source.updater_disabled_reason() {
         return Some(reason);
     }
-    if !prefs.automatic {
+    if prefs.consent_answered && !prefs.automatic {
         return Some("preference");
     }
     None
@@ -285,20 +287,20 @@ enum Phase {
     },
 }
 
-/// PRD 0018 RF2.2/RF3.1: o que a interface mostra, sem URL, assinatura ou chave.
+/// PRD 0018 RF2.2/RF2.6/RF3.1: the UI view, without an endpoint, signature or key.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct UpdateView {
-    /// O app pode verificar agora (RF3.2).
+    /// Whether an update request can be made now (RF2.6/RF3.2).
     pub enabled: bool,
-    /// A preferência do usuário (o interruptor de Settings → Updates).
+    /// The user's Settings → Updates preference.
     pub automatic: bool,
-    /// Por que está desligado, quando está.
+    /// Why checks are off, when an answered choice or policy turns them off.
     pub disabled_reason: Option<&'static str>,
     pub channel: &'static str,
     pub current_version: String,
     pub last_check: Option<String>,
-    /// Primeira execução: a explicação do que o pedido envia ainda não foi aceita.
-    pub explanation_pending: bool,
+    /// Whether the one-time answer is still required before any request.
+    pub consent_pending: bool,
     /// `idle`, `checking`, `uptodate`, `available`, `downloading`, `installing`, `ready`
     /// ou `failed`.
     pub phase: &'static str,
@@ -325,6 +327,8 @@ pub struct Service {
     source: InstallSource,
     /// `desktop.json` desta máquina; `None` = as preferências ficam em memória.
     prefs_file: Option<PathBuf>,
+    /// Fallback for systems without a configuration directory and for tests.
+    memory_prefs: Mutex<UpdaterPrefs>,
     /// `CUOTAI_UPDATER=off` no ambiente (RF3.2).
     env_off: bool,
     /// `CUOTAI_UPDATER_DEFAULT=off` no build do empacotador (RF3.2).
@@ -358,6 +362,7 @@ impl Service {
             nudge: tokio::sync::Notify::new(),
             source,
             prefs_file,
+            memory_prefs: Mutex::new(UpdaterPrefs::default()),
             env_off,
             build_off,
             stopping: Arc::new(AtomicBool::new(false)),
@@ -368,24 +373,29 @@ impl Service {
         self.prefs_file
             .as_deref()
             .map(settings::read_updater)
-            .unwrap_or_default()
+            .unwrap_or_else(|| self.memory_prefs.lock().clone())
     }
 
     fn save_prefs(&self, prefs: &UpdaterPrefs) -> Result<(), &'static str> {
         match &self.prefs_file {
             Some(file) => settings::write_updater(file, prefs),
-            None => Ok(()),
+            None => {
+                *self.memory_prefs.lock() = prefs.clone();
+                Ok(())
+            }
         }
     }
 
-    /// Por que o atualizador está desligado agora (RF3.2/RF2.5).
-    pub fn disabled_reason(&self) -> Option<&'static str> {
-        disabled_reason(&self.prefs(), self.env_off, self.build_off, self.source)
+    fn requests_allowed_for(&self, prefs: &UpdaterPrefs) -> bool {
+        prefs.consent_answered
+            && disabled_reason(prefs, self.env_off, self.build_off, self.source).is_none()
     }
 
-    /// `true` quando uma verificação pode ser feita; desligado, nenhum pedido sai.
+    /// `true` only after an affirmative answer and while no policy disables
+    /// checks. The scheduler, manual path and internal pre-request boundary all
+    /// use this RF2.6 gate.
     pub fn requests_allowed(&self) -> bool {
-        self.disabled_reason().is_none()
+        self.requests_allowed_for(&self.prefs())
     }
 
     /// RF2.1: nunca verificou, ou já passou 24 h (uma data ilegível conta como nunca).
@@ -403,7 +413,7 @@ impl Service {
     /// O estado para a interface, sem URL, assinatura ou chave.
     pub fn view(&self) -> UpdateView {
         let prefs = self.prefs();
-        let reason = self.disabled_reason();
+        let reason = disabled_reason(&prefs, self.env_off, self.build_off, self.source);
         let source = self.source;
         let phase = self.phase.lock();
         let (name, version, notes, date, progress, dismissed, error) = match &*phase {
@@ -468,13 +478,13 @@ impl Service {
         };
         drop(phase);
         UpdateView {
-            enabled: reason.is_none(),
+            enabled: prefs.consent_answered && reason.is_none(),
             automatic: prefs.automatic,
             disabled_reason: reason,
             channel: CHANNEL,
             current_version: env!("CARGO_PKG_VERSION").to_string(),
             last_check: prefs.last_check.clone(),
-            explanation_pending: reason.is_none() && !prefs.explanation_seen,
+            consent_pending: reason.is_none() && !prefs.consent_answered,
             phase: name,
             version,
             notes,
@@ -492,10 +502,18 @@ impl Service {
         let _ = app.emit(EVENT, self.view());
     }
 
-    /// RF2.1: liga/desliga a verificação automática (`desktop.json`). Desligar impede
-    /// qualquer pedido, inclusive o "Verificar agora" (RF3.2). Erro: `unwritable`.
-    pub fn set_automatic(&self, app: &AppHandle, on: bool) -> Result<UpdateView, String> {
+    /// RF3.1: enables or disables automatic checks in `desktop.json` after the
+    /// one-time answer. Off blocks every request, including *Check now* (RF3.2).
+    /// Errors: `updater_consent_required`, `unwritable`.
+    pub fn set_automatic<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        on: bool,
+    ) -> Result<UpdateView, String> {
         let mut prefs = self.prefs();
+        if !prefs.consent_answered {
+            return Err("updater_consent_required".to_string());
+        }
         prefs.automatic = on;
         self.save_prefs(&prefs).map_err(str::to_owned)?;
         self.emit(app);
@@ -503,12 +521,19 @@ impl Service {
         Ok(self.view())
     }
 
-    /// RF2.1: a explicação do que a verificação envia foi aceita e não volta.
-    pub fn explanation_seen(&self, app: &AppHandle) -> Result<UpdateView, String> {
+    /// RF2.6: persists the one-time answer. "Yes" enables the schedule; "No"
+    /// leaves every check off. The scheduler wakes only after persistence succeeds.
+    pub fn answer_automatic<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        on: bool,
+    ) -> Result<UpdateView, String> {
         let mut prefs = self.prefs();
-        prefs.explanation_seen = true;
+        prefs.consent_answered = true;
+        prefs.automatic = on;
         self.save_prefs(&prefs).map_err(str::to_owned)?;
         self.emit(app);
+        self.nudge.notify_one();
         Ok(self.view())
     }
 
@@ -521,26 +546,33 @@ impl Service {
         self.view()
     }
 
-    /// RF3.1: "Verificar agora". Desligado, responde `updater_off` sem fazer pedido.
+    /// RF3.1/RF2.6: *Check now*. Before the answer or while off, it refuses
+    /// without making a request.
     pub async fn check_now<R: Runtime>(&self, app: &AppHandle<R>) -> Result<UpdateView, String> {
-        if !self.requests_allowed() {
+        let prefs = self.prefs();
+        if disabled_reason(&prefs, self.env_off, self.build_off, self.source).is_some() {
             return Err("updater_off".to_string());
+        }
+        if !prefs.consent_answered {
+            return Err("updater_consent_required".to_string());
         }
         self.check(app).await;
         Ok(self.view())
     }
 
-    /// RF2.1: um ciclo da tarefa de 24 h — verifica só quando é devida e o recurso está
-    /// ligado; desligado, nenhum pedido sai (RF3.2).
+    /// RF2.1/RF2.6: a 24-hour scheduler tick checks only after an affirmative
+    /// answer, when due and while no policy disables it.
     pub(crate) async fn tick<R: Runtime>(&self, app: &AppHandle<R>) {
-        if !self.requests_allowed() || !self.check_due(&self.prefs(), chrono::Utc::now()) {
+        let prefs = self.prefs();
+        if !self.requests_allowed_for(&prefs) || !self.check_due(&prefs, chrono::Utc::now()) {
             return;
         }
         self.check(app).await;
     }
 
-    /// Uma verificação: marca `checking`, pede o manifesto ao plugin e guarda o
-    /// resultado. Nada é baixado aqui (RF2.2).
+    /// Repeats the RF2.6 gate immediately before constructing a request, marks
+    /// the phase as `checking`, asks the plugin for the manifest and stores the
+    /// result. Nothing downloads here (RF2.2).
     async fn check<R: Runtime>(&self, app: &AppHandle<R>) {
         if !self.requests_allowed() {
             return;
@@ -762,9 +794,10 @@ impl Service {
         }
     }
 
-    /// PRD 0018 RF2.1: verifica na abertura e depois uma vez a cada 24 h, enquanto o
-    /// recurso estiver ligado. A espera termina na próxima verificação ou num aviso
-    /// ("Verificar agora" verifica direto, sem esperar a tarefa).
+    /// PRD 0018 RF2.1/RF2.6: after the affirmative answer, checks on opening and
+    /// every 24 hours while enabled. The wait ends at the next due check or on a
+    /// notification (*Check now* checks directly; answering the question also
+    /// wakes the task).
     pub async fn run(self: Arc<Self>, app: AppHandle) {
         loop {
             if self.stopping.load(Ordering::Relaxed) {
@@ -779,13 +812,13 @@ impl Service {
         }
     }
 
-    /// Quanto falta para a próxima verificação automática (nunca menos que um instante).
+    /// Time until the next automatic check (never less than an instant).
     fn until_next_check(&self) -> Duration {
         let now = chrono::Utc::now();
         let prefs = self.prefs();
-        // Desligado, esta tarefa não marca o tempo do pedido: reavalia de hora em hora
-        // (uma mudança de preferência também a acorda).
-        if !self.requests_allowed() {
+        // While off or unanswered, no request time is accrued. Re-evaluate hourly;
+        // an answer or preference change wakes the task immediately.
+        if !self.requests_allowed_for(&prefs) {
             return Duration::from_secs(60 * 60);
         }
         let Some(last) = prefs.last_check.as_deref().and_then(parse_instant) else {
@@ -973,6 +1006,7 @@ mod detector {
     fn prefs(automatic: bool) -> UpdaterPrefs {
         UpdaterPrefs {
             automatic,
+            consent_answered: true,
             ..UpdaterPrefs::default()
         }
     }
@@ -1487,6 +1521,104 @@ mod contract {
         }
     }
 
+    /// PRD 0018 RF2.6: no legacy/default/malformed unanswered state may
+    /// reach the manifest server, through either the scheduler or Check now.
+    #[test]
+    fn every_unanswered_state_blocks_scheduled_and_manual_requests() {
+        let key = keypair();
+        let manifest = manifest(
+            "0.2.0",
+            &sign(&key, b"payload", "0.2.0"),
+            "https://github.com/jmarcon/cuotai/releases/download/v0.2.0/Cuotai.app.tar.gz",
+        );
+        let cases = [
+            ("absent", None),
+            (
+                "legacy_on_unseen",
+                Some(r#"{"updater":{"automatic":true,"explanation_seen":false}}"#),
+            ),
+            (
+                "legacy_on_seen",
+                Some(
+                    r#"{"updater":{"automatic":true,"last_check":"2025-01-01T00:00:00Z","explanation_seen":true}}"#,
+                ),
+            ),
+            (
+                "explicit_unanswered",
+                Some(
+                    r#"{"updater":{"automatic":true,"last_check":"2099-01-01T00:00:00Z","consent_answered":false}}"#,
+                ),
+            ),
+            (
+                "malformed",
+                Some(r#"{"updater":{"automatic":"yes","consent_answered":"yes"}}"#),
+            ),
+        ];
+
+        for (name, stored) in cases {
+            let server = Local::http(manifest.clone());
+            let app = app(&key.pubkey, &server.url);
+            let dir = tempfile::tempdir().expect("tempdir");
+            let file = dir.path().join("desktop.json");
+            if let Some(stored) = stored {
+                std::fs::write(&file, stored).expect("profile");
+            }
+            let service = Service::build(InstallSource::Direct, Some(file), false, false);
+            let view = service.view();
+            assert!(view.consent_pending, "{name}: {view:?}");
+            assert!(!view.enabled, "{name}: {view:?}");
+            assert!(!view.automatic, "{name}: {view:?}");
+            assert!(!service.requests_allowed(), "{name}");
+            assert_eq!(
+                service.set_automatic(app.handle(), true).unwrap_err(),
+                "updater_consent_required",
+                "{name}"
+            );
+
+            tauri::async_runtime::block_on(service.tick(app.handle()));
+            let manual = tauri::async_runtime::block_on(service.check_now(app.handle()));
+            assert_eq!(
+                manual.as_ref().err().map(String::as_str),
+                Some("updater_consent_required"),
+                "{name}"
+            );
+            assert_eq!(service.view().phase, "idle", "{name}");
+            assert_eq!(server.count(), 0, "{name}");
+        }
+    }
+
+    #[test]
+    fn answering_no_persists_the_choice_and_keeps_every_request_off() {
+        let key = keypair();
+        let server = Local::http(r#"{"version":"0.2.0","platforms":{}}"#.to_string());
+        let app = app(&key.pubkey, &server.url);
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("desktop.json");
+        let service = Service::build(InstallSource::Direct, Some(file.clone()), false, false);
+
+        let view = service
+            .answer_automatic(app.handle(), false)
+            .expect("answer");
+        assert!(!view.consent_pending);
+        assert!(!view.automatic);
+        assert!(!view.enabled);
+        assert_eq!(view.disabled_reason, Some("preference"));
+        assert_eq!(
+            crate::settings::read_updater(&file),
+            UpdaterPrefs {
+                automatic: false,
+                last_check: None,
+                consent_answered: true,
+            }
+        );
+        tauri::async_runtime::block_on(service.tick(app.handle()));
+        assert_eq!(
+            tauri::async_runtime::block_on(service.check_now(app.handle())).unwrap_err(),
+            "updater_off"
+        );
+        assert_eq!(server.count(), 0);
+    }
+
     /// PRD 0018 RF3.2 / RF1.4: desligado, nenhum pedido sai — nem na abertura, nem no
     /// "Verificar agora". O servidor local conta as conexões e precisa ver zero.
     #[test]
@@ -1525,13 +1657,14 @@ mod contract {
                 &file,
                 &UpdaterPrefs {
                     automatic,
+                    consent_answered: true,
                     ..UpdaterPrefs::default()
                 },
             )
             .expect("preferência gravada");
 
             let service = Service::build(source, Some(file.clone()), env_off, build_off);
-            assert_eq!(service.disabled_reason(), Some(reason), "{reason}");
+            assert_eq!(service.view().disabled_reason, Some(reason), "{reason}");
             assert!(!service.requests_allowed(), "{reason}");
 
             // O ciclo da tarefa de 24 h e o "Verificar agora" passam pelo mesmo portão.
@@ -1548,10 +1681,10 @@ mod contract {
         }
     }
 
-    /// Com o recurso ligado, o mesmo caminho faz o pedido e guarda a versão nova; o
-    /// ciclo de 24 h grava a data da verificação (RF2.1/RF3.1).
+    /// "Yes" persists the answer, enables the RF2.1 schedule and lets the
+    /// same scheduler path make exactly one request.
     #[test]
-    fn the_connected_path_checks_once_and_records_the_date() {
+    fn answering_yes_starts_the_schedule_and_records_the_check_date() {
         let key = keypair();
         let newer = "0.2.0";
         let manifest = manifest(
@@ -1564,6 +1697,16 @@ mod contract {
         let dir = tempfile::tempdir().expect("tempdir");
         let file = dir.path().join("desktop.json");
         let service = Service::build(InstallSource::Direct, Some(file.clone()), false, false);
+        assert!(service.view().consent_pending);
+        assert!(!service.requests_allowed());
+        assert_eq!(server.count(), 0);
+
+        let answered = service
+            .answer_automatic(app.handle(), true)
+            .expect("answer");
+        assert!(!answered.consent_pending);
+        assert!(answered.automatic);
+        assert!(answered.enabled);
         assert!(service.requests_allowed());
 
         tauri::async_runtime::block_on(service.tick(app.handle()));
@@ -1604,6 +1747,9 @@ mod contract {
             let manifest_server = Local::http(manifest);
             let app = app(&key.pubkey, &manifest_server.url);
             let service = Service::build(InstallSource::Direct, None, false, false);
+            service
+                .answer_automatic(app.handle(), true)
+                .expect("answer");
 
             tauri::async_runtime::block_on(service.tick(app.handle()));
             let view = service.view();
@@ -1722,8 +1868,13 @@ mod contract {
         assert_eq!(view.upgrade_command, Some("brew upgrade --cask cuotai"));
         assert!(!view.can_install);
         assert!(!view.enabled);
-        // Um erro de endpoint não muda a política da instalação.
+        assert!(!view.consent_pending, "managed installs are never asked");
+        // Endpoint state never overrides package ownership or opens the request gate.
         tauri::async_runtime::block_on(service.tick(app.handle()));
+        assert_eq!(
+            tauri::async_runtime::block_on(service.check_now(app.handle())).unwrap_err(),
+            "updater_off"
+        );
         assert_eq!(service.view().disabled_reason, Some("homebrew"));
         assert_eq!(server.count(), 0);
     }
