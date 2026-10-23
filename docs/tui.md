@@ -4,9 +4,21 @@ The `cuotai-tui` binary provides the interactive terminal dashboard (Ratatui), s
 
 The TUI's own captions (shortcuts, frames, buttons) are shown in Portuguese. This guide quotes them as they appear on screen, with an English gloss where it helps.
 
+<div align="center">
+  <img src="assets/screenshots/tui-dashboard.png" alt="The terminal dashboard with six demo accounts" width="100%" />
+  <p><em>The dashboard: cards in two columns, each with its remaining percentage, pace icon and reset countdown. The accounts here are demo extensions on a throwaway profile, not real services.</em></p>
+</div>
+
+<div align="center">
+  <img src="assets/screenshots/tui-details.png" alt="The account details view with history sparklines" width="100%" />
+  <p><em>Enter opens the details: the binding limit, the pace per metric and the recorded history (keys <code>1</code>, <code>2</code>, <code>3</code>).</em></p>
+</div>
+
+Looking for the desktop app? See the [desktop feature reference](gui-features.md). For scripting recipes (`--json`, `--serve`, `--watch`, hooks, history and cost commands) and the accounts file, see [`advanced.md`](advanced.md).
+
 ## Running
 
-Requires Rust/Cargo. AWS Bedrock also requires AWS CLI v2 on your `PATH`.
+Install the `cuotai` binary from a release archive, `cargo install` or a source checkout (see [`installing.md`](installing.md#channel-status) for what is available and [`building.md`](building.md) for building). The examples below use `cargo run -p cuotai-tui --`, which you can replace with `cuotai` once it is installed. AWS Bedrock also requires AWS CLI v2 on your `PATH`.
 
 ```sh
 cargo run -p cuotai-tui -- --list-providers
