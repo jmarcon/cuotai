@@ -866,6 +866,8 @@ dependencies = [
  "cuotai-core",
  "dirs 6.0.0",
  "minisign",
+ "objc2",
+ "objc2-app-kit",
  "parking_lot",
  "rcgen",
  "rustls",

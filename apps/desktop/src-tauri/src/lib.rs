@@ -997,24 +997,224 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
     let width = w.outer_size().map(|s| s.width as f64).unwrap_or(380.0);
     let height = w.outer_size().map(|s| s.height as f64).unwrap_or(600.0);
     let scale = w.scale_factor().unwrap_or(1.0);
-    // Ícone no topo da tela (macOS): abre abaixo; na base (Windows/Linux): abre acima.
-    let below = w
-        .current_monitor()
+    // The screen that holds the icon that was clicked, not the one where the
+    // popover was last shown.
+    let screen = w
+        .monitor_from_point(anchor.x, anchor.y)
         .ok()
         .flatten()
-        .map(|m| anchor.y < m.size().height as f64 / 2.0)
+        .or_else(|| w.current_monitor().ok().flatten())
+        .map(|m| {
+            let (p, s) = (m.position(), m.size());
+            (p.x as f64, p.y as f64, s.width as f64, s.height as f64)
+        });
+    let (x, y) = popover_origin(anchor, (width, height), screen, scale);
+    let _ = w.set_position(PhysicalPosition::new(x, y));
+    #[cfg(target_os = "macos")]
+    macos_popover::present(w);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+/// Where the popover's top-left corner goes, in physical pixels: centred on the
+/// icon, below it when the icon is in the top half of its screen (macOS menu bar)
+/// and above it otherwise (Windows/Linux taskbar), kept 8 px inside that screen.
+/// `screen` is the screen's `(x, y, width, height)`; without it, only the gap
+/// to the icon is applied.
+fn popover_origin(
+    anchor: PhysicalPosition<f64>,
+    (width, height): (f64, f64),
+    screen: Option<(f64, f64, f64, f64)>,
+    scale: f64,
+) -> (f64, f64) {
+    let gap = 6.0 * scale;
+    let below = screen
+        .map(|(_, sy, _, sh)| anchor.y < sy + sh / 2.0)
         .unwrap_or(true);
+    let x = anchor.x - width / 2.0;
     let y = if below {
-        anchor.y + 6.0 * scale
+        anchor.y + gap
     } else {
-        anchor.y - height - 6.0 * scale
+        anchor.y - height - gap
     };
-    let _ = w.set_position(PhysicalPosition::new(
-        (anchor.x - width / 2.0).max(8.0),
-        y.max(8.0),
-    ));
-    let _ = w.show();
-    let _ = w.set_focus();
+    match screen {
+        Some((sx, sy, sw, sh)) => {
+            let margin = 8.0 * scale;
+            let clamp = |v: f64, lo: f64, hi: f64| v.min(hi).max(lo);
+            (
+                clamp(x, sx + margin, sx + sw - width - margin),
+                clamp(y, sy + margin, sy + sh - height - margin),
+            )
+        }
+        None => (x, y),
+    }
+}
+
+/// macOS: the tray popover must open over whatever Space is active, including
+/// the Space of a full-screen app. A plain `NSWindow` cannot: it lives on the
+/// Space where it was first shown, and showing it with focus activates Cuotai (a
+/// Regular app with a Dock icon), which makes macOS switch to Cuotai's Space.
+/// Collection behaviour and window level alone are not enough (tested).
+///
+/// So the popover becomes a non-activating panel, as menu-bar apps do: its class
+/// is switched from tao's `TaoWindow` to an `NSPanel` subclass that can become
+/// key (keyboard input still works), with the `NonactivatingPanel` style,
+/// joining every Space as a full-screen auxiliary window at the pop-up menu
+/// level. It is shown with `orderFrontRegardless` + `makeKeyWindow`, never
+/// `NSApp.activate`, so the active app and Space stay put. Losing key status
+/// still reaches tao's delegate (`windowDidResignKey:` gives `Focused(false)`),
+/// which hides it. The main window, the Dock icon and the activation policy are
+/// untouched.
+#[cfg(target_os = "macos")]
+mod macos_popover {
+    use std::ffi::CStr;
+    use std::sync::OnceLock;
+
+    use objc2::runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel};
+    use objc2::{sel, ClassType};
+    use objc2_app_kit::{
+        NSPanel, NSPopUpMenuWindowLevel, NSWindow, NSWindowCollectionBehavior, NSWindowStyleMask,
+    };
+    use tauri::WebviewWindow;
+
+    const PANEL_CLASS: &CStr = c"CuotaiTrayPanel";
+
+    /// The popover's Spaces behaviour: present on every Space (the active one at
+    /// the moment of the click), allowed inside full-screen Spaces, kept still by
+    /// Mission Control and left out of the window cycle.
+    pub(super) fn collection_behavior() -> NSWindowCollectionBehavior {
+        NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::FullScreenAuxiliary
+            | NSWindowCollectionBehavior::Stationary
+            | NSWindowCollectionBehavior::IgnoresCycle
+    }
+
+    /// The popover's style: the window's own mask plus `NonactivatingPanel`.
+    pub(super) fn style_mask(current: NSWindowStyleMask) -> NSWindowStyleMask {
+        current | NSWindowStyleMask::NonactivatingPanel
+    }
+
+    extern "C-unwind" fn yes(_: &AnyObject, _: Sel) -> Bool {
+        Bool::YES
+    }
+
+    extern "C-unwind" fn no(_: &AnyObject, _: Sel) -> Bool {
+        Bool::NO
+    }
+
+    /// `NSPanel` subclass that can become key (a borderless panel cannot by
+    /// default, which would break typing and the blur-to-hide rule) but never
+    /// main. Registered once per process.
+    fn panel_class() -> &'static AnyClass {
+        static CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
+        CLASS.get_or_init(|| {
+            if let Some(existing) = AnyClass::get(PANEL_CLASS) {
+                return existing;
+            }
+            let mut builder = ClassBuilder::new(PANEL_CLASS, NSPanel::class())
+                .expect("CuotaiTrayPanel is registered only here");
+            // SAFETY: both selectors return BOOL and take no argument, matching
+            // the `extern "C-unwind" fn(&AnyObject, Sel) -> Bool` signatures.
+            unsafe {
+                builder.add_method(
+                    sel!(canBecomeKeyWindow),
+                    yes as extern "C-unwind" fn(_, _) -> _,
+                );
+                builder.add_method(
+                    sel!(canBecomeMainWindow),
+                    no as extern "C-unwind" fn(_, _) -> _,
+                );
+            }
+            // tao's `TaoWindow` (an `NSWindow` subclass) adds one `BOOL` ivar,
+            // `focusable`; `NSPanel` adds none. Declaring the same ivar keeps the
+            // instance size and the ivar's offset identical, so the class swap is
+            // layout-compatible and tao's `set_focusable` keeps working.
+            builder.add_ivar::<Bool>(c"focusable");
+            builder.register()
+        })
+    }
+
+    /// Whether an object of class `from` can become a `to`: same instance size
+    /// and, when `from` declares tao's `focusable` ivar, `to` holds it at the
+    /// same offset.
+    pub(super) fn same_layout(from: &AnyClass, to: &AnyClass) -> bool {
+        if from.instance_size() != to.instance_size() {
+            return false;
+        }
+        match (
+            from.instance_variable(c"focusable"),
+            to.instance_variable(c"focusable"),
+        ) {
+            (Some(a), Some(b)) => a.offset() == b.offset(),
+            (None, _) => true,
+            (Some(_), None) => false,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn panel_class_for_tests() -> &'static AnyClass {
+        panel_class()
+    }
+
+    fn ns_window(w: &WebviewWindow) -> Option<&NSWindow> {
+        let ptr = w.ns_window().ok()?;
+        // SAFETY: `ns_window()` returns the window's live `NSWindow`, kept alive
+        // by the `WebviewWindow` borrowed for the returned lifetime; callers run on
+        // the main thread (`setup` and tray-icon events), as AppKit requires.
+        (!ptr.is_null()).then(|| unsafe { &*ptr.cast::<NSWindow>() })
+    }
+
+    /// Turns the popover into a non-activating panel. Called once from `setup`,
+    /// on the main thread, before it is ever shown.
+    pub(super) fn make_panel(w: &WebviewWindow) {
+        let Some(window) = ns_window(w) else { return };
+        let object: &AnyObject = window.as_ref();
+        let (from, to) = (object.class(), panel_class());
+        if !same_layout(from, to) {
+            // A tao release changed `TaoWindow`'s ivars: never swap an
+            // incompatible layout. The popover keeps working as a plain window
+            // (without the full-screen overlay) instead of corrupting memory.
+            window.setCollectionBehavior(collection_behavior());
+            window.setLevel(NSPopUpMenuWindowLevel);
+            return;
+        }
+        // SAFETY: `same_layout` checked that both classes have the same instance
+        // size and the `focusable` ivar at the same offset, and `CuotaiTrayPanel`
+        // descends from `NSWindow` like `TaoWindow` (through `NSPanel`, which adds
+        // no ivars), so the object stays valid (the swap tauri-nspanel performs).
+        // `TaoWindow`'s `canBecomeKeyWindow`/`canBecomeMainWindow` are replaced
+        // above and its `sendEvent:` override only serves movable-by-background
+        // windows, which the popover is not. The window delegate, and with it
+        // every tao window event, is unchanged.
+        unsafe { AnyObject::set_class(object, to) };
+        // SAFETY: the object is now an `NSPanel`.
+        let panel: &NSPanel = unsafe { &*(window as *const NSWindow).cast::<NSPanel>() };
+        panel.setStyleMask(style_mask(panel.styleMask()));
+        // `setFloatingPanel` sets the floating level, so the level comes after it.
+        panel.setFloatingPanel(true);
+        panel.setBecomesKeyOnlyIfNeeded(false);
+        panel.setHidesOnDeactivate(false);
+        panel.setCollectionBehavior(collection_behavior());
+        panel.setLevel(NSPopUpMenuWindowLevel);
+    }
+
+    /// Shows the popover on the active Space and gives it the keyboard without
+    /// activating Cuotai, so a full-screen app keeps its Space.
+    pub(super) fn present(w: &WebviewWindow) {
+        match ns_window(w) {
+            Some(window) => {
+                window.orderFrontRegardless();
+                window.makeKeyWindow();
+            }
+            None => {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }
+    }
 }
 
 /// The icon tooltip, plus the next reset notice on a second line.
@@ -1245,6 +1445,8 @@ pub fn run() {
 
             // Popover fecha ao perder o foco; fechar a janela principal só a esconde.
             if let Some(w) = app.get_webview_window("tray") {
+                #[cfg(target_os = "macos")]
+                macos_popover::make_panel(&w);
                 let handle = w.clone();
                 w.on_window_event(move |e| {
                     if let WindowEvent::Focused(false) = e {
@@ -1282,6 +1484,108 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_popover_joins_full_screen_spaces() {
+        use objc2_app_kit::NSWindowCollectionBehavior as B;
+        let b = super::macos_popover::collection_behavior();
+        for flag in [
+            B::CanJoinAllSpaces,
+            B::FullScreenAuxiliary,
+            B::Stationary,
+            B::IgnoresCycle,
+        ] {
+            assert!(b.contains(flag), "missing {flag:?}");
+        }
+        // Mutually exclusive with CanJoinAllSpaces, and the popover is never a
+        // full-screen window of its own.
+        for flag in [B::MoveToActiveSpace, B::FullScreenPrimary] {
+            assert!(!b.contains(flag), "unexpected {flag:?}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_popover_is_non_activating_and_keeps_its_style() {
+        use objc2_app_kit::NSWindowStyleMask as M;
+        let m = super::macos_popover::style_mask(M::Borderless | M::FullSizeContentView);
+        assert!(m.contains(M::NonactivatingPanel));
+        assert!(m.contains(M::FullSizeContentView));
+        assert!(!m.contains(M::Titled));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_panel_class_matches_tao_window_layout() {
+        use objc2::runtime::{AnyClass, Bool, ClassBuilder};
+        use objc2::ClassType;
+        use objc2_app_kit::{NSPanel, NSWindow};
+        // The same shape as tao's `TaoWindow`: `NSWindow` plus a BOOL `focusable`.
+        let tao_like = AnyClass::get(c"CuotaiTestTaoWindow").unwrap_or_else(|| {
+            let mut b = ClassBuilder::new(c"CuotaiTestTaoWindow", NSWindow::class()).unwrap();
+            b.add_ivar::<Bool>(c"focusable");
+            b.register()
+        });
+        let panel = super::macos_popover::panel_class_for_tests();
+        assert_eq!(panel.superclass(), Some(NSPanel::class()));
+        assert!(super::macos_popover::same_layout(tao_like, panel));
+        // A window class with more state than the panel: the swap is refused.
+        // (A plain NSWindow is not used here: whether one BOOL changes the
+        // instance size depends on the macOS version's padding.)
+        let bigger = AnyClass::get(c"CuotaiTestBiggerWindow").unwrap_or_else(|| {
+            let mut b = ClassBuilder::new(c"CuotaiTestBiggerWindow", NSWindow::class()).unwrap();
+            b.add_ivar::<Bool>(c"focusable");
+            b.add_ivar::<[u64; 4]>(c"extra");
+            b.register()
+        });
+        assert!(!super::macos_popover::same_layout(bigger, panel));
+    }
+
+    #[test]
+    fn popover_opens_below_a_menu_bar_icon_on_its_own_screen() {
+        use super::popover_origin;
+        use tauri::PhysicalPosition;
+        // Second screen to the right of the main one, icon in its menu bar.
+        let screen = Some((2880.0, 0.0, 3024.0, 1964.0));
+        let (x, y) = popover_origin(
+            PhysicalPosition::new(4000.0, 20.0),
+            (760.0, 1200.0),
+            screen,
+            2.0,
+        );
+        assert_eq!((x, y), (3620.0, 32.0));
+        // Near the right edge: kept 8 pt inside that screen.
+        let (x, _) = popover_origin(
+            PhysicalPosition::new(5890.0, 20.0),
+            (760.0, 1200.0),
+            screen,
+            2.0,
+        );
+        assert_eq!(x, 2880.0 + 3024.0 - 760.0 - 16.0);
+    }
+
+    #[test]
+    fn popover_opens_above_a_taskbar_icon() {
+        use super::popover_origin;
+        use tauri::PhysicalPosition;
+        let screen = Some((0.0, 0.0, 1920.0, 1080.0));
+        let (x, y) = popover_origin(
+            PhysicalPosition::new(1800.0, 1060.0),
+            (380.0, 600.0),
+            screen,
+            1.0,
+        );
+        assert_eq!((x, y), (1920.0 - 380.0 - 8.0, 1060.0 - 600.0 - 6.0));
+        // Without a known screen only the gap is applied.
+        let (x, y) = popover_origin(
+            PhysicalPosition::new(100.0, 10.0),
+            (380.0, 600.0),
+            None,
+            1.0,
+        );
+        assert_eq!((x, y), (-90.0, 16.0));
+    }
+
     use super::{clean_menu_line, paint_outage_dot};
 
     #[test]
