@@ -266,11 +266,11 @@ pub struct Account {
     pub session: Option<crate::user_session::SessionConfig>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, String>,
-    /// Per-account override for the global `Config::refresh_seconds`. When
-    /// `None`, the global interval applies; otherwise the value must be
-    /// `>= 30` (enforced by `Config::validate`) so we never overwhelm a
-    /// provider with frequent polling. Wizard edits this field; the global
-    /// interval stays the fallback for accounts without an override.
+    /// Per-account refresh override. Non-metered accounts with `None` use
+    /// `Config::refresh_seconds`; metered accounts with `None` use their
+    /// provider-specific default. Any explicit value must be `>= 30`
+    /// (enforced by `Config::validate`); metered accounts apply their
+    /// additional configured and effective boundaries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refresh_seconds: Option<u64>,
 }

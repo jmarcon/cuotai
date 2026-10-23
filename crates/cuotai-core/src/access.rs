@@ -237,7 +237,7 @@ impl UsageAccess {
             Localized::fixed(
                 "access.cost_advisory",
                 "Provedor cobrado por consulta: cada ciclo consulta e gera cobrança. \
-                 O intervalo efetivo mínimo é 300s; valores menores são rejeitados \
+                 O intervalo mínimo configurado é 300s; valores menores são rejeitados \
                  pela validação do core. Mantenha um intervalo alto (ex.: 3600s) \
                  para reduzir custo. Atualizações manuais continuam explícitas.",
             )

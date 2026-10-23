@@ -3,7 +3,7 @@
     "name": "Español"
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
-  "access.cost_advisory": "Proveedor cobrado por consulta: cada ciclo consulta y genera un cobro. El intervalo efectivo mínimo es 300s; los valores menores son rechazados por la validación del core. Mantenga un intervalo alto (ej. 3600s) para reducir el costo. Las actualizaciones manuales siguen siendo explícitas.",
+  "access.cost_advisory": "Proveedor cobrado por consulta: cada ciclo consulta y genera un cobro. El intervalo mínimo configurado es 300s; los valores menores son rechazados por la validación del core. Mantenga un intervalo alto (ej. 3600s) para reducir el costo. Las actualizaciones manuales siguen siendo explícitas.",
   "access.credential.admin_key": "Clave de administrador",
   "access.credential.cloud_identity": "Identidad de nube",
   "access.credential.inference_key": "Clave de inferencia",

@@ -3,7 +3,7 @@
     "name": "English"
   },
   "access.confirm_unavailable": "{reason} The account will be saved, but it will show this reason instead of numbers.",
-  "access.cost_advisory": "Provider is billed per query: every cycle queries and incurs a charge. The minimum effective interval is 300s; lower values are rejected by the core validation. Keep a long interval (e.g. 3600s) to reduce cost. Manual refreshes remain explicit.",
+  "access.cost_advisory": "Provider is billed per query: every cycle queries and incurs a charge. The minimum configured interval is 300s; lower values are rejected by the core validation. Keep a long interval (e.g. 3600s) to reduce cost. Manual refreshes remain explicit.",
   "access.credential.admin_key": "Admin key",
   "access.credential.cloud_identity": "Cloud identity",
   "access.credential.inference_key": "Inference key",
