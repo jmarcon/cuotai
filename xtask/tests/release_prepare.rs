@@ -195,7 +195,13 @@ fn refresh_keeps_edited_entries_and_adds_new_commits() {
         "{changelog}"
     );
     assert!(!changelog.contains("You can sort accounts"), "{changelog}");
-    assert!(changelog.contains("- The order survives a restart ("));
+    assert_eq!(
+        changelog
+            .matches("- The order survives a restart (")
+            .count(),
+        1,
+        "a covered entry is never duplicated"
+    );
     assert!(changelog.contains(&format!(
         "- A late problem is fixed ({}).",
         short(&repo, &late)
@@ -305,13 +311,243 @@ fn release_base_ignores_rc_tags_and_prefers_stable_tags() {
     .unwrap();
     assert_eq!(base.tag.as_deref(), Some("v0.79.0"));
     assert_eq!(base.link_from(), "v0.79.0");
+    // The newer, rc-only release commit is pending, never the base.
     let base = release::release_base(&repo, "HEAD", None).unwrap();
-    assert_eq!(
-        base.version.to_string(),
-        "0.80.0",
-        "the rc'd release commit, not the rc tag"
+    assert_eq!(base.tag.as_deref(), Some("v0.79.0"));
+    let current = xtask::Version::parse("0.80.0").unwrap();
+    let pending = release::pending_release(&repo, &base, "HEAD", &current)
+        .unwrap()
+        .expect("0.80.0 is prepared and untagged");
+    assert_eq!(pending.sha, head(&repo));
+    assert!(pending.version_override.is_none());
+}
+
+/// Merges the current release branch into main (what rebase-and-merge
+/// does to a branch that is up to date).
+fn merge_release(repo: &Path, version: &str) {
+    git(repo, &["switch", "-q", "main"]);
+    git(
+        repo,
+        &["merge", "-q", "--ff-only", &format!("release/v{version}")],
     );
-    assert!(base.tag.is_none());
+}
+
+#[test]
+fn a_stable_tag_stays_the_base_and_an_untagged_release_is_refreshed_once() {
+    let (_d, repo) = repo();
+    feature_and_fix(&repo);
+    prepare_branch(&repo);
+    merge_release(&repo, "0.80.0");
+    git(&repo, &["tag", "-a", "v0.80.0", "-m", "v0.80.0"]);
+    let first = commit(
+        &repo,
+        "fix(core): first fix\n\nChangelog: The first problem is fixed.",
+        "crates/cuotai-core/src/lib.rs",
+        "// f1\n",
+    );
+    let outcome = prepare_branch(&repo);
+    assert_eq!(outcome.version.to_string(), "0.80.1");
+    assert_eq!(outcome.base.tag.as_deref(), Some("v0.80.0"));
+    merge_release(&repo, "0.80.1");
+    // 0.80.1 is merged but never tagged; another fix lands.
+    let second = commit(
+        &repo,
+        "fix(core): second fix\n\nChangelog: The second problem is fixed.",
+        "crates/cuotai-core/src/lib.rs",
+        "// f2\n",
+    );
+    let mut opts = options(false, true);
+    opts.date = "2026-10-27".into();
+    // The release branch of 0.80.1 still exists locally: delete it first.
+    git(&repo, &["branch", "-q", "-D", "release/v0.80.1"]);
+    let outcome = prepare::run(&repo, &opts).unwrap().unwrap();
+    assert_eq!(outcome.version.to_string(), "0.80.1", "no second section");
+    assert_eq!(outcome.base.tag.as_deref(), Some("v0.80.0"));
+    let changelog = read(&repo, "CHANGELOG.md");
+    assert_eq!(changelog.matches("## [0.80.1]").count(), 1, "{changelog}");
+    assert_eq!(changelog.matches("The first problem is fixed").count(), 1);
+    assert!(changelog.contains(&format!(
+        "- The second problem is fixed ({}).",
+        short(&repo, &second)
+    )));
+    assert!(changelog.contains(&short(&repo, &first)));
+    assert!(changelog.contains("[0.80.1]: https://github.com/o/r/compare/v0.80.0...v0.80.1"));
+    assert!(
+        git(&repo, &["log", "-1", "--format=%s"]).starts_with("chore(release): 0.80.1 (refresh)")
+    );
+    release::check_release(&repo, "HEAD").unwrap();
+    xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
+    merge_release(&repo, "0.80.1");
+    // Fully covered and still untagged: the next step is the tag.
+    assert!(prepare::run(&repo, &options(true, false))
+        .unwrap()
+        .is_none());
+    assert!(prepare::idle_status(&repo)
+        .unwrap()
+        .contains("0.80.1 is prepared"));
+    // A feature now needs 0.81.0: refuse instead of dropping 0.80.1.
+    commit(
+        &repo,
+        "feat(core): more\n\nChangelog: Something new.",
+        "crates/cuotai-core/src/lib.rs",
+        "// f3\n",
+    );
+    let error = prepare::run(&repo, &options(true, false))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("0.80.1 was prepared at"), "{error}");
+    assert!(error.contains("now make 0.81.0"), "{error}");
+}
+
+#[test]
+fn branch_refuses_staged_work_and_untracked_release_files() {
+    let (_d, repo) = repo();
+    feature_and_fix(&repo);
+    write_file(&repo, "notes.txt", "someone else's work\n");
+    git(&repo, &["add", "notes.txt"]);
+    let error = prepare::run(&repo, &options(false, true))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("index already holds staged changes"),
+        "{error}"
+    );
+    assert!(
+        read(&repo, "Cargo.toml").contains("version = \"0.79.0\""),
+        "nothing written"
+    );
+    git(&repo, &["reset", "-q", "notes.txt"]);
+
+    write_file(&repo, "docs/draft.md", "| RF3 | vNEXT | Filtering. |\n");
+    let error = prepare::run(&repo, &options(false, true))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("modified or untracked"), "{error}");
+    assert!(error.contains("docs/draft.md"), "{error}");
+    std::fs::remove_file(repo.join("docs/draft.md")).unwrap();
+
+    // Clean again: the commit holds exactly the release files.
+    prepare_branch(&repo);
+    let files = git(&repo, &["show", "--name-only", "--format=", "HEAD"]);
+    assert!(!files.contains("notes.txt"), "{files}");
+    assert!(git(&repo, &["status", "--porcelain"]).contains("?? notes.txt"));
+}
+
+#[test]
+fn refresh_keeps_a_recorded_version_override() {
+    let (_d, repo) = repo();
+    feature_and_fix(&repo);
+    let mut opts = options(false, true);
+    opts.version = Some(xtask::Version::parse("1.0.0").unwrap());
+    prepare::run(&repo, &opts).unwrap().unwrap();
+    merge_release(&repo, "1.0.0");
+    commit(
+        &repo,
+        "fix(core): after the rc\n\nChangelog: A problem found in the candidate is fixed.",
+        "crates/cuotai-core/src/lib.rs",
+        "// rc\n",
+    );
+    let mut opts = options(false, false);
+    opts.refresh = true;
+    let outcome = prepare::run(&repo, &opts).unwrap().unwrap();
+    assert_eq!(outcome.version.to_string(), "1.0.0");
+    assert!(
+        outcome.message.contains("Version-Override: 1.0.0"),
+        "{}",
+        outcome.message
+    );
+    git(&repo, &["add", "-A"]);
+    write_file(&repo, ".git/MSG", &outcome.message);
+    git(
+        &repo,
+        &["commit", "-q", "--cleanup=verbatim", "-F", ".git/MSG"],
+    );
+    release::check_release(&repo, "HEAD").unwrap();
+}
+
+#[test]
+fn tag_validates_the_selected_release_commit_in_full() {
+    let (_d, repo) = repo();
+    feature_and_fix(&repo);
+    prepare_branch(&repo);
+    // A hand-broken desktop lockfile in the release commit itself.
+    let lock = read(&repo, "apps/desktop/src-tauri/Cargo.lock").replace(
+        "name = \"cuotai-desktop\"\nversion = \"0.80.0\"",
+        "name = \"cuotai-desktop\"\nversion = \"0.79.0\"",
+    );
+    amend(&repo, "apps/desktop/src-tauri/Cargo.lock", &lock);
+    merge_release(&repo, "0.80.0");
+    git(&repo, &["update-ref", "refs/remotes/origin/main", "main"]);
+    // The working tree is fixed, but the selected commit is what counts.
+    write_file(
+        &repo,
+        "apps/desktop/src-tauri/Cargo.lock",
+        &lock.replace(
+            "name = \"cuotai-desktop\"\nversion = \"0.79.0\"",
+            "name = \"cuotai-desktop\"\nversion = \"0.80.0\"",
+        ),
+    );
+    let error = tag::run(&repo, true, "origin/main")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("cuotai-desktop"), "{error}");
+    assert!(git(&repo, &["tag", "--list"]).trim().is_empty());
+}
+
+#[test]
+fn release_check_verifies_the_tui_core_requirement() {
+    let (_d, repo) = repo();
+    xtask::check::run(&repo, None, None).unwrap();
+    let tui = read(&repo, "crates/cuotai-tui/Cargo.toml").replace("\"0.79\"", "\"0.78\"");
+    write_file(&repo, "crates/cuotai-tui/Cargo.toml", &tui);
+    let error = xtask::check::run(&repo, None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("cuotai-core requirement is '0.78'"),
+        "{error}"
+    );
+}
+
+#[test]
+fn release_flags_are_checked_per_action() {
+    let (_d, repo) = repo();
+    let path = repo.to_string_lossy().to_string();
+    for (args, expected) in [
+        (
+            vec!["release", "tag", "--dry-run"],
+            "does not accept --dry-run",
+        ),
+        (
+            vec!["release", "tag", "--branch"],
+            "does not accept --branch",
+        ),
+        (vec!["release", "prepare", "--rc"], "does not accept --rc"),
+        (
+            vec!["release", "tag", "--version", "1.0.0"],
+            "does not accept --version",
+        ),
+        (
+            vec!["release", "prepare", "--check", "--branch"],
+            "cannot be combined with --branch",
+        ),
+        (
+            vec!["release", "prepare", "--rev", "HEAD"],
+            "only valid with --check",
+        ),
+        (vec!["release", "publish"], "unknown release action"),
+    ] {
+        let mut full = args.clone();
+        full.extend(["--repo", path.as_str()]);
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .args(&full)
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "{args:?} succeeded");
+        assert!(stderr.contains(expected), "{args:?}: {stderr}");
+    }
+    assert!(git(&repo, &["tag", "--list"]).trim().is_empty());
 }
 
 #[test]

@@ -46,21 +46,60 @@ impl CheckReport {
 /// checks (annotated tag, commit contained in the main branch). All file
 /// problems are collected and reported together; the git check runs last.
 pub fn run(root: &Path, tag: Option<&str>, require_main: Option<&str>) -> Res<CheckReport> {
+    if require_main.is_some() && tag.is_none() {
+        return err("release check failed (1 problem(s)):\n - --require-main requires --tag");
+    }
+    let report = run_files(&Files::Dir(root), tag)?;
+    if let (Some(tag), Some(main_ref)) = (tag, require_main) {
+        crate::git::check_tag_on_main(root, tag, main_ref)?;
+    }
+    Ok(report)
+}
+
+/// Where the checked files come from: a directory (the working tree) or a
+/// commit of a repository (`release tag` checks the selected release
+/// commit, not the caller's working tree; PRD 0039 RF5.2).
+pub enum Files<'a> {
+    Dir(&'a Path),
+    Rev(&'a Path, &'a str),
+}
+
+impl Files<'_> {
+    fn read(&self, rel: &str) -> Res<String> {
+        match self {
+            Files::Dir(root) => std::fs::read_to_string(root.join(rel))
+                .map_err(|e| Error::Msg(format!("cannot read {rel}: {e}"))),
+            Files::Rev(root, rev) => crate::git::run(root, &["show", &format!("{rev}:{rel}")])
+                .map_err(|_| Error::Msg(format!("cannot read {rel} at {rev}"))),
+        }
+    }
+}
+
+/// Every file-based check of [`run`] (no Git ancestry check), reading
+/// through `files`.
+pub fn run_files(files: &Files, tag: Option<&str>) -> Res<CheckReport> {
     let mut problems: Vec<String> = Vec::new();
 
     // Without the workspace version nothing else can be compared; fail fast.
-    let version = workspace_version(root)?;
+    let version = workspace_version(files)?;
 
     // Member manifests must inherit the workspace version (or pin it equal).
     for member in ["crates/cuotai-core", "crates/cuotai-tui"] {
-        if let Err(e) = check_member_manifest(root, member, &version) {
+        if let Err(e) = check_member_manifest(files, member, &version) {
             problems.push(format!("{e}"));
         }
     }
 
     // Root lockfile: core and TUI package versions.
+    // The TUI's published requirement on the core follows the version
+    // (`X.Y` while in 0.x, `X` from 1.0; PRD 0039 RF4.4).
+    if let Err(e) = check_core_requirement(files, &version) {
+        problems.push(format!("{e}"));
+    }
+
     if let Err(e) = check_lockfile(
-        &root.join("Cargo.lock"),
+        files,
+        "Cargo.lock",
         &["cuotai-core", "cuotai-tui"],
         &version,
     ) {
@@ -68,13 +107,14 @@ pub fn run(root: &Path, tag: Option<&str>, require_main: Option<&str>) -> Res<Ch
     }
 
     // Desktop manifest (separate workspace: explicit version).
-    if let Err(e) = check_desktop_manifest(root, &version) {
+    if let Err(e) = check_desktop_manifest(files, &version) {
         problems.push(format!("{e}"));
     }
 
     // Desktop lockfile: the desktop package itself and its core dependency.
     if let Err(e) = check_lockfile(
-        &root.join("apps/desktop/src-tauri/Cargo.lock"),
+        files,
+        "apps/desktop/src-tauri/Cargo.lock",
         &["cuotai-desktop", "cuotai-core"],
         &version,
     ) {
@@ -82,12 +122,12 @@ pub fn run(root: &Path, tag: Option<&str>, require_main: Option<&str>) -> Res<Ch
     }
 
     // tauri.conf.json.
-    if let Err(e) = check_tauri_conf(root, &version) {
+    if let Err(e) = check_tauri_conf(files, &version) {
         problems.push(format!("{e}"));
     }
 
     // CHANGELOG top released section for this version, non-empty.
-    let changelog = match changelog_section(&read(root, Path::new("CHANGELOG.md"))?, &version) {
+    let changelog = match changelog_section(&files.read("CHANGELOG.md")?, &version) {
         Ok(c) => Some(c),
         Err(e) => {
             problems.push(format!("{e}"));
@@ -96,9 +136,6 @@ pub fn run(root: &Path, tag: Option<&str>, require_main: Option<&str>) -> Res<Ch
     };
 
     // Tag rules (RF1.1): format, version equality, channel classification.
-    if require_main.is_some() && tag.is_none() {
-        problems.push("--require-main requires --tag".into());
-    }
     let mut parsed_tag = None;
     if let Some(tag) = tag {
         match parse_tag(tag) {
@@ -123,10 +160,6 @@ pub fn run(root: &Path, tag: Option<&str>, require_main: Option<&str>) -> Res<Ch
         ));
     }
 
-    if let (Some(tag), Some(main_ref)) = (tag, require_main) {
-        crate::git::check_tag_on_main(root, tag, main_ref)?;
-    }
-
     let (date, body) = changelog.expect("changelog problems returned above");
     Ok(CheckReport {
         version,
@@ -137,14 +170,8 @@ pub fn run(root: &Path, tag: Option<&str>, require_main: Option<&str>) -> Res<Ch
     })
 }
 
-fn read(root: &Path, rel: &Path) -> Res<String> {
-    let path = root.join(rel);
-    std::fs::read_to_string(&path)
-        .map_err(|e| Error::Msg(format!("cannot read {}: {e}", rel.display())))
-}
-
-fn workspace_version(root: &Path) -> Res<Version> {
-    let text = read(root, Path::new("Cargo.toml"))?;
+fn workspace_version(files: &Files) -> Res<Version> {
+    let text = files.read("Cargo.toml")?;
     let doc: toml::Value = text.parse().map_err(|e| Error::Toml {
         context: "Cargo.toml".into(),
         source: e,
@@ -160,9 +187,9 @@ fn workspace_version(root: &Path) -> Res<Version> {
 
 /// `version.workspace = true` (inherits) or an explicit version equal to the
 /// workspace one; anything else is a drift.
-fn check_member_manifest(root: &Path, member: &str, version: &Version) -> Res<()> {
+fn check_member_manifest(files: &Files, member: &str, version: &Version) -> Res<()> {
     let rel = Path::new(member).join("Cargo.toml");
-    let text = read(root, &rel)?;
+    let text = files.read(&format!("{member}/Cargo.toml"))?;
     let doc: toml::Value = text.parse().map_err(|e| Error::Toml {
         context: rel.display().to_string(),
         source: e,
@@ -191,9 +218,9 @@ fn check_member_manifest(root: &Path, member: &str, version: &Version) -> Res<()
 }
 
 /// Every named package in the lockfile must carry the workspace version.
-fn check_lockfile(path: &Path, packages: &[&str], version: &Version) -> Res<()> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| Error::Msg(format!("cannot read {}: {e}", path.display())))?;
+fn check_lockfile(files: &Files, rel: &str, packages: &[&str], version: &Version) -> Res<()> {
+    let path = Path::new(rel);
+    let text = files.read(rel)?;
     let doc: toml::Value = text.parse().map_err(|e| Error::Toml {
         context: path.display().to_string(),
         source: e,
@@ -233,9 +260,39 @@ fn check_lockfile(path: &Path, packages: &[&str], version: &Version) -> Res<()> 
     Ok(())
 }
 
-fn check_desktop_manifest(root: &Path, version: &Version) -> Res<()> {
+/// `cuotai-core = { …, version = "X.Y" }` in `crates/cuotai-tui/Cargo.toml`
+/// when the dependency carries a version requirement.
+fn check_core_requirement(files: &Files, version: &Version) -> Res<()> {
+    let rel = "crates/cuotai-tui/Cargo.toml";
+    let text = files.read(rel)?;
+    let doc: toml::Value = text.parse().map_err(|e| Error::Toml {
+        context: rel.into(),
+        source: e,
+    })?;
+    let Some(requirement) = doc
+        .get("dependencies")
+        .and_then(|d| d.get("cuotai-core"))
+        .and_then(|c| c.get("version"))
+        .and_then(|v| v.as_str())
+    else {
+        return Ok(());
+    };
+    let expected = if version.major == 0 {
+        format!("0.{}", version.minor)
+    } else {
+        version.major.to_string()
+    };
+    if requirement != expected {
+        return err(format!(
+            "{rel}: the cuotai-core requirement is '{requirement}', expected '{expected}' for {version}"
+        ));
+    }
+    Ok(())
+}
+
+fn check_desktop_manifest(files: &Files, version: &Version) -> Res<()> {
     let rel = Path::new("apps/desktop/src-tauri/Cargo.toml");
-    let text = read(root, rel)?;
+    let text = files.read("apps/desktop/src-tauri/Cargo.toml")?;
     let doc: toml::Value = text.parse().map_err(|e| Error::Toml {
         context: rel.display().to_string(),
         source: e,
@@ -254,9 +311,9 @@ fn check_desktop_manifest(root: &Path, version: &Version) -> Res<()> {
     Ok(())
 }
 
-fn check_tauri_conf(root: &Path, version: &Version) -> Res<()> {
+fn check_tauri_conf(files: &Files, version: &Version) -> Res<()> {
     let rel = Path::new("apps/desktop/src-tauri/tauri.conf.json");
-    let text = read(root, rel)?;
+    let text = files.read("apps/desktop/src-tauri/tauri.conf.json")?;
     let doc: serde_json::Value = serde_json::from_str(&text).map_err(|e| Error::Json {
         context: rel.display().to_string(),
         source: e,

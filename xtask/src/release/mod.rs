@@ -110,15 +110,22 @@ impl Tree<'_> {
     }
 }
 
-/// Runs `git <args> -F <file>` with `message` in a file inside the
+/// Runs `git <args> -F <file> <tail>` with `message` in a file inside the
 /// repository's own Git directory (never a shared temporary name).
-pub(crate) fn git_with_message(repo: &Path, name: &str, message: &str, args: &[&str]) -> Res<()> {
+pub(crate) fn git_with_message(
+    repo: &Path,
+    name: &str,
+    message: &str,
+    args: &[&str],
+    tail: &[&str],
+) -> Res<()> {
     let dir = git::run(repo, &["rev-parse", "--absolute-git-dir"])?;
     let file = Path::new(dir.trim()).join(name);
     std::fs::write(&file, message)?;
     let path = file.to_string_lossy().to_string();
     let mut full: Vec<&str> = args.to_vec();
     full.extend(["-F", path.as_str()]);
+    full.extend(tail.iter().copied());
     let result = git::run(repo, &full);
     let _ = std::fs::remove_file(&file);
     result.map(|_| ())
@@ -165,10 +172,14 @@ impl Base {
     }
 }
 
-/// RF3.1: the newest stable `vX.Y.Z` tag reachable from `rev`, else the
-/// newest commit that changed the workspace version; with `below`, only
-/// versions lower than it qualify (a refresh, or checking a release
-/// commit). Release-candidate tags are never a base.
+/// RF3.1: the release base is always a **published** point: the newest
+/// stable `vX.Y.Z` tag reachable from `rev` (release-candidate tags never
+/// count), or, while no stable tag qualifies, the internal baseline, i.e.
+/// the newest commit that set an internal version (up to
+/// [`LAST_INTERNAL_VERSION`]). A release that was prepared but never got a
+/// stable tag is therefore never a base: its commits stay in the next
+/// release (see [`pending_release`]). With `below`, only versions lower
+/// than it qualify (checking a release commit of that version).
 pub fn release_base(repo: &Path, rev: &str, below: Option<&Version>) -> Res<Base> {
     let qualifies = |version: &Version| below.is_none_or(|limit| version < limit);
     let mut best: Option<Base> = None;
@@ -191,6 +202,9 @@ pub fn release_base(repo: &Path, rev: &str, below: Option<&Version>) -> Res<Base
             });
         }
     }
+    if let Some(base) = best {
+        return Ok(base);
+    }
     let changes = git::run(
         repo,
         &[
@@ -210,20 +224,13 @@ pub fn release_base(repo: &Path, rev: &str, below: Option<&Version>) -> Res<Base
         let Ok(version) = workspace_version(&text) else {
             continue;
         };
-        if !qualifies(&version) {
-            continue;
-        }
-        if best.as_ref().is_none_or(|b| version > b.version) {
-            best = Some(Base {
+        if version <= LAST_INTERNAL_VERSION && qualifies(&version) {
+            return Ok(Base {
                 sha: sha.to_string(),
                 version,
                 tag: None,
             });
         }
-        break;
-    }
-    if let Some(base) = best {
-        return Ok(base);
     }
     let root = git::run(repo, &["rev-list", "--max-parents=0", rev])?;
     let root = root.lines().next().unwrap_or_default().trim();
@@ -239,6 +246,47 @@ pub fn release_base(repo: &Path, rev: &str, below: Option<&Version>) -> Res<Base
         },
         tag: None,
     })
+}
+
+/// A release that was prepared after the base but has no stable tag yet.
+#[derive(Clone, Debug)]
+pub struct Pending {
+    /// The newest release commit of that version.
+    pub sha: String,
+    pub version: Version,
+    /// Its recorded `Version-Override:` (RF3.4), if any.
+    pub version_override: Option<Version>,
+}
+
+/// The newest `chore(release): <version>` commit of `base..rev`, when the
+/// workspace `version` is above the base (prepared, not yet published).
+pub fn pending_release(
+    repo: &Path,
+    base: &Base,
+    rev: &str,
+    version: &Version,
+) -> Res<Option<Pending>> {
+    if *version <= base.version {
+        return Ok(None);
+    }
+    let found = commits::load(repo, &format!("{}..{rev}", base.sha))?
+        .into_iter()
+        .rev()
+        .find(|commit| commit.release_version().as_ref() == Some(version));
+    let Some(commit) = found else {
+        return Ok(None);
+    };
+    let version_override = commit
+        .trailers
+        .version_override
+        .as_deref()
+        .map(Version::parse)
+        .transpose()?;
+    Ok(Some(Pending {
+        sha: commit.sha,
+        version: version.clone(),
+        version_override,
+    }))
 }
 
 /// The commits of a release (`base..rev`, oldest first, release commits
@@ -279,15 +327,22 @@ pub fn bump_of(commits: &[(Commit, String)], current: &Version) -> (Bump, Vec<St
     (bump, rationale)
 }
 
-/// Whether `sha` is cited by `text` (a 7+ hex token that prefixes it,
-/// RF4.6: "covered").
+/// Whether `sha` is cited by `text` (RF4.6: "covered"): any word of at
+/// least seven lowercase hexadecimal characters that prefixes it. Git may
+/// abbreviate a hash to digits only (`1234567`) or letters only
+/// (`abcdefa`), so this is deliberately not the sentence-lint heuristic of
+/// [`commits::looks_like_hash`].
 pub fn is_covered(text: &str, sha: &str) -> bool {
-    hex_tokens(text).any(|token| sha.starts_with(token))
+    text.split(|c: char| !c.is_ascii_alphanumeric())
+        .any(|token| is_hex_abbreviation(token) && sha.starts_with(token))
 }
 
-fn hex_tokens(text: &str) -> impl Iterator<Item = &str> {
-    text.split(|c: char| !c.is_ascii_alphanumeric())
-        .filter(|token| token.len() >= 7 && commits::looks_like_hash(token))
+/// 7–40 lowercase hexadecimal characters.
+pub fn is_hex_abbreviation(token: &str) -> bool {
+    (7..=40).contains(&token.len())
+        && token
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// What `--check` proved (RF4.7).
@@ -415,4 +470,29 @@ pub fn check_release(repo: &Path, rev: &str) -> Res<CheckOutcome> {
         base,
         commits: commits.len(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coverage_accepts_every_hex_abbreviation() {
+        let digits = "1234567890abcdef1234567890abcdef12345678";
+        let letters = "abcdefabcdef1234567890abcdef1234567890ab";
+        assert!(is_covered("- Something (PRD 0001 RF1; 1234567).", digits));
+        assert!(is_covered("- Something (abcdefa).", letters));
+        assert!(is_covered("- Longer (1234567890a).", digits));
+        assert!(
+            !is_covered("- Something (123456).", digits),
+            "six characters"
+        );
+        assert!(
+            !is_covered("- Something (abcdefb).", letters),
+            "not a prefix"
+        );
+        // The sentence lint stays a heuristic: plain hex words are prose.
+        assert!(!commits::looks_like_hash("abcdefa"));
+        assert!(is_hex_abbreviation("abcdefa") && is_hex_abbreviation("1234567"));
+    }
 }

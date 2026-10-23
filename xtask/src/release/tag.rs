@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use super::{check_release, Tree};
+use super::check_release;
 use crate::{err, git, parse_tag, Error, Res};
 
 /// The created tag and the commit it points at.
@@ -77,17 +77,22 @@ pub fn run(repo: &Path, rc: bool, main_ref: &str) -> Res<Tagged> {
     } else {
         format!("v{version}")
     };
-    // The same file checks `release.yml` runs, against the tagged tree.
-    let tree = Tree::Rev(repo, sha.clone());
-    let changelog = tree.read("CHANGELOG.md")?;
-    let (date, body) = crate::check::changelog_section(&changelog, &version)?;
+    // The full `release-check` of `release.yml` (root and desktop manifests,
+    // tauri.conf.json, both lockfiles, the cuotai-tui requirement and the
+    // changelog section), against the selected release commit rather than
+    // the caller's working tree; `check_release` above covered the
+    // citations and the plan tokens.
+    let report = crate::check::run_files(&crate::check::Files::Rev(repo, &sha), Some(&tag))
+        .map_err(|e| Error::Msg(format!("release commit {}: {e}", &sha[..7])))?;
+    let (date, body) = (report.changelog_date, report.changelog_body);
     let message = format!("{tag}\n\n## [{version}] - {date}\n\n{body}\n");
     let message = crate::commits::neutralize_skip_markers(&message) + "\n";
     super::git_with_message(
         repo,
         "CUOTAI_TAG_MSG",
         &message,
-        &["tag", "-a", "--cleanup=verbatim", &tag, &sha],
+        &["tag", "-a", "--cleanup=verbatim"],
+        &[&tag, &sha],
     )?;
     git::check_tag_on_main(repo, &tag, main_ref)?;
     Ok(Tagged { tag, sha })
