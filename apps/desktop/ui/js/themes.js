@@ -3,6 +3,7 @@
 // `modes`: aparências oferecidas (todo tema deve oferecer dark e light). `group`: chave de `theme.group.*`
 // (ou um texto livre, exibido como está).
 export const THEMES = [
+  { id: "cuotai", label: "Cuotai", group: "cuotai", modes: ["dark", "light"] },
   { id: "dracula", label: "Dracula", group: "editors", modes: ["dark", "light"] },
   { id: "onedark", label: "One Dark", group: "editors", modes: ["dark", "light"] },
   { id: "github", label: "GitHub", group: "editors", modes: ["dark", "light"] },
@@ -21,7 +22,7 @@ export const THEMES = [
 
 export const DEFAULT_THEME = "dracula";
 /** Ordem dos grupos no seletor; grupos desconhecidos (do usuário) vêm depois, em ordem alfabética. */
-export const GROUP_ORDER = ["editors", "systems", "retro", "custom"];
+export const GROUP_ORDER = ["cuotai", "editors", "systems", "retro", "custom"];
 export const themeById = (id) => THEMES.find((t) => t.id === id) ?? THEMES.find((t) => t.id === DEFAULT_THEME);
 export const isBuiltinTheme = (id) => THEMES.some((t) => t.id === id && !t.user);
 

@@ -64,10 +64,70 @@ with `!important`, overriding the theme.
 ## Quality rules
 
 * Run `python3 tools/contrast.py ui/css/themes/<id>.css` (WCAG contrast) and `python3 tools/lint_theme.py ui/css/themes/<id>.css` (scope/rules) — both must pass. They are optional development tools; the app does not depend on Python.
+* `python3 tools/contrast.py --strict …` also applies the design-system rules (DS-COL-5 to 7): `--fg-muted` ≥ 4.5:1 on `--bg` and `--surface-2`, every status role ≥ 4.5:1 as text on `--surface` and `--bg`, and `--accent` ≥ 3:1 on `--bg`. New themes should pass it; older themes are not required to yet.
+  Whatever the mode, the optional derived roles `--bad-fg` (≥ 4.5:1 on `--bad`), `--focus` (≥ 3:1 on `--surface` and `--bg`) and `--chart-neutral` (≥ 3:1 on `--surface`) are checked when a theme sets them as `#rrggbb`.
 * `--good`, `--warn` and `--bad` must be distinguishable from each other and from `--fg`.
 * No external images, remote fonts or `url(http…)`: the app works offline. Fonts: use system font
   stacks in `--font-ui`/`--font-mono`.
 * Effects (glow, scanlines) must be light and must not reduce legibility.
+
+## The Cuotai theme
+
+`cuotai.css` is Cuotai's own theme (group "Original"), not derived from any editor or system palette.
+Both modes use a gray that leans to blue, a calm lilac accent and pastel states; in light mode the states
+are deepened versions of the same hues so they still read as text. The logo keeps its own colors. It passes
+`contrast.py --strict` and `lint_theme.py`. Ratios are WCAG contrast against the named background.
+
+**Dark**
+
+| Role | Hex | Contrast |
+|---|---|---|
+| `--bg` | `#1b1f28` | — |
+| `--surface` | `#232835` | 1.12 on `--bg` |
+| `--surface-2` | `#2d3342` | — |
+| `--border` | `#3c4354` | 1.49 on `--surface` |
+| `--track` | `#353c4c` | 1.33 on `--surface` |
+| `--fg` | `#e4e9f3` | 13.55 `--bg` · 12.09 `--surface` · 10.37 `--surface-2` |
+| `--fg-muted` | `#a9b2c6` | 7.75 `--bg` · 6.92 `--surface` · 5.93 `--surface-2` |
+| `--accent` / `--focus` (lilac) | `#c6bdf5` | 9.42 `--bg` · 8.41 `--surface` · 7.21 `--surface-2` |
+| `--accent-fg` | `#1b1f28` | 9.42 on `--accent` |
+| `--good` (aqua mint) | `#76d3c6` | 9.35 `--bg` · 8.35 `--surface` · 7.15 `--surface-2` |
+| `--warn` (butter) | `#ecd28a` | 11.12 `--bg` · 9.92 `--surface` · 8.51 `--surface-2` |
+| `--bad` (dusty rose) | `#e68f98` | 6.87 `--bg` · 6.13 `--surface` · 5.26 `--surface-2` |
+| `--bad-fg` | `#1b1f28` | 6.87 on `--bad` |
+| `--info` (periwinkle) | `#8fb2ee` | 7.67 `--bg` · 6.85 `--surface` · 5.87 `--surface-2` |
+| `--chart-neutral` | `#7d879d` | 4.08 on `--surface` |
+| `--scrim` | `#0b0e14` at 55 % | — |
+
+**Light**
+
+| Role | Hex | Contrast |
+|---|---|---|
+| `--bg` | `#e8ecf3` | — |
+| `--surface` | `#f6f8fb` | 1.11 on `--bg` |
+| `--surface-2` | `#e1e6ef` | — |
+| `--border` | `#c6cedb` | 1.49 on `--surface` |
+| `--track` | `#d3dae5` | 1.32 on `--surface` |
+| `--fg` | `#252b37` | 11.98 `--bg` · 13.34 `--surface` · 11.33 `--surface-2` |
+| `--fg-muted` | `#525c6f` | 5.68 `--bg` · 6.33 `--surface` · 5.38 `--surface-2` |
+| `--accent` / `--focus` (lilac) | `#5f55b0` | 5.19 `--bg` · 5.78 `--surface` · 4.91 `--surface-2` |
+| `--accent-fg` | `#ffffff` | 6.15 on `--accent` |
+| `--good` (deep teal) | `#1a6b70` | 5.24 `--bg` · 5.84 `--surface` · 4.96 `--surface-2` |
+| `--warn` (amber) | `#83601a` | 4.85 `--bg` · 5.40 `--surface` · 4.59 `--surface-2` |
+| `--bad` (rose wine) | `#94384b` | 6.06 `--bg` · 6.74 `--surface` · 5.73 `--surface-2` |
+| `--bad-fg` | `#ffffff` | 7.18 on `--bad` |
+| `--info` (periwinkle) | `#35629f` | 5.21 `--bg` · 5.81 `--surface` · 4.93 `--surface-2` |
+| `--chart-neutral` | `#808ba0` | 3.23 on `--surface` |
+| `--scrim` | `#1b2130` at 35 % | — |
+
+Theme character: radii 16 / 12 / 8 px, one soft shadow layer (`0 1px 6px`, opacity 0.25 dark / 0.12 light)
+for `--shadow` and `--shadow-card`, the default unknown hatch in `--hatch`, and the default motion.
+
+**Color-vision check.** `--good` is a blue-leaning green and `--bad` a warm rose of a different lightness, so the
+pair separates by both hue and lightness. Simulated with the Machado, Oliveira and Fernandes (2009) matrices at
+full severity and compared with CIEDE2000, `--good` and `--bad` stay ≥ 11 apart under protanopia and ≥ 16 under
+deuteranopia in both modes (≥ 50 under tritanopia); `--warn` stays ≥ 13 from both. Color is never the only cue:
+states also carry their label and icon.
 
 ## User themes (no recompiling)
 

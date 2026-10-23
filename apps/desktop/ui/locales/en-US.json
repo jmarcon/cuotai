@@ -48,6 +48,7 @@
   "theme.mode.light": "Light",
   "theme.mode.dark": "Dark",
   "theme.mode.unavailable": "unavailable in this theme",
+  "theme.group.cuotai": "Original",
   "theme.group.editors": "Editors",
   "theme.group.systems": "Systems",
   "theme.group.retro": "Retro",

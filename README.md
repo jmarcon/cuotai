@@ -28,7 +28,7 @@ Anyone working with several AI assistants and APIs ends up switching between doz
   - **Desktop and system tray (Tauri 2):** a detailed main window, a quick menu-bar popover (donut or list view) and a native right-click menu.
   - **Terminal TUI (Ratatui):** a fast dashboard with keyboard and mouse support, instant filtering and a full account wizard.
   - **CLI (`--once` / `--json` / `--json-v1` / `--serve` / `--watch`):** built for scripts, status bars (Waybar, SketchyBar, tmux) and automation.
-- **Themes and internationalization:** 14 built-in themes (Dracula, Catppuccin, Tokyo Night, One Dark, GitHub, macOS, Windows 11, Ubuntu, Synthwave, CRT, Win98/XP, Tron), custom themes and languages, and a UI in **Portuguese**, **English**, **Spanish** and **Italian**.
+- **Themes and internationalization:** 15 built-in themes (Cuotai, its own pastel theme; Dracula, Catppuccin, Tokyo Night, One Dark, GitHub, macOS, Windows 11, Ubuntu, Synthwave, CRT, Win98/XP, Tron), custom themes and languages, and a UI in **Portuguese**, **English**, **Spanish** and **Italian**.
 
 ---
 

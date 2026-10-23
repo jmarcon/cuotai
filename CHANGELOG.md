@@ -13,9 +13,15 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-10-23
+
+### Added
+
+- A new built-in **Cuotai** theme, the app's own identity: pastel colors on a blue-leaning gray in both dark and light modes, a calm lilac accent and status colors chosen to stay readable (WCAG AA text contrast) and distinguishable with common color-vision deficiencies. Pick it under Settings → Appearance → Theme, in the new "Original" group.
+
 ### Changed
 
-- Repository maintainers now get a monthly, manually runnable check of the Homebrew, winget and Scoop rules and every pinned GitHub Action release; policy drift, stale, mismatched or accidentally unversioned pins and failed checks open or refresh one review issue, paginating all open issues before creating it, while reviewed policy hashes remain repository-controlled (PRD 0021 RF9.3).
+- Repository maintainers now get a monthly, manually runnable check of the Homebrew, winget and Scoop rules and every pinned GitHub Action release; policy drift, stale, mismatched or accidentally unversioned pins and failed checks open or refresh one review issue, paginating all open issues before creating it, while reviewed policy hashes remain repository-controlled (PRD 0021 RF9.3, 0ba9c9b, 76bacde).
 
 ## [0.75.3] - 2026-10-23
 
@@ -659,7 +665,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.3...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.76.0...HEAD
+[0.76.0]: https://github.com/jmarcon/cuotai/compare/v0.75.3...v0.76.0
 [0.75.3]: https://github.com/jmarcon/cuotai/compare/v0.75.2...v0.75.3
 [0.75.2]: https://github.com/jmarcon/cuotai/compare/v0.75.1...v0.75.2
 [0.75.1]: https://github.com/jmarcon/cuotai/compare/v0.75.0...v0.75.1

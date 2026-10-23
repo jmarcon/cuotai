@@ -1,4 +1,5 @@
 /* Registre aqui cada novo tema (e em js/themes.js). Ordem não importa. */
+@import url("cuotai.css");
 @import url("dracula.css");
 @import url("onedark.css");
 @import url("github.css");
