@@ -1,10 +1,11 @@
 <div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="apps/desktop/ui/img/logo-on-dark.svg" />
-    <source media="(prefers-color-scheme: light)" srcset="apps/desktop/ui/img/logo-on-light.svg" />
-    <img src="apps/desktop/ui/img/logo.svg" alt="Cuotai logo" width="84" height="84" />
-  </picture>
-  <h1>Cuotai</h1>
+  <h1>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="apps/desktop/ui/img/logotype-on-dark.svg" />
+      <source media="(prefers-color-scheme: light)" srcset="apps/desktop/ui/img/logotype-on-light.svg" />
+      <img src="apps/desktop/ui/img/logotype.svg" alt="Cuotai" height="64" />
+    </picture>
+  </h1>
   <p><strong>All your AI quotas, usage limits and costs in one place.</strong></p>
   <p>
     A free, open-source desktop app that shows how much of your 5-hour window, weekly quota or monthly budget is left, across every AI assistant and API you use, and warns you before you run out.
@@ -27,6 +28,8 @@
 ## What is Cuotai?
 
 If you work with several AI assistants and APIs, you probably hop between dashboards to find out how much is left of the 5-hour window, the weekly quota or the monthly budget. **Cuotai puts all of it in one place** and keeps it fresh in the background, so you know before a limit stops you.
+
+**Why the name?** Cuotai comes from *cuota*, how many Portuguese speakers say "quota", plus *AI*, which is why the logo sets it apart: it keeps an eye on the quotas, usage limits and costs of your AI providers. Its four-color C is a gauge that is never quite closed, the same ring that shows how much quota each account has left.
 
 It is made for developers, teams and heavy users of coding assistants and AI APIs who juggle more than one subscription or key.
 

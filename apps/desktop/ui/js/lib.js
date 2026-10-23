@@ -501,6 +501,12 @@ const glyphs = {
   alibaba_coding_plan: ["bailian"], alibaba_token_plan: ["bailian"], alibaba_cloud: ["alibabacloud"],
   antigravity: ["antigravity"],
 };
+/** Cuotai logotype (DS-ID-2): the four-arc mark is the "C" and "AI" is set apart in the logo's pink.
+ *  Only the logo is styled "CuotAI"; assistive technology reads the product name "Cuotai".
+ *  `attrs` is repeated on each part (e.g. ` data-tauri-drag-region`, which does not inherit). */
+export const wordmark = (attrs = "") =>
+  `<span class="wm-c" aria-hidden="true"${attrs}></span><span aria-hidden="true"${attrs}>uot<span class="wm-ai"${attrs}>AI</span></span><span class="wm-name">Cuotai</span>`;
+
 export const logo = (provider, size = 40) => {
   const b = brand(provider);
   const style = `width:${size}px;height:${size}px;font-size:${size * 0.4}px`;

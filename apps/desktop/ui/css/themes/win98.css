@@ -158,6 +158,13 @@
 :root[data-theme="win98"] .topbar {
   border-bottom: 1px solid #000040;
 }
+/* The title bar is navy-to-blue in both modes: dark-variant arcs and all-white letters. */
+:root[data-theme="win98"] .topbar .wm-c {
+  background-image: url("../../img/logo-on-dark.svg");
+}
+:root[data-theme="win98"] .topbar .wm-ai {
+  color: #ffffff;
+}
 
 /* Controles cinza sobre a barra */
 :root[data-theme="win98"][data-mode="light"] .btn,

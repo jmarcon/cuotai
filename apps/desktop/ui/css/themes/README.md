@@ -42,10 +42,13 @@ Surfaces and effects (optional):
 `--shadow`, `--shadow-dialog`, `--card-bg` (accepts a gradient), `--head-bg` (card header, accepts a gradient),
 `--topbar-bg`, `--btn-bg`, `--btn-fg`, `--input-bg`, `--switch-knob`, `--body-bg` (accepts a gradient/image).
 
-The Cuotai logo keeps fixed colors and is never themed. `themes.css` shows `img/logo-on-dark.svg` in dark mode and
-`img/logo-on-light.svg` in light mode (switched by `data-mode`, since an SVG inside `<img>` cannot see the app's mode);
-every arc keeps at least 3:1 against the built-in surfaces. A built-in theme whose top bar stays a saturated color in
-both modes points `:root[data-theme="<id>"] .topbar .brand` at `img/logo-on-color.svg` (Windows XP does).
+The Cuotai logo keeps fixed colors and is never themed. The headers show the logotype "CuotAI" (`wordmark()` in
+`js/lib.js`, `.wordmark`/`.wm-c`/`.wm-ai` in `themes.css`): the four-arc mark is the C (`img/logo-on-dark.svg` in dark
+mode, `img/logo-on-light.svg` in light mode, switched by `data-mode`, since an SVG inside an image cannot see the app's
+mode), "uot" takes the theme's text color and "AI" the logo's pink (`#ff79c6` dark, `#990058` light). Arcs keep at least
+3:1 and letters at least 4.5:1 on the built-in surfaces. A built-in theme whose top bar stays saturated blue in both
+modes points `:root[data-theme="<id>"] .topbar .wm-c` at a brighter arc variant and turns `.wm-ai` white (Windows 98 uses
+`img/logo-on-dark.svg`, Windows XP `img/logo-on-color.svg`). The product name in text stays "Cuotai".
 
 Motion (optional; defaults live in `themes.css`, user themes inherit them):
 

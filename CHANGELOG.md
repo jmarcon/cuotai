@@ -13,22 +13,28 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-10-23
+
+### Changed
+
+- The window and tray headers now show the Cuotai logotype "CuotAI": the four-arc mark is the C of the name and "AI" is set apart in the logo's pink, readable in light and dark modes and on the blue title bars of the Windows 98 and Windows XP themes; the README uses the same logotype and explains the name. The product name in text stays "Cuotai".
+
 ## [0.78.0] - 2026-10-23
 
 ### Security
 
-- **Breaking:** `cuotai --serve` now requires a bearer token by default, because without one any user or program on the computer could read your usage over loopback: the first start creates a random token in `<OS local data dir>/cuotai/serve/token` (readable only by you), prints where it is (never the token) and reuses it afterwards; `--token-file FILE` keeps using your own file and now warns when other users can read it, and the new `--no-token` serves without a token with a warning. Migration: send `Authorization: Bearer $(cat <token file>)` from your scripts and status bars, point `--token-file` at the token they already use, or add `--no-token` to keep the old behavior (PRD 0012 INT-04).
+- **Breaking:** `cuotai --serve` now requires a bearer token by default, because without one any user or program on the computer could read your usage over loopback: the first start creates a random token in `<OS local data dir>/cuotai/serve/token` (readable only by you), prints where it is (never the token) and reuses it afterwards; `--token-file FILE` keeps using your own file and now warns when other users can read it, and the new `--no-token` serves without a token with a warning. Migration: send `Authorization: Bearer $(cat <token file>)` from your scripts and status bars, point `--token-file` at the token they already use, or add `--no-token` to keep the old behavior (PRD 0012 INT-04, f4e2e54).
 
 ## [0.77.1] - 2026-10-23
 
 ### Security
 
-- Hooks can no longer leave processes behind: a hook that runs past its time limit, exits or is stopped with `--watch` is killed together with every process it started (its own process group on macOS and Linux, a Job Object on Windows), so background processes no longer escape the four-at-once limit (PRD 0013 FIX-01).
-- Hooks now run in Cuotai's private working directory `<OS local data dir>/cuotai/hooks/work` (`0700` on Unix) instead of the shared temporary directory, and do not start when it cannot be made private (PRD 0013 FIX-02).
-- Extension approvals moved out of the extensions' folder to `<OS local data dir>/cuotai/consent/extensions.json` (`0600` in a `0700` folder); the old `extensions/consent.json` is moved there once on the first start (PRD 0017 FIX-03).
-- An extension's approval now covers every file of its folder (execute bits and link texts included; links leading out of the folder and special files are refused), and the consent screen in the TUI, the desktop and `--extension-check` shows the interpreter a script starts (its `#!` line); every extension approved before this version shows as changed once and must be reviewed and approved again (PRD 0017 FIX-04).
-- On macOS and Linux an extension folder that other users can write (group- or world-writable, or owned by another user) is refused, and an approved one that becomes writable stops running until its permissions are fixed (PRD 0017 FIX-05).
-- Removing an account, or switching it to another provider, now deletes its web session from the system vault too, before the configuration is saved and restored if the save fails; a vault that refuses the delete leaves the account in place with an error. Sessions left behind by earlier removals stay in the vault until you delete them with your keychain tool (PRD 0016 FIX-06).
+- Hooks can no longer leave processes behind: a hook that runs past its time limit, exits or is stopped with `--watch` is killed together with every process it started (its own process group on macOS and Linux, a Job Object on Windows), so background processes no longer escape the four-at-once limit (PRD 0013 FIX-01, d265960).
+- Hooks now run in Cuotai's private working directory `<OS local data dir>/cuotai/hooks/work` (`0700` on Unix) instead of the shared temporary directory, and do not start when it cannot be made private (PRD 0013 FIX-02, d265960).
+- Extension approvals moved out of the extensions' folder to `<OS local data dir>/cuotai/consent/extensions.json` (`0600` in a `0700` folder); the old `extensions/consent.json` is moved there once on the first start (PRD 0017 FIX-03, d265960).
+- An extension's approval now covers every file of its folder (execute bits and link texts included; links leading out of the folder and special files are refused), and the consent screen in the TUI, the desktop and `--extension-check` shows the interpreter a script starts (its `#!` line); every extension approved before this version shows as changed once and must be reviewed and approved again (PRD 0017 FIX-04, d265960).
+- On macOS and Linux an extension folder that other users can write (group- or world-writable, or owned by another user) is refused, and an approved one that becomes writable stops running until its permissions are fixed (PRD 0017 FIX-05, d265960).
+- Removing an account, or switching it to another provider, now deletes its web session from the system vault too, before the configuration is saved and restored if the save fails; a vault that refuses the delete leaves the account in place with an error. Sessions left behind by earlier removals stay in the vault until you delete them with your keychain tool (PRD 0016 FIX-06, d265960).
 
 ## [0.77.0] - 2026-10-23
 
@@ -694,7 +700,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.78.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.79.0...HEAD
+[0.79.0]: https://github.com/jmarcon/cuotai/compare/v0.78.0...v0.79.0
 [0.78.0]: https://github.com/jmarcon/cuotai/compare/v0.77.1...v0.78.0
 [0.77.1]: https://github.com/jmarcon/cuotai/compare/v0.77.0...v0.77.1
 [0.77.0]: https://github.com/jmarcon/cuotai/compare/v0.76.1...v0.77.0

@@ -99,9 +99,12 @@
 :root[data-theme="winxp"] .topbar {
   border-bottom: 1px solid #003c74;
 }
-/* The Luna bar is saturated blue in both modes: the brighter logo variant keeps every arc >= 3:1 on it. */
-:root[data-theme="winxp"] .topbar .brand {
+/* The Luna bar is saturated blue in both modes: the brighter arcs keep >= 3:1 and the letters are all white. */
+:root[data-theme="winxp"] .topbar .wm-c {
   background-image: url("../../img/logo-on-color.svg");
+}
+:root[data-theme="winxp"] .topbar .wm-ai {
+  color: #ffffff;
 }
 :root[data-theme="winxp"] .topbar h1,
 :root[data-theme="winxp"] .topbar .check {

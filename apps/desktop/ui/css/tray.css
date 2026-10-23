@@ -40,9 +40,8 @@ body {
   font: inherit;
   cursor: pointer;
 }
-.brand-link .brand {
-  width: 18px;
-  height: 18px;
+.brand-link.wordmark {
+  align-items: baseline;
 }
 .brand-link:hover {
   opacity: 0.8;

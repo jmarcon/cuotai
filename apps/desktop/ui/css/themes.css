@@ -258,21 +258,42 @@ svg.i {
   height: 16px;
 }
 
-/* The Cuotai mark (DS-ID-2): fixed colors, one variant per kind of surface it sits on, picked by
-   `data-mode` (the app's own mode, which `prefers-color-scheme` inside an <img> cannot see).
-   Every arc keeps >= 3:1 against the surfaces of every built-in theme; a theme whose header is
-   a saturated color in both modes (winxp) switches to `logo-on-color.svg` in its own file. */
-.brand {
+/* The Cuotai logotype "CuotAI" (DS-ID-2, `wordmark()` in js/lib.js): the four-arc mark is the capital C,
+   sized to the cap height with a round-letter overshoot, then "uot" in the text color and "AI" in the logo's
+   pink. Fixed colors, one variant per kind of surface, picked by `data-mode` (the app's own mode, which
+   `prefers-color-scheme` inside an image cannot see): arcs >= 3:1 and letters >= 4.5:1 on every built-in
+   theme. Themes whose title bar stays saturated blue in both modes (win98, winxp) override it in their file.
+   The mark is the 512-unit logo SVG cropped to its ring (60..452 x 60..397). */
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  line-height: 1;
+}
+.wm-c {
   display: inline-block;
   flex: none;
-  width: 22px;
-  height: 22px;
-  vertical-align: middle;
-  margin-right: 8px;
-  background: url("../img/logo-on-dark.svg") center / contain no-repeat;
+  width: 0.632em;
+  height: 0.735em;
+  margin: 0 0.03em -0.012em 0;
+  background: url("../img/logo-on-dark.svg") -0.1125em -0.1125em / 0.96em 0.96em no-repeat;
 }
-:root[data-mode="light"] .brand {
+:root[data-mode="light"] .wm-c {
   background-image: url("../img/logo-on-light.svg");
+}
+.wm-ai {
+  color: #ff79c6;
+}
+:root[data-mode="light"] .wm-ai {
+  color: #990058;
+}
+.wm-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* bandeiras e menu de idioma */
