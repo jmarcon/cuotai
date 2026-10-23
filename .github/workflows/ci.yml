@@ -49,6 +49,8 @@ jobs:
   #   - LICENSE-*, THIRD_PARTY_NOTICES (shipped in the packages and the About box)
   #   - apps/desktop/ui/** (the whole folder is embedded in the desktop app)
   #   - .github/workflows/** and every other file
+  # codeql.yml applies the same allow-list in its `paths` filters: change both
+  # together.
   changes:
     name: changes
     runs-on: ubuntu-latest
