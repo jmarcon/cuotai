@@ -24,14 +24,18 @@
 //! limits, a process tree killed on timeout, at most two at once and a
 //! per-extension deadline with the `RefreshCycle`'s backoff.
 //!
-//! RF4: [`consent::Consent`] keeps the SHA-256 of the manifest and the
-//! program of each approved extension; any change disables it until a new
-//! approval, and only an [`consent::Approved`] can be run.
+//! RF4: [`consent::Consent`] keeps the SHA-256 of the manifest, the
+//! program and the whole folder ([`tree::scan`]) of each approved
+//! extension; any change disables it until a new approval, and only an
+//! [`consent::Approved`] can be run. A folder that cannot be hashed whole
+//! (a link out of it, a special file, past the size bounds) or that, on
+//! Unix, other users could change is rejected by [`discover`].
 
 pub mod consent;
 pub mod management;
 pub mod output;
 pub mod runner;
+pub mod tree;
 
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
@@ -107,6 +111,11 @@ pub struct Manifest {
     pub dir: PathBuf,
     /// The program `command[0]` names, resolved inside [`Self::dir`].
     pub program: PathBuf,
+    /// The interpreter line of the program (`#!…`, without the `#!`) when
+    /// it is a script, shown in the disclosure; `None` for a native
+    /// program. Consent only verifies while the program still starts with
+    /// exactly this line.
+    pub interpreter: Option<String>,
     /// The exact `manifest.toml` text this struct was parsed from. It is
     /// the version the user is shown and the one consent hashes, so parsing
     /// and approving can never straddle two different files.
@@ -348,6 +357,10 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         .transpose()?;
     let env = valid_env(raw.env)?;
     let (dir, program) = resolve_program(dir, &raw.command)?;
+    // FIX-04/FIX-05: the whole folder must be hashable, and on Unix
+    // nobody else may change it, before it is ever offered for approval.
+    tree::scan(&dir).map_err(tree::Refused::reason)?;
+    let interpreter = tree::shebang(&program);
     Ok(Manifest {
         id: raw.id,
         name,
@@ -361,6 +374,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         env,
         dir,
         program,
+        interpreter,
         source: source.to_owned(),
     })
 }

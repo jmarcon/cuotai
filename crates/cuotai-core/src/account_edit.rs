@@ -2121,7 +2121,10 @@ pub fn build_account(
         .map_err(|message| build_account_field_error("interval", message))?;
 
     // PRD 0016 RF1: the vault reference stays with its account; the form
-    // never edits it and a provider switch starts without one.
+    // never edits it and a provider switch starts without one. FIX-06: the
+    // entries a switch leaves unreferenced are deleted when the edit is
+    // saved (`user_session::stage_dropped`, which front ends run before
+    // persisting and roll back when the save fails).
     let session = editing_account
         .filter(|account| account.provider == *provider)
         .and_then(|account| account.session.clone());
@@ -2304,6 +2307,15 @@ pub enum RemoveError {
         "Configuração OAuth inválida; não é possível garantir a remoção completa. Detalhes: {0}"
     )]
     InvalidOAuth(String),
+    /// FIX-06: the account keeps a web session in the vault
+    /// (`[accounts.session]`, PRD 0016) and the vault refused to delete
+    /// it. Nothing changed: the TOML was not saved and any session already
+    /// deleted was put back. Carries the vault's note, never a value.
+    #[error(
+        "Não foi possível apagar do cofre do sistema a sessão web desta conta, então a conta não foi removida: {}",
+        .0.fallback
+    )]
+    Session(crate::text::Localized),
 }
 
 impl KeptReason {
@@ -2351,6 +2363,12 @@ impl RemoveError {
                 detail.clone(),
                 self.to_string(),
             ),
+            RemoveError::Session(note) => crate::text::Localized::with_param(
+                "remove_error.session",
+                "detail",
+                note.clone(),
+                self.to_string(),
+            ),
         }
     }
 }
@@ -2379,7 +2397,7 @@ pub async fn remove_account(
     index: usize,
     purge_credentials: bool,
 ) -> Result<RemoveOutcome, RemoveError> {
-    let staged = remove_account_save_only(file, index, purge_credentials)?;
+    let staged = remove_account_save_only(file, session, index, purge_credentials).await?;
     match staged {
         StagedRemoval::RemovedNoCredential(account) => {
             Ok(RemoveOutcome::RemovedNoCredential(account))
@@ -2418,8 +2436,17 @@ pub async fn remove_account(
 ///   [`purge_credential`] next (the shared-key guard is the only thing
 ///   protecting the survivor and must be re-run against the
 ///   *current* config in case another edit changed the survivor set).
-pub fn remove_account_save_only(
+///
+/// FIX-06: the account's web sessions (`[accounts.session]`, PRD 0016) are
+/// always deleted from the vault — a session reference is unique to its
+/// account, so nothing else could ever read or forget the entry. They are
+/// deleted *before* the TOML save and put back when the save fails, so
+/// either both change or neither does; a vault that refuses the delete
+/// fails the removal with [`RemoveError::Session`] and changes nothing.
+/// That vault round-trip happens only for an account with a session.
+pub async fn remove_account_save_only(
     file: &mut crate::config_file::ConfigFile,
+    session: &crate::oauth::OAuthSession,
     index: usize,
     purge_credentials: bool,
 ) -> Result<StagedRemoval, RemoveError> {
@@ -2471,8 +2498,17 @@ pub fn remove_account_save_only(
 
     // 2) Build the new TOML.
     let updated = prev.without_account(index).map_err(RemoveError::Save)?;
-    // 3) Persist FIRST.
-    file.save(updated.clone()).map_err(RemoveError::Save)?;
+    // 3) FIX-06: stage the deletion of the account's vault sessions, then
+    //    persist; a failed save puts them back.
+    let staged_sessions = crate::user_session::stage_dropped(session, &prev, &updated, None)
+        .await
+        .map_err(RemoveError::Session)?;
+    if let Err(error) = file.save(updated.clone()) {
+        if let Some(staged) = staged_sessions {
+            let _ = crate::user_session::rollback(session, staged).await;
+        }
+        return Err(RemoveError::Save(error));
+    }
 
     // 4) Decide whether to purge.
     let kept_account = || RemovedAccount {
@@ -4015,6 +4051,7 @@ mod tests {
             RemoveError::Index(_) => "Index",
             RemoveError::Save(_) => "Save",
             RemoveError::InvalidOAuth(_) => "InvalidOAuth",
+            RemoveError::Session(_) => "Session",
         }
     }
 

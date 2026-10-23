@@ -2202,6 +2202,15 @@ impl Backend {
             let updated = staged_paste
                 .as_ref()
                 .map_or(updated, |staged| staged.config().clone());
+            // FIX-06: a provider switch drops the account's session
+            // reference; its vault entries go with the save (and come back,
+            // with the paste undone, through the same rollback below).
+            let staged_paste = match vault.as_deref() {
+                Some(vault) => user_session::stage_dropped(vault, &prev, &updated, staged_paste)
+                    .await
+                    .map_err(|note| l10n_to_json(&note))?,
+                None => staged_paste,
+            };
             // Stage the new cycle on a copy so a structural-diff rejection
             // (e.g. reorder) leaves the live state untouched.
             let mut staged = l.cycle.clone_state_for_edit();
@@ -2354,13 +2363,19 @@ impl Backend {
                 .monitor
                 .with_config(updated.clone())
                 .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
-            // Sync TOML save via the core; the core still owns the
-            // shared-key guard and the partial-failure invariant.
-            // On any error here `l.file` is unchanged and the staged
-            // cycle + monitor are dropped on return.
-            let staged =
-                account_edit::remove_account_save_only(&mut l.file, index, purge_credentials)
-                    .map_err(|error| l10n_to_json(&account_edit::RemoveError::l10n(&error)))?;
+            // TOML save via the core; the core still owns the shared-key
+            // guard, the partial-failure invariant and (FIX-06) the
+            // deletion of the account's vault web sessions, put back when
+            // the save fails. On any error here `l.file` is unchanged and
+            // the staged cycle + monitor are dropped on return.
+            let staged = account_edit::remove_account_save_only(
+                &mut l.file,
+                session.as_ref(),
+                index,
+                purge_credentials,
+            )
+            .await
+            .map_err(|error| l10n_to_json(&account_edit::RemoveError::l10n(&error)))?;
             // Mirror the staged runtime into the live state. We
             // snapshot the post-save config BEFORE assigning
             // `g.generation` so the borrows do not overlap

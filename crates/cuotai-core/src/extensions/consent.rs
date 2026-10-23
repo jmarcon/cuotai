@@ -4,10 +4,12 @@
 //! only through [`Consent::approve`], after the user was shown
 //! [`disclosure`] and confirmed explicitly — can be run by
 //! [`crate::extensions::runner::Runner`]. [`Consent`] stores, per extension
-//! id, the SHA-256 of the manifest and of the program and the approved set
-//! of environment variable names, written atomically; [`Consent::check`]
-//! re-reads the files and compares the digests, so any change to the
-//! manifest or the program disables the extension until a new approval.
+//! id, the SHA-256 of the manifest, of the program and of the whole folder
+//! ([`super::tree::scan`]) and the approved set of environment variable
+//! names, written atomically to a private file outside the extensions'
+//! directory ([`Consent::file_for`]); [`Consent::check`] re-reads the files
+//! and compares the digests, so any change to anything in the folder
+//! disables the extension until a new approval.
 //! [`Approved::verify`] repeats that comparison, so a run never starts over
 //! files that changed since the approval. Cuotai never installs, downloads
 //! or updates an extension (RF4.3).
@@ -23,36 +25,64 @@ use sha2::{Digest, Sha256};
 use super::{Manifest, MANIFEST_FILE};
 use crate::text::{params, Localized};
 
-/// The file of the stored approvals, inside the extensions' directory.
-pub const CONSENT_FILE: &str = "consent.json";
+/// The file of the stored approvals, in its own private folder
+/// ([`CONSENT_DIR`]) beside the extensions' directory, never inside it.
+pub const CONSENT_FILE: &str = "extensions.json";
 
-/// The SHA-256 (lowercase hex) of the manifest and the program at the
-/// moment of approval, with the environment variable names the user
-/// approved.
+/// The private (`0700` on Unix) folder of [`CONSENT_FILE`], a sibling of
+/// the extensions' directory: `<OS local data dir>/cuotai/consent`.
+pub const CONSENT_DIR: &str = "consent";
+
+/// Where releases up to 0.77.0 kept the approvals: `consent.json` inside
+/// the extensions' directory itself. Read once and moved by
+/// [`Consent::for_root`].
+pub const LEGACY_CONSENT_FILE: &str = "consent.json";
+
+/// The SHA-256 (lowercase hex) of the manifest, the program and the whole
+/// folder ([`super::tree::scan`]) at the moment of approval, with the
+/// environment variable names the user approved. A record written before
+/// the folder digest existed reads with an empty `tree_sha256`, which never
+/// matches: such an extension shows as changed and needs a new approval.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Approval {
     manifest_sha256: String,
     program_sha256: String,
+    #[serde(default)]
+    tree_sha256: String,
     env: Vec<String>,
 }
 
 impl Approval {
     /// The digests of `manifest`'s files **as they are right now**, and only
     /// when the manifest on disk still is the text this struct was parsed
-    /// from: reading the file and comparing it byte for byte happens before
-    /// hashing, so a cached [`Manifest`] can never approve or verify a file
-    /// that changed afterwards.
+    /// from and the program still starts with the interpreter line the
+    /// disclosure showed: reading and comparing both happens before hashing,
+    /// so a cached [`Manifest`] can never approve or verify files that
+    /// changed afterwards. A folder that [`super::tree::scan`] refuses (on
+    /// Unix, one other users could change) has no digests at all.
     fn of(manifest: &Manifest) -> Option<Self> {
         let on_disk = std::fs::read_to_string(manifest.dir.join(MANIFEST_FILE)).ok()?;
         if on_disk != manifest.source {
             return None;
         }
+        if super::tree::shebang(&manifest.program) != manifest.interpreter {
+            return None;
+        }
         Some(Self {
             manifest_sha256: sha256_bytes(on_disk.as_bytes()),
             program_sha256: sha256_file(&manifest.program)?,
+            tree_sha256: super::tree::scan(&manifest.dir).ok()?,
             env: manifest.env.clone(),
         })
+    }
+
+    /// Whether `self` and `other` hash the same files (the approved
+    /// variables aside).
+    fn same_files(&self, other: &Self) -> bool {
+        self.manifest_sha256 == other.manifest_sha256
+            && self.program_sha256 == other.program_sha256
+            && self.tree_sha256 == other.tree_sha256
     }
 }
 
@@ -204,12 +234,69 @@ impl Consent {
         }
     }
 
-    /// `<OS local data dir>/cuotai/extensions/consent.json`; without a
-    /// local data directory nothing can be approved.
+    /// The approvals of the default extensions' directory
+    /// ([`super::default_dir`]): `<OS local data dir>/cuotai/consent/
+    /// extensions.json`, migrated from the legacy location as
+    /// [`Self::for_root`] does; without a local data directory nothing can
+    /// be approved.
     pub fn in_data_dir() -> Result<Self, Localized> {
-        dirs::data_local_dir()
-            .map(|dir| Self::at(dir.join("cuotai").join("extensions").join(CONSENT_FILE)))
+        super::default_dir()
+            .map(|root| Self::for_root(&root))
             .ok_or_else(consent_storage)
+    }
+
+    /// The approvals of the extensions under `root`, kept in
+    /// [`Self::file_for`] (outside `root`, so nothing copied into the
+    /// extensions' directory can replace them). A legacy
+    /// `<root>/consent.json` is moved there once: read, written to the new
+    /// file (`0600` in a `0700` folder on Unix) and removed. When the new
+    /// file already exists it wins and the legacy one is only removed; a
+    /// legacy file that does not parse holds no approval and is left alone.
+    pub fn for_root(root: &Path) -> Self {
+        let consent = Self::at(Self::file_for(root));
+        // Best effort: a failed move keeps the legacy file for the next
+        // start, and an approval missing meanwhile only asks again.
+        let _ = consent.migrate(&root.join(LEGACY_CONSENT_FILE));
+        consent
+    }
+
+    /// `<parent of root>/consent/extensions.json` (for the default `root`,
+    /// `<OS local data dir>/cuotai/consent/extensions.json`).
+    pub fn file_for(root: &Path) -> PathBuf {
+        root.parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or(root)
+            .join(CONSENT_DIR)
+            .join(CONSENT_FILE)
+    }
+
+    /// The approvals file.
+    pub fn file(&self) -> &Path {
+        &self.file
+    }
+
+    /// Move the legacy record at `legacy` to [`Self::file`] (see
+    /// [`Self::for_root`]). `Ok(true)` when something was moved.
+    fn migrate(&self, legacy: &Path) -> io::Result<bool> {
+        let Ok(meta) = std::fs::symlink_metadata(legacy) else {
+            return Ok(false);
+        };
+        if std::fs::symlink_metadata(&self.file).is_ok() {
+            if meta.is_file() || meta.file_type().is_symlink() {
+                std::fs::remove_file(legacy)?;
+            }
+            return Ok(false);
+        }
+        if !meta.is_file() {
+            return Ok(false);
+        }
+        let bytes = std::fs::read(legacy)?;
+        if serde_json::from_slice::<Record>(&bytes).is_err() {
+            return Ok(false);
+        }
+        crate::private_fs::write_file(&self.file, &bytes)?;
+        std::fs::remove_file(legacy)?;
+        Ok(true)
     }
 
     /// Whether `manifest` is approved as it exists now. A damaged record is
@@ -251,9 +338,7 @@ impl Consent {
         let (Some(stored), Some(current)) = (stored, current) else {
             return Err(Box::new(manifest));
         };
-        if stored.manifest_sha256 != current.manifest_sha256
-            || stored.program_sha256 != current.program_sha256
-        {
+        if !stored.same_files(&current) {
             return Err(Box::new(manifest));
         }
         let env = stored
@@ -324,7 +409,7 @@ impl Consent {
             .unwrap_or_default()
             .saturating_add(1);
         let bytes = serde_json::to_vec(&record).map_err(|_| consent_storage())?;
-        crate::hooks::write_atomically(&self.file, &bytes).map_err(|_| consent_storage())?;
+        crate::private_fs::write_file(&self.file, &bytes).map_err(|_| consent_storage())?;
         state.generations.insert(id.clone(), applied_generation);
         Ok(Rollback {
             change: match previous {
@@ -375,7 +460,7 @@ impl Consent {
             Change::Unchanged => unreachable!("handled above"),
         }
         let bytes = serde_json::to_vec(&record).map_err(|_| consent_storage())?;
-        crate::hooks::write_atomically(&self.file, &bytes).map_err(|_| consent_storage())?;
+        crate::private_fs::write_file(&self.file, &bytes).map_err(|_| consent_storage())?;
         // Generations are monotonic. Restoring the previous record receives
         // a fresh identity, so neither this handle nor an older Approved can
         // become valid again through an ABA cycle.
@@ -416,7 +501,7 @@ impl Consent {
         let removed = record.approved.remove(id).is_some();
         if removed {
             let bytes = serde_json::to_vec(&record).map_err(|_| consent_storage())?;
-            crate::hooks::write_atomically(&self.file, &bytes).map_err(|_| consent_storage())?;
+            crate::private_fs::write_file(&self.file, &bytes).map_err(|_| consent_storage())?;
         }
         if removed {
             let generation = state.generations.entry(id.to_owned()).or_default();
@@ -472,6 +557,16 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
         command.as_str(),
         format!("comando: {command}"),
     ));
+    // FIX-04: a script names the interpreter the kernel will start; the
+    // user approves that program too.
+    if let Some(interpreter) = &manifest.interpreter {
+        lines.push(Localized::with_param(
+            "extensions.consent.interpreter",
+            "interpreter",
+            interpreter.as_str(),
+            format!("interpretador (linha #! do programa): {interpreter}"),
+        ));
+    }
     let dir = manifest.dir.display().to_string();
     lines.push(Localized::with_param(
         "extensions.consent.directory",
@@ -547,7 +642,7 @@ pub fn not_approved(id: &str) -> Localized {
         "id",
         id,
         format!(
-            "A extensão {id} ainda não foi aprovada, ou seu manifesto ou programa mudou desde a \
+            "A extensão {id} ainda não foi aprovada, ou um arquivo da sua pasta mudou desde a \
              aprovação; revise e aprove em um terminal com cuotai --extension-check {id}."
         ),
     )

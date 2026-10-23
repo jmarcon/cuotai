@@ -22,6 +22,7 @@
 
 
 **Decision (2026-10-21, orchestrator):** RF2.4 `--extension-check` ran the extension with the RF3 runner and RF4 consent, so it was delivered in 0.66.0; RF2 is now complete.
+**Fix requirements (2026-10-21 review), delivered in 0.77.1:** FIX-03 — approvals moved from `<data dir>/cuotai/extensions/consent.json` to `<data dir>/cuotai/consent/extensions.json` (`0600` in a `0700` folder), migrated once (read, written, removed); FIX-04 — the consent digest covers the whole extension folder (`extensions::tree::scan`: sorted records, execute bits, link text; links that leave the folder and special files refused; bounded size), so every earlier approval reads as changed once, and the disclosure shows a script's `#!` interpreter (`extensions.consent.interpreter`, bound to the approval); FIX-05 — on Unix a folder, or anything in it, writable by group/others or owned by another user is rejected at discovery and fails `Approved::verify` before every spawn.
 
 ## 1. Context
 

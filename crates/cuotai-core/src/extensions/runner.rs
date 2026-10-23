@@ -51,6 +51,7 @@ use tokio::sync::Semaphore;
 
 use super::consent::{self, Approved, Consent};
 use super::output;
+use crate::process_tree::{self, Tree};
 use crate::refresh::RefreshCycle;
 use crate::text::Localized;
 use crate::Status;
@@ -133,7 +134,7 @@ impl Run {
             ),
             (Outcome::Changed, _) => Localized::fixed(
                 CHANGED_NOTE,
-                "O manifesto ou o programa da extensão mudou desde a aprovação; ela não foi \
+                "Um arquivo da pasta da extensão mudou desde a aprovação; ela não foi \
                  executada.",
             ),
             (Outcome::NotStarted, _) => Localized::fixed(
@@ -349,126 +350,6 @@ fn lookup(parent: &BTreeMap<OsString, OsString>, name: &str) -> Option<OsString>
     parent.get(OsStr::new(name)).cloned()
 }
 
-/// The whole process tree of `child`, killed together (best effort) on
-/// timeout, on normal exit (orphans left behind) and on drop (a cancelled
-/// run). On Unix the child leads its own process group, killed with
-/// `killpg`; on Windows it belongs to a kill-on-close Job Object.
-struct Tree {
-    #[cfg(unix)]
-    pgid: u32,
-    #[cfg(windows)]
-    job: Option<Job>,
-}
-
-#[cfg(windows)]
-struct Job(windows_sys::Win32::Foundation::HANDLE);
-
-#[cfg(windows)]
-// A Job Object handle is process-global state, safe to use from any
-// thread; `Tree` never leaves the run task anyway.
-unsafe impl Send for Job {}
-
-#[cfg(windows)]
-impl Job {
-    /// A Job Object that kills its processes when terminated or closed,
-    /// with `child` assigned. `None` when the assignment failed (the
-    /// direct child is still covered by `kill_on_drop`); a grandchild
-    /// spawned before the assignment escapes it — a documented race of the
-    /// best-effort tree kill.
-    fn new(child: &tokio::process::Child) -> Option<Self> {
-        use windows_sys::Win32::Foundation::CloseHandle;
-        use windows_sys::Win32::System::JobObjects::{
-            AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        };
-        let handle = child.raw_handle()?;
-        unsafe {
-            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-            if job.is_null() {
-                return None;
-            }
-            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            let size = std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32;
-            let configured = SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformation,
-                &limits as *const _ as *const _,
-                size,
-            ) != 0;
-            if !configured || AssignProcessToJobObject(job, handle as _) == 0 {
-                CloseHandle(job);
-                return None;
-            }
-            Some(Self(job))
-        }
-    }
-
-    fn kill(&self) {
-        unsafe {
-            windows_sys::Win32::System::JobObjects::TerminateJobObject(self.0, 1);
-        }
-    }
-}
-
-#[cfg(windows)]
-impl Drop for Job {
-    fn drop(&mut self) {
-        self.kill();
-        unsafe {
-            windows_sys::Win32::Foundation::CloseHandle(self.0);
-        }
-    }
-}
-
-impl Tree {
-    fn new(child: &tokio::process::Child) -> Self {
-        #[cfg(unix)]
-        {
-            // The child leads its own process group (`process_group(0)`),
-            // so its id is the group id.
-            Self {
-                pgid: child.id().unwrap_or(0),
-            }
-        }
-        #[cfg(windows)]
-        {
-            Self {
-                job: Job::new(child),
-            }
-        }
-        // Other platforms keep the direct child's `kill_on_drop` only.
-        #[cfg(not(any(unix, windows)))]
-        {
-            let _ = child;
-            Self {}
-        }
-    }
-
-    /// Kill the whole tree; errors (an empty group, a failed assignment)
-    /// are ignored: the direct child is always handled by the caller.
-    fn kill(&self) {
-        #[cfg(unix)]
-        unsafe {
-            // A zero pgid would be our own process group: never.
-            if self.pgid != 0 {
-                libc::killpg(self.pgid as libc::pid_t, libc::SIGKILL);
-            }
-        }
-        #[cfg(windows)]
-        if let Some(job) = &self.job {
-            job.kill();
-        }
-    }
-}
-
-impl Drop for Tree {
-    fn drop(&mut self) {
-        self.kill();
-    }
-}
-
 #[derive(Default)]
 struct Captured {
     bytes: Vec<u8>,
@@ -534,25 +415,7 @@ async fn execute(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     // RF3.3: the child runs in its own process group, at low priority.
-    #[cfg(unix)]
-    unsafe {
-        command.process_group(0);
-        use std::os::unix::process::CommandExt;
-        command.as_std_mut().pre_exec(|| {
-            // Best effort: the run matters more than the niceness.
-            libc::setpriority(libc::PRIO_PROCESS as _, 0, 10);
-            Ok(())
-        });
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
-        command
-            .as_std_mut()
-            .creation_flags(CREATE_NEW_PROCESS_GROUP | BELOW_NORMAL_PRIORITY_CLASS);
-    }
+    process_tree::own_group(&mut command, true);
     // Windows processes need SystemRoot to start at all; it is a bootstrap
     // requirement of the OS, not user data.
     #[cfg(windows)]

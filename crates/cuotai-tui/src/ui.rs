@@ -453,6 +453,24 @@ pub async fn run(
                             .map(Some)
                     };
                     drop(sessions);
+                    // FIX-06: a provider switch drops the account's session
+                    // reference; its vault entries go with the save and come
+                    // back, with the paste, through the same rollback.
+                    let staged_paste = match staged_paste {
+                        Ok(staged) => {
+                            let after = staged
+                                .as_ref()
+                                .map_or_else(|| config.clone(), |s| s.config().clone());
+                            user_session::stage_dropped(
+                                session.as_ref(),
+                                &file.config,
+                                &after,
+                                staged,
+                            )
+                            .await
+                        }
+                        Err(note) => Err(note),
+                    };
                     match staged_paste {
                         Err(note) => {
                             if let Some(active) = &mut wizard {
@@ -2481,6 +2499,12 @@ fn run_remove_account(
             // the user knows why the removal was refused and what to
             // do about it (manual cleanup of the vault entry).
             state.error = Some(message);
+            true
+        }
+        Err(error @ RemoveError::Session(_)) => {
+            // FIX-06: the vault refused to delete the account's web
+            // session; nothing was saved or deleted.
+            state.error = Some(resolve_l10n(&error.l10n()));
             true
         }
     }

@@ -1047,6 +1047,154 @@ async fn a_refused_vault_delete_keeps_the_session_and_names_no_value() {
     assert!(!text.contains("SECRET"), "{text}");
 }
 
+/// FIX-06 / PRD 0016 acceptance: removing an account deletes its vault
+/// session (and only its own), in the same operation as the TOML save.
+#[tokio::test]
+async fn removing_an_account_deletes_its_vault_session() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let mut file = two_pasted(&store, &dir).await;
+    let kept = file.config.accounts[1].session.clone();
+
+    let outcome = crate::account_edit::remove_account(&mut file, &oauth, 0, false)
+        .await
+        .unwrap();
+    assert!(matches!(
+        outcome,
+        crate::account_edit::RemoveOutcome::RemovedNoCredential(_)
+    ));
+    assert_eq!(
+        store.values(),
+        ["api-platform_serviceToken=SECRET-B; userId=7"]
+    );
+    let reloaded = ConfigFile::load(Some(file.path.clone()), false).unwrap();
+    assert_eq!(reloaded.config.accounts.len(), 1);
+    assert_eq!(reloaded.config.accounts[0].session, kept);
+}
+
+/// FIX-06: a removal whose TOML save fails puts the deleted session back,
+/// so the account (still in the file) reads it as before.
+#[tokio::test]
+async fn a_removal_whose_save_fails_keeps_the_vault_session() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let mut file = two_pasted(&store, &dir).await;
+    let before = stored(&store);
+    let original = file.path.clone();
+    file.path = dir.path().join("missing-parent").join("cuotai.toml");
+
+    let Err(error) = crate::account_edit::remove_account(&mut file, &oauth, 0, true).await else {
+        panic!("the save fails");
+    };
+    assert!(matches!(error, crate::account_edit::RemoveError::Save(_)));
+    assert_eq!(stored(&store), before);
+    file.path = original;
+    let reloaded = ConfigFile::load(Some(file.path.clone()), false).unwrap();
+    assert_eq!(reloaded.config.accounts.len(), 2);
+    assert_eq!(
+        load(&oauth, &reloaded.config.accounts[0])
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// FIX-06: a vault that refuses the delete fails the removal before
+/// anything is saved, without a session value in the error.
+#[tokio::test]
+async fn a_refused_delete_fails_the_removal_and_changes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let seeded = Arc::new(MemoryStore::default());
+    let mut file = two_pasted(&seeded, &dir).await;
+    let failing = Arc::new(MemoryStore {
+        entries: Mutex::new(seeded.entries.lock().clone()),
+        fail_deletes: true,
+        ..Default::default()
+    });
+    let Err(error) =
+        crate::account_edit::remove_account(&mut file, &session(&failing), 0, true).await
+    else {
+        panic!("vault refused");
+    };
+    assert!(matches!(
+        error,
+        crate::account_edit::RemoveError::Session(_)
+    ));
+    assert_eq!(failing.values().len(), 2);
+    assert_eq!(file.config.accounts.len(), 2);
+    let reloaded = ConfigFile::load(Some(file.path.clone()), false).unwrap();
+    assert_eq!(reloaded.config.accounts.len(), 2);
+    let text = format!("{} {error:?}", error.l10n().resolve("en-US"));
+    assert!(!text.contains("SECRET"), "{text}");
+    assert!(text.contains("not removed"), "{text}");
+}
+
+/// FIX-06: a provider switch drops the account's session reference
+/// (`build_account`); saving it deletes the entry, and a rollback (the save
+/// failed) brings it back together with any paste staged with it.
+#[tokio::test]
+async fn a_provider_switch_deletes_the_dropped_session_and_rolls_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let file = two_pasted(&store, &dir).await;
+    let before = stored(&store);
+    let mut switched = file.config.clone();
+    switched.accounts[0].provider = Provider::AlibabaCodingPlan;
+    switched.accounts[0].session = None;
+
+    let staged = stage_dropped(&oauth, &file.config, &switched, None)
+        .await
+        .unwrap()
+        .expect("one entry dropped");
+    assert_eq!(staged.config().accounts, switched.accounts);
+    assert_eq!(
+        store.values(),
+        ["api-platform_serviceToken=SECRET-B; userId=7"]
+    );
+    rollback(&oauth, staged).await.unwrap();
+    assert_eq!(stored(&store), before);
+
+    // Nothing dropped: nothing staged, the vault untouched.
+    assert!(stage_dropped(&oauth, &file.config, &file.config, None)
+        .await
+        .unwrap()
+        .is_none());
+    assert_eq!(stored(&store), before);
+}
+
+/// FIX-06: a failed drop undoes its own deletions and the paste handed to
+/// it, so the caller aborts with the vault as it was.
+#[tokio::test]
+async fn a_failed_drop_undoes_the_paste_it_was_given() {
+    let dir = tempfile::tempdir().unwrap();
+    let seeded = Arc::new(MemoryStore::default());
+    let file = two_pasted(&seeded, &dir).await;
+    let failing = Arc::new(MemoryStore {
+        entries: Mutex::new(seeded.entries.lock().clone()),
+        fail_deletes: true,
+        ..Default::default()
+    });
+    let oauth = session(&failing);
+    let before = stored(&failing);
+    // A paste for the second account, then a switch of the first.
+    let paste = "api-platform_serviceToken=SECRET-C; userId=7";
+    let reduced = reduce(Provider::XiaomiMimo, PLATFORM, paste, now()).unwrap();
+    let staged = stage_pasted(&oauth, &file.config, 1, &[reduced])
+        .await
+        .unwrap();
+    let mut after = staged.config().clone();
+    after.accounts[0].provider = Provider::AlibabaCodingPlan;
+    after.accounts[0].session = None;
+    assert!(stage_dropped(&oauth, &file.config, &after, Some(staged))
+        .await
+        .is_err());
+    assert_eq!(stored(&failing), before, "the paste was undone too");
+}
+
 #[tokio::test]
 async fn forgetting_a_reference_without_its_entry_only_drops_the_reference() {
     let store = Arc::new(MemoryStore::default());

@@ -13,11 +13,15 @@
 //!   rules match a confirmation, so any change to them needs a new one.
 //! - [`Runner`] runs the matching rules of each event: the event as JSON
 //!   on stdin and in `CUOTAI_*` variables (always data, never part of the
-//!   command), an environment reduced to [`INHERITED_ENV`], the temporary
-//!   directory as working directory, a timeout that kills the process,
-//!   [`OUTPUT_LIMIT`] bytes of captured output, at most [`MAX_RUNNING`] at
-//!   once and a queue of [`QUEUE_CAPACITY`] that drops the oldest. A hook
-//!   never blocks or fails its caller.
+//!   command), an environment reduced to [`INHERITED_ENV`], a private
+//!   working directory ([`work_dir`], `0700` on Unix, never the shared
+//!   temporary directory), a timeout that kills the hook's whole process
+//!   tree (a process group on Unix, a kill-on-close Job Object on Windows;
+//!   the tree is also killed when the hook exits, so nothing it left behind
+//!   escapes the [`MAX_RUNNING`] limit), [`OUTPUT_LIMIT`] bytes of captured
+//!   output, at most [`MAX_RUNNING`] at once and a queue of
+//!   [`QUEUE_CAPACITY`] that drops the oldest. A hook never blocks or
+//!   fails its caller.
 //! - [`RunLog`] records each run without the payload: rule, event, start,
 //!   duration, outcome and exit code; [`RunLog::latest`] reads them back.
 //! - For an editor (PRD 0013 RF4, the desktop's Settings → Integration):
@@ -44,6 +48,7 @@ use tokio::task::{JoinHandle, JoinSet};
 
 use crate::config_file::ConfigIdentity;
 use crate::events::{Event, EventKind};
+use crate::process_tree::{self, Tree};
 use crate::text::{params, Localized, ParamValue};
 use crate::Provider;
 
@@ -1117,6 +1122,13 @@ impl RunLog {
     }
 }
 
+/// `<OS local data dir>/cuotai/hooks/work`: the private working directory
+/// of every hook, created `0700` on Unix when a hook first runs. `None`
+/// without a local data directory, and then no hook starts.
+pub fn work_dir() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|dir| dir.join("cuotai").join("hooks").join("work"))
+}
+
 /// Called after each run with the run and, when its log line could not be
 /// written, the error.
 pub type OnRun = Arc<dyn Fn(&Run, Option<&io::Error>) + Send + Sync>;
@@ -1136,6 +1148,8 @@ struct Shared {
 struct Context {
     rules: Vec<Rule>,
     inherited: Vec<(OsString, OsString)>,
+    /// The private working directory ([`work_dir`]).
+    work_dir: Option<PathBuf>,
     log: Option<RunLog>,
     on_run: OnRun,
 }
@@ -1151,16 +1165,17 @@ pub struct Runner {
 
 impl Runner {
     pub fn start(hooks: Confirmed, log: Option<RunLog>, on_run: OnRun) -> Self {
-        Self::start_with_env(hooks, log, on_run, std::env::vars_os())
+        Self::start_with_env(hooks, log, on_run, std::env::vars_os(), work_dir())
     }
 
     /// [`Self::start`] inheriting [`INHERITED_ENV`] from `parent` instead
-    /// of the process environment.
+    /// of the process environment, and running in `work_dir`.
     fn start_with_env(
         hooks: Confirmed,
         log: Option<RunLog>,
         on_run: OnRun,
         parent: impl IntoIterator<Item = (OsString, OsString)>,
+        work_dir: Option<PathBuf>,
     ) -> Self {
         let rules = hooks.0.rules;
         let inherited = parent
@@ -1174,6 +1189,7 @@ impl Runner {
         let context = Arc::new(Context {
             rules: rules.clone(),
             inherited,
+            work_dir,
             log,
             on_run,
         });
@@ -1335,17 +1351,28 @@ async fn execute(context: &Context, job: &Job) -> Run {
         output: String::from_utf8_lossy(&captured.bytes).into_owned(),
         truncated: captured.truncated,
     };
+    // A private working directory, never the shared temporary one: no hook
+    // starts without it.
+    let Some(work_dir) = context
+        .work_dir
+        .as_deref()
+        .filter(|dir| crate::private_fs::ensure_dir(dir).is_ok())
+    else {
+        return run(Outcome::NotStarted, None, Captured::default());
+    };
     let mut command = tokio::process::Command::new(&rule.command[0]);
     command
         .args(&rule.command[1..])
         .env_clear()
         .envs(context.inherited.iter().map(|(name, value)| (name, value)))
         .envs(job.vars.iter().map(|(name, value)| (name, value)))
-        .current_dir(std::env::temp_dir())
+        .current_dir(work_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    // The hook leads its own process group, so its whole tree dies with it.
+    process_tree::own_group(&mut command, false);
     // Windows processes need SystemRoot to start at all.
     #[cfg(windows)]
     if let Some(root) = std::env::var_os("SystemRoot") {
@@ -1354,6 +1381,8 @@ async fn execute(context: &Context, job: &Job) -> Run {
     let Ok(mut child) = command.spawn() else {
         return run(Outcome::NotStarted, None, Captured::default());
     };
+    // Dropped with this future (a stopped runner), it kills the tree too.
+    let tree = Tree::new(&child);
     let deadline = tokio::time::Instant::now() + rule.timeout();
     let captured = Mutex::new(Captured::default());
     let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
@@ -1380,9 +1409,11 @@ async fn execute(context: &Context, job: &Job) -> Run {
     };
     let (outcome, exit_code) = match waited {
         Waited::Exited(Ok(status)) => {
+            // Processes the hook left behind die with it: they would hold
+            // its pipes and run outside the `MAX_RUNNING` limit.
+            tree.kill();
             if !io_done {
-                // Output still arriving (or a pipe held by a process the
-                // hook left behind) is read until the time limit only.
+                // Output still arriving is read until the time limit only.
                 let _ = tokio::time::timeout_at(deadline, &mut io).await;
             }
             match status.code() {
@@ -1391,10 +1422,12 @@ async fn execute(context: &Context, job: &Job) -> Run {
             }
         }
         Waited::Exited(Err(_)) => {
+            tree.kill();
             let _ = child.kill().await;
             (Outcome::Terminated, None)
         }
         Waited::TimedOut => {
+            tree.kill();
             let _ = child.kill().await;
             (Outcome::TimedOut, None)
         }

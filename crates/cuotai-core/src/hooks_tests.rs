@@ -640,8 +640,33 @@ mod running {
                 Some(RunLog::at(self.path("runs.log"))),
                 on_run,
                 parent,
+                Some(self.path("data").join("hooks").join("work")),
             );
             (runner, receiver)
+        }
+    }
+
+    /// Wait until `path` holds a complete line (a pid a script wrote).
+    async fn read_pid(path: &Path) -> String {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            if let Some(pid) = std::fs::read_to_string(path)
+                .ok()
+                .filter(|pid| pid.ends_with('\n'))
+            {
+                return pid;
+            }
+            assert!(Instant::now() < deadline, "the pid never arrived");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+
+    /// Wait until `pid` is gone, failing after a few seconds.
+    async fn gone(pid: &str, what: &str) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while alive(pid) {
+            assert!(Instant::now() < deadline, "{what}");
+            tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
 
@@ -756,11 +781,20 @@ pwd -P > "$out/pwd"
         for leaked in ["aws-secret-marker", "sk-admin-marker", "/etc/cuotai.toml"] {
             assert!(!env.contains(leaked), "{leaked}");
         }
+        // FIX-02: a private working directory, never the shared temporary
+        // one.
         let pwd = std::fs::read_to_string(out.join("pwd")).unwrap();
-        assert_eq!(
+        let work = rig.path("data").join("hooks").join("work");
+        assert_eq!(Path::new(pwd.trim()), std::fs::canonicalize(&work).unwrap());
+        assert_ne!(
             Path::new(pwd.trim()),
             std::fs::canonicalize(std::env::temp_dir()).unwrap()
         );
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&work).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o700);
+        }
 
         let log = std::fs::read_to_string(rig.path("runs.log")).unwrap();
         assert_eq!(log.lines().count(), 1);
@@ -924,6 +958,67 @@ rm '{running}/'$$
             assert!(Instant::now() < deadline, "the hook outlived the runner");
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
+    }
+
+    /// FIX-01: the time limit kills the hook's whole process tree, and a
+    /// hook that exits leaves nothing running behind it, so no grandchild
+    /// escapes the four-at-once limit.
+    #[tokio::test]
+    async fn the_whole_process_tree_dies_on_timeout_and_on_exit() {
+        let rig = Rig::new();
+        let hung = rig.path("hung.pid");
+        let left = rig.path("left.pid");
+        let hanging = rig.script(
+            "hang.sh",
+            &format!("sleep 30 &\necho $! > '{}'\nwait\n", hung.display()),
+        );
+        let leaving = rig.script(
+            "leave.sh",
+            &format!(
+                "sleep 30 > /dev/null 2>&1 &\necho $! > '{}'\nexit 0\n",
+                left.display()
+            ),
+        );
+        let confirmed = rig.confirmed(&[
+            ("hang", "\"quota_exhausted\"", sh(&hanging, &[]), 1),
+            ("leave", "\"quota_reset\"", sh(&leaving, &[]), 10),
+        ]);
+        let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
+
+        runner.submit(&event(EventKind::QuotaExhausted, "Work", None));
+        let run = next(&mut runs).await;
+        assert_eq!(run.outcome, Outcome::TimedOut);
+        let grandchild = read_pid(&hung).await;
+        gone(&grandchild, "the timed-out hook's grandchild survived").await;
+
+        runner.submit(&event(EventKind::QuotaReset, "Work", None));
+        let run = next(&mut runs).await;
+        assert!(run.succeeded(), "{run:?}");
+        let orphan = read_pid(&left).await;
+        gone(&orphan, "the exited hook left a process running").await;
+    }
+
+    /// FIX-02: a working directory that is not a private directory (here a
+    /// symbolic link) starts no hook at all.
+    #[tokio::test]
+    async fn a_working_directory_that_is_a_link_starts_nothing() {
+        let rig = Rig::new();
+        let elsewhere = rig.path("elsewhere");
+        std::fs::create_dir(&elsewhere).unwrap();
+        let work = rig.path("data").join("hooks").join("work");
+        std::fs::create_dir_all(work.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, &work).unwrap();
+        let marker = rig.path("ran");
+        let confirmed = rig.confirmed(&[(
+            "touch",
+            "\"quota_exhausted\"",
+            vec!["/usr/bin/touch".into(), marker.display().to_string()],
+            10,
+        )]);
+        let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
+        runner.submit(&event(EventKind::QuotaExhausted, "Work", None));
+        assert_eq!(next(&mut runs).await.outcome, Outcome::NotStarted);
+        assert!(!marker.exists());
     }
 
     /// RF4.1: the test button runs one rule alone with its sample, marked

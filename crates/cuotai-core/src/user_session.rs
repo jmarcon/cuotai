@@ -30,7 +30,9 @@
 //!   card label of [`expiry`] and the alerts.
 //! * RF4: [`notice`] and [`paste_notice`] give the card and the paste step
 //!   the `UserSession` level with a short risk warning; [`stage_forget`]
-//!   deletes an account's vault entries and drops its reference.
+//!   deletes an account's vault entries and drops its reference, and
+//!   [`stage_dropped`] deletes the entries an edit leaves unreferenced (an
+//!   account removed, a provider switched), undone when the save fails.
 //! * RF5: the Xiaomi MiMo and Alibaba Coding/Token Plan adapters read each
 //!   slot through its descriptor (`providers::web_session`), from the vault
 //!   or from the `session_env`-style variable kept as an alternative, and
@@ -1290,6 +1292,85 @@ pub async fn stage_forget(
     Ok(StagedSession {
         config: updated,
         written,
+    })
+}
+
+/// FIX-06 (2026-10-21 review): the vault entries an edit leaves without a
+/// reference. Every `(provider, credential_ref, slot)` of `before` that no
+/// account of `after` still references — the account was removed, or a
+/// provider switch dropped its `[accounts.session]` — has its vault entry
+/// deleted, since nothing could ever read or forget it again.
+///
+/// `staged` is the vault half the caller already holds for `after` (pasted
+/// sessions, [`stage_pasted`]), or `None`; the deletions join it, so one
+/// [`rollback`] puts every deleted session back and undoes the paste when
+/// persisting `after` fails. The result is `None` when there was nothing to
+/// stage at all. On error nothing is left changed: this call's deletions
+/// are undone and `staged` is rolled back too (the caller aborts the save).
+/// Errors never carry a session value.
+pub async fn stage_dropped(
+    oauth: &OAuthSession,
+    before: &Config,
+    after: &Config,
+    staged: Option<StagedSession>,
+) -> Result<Option<StagedSession>, Localized> {
+    let kept: BTreeSet<(&str, &str, &str)> = after
+        .accounts
+        .iter()
+        .filter_map(|account| Some((account.provider.slug(), account.session.as_ref()?)))
+        .flat_map(|(provider, session)| {
+            session
+                .slots
+                .iter()
+                .map(move |slot| (provider, session.credential_ref.as_str(), slot.as_str()))
+        })
+        .collect();
+    let mut written: Vec<(String, Option<OAuthToken>)> = Vec::new();
+    for account in &before.accounts {
+        let Some(session) = &account.session else {
+            continue;
+        };
+        for slot in &session.slots {
+            let reference = (
+                account.provider.slug(),
+                session.credential_ref.as_str(),
+                slot.as_str(),
+            );
+            if kept.contains(&reference) {
+                continue;
+            }
+            // An invalid reference names no vault entry.
+            let Some(key) = storage_key(account.provider, session, slot) else {
+                continue;
+            };
+            let failure = match oauth.load_by_key(&key).await {
+                Ok(None) => continue,
+                Ok(Some(deleted)) => match oauth.delete_by_key(key.clone()).await {
+                    Ok(()) => {
+                        written.push((key, Some(deleted)));
+                        continue;
+                    }
+                    Err(error) => error.l10n_for_purge(),
+                },
+                Err(error) => error.l10n(),
+            };
+            let _ = undo_writes(oauth, written).await;
+            if let Some(staged) = staged {
+                let _ = rollback(oauth, staged).await;
+            }
+            return Err(failure);
+        }
+    }
+    Ok(match staged {
+        Some(mut staged) => {
+            staged.written.extend(written);
+            Some(staged)
+        }
+        None if written.is_empty() => None,
+        None => Some(StagedSession {
+            config: after.clone(),
+            written,
+        }),
     })
 }
 

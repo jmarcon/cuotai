@@ -292,7 +292,7 @@ impl Manager {
     /// consent file under `root`.
     pub fn at(root: impl Into<PathBuf>) -> Self {
         let root = normalized_root(root.into());
-        let consent = Consent::at(root.join(consent::CONSENT_FILE));
+        let consent = Consent::for_root(&root);
         Self::build(root, consent)
     }
 
@@ -320,7 +320,7 @@ impl Manager {
         if let Some(found) = cache.get(&root).and_then(std::sync::Weak::upgrade) {
             return found;
         }
-        let consent = Consent::at(root.join(consent::CONSENT_FILE));
+        let consent = Consent::for_root(&root);
         let manager = Arc::new(Self::build(root.clone(), consent));
         cache.insert(root, Arc::downgrade(&manager));
         manager

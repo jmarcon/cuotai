@@ -25,6 +25,8 @@ mod model;
 pub mod models;
 pub mod oauth;
 pub mod pace;
+mod private_fs;
+mod process_tree;
 mod providers;
 pub mod refresh;
 pub mod resets;

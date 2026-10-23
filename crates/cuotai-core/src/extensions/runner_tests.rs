@@ -516,10 +516,11 @@ mod execution {
         );
     }
 
-    /// A program whose execute bit was removed after the approval (the
-    /// content digest does not change) fails to start; nothing else runs.
+    /// A program whose execute bit was removed after the approval is a
+    /// change of the folder (FIX-04: the digest records the execute bits),
+    /// so nothing runs.
     #[tokio::test]
-    async fn an_unexecutable_program_is_not_started() {
+    async fn an_unexecutable_program_is_a_change_and_does_not_run() {
         use std::os::unix::fs::PermissionsExt;
         let rig = Rig::new();
         let approved = rig.approve("blocked", "#!/bin/sh\nexit 0\n", "");
@@ -529,8 +530,8 @@ mod execution {
         )
         .unwrap();
         let reading = runner(&rig).run(&approved).await;
-        assert_eq!(reading.run.outcome, Outcome::NotStarted);
-        assert_eq!(note_ids(&reading), [NOT_STARTED_NOTE]);
+        assert_eq!(reading.run.outcome, Outcome::Changed);
+        assert_eq!(note_ids(&reading), [CHANGED_NOTE]);
     }
 }
 

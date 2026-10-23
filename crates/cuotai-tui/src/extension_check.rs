@@ -153,14 +153,16 @@ mod tests {
         assert!(!confirmation_matches("si\n", "sì"));
     }
 
-    /// A sandbox with one extension and its consent file.
+    /// A sandbox with one extension (under `dir`, the extensions' root)
+    /// and its consent file (beside it, in `base/consent`).
     struct Rig {
+        base: std::path::PathBuf,
         dir: std::path::PathBuf,
     }
 
     impl Rig {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!(
+            let base = std::env::temp_dir().join(format!(
                 "cuotai-tui-extension-check-{}-{}",
                 std::process::id(),
                 std::time::SystemTime::now()
@@ -168,6 +170,7 @@ mod tests {
                     .unwrap()
                     .as_nanos()
             ));
+            let dir = base.join("extensions");
             let extension = dir.join("proxy");
             fs::create_dir_all(&extension).unwrap();
             // A real executable compiled here, so the fixture runs on every
@@ -210,13 +213,13 @@ mod tests {
                 ),
             )
             .unwrap();
-            Self { dir }
+            Self { base, dir }
         }
     }
 
     impl Drop for Rig {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.dir);
+            let _ = fs::remove_dir_all(&self.base);
         }
     }
 
