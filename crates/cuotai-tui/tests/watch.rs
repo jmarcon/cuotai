@@ -162,7 +162,16 @@ fn watch_with_serve_shares_the_cycle_and_exits_0_on_sighup() {
     let config = sandbox.config();
     let child = sandbox
         .command(&[
-            "--config", &config, "--watch", "--jsonl", "--serve", "--port", "0",
+            // INT-04: a token is required by default; this test is about the
+            // shared cycle, so it opts out explicitly.
+            "--config",
+            &config,
+            "--watch",
+            "--jsonl",
+            "--serve",
+            "--port",
+            "0",
+            "--no-token",
         ])
         .spawn()
         .unwrap();

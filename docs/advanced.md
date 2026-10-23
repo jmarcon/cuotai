@@ -48,7 +48,7 @@ In the JSON output, each metric carries a `kind` (`quota`, `rate_limit`, `balanc
 
 ## Local server
 
-`cuotai --serve [--port N] [--token-file FILE]` (or, with the core's `serve` feature, `serve::LocalServer`) publishes the export read-only on `127.0.0.1:6738` (`/health`, `/v1/snapshot`, `/v1/accounts/{key}`, `/v1/limits`) from the state the refresh cycle already holds, never querying a provider per request, with DNS-rebinding and browser protection and an optional bearer token; it is off until you start it, and stops cleanly on `SIGINT`/`SIGTERM`. The desktop app runs the same server from **Settings → Integration**. See [`local-server.md`](local-server.md).
+`cuotai --serve [--port N] [--token-file FILE | --no-token]` (or, with the core's `serve` feature, `serve::LocalServer`) publishes the export read-only on `127.0.0.1:6738` (`/health`, `/v1/snapshot`, `/v1/accounts/{key}`, `/v1/limits`) from the state the refresh cycle already holds, never querying a provider per request, with DNS-rebinding and browser protection and a bearer token required by default (created on the first start in `<OS local data dir>/cuotai/serve/token`, readable only by you; `--no-token` opts out and lets any local user read); it is off until you start it, and stops cleanly on `SIGINT`/`SIGTERM`. The desktop app runs the same server from **Settings → Integration**. See [`local-server.md`](local-server.md).
 
 ## Events and hooks
 

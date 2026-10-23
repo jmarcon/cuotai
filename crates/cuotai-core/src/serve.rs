@@ -17,7 +17,10 @@
 //! `Access-Control-Allow-Origin` is sent unless [`ServeConfig::allow_browsers`]
 //! is on; an optional [`Token`] is required as `Authorization: Bearer`. The
 //! access log ([`AccessEntry`]) never records headers or query parameters.
-//! Any local process of the same user can still read the data.
+//! Without a token, **any local user or program** that can reach loopback
+//! can read the data; headless front ends therefore require one by default
+//! ([`TokenSource`], [`resolve_token`]). With a token, whoever can read it
+//! (your own user's programs) can still read the data.
 
 mod http;
 mod token;
@@ -27,7 +30,10 @@ mod tests;
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub use token::SystemTokenVault;
-pub use token::{ensure_token, Token, TokenVault};
+pub use token::{
+    default_token_file, ensure_token, ensure_token_file, read_token_file, token_file_exposed,
+    Token, TokenVault,
+};
 
 use std::fmt;
 use std::io::ErrorKind;
@@ -252,6 +258,13 @@ pub enum ServeError {
         "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token."
     )]
     TokenMissing,
+    /// INT-04: the token file could not be read, created or trusted (not a
+    /// regular file, another user's, or not a token). Never names the path
+    /// nor echoes the content.
+    #[error(
+        "Não foi possível ler ou criar o arquivo de token do servidor local (ele deve ser um arquivo comum seu, com um único token)."
+    )]
+    TokenFile,
 }
 
 impl ServeError {
@@ -283,8 +296,88 @@ impl ServeError {
             Self::Vault => Localized::fixed("serve.error.vault", fallback),
             Self::Random => Localized::fixed("serve.error.random", fallback),
             Self::TokenMissing => Localized::fixed("serve.error.token_missing", fallback),
+            Self::TokenFile => Localized::fixed("serve.error.token_file", fallback),
         }
     }
+}
+
+/// INT-04 (2026-10-21 review): where a headless front end such as
+/// `cuotai --serve` takes the bearer token from. The token is required by
+/// default; serving without one is an explicit opt-out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TokenSource {
+    /// [`default_token_file`], created with a fresh token on first use and
+    /// reused afterwards ([`ensure_token_file`]).
+    Default,
+    /// A file the user controls (`--token-file`), read as it is.
+    File(std::path::PathBuf),
+    /// No token (`--no-token`): only loopback peers that are not web pages,
+    /// and **any local user or program** among them, can read.
+    None,
+}
+
+/// The token a [`TokenSource`] yields, with the notices the front end must
+/// show (on stderr for the CLI): where a default token lives, that a token
+/// file is readable by other users, or that serving without a token lets
+/// every local user read. Notices never contain the token.
+#[derive(Debug)]
+pub struct ResolvedToken {
+    pub token: Option<Token>,
+    pub notices: Vec<Localized>,
+}
+
+/// Resolve `source` (see [`TokenSource`]). `default_file` is
+/// [`default_token_file`] in production; `None` (no local data directory)
+/// makes [`TokenSource::Default`] a [`ServeError::TokenFile`].
+pub fn resolve_token(
+    source: &TokenSource,
+    default_file: Option<&std::path::Path>,
+) -> Result<ResolvedToken, ServeError> {
+    match source {
+        TokenSource::Default => {
+            let path = default_file.ok_or(ServeError::TokenFile)?;
+            let token = ensure_token_file(path)?;
+            let path = path.display().to_string();
+            Ok(ResolvedToken {
+                token: Some(token),
+                notices: vec![Localized::with_param(
+                    "serve.token.default_file",
+                    "path",
+                    path.as_str(),
+                    format!(
+                        "Token de acesso em {path} (somente o seu usuário o lê): envie-o como Authorization: Bearer; --no-token desliga."
+                    ),
+                )],
+            })
+        }
+        TokenSource::File(path) => {
+            let token = read_token_file(path)?;
+            let mut notices = Vec::new();
+            if token_file_exposed(path) {
+                notices.push(Localized::fixed(
+                    "serve.token.file_exposed",
+                    "Atenção: o arquivo de token pode ser lido por outros usuários deste computador; restrinja-o com chmod 600.",
+                ));
+            }
+            Ok(ResolvedToken {
+                token: Some(token),
+                notices,
+            })
+        }
+        TokenSource::None => Ok(ResolvedToken {
+            token: None,
+            notices: vec![no_token_warning()],
+        }),
+    }
+}
+
+/// What serving without a token means: shown by `cuotai --serve
+/// --no-token` and before a front end serves tokenless.
+pub fn no_token_warning() -> Localized {
+    Localized::fixed(
+        "serve.token.none_warning",
+        "Atenção: sem token, qualquer usuário ou programa deste computador pode ler o seu uso no servidor local (somente páginas web e outros computadores continuam recusados).",
+    )
 }
 
 fn port_in_use_text(first: u16, last: u16) -> String {

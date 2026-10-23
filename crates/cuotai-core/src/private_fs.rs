@@ -67,6 +67,22 @@ pub(crate) fn writable_by_others(meta: &Metadata) -> bool {
     }
 }
 
+/// On Unix, whether the group or other users may read, write or traverse
+/// what `meta` describes. Always `false` elsewhere.
+#[cfg_attr(not(feature = "serve"), allow(dead_code))]
+pub(crate) fn open_to_others(meta: &Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        meta.permissions().mode() & 0o077 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = meta;
+        false
+    }
+}
+
 /// On Unix, whether what `meta` describes belongs to neither the current
 /// user nor root (another user could change it at will). Always `false`
 /// elsewhere.
@@ -143,6 +159,7 @@ mod tests {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(bits)).unwrap();
             let meta = std::fs::metadata(&path).unwrap();
             assert_eq!(writable_by_others(&meta), writable, "{bits:o}");
+            assert_eq!(open_to_others(&meta), bits != 0o600, "{bits:o}");
             assert!(!foreign_owner(&meta));
         }
     }

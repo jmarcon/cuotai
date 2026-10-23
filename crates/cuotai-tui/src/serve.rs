@@ -10,7 +10,7 @@
 
 use std::{
     error::Error,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex, PoisonError},
 };
 
@@ -19,7 +19,10 @@ use cuotai_core::{
     config_file::ConfigIdentity,
     export::v1::{Export, Options},
     refresh::RefreshCycle,
-    serve::{AccessEntry, LocalServer, ServeConfig, Token, DEFAULT_PORT},
+    serve::{
+        default_token_file, resolve_token, AccessEntry, LocalServer, ServeConfig, Token,
+        TokenSource, DEFAULT_PORT,
+    },
     Config, Monitor,
 };
 
@@ -32,11 +35,28 @@ pub(crate) struct ServeArgs {
     pub port: Option<u16>,
     /// `--token-file`: the bearer token every request must carry.
     pub token_file: Option<PathBuf>,
+    /// `--no-token`: serve without a token (INT-04 opt-out).
+    pub no_token: bool,
 }
 
-/// The token of `--token-file`, if given.
+/// INT-04: the bearer token every request must carry — `--token-file`'s,
+/// or by default the one the core keeps in the data directory (created on
+/// first use) — or none with `--no-token`. The core's notices (where the
+/// default token lives, a token file others can read, what serving
+/// without a token means) go to stderr; the token never does.
 pub(crate) fn token(args: &ServeArgs) -> Result<Option<Token>, String> {
-    args.token_file.as_deref().map(read_token).transpose()
+    let source = match (&args.token_file, args.no_token) {
+        (Some(path), _) => TokenSource::File(path.clone()),
+        (None, true) => TokenSource::None,
+        (None, false) => TokenSource::Default,
+    };
+    let locale = crate::ui::tui_locale();
+    let resolved = resolve_token(&source, default_token_file().as_deref())
+        .map_err(|error| error.l10n().resolve(locale))?;
+    for notice in &resolved.notices {
+        eprintln!("cuotai: {}", notice.resolve(locale));
+    }
+    Ok(resolved.token)
 }
 
 /// Open the port and serve the export of `cycle` (the one `monitor`'s
@@ -79,17 +99,6 @@ pub(crate) async fn start(
     }
     eprintln!("cuotai: servidor local somente leitura; Ctrl+C encerra.");
     Ok(server)
-}
-
-/// The bearer token in `path`, trimmed (a trailing newline is fine).
-fn read_token(path: &Path) -> Result<Token, String> {
-    let text = std::fs::read_to_string(path).map_err(|_| {
-        format!(
-            "não foi possível ler o arquivo de token {}.",
-            path.display()
-        )
-    })?;
-    Token::parse(&text).map_err(|error| error.l10n().resolve(crate::ui::tui_locale()))
 }
 
 /// Loopback with the core's defaults; an explicit `--port` is binding (a

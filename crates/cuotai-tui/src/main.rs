@@ -187,10 +187,20 @@ struct Args {
     #[arg(long, value_name = "PORTA", requires = "serve")]
     port: Option<u16>,
     /// Arquivo com o token que o --serve exige em Authorization: Bearer (16
-    /// a 512 caracteres, sem espaços). Sem ele, só atende o próprio
-    /// computador e recusa páginas web.
-    #[arg(long, value_name = "ARQUIVO", requires = "serve")]
+    /// a 512 caracteres, sem espaços). Sem ele, o --serve cria (na primeira
+    /// vez) e exige o token guardado no diretório de dados, só legível pelo
+    /// seu usuário, e diz onde ele está.
+    #[arg(
+        long,
+        value_name = "ARQUIVO",
+        requires = "serve",
+        conflicts_with = "no_token"
+    )]
     token_file: Option<PathBuf>,
+    /// Serve sem token: qualquer usuário ou programa deste computador pode
+    /// ler o seu uso (páginas web e outros computadores seguem recusados).
+    #[arg(long, requires = "serve")]
+    no_token: bool,
     /// Acompanha as contas sem abrir a TUI e sem exigir terminal: mantém o
     /// ciclo de atualização e emite um evento por transição real (cota
     /// cruzou um limiar, esgotou, renovou, conta bloqueou, consulta falhou
@@ -510,6 +520,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             let serve = args.serve.then_some(serve::ServeArgs {
                 port: args.port,
                 token_file: args.token_file,
+                no_token: args.no_token,
             });
             let watch = args.watch.then_some(watch::WatchArgs {
                 events,

@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.78.0] - 2026-10-23
+
+### Security
+
+- **Breaking:** `cuotai --serve` now requires a bearer token by default, because without one any user or program on the computer could read your usage over loopback: the first start creates a random token in `<OS local data dir>/cuotai/serve/token` (readable only by you), prints where it is (never the token) and reuses it afterwards; `--token-file FILE` keeps using your own file and now warns when other users can read it, and the new `--no-token` serves without a token with a warning. Migration: send `Authorization: Bearer $(cat <token file>)` from your scripts and status bars, point `--token-file` at the token they already use, or add `--no-token` to keep the old behavior (PRD 0012 INT-04).
+
 ## [0.77.1] - 2026-10-23
 
 ### Security
@@ -688,7 +694,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.77.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.78.0...HEAD
+[0.78.0]: https://github.com/jmarcon/cuotai/compare/v0.77.1...v0.78.0
 [0.77.1]: https://github.com/jmarcon/cuotai/compare/v0.77.0...v0.77.1
 [0.77.0]: https://github.com/jmarcon/cuotai/compare/v0.76.1...v0.77.0
 [0.76.1]: https://github.com/jmarcon/cuotai/compare/v0.76.0...v0.76.1

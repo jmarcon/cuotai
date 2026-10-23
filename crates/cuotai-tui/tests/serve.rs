@@ -79,6 +79,7 @@ esac
             .env("XDG_DATA_HOME", home.join("data"))
             .env("XDG_CONFIG_HOME", home.join("config"))
             .env("PATH", path)
+            .env("CUOTAI_LANG", "en-US")
             .env_remove("CUOTAI_CONFIG")
             .env_remove("CUOTAI_STATUS")
             .stdin(Stdio::null())
@@ -245,15 +246,81 @@ fn serves_reads_without_queries_and_exits_0_on_sigterm() {
         !sandbox.stderr().contains(TOKEN),
         "the log never has the token"
     );
+    // INT-04: the token file was written with the default permissions
+    // (0644 here), so the run warned that others can read it.
+    assert!(
+        sandbox
+            .stderr()
+            .contains("other users of this computer can read the token file"),
+        "{}",
+        sandbox.stderr()
+    );
+}
+
+/// INT-04: without `--token-file`, `--serve` creates a random token in a
+/// private file of the data directory, says where, requires it (a local
+/// client without it gets `401`, `/health` included) and reuses it on the
+/// next start.
+#[test]
+fn requires_a_generated_token_by_default() {
+    let sandbox = Sandbox::new("default-token");
+    let config = sandbox.config("dev");
+    let args = ["--config", arg(&config), "--serve", "--port", "0"];
+    let server = Server::start(&sandbox, &args);
+    let stderr = sandbox.stderr();
+    let path = stderr
+        .split("Access token in ")
+        .nth(1)
+        .and_then(|rest| rest.split(" (only your user").next())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| panic!("no token notice: {stderr}"));
+    assert!(path.starts_with(sandbox.0.join("home")), "{path:?}");
+    let token = fs::read_to_string(&path).unwrap();
+    let token = token.trim();
+    assert!(token.starts_with("cuotai_"), "a generated token");
+    assert!(!stderr.contains(token), "the token is never printed");
+    let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(&path), 0o600);
+    assert_eq!(mode(path.parent().unwrap()), 0o700);
+
+    assert_eq!(server.get("/health", "").0, 401);
+    assert_eq!(server.get("/v1/snapshot", "").0, 401);
+    let bearer = format!("Authorization: Bearer {token}\r\n");
+    assert_eq!(server.get("/health", &bearer).0, 200);
+    let snapshot = server.first_snapshot(&bearer);
+    assert_eq!(snapshot["accounts"][0]["report"]["status"], "ready");
+    let (status, _) = server.stop("-TERM");
+    assert_eq!(status.code(), Some(0), "{}", sandbox.stderr());
+
+    // The next start reuses the same token.
+    let server = Server::start(&sandbox, &args);
+    assert_eq!(fs::read_to_string(&path).unwrap().trim(), token);
+    assert_eq!(server.get("/health", &bearer).0, 200);
+    assert_eq!(server.get("/health", "").0, 401);
 }
 
 #[test]
 fn exits_2_on_sigint_when_no_account_was_healthy() {
     let sandbox = Sandbox::new("failing");
     let config = sandbox.config("broken");
+    // INT-04: `--no-token` is the explicit opt-out, with a warning.
     let server = Server::start(
         &sandbox,
-        &["--config", arg(&config), "--serve", "--port", "0"],
+        &[
+            "--config",
+            arg(&config),
+            "--serve",
+            "--port",
+            "0",
+            "--no-token",
+        ],
+    );
+    assert!(
+        sandbox
+            .stderr()
+            .contains("without a token, any user or program on this computer"),
+        "{}",
+        sandbox.stderr()
     );
     // The failed reading is served (it is the last known state).
     let snapshot = server.first_snapshot("");
@@ -297,6 +364,15 @@ fn local_errors_exit_1() {
         vec!["--config", arg(&missing_config), "--serve"],
         vec!["--config", arg(&config), "--serve", "--port", "65536"],
         vec!["--config", arg(&config), "--port", "6738"],
+        vec!["--config", arg(&config), "--no-token"],
+        vec![
+            "--config",
+            arg(&config),
+            "--serve",
+            "--no-token",
+            "--token-file",
+            arg(&short),
+        ],
     ] {
         assert_eq!(run(&sandbox, &args).code(), Some(1), "{args:?}");
     }

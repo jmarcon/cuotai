@@ -1059,6 +1059,8 @@ fn errors_and_warning_are_translated() {
         }
         .l10n(),
         ServeError::TokenMissing.l10n(),
+        ServeError::TokenFile.l10n(),
+        no_token_warning(),
     ];
     for locale in ["en-US", "es", "it"] {
         let catalog = core_catalog(locale).unwrap();
@@ -1151,4 +1153,100 @@ async fn probe_names_only_a_cuotai_server_on_the_port() {
     );
     open.shutdown().await;
     guarded.shutdown().await;
+}
+
+/// INT-04: the default token is created once, privately, and reused; the
+/// token sources resolve to the token and the notices the CLI prints.
+#[test]
+fn the_default_token_file_is_created_privately_and_reused() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cuotai").join("serve").join("token");
+    let first = ensure_token_file(&path).unwrap();
+    assert!(first.expose().starts_with("cuotai_"));
+    assert_eq!(ensure_token_file(&path).unwrap(), first, "reused");
+    assert_eq!(read_token_file(&path).unwrap(), first);
+    assert!(!token_file_exposed(&path));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode =
+            |path: &std::path::Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(mode(path.parent().unwrap()), 0o700);
+        // A widened file is narrowed again on the next start.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(token_file_exposed(&path));
+        assert_eq!(ensure_token_file(&path).unwrap(), first);
+        assert_eq!(mode(&path), 0o600);
+    }
+
+    let resolved = resolve_token(&TokenSource::Default, Some(&path)).unwrap();
+    assert_eq!(resolved.token, Some(first.clone()));
+    assert_eq!(resolved.notices[0].id, "serve.token.default_file");
+    let notice = resolved.notices[0].resolve("en-US");
+    assert!(notice.contains(&path.display().to_string()), "{notice}");
+    assert!(!notice.contains(first.expose()), "never the token");
+    assert_eq!(
+        resolve_token(&TokenSource::Default, None).unwrap_err(),
+        ServeError::TokenFile
+    );
+
+    let none = resolve_token(&TokenSource::None, Some(&path)).unwrap();
+    assert_eq!(none.token, None);
+    assert_eq!(none.notices, [no_token_warning()]);
+}
+
+/// INT-04: a user token file is read as it is, warns when others can read
+/// it, and errors never name the path nor echo the content.
+#[test]
+fn a_user_token_file_is_read_and_checked() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("token");
+    std::fs::write(&path, "cuotai_user-token-0123456789abcdef\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let resolved = resolve_token(&TokenSource::File(path.clone()), None).unwrap();
+        assert_eq!(
+            resolved.token.unwrap().expose(),
+            "cuotai_user-token-0123456789abcdef"
+        );
+        assert_eq!(resolved.notices[0].id, "serve.token.file_exposed");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let resolved = resolve_token(&TokenSource::File(path.clone()), None).unwrap();
+    assert!(resolved.notices.is_empty());
+
+    std::fs::write(&path, "short-secret-marker\n bad").unwrap();
+    let error = resolve_token(&TokenSource::File(path.clone()), None).unwrap_err();
+    assert_eq!(error, ServeError::InvalidToken);
+    let missing = dir.path().join("missing");
+    let error = resolve_token(&TokenSource::File(missing.clone()), None).unwrap_err();
+    assert_eq!(error, ServeError::TokenFile);
+    let text = format!("{error} {}", error.l10n().resolve("en-US"));
+    assert!(!text.contains(&missing.display().to_string()), "{text}");
+    // A folder is no token file, and never one to create a token in.
+    assert_eq!(
+        read_token_file(dir.path()).unwrap_err(),
+        ServeError::TokenFile
+    );
+    assert_eq!(
+        ensure_token_file(dir.path()).unwrap_err(),
+        ServeError::TokenFile
+    );
+}
+
+/// INT-04: a default token file that is a symbolic link is never trusted.
+#[cfg(unix)]
+#[test]
+fn a_linked_default_token_file_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("elsewhere");
+    std::fs::write(&target, "cuotai_linked-token-0123456789abcdef\n").unwrap();
+    let serve = dir.path().join("serve");
+    std::fs::create_dir(&serve).unwrap();
+    let path = serve.join("token");
+    std::os::unix::fs::symlink(&target, &path).unwrap();
+    assert_eq!(ensure_token_file(&path).unwrap_err(), ServeError::TokenFile);
 }

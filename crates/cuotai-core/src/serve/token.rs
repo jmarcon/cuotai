@@ -89,6 +89,91 @@ pub fn ensure_token(vault: &dyn TokenVault) -> Result<Token, ServeError> {
     Ok(token)
 }
 
+/// INT-04: `<OS local data dir>/cuotai/serve/token`, the token
+/// `cuotai --serve` creates and requires by default; `None` without a local
+/// data directory.
+pub fn default_token_file() -> Option<std::path::PathBuf> {
+    dirs::data_local_dir().map(|dir| dir.join("cuotai").join("serve").join("token"))
+}
+
+/// The token in the file at `path` (trimmed; a trailing newline is fine).
+/// Only a regular file is read, so a FIFO never blocks; anything that is
+/// not one token is [`ServeError::TokenFile`], never echoed.
+pub fn read_token_file(path: &std::path::Path) -> Result<Token, ServeError> {
+    use std::io::Read;
+    let meta = std::fs::metadata(path).map_err(|_| ServeError::TokenFile)?;
+    if !meta.is_file() {
+        return Err(ServeError::TokenFile);
+    }
+    let mut text = String::new();
+    std::fs::File::open(path)
+        .map_err(|_| ServeError::TokenFile)?
+        .take(MAX_LEN as u64 + 2)
+        .read_to_string(&mut text)
+        .map_err(|_| ServeError::TokenFile)?;
+    Token::parse(&text)
+}
+
+/// On Unix, whether users other than the owner may read (or write) the
+/// file at `path`; always `false` elsewhere and for a file that cannot be
+/// inspected (reading it fails on its own).
+pub fn token_file_exposed(path: &std::path::Path) -> bool {
+    std::fs::metadata(path).is_ok_and(|meta| crate::private_fs::open_to_others(&meta))
+}
+
+/// INT-04: the token in `path`, created on first use. A missing file gets a
+/// fresh [`Token::generate`] written exclusively (`create_new`, so two
+/// servers starting together agree on one token) as a `0600` file in a
+/// `0700` folder on Unix. An existing file must be a regular file of the
+/// current user (not a symbolic link); it is narrowed to `0600` when it was
+/// wider, then read. Errors never name the path nor echo the content.
+pub fn ensure_token_file(path: &std::path::Path) -> Result<Token, ServeError> {
+    use std::io::Write;
+    let dir = path
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .ok_or(ServeError::TokenFile)?;
+    crate::private_fs::ensure_dir(dir).map_err(|_| ServeError::TokenFile)?;
+    loop {
+        match std::fs::symlink_metadata(path) {
+            Ok(meta) => {
+                if !meta.is_file() || crate::private_fs::foreign_owner(&meta) {
+                    return Err(ServeError::TokenFile);
+                }
+                #[cfg(unix)]
+                if crate::private_fs::open_to_others(&meta) {
+                    use std::os::unix::fs::PermissionsExt;
+                    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                        .map_err(|_| ServeError::TokenFile)?;
+                }
+                return read_token_file(path);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err(ServeError::TokenFile),
+        }
+        let token = Token::generate()?;
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        match options.open(path) {
+            Ok(mut file) => {
+                let written = file
+                    .write_all(format!("{}\n", token.expose()).as_bytes())
+                    .and_then(|()| file.sync_all());
+                if written.is_err() {
+                    let _ = std::fs::remove_file(path);
+                    return Err(ServeError::TokenFile);
+                }
+                return Ok(token);
+            }
+            // Another server created it meanwhile: read that one.
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return Err(ServeError::TokenFile),
+        }
+    }
+}
+
 /// The token in the platform's secure store (macOS Keychain, Windows
 /// Credential Manager, Linux Secret Service), apart from OAuth tokens.
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
