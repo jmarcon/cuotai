@@ -240,7 +240,7 @@ fn check_rejects_incomplete_or_inconsistent_releases() {
                     .join("\n")
                     + "\n"
             },
-            "does not cite it",
+            "cites it in 0 entries",
         ),
         (
             "foreign hash",
@@ -431,6 +431,45 @@ fn branch_refuses_staged_work_and_untracked_release_files() {
     let files = git(&repo, &["show", "--name-only", "--format=", "HEAD"]);
     assert!(!files.contains("notes.txt"), "{files}");
     assert!(git(&repo, &["status", "--porcelain"]).contains("?? notes.txt"));
+}
+
+#[test]
+fn every_sentence_of_a_commit_keeps_its_entry() {
+    let (_d, repo) = repo();
+    let two = commit(
+        &repo,
+        "feat(core): two things\n\nChangelog: You can sort accounts.\nChangelog: You can filter accounts.",
+        "crates/cuotai-core/src/lib.rs",
+        "// two\n",
+    );
+    prepare_branch(&repo);
+    release::check_release(&repo, "HEAD").unwrap();
+    // The owner deletes one of the two generated entries in the release PR.
+    let edited: String = read(&repo, "CHANGELOG.md")
+        .lines()
+        .filter(|line| !line.starts_with("- You can filter accounts"))
+        .map(|line| format!("{line}\n"))
+        .collect();
+    amend(&repo, "CHANGELOG.md", &edited);
+    let error = release::check_release(&repo, "HEAD")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("has 2 Changelog: sentence(s)"), "{error}");
+    assert!(error.contains("cites it in 1 entry"), "{error}");
+    // A refresh restores exactly the missing entry.
+    merge_release(&repo, "0.80.0");
+    let mut opts = options(false, false);
+    opts.refresh = true;
+    prepare::run(&repo, &opts).unwrap().unwrap();
+    let changelog = read(&repo, "CHANGELOG.md");
+    let s = short(&repo, &two);
+    assert_eq!(
+        changelog.matches(&format!("({s})")).count(),
+        2,
+        "{changelog}"
+    );
+    assert_eq!(changelog.matches("You can sort accounts").count(), 1);
+    assert_eq!(changelog.matches("You can filter accounts").count(), 1);
 }
 
 #[test]
