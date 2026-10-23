@@ -5,9 +5,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-// A release date keeps the UTC calendar day carried by the backend ISO instant,
-// even when the desktop runs far enough east for local time to be the next day.
-process.env.TZ = "Pacific/Kiritimati";
+// A UTC-midnight release must keep its published day even west of UTC.
+process.env.TZ = "America/Los_Angeles";
 
 const root = new URL("../", import.meta.url);
 const storage = new Map();
@@ -54,6 +53,7 @@ globalThis.fetch = async (relative) => {
 
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const updater = await import("../apps/desktop/ui/js/updater.js");
+const lib = await import("../apps/desktop/ui/js/lib.js");
 const settings = await import("../apps/desktop/ui/js/settings.js");
 await i18n.initI18n();
 await updater.initUpdates();
@@ -98,7 +98,7 @@ const base = {
   phase: "available",
   version: "1.2.4",
   notes: "Fixes",
-  date: "2026-10-22T12:00:00Z",
+  date: "2026-10-22T00:00:00Z",
   can_install: true,
   upgrade_command: null,
   progress: null,
@@ -125,6 +125,8 @@ for (const { code } of i18n.LOCALES) {
   assert.deepEqual(updateKeys, expectedUpdateKeys, `${code}: updater catalog keys drifted`);
 
   await i18n.setLocale(code);
+  assert.equal(lib.fmtDate(null), null, `${code}: absent release date must stay absent`);
+  assert.equal(lib.fmtDate("not-a-date"), null, `${code}: invalid release date must stay absent`);
   const section = updater.updatesSectionHtml(base);
   const page = await settingsPageHtml();
   const headings = Array.from(page.matchAll(/<h3>([^<]*)<\/h3>/g), (match) => match[1])
@@ -142,6 +144,17 @@ for (const { code } of i18n.LOCALES) {
   const renderedDate = banner.match(/<span class="hint">([^<]+)<\/span>/)?.[1] ?? "";
   assert.equal(renderedDate, expectedReleaseDates[code], `${code}: release date is not localized`);
   assert.doesNotMatch(banner, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/, `${code}: raw ISO release timestamp rendered`);
+  const updateState = updater.updateState();
+  const releaseDate = updateState.date;
+  for (const date of [null, "not-a-date"]) {
+    updateState.date = date;
+    assert.doesNotMatch(
+      updater.updateBannerHtml(),
+      /<span class="hint">/,
+      `${code}: ${date == null ? "absent" : "invalid"} release date rendered a label`,
+    );
+  }
+  updateState.date = releaseDate;
   renderedDates.push(`${code}: ${renderedDate}`);
   const preferenceOff = updater.updatesSectionHtml({
     ...base,

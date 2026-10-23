@@ -2,7 +2,7 @@
 import { te, t, tl, tle, currentLocale, LOCALES } from "./i18n.js";
 import { THEMES } from "./themes.js";
 import { userContent, skippedMessage } from "./usercontent.js";
-import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, currentSort, deleteWidgetData, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, setWidgets, testHook, themeSwitchHtml, updaterStatus, widgetsStatus } from "./lib.js";
+import { bindThemeSwitch, brand, configLabel, confirmHooks, copyServeToken, costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, currentSort, deleteWidgetData, fmtDate, fmtNumber, fmtReset, generateServeToken, getSettings, groupingRecharging, historyErase, historyExport, historySize, hooksStatus, icon, langMenuHtml, MOTIONS, onHookRun, openUserDir, otherConfigNotice, pickExportFile, pickFolder, pickTomlFile, revokeServeToken, saveHooks, sendTestNotification, serveStatus, setAlertOptions, setAlertsEnabled, setConfigFile, setGroupRecharging, setHistoryDays, setHistoryRecording, setHooksEnabled, setMotion, setNotifyEnabled, setNotifyOptions, setRefreshSeconds, setServe, setShowPace, setSort, setStatusEnabled, setUserDir, setWidgets, testHook, themeSwitchHtml, updaterStatus, widgetsStatus } from "./lib.js";
 import { esc } from "./util.js";
 import { openLibraries } from "./about-dialog.js";
 import { showDialog } from "./motion.js";
@@ -284,8 +284,8 @@ function costHtml(cv, prices) {
 function pricesHtml(p) {
   const user = p.models.filter((m) => m.origin === "user").length;
   const tables = p.tables.map((tb) => `<p class="hint">${tb.origin === "embedded"
-    ? te("settings.cost.pricesEmbedded", { date: tb.effective, source: tb.source ?? "—" })
-    : te("settings.cost.pricesUser", { date: tb.effective, source: tb.source ?? "—", count: user })}</p>`).join("");
+    ? te("settings.cost.pricesEmbedded", { date: fmtDate(tb.effective) ?? "", source: tb.source ?? "—" })
+    : te("settings.cost.pricesUser", { date: fmtDate(tb.effective) ?? "", source: tb.source ?? "—", count: user })}</p>`).join("");
   const file = p.pricing_file;
   const state = file.error ? `<p class="hint warn-txt" role="alert">${tle(file.error)}</p>`
     : file.used ? "" : `<p class="hint">${te("settings.cost.pricesMissing")}</p>`;

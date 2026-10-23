@@ -5,7 +5,7 @@
 // model without a price reads "cost unknown", never zero. A source that is off shows nothing on the cards and, in
 // the details, why and where to turn it on.
 import { currentLocale, t, te, tl } from "./i18n.js";
-import { esc, icon, logo } from "./lib.js";
+import { esc, fmtDate, icon, logo } from "./lib.js";
 import { showDialog } from "./motion.js";
 
 const sum = (tokens) => tokens.input + tokens.output + tokens.cache_read + tokens.cache_write;
@@ -62,19 +62,22 @@ document.addEventListener("toggle", (e) => { if (e.target.matches?.(".lc-table")
  *  reads it as one image with its label (the days and the peak) and then the equivalent table. */
 function chartHtml(sc, summary) {
   const days = sc.usage.days;
+  const date = (day) => fmtDate(day) ?? "";
   const priced = days.some((d) => d.cost > 0);
   const value = (d) => (priced ? d.cost ?? 0 : sum(d.tokens));
   const top = Math.max(...days.map(value), 0);
   const peak = days.reduce((best, d) => (value(d) > value(best) ? d : best), days[0]);
   const shown = (d) => (priced ? fmtUsd(value(d)) : t("cost.tokens", { amount: fmtTokens(value(d)) }));
   const label = t(priced ? "cost.detail.chartCost" : "cost.detail.chartTokens", {
-    first: days[0].day, last: days.at(-1).day, peak: priced ? fmtUsd(value(peak)) : t("cost.tokens", { amount: fmtTokens(value(peak)) }), day: peak.day,
+    first: date(days[0].day), last: date(days.at(-1).day),
+    peak: priced ? fmtUsd(value(peak)) : t("cost.tokens", { amount: fmtTokens(value(peak)) }),
+    day: date(peak.day),
   });
-  const bars = days.map((d) => `<span class="lc-bar${d.cost == null && sum(d.tokens) ? " unknown" : ""}" style="height:${top ? Math.max((value(d) / top) * 100, value(d) ? 2 : 0).toFixed(1) : 0}%" title="${esc(`${d.day}: ${shown(d)}`)}"></span>`).join("");
-  const rows = days.map((d) => `<tr><th scope="row">${esc(d.day)}</th><td>${esc(fmtTokens(sum(d.tokens)))}</td><td>${esc(String(d.requests))}</td><td>${esc(costText(d))}</td></tr>`).join("");
+  const bars = days.map((d) => `<span class="lc-bar${d.cost == null && sum(d.tokens) ? " unknown" : ""}" style="height:${top ? Math.max((value(d) / top) * 100, value(d) ? 2 : 0).toFixed(1) : 0}%" title="${esc(`${date(d.day)}: ${shown(d)}`)}"></span>`).join("");
+  const rows = days.map((d) => `<tr><th scope="row">${esc(date(d.day))}</th><td>${esc(fmtTokens(sum(d.tokens)))}</td><td>${esc(String(d.requests))}</td><td>${esc(costText(d))}</td></tr>`).join("");
   return `<figure class="lc-chart"><figcaption>${te("cost.detail.byDay", { period: tl(summary.span.label) })}</figcaption>
     <div class="lc-bars" role="img" aria-label="${esc(label)}">${bars}</div>
-    <div class="lc-axis sub" aria-hidden="true"><span>${esc(days[0].day)}</span><span>${esc(days.at(-1).day)}</span></div>
+    <div class="lc-axis sub" aria-hidden="true"><span>${esc(date(days[0].day))}</span><span>${esc(date(days.at(-1).day))}</span></div>
     <details class="lc-table" ${tableOpen ? "open" : ""}><summary>${te("cost.detail.table")}</summary>
       <table><caption class="sr-only">${esc(label)}</caption><thead><tr><th scope="col">${te("cost.col.day")}</th><th scope="col">${te("cost.col.tokens")}</th>
         <th scope="col">${te("cost.col.requests")}</th><th scope="col">${te("cost.col.cost")}</th></tr></thead><tbody>${rows}</tbody></table></details></figure>`;
@@ -100,7 +103,7 @@ export function costDetailHtml(sc, summary) {
       <p class="sub">${te("cost.detail.off", { source: sc.label })}</p>
       <div class="dlg-actions left"><button class="btn" data-cost-settings>${icon("gear")} ${te("cost.detail.openSettings")}</button></div></section>`;
   }
-  const tables = sc.usage.period.tables.map((p) => te("cost.detail.prices", { date: p.effective, origin: t(`cost.origin.${p.origin}`) }) + (p.source ? ` <span class="sub">${esc(p.source)}</span>` : "")).join("<br/>");
+  const tables = sc.usage.period.tables.map((p) => te("cost.detail.prices", { date: fmtDate(p.effective) ?? "", origin: t(`cost.origin.${p.origin}`) }) + (p.source ? ` <span class="sub">${esc(p.source)}</span>` : "")).join("<br/>");
   return `<section class="lc-detail" data-cost-detail="${esc(sc.source)}">${head}
     <p class="sub">${te("cost.detail.help", { source: sc.label })}</p>
     ${noteHtml(sc)}${tilesHtml(sc, summary)}
