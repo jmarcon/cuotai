@@ -623,6 +623,7 @@
   "update.off.scoop": "Questa copia è stata installata con Scoop: aggiornala con il comando qui sotto.",
   "update.off.winget": "Questa copia è stata installata con winget: aggiornala con il comando qui sotto.",
   "update.off.linux_package": "Questa copia è stata installata con un pacchetto di sistema: aggiornala con il gestore qui sotto.",
+  "update.off.cargo": "Questa copia è stata installata con Cargo: aggiornala con il comando qui sotto.",
   "update.off.other": "Questa installazione non usa l'aggiornatore integrato.",
   "update.available": "Aggiornamento {version} disponibile",
   "update.notes": "Novità",

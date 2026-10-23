@@ -13,6 +13,12 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.77.0] - 2026-10-23
+
+### Added
+
+- `cuotai --install-source` now reports, offline, who owns the running copy, why the in-app updater must stay off and the exact upgrade command when known. The desktop uses the same core classifier for direct/AppImage, DMG/translocation/read-only, Homebrew Caskroom and Cellar, exact Scoop, winget package cache, Linux packages and Cargo, while ambiguous normal winget/manual NSIS paths remain direct until packaging provides a durable marker (PRD 0021 RF8.1; PRD 0018 RF2.5, RF3.2).
+
 ## [0.76.1] - 2026-10-23
 
 ### Fixed
@@ -671,7 +677,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.76.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.77.0...HEAD
+[0.77.0]: https://github.com/jmarcon/cuotai/compare/v0.76.1...v0.77.0
 [0.76.1]: https://github.com/jmarcon/cuotai/compare/v0.76.0...v0.76.1
 [0.76.0]: https://github.com/jmarcon/cuotai/compare/v0.75.3...v0.76.0
 [0.75.3]: https://github.com/jmarcon/cuotai/compare/v0.75.2...v0.75.3

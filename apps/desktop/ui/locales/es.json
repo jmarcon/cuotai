@@ -622,6 +622,7 @@
   "update.off.scoop": "Esta copia la instaló Scoop: actualízala con el comando de abajo.",
   "update.off.winget": "Esta copia la instaló winget: actualízala con el comando de abajo.",
   "update.off.linux_package": "Esta copia la instaló un paquete del sistema: actualízala con el gestor de abajo.",
+  "update.off.cargo": "Esta copia se instaló con Cargo: actualízala con el comando de abajo.",
   "update.off.other": "Esta instalación no usa el actualizador interno.",
   "update.available": "Actualización {version} disponible",
   "update.notes": "Novedades",

@@ -21,6 +21,7 @@ so.
 | Local cost sources | Claude Code logs (`CLAUDE_CONFIG_DIR`, `~/.config/claude`, `~/.claude`) and Codex CLI logs (`CODEX_HOME`, `~/.codex`) | Same as macOS | Same as macOS |
 | Local server (`--serve`, desktop Integration) | Loopback `127.0.0.1` only | Same as macOS | Same as macOS |
 | Cursor import | `state.vscdb` under `~/Library/Application Support` | Under `%APPDATA%` | Under `~/.config` |
+| Install source (`cuotai --install-source`; shared with desktop updater) | Direct copied app, mounted DMG, App Translocation, Homebrew Caskroom/Cellar, Cargo | Direct/current-user NSIS, exact Scoop component, winget package cache, Cargo | Direct/AppImage, `/usr/{bin,sbin,lib}` package roots, Cargo |
 
 ## Credential vault
 
@@ -112,6 +113,27 @@ bearer token. No platform restriction; behavior is identical on all three
 OSes.
 
 Verification: **CI** on all three OSes.
+
+## Installation source
+
+`cuotai --install-source` reports `source`, `updater_disabled_reason` and
+`upgrade_command` as stable `key=value` lines. It reads only the executable
+path, the relevant process environment and local directory writability: it
+does not load account configuration, query a provider or invoke a package
+manager. The desktop updater consumes the same
+`cuotai_core::install_source::detect_install_source` result, so a managed copy
+cannot be classified differently by the two frontends.
+
+Durable paths identify Homebrew Caskroom/Cellar, Cuotai's exact Scoop
+component, winget's package cache, Linux distribution/AUR roots, Cargo's
+configured or default `bin` directory, AppImage, mounted DMGs and App
+Translocation. A normal winget NSIS install and a manual current-user NSIS
+install both use `%LocalAppData%\Cuotai`; neither is called winget without a
+future installer-owned marker. Packagers can use `CUOTAI_UPDATER=off` until
+that owner-blocked marker exists.
+
+Verification: **CI** path/boundary tests on all three OSes and an offline CLI
+process smoke; live package-manager installations remain **code**-level only.
 
 ## TUI smoke (PRD 0019 RF5.2)
 

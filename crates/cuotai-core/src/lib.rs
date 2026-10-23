@@ -18,6 +18,7 @@ pub mod history;
 pub mod hooks;
 pub mod identity;
 pub mod incidents;
+pub mod install_source;
 pub mod last_config;
 pub mod metrics;
 mod model;

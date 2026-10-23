@@ -25,6 +25,7 @@ use std::{
     time::Duration,
 };
 
+use cuotai_core::install_source::{detect_install_source, InstallSource};
 use parking_lot::Mutex;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime, Url};
@@ -54,115 +55,6 @@ pub const ENV_KEY: &str = "CUOTAI_UPDATER";
 #[cfg(debug_assertions)]
 pub const DEV_ENDPOINT_ENV: &str = "CUOTAI_UPDATER_ENDPOINT";
 
-/// PRD 0018 RF2.5 / PRD 0021 RF8.1: de onde veio esta cópia do app. Um único detector,
-/// usado pela política do atualizador (liga/desliga) e pelo guia ao usuário.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InstallSource {
-    /// Download direto (dmg copiado para `/Applications`, zip, tarball): atualiza no lugar.
-    Direct,
-    /// AppImage (`APPIMAGE` no ambiente): o plugin troca o próprio AppImage.
-    AppImage,
-    /// macOS: rodando de uma imagem de disco montada — não dá para escrever nela.
-    DiskImage,
-    /// macOS App Translocation: diretório somente leitura criado pelo Gatekeeper.
-    Translocated,
-    /// O local da instalação não aceita escrita.
-    ReadOnly,
-    /// Homebrew (`<prefix>/Caskroom/cuotai`).
-    Homebrew,
-    /// Scoop (`...\scoop\apps\cuotai`).
-    Scoop,
-    /// winget (`...\Microsoft\WinGet\Packages\...`). Uma instalação feita pelo instalador
-    /// do sistema é indistinguível de uma manual: quem desliga é a chave de build.
-    Winget,
-    /// Pacote da distribuição ou AUR em `/usr/...` (deb, rpm).
-    LinuxPackage,
-}
-
-impl InstallSource {
-    /// Um gerenciador de pacotes é dono do arquivo: o atualizador interno não consulta
-    /// nem instala (RF3.2/RF2.5) e a interface mostra o comando do gerenciador.
-    pub fn managed(self) -> bool {
-        matches!(
-            self,
-            InstallSource::Homebrew
-                | InstallSource::Scoop
-                | InstallSource::Winget
-                | InstallSource::LinuxPackage
-        )
-    }
-
-    /// Só estas duas cópias podem ser atualizadas no lugar (RF2.5).
-    pub fn can_install(self) -> bool {
-        matches!(self, InstallSource::Direct | InstallSource::AppImage)
-    }
-
-    /// Código estável do motivo, traduzido pela interface.
-    pub fn reason(self) -> &'static str {
-        match self {
-            InstallSource::Homebrew => "homebrew",
-            InstallSource::Scoop => "scoop",
-            InstallSource::Winget => "winget",
-            InstallSource::LinuxPackage => "linux_package",
-            _ => "other",
-        }
-    }
-
-    /// O comando que atualiza esta instalação (PRD 0021 RF8.1). Uma origem
-    /// Linux genérica pode ser deb, rpm ou AUR, então não prescreve um
-    /// gerenciador que pode nem existir naquela máquina.
-    pub fn upgrade_command(self) -> Option<&'static str> {
-        match self {
-            InstallSource::Homebrew => Some("brew upgrade --cask cuotai"),
-            InstallSource::Scoop => Some("scoop update cuotai"),
-            InstallSource::Winget => Some("winget upgrade Cuotai.Cuotai"),
-            InstallSource::LinuxPackage => None,
-            _ => None,
-        }
-    }
-}
-
-/// Detecta a origem da instalação a partir do caminho do executável, do `APPIMAGE` e de
-/// saber se a pasta aceita escrita. Função pura: os testes passam pastas de exemplo.
-pub fn detect_in(exe: &Path, appimage: Option<&Path>, writable: bool) -> InstallSource {
-    if appimage.is_some() {
-        return InstallSource::AppImage;
-    }
-    let path = exe.to_string_lossy().replace('\\', "/");
-    let normalized = path.to_ascii_lowercase();
-    // macOS: `/Volumes/<disco>/Cuotai.app/...` é a imagem de disco montada e a App
-    // Translocation é um diretório temporário somente leitura. Nenhuma das duas se
-    // atualiza no lugar, mesmo quando o caminho parece gravável.
-    if path.starts_with("/Volumes/") {
-        return InstallSource::DiskImage;
-    }
-    if path.contains("/AppTranslocation/") {
-        return InstallSource::Translocated;
-    }
-    // Gerenciadores de pacotes (PRD 0021 RF8.1).
-    if path.contains("/Caskroom/cuotai/") {
-        return InstallSource::Homebrew;
-    }
-    // O componente do pacote faz parte da prova: outro aplicativo dentro da
-    // árvore do Scoop não transforma uma cópia direta do Cuotai em gerenciada.
-    if normalized.contains("/scoop/apps/cuotai/") {
-        return InstallSource::Scoop;
-    }
-    if normalized.contains("/appdata/local/microsoft/winget/packages/") {
-        return InstallSource::Winget;
-    }
-    if path.starts_with("/usr/bin/")
-        || path.starts_with("/usr/sbin/")
-        || path.starts_with("/usr/lib/")
-    {
-        return InstallSource::LinuxPackage;
-    }
-    if !writable {
-        return InstallSource::ReadOnly;
-    }
-    InstallSource::Direct
-}
-
 /// Pasta onde o plugin instala: a que contém o `.app` no macOS e o diretório do
 /// executável nos outros sistemas.
 fn install_dir(exe: &Path) -> Option<PathBuf> {
@@ -191,9 +83,11 @@ fn dir_is_writable(dir: &Path) -> bool {
 /// Detecta a origem desta cópia do app a partir do executável em execução.
 pub fn detect() -> InstallSource {
     let exe = std::env::current_exe().unwrap_or_default();
-    let appimage = std::env::var_os("APPIMAGE").map(PathBuf::from);
-    let writable = install_dir(&exe).is_none_or(|dir| dir_is_writable(&dir));
-    detect_in(&exe, appimage.as_deref(), writable)
+    detect_install_source(
+        &exe,
+        |key| std::env::var_os(key),
+        || install_dir(&exe).is_none_or(|dir| dir_is_writable(&dir)),
+    )
 }
 
 /// PRD 0018 RF3.2/RF2.5: por que o atualizador está desligado agora, nesta ordem: o
@@ -211,8 +105,8 @@ pub fn disabled_reason(
     if build_off {
         return Some("build");
     }
-    if source.managed() {
-        return Some(source.reason());
+    if let Some(reason) = source.updater_disabled_reason() {
+        return Some(reason);
     }
     if !prefs.automatic {
         return Some("preference");
@@ -962,131 +856,117 @@ fn parse_instant(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 
 #[cfg(test)]
 mod detector {
-    use super::{detect_in, disabled_reason, InstallSource, UpdaterPrefs};
-    use std::path::PathBuf;
+    use super::{disabled_reason, Service, UpdaterPrefs};
+    use cuotai_core::install_source::{detect_install_source, InstallSource};
+    use std::{ffi::OsString, path::Path};
 
-    fn exe(path: &str) -> PathBuf {
-        PathBuf::from(path)
+    fn source(path: &str, environment: &[(&str, &str)], writable: bool) -> InstallSource {
+        detect_install_source(
+            Path::new(path),
+            |key| {
+                environment
+                    .iter()
+                    .find_map(|(name, value)| (*name == key).then(|| OsString::from(value)))
+            },
+            || writable,
+        )
     }
 
+    /// The desktop consumes the core result without translating it into a
+    /// second source model: updater policy and package-manager guidance stay
+    /// byte-for-byte the same as before the detector moved.
     #[test]
-    fn direct_and_appimage_installs_update_in_place() {
-        assert_eq!(
-            detect_in(
-                &exe("/Applications/Cuotai.app/Contents/MacOS/Cuotai"),
-                None,
-                true
-            ),
-            InstallSource::Direct
-        );
-        assert_eq!(
-            detect_in(
-                &exe("/usr/local/bin/Cuotai"),
-                Some(&exe("/tmp/Cuotai-x86_64.AppImage")),
-                true
-            ),
-            InstallSource::AppImage
-        );
-    }
-
-    #[test]
-    fn macos_cannot_update_where_it_runs_from() {
-        // Uma imagem de disco montada é lida, não escrita: `writable` não muda o motivo.
-        assert_eq!(
-            detect_in(
-                &exe("/Volumes/Cuotai/Cuotai.app/Contents/MacOS/Cuotai"),
-                None,
-                false
-            ),
-            InstallSource::DiskImage
-        );
-        assert_eq!(
-            detect_in(
-                &exe("/Volumes/Cuotai/Cuotai.app/Contents/MacOS/Cuotai"),
-                None,
-                true
-            ),
-            InstallSource::DiskImage
-        );
-        assert_eq!(
-            detect_in(
-                &exe("/private/var/folders/ab/AppTranslocation/1234/d/Cuotai.app/Contents/MacOS/Cuotai"),
-                None,
-                true
-            ),
-            InstallSource::Translocated
-        );
-    }
-
-    #[test]
-    fn a_place_that_cannot_be_written_is_not_a_direct_install() {
-        assert_eq!(
-            detect_in(&exe("/opt/Cuotai/Cuotai"), None, false),
-            InstallSource::ReadOnly
-        );
-        assert_eq!(
-            detect_in(&exe("/opt/Cuotai/Cuotai"), None, true),
-            InstallSource::Direct
-        );
-    }
-
-    #[test]
-    fn package_managers_own_their_channels_and_honest_commands() {
+    fn shared_sources_keep_the_desktop_updater_policy() {
         let cases = [
             (
-                "/opt/homebrew/Caskroom/cuotai/0.71.1/Cuotai.app/Contents/MacOS/Cuotai",
-                InstallSource::Homebrew,
-                Some("brew upgrade --cask cuotai"),
+                source(
+                    "/Applications/Cuotai.app/Contents/MacOS/Cuotai",
+                    &[],
+                    true,
+                ),
+                None,
+                None,
+                true,
             ),
             (
-                "/usr/local/Caskroom/cuotai/0.71.1/Cuotai.app/Contents/MacOS/Cuotai",
-                InstallSource::Homebrew,
-                Some("brew upgrade --cask cuotai"),
+                source(
+                    "/usr/local/bin/Cuotai",
+                    &[("APPIMAGE", "/tmp/Cuotai.AppImage")],
+                    true,
+                ),
+                None,
+                None,
+                true,
             ),
             (
-                "C:/Users/demo/Scoop/Apps/Cuotai/current/Cuotai.exe",
-                InstallSource::Scoop,
+                source(
+                    "/Volumes/Cuotai/Cuotai.app/Contents/MacOS/Cuotai",
+                    &[],
+                    false,
+                ),
+                None,
+                None,
+                false,
+            ),
+            (
+                source(
+                    "/private/var/folders/ab/AppTranslocation/1234/d/Cuotai.app/Contents/MacOS/Cuotai",
+                    &[],
+                    true,
+                ),
+                None,
+                None,
+                false,
+            ),
+            (
+                source("/opt/Cuotai/Cuotai", &[], false),
+                None,
+                None,
+                false,
+            ),
+            (
+                source(
+                    "/opt/homebrew/Caskroom/cuotai/0.76.0/Cuotai.app/Contents/MacOS/Cuotai",
+                    &[],
+                    true,
+                ),
+                Some("homebrew"),
+                Some("brew upgrade --cask cuotai"),
+                false,
+            ),
+            (
+                source(
+                    "C:/Users/demo/Scoop/Apps/Cuotai/current/Cuotai.exe",
+                    &[],
+                    true,
+                ),
+                Some("scoop"),
                 Some("scoop update cuotai"),
+                false,
             ),
             (
-                "C:/Users/demo/AppData/Local/Microsoft/WinGet/Packages/Cuotai.Cuotai_MZ394459P08D4Z/Cuotai.exe",
-                InstallSource::Winget,
+                source(
+                    "C:/Users/demo/AppData/Local/Microsoft/WinGet/Packages/Cuotai.Cuotai_x/Cuotai.exe",
+                    &[],
+                    true,
+                ),
+                Some("winget"),
                 Some("winget upgrade Cuotai.Cuotai"),
+                false,
             ),
-            ("/usr/bin/cuotai", InstallSource::LinuxPackage, None),
-            ("/usr/sbin/cuotai", InstallSource::LinuxPackage, None),
-            ("/usr/lib/cuotai/cuotai", InstallSource::LinuxPackage, None),
+            (
+                source("/usr/sbin/cuotai", &[], true),
+                Some("linux_package"),
+                None,
+                false,
+            ),
         ];
-        for (path, expected, command) in cases {
-            let source = detect_in(&exe(path), None, true);
-            assert_eq!(source, expected, "{path}");
-            assert!(source.managed(), "{path}");
-            assert!(!source.can_install(), "{path}");
-            assert_eq!(source.upgrade_command(), command, "{path}");
-            assert_ne!(source.reason(), "other", "{path}");
-        }
-    }
 
-    #[test]
-    fn a_look_alike_path_outside_the_known_roots_is_not_a_manager() {
-        // `apps-really`, outro pacote Scoop, outro cask e uma pasta `/usr/bin`
-        // fora da raiz não são gerenciadores do Cuotai.
-        for path in [
-            "/home/demo/scoop/apps-really/cuotai/Cuotai",
-            "C:/tools/scoop/apps/other/Cuotai.exe",
-            "C:/Users/demo/AppData/Local/Cuotai/Cuotai.exe",
-            "C:/Users/demo/AppData/Local/Programs/Cuotai/Cuotai.exe",
-            "/home/demo/Caskroom/not-cuotai/Cuotai.app/Contents/MacOS/Cuotai",
-            "/home/demo/usr/bin/cuotai",
-            // O prefixo do WinGet só vale dentro da pasta que o winget cria (`Packages`
-            // depois de `Microsoft/WinGet`), não em qualquer caminho que os contenha.
-            "/opt/Cuotai/Microsoft/WinGet/Packages/cuotai.exe",
-        ] {
-            assert_eq!(
-                detect_in(&exe(path), None, true),
-                InstallSource::Direct,
-                "{path}"
-            );
+        for (source, reason, command, can_install) in cases {
+            let view = Service::build(source, None, false, false).view();
+            assert_eq!(view.disabled_reason, reason, "{source:?}");
+            assert_eq!(view.upgrade_command, command, "{source:?}");
+            assert_eq!(view.can_install, can_install, "{source:?}");
         }
     }
 
@@ -1098,8 +978,7 @@ mod detector {
     }
 
     #[test]
-    fn every_reason_stops_every_request() {
-        // Ordem: ambiente, chave de build, gerenciador, preferência do usuário.
+    fn every_reason_stops_every_request_in_the_same_precedence() {
         assert_eq!(
             disabled_reason(&prefs(false), true, true, InstallSource::Homebrew),
             Some("env")
@@ -1124,7 +1003,6 @@ mod detector {
             disabled_reason(&prefs(true), false, false, InstallSource::Direct),
             None
         );
-        // Uma cópia de imagem de disco não é gerenciada: pode verificar e explicar o guia.
         assert_eq!(
             disabled_reason(&prefs(true), false, false, InstallSource::DiskImage),
             None

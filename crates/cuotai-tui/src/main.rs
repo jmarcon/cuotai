@@ -21,6 +21,7 @@ use cuotai_core::{
     export::v1::{Export, Options},
     history::{HistoryStore, MetricHistory, Retention},
     incidents::ProviderStatus,
+    install_source::detect_install_source,
     metrics,
     oauth::OAuthSession,
     pace::{self, Point},
@@ -28,8 +29,9 @@ use cuotai_core::{
     Account, Config, EnvironmentCredentials, Monitor, Provider, Report, Snapshot, Status,
 };
 use std::{
+    fs,
     io::{self, IsTerminal, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -71,6 +73,27 @@ struct Args {
     /// Lista os identificadores aceitos na configuração.
     #[arg(long)]
     list_providers: bool,
+    /// Informa de onde esta cópia foi instalada, por que o atualizador
+    /// interno deve ficar desligado e o comando de atualização, quando
+    /// conhecido. É local: não lê a configuração nem consulta a rede.
+    /// Saída 0; 1 em erro local.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "list_providers",
+            "changelog",
+            "extension_check",
+            "once",
+            "json",
+            "json_v1",
+            "history",
+            "notify",
+            "serve",
+            "watch",
+            "cost_action",
+        ]
+    )]
+    install_source: bool,
     /// Mostra o histórico de versões do CHANGELOG embutido (sem rede e sem
     /// consultar provedores): tudo, ou só a seção de VERSÃO (uma versão
     /// como 0.68.2, ou uma série como 0.68.x). Os rótulos de categoria
@@ -303,6 +326,47 @@ fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
     })
 }
 
+/// PRD 0021 RF8.1: report package ownership without loading configuration or
+/// contacting a provider/package manager.
+fn print_install_source() -> io::Result<()> {
+    let executable = std::env::current_exe()?;
+    let source = detect_install_source(
+        &executable,
+        |key| std::env::var_os(key),
+        || executable_dir_writable(&executable),
+    );
+    let mut stdout = io::stdout().lock();
+    writeln!(stdout, "source={}", source.as_str())?;
+    writeln!(
+        stdout,
+        "updater_disabled_reason={}",
+        source.updater_disabled_reason().unwrap_or("none")
+    )?;
+    writeln!(
+        stdout,
+        "upgrade_command={}",
+        source.upgrade_command().unwrap_or("none")
+    )
+}
+
+fn executable_dir_writable(executable: &Path) -> bool {
+    let Some(directory) = executable.parent() else {
+        return false;
+    };
+    let probe = directory.join(format!(".cuotai-write-probe-{}", std::process::id()));
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&probe)
+    {
+        Ok(_) => {
+            let _ = fs::remove_file(probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 /// PRD 0011 RF5: public status queries are opt-in (`--status`, or
 /// `CUOTAI_STATUS` with any non-empty value except `0`); `--no-status`
 /// always turns them off.
@@ -347,6 +411,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             return Ok(u8::from(error.use_stderr()));
         }
     };
+    if args.install_source {
+        print_install_source()?;
+        return Ok(0);
+    }
     if args.list_providers {
         for provider in Provider::ALL {
             println!(

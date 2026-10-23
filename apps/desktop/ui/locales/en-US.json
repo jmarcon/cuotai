@@ -622,6 +622,7 @@
   "update.off.scoop": "This copy was installed by Scoop: update it with the command below.",
   "update.off.winget": "This copy was installed by winget: update it with the command below.",
   "update.off.linux_package": "This copy was installed by a system package: update it with the manager below.",
+  "update.off.cargo": "This copy was installed by Cargo: update it with the command below.",
   "update.off.other": "This installation does not use the in-app updater.",
   "update.available": "Update {version} available",
   "update.notes": "What's new",
