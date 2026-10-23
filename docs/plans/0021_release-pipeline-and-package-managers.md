@@ -89,7 +89,7 @@ Replaces PRD 0019 RF3.2 with a concrete list. Names are stable so package manife
 | Desktop, Windows x64 | `windows-latest` | `Cuotai_<version>_x64-setup.exe` (NSIS) and `Cuotai_<version>_x64_en-US.msi` |
 | Desktop, Windows ARM64 | `windows-11-arm` where available | `Cuotai_<version>_arm64-setup.exe` |
 | Desktop, Linux x64 | `ubuntu-22.04` (oldest supported glibc) | `Cuotai_<version>_amd64.AppImage`, `.deb` and `.rpm` |
-| Desktop, Linux ARM64 | `ubuntu-22.04-arm` where available | `Cuotai_<version>_aarch64.AppImage`, `.deb` and `.rpm` |
+| Desktop, Linux ARM64 | `ubuntu-24.04-arm` where available | `Cuotai_<version>_aarch64.AppImage`, `.deb` and `.rpm` |
 | CLI/TUI, macOS | `macos-latest`, both targets | `cuotai-<version>-aarch64-apple-darwin.tar.gz`, `…-x86_64-apple-darwin.tar.gz` |
 | CLI/TUI, Linux | Linux runners, glibc and musl | `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz`, `…-aarch64-…`, and musl variants where the dependency set builds (`rusqlite` is bundled; `keyring`'s Secret Service store needs D-Bus at run time, which the musl notes must state) |
 | CLI/TUI, Windows | `windows-latest` | `cuotai-<version>-x86_64-pc-windows-msvc.zip` (and `aarch64`) |
