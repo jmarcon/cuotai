@@ -65,9 +65,9 @@ jobs:
         run: |
           set -euo pipefail
           title="External rules or action pins need review"
-          existing="$(gh api --method GET "repos/$REPOSITORY/issues" \
-            -f state=open -f per_page=100 \
-            --jq 'map(select(.title == "External rules or action pins need review" and (has("pull_request") | not)))[0].number // empty')"
+          existing="$(gh api --method GET --paginate --slurp "repos/$REPOSITORY/issues" \
+            -f state=open -f per_page=100 |
+            jq -r '(add) | map(select(.title == "External rules or action pins need review" and (has("pull_request") | not))) | .[0].number? // empty')"
           body="$(cat external-rules-report.md)"
           if [ -n "$existing" ]; then
             gh api --method PATCH "repos/$REPOSITORY/issues/$existing" -f body="$body" >/dev/null

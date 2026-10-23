@@ -15,8 +15,8 @@
     },
     {
       "name": "WinGet manifest repository submission policy",
-      "url": "https://learn.microsoft.com/en-us/windows/package-manager/package/repository",
-      "sha256": "ef138c779077b91b2ae8064ad2aebaf3177daf8524a6e87429a8e4eb4b375d28",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/windows-dev-docs/docs/hub/package-manager/package/repository.md",
+      "sha256": "8606f369205c360983ad28dc6cf5d1c76eaddbeabe49b2019c3715ae03f6889b",
       "fetched_on": "2026-10-23"
     },
     {

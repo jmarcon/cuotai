@@ -635,6 +635,7 @@ fn check_external_rules_policy(jobs: &Mapping, text: &str) -> Res<()> {
     for required in [
         "cargo run -p xtask --locked -- external-rules-check",
         "state=open",
+        "--paginate --slurp",
         "External rules or action pins need review",
         "repos/$REPOSITORY/issues/$existing",
     ] {
@@ -881,6 +882,8 @@ mod tests {
 
     const CI_WORKFLOW: &str = include_str!("../../.github/workflows/ci.yml");
     const RELEASE_WORKFLOW: &str = include_str!("../../.github/workflows/release.yml");
+    const EXTERNAL_RULES_WORKFLOW: &str =
+        include_str!("../../.github/workflows/external-rules.yml");
 
     #[test]
     fn accepts_least_privilege_fixture() {
@@ -891,6 +894,33 @@ mod tests {
     fn accepts_repository_workflows() {
         assert!(check_text(Path::new("ci.yml"), CI_WORKFLOW).is_ok());
         assert!(check_text(Path::new("release.yml"), RELEASE_WORKFLOW).is_ok());
+        assert!(check_text(Path::new("external-rules.yml"), EXTERNAL_RULES_WORKFLOW).is_ok());
+    }
+
+    #[test]
+    fn rejects_external_issue_on_a_clean_result() {
+        let unsafe_workflow = EXTERNAL_RULES_WORKFLOW.replacen(
+            "    if: needs.check.outputs.needs_attention == 'true'\n",
+            "    if: always()\n",
+            1,
+        );
+        assert!(check_text(Path::new("external-rules.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_external_issue_lookup_without_pagination() {
+        let unsafe_workflow = EXTERNAL_RULES_WORKFLOW.replacen("--paginate --slurp ", "", 1);
+        assert!(check_text(Path::new("external-rules.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_external_issue_broad_permissions() {
+        let unsafe_workflow = EXTERNAL_RULES_WORKFLOW.replacen(
+            "    permissions:\n      issues: write\n",
+            "    permissions:\n      contents: write\n      issues: write\n",
+            1,
+        );
+        assert!(check_text(Path::new("external-rules.yml"), &unsafe_workflow).is_err());
     }
 
     #[test]

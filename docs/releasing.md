@@ -85,7 +85,7 @@ free-tier budget.
 
 ## Workflow security and cost guardrails (RF9.2, RF9.5)
 
-- Both workflows declare `permissions: contents: read` at workflow level.
+- All workflows declare `permissions: contents: read` at workflow level.
   Only `publish` receives `contents: write`; only `assemble`, which performs
   Sigstore signing and provenance attestation, receives `id-token: write` and
   `attestations: write`. The publish and public-verification jobs receive only
@@ -123,13 +123,27 @@ cargo xtask external-rules-check \
   --markdown-out external-rules-report.md
 ```
 
-The command fetches and SHA-256 hashes the four authoritative documents in
-`.github/external-rules-baseline.json`: Homebrew's Acceptable Casks and
-Package Acceptance Policy pages, Microsoft's winget manifest-repository
-submission page, and Scoop's App Manifest Autoupdate conventions. The
-baseline records each URL, hash and fetch date. It is intentionally read-only
-to automation: after reviewing a changed page, update the baseline in a pull
-request; the scheduled workflow never accepts a new hash by itself.
+The command fetches every policy source twice, requires the two byte sequences
+to match, and only then compares their SHA-256 with
+`.github/external-rules-baseline.json`. The four authoritative documents are
+Homebrew's Acceptable Casks and Package Acceptance Policy pages, Microsoft's
+source Markdown for the winget manifest-repository submission page, and
+Scoop's App Manifest Autoupdate conventions.
+
+The rendered Microsoft Learn page is deliberately not the hashed form. Live
+checks showed that its policy article can be identical while Akamai injects
+request-dependent `bazadebezolkohpepadr` script data, a rotating `/akam/...`
+asset path and a `noscript` tracking-pixel payload; those variants produced
+different hashes for different user agents. The canonical winget form is the
+raw UTF-8 Markdown bytes at the fixed official
+`MicrosoftDocs/windows-dev-docs` `docs`-branch path. That moving branch still
+detects upstream article edits, while excluding rendered site chrome. The
+two-fetch equality gate reports a source that changes during one check as
+`could_not_check`, never as policy drift or no change.
+
+The baseline records each source URL, hash and fetch date. It is intentionally
+read-only to automation: after reviewing a changed source, update the baseline
+in a pull request; the scheduled workflow never accepts a new hash by itself.
 
 Every external `uses:` line in every `.github/workflows/*.yml` or `.yaml` file
 is discovered. Full commit SHAs remain mandatory. For a `# vX.Y.Z` comment,
@@ -149,11 +163,15 @@ create duplicates. A clean run creates and updates nothing.
 Limits are explicit rather than optimistic:
 
 - `dtolnay/rust-toolchain` is pinned by commit but its comment is the Rust
-  toolchain version, not a `vX.Y.Z` action release, so it is listed as
-  `not_verifiable`; its SHA is still enforced by `workflow-check`.
-- A GitHub repository with no published Releases and an action from another
-  registry cannot be compared to a GitHub latest release. Both are listed as
-  `not_verifiable`, never as current.
+  toolchain version, not a `vX.Y.Z` action release, so it is the explicit
+  `not_verifiable` exception; its SHA is still enforced by `workflow-check`.
+- A missing or malformed `# vX.Y.Z` comment on any other GitHub action is
+  `could_not_check` and requires attention instead of silently disabling its
+  release comparison.
+- A GitHub repository with no published Releases is `not_verifiable` only
+  after the commented tag resolves to the pinned SHA. A missing repository or
+  tag is `could_not_check`. An action from another registry remains
+  `not_verifiable` because no GitHub API endpoint can be derived safely.
 - A network, API, authentication, rate-limit or response-parsing failure is
   `could_not_check` and makes the report require attention. It is never
   converted to “unchanged” or “current”.

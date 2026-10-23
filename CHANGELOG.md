@@ -15,7 +15,7 @@ How to read the history before this file existed:
 
 ### Changed
 
-- Repository maintainers now get a monthly, manually runnable check of the Homebrew, winget and Scoop rules and every pinned GitHub Action release; policy drift, stale or mismatched pins and failed checks open or refresh one review issue, while reviewed policy hashes remain repository-controlled (PRD 0021 RF9.3).
+- Repository maintainers now get a monthly, manually runnable check of the Homebrew, winget and Scoop rules and every pinned GitHub Action release; policy drift, stale, mismatched or accidentally unversioned pins and failed checks open or refresh one review issue, paginating all open issues before creating it, while reviewed policy hashes remain repository-controlled (PRD 0021 RF9.3).
 
 ## [0.75.3] - 2026-10-23
 

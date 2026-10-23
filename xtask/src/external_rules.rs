@@ -18,6 +18,7 @@ use crate::{err, Error, Res};
 const GITHUB_ACCEPT: &str = "application/vnd.github+json";
 const USER_AGENT_VALUE: &str = "cuotai-external-rules-check";
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
+const INTENTIONALLY_UNVERSIONED_ACTIONS: &[&str] = &["dtolnay/rust-toolchain"];
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Baseline {
@@ -181,9 +182,12 @@ pub fn run(repo: &Path, baseline_path: &Path, github_token: Option<&str>) -> Res
     let policies: Vec<PolicyResult> = baseline
         .policies
         .iter()
-        .map(|policy| {
-            let fetched = fetch_bytes(&client, &policy.url, None);
-            assess_policy(policy, fetched)
+        .map(|policy| match fetch_bytes(&client, &policy.url, None) {
+            Ok(first) => {
+                let second = fetch_bytes(&client, &policy.url, None);
+                assess_policy_samples(policy, Ok(first), second)
+            }
+            Err(error) => assess_policy(policy, Err(error)),
         })
         .collect();
 
@@ -208,16 +212,7 @@ pub fn run(repo: &Path, baseline_path: &Path, github_token: Option<&str>) -> Res
             continue;
         };
         let Some(version) = pin.version.as_deref() else {
-            actions.push(ActionResult {
-                action: pin.action,
-                repository: pin.repository,
-                pinned_sha: pin.sha,
-                pinned_version: None,
-                latest_release: None,
-                locations: pin.locations,
-                status: CheckStatus::NotVerifiable,
-                detail: "the pin has no `# vX.Y.Z` release comment; its SHA is still enforced by workflow-check".into(),
-            });
+            actions.push(assess_unversioned_action(pin));
             continue;
         };
 
@@ -243,11 +238,36 @@ pub fn run(repo: &Path, baseline_path: &Path, github_token: Option<&str>) -> Res
         actions,
         limitations: vec![
             "GitHub-hosted actions with a `# vX.Y.Z` comment are checked through GitHub's official Releases and Git Data APIs; a release tag must resolve to the committed SHA.".into(),
-            "A GitHub action without a semantic release comment is listed as `not_verifiable`; GitHub repositories that publish no Releases cannot be compared to a latest release.".into(),
+            "A missing or malformed semantic release comment is `could_not_check` and requires attention, except for explicitly known actions whose comments are not action releases.".into(),
+            "`dtolnay/rust-toolchain` is intentionally `not_verifiable` because its comment is a Rust toolchain version; its full SHA remains enforced by workflow-check.".into(),
+            "A GitHub repository with no published Releases is `not_verifiable` only after the commented tag resolves to the pinned SHA.".into(),
             "Actions from another registry cannot be checked with the GitHub Releases API and are listed as `not_verifiable`, never as current.".into(),
             "An HTTP, API, parsing, authentication, or rate-limit failure is `could_not_check` and requires attention; it is never reported as unchanged or current.".into(),
         ],
     })
+}
+
+fn assess_unversioned_action(pin: ActionPin) -> ActionResult {
+    let intentionally_unversioned =
+        INTENTIONALLY_UNVERSIONED_ACTIONS.contains(&pin.action.as_str());
+    ActionResult {
+        action: pin.action,
+        repository: pin.repository,
+        pinned_sha: pin.sha,
+        pinned_version: None,
+        latest_release: None,
+        locations: pin.locations,
+        status: if intentionally_unversioned {
+            CheckStatus::NotVerifiable
+        } else {
+            CheckStatus::CouldNotCheck
+        },
+        detail: if intentionally_unversioned {
+            "the comment is a toolchain version, not a GitHub Action release; the SHA is still enforced by workflow-check".into()
+        } else {
+            "could not check: the pin has no valid `# vX.Y.Z` release comment".into()
+        },
+    }
 }
 
 fn validate_baseline(baseline: &Baseline) -> Res<()> {
@@ -281,6 +301,27 @@ fn validate_baseline(baseline: &Baseline) -> Res<()> {
         }
     }
     Ok(())
+}
+
+fn assess_policy_samples(
+    baseline: &PolicyBaseline,
+    first: Result<Vec<u8>, String>,
+    second: Result<Vec<u8>, String>,
+) -> PolicyResult {
+    match (first, second) {
+        (Ok(first), Ok(second)) if first == second => assess_policy(baseline, Ok(first)),
+        (Ok(_), Ok(_)) => PolicyResult {
+            name: baseline.name.clone(),
+            url: baseline.url.clone(),
+            baseline_sha256: baseline.sha256.clone(),
+            observed_sha256: None,
+            status: CheckStatus::CouldNotCheck,
+            detail:
+                "could not check: source returned different bytes across two consecutive fetches"
+                    .into(),
+        },
+        (Err(error), _) | (_, Err(error)) => assess_policy(baseline, Err(error)),
+    }
 }
 
 fn assess_policy(baseline: &PolicyBaseline, fetched: Result<Vec<u8>, String>) -> PolicyResult {
@@ -337,6 +378,19 @@ fn assess_action(
         status: CheckStatus::CouldNotCheck,
         detail: String::new(),
     };
+    let resolved = match resolved {
+        Ok(sha) => sha,
+        Err(error) => {
+            result.detail = format!("could not check pinned tag: {error}");
+            return result;
+        }
+    };
+    if resolved != result.pinned_sha {
+        result.status = CheckStatus::PinMismatch;
+        result.detail = format!("the commented tag resolves to {resolved}, not the pinned SHA");
+        return result;
+    }
+
     let latest = match latest {
         Ok(json) => match serde_json::from_slice::<LatestRelease>(&json) {
             Ok(release) => release,
@@ -357,19 +411,6 @@ fn assess_action(
         }
     };
     result.latest_release = Some(latest.tag_name.clone());
-
-    let resolved = match resolved {
-        Ok(sha) => sha,
-        Err(error) => {
-            result.detail = format!("could not check pinned tag: {error}");
-            return result;
-        }
-    };
-    if resolved != result.pinned_sha {
-        result.status = CheckStatus::PinMismatch;
-        result.detail = format!("the commented tag resolves to {resolved}, not the pinned SHA");
-        return result;
-    }
 
     let Some(pinned_text) = result.pinned_version.as_deref() else {
         result.status = CheckStatus::NotVerifiable;
@@ -684,7 +725,11 @@ mod tests {
     #[test]
     fn unchanged_policy_fixture_is_clean() {
         let bytes = include_bytes!("../tests/fixtures/external_rules/policy-unchanged.html");
-        let result = assess_policy(&policy_baseline(bytes), Ok(bytes.to_vec()));
+        let result = assess_policy_samples(
+            &policy_baseline(bytes),
+            Ok(bytes.to_vec()),
+            Ok(bytes.to_vec()),
+        );
         assert_eq!(result.status, CheckStatus::Unchanged);
         assert_eq!(
             result.observed_sha256.as_deref(),
@@ -696,7 +741,11 @@ mod tests {
     fn changed_policy_fixture_requires_review() {
         let old = include_bytes!("../tests/fixtures/external_rules/policy-unchanged.html");
         let changed = include_bytes!("../tests/fixtures/external_rules/policy-changed.html");
-        let result = assess_policy(&policy_baseline(old), Ok(changed.to_vec()));
+        let result = assess_policy_samples(
+            &policy_baseline(old),
+            Ok(changed.to_vec()),
+            Ok(changed.to_vec()),
+        );
         assert_eq!(result.status, CheckStatus::Changed);
         assert!(result.status.needs_attention());
     }
@@ -729,10 +778,78 @@ mod tests {
     fn network_failure_is_never_reported_as_no_change() {
         let message = include_str!("../tests/fixtures/external_rules/network-failure.txt").trim();
         let baseline = policy_baseline(b"old");
-        let result = assess_policy(&baseline, Err(message.into()));
+        let result = assess_policy_samples(&baseline, Err(message.into()), Ok(b"old".to_vec()));
         assert_eq!(result.status, CheckStatus::CouldNotCheck);
         assert!(result.detail.contains("could not check"));
         assert!(result.observed_sha256.is_none());
+    }
+
+    #[test]
+    fn source_that_changes_between_fetches_cannot_match_the_baseline() {
+        let old = include_bytes!("../tests/fixtures/external_rules/policy-unchanged.html");
+        let changed = include_bytes!("../tests/fixtures/external_rules/policy-changed.html");
+        let result = assess_policy_samples(
+            &policy_baseline(old),
+            Ok(old.to_vec()),
+            Ok(changed.to_vec()),
+        );
+        assert_eq!(result.status, CheckStatus::CouldNotCheck);
+        assert!(result.detail.contains("different bytes"));
+        assert!(result.observed_sha256.is_none());
+    }
+
+    #[test]
+    fn mismatched_action_tag_requires_review() {
+        let latest = include_bytes!("../tests/fixtures/external_rules/release-current.json");
+        let result = assess_action(
+            action_pin("v7.0.1"),
+            Ok(latest.to_vec()),
+            Ok("0000000000000000000000000000000000000000".into()),
+        );
+        assert_eq!(result.status, CheckStatus::PinMismatch);
+        assert!(result.status.needs_attention());
+    }
+
+    #[test]
+    fn missing_release_comment_requires_review() {
+        let mut pin = action_pin("v7.0.1");
+        pin.version = None;
+        let result = assess_unversioned_action(pin);
+        assert_eq!(result.status, CheckStatus::CouldNotCheck);
+        assert!(result.status.needs_attention());
+    }
+
+    #[test]
+    fn rust_toolchain_comment_is_intentionally_not_verifiable() {
+        let mut pin = action_pin("v7.0.1");
+        pin.action = "dtolnay/rust-toolchain".into();
+        pin.repository = Some("dtolnay/rust-toolchain".into());
+        pin.version = None;
+        let result = assess_unversioned_action(pin);
+        assert_eq!(result.status, CheckStatus::NotVerifiable);
+        assert!(!result.status.needs_attention());
+    }
+
+    #[test]
+    fn missing_repository_cannot_hide_behind_no_release() {
+        let result = assess_action(
+            action_pin("v7.0.1"),
+            Err("no published GitHub release exists for missing/action".into()),
+            Err("HTTP 404 while resolving the commented tag".into()),
+        );
+        assert_eq!(result.status, CheckStatus::CouldNotCheck);
+        assert!(result.status.needs_attention());
+    }
+
+    #[test]
+    fn repository_without_releases_is_not_verifiable_after_tag_proof() {
+        let result = assess_action(
+            action_pin("v7.0.1"),
+            Err("no published GitHub release exists for actions/checkout".into()),
+            Ok(PIN_SHA.into()),
+        );
+        assert_eq!(result.status, CheckStatus::NotVerifiable);
+        assert!(!result.status.needs_attention());
     }
 
     #[test]
