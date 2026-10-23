@@ -1,9 +1,9 @@
-# Release pipeline (PRD 0021 RF1–RF4). One annotated `vX.Y.Z` (or
+# Release pipeline (PRD 0021 RF1–RF5/RF9). One annotated `vX.Y.Z` (or
 # `vX.Y.Z-rc.N`) tag on `main` builds every artifact, assembles the manifest,
 # checksums and signing state, and publishes a GitHub Release as
-# draft → verified → published. `workflow_dispatch` runs the same pipeline in
-# dry-run mode: it builds and uploads workflow artifacts only and never
-# creates a Release or contacts a package manager.
+# draft → verified → published. `workflow_dispatch` is deliberately a cheap,
+# secretless rehearsal: it validates the requested tag/version and the
+# workflow policy, but heavy builds and publication run only for pushed tags.
 #
 # Security: every action is pinned by commit hash (tag in the comment); the
 # default token is read-only; `contents: write` exists only in the publish
@@ -37,8 +37,8 @@ env:
   CARGO_CYCLONEDX_VERSION: "0.5.9"
 
 jobs:
-  # RF1: fail before any build when the tag, versions, lockfiles or changelog
-  # disagree, or when the tag is not an annotated tag on main.
+  # RF1/RF9: fail before any build when the tag, versions, lockfiles,
+  # changelog or workflow policy disagree.
   check:
     name: version and tag check
     runs-on: ubuntu-latest
@@ -48,7 +48,6 @@ jobs:
       channel: ${{ steps.result.outputs.channel }}
       prerelease: ${{ steps.result.outputs.prerelease }}
       tag: ${{ steps.result.outputs.tag }}
-      dry_run: ${{ steps.result.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,14 +68,13 @@ jobs:
         run: |
           set -euo pipefail
           cargo build -p xtask --locked
+          ./target/debug/xtask workflow-check
           args=(release-check --json-out check.json --changelog-out notes.txt)
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             # Dry run: the tag may not exist, so no git ancestry check.
             [ -n "$INPUT_TAG" ] && args+=(--tag "$INPUT_TAG")
-            dry_run=true
           else
             args+=(--tag "$REF_NAME" --require-main origin/main)
-            dry_run=false
           fi
           ./target/debug/xtask "${args[@]}"
           {
@@ -84,21 +82,26 @@ jobs:
             echo "channel=$(jq -r .channel check.json)"
             echo "prerelease=$(jq -r .prerelease check.json)"
             echo "tag=$(jq -r .tag check.json)"
-            echo "dry_run=$dry_run"
           } >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            {
+              echo "### Secretless release rehearsal"
+              echo
+              echo "Version/tag and workflow policy passed. Heavy artifact, SBOM, desktop bundle and channel jobs are tag-only (RF9.5)."
+              echo "No release or package-manager repository was contacted and no release-environment secret was requested."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   desktop-macos:
     name: desktop (macOS universal)
     needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: macos-latest
     timeout-minutes: 90
-    # Tag pushes enter the protected environment; dispatch rehearsals use a
-    # secretless, unrestricted environment and cannot be blocked by tag-only
-    # deployment rules.
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    # Heavy jobs run only for pushed tags and enter the protected environment.
+    environment: release
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -174,12 +177,12 @@ jobs:
   desktop-windows:
     name: desktop (Windows x64)
     needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 90
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       # Keep LF so the bundled resources match the repository bytes.
       - run: git config --global core.autocrlf false
@@ -251,13 +254,13 @@ jobs:
   desktop-windows-arm64:
     name: desktop (Windows ARM64, optional)
     needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: windows-11-arm
     continue-on-error: true
     timeout-minutes: 90
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -337,15 +340,15 @@ jobs:
   desktop-linux:
     name: desktop (Linux x64)
     needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04 # oldest supported glibc (RF2)
     timeout-minutes: 90
     # The Tauri updater key lives here (PRD 0018 RF4.1): the Linux packages
     # are updater-signed while bundling, so this job needs the secret from the
     # protected environment.
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -378,7 +381,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         # PRD 0018 RF1.1: `createUpdaterArtifacts` is enabled through the
         # release-time overlay, and only when the key exists — a build without
-        # it must still bundle (dispatch dry runs, forks, local builds).
+        # it must still bundle when a platform code-signing credential is absent.
         # Nothing rewrites these package bytes afterwards, so the signatures
         # the bundler writes here are the final ones.
         run: |
@@ -411,13 +414,13 @@ jobs:
   desktop-linux-arm64:
     name: desktop (Linux ARM64, optional)
     needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04-arm
     continue-on-error: true
     timeout-minutes: 90
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -482,6 +485,7 @@ jobs:
   cli:
     name: cli (${{ matrix.target }})
     needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.optional == true }}
     timeout-minutes: 45
@@ -607,6 +611,7 @@ jobs:
   sbom:
     name: SBOM (CycloneDX)
     needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -702,7 +707,6 @@ jobs:
       VERSION: ${{ needs.check.outputs.version }}
       CHANNEL: ${{ needs.check.outputs.channel }}
       TAG: ${{ needs.check.outputs.tag }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
       REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -772,15 +776,9 @@ jobs:
           add_platform linux-aarch64-deb "Cuotai_${VERSION}_aarch64.deb"
           add_platform linux-aarch64-rpm "Cuotai_${VERSION}_aarch64.rpm"
 
-          # A dispatch run has no updater key, so no build produces a `.sig`
-          # and every platform above stays uncollected: the honest state is
-          # "updater unavailable", not a fail-closed manifest read. Only a run
-          # that signed at least one platform reaches `updater-manifest`, which
-          # still fails a partially signed required set (`--require`).
-          if [ "$DRY_RUN" = "true" ] && [ "$updater_count" -eq 0 ]; then
-            printf '{"artifacts": []}\n' > fragments/assemble.json
-            echo "dry-run: no updater key, so no updater artifact was signed; latest.json not generated (stated in signing-state.json)"
-          elif [ "$updater_count" -gt 0 ]; then
+          # Tag releases require a complete updater-signature set. A missing
+          # or partially signed required platform fails before publication.
+          if [ "$updater_count" -gt 0 ]; then
             epoch="$(git show -s --format=%ct HEAD)"
             pub_date="$(date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ)"
             # `--require` names the platforms a complete release must serve, so
@@ -802,42 +800,25 @@ jobs:
               > fragments/assemble.json
             echo "updater manifest written for $updater_count platform entries"
           else
-            # A tag run with the key configured but nothing signed is a broken
-            # release, not an unsigned rehearsal: fail instead of publishing a
-            # partial updater.
             echo "no updater artifact was signed in this release run" >&2
             exit 1
           fi
       - name: Manifest and SHA256SUMS
         run: ./target/debug/xtask release-manifest --artifacts-dir dist --version "$VERSION" --channel "$CHANNEL" --out-dir dist
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        if: needs.check.outputs.dry_run != 'true'
       - name: Sign SHA256SUMS (Sigstore keyless)
-        if: needs.check.outputs.dry_run != 'true'
         run: cosign sign-blob --yes --output-signature dist/SHA256SUMS.sig --output-certificate dist/SHA256SUMS.pem dist/SHA256SUMS
       - name: Signing state
-        run: |
-          set -euo pipefail
-          if [ "$DRY_RUN" = "true" ]; then
-            checksums=unavailable
-            status="dry-run: checksum signature not produced (dispatch runs never publish)"
-          else
-            checksums=signed
-            status="signed by the GitHub Actions OIDC identity (Sigstore keyless)"
-          fi
-          ./target/debug/xtask signing-state \
-            --version "$VERSION" --channel "$CHANNEL" \
-            --manifest dist/manifest.json --fragments-dir fragments \
-            --checksums "$checksums" --checksums-status "$status" \
-            --out dist/signing-state.json
+        run: >-
+          ./target/debug/xtask signing-state
+          --version "$VERSION" --channel "$CHANNEL"
+          --manifest dist/manifest.json --fragments-dir fragments
+          --checksums signed
+          --checksums-status "signed by the GitHub Actions OIDC identity (Sigstore keyless)"
+          --out dist/signing-state.json
       - name: Release notes
         run: ./target/debug/xtask release-notes --changelog CHANGELOG.md --version "$VERSION" --manifest dist/manifest.json --signing-state dist/signing-state.json --repo "$REPO" --out dist/release-body.md
-      - name: Dry-run attestation note
-        if: needs.check.outputs.dry_run == 'true'
-        run: |
-          echo "dry-run: attestable artifacts produced; provenance attestations are not published on dispatch runs" >> "$GITHUB_STEP_SUMMARY"
       - name: Build provenance attestation
-        if: needs.check.outputs.dry_run != 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*
@@ -943,22 +924,22 @@ jobs:
 
   # RF5.6: one renderer turns the verified release into every channel's
   # manifests. It reads only `manifest.json`/`signing-state.json` from the
-  # assembly — never a rebuilt file — and runs after the release has been
-  # re-verified (or after the dry-run assembly on a dispatch).
+  # assembly — never a rebuilt file — after the published release is verified.
   package-manifests:
     name: render package-manager manifests
     needs: [check, assemble, publish, verify-public]
     if: >-
-      ${{ always() && needs.check.result == 'success'
+      ${{ always() && github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/')
+          && needs.check.result == 'success'
           && needs.check.outputs.prerelease != 'true'
           && needs.assemble.result == 'success'
-          && (needs.check.outputs.dry_run == 'true' || needs.verify-public.result == 'success') }}
+          && needs.verify-public.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       TAG: ${{ needs.check.outputs.tag }}
       REPO: ${{ github.repository }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1010,25 +991,24 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # RF5.1/RF5.7: independent, opt-in channel jobs. Each one downloads the
-  # rendered manifests, never touches the release, and its failure never
-  # fails the GitHub Release (nothing depends on it).
-  #
-  # A dispatch (dry run) renders, validates and uploads only: the publish
-  # steps are skipped, so a rehearsal never writes to a tap, bucket, the AUR
-  # or crates.io.
+  # RF5.1/RF5.7: independent, opt-in tag-only channel jobs. Each one
+  # downloads the rendered manifests, never touches the release, and its
+  # failure never fails the GitHub Release (nothing depends on it).
   channel-homebrew:
     name: "channel: Homebrew tap"
     needs: [check, package-manifests]
-    if: ${{ vars.PUBLISH_HOMEBREW == 'true' && needs.check.outputs.prerelease != 'true' && needs.package-manifests.result == 'success' }}
+    if: >-
+      ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+          && vars.PUBLISH_HOMEBREW == 'true'
+          && needs.check.outputs.prerelease != 'true'
+          && needs.package-manifests.result == 'success' }}
     runs-on: macos-latest
     timeout-minutes: 30
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     continue-on-error: true
     env:
       TAG: ${{ needs.check.outputs.tag }}
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
       TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO || 'jmarcon/homebrew-cuotai' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1042,7 +1022,6 @@ jobs:
       - name: Homebrew style (own lint rules)
         run: brew style rendered/homebrew/Casks/cuotai.rb rendered/homebrew/Formula/cuotai.rb
       - name: Audit and install test against a temporary local tap (tag runs)
-        if: needs.check.outputs.dry_run != 'true'
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
@@ -1061,8 +1040,7 @@ jobs:
           cd - >/dev/null
           brew untap jmarcon/cuotai >/dev/null 2>&1 || true
           brew tap jmarcon/cuotai "$tap_dir" --force
-          # Download checks need the public release; a dispatch rehearsal
-          # never publishes, so this step only runs for a tag.
+          # Download checks use the public release produced by this tag run.
           brew audit --strict --online --cask jmarcon/cuotai/cuotai
           brew audit --strict --online --formula jmarcon/cuotai/cuotai
           brew install --cask jmarcon/cuotai/cuotai
@@ -1072,7 +1050,6 @@ jobs:
           brew uninstall jmarcon/cuotai/cuotai
           brew untap jmarcon/cuotai
       - name: Push the rendered manifests to the tap (tag runs only)
-        if: needs.check.outputs.dry_run != 'true' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO || 'jmarcon/homebrew-cuotai' }}
@@ -1092,22 +1069,25 @@ jobs:
           git -C "$tap_dir" push origin HEAD
       - name: Channel status
         run: |
-          echo "**Homebrew tap ($TAP_REPO)**: dry run=$DRY_RUN; rendered cask and formula are in the package-manifests artifact." >> "$GITHUB_STEP_SUMMARY"
+          echo "**Homebrew tap ($TAP_REPO)**: rendered cask and formula validated and pushed from this tag run." >> "$GITHUB_STEP_SUMMARY"
 
   channel-winget:
     name: "channel: winget"
     needs: [check, package-manifests]
-    if: ${{ vars.PUBLISH_WINGET == 'true' && needs.check.outputs.prerelease != 'true' && needs.package-manifests.result == 'success' }}
+    if: >-
+      ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+          && vars.PUBLISH_WINGET == 'true'
+          && needs.check.outputs.prerelease != 'true'
+          && needs.package-manifests.result == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 30
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     continue-on-error: true
     defaults:
       run:
         shell: bash
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1120,7 +1100,6 @@ jobs:
       - name: winget validate (own schema checker)
         run: winget validate --manifest rendered/winget
       - name: Install and uninstall silently (tag runs)
-        if: needs.check.outputs.dry_run != 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1149,7 +1128,7 @@ jobs:
         env:
           INSTALLER_URL: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ needs.check.outputs.tag }}/Cuotai_${{ needs.check.outputs.version }}_x64-setup.exe
       - name: Open a winget-pkgs pull request (tag runs, opt-in)
-        if: needs.check.outputs.dry_run != 'true' && vars.WINGET_SUBMIT == 'true'
+        if: vars.WINGET_SUBMIT == 'true'
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.WINGET_SUBMIT_TOKEN }}
@@ -1180,17 +1159,20 @@ jobs:
   channel-scoop:
     name: "channel: Scoop bucket"
     needs: [check, package-manifests]
-    if: ${{ vars.PUBLISH_SCOOP == 'true' && needs.check.outputs.prerelease != 'true' && needs.package-manifests.result == 'success' }}
+    if: >-
+      ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+          && vars.PUBLISH_SCOOP == 'true'
+          && needs.check.outputs.prerelease != 'true'
+          && needs.package-manifests.result == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 30
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     continue-on-error: true
     defaults:
       run:
         shell: bash
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
       BUCKET_REPO: ${{ vars.SCOOP_BUCKET_REPO || 'jmarcon/scoop-cuotai' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1202,7 +1184,6 @@ jobs:
           name: package-manifests
           path: rendered
       - name: scoop install/uninstall from a local bucket (tag runs)
-        if: needs.check.outputs.dry_run != 'true'
         run: |
           set -euo pipefail
           if ! type scoop >/dev/null 2>&1; then
@@ -1223,7 +1204,6 @@ jobs:
           fi
           rm -rf "$APPDATA/cuotai"
       - name: Push the manifest to the bucket (tag runs only)
-        if: needs.check.outputs.dry_run != 'true' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           BUCKET_REPO: ${{ vars.SCOOP_BUCKET_REPO || 'jmarcon/scoop-cuotai' }}
@@ -1247,14 +1227,17 @@ jobs:
   channel-cargo:
     name: "channel: crates.io"
     needs: [check, package-manifests]
-    if: ${{ vars.PUBLISH_CARGO == 'true' && needs.check.outputs.prerelease != 'true' && needs.package-manifests.result == 'success' }}
+    if: >-
+      ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+          && vars.PUBLISH_CARGO == 'true'
+          && needs.check.outputs.prerelease != 'true'
+          && needs.package-manifests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     continue-on-error: true
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1274,7 +1257,6 @@ jobs:
         continue-on-error: true
         run: cargo publish --dry-run --locked -p cuotai-tui
       - name: Publish cuotai-core, then cuotai-tui (tag runs only)
-        if: needs.check.outputs.dry_run != 'true' && github.event_name == 'push'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -1299,14 +1281,17 @@ jobs:
   channel-aur:
     name: "channel: AUR (cuotai-bin)"
     needs: [check, package-manifests]
-    if: ${{ vars.PUBLISH_AUR == 'true' && needs.check.outputs.prerelease != 'true' && needs.package-manifests.result == 'success' }}
+    if: >-
+      ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+          && vars.PUBLISH_AUR == 'true'
+          && needs.check.outputs.prerelease != 'true'
+          && needs.package-manifests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    environment: release
     continue-on-error: true
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      DRY_RUN: ${{ needs.check.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1319,7 +1304,6 @@ jobs:
       - name: PKGBUILD syntax (own shell parser)
         run: bash -n rendered/aur/PKGBUILD
       - name: Push PKGBUILD and .SRCINFO over SSH (tag runs only)
-        if: needs.check.outputs.dry_run != 'true' && github.event_name == 'push'
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |

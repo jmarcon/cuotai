@@ -21,6 +21,7 @@ pub mod plan_links;
 pub mod sbom;
 pub mod signing;
 pub mod updater;
+pub mod workflow;
 
 use std::fmt;
 

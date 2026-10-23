@@ -175,6 +175,7 @@ jobs:
         with:
           toolchain: 1.99.1
       - run: cargo run -p xtask --locked -- release-check
+      - run: cargo run -p xtask --locked -- workflow-check
 
   # Changelog format, PRD references and plan links (PRD 0019 RF7.4 and
   # RF7.8). The pull request also passes through the feat/fix changelog

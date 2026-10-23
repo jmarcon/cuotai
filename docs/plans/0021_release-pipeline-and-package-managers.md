@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0021 |
-| Status | In progress (RF1–RF4 implemented in 0.68.0 and hardened in 0.75.1; RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 delivered in 0.70.0; RF8.1 partially delivered in 0.74.0/0.75.1 with PRD 0018; RF9.4 delivered as documentation without a version bump; RF6, the remaining RF8.1 source/ownership contract, RF8.3, RF9.2, RF9.3 and RF9.5 pending; every channel stays opt-in and off until the owner enables it) |
+| Status | In progress (RF1–RF4 implemented in 0.68.0 and hardened in 0.75.1/0.75.2; RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 delivered in 0.70.0; RF8.1 partially delivered in 0.74.0/0.75.1 with PRD 0018; RF9.2 and RF9.5 delivered in 0.75.2; RF9.4 delivered as documentation without a version bump; RF6, the remaining RF8.1 source/ownership contract, RF8.3 and RF9.3 pending; every channel stays opt-in and off until the owner enables it) |
 | Owner | Repository, CI and release (`.github/`, `packaging/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRD 0018 (updater), PRD 0014 (widgets) |
 | Depends on | PRD 0019 RF2 (green CI on three systems) and RF7.1 to RF7.3 (`CHANGELOG.md`) |
@@ -16,7 +16,7 @@
 
 | RF | Version | Status and evidence |
 |---|---|---|
-| RF1 | 0.68.0 and 0.75.1 | Implemented — deterministic tag/version gate and safe `workflow_dispatch` dry run in `xtask/src/{check,git,main}.rs` and `.github/workflows/release.yml`; in 0.75.1 branch rehearsals route to a secretless `rehearsal` environment instead of the tag-only `release` environment, and the wholly unsigned branch is distinct from the fail-closed partially signed tag branch. Procedure in `docs/releasing.md`. |
+| RF1 | 0.68.0, 0.75.1 and 0.75.2 | Implemented — deterministic tag/version gate in `xtask/src/{check,git,main}.rs` and `.github/workflows/release.yml`; 0.75.2 makes `workflow_dispatch` an honest secretless policy/version preflight while the complete artifact rehearsal uses an `rc` tag in a fork, so the free-tier guard no longer launches heavy builds on a routine dispatch. Procedure in `docs/releasing.md`. |
 | RF2 | 0.68.0 and 0.75.1 | Implemented — cross-platform artifact collection, optional ARM legs, checksums, provenance and aggregate CycloneDX SBOM in `.github/workflows/release.yml`, `scripts/release/` and `xtask/src/{manifest,sbom}.rs`; 0.75.1 makes each Windows/Linux updater payload one artifact with both its platform/checksum proof and detached updater proof. |
 | RF3 | 0.68.0 and 0.75.1 | Implemented — honest signing state and checksum-signing fallback in `xtask/src/signing.rs` and `scripts/release/{macos,windows}-*`; merge-level fixtures reject duplicate artifact records while accepting the dual-proof shape, and updater secrets reach signing steps only. Owner production certificates and keys remain prerequisites. |
 | RF4 | 0.68.0 and 0.75.1 | Implemented — idempotent draft assembly, publish gate and public checksum verification in `scripts/release/{publish-release,verify-release}.sh`, `.github/workflows/release.yml` and `xtask/src/notes.rs`; an unsigned rehearsal now carries an explicit unavailable-updater note. |
@@ -24,7 +24,7 @@
 | RF6 | — | Proposed — produced-artifact smoke tests are not implemented as a completed requirement. |
 | RF7 | 0.70.0 | Partial — RF7.2 (README leads with the per-platform installation section, verify-your-download and uninstall semantics) and RF7.3 (`packaging/README.md` documents every template and its maintainer) delivered; the rest of the documentation/layout work remains pending. |
 | RF8 | 0.74.0 and 0.75.1 | Partial — RF8.1 is implemented in the desktop for direct/AppImage, Homebrew Caskroom, the exact `cuotai` Scoop component, winget's package-cache path and generic Linux package roots; generic Linux guidance no longer prescribes Debian's package manager. With the repository's default current-user NSIS mode, a normal winget install still shares `%LocalAppData%\Cuotai` with a manual install, so safe ownership detection needs a durable installer/receipt marker that the repository does not define. The detector also remains in the desktop updater module rather than the core, and CLI/Cargo-source detection is pending. RF8.2 is implemented (per-channel uninstall semantics documented; winget/Scoop CI tests prove a configuration file survives uninstalling; cask `zap` is explicit-only). RF8.3 is pending. |
-| RF9 | 0.70.0; no version bump for RF9.4 | Partial — RF9.1 is the owner checklist with the per-channel secrets, enabling variables and repositories in `docs/releasing.md`. RF9.4 is implemented by the executable rollback/yank procedure, per-step verification, updater behaviour evidence and signing-key rotation runbooks in `docs/releasing.md` and `docs/updater-security.md`; it changes documentation only, so the product stays at 0.75.1. The owner-controlled secrets themselves, RF9.2, RF9.3 and RF9.5 remain pending. |
+| RF9 | 0.70.0 and 0.75.2; no version bump for RF9.4 | Partial — RF9.1 is the owner checklist with the per-channel secrets, enabling variables and repositories in `docs/releasing.md`. RF9.2 and RF9.5 are implemented in 0.75.2: workflow-level read-only permissions, write scopes only on owning jobs, every secret confined to its owning step in the protected `release` environment, fork-safe CI/release triggers, a tag-only bounded/optional build matrix, Cargo caches and per-job timeouts. `cargo xtask workflow-check`, run by CI and the release preflight, enforces permissions, timeouts, action pins, secret owners, triggers and the matrix with failure fixtures. RF9.4 is the executable rollback/yank and credential-rotation runbook. RF9.3 remains pending; owner-created environments/tokens remain prerequisites, not repository deliverables. |
 
 ## 1. Context
 
@@ -76,8 +76,8 @@ Market context (2026-10-19 analysis): every open competitor with traction ships 
 - **RF1.1** The release is triggered by pushing an annotated tag `vX.Y.Z` that points at a commit on `main`. A tag on any other commit, or whose version differs from the workspace `Cargo.toml`, fails the first job with a clear message. Pre-release tags `vX.Y.Z-rc.N` are published as GitHub pre-releases and never reach package managers (RF5 skips them).
 - **RF1.2** A single `xtask`-style check, written in Rust and run through Cargo, verifies in CI and in the release job that `Cargo.toml` (`[workspace.package]`), `apps/desktop/src-tauri/Cargo.toml`, `tauri.conf.json`, both lockfiles and the top versioned section of `CHANGELOG.md` agree with the tag. This is the check PRD 0019 RF3.1 and RF7.4 ask for; it lives here and PRD 0019 points to it.
 - **RF1.3** The first release creates the retroactive tags the changelog footer links expect. Tagging history is outward-facing, so it is a listed owner decision (§8), not an automatic step. If the owner declines, the footer keeps comparing commits until the first real tag.
-- **RF1.4** `workflow_dispatch` runs the whole pipeline in **dry-run** mode: it builds and packages, uploads artifacts to the workflow run only, and neither creates a GitHub Release nor contacts any package manager.
-- **Acceptance criterion:** a tag with a mismatched version, a missing changelog section or a non-`main` commit fails before any build; a dry run produces the artifacts without publishing anything.
+- **RF1.4** `workflow_dispatch` is a secretless **preflight**: it checks the requested version/tag and the workflow policy, states which heavy surfaces were skipped, and never enters the release environment, creates an artifact or contacts a package manager. A complete artifact rehearsal uses an annotated `-rc.N` tag in a fork with ephemeral credentials.
+- **Acceptance criterion:** a tag with a mismatched version, a missing changelog section or a non-`main` commit fails before any build; a dispatch proves the version/policy gate without requesting a secret; an `rc` tag in a fork produces the artifacts without reaching package managers.
 
 ### RF2 — Build matrix and artifacts (high priority)
 
@@ -97,8 +97,8 @@ Replaces PRD 0019 RF3.2 with a concrete list. Names are stable so package manife
 | Updater | the Tauri build | `latest.json` per PRD 0018 RF1.3, with the changelog section as notes |
 
 - **RF2.1** The desktop is built with the official `tauri-action` or with `cargo tauri build` directly; the choice is recorded in `docs/releasing.md` with the reason. Whichever is used is pinned by commit hash, like every action in `ci.yml`.
-- **RF2.2** The CLI build uses plain `cargo build --release --locked -p cuotai-tui` per target. A tool such as `cargo-dist`, installed through Cargo, is allowed only if it keeps the hash-pinned actions, the read-only default token and the dry-run mode; otherwise the workflow stays hand-written. Dependencies are fetched with Cargo only.
-- **RF2.3** Every job uses `--locked`, the toolchain pinned in CI (PRD 0019 RF6.2), a timeout, `permissions: contents: read` by default, and widens permissions (`contents: write`, `id-token: write` for attestations) only in the publish job.
+- **RF2.2** The CLI build uses plain `cargo build --release --locked -p cuotai-tui` per target. A tool such as `cargo-dist`, installed through Cargo, is allowed only if it keeps the hash-pinned actions, the read-only default token and the secretless preflight; otherwise the workflow stays hand-written. Dependencies are fetched with Cargo only.
+- **RF2.3** Every job uses `--locked`, the toolchain pinned in CI (PRD 0019 RF6.2), a timeout and `permissions: contents: read` by default. Only the publish job gets `contents: write`; only the signing/attestation job gets `id-token: write` and `attestations: write`; attestation verification gets read only.
 - **RF2.4** Each release artifact gets a GitHub build-provenance attestation, so a user can verify it with `gh attestation verify`.
 - **RF2.5** The matrix tolerates an unavailable runner: a missing optional architecture (Windows or Linux ARM64) does not block the release, and the release notes list the artifacts that were not produced.
 - **Acceptance criterion:** a release-candidate tag in a fork produces every artifact in the table (minus declared optional ones), each opens or runs on a clean machine, and `shasum -a 256 -c SHA256SUMS` passes.
@@ -128,7 +128,7 @@ Refines PRD 0019 RF3.4 and RF3.5.
 
 ### RF5 — Package-manager channels (medium priority; each channel is opt-in)
 
-Replaces PRD 0019 RF4. A channel is enabled by a repository variable (`PUBLISH_HOMEBREW=true`, and so on) so the owner turns channels on one by one. Pre-release tags never publish to a channel. Every channel job runs **after** RF4.4, reads asset URLs and checksums from the verified release (never from a rebuilt file), and has its own dry run (RF1.4).
+Replaces PRD 0019 RF4. A channel is enabled by a repository variable (`PUBLISH_HOMEBREW=true`, and so on) so the owner turns channels on one by one. Pre-release tags never publish to a channel. Every channel job runs **after** RF4.4, reads asset URLs and checksums from the verified release (never from a rebuilt file), and is isolated so its failure cannot undo the release.
 
 Channels are ordered by value and cost:
 
@@ -148,7 +148,7 @@ Channels are ordered by value and cost:
 - **RF5.4 Cargo.** `cargo install cuotai-tui --locked` requires `cuotai-core` on crates.io, because a published crate cannot depend on a path-only crate. So this channel needs both crates published, with complete metadata (`description`, `repository`, `readme`, `keywords`, `categories`, `rust-version`), the crate name checked as free first (the `cargo search cuotai` check on 2026-10-21 found no crate), and `publish` guards on the desktop crate (`publish = false`, since it is a Tauri app). Until then the README documents `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked`. The release job publishes `cuotai-core` and then `cuotai-tui` with a crates.io token held in the `release` environment, after a `cargo publish --dry-run`. `[package.metadata.binstall]` points `cargo binstall` at the GitHub Release tarballs (RF2).
 - **RF5.5 Linux.** `.deb`, `.rpm` and AppImage are release assets from the start (RF2). The AUR `cuotai-bin` package keeps a `PKGBUILD` template in `packaging/aur/`; a job updates `pkgver` and checksums and pushes to the AUR over SSH with a key in the `release` environment. A hosted APT or RPM repository (for example on GitHub Pages, signed with the repository key) is optional and ships only if the owner wants `apt install`; installing a downloaded `.deb` by hand is the documented fallback.
 - **RF5.6** Every channel's manifest or template lives in `packaging/<channel>/` in this repository, is rendered from one data source (version, URLs, checksums, signing state) and has a test that renders it and validates the output with the channel's own linter. No manifest is edited by hand after the first submission.
-- **RF5.7** A channel failure never fails the GitHub Release. Each channel job is independent, reports its own status in the run summary, and can be re-run alone with `workflow_dispatch` and a tag input.
+- **RF5.7** A channel failure never fails the GitHub Release. Each channel job is independent, reports its own status in the run summary and can be re-run alone after a stable tag; the dispatch preflight intentionally does not launch channel runners.
 - **Acceptance criterion:** for each enabled channel, a clean machine installs the previous version through the channel, upgrades to the new one through the same channel, runs `cuotai --version` or opens the app, then uninstalls; uninstalling keeps `cuotai.toml`, the credential vault entries and the preferences unless the user opts in to remove them.
 
 ### RF6 — Smoke tests on the produced artifacts (medium priority)
@@ -189,13 +189,13 @@ Extends PRD 0019 RF5.2 from "the TUI in CI" to "the artifacts that users downloa
 - **Supply chain:** actions pinned by commit hash, `--locked` everywhere, secrets only in the protected environment, attestations and a signed `SHA256SUMS` on every release, an SBOM attached.
 - **Honesty:** the release notes, the README and each channel's description state the signing state; a channel never advertises "verified" for an unsigned artifact.
 - **Idempotence and rollback:** every step can be re-run; no step deletes published artifacts; each channel can be rolled back independently.
-- **Portability:** the pipeline runs in a fork with dry-run mode and no production secrets.
+- **Portability:** the secretless preflight and a complete `rc` artifact rehearsal run in a fork without production secrets.
 - **Dependencies:** build and publish tooling is installed through Cargo or comes as a pinned GitHub Action; no Node or Python package manager enters the project. Package-manager manifests (Ruby cask, YAML, JSON, `PKGBUILD`) are data files, not dependencies.
 - **Cost:** within the free tier for public repositories; the owner's possible costs are the Apple Developer Program, a Windows signing certificate or service, and nothing else.
 
 ## 7. Order of execution and verification
 
-1. **RF1** version check, tag trigger and dry run (nothing user-visible yet; safest to land first).
+1. **RF1** version check, tag trigger and secretless dispatch preflight (nothing user-visible yet; safest to land first).
 2. **RF2 and RF4** build matrix and draft GitHub Release for an `rc` tag in a fork. This is the first user-visible delivery: downloadable binaries with checksums.
 3. **RF3** signing and the signing-state output, first without certificates (honest "unsigned"), then with them as the owner provides them.
 4. **RF6** smoke tests on the artifacts.
@@ -214,7 +214,7 @@ The requirement is only delivered when a user with no Rust toolchain installs th
 | Apple Developer ID and notarization credentials | Signed macOS DMG; the official Homebrew cask; widgets (PRD 0014) | Ship an ad-hoc-signed DMG marked unsigned; Homebrew only through the own tap |
 | Windows signing (certificate or cloud signing service) | A clean SmartScreen and antivirus experience; fewer winget rejections | Ship unsigned installers, stated in the release notes |
 | Create the `jmarcon/homebrew-cuotai` and `jmarcon/scoop-cuotai` repositories | Homebrew and Scoop channels | Channels stay disabled |
-| Create the `release` GitHub environment and secrets (RF9.1) | Any real release | Dry run only |
+| Create the `release` GitHub environment and secrets (RF9.1) | Any real or `rc` artifact release | Secretless dispatch preflight only |
 | Create retroactive tags for 0.1.0 to the current version (RF1.3) | Changelog footer links | Keep comparing commits until the first real tag |
 | winget `PackageIdentifier` (`Cuotai.Cuotai`) | winget | `Cuotai.Cuotai` |
 | Durable normal-winget ownership marker: either publish a dedicated winget installer or add an NSIS hook/switch that writes and removes a Cuotai-owned source value | Complete RF8.1 without classifying manual NSIS installs as winget | Keep normal winget detection off and tell users to set `CUOTAI_UPDATER=off`; never infer ownership from the shared install path or standard Tauri uninstall entry |

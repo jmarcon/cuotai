@@ -1,12 +1,12 @@
 # Releasing Cuotai
 
-This document describes the release pipeline (PRD 0021 RF1–RF5): how a tag
-becomes a verified GitHub Release, what is signed and what is not, how to
-rehearse in a fork, the opt-in package-manager channels (RF5), and what the
-owner must configure. A channel is contacted **only** when its repository
-variable (`PUBLISH_HOMEBREW`, `PUBLISH_WINGET`, `PUBLISH_SCOOP`,
+This document describes the release pipeline (PRD 0021 RF1–RF5 and RF9): how
+a tag becomes a verified GitHub Release, what is signed and what is not, how
+to rehearse in a fork, the opt-in package-manager channels (RF5), and what the
+owner must configure. A channel is contacted **only** on a stable tag when its
+repository variable (`PUBLISH_HOMEBREW`, `PUBLISH_WINGET`, `PUBLISH_SCOOP`,
 `PUBLISH_CARGO`, `PUBLISH_AUR`) is set to `true`, always after the published
-release has been re-verified; until the owner enables one, the pipeline
+release has been re-verified; until the owner enables one, the tag pipeline
 renders and validates it locally and pushes nothing.
 
 ## How a release works
@@ -17,8 +17,8 @@ renders and validates it locally and pushes nothing.
    `CHANGELOG.md` section). CI's `version-check` job proves they agree.
 2. The owner creates an **annotated** tag on `main` and pushes it:
    `git tag -a v0.68.0 -m "v0.68.0" <commit>` then `git push origin v0.68.0`.
-3. `.github/workflows/release.yml` runs: **check → builds → assemble →
-   publish → verify-public → package-manifests → channel jobs**.
+3. On that pushed tag, `.github/workflows/release.yml` runs: **check → builds
+   → assemble → publish → verify-public → package-manifests → channel jobs**.
 
 ```text
 check ──┬─ desktop-macos ───┐
@@ -61,21 +61,53 @@ cargo xtask release-check --tag v0.68.0            # + tag format and version ma
 cargo xtask release-check --tag v0.68.0 --require-main origin/main   # + git ancestry (needs the tag locally)
 ```
 
-## Dry run (RF1.4)
+## Secretless rehearsal (RF1.4, RF9.5)
 
 **Actions → Release → Run workflow**, optionally with a tag name (default:
-`v<workspace version>`). A dispatch run:
+`v<workspace version>`). A dispatch is deliberately a cheap, honest preflight:
 
-- builds and packages every artifact exactly like a tag run;
-- uploads them as workflow artifacts (`release-assembly`);
-- **never** creates or modifies a GitHub Release, never contacts a package
-  manager, never notarizes, and skips Sigstore signing and provenance
-  attestations (stated in the run summary and in `signing-state.json`);
-- behaves as if no signing secrets existed, so the honest-unsigned path is
-  always exercised.
+- `release-check` validates the five version locations, both lockfiles, the
+  changelog section and the requested tag syntax;
+- `workflow-check` audits both workflows for least-privilege permissions,
+  per-job timeouts, full action SHA pins, step-owned secrets, the bounded RF2
+  matrix and tag-only heavy jobs;
+- the run summary states that desktop bundles, full CLI builds, SBOM,
+  assembly, publication and channel jobs were not run;
+- no `release` environment is entered, no secret is requested, no artifact is
+  advertised, and no release or package-manager repository is contacted.
 
-The whole pipeline also runs in a **fork**: push an `rc` tag there (or use
-the dry run) and every step works without any production secret.
+This preflight is not presented as an artifact rehearsal. To exercise the
+complete artifact path before a real release, push an annotated `-rc.N` tag in
+a fork. Use an **ephemeral** updater key in that fork's tag-protected `release`
+environment; never copy a production credential. The release candidate builds
+the bounded matrix and publishes a GitHub pre-release, but package-manager jobs
+remain disabled because pre-release tags never reach channels.
+
+## Workflow security and cost guardrails (RF9.2, RF9.5)
+
+- Both workflows declare `permissions: contents: read` at workflow level.
+  Only `publish` receives `contents: write`; only `assemble`, which performs
+  Sigstore signing and provenance attestation, receives `id-token: write` and
+  `attestations: write`. The publish and public-verification jobs receive only
+  `attestations: read`. No job grants `packages: write`: crates.io uses its
+  own registry token in the single publish step.
+- CI uses `pull_request`, never `pull_request_target`, and references no
+  secret. Release triggers are exactly `v*` tag pushes and
+  `workflow_dispatch`; a dispatch runs only the secretless `check` job.
+- Signing credentials and per-target publishing tokens appear only in the
+  `env` block of the step that consumes them. `HOMEBREW_TAP_TOKEN`,
+  `SCOOP_BUCKET_TOKEN` and `WINGET_SUBMIT_TOKEN` are separate credentials,
+  stored only in the protected `release` environment. The AUR SSH key and
+  crates.io token are likewise isolated to their own publish steps.
+- Desktop bundles, the seven-row CLI matrix and the aggregate SBOM run only
+  for a pushed tag. Windows ARM64, Linux ARM64 and the two ARM64 CLI rows are
+  explicitly optional; every other RF2 artifact remains required.
+- `Swatinem/rust-cache` is enabled for Cargo builds. Jobs that compile the
+  desktop cache both `.` and `apps/desktop/src-tauri`; root-only Cargo jobs
+  cache `.`. Every job has `timeout-minutes`.
+- `cargo xtask workflow-check` enforces these invariants in CI and before a
+  release build. Its fixture tests prove that broad permissions, a missing
+  timeout, an unpinned action and a secret in a non-owning step fail closed.
 
 ## Artifacts (RF2)
 
@@ -120,7 +152,8 @@ Notes and limits:
   with `cargo metadata --locked` before `cargo tauri build`, whose trailing
   args are passed to Cargo: `cargo tauri build … -- --locked`), the exact Rust
   `1.99.1` compiler pinned repository-wide by `rust-toolchain.toml` and used
-  explicitly by CI/release, and a per-job timeout.
+  explicitly by CI/release, Cargo caching for the workspace it compiles, and
+  a per-job timeout.
 - **`sbom.cdx.json` is an aggregate**, not a single workspace dump: `cargo
   cyclonedx` runs for the CLI/TUI workspace and for the desktop workspace, and
   `cargo xtask merge-sbom` merges them. The merge validates `bomFormat`,
@@ -165,9 +198,9 @@ Per platform:
   `SHA256SUMS` (and, later, from package-repository keys).
 - **`SHA256SUMS`**: on tag runs it is signed with **Sigstore keyless**
   (cosign, identity = this repository's GitHub Actions OIDC token), producing
-  `SHA256SUMS.sig` + `SHA256SUMS.pem`. On dry runs the signature is honestly
-  marked unavailable. There is no project key to rotate; the identity is the
-  workflow.
+  `SHA256SUMS.sig` + `SHA256SUMS.pem`. The dispatch preflight produces no
+  checksum file and makes no signing claim. There is no project key to rotate;
+  the identity is the workflow.
 - **Tauri updater key** (`TAURI_SIGNING_PRIVATE_KEY` +
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`): used **only** for the in-app updater
   signatures of PRD 0018, never for code signing or checksums. The public key
@@ -180,11 +213,12 @@ Per platform:
   | macOS | `collect-macos.sh`, after notarization | the updater artifact is a tarball of the **notarized** app; a bundle-time archive would carry the pre-notarization app and fail Gatekeeper |
   | Windows | `scripts/release/updater-sign.sh`, after Authenticode | Authenticode rewrites the installer, so a bundle-time updater signature would not verify |
   | Linux | the Tauri bundler, via `--config src-tauri/tauri.updater.conf.json` | nothing rewrites the AppImage/deb/rpm after bundling, so the bundler's signature is final |
-  When the key is absent (dry run, fork), no `.sig` and no `latest.json` are
-  produced and `signing-state.json` says why.
+  A tag run without this key, or with only a partial required signature set,
+  fails assembly before publication. The dispatch preflight never requests
+  the key or builds updater payloads.
 - Every published release asset gets a GitHub **build-provenance attestation**
-  (verifiable with `gh attestation verify`) on tag runs. Dry runs do not
-  request or publish attestations and say so in the workflow summary.
+  (verifiable with `gh attestation verify`) on tag runs. The dispatch
+  preflight produces no artifact to attest.
 
 `signing-state.json` (schema version 2) is a first-class output: per artifact
 `{name, signed, method, status, updater_signature?, note?}`, the
@@ -243,25 +277,26 @@ and `.SRCINFO` agreement). The templates live in
 
 Workflow behaviour (RF5.7):
 
-- `package-manifests` runs after `verify-public` on a tag and after
-  `assemble` on a dispatch; it renders, validates and uploads the
-  `package-manifests` artifact, and never pushes anything.
-- Each channel job is gated by its repository variable
-  (`PUBLISH_HOMEBREW=true`, …) **and** `needs.check.outputs.prerelease != 'true'`:
-  a `-rc` tag never reaches a channel. They run with
-  `continue-on-error`, so a channel failure is visible in the run summary
-  but cannot fail the release; re-running a failed job on GitHub retries only
-  that channel, and a `workflow_dispatch` with a tag rehearses all of them.
-- On a **dry run** every channel job validates only: audit, install and push
-  steps are skipped, because the URLs of a rehearsal tag do not exist and a
-  rehearsal must never write to a tap, bucket, the AUR or crates.io.
-- On a **tag run** the publish steps run with the environment secrets
-  (`HOMEBREW_TAP_TOKEN`, `WINGET_SUBMIT_TOKEN`, `SCOOP_BUCKET_TOKEN`,
-  `AUR_SSH_PRIVATE_KEY`, `CARGO_REGISTRY_TOKEN`) and stop with an explicit
-  error when the secret is missing, instead of half-publishing. Optional
-  gates: `WINGET_SUBMIT=true` (the first winget submission stays manual) and
-  the repository variables `HOMEBREW_TAP_REPO`, `SCOOP_BUCKET_REPO`
-  (default `jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`).
+- `package-manifests` runs after `verify-public` on a stable tag; it renders,
+  validates and uploads the `package-manifests` artifact, and never pushes
+  anything itself.
+- Each channel job is gated by a pushed stable tag, its repository variable
+  (`PUBLISH_HOMEBREW=true`, …), and a successful `package-manifests` job. They
+  run with `continue-on-error`, so a channel failure is visible in the run
+  summary but cannot fail the already-published GitHub Release; re-running
+  failed jobs retries only those channels.
+- The dispatch preflight does not build release assets or run channel tools.
+  Renderers and validators remain covered by `cargo test -p xtask`; an
+  operator can also run the documented `cargo xtask package-manifests`
+  command locally against an assembly before enabling a production channel.
+- On a stable **tag run** the publish steps use only their owning environment
+  secret (`HOMEBREW_TAP_TOKEN`, `WINGET_SUBMIT_TOKEN`,
+  `SCOOP_BUCKET_TOKEN`, `AUR_SSH_PRIVATE_KEY`, or
+  `CARGO_REGISTRY_TOKEN`) and stop with an explicit error when it is missing,
+  instead of half-publishing. Optional gates: `WINGET_SUBMIT=true` (the first
+  winget submission stays manual) and the repository variables
+  `HOMEBREW_TAP_REPO`, `SCOOP_BUCKET_REPO` (default
+  `jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`).
 - The AUR push pins the host key against the fingerprints published on
   `aur.archlinux.org` and `wingetcreate.exe` is verified against a pinned
   SHA-256; nothing is fetched unpinned.
@@ -347,22 +382,15 @@ cosign verify-blob \
 
 ## Owner prerequisites (one-time, RF9.1)
 
-The pipeline never creates production secrets or repositories. GitHub may
-create the explicitly secretless `rehearsal` environment on first use. Before
-the first real release:
+The pipeline never creates production secrets, environments or repositories.
+Before the first real release:
 
-1. Create two environments (Settings → Environments):
-   - **`release`**, with a **required reviewer** and deployment branches
-     restricted to tags. Only tag-push jobs route here and can read signing
-     or publishing secrets.
-   - **`rehearsal`**, with no secrets, reviewers or deployment-branch rule.
-     `workflow_dispatch` desktop builds and opt-in channel validation jobs
-     route here, so a branch rehearsal is never blocked by `release`'s
-     tag-only rule. GitHub creates it on the first dispatch if it does not
-     exist yet; creating it explicitly makes the intended lack of secrets
-     and protection visible before that run.
-   See [`docs/updater-security.md`](updater-security.md) for the updater key's
-   own requirements.
+1. Create the **`release`** environment (Settings → Environments), with a
+   **required reviewer** and deployment branches restricted to tags. Only
+   tag-push jobs enter it; the dispatch preflight never enters an environment
+   and cannot read signing or publishing secrets. See
+   [`docs/updater-security.md`](updater-security.md) for the updater key's own
+   requirements.
 2. Add to the `release` environment, as desired:
    - `APPLE_CERTIFICATE` — base64-encoded PKCS#12 (`.p12`);
      `APPLE_CERTIFICATE_PASSWORD` — that file's password; and
@@ -382,12 +410,14 @@ the first real release:
      `gh secret set --env release` commands and the environment protection
      (required reviewer, tag-only deployment branches) the owner must set.
    - per channel, one token or key each, never shared (RF9.2):
-     `HOMEBREW_TAP_TOKEN` (contents: write on the tap repository),
-     `SCOOP_BUCKET_TOKEN` (contents: write on the bucket repository),
-     `WINGET_SUBMIT_TOKEN` (a GitHub token allowed to open pull requests in
-     `microsoft/winget-pkgs`), `AUR_SSH_PRIVATE_KEY` (the AUR account's SSH
-     private key) and `CARGO_REGISTRY_TOKEN` (a crates.io token with
-     `publish-new-crate` for `cuotai-core` and `cuotai-tui`).
+     `HOMEBREW_TAP_TOKEN` (a fine-grained token scoped only to the tap
+     repository, contents: write), `SCOOP_BUCKET_TOKEN` (a different
+     fine-grained token scoped only to the bucket repository, contents:
+     write), `WINGET_SUBMIT_TOKEN` (a token scoped only to the owner's
+     `winget-pkgs` fork, with the contents/pull-request access required by
+     `wingetcreate`), `AUR_SSH_PRIVATE_KEY` (only the AUR account's SSH key)
+     and `CARGO_REGISTRY_TOKEN` (only the crates.io scopes needed to publish
+     `cuotai-core` and `cuotai-tui`).
 3. For each channel the owner wants, create its repository first
    (`jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`, an AUR account for
    `cuotai-bin`) and set the repository variable that enables it:
@@ -400,29 +430,30 @@ the first real release:
 4. Decide on the **retroactive tags** `v0.1.0`… (RF1.3) so the changelog
    footer links compare tags instead of commits.
 
-Missing signing credentials degrade honestly during a dispatch rehearsal.
-For a tag release, platform code-signing credentials may still be absent and
-are reported as unsigned, but the Tauri updater key is a release prerequisite:
-no updater signatures, or only part of the required platform set, fails
-assembly instead of publishing a release that strands installed clients. A
-missing *channel* token fails only that channel job (RF5.7), with the message
-naming the secret to add or the variable to unset.
+The dispatch preflight never requests signing credentials. For a tag release,
+platform code-signing credentials may still be absent and are reported as
+unsigned, but the Tauri updater key is a release prerequisite: no updater
+signatures, or only part of the required platform set, fails assembly instead
+of publishing a release that strands installed clients. A missing *channel*
+token fails only that channel job (RF5.7), with the message naming the secret
+to add or the variable to unset.
 
 ## Rehearsing in a fork
 
-1. Fork, enable Actions, and create the secretless/unrestricted `rehearsal`
-   environment.
-2. **Actions → Release → Run workflow** for a full unsigned dry run. To push an
-   annotated `v<version>-rc.1` tag and exercise the signed path, put an
-   **ephemeral** updater key pair in the fork's tag-protected `release`
-   environment; never copy the production key.
-3. Check `signing-state.json` in the `release-assembly` artifact: a dispatch
-   reports the updater unavailable and the checksum signature absent; a tag
-   run reports the updater available and Sigstore-signed checksums.
-4. Check the `package-manifests` artifact: cask, formula, the three winget
-   manifests, the Scoop bucket manifest and `PKGBUILD`/`.SRCINFO`, all
-   rendered from the run's own manifest. Enable a channel variable in the
-   fork to exercise its validation steps; nothing is pushed from a dispatch.
+1. Fork and enable Actions. Do not copy any production secret.
+2. **Actions → Release → Run workflow** for the cheap secretless preflight.
+   Confirm that only `check` ran and that its summary explicitly lists the
+   skipped heavy surfaces.
+3. For a complete artifact rehearsal, put an **ephemeral** updater key pair
+   in the fork's tag-protected `release` environment, push an annotated
+   `v<version>-rc.1` tag, and wait for the pre-release pipeline.
+4. Check `signing-state.json` in the `release-assembly` artifact: the updater
+   is available only for payloads signed by the ephemeral key, while
+   `SHA256SUMS` is signed by the fork workflow's Sigstore identity.
+5. Check the `package-manifests` renderer locally against that assembly.
+   Channel jobs intentionally do not run for `-rc` tags; use throwaway
+   repositories and a stable test version only when rehearsing an external
+   channel, never the production target or credentials.
 
 ### Release-script harness
 

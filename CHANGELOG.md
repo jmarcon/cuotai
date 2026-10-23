@@ -13,8 +13,11 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.75.2] - 2026-10-22
+
 ### Changed
 
+- Release workflows now enforce least privilege mechanically: read-only defaults, write/OIDC scopes only on their owning jobs, secrets only on their consuming steps, tag-only heavy builds, the bounded optional matrix, Cargo caches and per-job timeouts; routine dispatches are cheap secretless policy/version preflights, while full artifact rehearsals use release-candidate tags in a fork (PRD 0021 RF9.2, RF9.5).
 - Release operators now have an executable bad-release rollback and signing-key rotation runbook: GitHub Release quarantine, exact Homebrew/Scoop/AUR/crates.io/winget actions with per-step verification, the limits for already-downloaded updates, the updater's single-key transition release, and Apple, Windows and keyless-checksum credential handling (PRD 0021 RF9.4).
 
 ## [0.75.1] - 2026-10-22
@@ -642,7 +645,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.75.2...HEAD
+[0.75.2]: https://github.com/jmarcon/cuotai/compare/v0.75.1...v0.75.2
 [0.75.1]: https://github.com/jmarcon/cuotai/compare/v0.75.0...v0.75.1
 [0.75.0]: https://github.com/jmarcon/cuotai/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/jmarcon/cuotai/compare/v0.73.0...v0.74.0

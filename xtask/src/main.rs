@@ -89,6 +89,9 @@ SUBCOMMANDS:
     --tag TAG                vX.Y.Z (must match the manifest version)
     --templates-dir DIR      channel templates (default: packaging)
     --out DIR                output directory for the rendered manifests
+
+  workflow-check      Enforce GitHub Actions least privilege and cost guardrails (RF9)
+    --workflow PATH         workflow to inspect (repeat; default: ci.yml and release.yml)
 ";
 
 fn main() -> ExitCode {
@@ -120,6 +123,7 @@ fn run(args: &[String]) -> Res<()> {
         "changelog-gate" => changelog_gate(&opts),
         "changelog-draft" => changelog_draft(&opts),
         "package-manifests" => package_manifests(&opts),
+        "workflow-check" => workflow_check(&opts),
         "help" | "--help" | "-h" => {
             print!("{USAGE}");
             Ok(())
@@ -397,6 +401,21 @@ fn package_manifests(opts: &Opts) -> Res<()> {
             "no signing state: unsigned caveats rendered"
         }
     );
+    Ok(())
+}
+
+fn workflow_check(opts: &Opts) -> Res<()> {
+    let mut workflows = opts.all("workflow");
+    if workflows.is_empty() {
+        workflows.extend([
+            ".github/workflows/ci.yml".to_string(),
+            ".github/workflows/release.yml".to_string(),
+        ]);
+    }
+    for workflow in &workflows {
+        xtask::workflow::check_file(Path::new(workflow))?;
+        println!("workflow policy passed: {workflow}");
+    }
     Ok(())
 }
 
