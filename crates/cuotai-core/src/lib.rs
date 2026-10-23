@@ -72,10 +72,17 @@ pub enum ConfigError {
     #[error("Configuração TOML inválida; confira os campos e tipos no exemplo.")]
     Parse,
     #[error(
-        "refresh_seconds deve ser >= 30 (>= 300 quando algum provedor é cobrado por consulta), \
-         concurrency entre 1 e 32 e timeout_seconds entre 1 e 300."
+        "refresh_seconds deve ser >= 30, concurrency entre 1 e 32 e timeout_seconds entre 1 e 300."
     )]
     Bounds,
+    #[error(
+        "O campo {field} da conta {account} deve ser >= {minimum} para provedores cobrados por consulta."
+    )]
+    MeteredRefreshFloor {
+        field: String,
+        account: String,
+        minimum: u64,
+    },
     #[error(
         "Nomes de conta informados precisam ser únicos; uma conta sem nome só é válida quando é a única do provedor."
     )]
@@ -88,6 +95,22 @@ pub enum ConfigError {
     Session,
     #[error("Conta de extensão sem um extension_id válido, com o id de outra extensão repetido ou com campos de credencial incompatíveis.")]
     Extension,
+}
+
+fn metered_refresh_floor_error(
+    index: usize,
+    account: &Account,
+    field: impl Into<String>,
+) -> ConfigError {
+    let account = match account.name.trim() {
+        "" => format!("accounts[{index}]"),
+        name => name.to_owned(),
+    };
+    ConfigError::MeteredRefreshFloor {
+        field: field.into(),
+        account,
+        minimum: Provider::METERED_MIN_REFRESH_SECONDS,
+    }
 }
 
 impl Config {
@@ -104,20 +127,20 @@ impl Config {
         {
             return Err(ConfigError::Bounds);
         }
-        // Global fallback: a metered provider (Cost Explorer) cannot be
-        // polled more often than `METERED_MIN_REFRESH_SECONDS` even when
-        // the account has no per-account override — the override can only
-        // raise the interval, never lower it.
-        let global_floor = self
-            .accounts
-            .iter()
-            .map(|a| a.provider)
-            .filter(|p| p.is_metered())
-            .map(|_| Provider::METERED_MIN_REFRESH_SECONDS)
-            .min()
-            .unwrap_or(0);
-        if global_floor > 0 && self.refresh_seconds < global_floor {
-            return Err(ConfigError::Bounds);
+        // `access::describe` publishes this same classification from
+        // `Provider::is_metered`; validation uses that canonical source
+        // directly instead of building the full localized descriptor.
+        for (index, account) in self.accounts.iter().enumerate() {
+            if account.refresh_seconds.is_none()
+                && account.provider.is_metered()
+                && self.refresh_seconds < Provider::METERED_MIN_REFRESH_SECONDS
+            {
+                return Err(metered_refresh_floor_error(
+                    index,
+                    account,
+                    "refresh_seconds",
+                ));
+            }
         }
         let invalid_names = self.accounts.iter().enumerate().any(|(index, account)| {
             let name = account.name.trim();
@@ -142,19 +165,19 @@ impl Config {
             return Err(ConfigError::AccountNames);
         }
         let mut identities = HashSet::new();
-        for account in &self.accounts {
+        for (index, account) in self.accounts.iter().enumerate() {
             if let Some(override_seconds) = account.refresh_seconds {
                 if override_seconds < Account::MIN_REFRESH_SECONDS {
                     return Err(ConfigError::Bounds);
                 }
-                // Per-account override must also respect the metered
-                // floor — the override can only raise the interval above
-                // the global, so a metered account with an override
-                // smaller than the floor is rejected.
                 if account.provider.is_metered()
                     && override_seconds < Provider::METERED_MIN_REFRESH_SECONDS
                 {
-                    return Err(ConfigError::Bounds);
+                    return Err(metered_refresh_floor_error(
+                        index,
+                        account,
+                        format!("accounts[{index}].refresh_seconds"),
+                    ));
                 }
             }
             if let Some(oauth) = &account.oauth {
@@ -289,8 +312,8 @@ impl Monitor {
     /// semaphore is always rebuilt from the new `concurrency`, so a new
     /// edit can also change how many concurrent providers are in flight.
     ///
-    /// The new configuration is validated; out-of-range settings return
-    /// the usual `ConfigError::Bounds`.
+    /// The new configuration is validated and returns the corresponding
+    /// [`ConfigError`] when a document or account setting is invalid.
     pub fn with_config(&self, config: Config) -> Result<Self, ConfigError> {
         config.validate()?;
         let http = if config.timeout_seconds == self.config.timeout_seconds {
@@ -1636,54 +1659,69 @@ credential_env = "OPENAI_ADMIN_KEY"
         account
     }
 
-    #[test]
-    fn validate_rejects_metered_account_with_override_below_floor() {
-        let config = Config {
-            refresh_seconds: 600,
-            accounts: vec![aws_account(Some(60))],
-            ..Config::default()
+    fn metered_floor_error(
+        config: &Config,
+        expected_field: &str,
+        expected_account: &str,
+    ) -> ConfigError {
+        let error = config.validate().expect_err("metered floor must reject");
+        let ConfigError::MeteredRefreshFloor {
+            field,
+            account,
+            minimum,
+        } = &error
+        else {
+            panic!("expected metered refresh floor error, got {error:?}");
         };
-        // 60s override on a metered provider is below the 300s floor.
-        assert!(matches!(config.validate(), Err(ConfigError::Bounds)));
+        assert_eq!(field, expected_field);
+        assert_eq!(account, expected_account);
+        assert_eq!(*minimum, Provider::METERED_MIN_REFRESH_SECONDS);
+        assert!(error.to_string().contains(expected_field));
+        assert!(error.to_string().contains(expected_account));
+        error
     }
 
     #[test]
-    fn validate_accepts_metered_account_with_override_at_or_above_floor() {
-        let mut config = Config {
-            refresh_seconds: 600,
-            accounts: vec![aws_account(Some(300))],
+    fn validate_accepts_small_global_when_metered_account_has_own_interval() {
+        let config = Config {
+            refresh_seconds: 120,
+            accounts: vec![aws_account(Some(3600))],
             ..Config::default()
         };
-        assert!(config.validate().is_ok(), "300s override is the floor");
-        config.accounts[0].refresh_seconds = Some(3600);
-        assert!(
-            config.validate().is_ok(),
-            "3600s override is well above the floor"
-        );
-        config.accounts[0].refresh_seconds = None;
-        // No override: the global (600) still applies, which is above
-        // the floor.
+
         assert!(config.validate().is_ok());
     }
 
     #[test]
-    fn validate_rejects_global_below_floor_when_metered_present() {
-        // A metered account with NO override inherits the global
-        // interval. If the user set the global too low (e.g. 60s),
-        // the metered floor still applies — the global cannot
-        // bypass the per-account floor.
+    fn validate_rejects_small_global_for_metered_account_without_override() {
         let config = Config {
-            refresh_seconds: 60,
+            refresh_seconds: 120,
             accounts: vec![aws_account(None)],
             ..Config::default()
         };
-        assert!(matches!(config.validate(), Err(ConfigError::Bounds)));
+
+        metered_floor_error(&config, "refresh_seconds", "bedrock-test");
     }
 
     #[test]
-    fn validate_does_not_enforce_metered_floor_for_free_providers() {
-        // A free provider with a 30s interval is fine. The floor
-        // only kicks in when at least one account charges per query.
+    fn validate_checks_metered_override_at_floor_boundary() {
+        let mut config = Config {
+            refresh_seconds: 120,
+            accounts: vec![aws_account(Some(Provider::METERED_MIN_REFRESH_SECONDS))],
+            ..Config::default()
+        };
+        assert!(
+            config.validate().is_ok(),
+            "an override at the floor is valid"
+        );
+
+        config.accounts[0].refresh_seconds =
+            Some(Provider::METERED_MIN_REFRESH_SECONDS.saturating_sub(1));
+        metered_floor_error(&config, "accounts[0].refresh_seconds", "bedrock-test");
+    }
+
+    #[test]
+    fn validate_does_not_enforce_metered_floor_for_non_metered_accounts() {
         let config = Config {
             refresh_seconds: 30,
             accounts: vec![Account {
@@ -1694,6 +1732,7 @@ credential_env = "OPENAI_ADMIN_KEY"
             }],
             ..Config::default()
         };
+
         assert!(config.validate().is_ok());
     }
 

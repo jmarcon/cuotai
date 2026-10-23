@@ -172,6 +172,23 @@ pub fn index_out_of_range(index: usize, count: usize) -> EditError {
 /// the ids used by both `ConfigFile::save` and `Config::upsert_account`
 /// when a document-wide rule fails.
 pub fn config_error_note(error: &crate::ConfigError) -> Localized {
+    if let crate::ConfigError::MeteredRefreshFloor {
+        field,
+        account,
+        minimum,
+    } = error
+    {
+        return Localized::with_params(
+            "edit_error.config_metered_refresh_floor",
+            params([
+                ("field", ParamValue::from(field.clone())),
+                ("account", ParamValue::from(account.clone())),
+                ("minimum", ParamValue::from(*minimum)),
+            ]),
+            error.to_string(),
+        );
+    }
+
     let id = match error {
         crate::ConfigError::Parse => "edit_error.config_parse",
         crate::ConfigError::Bounds => "edit_error.config_bounds",
@@ -180,6 +197,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::OAuth => "edit_error.config_oauth",
         crate::ConfigError::Session => "edit_error.config_session",
         crate::ConfigError::Extension => "edit_error.config_extension",
+        crate::ConfigError::MeteredRefreshFloor { .. } => unreachable!(),
     };
     Localized::fixed(id, error.to_string())
 }
@@ -283,6 +301,31 @@ mod tests {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);
             assert_eq!(note.fallback, error.to_string());
+        }
+
+        let metered = crate::ConfigError::MeteredRefreshFloor {
+            field: "accounts[2].refresh_seconds".into(),
+            account: "Bedrock production".into(),
+            minimum: 300,
+        };
+        let note = config_error_note(&metered);
+        assert_eq!(note.id, "edit_error.config_metered_refresh_floor");
+        assert_eq!(
+            note.params.get("field"),
+            Some(&ParamValue::Text("accounts[2].refresh_seconds".to_string()))
+        );
+        assert_eq!(
+            note.params.get("account"),
+            Some(&ParamValue::Text("Bedrock production".to_string()))
+        );
+        assert_eq!(
+            note.params.get("minimum"),
+            Some(&ParamValue::Text("300".to_string()))
+        );
+        for locale in ["pt-BR", "en-US", "es", "it"] {
+            let resolved = note.resolve(locale);
+            assert!(resolved.contains("accounts[2].refresh_seconds"));
+            assert!(resolved.contains("Bedrock production"));
         }
     }
 }
