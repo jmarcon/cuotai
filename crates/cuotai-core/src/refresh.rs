@@ -1005,6 +1005,13 @@ mod tests {
         }
     }
 
+    fn metered_account(name: &str, refresh_seconds: Option<u64>) -> Account {
+        Account {
+            provider: Provider::AwsBedrock,
+            ..account(name, refresh_seconds)
+        }
+    }
+
     fn report(account: &str, second: i64) -> Report {
         Report {
             account: account.into(),
@@ -1054,6 +1061,51 @@ mod tests {
         assert!(cycle.is_due(0, now + Duration::from_secs(60)));
         assert!(!cycle.is_due(1, now + Duration::from_secs(29)));
         assert!(cycle.is_due(1, now + Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn metered_schedule_allows_one_query_per_effective_interval() {
+        fn assert_schedule(override_seconds: Option<u64>, interval_seconds: u64) {
+            let config = Config {
+                refresh_seconds: 300,
+                concurrency: 1,
+                timeout_seconds: 5,
+                accounts: vec![metered_account("bedrock", override_seconds)],
+            };
+            let now = Instant::now();
+            let mut cycle = RefreshCycle::new(&config, now);
+            prime_with_snapshot(
+                &mut cycle,
+                Snapshot {
+                    started_at: Utc.timestamp_opt(1, 0).unwrap(),
+                    finished_at: Utc.timestamp_opt(2, 0).unwrap(),
+                    reports: vec![report("bedrock", 2)],
+                },
+                now,
+            );
+            let interval = Duration::from_secs(interval_seconds);
+            let first_due = now + interval;
+
+            assert!(cycle
+                .due_indices(first_due - Duration::from_secs(1))
+                .is_empty());
+            assert_eq!(cycle.due_indices(first_due), vec![0]);
+            let token = cycle.begin(0).expect("one query starts at the boundary");
+            assert!(
+                cycle.due_indices(first_due).is_empty(),
+                "the same interval cannot start a second query"
+            );
+            cycle.finish_account(0, Some(report("bedrock", 3)), token, first_due);
+
+            let second_due = first_due + interval;
+            assert!(cycle
+                .due_indices(second_due - Duration::from_secs(1))
+                .is_empty());
+            assert_eq!(cycle.due_indices(second_due), vec![0]);
+        }
+
+        assert_schedule(None, Provider::METERED_DEFAULT_REFRESH_SECONDS);
+        assert_schedule(Some(600), Provider::METERED_MIN_REFRESH_SECONDS);
     }
 
     #[test]

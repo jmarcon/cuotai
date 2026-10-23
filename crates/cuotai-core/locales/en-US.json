@@ -592,6 +592,7 @@
   "note.kimi.balance_semantics": "Cash balance may be negative (debt); voucher balance is always non-negative.",
   "note.kimi.no_membership_quota_endpoint": "Without this key there is no public endpoint for the Kimi Code/Membership quota with this key; subscription usage remains restricted to the console and the proprietary CLI.",
   "note.kimi.platform_key_scope": "kimi.com / kimi.ai platform key is independent of the kimi.com membership quota; use the key on the platform endpoint.",
+  "note.metered.interval_raised": "The configured {configured} s interval was raised to {effective} s because this provider bills per query.",
   "note.mimo_platform.cash_balance": "Cash balance: {value} {currency}.",
   "note.mimo_platform.console_api_reference": "Source: {base}. Web console routes are not publicly documented (reference: CodexBar MIT, MiMoUsageFetcher.swift); they may change without notice.",
   "note.mimo_platform.gift_balance": "Gift balance: {value} {currency}.",

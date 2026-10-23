@@ -98,14 +98,13 @@ pub(crate) enum VaultChange {
 
 const MAX_INTERVAL: u64 = edit::MAX_REFRESH_SECONDS;
 
-/// Effective minimum interval for the currently selected provider. The
-/// global floor (30s) covers every provider; metered providers raise
-/// the floor to the cost-guard (300s) so the wizard agrees with
-/// `Config::validate`. Returning the larger of the two keeps the
-/// wizard silent for free providers and assertive for paid ones.
+/// Effective minimum interval accepted by the editor for the selected
+/// provider. Metered overrides from 300 through 899 seconds remain valid
+/// configuration and are raised to the 900-second runtime floor with a
+/// report note, matching `Config::validate`.
 fn min_interval_for(provider: Provider) -> u64 {
     if provider.is_metered() {
-        Provider::METERED_MIN_REFRESH_SECONDS
+        Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS
     } else {
         edit::MIN_REFRESH_SECONDS
     }
