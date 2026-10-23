@@ -108,7 +108,9 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-          queries: default
+          # No `queries` input: the action then runs each language's default
+          # code-scanning suite (the same as the default setup). `queries:
+          # default` is not a valid value; it is read as a query pack name.
       # Swift needs a traced build: the WidgetKit sources of
       # apps/desktop/widgets/macos compile through their SwiftPM manifest.
       # SwiftPM's manifest sandbox cannot spawn the manifest binary under the
