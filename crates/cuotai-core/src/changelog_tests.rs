@@ -216,6 +216,21 @@ fn grouped_requirements_continue_their_plan() {
     );
     let entry = &changelog.releases[0].section.categories[0].entries[0];
     assert_eq!(entry.hashes, ["abc1234"]);
+    // Review ids group like RF ids (FIX-01, INT-04, GEM-01, SES-01…).
+    let review = parse_ok(
+        "# C\n\n## [Unreleased]\n\n## [0.80.0] - 2026-10-24\n\n### Security\n\n- Fixed (PRD 0013 FIX-01, FIX-02, RF3; PRD 0016 SES-01; PRD 0012 INT-04; abc1234).\n",
+    );
+    let refs: Vec<String> = review.references().iter().map(|r| r.to_string()).collect();
+    assert_eq!(
+        refs,
+        [
+            "PRD 0013 FIX-01",
+            "PRD 0013 FIX-02",
+            "PRD 0013 RF3",
+            "PRD 0016 SES-01",
+            "PRD 0012 INT-04"
+        ]
+    );
     // A bare requirement never borrows a plan across a `;` or without one.
     let loose = parse_ok(
         "# C\n\n## [Unreleased]\n\n## [0.1.0] - 2026-10-20\n\n### Fixed\n\n- A fix (RF3; PRD 0001 RF1; RF4).\n",

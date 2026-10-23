@@ -546,7 +546,7 @@ fn parse_entry(text: &str) -> Entry {
                     parse_prd_ref(rest, &mut refs);
                 } else if is_hash(part) {
                     hashes.push(part.to_string());
-                } else if let (Some(prd), true) = (plan, part.starts_with("RF")) {
+                } else if let (Some(prd), true) = (plan, part.starts_with("RF") || valid_rf(part)) {
                     parse_prd_ref(&format!("{prd} {part}"), &mut refs);
                 }
             }
@@ -629,15 +629,22 @@ fn plain_rf(token: &str) -> Option<u32> {
         .and_then(|n| n.parse().ok())
 }
 
-/// `RF2`, `RF7.4`, `RF1.10`: `RF` followed by dot-separated numbers.
+/// A requirement id: `RF2`, `RF7.4`, `RF1.10` (`RF` and dot-separated
+/// numbers), or a review id such as `FIX-01`, `INT-04`, `GEM-01` or
+/// `SES-01` (two or more capital letters, a dash, dot-separated numbers),
+/// the shapes the commit gate accepts in `Refs:` (PRD 0039 RF1.2).
 fn valid_rf(token: &str) -> bool {
-    let Some(rest) = token.strip_prefix("RF") else {
-        return false;
+    let numbers = |rest: &str| {
+        !rest.is_empty()
+            && rest
+                .split('.')
+                .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
     };
-    !rest.is_empty()
-        && rest
-            .split('.')
-            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+    if let Some(rest) = token.strip_prefix("RF") {
+        return numbers(rest);
+    }
+    let letters = token.bytes().take_while(|b| b.is_ascii_uppercase()).count();
+    letters >= 2 && token[letters..].strip_prefix('-').is_some_and(numbers)
 }
 
 /// 7–12 lowercase hex characters with at least one digit (so English words

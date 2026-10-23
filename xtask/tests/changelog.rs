@@ -252,6 +252,13 @@ fn every_grouped_requirement_is_checked_against_its_plan() {
     let error = check(fixture(&grouped).path()).unwrap_err();
     assert!(error.contains("PRD 0019 RF9"), "{error}");
     assert!(!error.contains("RF1.1"), "RF1.1 exists: {error}");
+    // Review ids are checked one by one too.
+    let review = CHANGELOG.replace(
+        "- A new thing you can do (PRD 0019 RF7.7, abc1234).",
+        "- A new thing you can do (PRD 0019 RF7.7, FIX-01; abc1234).",
+    );
+    let error = check(fixture(&review).path()).unwrap_err();
+    assert!(error.contains("PRD 0019 FIX-01"), "{error}");
 }
 
 #[test]
