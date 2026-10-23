@@ -69,6 +69,7 @@ function addLocale(file) {
   const name = String(data._meta?.name ?? "").slice(0, 48);
   if (!name) throw new Skip("invalidMeta");
   registerLocale(code, name, messages, data._meta?.flag);
+  return code;
 }
 
 export async function loadUserContent() {
@@ -77,12 +78,18 @@ export async function loadUserContent() {
   try { raw = await T.core.invoke("load_user_content"); } catch { return userContent; }
   userContent.dir = raw.dir;
   const errors = [...raw.errors];
+  const userLocales = [];
   for (const [kind, files, add] of [["theme", raw.themes, addTheme], ["locale", raw.locales, addLocale]]) {
     for (const f of files) {
-      try { add(f); }
-      catch (e) { errors.push({ kind, name: f.name, reason: e instanceof Skip ? e.message : "unreadable" }); }
+      try {
+        const id = add(f);
+        if (kind === "locale") userLocales.push(id);
+      } catch (e) {
+        errors.push({ kind, name: f.name, reason: e instanceof Skip ? e.message : "unreadable" });
+      }
     }
   }
+  try { localStorage.setItem("cuotai.userLocales", JSON.stringify(userLocales)); } catch {}
   userContent.errors = errors.map((e) => (typeof e === "string" ? { kind: "theme", name: e, reason: "unreadable" } : e));
   return userContent;
 }

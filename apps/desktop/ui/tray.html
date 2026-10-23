@@ -4,9 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
-      /* Aplica idioma e tema antes da primeira pintura; a lógica de runtime está em
-         js/i18n.js e js/lib.js. Animações: espelho do desktop.json. */
+      /* Applies language and theme before the first paint; runtime logic lives in
+         js/i18n.js and js/lib.js. Motion mirrors desktop.json. */
       var supportedLocales = ["pt-BR", "en-US", "es", "it"];
+      try {
+        var userLocales = JSON.parse(localStorage.getItem("cuotai.userLocales") || "[]");
+        if (Array.isArray(userLocales)) {
+          for (var j = 0; j < userLocales.length; j++) {
+            var userLocale = userLocales[j];
+            if (typeof userLocale === "string" &&
+                /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(userLocale) &&
+                !supportedLocales.includes(userLocale)) supportedLocales.push(userLocale);
+          }
+        }
+      } catch (e) {}
       var storedLocale = "";
       try { storedLocale = localStorage.getItem("cuotai.locale") || ""; } catch (e) {}
       var locale = supportedLocales.includes(storedLocale) ? storedLocale : "";
