@@ -76,7 +76,9 @@ pub enum ConfigError {
          concurrency entre 1 e 32 e timeout_seconds entre 1 e 300."
     )]
     Bounds,
-    #[error("Cada conta precisa de um nome não vazio e único.")]
+    #[error(
+        "Nomes de conta informados precisam ser únicos; uma conta sem nome só é válida quando é a única do provedor."
+    )]
     AccountNames,
     #[error("Não foi possível inicializar o cliente HTTPS.")]
     Client,
@@ -117,12 +119,26 @@ impl Config {
         if global_floor > 0 && self.refresh_seconds < global_floor {
             return Err(ConfigError::Bounds);
         }
-        let mut names = HashSet::with_capacity(self.accounts.len());
-        if self
-            .accounts
-            .iter()
-            .any(|a| a.name.trim().is_empty() || !names.insert(&a.name))
-        {
+        let invalid_names = self.accounts.iter().enumerate().any(|(index, account)| {
+            let name = account.name.trim();
+            if name.is_empty() {
+                self.accounts
+                    .iter()
+                    .enumerate()
+                    .any(|(other_index, other)| {
+                        index != other_index
+                            && account.provider == other.provider
+                            && (account.provider != Provider::Extension
+                                || account.extension_id() == other.extension_id())
+                    })
+            } else {
+                self.accounts[..index].iter().any(|other| {
+                    let other_name = other.name.trim();
+                    !other_name.is_empty() && other_name.eq_ignore_ascii_case(name)
+                })
+            }
+        });
+        if invalid_names {
             return Err(ConfigError::AccountNames);
         }
         let mut identities = HashSet::new();
@@ -986,6 +1002,58 @@ mod tests {
             Config::from_toml("accounts = []\nrefresh_second = 1"),
             Err(ConfigError::Parse)
         ));
+    }
+
+    #[test]
+    fn future_account_identity_fixture_loads_with_an_unnamed_account() {
+        let config = Config::from_toml(include_str!(
+            "../tests/fixtures/stable-account-identity.toml"
+        ))
+        .unwrap();
+
+        assert_eq!(config.accounts.len(), 2);
+        assert_eq!(config.accounts[0].name, "");
+        assert_eq!(config.accounts[0].provider, Provider::Groq);
+        assert_eq!(config.accounts[1].name, "Claude");
+    }
+
+    #[test]
+    fn future_id_allow_list_still_rejects_account_key_typos() {
+        let typo = r#"
+[[accounts]]
+id = "acc_0123456789ab"
+provider = "groq"
+credential_en = "GROQ_API_KEY"
+"#;
+
+        assert!(matches!(Config::from_toml(typo), Err(ConfigError::Parse)));
+    }
+
+    #[test]
+    fn unnamed_account_is_valid_only_without_a_provider_peer() {
+        let mut config = Config::from_toml(include_str!(
+            "../tests/fixtures/stable-account-identity.toml"
+        ))
+        .unwrap();
+        config.accounts[1].name.clear();
+        assert!(config.validate().is_ok());
+
+        config.accounts[1].provider = Provider::Groq;
+        assert!(matches!(config.validate(), Err(ConfigError::AccountNames)));
+        config.accounts[1].name = "Other".into();
+        assert!(matches!(config.validate(), Err(ConfigError::AccountNames)));
+    }
+
+    #[test]
+    fn configured_names_remain_globally_unique_ignoring_case() {
+        let mut config = Config::from_toml(include_str!(
+            "../tests/fixtures/stable-account-identity.toml"
+        ))
+        .unwrap();
+        config.accounts[0].name = "work".into();
+        config.accounts[1].name = "Work".into();
+
+        assert!(matches!(config.validate(), Err(ConfigError::AccountNames)));
     }
     #[tokio::test]
     async fn refresh_account_targets_only_the_named_index() {

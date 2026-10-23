@@ -249,8 +249,7 @@ impl Provider {
 }
 
 /// Configuration holds credential references, never credential values.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Account {
     pub name: String,
     pub provider: Provider,
@@ -270,6 +269,48 @@ pub struct Account {
     /// interval stays the fallback for accounts without an override.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refresh_seconds: Option<u64>,
+}
+
+/// Account fields accepted from configuration before stable account identity
+/// is part of the in-memory model. `id` is deliberately read and discarded:
+/// RF0 must tolerate the future key without generating or consuming it, while
+/// `deny_unknown_fields` continues to reject every other typo.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccountConfig {
+    #[serde(default, rename = "id")]
+    _future_id: Option<serde::de::IgnoredAny>,
+    #[serde(default)]
+    name: String,
+    provider: Provider,
+    #[serde(default)]
+    credential_env: Option<String>,
+    #[serde(default)]
+    oauth: Option<crate::oauth::OAuthConfig>,
+    #[serde(default)]
+    session: Option<crate::user_session::SessionConfig>,
+    #[serde(default)]
+    params: BTreeMap<String, String>,
+    #[serde(default)]
+    refresh_seconds: Option<u64>,
+}
+
+impl<'de> Deserialize<'de> for Account {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let account = AccountConfig::deserialize(deserializer)?;
+        Ok(Self {
+            name: account.name,
+            provider: account.provider,
+            credential_env: account.credential_env,
+            oauth: account.oauth,
+            session: account.session,
+            params: account.params,
+            refresh_seconds: account.refresh_seconds,
+        })
+    }
 }
 
 impl Account {

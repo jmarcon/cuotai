@@ -10,11 +10,12 @@
 //! files get mode 0600 on Unix; existing files keep their permissions (and
 //! permission failures abort the save). When the previously loaded document
 //! parses, we edit it with `toml_edit`, matching `[[accounts]]` tables by
-//! name for moves and positionally for in-place edits so order, comments and
-//! formatting survive; new accounts and brand new files are serialized with
-//! `toml_edit::ser`. The rendered document is parsed back and compared to the
-//! requested config before writing. Only on success are `config`/`exists`/
-//! snapshot updated; on any failure `self` is untouched.
+//! name and provider (plus extension id where applicable) for moves and
+//! positionally for in-place edits so order, comments and formatting survive;
+//! new accounts and brand new files are serialized with `toml_edit::ser`. The
+//! rendered document is parsed back and compared to the requested config.
+//! Only on success are `config`/`exists`/snapshot updated; on any failure
+//! `self` is untouched.
 //!
 //! Discovery is controlled by [`Discovery`] over injectable [`Locations`]:
 //! - [`Discovery::Cli`] (CLI/TUI): `--config`, `CUOTAI_CONFIG`, existing
@@ -538,10 +539,40 @@ fn set_int(doc: &mut toml_edit::DocumentMut, key: &str, val: i64) {
     }
 }
 
-/// Reorder existing tables by their validated unique names before applying
-/// positional edits. Moves therefore carry each table's prefix and value
-/// comments with the account. Renames still use positional matching; extra
-/// tables are dropped and missing ones appended.
+/// Reorder existing tables by their validated account identity before applying
+/// positional edits. Names identify current configurations; RF0 also accepts an
+/// omitted name, so provider and extension id disambiguate unnamed accounts.
+/// Moves carry each table's prefix and value comments with the account. Renames
+/// still use positional matching; extra tables are dropped and missing ones
+/// appended.
+fn table_matches_account(table: &toml_edit::Table, account: &Account) -> bool {
+    let name = table
+        .get("name")
+        .and_then(|name| name.as_str())
+        .unwrap_or_default();
+    let provider = table.get("provider").and_then(|provider| provider.as_str());
+    if name != account.name || provider != Some(account.provider.slug()) {
+        return false;
+    }
+    account.provider != crate::Provider::Extension
+        || table_param(table, "extension_id") == account.extension_id()
+}
+
+fn table_param<'a>(table: &'a toml_edit::Table, key: &str) -> Option<&'a str> {
+    let params = table.get("params")?;
+    params
+        .as_value()
+        .and_then(toml_edit::Value::as_inline_table)
+        .and_then(|params| params.get(key))
+        .and_then(toml_edit::Value::as_str)
+        .or_else(|| {
+            params
+                .as_table()
+                .and_then(|params| params.get(key))
+                .and_then(|value| value.as_str())
+        })
+}
+
 fn update_accounts(
     doc: &mut toml_edit::DocumentMut,
     accounts: &[Account],
@@ -560,17 +591,14 @@ fn update_accounts(
             "chave 'accounts' existente nao e uma lista de tabelas",
         )
     })?;
-    // A pure move has the same unique account names in a new order. Move the
+    // A pure move has the same account identities in a new order. Move the
     // actual `toml_edit::Table` nodes first so comments and formatting stay
     // attached to account identity rather than to the old numeric slot.
     let is_permutation = array.len() == accounts.len()
         && accounts.iter().all(|account| {
-            array.iter().any(|table| {
-                table
-                    .get("name")
-                    .and_then(|name| name.as_str())
-                    .is_some_and(|name| name == account.name.as_str())
-            })
+            array
+                .iter()
+                .any(|table| table_matches_account(table, account))
         });
     if is_permutation {
         // `toml_edit` 0.22 exposes append but no indexed insertion, and its
@@ -581,12 +609,7 @@ fn update_accounts(
         for (index, account) in accounts.iter().enumerate() {
             let mut table = array
                 .iter()
-                .find(|table| {
-                    table
-                        .get("name")
-                        .and_then(|name| name.as_str())
-                        .is_some_and(|name| name == account.name.as_str())
-                })
+                .find(|table| table_matches_account(table, account))
                 .expect("permutation contains every requested account")
                 .clone();
             // Encoder sorts by document position, not array order.
@@ -605,11 +628,11 @@ fn update_accounts(
     if accounts.len() < array.len() {
         let mut index = 0;
         while index < array.len() {
-            let keep = array
-                .get(index)
-                .and_then(|table| table.get("name"))
-                .and_then(|name| name.as_str())
-                .is_some_and(|name| accounts.iter().any(|account| account.name == name));
+            let keep = array.get(index).is_some_and(|table| {
+                accounts
+                    .iter()
+                    .any(|account| table_matches_account(table, account))
+            });
             if keep {
                 index += 1;
             } else {
@@ -689,6 +712,8 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
+    const FUTURE_ID_FIXTURE: &str = include_str!("../tests/fixtures/stable-account-identity.toml");
+
     fn account(name: &str, env: Option<&str>) -> Account {
         Account {
             name: name.into(),
@@ -729,6 +754,95 @@ mod tests {
         assert_eq!(
             toml::to_string(&reloaded.config).unwrap(),
             toml::to_string(&cfg).unwrap()
+        );
+    }
+
+    #[test]
+    fn save_preserves_future_ids_without_generating_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("future-id.toml");
+        fs::write(&path, FUTURE_ID_FIXTURE).unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        assert_eq!(file.config.accounts[0].name, "");
+
+        let mut updated = file.config.clone();
+        updated.accounts[0].refresh_seconds = Some(90);
+        updated.accounts.push(account("OpenAI", None));
+        file.save(updated).unwrap();
+
+        let text = fs::read_to_string(&path).unwrap();
+        let document = text.parse::<toml_edit::DocumentMut>().unwrap();
+        let accounts = document["accounts"].as_array_of_tables().unwrap();
+        assert_eq!(
+            accounts
+                .get(0)
+                .and_then(|table| table.get("id"))
+                .and_then(|id| id.as_str()),
+            Some("acc_0123456789ab")
+        );
+        assert_eq!(
+            accounts
+                .get(1)
+                .and_then(|table| table.get("id"))
+                .and_then(|id| id.as_str()),
+            Some("acc_bcdefghjkmnp")
+        );
+        assert!(
+            accounts.get(2).unwrap().get("id").is_none(),
+            "RF0 must not generate account ids"
+        );
+
+        let reloaded = load_at(&path, false).unwrap();
+        assert_eq!(reloaded.config.accounts[0].name, "");
+        assert_eq!(reloaded.config.accounts[0].refresh_seconds, Some(90));
+        assert_eq!(reloaded.config.accounts[2].name, "OpenAI");
+    }
+
+    #[test]
+    fn moving_unnamed_accounts_keeps_each_future_id_with_its_provider() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("unnamed-move.toml");
+        fs::write(
+            &path,
+            r#"
+[[accounts]]
+id = "acc_0123456789ab"
+provider = "groq"
+
+[[accounts]]
+id = "acc_bcdefghjkmnp"
+provider = "anthropic_api"
+"#,
+        )
+        .unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        let moved = file.config.move_account(0, 1).unwrap();
+        file.save(moved).unwrap();
+
+        let text = fs::read_to_string(&path).unwrap();
+        let document = text.parse::<toml_edit::DocumentMut>().unwrap();
+        let accounts = document["accounts"].as_array_of_tables().unwrap();
+        assert_eq!(
+            accounts
+                .get(0)
+                .and_then(|table| table.get("id"))
+                .and_then(|id| id.as_str()),
+            Some("acc_bcdefghjkmnp")
+        );
+        assert_eq!(
+            accounts
+                .get(1)
+                .and_then(|table| table.get("id"))
+                .and_then(|id| id.as_str()),
+            Some("acc_0123456789ab")
+        );
+        assert_eq!(
+            file.config
+                .accounts
+                .iter()
+                .map(|account| account.provider)
+                .collect::<Vec<_>>(),
+            [crate::Provider::AnthropicApi, crate::Provider::Groq]
         );
     }
 

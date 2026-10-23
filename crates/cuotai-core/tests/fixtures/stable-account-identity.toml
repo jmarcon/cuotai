@@ -1,0 +1,14 @@
+refresh_seconds = 60
+concurrency = 2
+timeout_seconds = 10
+
+[[accounts]]
+id = "acc_0123456789ab"
+provider = "groq"
+credential_env = "GROQ_API_KEY"
+
+[[accounts]]
+id = "acc_bcdefghjkmnp"
+name = "Claude"
+provider = "anthropic_api"
+credential_env = "ANTHROPIC_ADMIN_KEY"
