@@ -76,11 +76,11 @@ printf '%s\n' "$encoded" > "$sig"
 # never reach a release.
 jq --arg a "$name" --arg s "$name.sig" '
   (.artifacts // []) as $all
-  | if any($all[]; .name == $a) then
+  | (if any($all[]; .name == $a) then
       $all | map(if .name == $a then . + {updater_signature: $s} else . end)
     else
       error("the updater artifact has no existing signing record: \($a)")
-    end as $records
+    end) as $records
   | .artifacts = $records
   | .updater = {
       available: true,
