@@ -422,6 +422,12 @@ fn check_job_permissions(workflow_name: &str, job_name: &str, job: &Mapping) -> 
         ("release.yml", "publish") => &[("contents", "write"), ("attestations", "read")],
         ("release.yml", "verify-public") => &[("contents", "read"), ("attestations", "read")],
         ("external-rules.yml", "issue") => &[("issues", "write")],
+        // CodeQL advanced setup: the SARIF upload needs security-events: write.
+        ("codeql.yml", "analyze") => &[
+            ("security-events", "write"),
+            ("contents", "read"),
+            ("actions", "read"),
+        ],
         _ => &[],
     };
     let permissions = job.get(Value::String("permissions".into()));
@@ -884,6 +890,7 @@ mod tests {
     const RELEASE_WORKFLOW: &str = include_str!("../../.github/workflows/release.yml");
     const EXTERNAL_RULES_WORKFLOW: &str =
         include_str!("../../.github/workflows/external-rules.yml");
+    const CODEQL_WORKFLOW: &str = include_str!("../../.github/workflows/codeql.yml");
 
     #[test]
     fn accepts_least_privilege_fixture() {
@@ -895,6 +902,17 @@ mod tests {
         assert!(check_text(Path::new("ci.yml"), CI_WORKFLOW).is_ok());
         assert!(check_text(Path::new("release.yml"), RELEASE_WORKFLOW).is_ok());
         assert!(check_text(Path::new("external-rules.yml"), EXTERNAL_RULES_WORKFLOW).is_ok());
+        assert!(check_text(Path::new("codeql.yml"), CODEQL_WORKFLOW).is_ok());
+    }
+
+    #[test]
+    fn rejects_codeql_broad_permissions() {
+        let unsafe_workflow = CODEQL_WORKFLOW.replacen(
+            "      security-events: write\n",
+            "      security-events: write\n      contents: write\n",
+            1,
+        );
+        assert!(check_text(Path::new("codeql.yml"), &unsafe_workflow).is_err());
     }
 
     #[test]

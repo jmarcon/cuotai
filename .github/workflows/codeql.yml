@@ -1,0 +1,123 @@
+# GitHub code scanning (CodeQL "advanced setup"). It replaces the repository's
+# "default setup" so that documentation-only changes do not start a scan: the
+# default setup cannot be filtered by path, a workflow can.
+#
+# Same languages and query suite as the default setup had: actions,
+# javascript-typescript, python, rust and swift, each with the `default`
+# suite (what `scripts/codeql-local.sh` runs locally). Actions are pinned by
+# commit hash (tag in the comment). No secrets are used, and pull requests run
+# with `pull_request`, never `pull_request_target`.
+#
+# Documentation-only skip: a push or pull request whose changed files ALL
+# match an excluded path starts no run (GitHub evaluates `paths` against the
+# whole change). The excluded list mirrors the documentation allow-list of the
+# `changes` job in ci.yml, so CI and CodeQL agree on what counts as docs:
+#   - README.md, CONTRIBUTING.md, SECURITY.md, AGENTS.md, apps/desktop/README.md
+#   - docs/**/*.md and docs/assets/** (screenshots)
+#   - .github/ISSUE_TEMPLATE/** and .github/*.md
+# Deliberately scanned (code, see ci.yml): CHANGELOG.md, docs/providers.md,
+# docs/*.json, licenses, THIRD_PARTY_NOTICES, apps/desktop/ui/** and the
+# workflows. `paths-ignore` cannot re-include docs/providers.md after the
+# docs/**/*.md exclusion, so the list uses `paths` with `!` patterns, where a
+# later pattern wins. The two lists below are identical; keep them (and the
+# ci.yml allow-list) in sync when one changes.
+#
+# The weekly schedule keeps alerts fresh when no code is pushed (new queries
+# and CodeQL releases can raise alerts on unchanged code). A skip marker in a
+# commit message also skips this workflow (AGENTS.md).
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**"
+      - "!README.md"
+      - "!CONTRIBUTING.md"
+      - "!SECURITY.md"
+      - "!AGENTS.md"
+      - "!apps/desktop/README.md"
+      - "!docs/**/*.md"
+      - "!docs/assets/**"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/*.md"
+      - "docs/providers.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**"
+      - "!README.md"
+      - "!CONTRIBUTING.md"
+      - "!SECURITY.md"
+      - "!AGENTS.md"
+      - "!apps/desktop/README.md"
+      - "!docs/**/*.md"
+      - "!docs/assets/**"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/*.md"
+      - "docs/providers.md"
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run for the same branch or pull request supersedes an older one.
+# Runs on main are never cancelled, so every pushed commit keeps its analysis.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    # The only job that needs more than the read-only workflow token: the
+    # SARIF upload writes code-scanning results.
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            runner: ubuntu-latest
+            build-mode: none
+          - language: javascript-typescript
+            runner: ubuntu-latest
+            build-mode: none
+          - language: python
+            runner: ubuntu-latest
+            build-mode: none
+          - language: rust
+            runner: ubuntu-latest
+            build-mode: none
+          - language: swift
+            runner: macos-latest
+            build-mode: manual
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: default
+      # Swift needs a traced build: the WidgetKit sources of
+      # apps/desktop/widgets/macos compile through their SwiftPM manifest.
+      # SwiftPM's manifest sandbox cannot spawn the manifest binary under the
+      # CodeQL tracer, hence --disable-sandbox.
+      - name: Build the Swift widget sources
+        if: matrix.language == 'swift'
+        working-directory: apps/desktop/widgets/macos
+        run: swift build --disable-sandbox
+      - name: Analyze
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:${{ matrix.language }}"
