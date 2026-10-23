@@ -134,11 +134,11 @@ Without binaries, without a formal license and without releases, Cuotai cannot b
 
 - **RF7.1** A `CHANGELOG.md` file at the root, **in English** (RF1.4's language rule), in the Keep a Changelog format and with semantic versioning. A `## [Unreleased]` section at the top and, below it, one section per version in descending order (`## [0.17.0] - 2026-10-18`, date in UTC), with comparison links between tags in the footer. Fixed categories: **Added**, **Changed**, **Fixed**, **Security**, **Deprecated** and **Removed**. An empty category does not appear.
 - **RF7.2** Each entry has one sentence from the user's point of view (what changed, not how it was done), plus the traceability references in parentheses: the plan requirement met (`PRD 0006 RF2`) and the short commit hash. A change that breaks compatibility (TOML, `--json`, the `export::v1` contract, desktop preferences) gets the **Breaking** marker and the migration instruction. Changes with no effect for the user (`refactor`, `test`, `style`, `chore`) do not enter, except security fixes in dependencies, which go under **Security**.
-- **RF7.3** Maintenance flow:
+- **RF7.3** Maintenance flow (superseded by PRD 0039 RF1, RF4 and RF6 since 2026-10-23: entries come from `Changelog:` commit trailers and are written once per release by `cargo xtask release prepare`):
   - every user-visible delivery updates `[Unreleased]` in the same commit or *pull request*;
   - semantic commits that meet a plan requirement carry the footer `Refs: PRD 0006 RF2` (one line per requirement) and, when breaking, `BREAKING CHANGE:` with the migration;
   - for support, evaluate `git-cliff` (a Rust tool, installed through Cargo) or an `xtask` of our own that generates the section's **draft** from the commits since the last tag, grouping by type and by `Refs:`. The final text is reviewed by a person. No JavaScript tooling.
-- **RF7.4** CI checks:
+- **RF7.4** CI checks (the pull-request gate of the first bullet is superseded by the PRD 0039 RF2 commit gate, under the same `changelog-gate` command):
   - a *pull request* that changes `crates/` or `apps/` with a `feat` or `fix` commit must change `CHANGELOG.md`, except with the footer `Changelog: skip` and the reason;
   - the file obeys the format (a *parser* test): versions in descending order, every version with a date, valid categories;
   - on release, the top version matches that of `Cargo.toml` and `tauri.conf.json`;

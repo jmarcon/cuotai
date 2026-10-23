@@ -1,6 +1,7 @@
 # Releasing Cuotai
 
-This document describes the release pipeline (PRD 0021 RF1–RF5 and RF9): how
+This document describes the release flow (PRD 0039) and the release pipeline
+(PRD 0021 RF1–RF5 and RF9): how a release is prepared from the commits, how
 a tag becomes a verified GitHub Release, what is signed and what is not, how
 to rehearse in a fork, the opt-in package-manager channels (RF5), and what the
 owner must configure. A channel is contacted **only** on a stable tag when its
@@ -11,14 +12,68 @@ renders and validates it locally and pushes nothing.
 
 ## How a release works
 
-1. The delivering commit raises the version everywhere (see
-   [`AGENTS.md`](../AGENTS.md): workspace `Cargo.toml`,
-   `apps/desktop/src-tauri/Cargo.toml`, `tauri.conf.json`, both lockfiles,
-   `CHANGELOG.md` section). CI's `version-check` job proves they agree.
-2. The owner creates an **annotated** tag on `main` and pushes it:
-   `git tag -a v0.68.0 -m "v0.68.0" <commit>` then `git push origin v0.68.0`.
-3. On that pushed tag, `.github/workflows/release.yml` runs: **check → builds
+Feature and fix commits never change a version or `CHANGELOG.md`; each
+user-visible commit carries its entry as a `Changelog:` trailer (see
+[`AGENTS.md`](../AGENTS.md), "How to deliver a change"). A release is made
+on demand by the owner (PRD 0039 D8):
+
+1. **See what is pending.** `cargo xtask changelog-draft` (or the job
+   summary of the latest `main` CI run) prints the next version and its
+   would-be section.
+2. **Prepare.** On an up-to-date `main` in a clean worktree:
+
+   ```sh
+   git switch main && git pull --ff-only
+   cargo xtask release prepare --dry-run        # version, rationale, every diff
+   cargo xtask release prepare --branch         # writes and commits on release/vX.Y.Z
+   ```
+
+   `prepare` computes the version from the commits since the release base
+   (the newest stable `vX.Y.Z` tag, or while none exists the last commit that
+   changed the workspace version), writes the five version locations, the
+   `cuotai-core` requirement of `cuotai-tui`, both lockfiles (workspace
+   entries only, verified with `cargo metadata --locked --offline`), the
+   `CHANGELOG.md` section with the real short hashes and footer links, every
+   `vNEXT` of `docs/**/*.md` and `README.md`, and the "Delivered by version"
+   rows of `0000_control.md`; then it runs `release-check` and
+   `changelog-check` and commits `chore(release): X.Y.Z`. It never pushes,
+   tags or opens a pull request. `--version X.Y.Z` overrides the computed
+   version upward (recorded as `Version-Override:`).
+3. **Release PR.** `git push -u origin release/vX.Y.Z`, then
+   `gh pr create --base main --head release/vX.Y.Z --title "chore(release): X.Y.Z" --body "$(git log -1 --format=%b)"`.
+   CI runs `release-preflight` with `release prepare --check`. Fix wording
+   in the section on the branch (amend the release commit); if more commits
+   land on `main` first, rebase the branch and run
+   `cargo xtask release prepare --refresh`, which keeps every edited entry
+   and adds the new commits. For the first three releases (D7), also run
+   **Actions → Release → Run workflow** on `release/vX.Y.Z` with
+   **full_rehearsal**.
+4. **Merge** with **Rebase and merge**.
+5. **Tag** (owner only):
+
+   ```sh
+   git switch main && git pull --ff-only
+   cargo xtask release tag --rc                 # vX.Y.Z-rc.N, a GitHub pre-release
+   git push origin vX.Y.Z-rc.N
+   # once the rc is good:
+   cargo xtask release tag                      # vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+   `release tag` finds the newest release commit, checks that it is on
+   `origin/main`, re-runs `release prepare --check`, and creates the
+   **annotated** tag whose message is the section. It refuses a version that
+   already has a stable tag. Fixes after an rc land normally; then
+   `cargo xtask release prepare --refresh --branch` on a fresh branch
+   re-renders the **same** version's section as
+   `chore(release): X.Y.Z (refresh)`, followed by `release tag --rc` (rc.2) or `release tag`.
+6. On that pushed tag, `.github/workflows/release.yml` runs: **check → builds
    → assemble → publish → verify-public → package-manifests → channel jobs**.
+   Its `check` job also runs `release prepare --check` on the tagged commit.
+
+The first release after the cutover is a release candidate of the next
+computed version (`v0.80.0-rc.1` when a feature landed, D9). Versions 0.1.0
+to 0.79.0 are internal versions and get no retroactive tags (D10).
 
 ```text
 check ──┬─ desktop-macos ───┐
@@ -494,8 +549,11 @@ Before the first real release:
    `WINGET_SUBMIT=true` once the first `microsoft/winget-pkgs` submission has
    been reviewed by hand. Unset variables keep a channel off, and the run
    summary says so.
-4. Decide on the **retroactive tags** `v0.1.0`… (RF1.3) so the changelog
-   footer links compare tags instead of commits.
+4. Retroactive tags `v0.1.0`… (RF1.3) were **declined** (PRD 0039 D10): the
+   internal versions' footer links compare commits, and tags start with the
+   first real release.
+5. Apply the branch and tag rulesets and the merge settings of
+   "Branch and tag protection" below.
 
 The dispatch modes never request signing credentials. For a tag release, the
 required updater key and password are checked before any heavy job starts;
@@ -503,6 +561,81 @@ the gate lists either missing secret by name. Optional platform code-signing
 credentials may still be absent and are reported as unsigned. A missing
 *channel* token fails only that channel job (RF5.7), with the message naming
 the secret to add or the variable to unset.
+
+## Branch and tag protection (PRD 0039 RF7, owner)
+
+Repository settings are not managed from code. The owner applies them once
+with `gh` (an admin token), right after the cutover pull request merges:
+
+```sh
+# Merge strategy: rebase only (keeps every commit and its trailers),
+# auto-merge allowed, merged branches deleted.
+gh api -X PATCH repos/jmarcon/cuotai \
+  -F allow_rebase_merge=true -F allow_squash_merge=false \
+  -F allow_merge_commit=false -F allow_auto_merge=true \
+  -F delete_branch_on_merge=true
+
+# main: pull request required (0 approvals: the owner and the agents share
+# one identity), the "CI result" check required and up to date, linear
+# history, no force push, no deletion. The repository admin role may bypass
+# for emergencies; the commit gate still checks such pushes afterwards.
+gh api -X POST repos/jmarcon/cuotai/rulesets --input - <<'JSON'
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": ["rebase"] } },
+    { "type": "required_status_checks", "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [ { "context": "CI result", "integration_id": 15368 } ] } }
+  ]
+}
+JSON
+
+# v* tags: only the admin role may create, move or delete them, so nobody
+# starts a release by accident and a published tag never moves.
+gh api -X POST repos/jmarcon/cuotai/rulesets --input - <<'JSON'
+{
+  "name": "release tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "rules": [ { "type": "creation" }, { "type": "update" }, { "type": "deletion" } ]
+}
+JSON
+
+gh api repos/jmarcon/cuotai/rulesets          # verify both are active
+```
+
+`actor_id: 5` is the repository admin role and `integration_id: 15368` is
+GitHub Actions, the app that reports `CI result`. Because the agents push
+with the owner's identity, the admin bypass also applies to them: the
+"never push to main, never tag" rules of `AGENTS.md` and the commit gate on
+`main` pushes are what hold agents to the flow. A stricter variant is
+`"bypass_mode": "pull_request"` on the `main` ruleset, which allows the
+bypass only when merging a pull request, never on a direct push. Code
+scanning does not block merges yet (D13); enable code-scanning merge
+protection for high and critical alerts once the flow has run for a few
+weeks. Check the result once: a direct push to `main` without the bypass is
+refused, and a pull request with a red `CI result` cannot merge.
 
 ## Rehearsing in a fork
 

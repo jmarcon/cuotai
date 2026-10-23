@@ -24,7 +24,7 @@ The desktop app is a separate workspace (`apps/desktop/src-tauri`). `dev.sh` use
 
 ## Checks before submitting
 
-From the repository root (CI runs the same checks on Linux, macOS and Windows for every push and pull request; see [`docs/architecture.md`](docs/architecture.md#continuous-integration)):
+From the repository root (CI runs the same checks on Linux, macOS and Windows for every pull request and every push to `main`; see [`docs/architecture.md`](docs/architecture.md#continuous-integration)):
 
 ```sh
 cargo fmt --all -- --check
@@ -77,18 +77,22 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 
 ## Commits and versions
 
+- Work on a branch (`<type>/<slug>`) and open a pull request to `main`; it merges (rebase and merge) once the `CI result` check is green.
 - Semantic commits: `type(scope): subject`, with the subject and the body written in **English**.
-- Every user-visible delivery raises the version in the same commit. The full rules (which bump, which files, the `Refs:` footer and the changelog) are in the "Versioning, Commits & Changelog" section of [`AGENTS.md`](AGENTS.md).
+- A user-visible commit carries its changelog entry as a trailer, `Changelog: <one sentence for the user>.` (or `Changelog: skip <reason>`), plus `Refs: PRD 0006 RF2` and `BREAKING CHANGE: <migration>` when they apply.
+- Do **not** change any version or `CHANGELOG.md`: both are produced at release time and CI rejects them in a normal commit. The full rules are in "How to deliver a change" and "Versioning, Commits & Changelog" in [`AGENTS.md`](AGENTS.md). Check your commits locally with `cargo xtask changelog-gate --base origin/main --head HEAD`.
 - Keep pull requests focused and small enough to review.
 
 ## Releasing
 
-Releases are tag-driven through `.github/workflows/release.yml` (PRD 0021).
-Before tagging, verify locally that every version source agrees:
+Releases are prepared by the owner (PRD 0039) and published by a tag through
+`.github/workflows/release.yml` (PRD 0021):
 
 ```sh
-cargo xtask release-check                           # versions, lockfiles, changelog
-cargo xtask release-check --tag v0.68.0             # plus the tag you plan to push
+cargo xtask changelog-draft                         # what the next release would contain
+cargo xtask release prepare --dry-run               # next version, section and diffs
+cargo xtask release prepare --branch                # release commit on release/vX.Y.Z
+cargo xtask release tag --rc                        # after the release PR merged (owner)
 ```
 
 The full procedure, the dry run (**Actions → Release → Run workflow**, which

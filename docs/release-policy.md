@@ -9,14 +9,22 @@ pipeline (tags, builds, signing, verification) is documented in
 
 Cuotai follows semantic versioning while in `0.x`:
 
+The version is computed once per release by `cargo xtask release prepare`
+from the conventional commits since the last release (PRD 0039 RF3): the
+release takes the largest bump any of its commits asks for.
+
 - **`feat`** (new user-visible feature) raises the **minor**
   (`0.17.0` → `0.18.0`).
 - **`fix`** and dependency or security fixes (`chore(security)`,
   `fix(deps)`) raise the **patch**.
 - A change to distributed metadata that the app displays (license, About)
-  also raises the patch.
+  also raises the patch: any other commit type with a `Changelog:` sentence
+  is a patch-level **Changed** entry.
 - `docs`, `test`, `style`, `refactor` and `chore` without user-visible
-  effect do not change the version.
+  effect, and any commit with `Changelog: skip <reason>`, do not change the
+  version.
+- From `1.0.0` a breaking change raises the **major**. `--version X.Y.Z`
+  overrides the computed version upward only (for example `1.0.0`).
 
 ### What counts as a breaking change
 
@@ -67,8 +75,20 @@ preview builds and are not covered.
 
 ## Maintenance and changelog
 
-Every user-visible commit updates `CHANGELOG.md` in the same commit, and
-the version bump lives in the same commit as the change (see
-[`AGENTS.md`](../AGENTS.md), "Versioning, Commits & Changelog"). The
-release workflow extracts the version's changelog section into the GitHub
-Release notes and fails when the section is missing or empty.
+Since 2026-10-23 (PRD 0039) versions and `CHANGELOG.md` are produced at
+release time, never in feature or fix commits. Each user-visible commit
+carries its entry as a `Changelog:` trailer (plus `Refs:`,
+`Changelog-Category:` and `BREAKING CHANGE:` when they apply), and the
+commit gate in CI rejects version or changelog edits outside a release
+commit. `cargo xtask release prepare` turns the trailers into the
+`## [X.Y.Z] - YYYY-MM-DD` section with the real short hashes, and the
+release PR is where the wording is reviewed (see
+[`AGENTS.md`](../AGENTS.md), "How to deliver a change", and
+[`docs/releasing.md`](releasing.md)). The release workflow extracts the
+version's section into the GitHub Release notes, fails when it is missing
+or empty, and re-runs `release prepare --check` on the tagged commit.
+
+Versions 0.1.0 to 0.79.0 are **internal versions**: each was raised by the
+commit that delivered it and none was tagged or published. They are not
+tagged retroactively (PRD 0039 D10); the first published release follows
+them.
