@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-// Browser-free UI smoke for PRD 0018 RF3 and PRD 0022 RF17.4: render the
-// production Settings page and updater banner with every built-in catalog.
+// Browser-free UI smoke for PRD 0018 RF3 and PRD 0022 RF17.2/RF17.4:
+// render the production Settings page and updater banner with every built-in catalog.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+
+// A release date keeps the UTC calendar day carried by the backend ISO instant,
+// even when the desktop runs far enough east for local time to be the next day.
+process.env.TZ = "Pacific/Kiritimati";
 
 const root = new URL("../", import.meta.url);
 const storage = new Map();
@@ -103,8 +107,16 @@ const base = {
   manual_url: "https://github.com/jmarcon/cuotai/releases/latest",
 };
 
+const expectedReleaseDates = {
+  "pt-BR": "publicada em 22 de out. de 2026",
+  "en-US": "released on Oct 22, 2026",
+  es: "publicada el 22 oct 2026",
+  it: "pubblicato il 22 ott 2026",
+};
+
 let expectedUpdateKeys;
 const renderedHeadings = [];
+const renderedDates = [];
 for (const { code } of i18n.LOCALES) {
   const catalogPath = new URL(`apps/desktop/ui/locales/${code}.json`, root);
   const catalog = JSON.parse(await readFile(fileURLToPath(catalogPath), "utf8"));
@@ -127,6 +139,10 @@ for (const { code } of i18n.LOCALES) {
   assert.match(banner, /data-update="available"/, `${code}: available banner missing`);
   assert.ok(banner.includes(catalog["update.now"]), `${code}: update action did not render`);
 
+  const renderedDate = banner.match(/<span class="hint">([^<]+)<\/span>/)?.[1] ?? "";
+  assert.equal(renderedDate, expectedReleaseDates[code], `${code}: release date is not localized`);
+  assert.doesNotMatch(banner, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/, `${code}: raw ISO release timestamp rendered`);
+  renderedDates.push(`${code}: ${renderedDate}`);
   const preferenceOff = updater.updatesSectionHtml({
     ...base,
     enabled: false,
@@ -147,4 +163,5 @@ for (const { code } of i18n.LOCALES) {
 }
 
 console.log(`Rendered updater headings: ${renderedHeadings.join(" | ")}`);
-console.log("PASS: updater Settings renders one heading in pt-BR, en-US, es and it; banners and controls render");
+console.log(`Rendered release dates: ${renderedDates.join(" | ")}`);
+console.log("PASS: updater Settings renders one heading and a localized release date in pt-BR, en-US, es and it");

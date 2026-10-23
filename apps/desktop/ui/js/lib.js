@@ -325,6 +325,14 @@ export function fmtNext(ms, now = Date.now()) {
   if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
   return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
 }
+/** Date without a time, localized for release and other calendar-date labels (DS-MSG-8). */
+export function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? null
+    : d.toLocaleDateString(currentLocale(), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
 export function fmtReset(iso) {
   if (!iso) return null;
   const d = new Date(iso);

@@ -4,8 +4,8 @@
 // moram nos quatro catálogos.
 import { te, t, currentLocale } from "./i18n.js";
 import {
-  esc, errText, icon, onUpdate, openExternal, updaterCancelDownload, updaterCheckNow, updaterDismiss,
-  updaterExplanationSeen, updaterInstall, updaterRestart, updaterStatus, setUpdaterAutomatic,
+  esc, errText, fmtDate, icon, onUpdate, openExternal, updaterCancelDownload, updaterCheckNow,
+  updaterDismiss, updaterExplanationSeen, updaterInstall, updaterRestart, updaterStatus, setUpdaterAutomatic,
 } from "./lib.js";
 
 let status = null;
@@ -59,15 +59,18 @@ const explanationHtml = () => `<div class="banner" role="status" data-update-ban
   <div class="dlg-actions left"><button class="btn primary" data-update-explain-ok>${te("common.close")}</button></div>
 </div>`;
 
-const availableHtml = (s) => `<div class="banner" role="status" data-update-banner data-update="available">
+const availableHtml = (s) => {
+  const releaseDate = fmtDate(s.date);
+  return `<div class="banner" role="status" data-update-banner data-update="available">
   <b>${te("update.available", { version: s.version })}</b>
   <details class="update-notes"><summary>${te("update.notes")}</summary>${esc(s.notes ?? "")}</details>
   <div class="dlg-actions left">
     <button class="btn primary" data-update-now>${te("update.now")}</button>
     <button class="btn" data-update-later>${te("update.later")}</button>
-    ${s.date ? `<span class="hint">${te("update.date", { date: s.date })}</span>` : ""}
+    ${releaseDate ? `<span class="hint">${te("update.date", { date: releaseDate })}</span>` : ""}
   </div>
 </div>`;
+};
 
 /** PRD 0018 RF2.5 / PRD 0021 RF8.1: instalação gerenciada ou sem escrita. */
 const managedHtml = (s) => `<div class="banner" role="status" data-update-banner data-update="managed">
