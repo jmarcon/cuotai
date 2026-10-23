@@ -1320,7 +1320,7 @@ const demo = {
   // rede e sem instalar nada. `?update=off` deixa o recurso desligado, `?update=managed`
   // simula uma cópia do Homebrew (que nunca pede nada) e `?update=error` um erro.
   updater_status: async () => demoUpdateView(),
-  set_updater_automatic: async ({ on }) => { demoUpdate.automatic = on; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
+  updater_set_automatic: async ({ on }) => { demoUpdate.automatic = on; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
   updater_explanation_seen: async () => { demoUpdate.explanationSeen = true; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
   updater_check_now: async () => {
     if (!demoUpdateView().enabled) throw "updater_off";
