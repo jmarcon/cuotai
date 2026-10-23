@@ -6,8 +6,8 @@
 | Status | Proposed |
 | Owner | `cuotai-core` (`cost::*`: sources, index, prices, estimate, settings), desktop and TUI |
 | Consumers | `apps/desktop` (cost card and details, Settings → Local cost), `crates/cuotai-tui` (`--cost`, `--cost-prices`, cost panel), `export::v1` `local_cost` consumers |
-| Depends on | PRD 0015 (RF1–RF4: sources and consent, incremental index, price table, display) |
-| Benefits from | PRD 0029 (RF1: account `id` for per-account plan prices), PRD 0027 (local CLI detection, presence only), PRD 0023 (provider overage amounts, never summed with estimates) |
+| Depends on | PRD 0015 (RF1–RF4: sources and consent, incremental index, price table, display); PRD 0029 (RF1: account `id`) for RF1 |
+| Benefits from | PRD 0027 (local CLI detection, presence only), PRD 0023 (provider overage amounts, never summed with estimates) |
 | Extends | PRD 0015 RF1 (new sources), RF2 (index schema), RF3 (1-hour cache writes, price age, templates), RF4 (plan value, unpriced models, display currency) |
 | Date | 2026-10-23 |
 

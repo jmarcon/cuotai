@@ -6,8 +6,8 @@
 | Status | Proposed |
 | Owner | `cuotai-core` (pace texts, alert evaluation, events, best-account ranking), desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray, Settings → Alerts), `crates/cuotai-tui` (cards, `--once`, `--notify`), `--watch`/hooks consumers, `export::v1` and `/v1/limits` consumers, PRDs 0025, 0026 and 0031 |
-| Depends on | PRD 0007 (RF1, RF2: `pace::assess`, `projected_exhaustion_at`), PRD 0008 (RF1, RF2: `alerts::evaluate`, `AlertState`, delivery), PRD 0006 (RF2, RF3: recent samples for `source = recent`) |
-| Benefits from | PRD 0010 (freshness), PRD 0013 (RF1: event engine), PRD 0022 (UI refresh: chips, callout and row visuals), PRD 0023 (RF1: overage excluded from pace; MET-01 `Metric::scope`), PRD 0025 (RF6: first-run consent), PRD 0029 (stable account ids, for `[[groups]]`), PRD 0031 (`/v1/limits` summary), PRD 0032 (quiet hours) |
+| Depends on | PRD 0007 (RF1, RF2: `pace::assess`, `projected_exhaustion_at`), PRD 0008 (RF1, RF2: `alerts::evaluate`, `AlertState`, delivery), PRD 0006 (RF2, RF3: recent samples for `source = recent`); PRD 0029 (RF1: account `id`) for RF7, whose `[[groups]]` and suggestions name accounts |
+| Benefits from | PRD 0010 (freshness), PRD 0013 (RF1: event engine), PRD 0022 (UI refresh: chips, callout and row visuals), PRD 0023 (RF1: overage excluded from pace; MET-01 `Metric::scope`), PRD 0025 (RF6: first-run consent), PRD 0031 (`/v1/limits` summary), PRD 0032 (quiet hours) |
 | Extends | PRD 0007 RF2 (compact chip texts in points or percent), PRD 0008 RF1 (new alert kind), PRD 0012 RF1 (additive `group`, `best` and `pace.delta_ratio`), PRD 0013 RF1.2 (new event) |
 | Date | 2026-10-22; amended 2026-10-23 (owner decisions B, C, D, M; review items DEC-01, DEC-02, FIX-11, FIX-12; design system DS-CMP-TIME-1..5) |
 
@@ -182,7 +182,7 @@ The wording is the design system's (DS-CMP-TIME-2), replacing the earlier `pace.
 
 ## 9. Dependencies and sequencing
 
-RF1 has no dependency and unblocks PRD 0025's menu-bar title and PRD 0031's status line. RF2 needs PRD 0007 and 0008 (both delivered) and benefits from PRD 0023 RF1 so overage never triggers it. RF3–RF5 follow RF2. RF7 needs PRD 0023's MET-01 `scope` for the exclusion of model-scoped metrics (until then every plan limit counts) and benefits from PRD 0029 for `[[groups]]` by id. Visual details of chips, callout and rows come from PRD 0022 and `docs/design-system.md`. Wave 5d of `0000_control.md`.
+RF1 has no dependency and unblocks PRD 0025's menu-bar title and PRD 0031's status line. RF2 needs PRD 0007 and 0008 (both delivered) and benefits from PRD 0023 RF1 so overage never triggers it. RF3–RF5 follow RF2. RF7 needs PRD 0023's MET-01 `scope` for the exclusion of model-scoped metrics (until then every plan limit counts) and needs PRD 0029 RF1 so `[[groups]]` reference accounts by id (PRD 0029 §9). Visual details of chips, callout and rows come from PRD 0022 and `docs/design-system.md`. Wave 5d of `0000_control.md`.
 
 ## 10. Risks
 

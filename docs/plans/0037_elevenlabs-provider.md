@@ -203,8 +203,8 @@ Deterministic fixtures under the adapter's test module, local `wiremock` server 
 
 - **RF10.1** `docs/providers.md`: a "Main integrations" row (`eleven_labs`; data queried "credits used of the plan limit, next reset, extra usage cap and amount, voice slots"; configuration `ELEVENLABS_API_KEY` or the account's variable, optional `params.region`; restrictions: "restrict the key to the subscription-read permission; Pay As You Go balance is not reported; unused credits may roll over and the limit semantics are the provider's"), the regenerated access matrix (RF2.4), the incident registry row (RF8.3), the "credits (not characters)" terminology note, the reference list entries, and the statement that Cuotai makes one non-generation `GET` per refresh and that the vendor does not document a credit cost or rate limit for it.
 - **RF10.2** `README.md`: the supported-providers list and the authentication-caveats section name ElevenLabs. `cuotai.example.toml` as in RF1.6. `.github/ISSUE_TEMPLATE/provider-problem.yml` lists the new slug. `THIRD_PARTY_NOTICES` needs no entry: the contract comes from the vendor's public documentation, not from adapted third-party code.
-- **RF10.3** `CHANGELOG.md` `[Unreleased]` **Added**: "ElevenLabs provider: credits used, plan limit, next reset and extra usage, read with an API key (PRD 0037)". The delivering commit is `feat(provider)`, raises the minor version everywhere the version lives, carries `Refs: PRD 0037 RF1` (one line per requirement), updates this PRD's "Implementation status" and `docs/plans/0000_control.md`.
-- **Acceptance criterion:** the documentation drift tests, the changelog check and the version `git grep` of `AGENTS.md` pass.
+- **RF10.3** The delivering `feat(provider)` commit carries the trailer `Changelog: ElevenLabs provider: credits used, plan limit, next reset and extra usage, read with an API key.` and `Refs: PRD 0037 RF1` (one line per requirement), writes `vNEXT` in this PRD's "Implementation status" and in its `docs/plans/0000_control.md` row, and touches no version location (PRD 0039; the release computes the minor bump).
+- **Acceptance criterion:** the documentation drift tests and the commit gate (`cargo xtask changelog-gate`) pass.
 
 ### RF11 — Real-account verification (owner account available)
 
@@ -275,7 +275,7 @@ RF1, RF2, RF3, RF4, RF7 and RF9 form the deliverable core and depend only on PRD
 2. **RF3, RF4:** the credits meter and reset eligibility with fixtures `normal`, `near_limit`, `exhausted`, `missing_fields`.
 3. **RF5, RF6:** extra usage and plan-state/voice-slot metrics; wire `billing` once PRD 0023 RF1 exists.
 4. **RF8:** the incident source (or its exclusion row).
-5. **RF9, RF10:** the full fixture matrix, documentation, issue template, changelog and version bump with each step.
+5. **RF9, RF10:** the full fixture matrix, documentation, issue template and the `Changelog:`/`Refs:` trailers with each step.
 6. **RF11:** the owner's real-account check.
 
 At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix` then the plain run, and a `--once`/`--json` smoke of the changed behavior against a local `wiremock` or fake server. The requirement is only delivered when a real account shows the correct credits, limit and reset in the TUI and the desktop, a pass over the exhausted fixture raises the existing exhaustion alert, a failure of each class (bad key, restricted key, rate limit, server error) shows its own explanation without exposing the key, and Cuotai spends no credits.

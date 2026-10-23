@@ -7,7 +7,7 @@
 | Owner | `cuotai-core` (`Account::id`, `ConfigFile`, `account_edit`, state migrations, vault index), desktop and TUI |
 | Consumers | `apps/desktop` (account form, bells, mutes, tray selection), `crates/cuotai-tui` (wizard, `--notify`), `export::v1`/`--serve`/`--watch` consumers, hooks, PRDs 0024, 0025, 0026 |
 | Depends on | PRD 0001 (`ConfigFile`, `account_edit`), PRD 0016 (RF1, RF4: `[accounts.session]`, `stage_forget`) |
-| Blocks | PRD 0025 RF2 (`tray.accounts` keyed by account), PRD 0026 RF3 (journal keyed by account digest), PRD 0024 RF7 (suggestions name accounts); all three persist account-keyed state and must key it by `id` |
+| Blocks | PRD 0025 RF2 (`tray.accounts` keyed by account), PRD 0026 RF3 (journal keyed by account digest), PRD 0024 RF7 (`[[groups]]` and suggestions name accounts), PRD 0030 RF1 (per-account plan prices), PRD 0032 RF1.3 (bells and mutes in the shared preferences), PRD 0036 RF5 (sub-account dedup and preferences); all of them persist or match account-keyed state and must key it by `id` |
 | Extends | PRD 0003 RF2 (ledger keys), PRD 0006 RF1 (series identity), PRD 0008 RF2 (alert marks), PRD 0012 RF1/RF2 (`id` field, `/v1/accounts/{id}`), PRD 0013 RF1/RF3 (event `account_id`, hook filter) |
 | Date | 2026-10-23 |
 
@@ -17,12 +17,12 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF0 | — | Proposed (precursor release). |
+| RF0 | — | Proposed (precursor: ships in the first public release, `v0.80.0`, wave 5a of `0000_control.md`). |
 | RF1 | — | Proposed. |
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
+| RF5 | 0.77.1 (partial) | RF5.1 and the session half of RF5.2 delivered as PRD 0016 FIX-06 (`d265960`): removing an account or switching its provider deletes its vault web session, restored when the save fails. Pending: the old OAuth token purged after a provider switch (RF5.2) and the separate session/OAuth messages (RF5.3). |
 | RF6 | — | Proposed. |
 | RF7 | — | Proposed. |
 
@@ -74,7 +74,7 @@ Two removal defects found in the review belong here, since they are about the li
 - **RF0.1** A release **before** RF1–RF3 stops rejecting what the identity change writes: `Account` drops `deny_unknown_fields` (`model.rs:252-253`) for the `id` key (unknown account keys other than `id` keep being rejected, so typos are still caught), and a missing `name` reads as empty.
 - **RF0.2** In that release `Config::validate` already applies the RF3.1 rule (an empty name is valid when no other account shares the provider); the TUI and the desktop forms do not change yet.
 - **RF0.3** `ConfigFile` keeps an `id` line it does not understand when it edits a table (the `toml_edit` path already preserves unknown content); when a table is rewritten from scratch, the id is lost, which is harmless because RF1.3 derives the same id again from the legacy key.
-- **RF0.4** The changelog of that release says it is the oldest version that can open a configuration written after PRD 0029; downgrading to it after RF1 keeps working.
+- **RF0.4** The changelog of that release (its `Changelog:` trailer, PRD 0039) says it is the oldest version that can open a configuration written after PRD 0029; downgrading to it after RF1 keeps working.
 - **Acceptance criterion:** a fixture TOML with `id` lines and one unnamed account loads in the RF0 release; a typo key is still rejected; an edit in that release keeps the `id` lines.
 
 ### RF1 — `id` per account (high priority; prerequisite)
@@ -127,7 +127,7 @@ Two removal defects found in the review belong here, since they are about the li
 
 ### RF7 — Documentation (low priority)
 
-- **RF7.1** `cuotai.example.toml` (optional `name`, `id`), `README.md` (accounts section), `docs/architecture.md` (identity and migrations), the docs of RF4.4, and `CHANGELOG.md` with the TOML compatibility note of §7.
+- **RF7.1** `cuotai.example.toml` (optional `name`, `id`), `README.md` (accounts section), `docs/architecture.md` (identity and migrations), the docs of RF4.4, and the TOML compatibility note of §7 in the delivering commit's `Changelog:` trailer (PRD 0039).
 - **Acceptance criterion:** documentation reviewed with the delivery; the changelog check passes.
 
 ## 6. Non-functional requirements

@@ -6,8 +6,8 @@
 | Status | Proposed |
 | Owner | `cuotai-core` (tray summary, recommended defaults), desktop (`apps/desktop`: tray, settings window, first run) |
 | Consumers | `apps/desktop/src-tauri` (`lib.rs` tray), `apps/desktop/ui` (settings pages, tray popover, main-window rows), PRD 0031 (`--status-line` reuses `tray::summary`) |
-| Depends on | PRD 0020 (RF1, RF2: the settings window and its sidebar registry) for RF4, RF5 and RF9; PRD 0029 (stable account ids) for RF2 |
-| Benefits from | PRD 0009 (binding), PRD 0010 (freshness), PRD 0008 (active alerts), PRD 0011 (incident), PRD 0023 (RF3: overage state), PRD 0024 (RF1: time chips; RF2: predictive alerts for the defaults), PRD 0018 (RF2.6: the update question in the first run), PRD 0022 (UI refresh: menu-bar page and preview visuals) |
+| Depends on | PRD 0020 (RF1, RF2: the settings window and its sidebar registry) for RF4, RF5 and RF9; PRD 0029 (stable account ids) for RF2; PRD 0018 (RF2.6: the update question) for RF6.5 |
+| Benefits from | PRD 0009 (binding), PRD 0010 (freshness), PRD 0008 (active alerts), PRD 0011 (incident), PRD 0023 (RF3: overage state), PRD 0024 (RF1: time chips; RF2: predictive alerts for the defaults), PRD 0022 (UI refresh: menu-bar page and preview visuals) |
 | Extends | PRD 0020 RF2.1 (Menu bar page and the Advanced group, now DS-CMP-SEG-5), PRD 0018 RF2.6 (hosts the "ask before the first check" question) |
 | Date | 2026-10-22; amended 2026-10-23 (owner decisions B, F and N; custom display mode; RF8 moved to PRD 0031; sidebar per DS-CMP-SEG-5) |
 

@@ -113,7 +113,7 @@ Added on 2026-10-23 (owner decision J): defects found by the 2026-10-21 requirem
 
 | ID | Requirement | Acceptance |
 |---|---|---|
-| FIX-G1 | `gemini_api` status scope (open item, owner accepted on 2026-10-23): the Google Cloud status source for `gemini_api` may assert "operational" from a product-wide Cloud Monitoring component that does not cover the Gemini API. Its scope maps to `None` (no source) or, if a source stays, its state is limited to `unknown`, never `operational`; `docs/providers.md` records the reason. | The per-provider source table test expects `None` (or an `unknown`-only scope) for `gemini_api`; no fixture yields "operational" for it. |
+| GEM-01 | `gemini_api` status scope (open item, owner accepted on 2026-10-23): the Google Cloud status source for `gemini_api` may assert "operational" from a product-wide Cloud Monitoring component that does not cover the Gemini API. Its scope maps to `None` (no source) or, if a source stays, its state is limited to `unknown`, never `operational`; `docs/providers.md` records the reason. | The per-provider source table test expects `None` (or an `unknown`-only scope) for `gemini_api`; no fixture yields "operational" for it. |
 
 ## 7. Order of execution and verification
 
