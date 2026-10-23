@@ -192,3 +192,33 @@ fn hashes_need_a_digit_and_hex() {
     let entry = parse_entry("Something (3855c72, d407d0d).");
     assert_eq!(entry.hashes, vec!["3855c72", "d407d0d"]);
 }
+
+#[test]
+fn grouped_requirements_continue_their_plan() {
+    // PRD 0039 RF4.3: `release prepare` groups requirements by plan.
+    let changelog = parse_ok(
+        "# C\n\n## [Unreleased]\n\n## [0.80.0] - 2026-10-24\n\n### Added\n\n- A thing (PRD 0018 RF1.2, RF1.3; PRD 0021 RF2, RF5/RF6; issue #2; abc1234).\n",
+    );
+    let refs: Vec<String> = changelog
+        .references()
+        .iter()
+        .map(|r| r.to_string())
+        .collect();
+    assert_eq!(
+        refs,
+        [
+            "PRD 0018 RF1.2",
+            "PRD 0018 RF1.3",
+            "PRD 0021 RF2",
+            "PRD 0021 RF5",
+            "PRD 0021 RF6"
+        ]
+    );
+    let entry = &changelog.releases[0].section.categories[0].entries[0];
+    assert_eq!(entry.hashes, ["abc1234"]);
+    // A bare requirement never borrows a plan across a `;` or without one.
+    let loose = parse_ok(
+        "# C\n\n## [Unreleased]\n\n## [0.1.0] - 2026-10-20\n\n### Fixed\n\n- A fix (RF3; PRD 0001 RF1; RF4).\n",
+    );
+    assert_eq!(loose.references().len(), 1);
+}

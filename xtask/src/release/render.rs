@@ -450,6 +450,31 @@ mod tests {
     }
 
     #[test]
+    fn grouped_references_round_trip_through_the_shared_parser() {
+        let c = commit(
+            "feat: a",
+            "Changelog: X.\nRefs: PRD 0018 RF1.2, RF1.3, RF4\nRefs: PRD 0021 RF2\nRefs: PRD 0021 RF5.1\nRefs: #7",
+        );
+        let line = entry(&c, "The updater checks daily.", "abcdef1");
+        let doc =
+            format!("# C\n\n## [Unreleased]\n\n## [0.80.0] - 2026-10-24\n\n### Added\n\n{line}\n");
+        let parsed = crate::changelog::parse(&doc).unwrap();
+        let cited: Vec<String> = parsed.references().iter().map(|r| r.to_string()).collect();
+        let expected: Vec<String> = c
+            .trailers
+            .refs
+            .iter()
+            .filter_map(|r| match r {
+                Reference::Plan { prd, rf } => Some(format!("PRD {prd} {rf}")),
+                Reference::Issue(_) => None,
+            })
+            .collect();
+        assert_eq!(cited, expected, "{line}");
+        let entry = &parsed.releases[0].section.categories[0].entries[0];
+        assert_eq!(entry.hashes, ["abcdef1"]);
+    }
+
+    #[test]
     fn golden_section_and_it_parses() {
         let mut entries = Entries::new();
         entries

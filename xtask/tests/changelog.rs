@@ -244,6 +244,17 @@ fn footer_links_of_published_versions_compare_tags() {
 }
 
 #[test]
+fn every_grouped_requirement_is_checked_against_its_plan() {
+    let grouped = CHANGELOG.replace(
+        "- A new thing you can do (PRD 0019 RF7.7, abc1234).",
+        "- A new thing you can do (PRD 0019 RF7.7, RF1.1, RF9; abc1234).",
+    );
+    let error = check(fixture(&grouped).path()).unwrap_err();
+    assert!(error.contains("PRD 0019 RF9"), "{error}");
+    assert!(!error.contains("RF1.1"), "RF1.1 exists: {error}");
+}
+
+#[test]
 fn next_token_in_plans_is_accepted_between_releases() {
     let dir = fixture(CHANGELOG);
     write_file(

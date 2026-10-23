@@ -529,17 +529,26 @@ fn finish_section(
 
 /// Extracts the traceability data of one entry from its trailing
 /// parentheses: `… (PRD 0006 RF2, abc1234)`, `… (PRD 0001 RF5/RF8)`,
-/// `… (PRD 0021 RF1–RF4; PRD 0019 RF3)`, `… (e0a6a60, 6813ecb)`.
+/// `… (PRD 0021 RF1–RF4; PRD 0019 RF3)`, `… (e0a6a60, 6813ecb)`, and the
+/// grouped form `release prepare` writes (PRD 0039 RF4.3):
+/// `… (PRD 0018 RF1.2, RF1.3; PRD 0021 RF2; abc1234)`, where a bare
+/// requirement after a comma continues the plan before it (a `;` ends it).
 fn parse_entry(text: &str) -> Entry {
     let mut refs = Vec::new();
     let mut hashes = Vec::new();
     for group in parenthesized_groups(text) {
-        for part in group.split([',', ';']) {
-            let part = part.trim().trim_matches('`');
-            if let Some(rest) = part.strip_prefix("PRD ") {
-                parse_prd_ref(rest, &mut refs);
-            } else if is_hash(part) {
-                hashes.push(part.to_string());
+        for clause in group.split(';') {
+            let mut plan: Option<&str> = None;
+            for part in clause.split(',') {
+                let part = part.trim().trim_matches('`');
+                if let Some(rest) = part.strip_prefix("PRD ") {
+                    plan = rest.split_once(' ').map(|(number, _)| number.trim());
+                    parse_prd_ref(rest, &mut refs);
+                } else if is_hash(part) {
+                    hashes.push(part.to_string());
+                } else if let (Some(prd), true) = (plan, part.starts_with("RF")) {
+                    parse_prd_ref(&format!("{prd} {part}"), &mut refs);
+                }
             }
         }
     }
