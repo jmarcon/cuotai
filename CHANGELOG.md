@@ -13,6 +13,10 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+### Changed
+
+- Release operators now have an executable bad-release rollback and signing-key rotation runbook: GitHub Release quarantine, exact Homebrew/Scoop/AUR/crates.io/winget actions with per-step verification, the limits for already-downloaded updates, the updater's single-key transition release, and Apple, Windows and keyless-checksum credential handling (PRD 0021 RF9.4).
+
 ## [0.75.1] - 2026-10-22
 
 ### Fixed

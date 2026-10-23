@@ -478,29 +478,295 @@ than producing a manifest that cannot be installed.
 
 ## Manual desktop checklist per release
 
-The pipeline verifies checksums and provenance automatically. Before
-announcing a release, a person still: opens the DMG/app on macOS (Gatekeeper
-verdict when notarized), runs the NSIS installer and the MSI on Windows
-(silent `/S` for NSIS), installs the `.deb` on the oldest supported Ubuntu
-and runs the AppImage, and runs `cuotai --once` from each CLI archive.
+The pipeline verifies checksums and provenance automatically. Before announcing
+a release, a person completes every item:
 
-The same review re-checks the platform support matrix in
-[`docs/platforms.md`](platforms.md) (PRD 0019 RF5.1): every cell still
-matches the code, and items marked as verified only in CI stay marked so.
+- [ ] Open the DMG/app on macOS and record the Gatekeeper verdict when it is
+  notarized.
+- [ ] Run the NSIS installer and the MSI on Windows (including silent `/S` for
+  NSIS).
+- [ ] Install the `.deb` on the oldest supported Ubuntu, run the AppImage, and
+  run `cuotai --once` from every CLI archive.
+- [ ] Re-check [`docs/platforms.md`](platforms.md) (PRD 0019 RF5.1): every cell
+  still matches the code, and items verified only in CI remain marked that way.
+- [ ] Complete the [rollback drill](#rollback-drill) in a fork and test channel
+  repositories. Do not discover that a token, repository path or moderation
+  workflow has changed during a production incident.
 
-## Revocation / yanking (RF9.4)
+## Pull back a bad release (RF9.4)
 
-To pull a bad release: mark the GitHub Release as pre-release (or delete its
-assets) — never reuse the tag; if a signing key leaked, rotate it (the
-Sigstore keyless identity needs no rotation; the Tauri updater key does: new
-pair, new `TAURI_SIGNING_PRIVATE_KEY`, a transition release signed with the
-old key that embeds the new public key, then revoke the old secret) and state
-it in the release notes. The full leak and loss procedures, including what
-users must do when the key is lost, are in
-[`docs/updater-security.md`](updater-security.md).
+This is an incident procedure, not a way to rewrite release history. Never
+move or reuse the tag, force-push a channel repository, overwrite a published
+crate, or claim that a moderated winget change is live before its pull request
+has merged and propagated. Record every command and URL in the incident log.
+First identify the bad and last known-good versions:
 
-Each channel rolls back on its own, in its own repository: commit the
-previous version's cask/formula back in the tap, restore the previous
-`bucket/cuotai.json`, and `git revert` the last commit in the AUR's
-`cuotai-bin`. crates.io cannot delete a version: `cargo yank --vers <old>`
-plus a new release. For winget, ask the moderators to remove the manifest.
+```sh
+export BAD_VERSION=X.Y.Z
+export PREVIOUS_VERSION=A.B.C
+export BAD_TAG="v$BAD_VERSION"
+export REPO=jmarcon/cuotai
+```
+
+Rolling a manifest back protects new installations and upgrades. It does not
+downgrade a copy that already installed the bad version; tell those users to
+uninstall it and install `v$PREVIOUS_VERSION` manually.
+
+### 1. Quarantine the GitHub Release first
+
+The fastest reversible choice is to make the release a pre-release. GitHub's
+`/releases/latest` endpoint excludes pre-releases, so the updater endpoint
+stops resolving to this release:
+
+```sh
+gh release edit "$BAD_TAG" --prerelease --repo "$REPO"
+gh release view "$BAD_TAG" --repo "$REPO" \
+  --json tagName,isPrerelease,isDraft,url \
+  --jq '{tag: .tagName, prerelease: .isPrerelease, draft: .isDraft, url: .url}'
+gh release view --repo "$REPO" --json tagName,url \
+  --jq '{latest_stable: .tagName, url: .url}'
+```
+
+If the bytes themselves must no longer be served, delete every asset while
+leaving the release and tag as incident evidence:
+
+```sh
+gh release view "$BAD_TAG" --repo "$REPO" --json assets \
+  --jq '.assets[].name' |
+while IFS= read -r asset; do
+  gh release delete-asset "$BAD_TAG" "$asset" --yes --repo "$REPO"
+done
+gh release view "$BAD_TAG" --repo "$REPO" --json assets \
+  --jq '.assets | length'
+```
+
+The final command must print `0`. Asset deletion cannot recall bytes that were
+already downloaded, and restoring the assets later requires uploading them
+again. Do not delete the release or tag: the release record, signing state and
+attestations are evidence.
+
+**Verify before continuing:**
+
+- [ ] `isPrerelease` is `true`, or the asset count is `0`.
+- [ ] `gh release view --repo "$REPO"` names the previous stable tag, not
+  `$BAD_TAG`.
+- [ ] Opening
+  `https://github.com/jmarcon/cuotai/releases/latest/download/latest.json`
+  no longer returns the bad manifest.
+- [ ] The incident notice names the affected version and links to the known-good
+  release.
+
+### 2. Restore the project-controlled package repositories
+
+The channel jobs commit generated files with the message `cuotai <version>`.
+Revert that channel commit; do not hand-edit the rendered manifest and do not
+change the templates in this repository during an incident.
+
+#### Homebrew tap — `jmarcon/homebrew-cuotai`
+
+The controlled paths are `Casks/cuotai.rb` and `Formula/cuotai.rb`:
+
+```sh
+gh repo clone jmarcon/homebrew-cuotai homebrew-cuotai-rollback
+cd homebrew-cuotai-rollback
+bad_commit="$(git log -1 --format=%H --fixed-strings \
+  --grep="cuotai $BAD_VERSION" -- Casks/cuotai.rb Formula/cuotai.rb)"
+test -n "$bad_commit"
+git revert --no-edit "$bad_commit"
+grep -F "version \"$PREVIOUS_VERSION\"" Casks/cuotai.rb
+grep -F "/v$PREVIOUS_VERSION/" Formula/cuotai.rb
+git push origin HEAD
+```
+
+**Verify:** the two `grep` commands succeed; the pushed commit contains both
+paths. Then run:
+
+```sh
+brew update
+brew info --cask jmarcon/cuotai/cuotai
+brew info jmarcon/cuotai/cuotai
+brew audit --strict --online --cask jmarcon/cuotai/cuotai
+brew audit --strict --online --formula jmarcon/cuotai/cuotai
+```
+
+Both `brew info` commands must report the previous version and both audits must
+pass before declaring the tap recovered.
+
+#### Scoop bucket — `jmarcon/scoop-cuotai`
+
+The controlled path is `bucket/cuotai.json`:
+
+```sh
+gh repo clone jmarcon/scoop-cuotai scoop-cuotai-rollback
+cd scoop-cuotai-rollback
+bad_commit="$(git log -1 --format=%H --fixed-strings \
+  --grep="cuotai $BAD_VERSION" -- bucket/cuotai.json)"
+test -n "$bad_commit"
+git revert --no-edit "$bad_commit"
+jq -e --arg version "$PREVIOUS_VERSION" '.version == $version' \
+  bucket/cuotai.json
+git push origin HEAD
+gh api -H 'Accept: application/vnd.github.raw+json' \
+  repos/jmarcon/scoop-cuotai/contents/bucket/cuotai.json |
+  jq -e --arg version "$PREVIOUS_VERSION" '.version == $version'
+```
+
+**Verify:** both `jq` checks return `true`; after `scoop update`, run
+`scoop info cuotai` and confirm it reports the previous version, then install
+and run it on a clean test machine.
+
+#### AUR — `cuotai-bin`
+
+The controlled paths are `PKGBUILD` and `.SRCINFO` in the package repository:
+
+```sh
+git clone ssh://aur@aur.archlinux.org/cuotai-bin.git aur-cuotai-rollback
+cd aur-cuotai-rollback
+bad_commit="$(git log -1 --format=%H --fixed-strings \
+  --grep="cuotai $BAD_VERSION" -- PKGBUILD .SRCINFO)"
+test -n "$bad_commit"
+git revert --no-edit "$bad_commit"
+grep -Fx "pkgver=$PREVIOUS_VERSION" PKGBUILD
+grep -F "pkgver = $PREVIOUS_VERSION" .SRCINFO
+git push origin HEAD
+curl -fsS 'https://aur.archlinux.org/rpc/v5/info?arg[]=cuotai-bin' |
+  jq -e --arg version "$PREVIOUS_VERSION-1" \
+    '.results[0].Version == $version'
+```
+
+**Verify:** `PKGBUILD` and `.SRCINFO` agree, the AUR RPC check returns `true`,
+and `makepkg --verifysource` succeeds in a clean Arch environment. Pacman does
+not automatically downgrade an installed higher version; affected users need
+an explicit `pacman -U` of the known-good package.
+
+### 3. Yank the crates.io versions
+
+Both published packages carry the same release version. Authenticate with a
+crates.io token allowed to yank these crates, then run:
+
+```sh
+cargo yank --version "$BAD_VERSION" cuotai-tui
+cargo yank --version "$BAD_VERSION" cuotai-core
+curl -fsS "https://crates.io/api/v1/crates/cuotai-tui/$BAD_VERSION" |
+  jq -e '.version.yanked == true'
+curl -fsS "https://crates.io/api/v1/crates/cuotai-core/$BAD_VERSION" |
+  jq -e '.version.yanked == true'
+```
+
+**Irreversibility warning:** publishing the crate name/version and its archive
+is irreversible: crates.io does not delete it and that version can never be
+reused. A yank itself can be undone with `cargo yank --undo`, but it only stops
+new dependency resolution. Existing lockfiles and direct archive downloads
+continue to work. Publish a fixed compatible version as soon as possible.
+
+### 4. Ask winget to remove the bad manifest
+
+`microsoft/winget-pkgs` is a third-party, moderated repository. Cuotai cannot
+push a rollback or remove a catalog version directly. Submit a normal pull
+request that deletes only
+`manifests/c/Cuotai/Cuotai/<BAD_VERSION>`; the previous version directory
+remains. On Windows PowerShell:
+
+```powershell
+$BadVersion = "X.Y.Z"
+$PreviousVersion = "A.B.C"
+gh repo fork microsoft/winget-pkgs --clone -- --filter=blob:none --no-checkout
+Set-Location winget-pkgs
+git sparse-checkout init --cone
+git sparse-checkout set manifests/c/Cuotai/Cuotai
+git checkout master
+git pull --ff-only upstream master
+git switch -c "remove-cuotai-$BadVersion" upstream/master
+git rm -r "manifests/c/Cuotai/Cuotai/$BadVersion"
+winget validate --manifest "manifests/c/Cuotai/Cuotai/$PreviousVersion"
+git commit -m "Remove version: Cuotai.Cuotai version $BadVersion"
+git push -u origin HEAD
+gh pr create --repo microsoft/winget-pkgs --base master `
+  --head "jmarcon:remove-cuotai-$BadVersion" `
+  --title "Remove version: Cuotai.Cuotai version $BadVersion" `
+  --body "Removes a publisher-withdrawn Cuotai release; $PreviousVersion remains available."
+```
+
+The fork, validation, one-version path and PR are the repository's normal
+submission process. Do not call this rollback complete while the PR is merely
+open.
+
+**Verify after moderation:** the PR has `Validation-Completed` and is merged
+and its publish pipeline succeeded. Then run:
+
+```powershell
+winget source update
+winget show --id Cuotai.Cuotai --exact --versions
+```
+
+The bad version must be absent and the previous version must remain. Record
+the merged PR and the catalog check in the incident.
+
+## What already-running updaters do after a yank
+
+There is no remote uninstall or revocation list in the desktop updater.
+Release notes and updater notes are generated from the same versioned
+`CHANGELOG.md` section
+([`xtask/src/main.rs`](../xtask/src/main.rs#L240-L253),
+[`xtask/src/main.rs`](../xtask/src/main.rs#L257-L270), and
+[`xtask/src/updater.rs`](../xtask/src/updater.rs#L124-L193)); the desktop
+displays the manifest's notes only after `updater.check()` returns that release
+([`updater.rs`](../apps/desktop/src-tauri/src/updater.rs#L648-L703)).
+
+The timing of the rollback therefore matters:
+
+- A client that checks after the release became a pre-release (or after
+  `latest.json` was deleted) no longer discovers that version. If it had only
+  seen **Available** and had not started the download, removing the package
+  asset makes the later download fail.
+- A client that already completed the download stays in **Ready** with the
+  version and the verified bytes in memory
+  ([`updater.rs`](../apps/desktop/src-tauri/src/updater.rs#L746-L761)). The
+  restart path restores the cached metadata, checks the repository URL, and
+  installs those in-memory bytes without checking the release endpoint again
+  ([`updater.rs`](../apps/desktop/src-tauri/src/updater.rs#L798-L869)).
+  Yanking cannot retract that download. Closing the app before installation
+  discards it because a new service starts in `Idle`
+  ([`updater.rs`](../apps/desktop/src-tauri/src/updater.rs#L455-L470)).
+- A client that already installed the bad version remains on it. The updater
+  cannot uninstall or downgrade it, and its greater-than version comparator
+  will not offer the older release. The user must uninstall the bad version
+  and reinstall the previous release manually.
+
+Communicate these three cases explicitly. Do not say that marking a release
+pre-release remotely removes, disables or rolls back an installed application.
+
+## Rotate a leaked signing key
+
+For the Tauri updater key, follow the authoritative
+[`docs/updater-security.md` leak procedure](updater-security.md#if-the-private-key-leaks-rf42).
+It includes the exact `cargo tauri signer generate` and `gh secret set`
+commands, the required old-key/new-public-key transition release, the
+single-public-key limitation of pinned `tauri-plugin-updater` 2.14.0, and the
+point at which replacing the environment secret actually revokes the old
+value. A client that misses the transition release needs a manual reinstall.
+
+The checksum identity, Apple credentials and Windows Authenticode certificate
+have different revocation authorities. Do not apply the updater transition
+model to them; use
+[`Rotating the other release credentials`](updater-security.md#rotating-the-other-release-credentials)
+for their exact containment, replacement and verification steps.
+
+### Rollback drill
+
+Run this drill in a fork and throwaway tap/bucket/AUR package before enabling a
+production channel, every six months, and whenever this procedure or a channel
+tool changes:
+
+1. Publish a disposable pre-release with dummy assets and an ephemeral updater
+   key; never use production signing material.
+2. Exercise the pre-release and asset-removal `gh` paths and prove the fork's
+   `/releases/latest` no longer selects it.
+3. Push a dummy bad-version commit to each test channel repository, revert it
+   with the commands above, and verify the previous manifest from the remote.
+4. Prepare, validate and close (without merging) a winget removal PR from the
+   fork, unless Microsoft provides a designated test repository.
+5. Do **not** rehearse `cargo yank` against real crates. Verify its syntax with
+   `cargo yank --help` and use a private test registry if one is available.
+6. Record who ran the drill, the date, command outputs, changed external rules
+   and every owner action still blocked.

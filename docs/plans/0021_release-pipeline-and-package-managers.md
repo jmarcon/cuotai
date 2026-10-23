@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0021 |
-| Status | In progress (RF1–RF4 implemented in 0.68.0 and hardened in 0.75.1; RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 delivered in 0.70.0; RF8.1 partially delivered in 0.74.0/0.75.1 with PRD 0018; RF6, the remaining RF8.1 source/ownership contract, RF8.3 and RF9 pending; every channel stays opt-in and off until the owner enables it) |
+| Status | In progress (RF1–RF4 implemented in 0.68.0 and hardened in 0.75.1; RF5.1–RF5.7, RF7.2, RF7.3 and RF8.2 delivered in 0.70.0; RF8.1 partially delivered in 0.74.0/0.75.1 with PRD 0018; RF9.4 delivered as documentation without a version bump; RF6, the remaining RF8.1 source/ownership contract, RF8.3, RF9.2, RF9.3 and RF9.5 pending; every channel stays opt-in and off until the owner enables it) |
 | Owner | Repository, CI and release (`.github/`, `packaging/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRD 0018 (updater), PRD 0014 (widgets) |
 | Depends on | PRD 0019 RF2 (green CI on three systems) and RF7.1 to RF7.3 (`CHANGELOG.md`) |
@@ -24,7 +24,7 @@
 | RF6 | — | Proposed — produced-artifact smoke tests are not implemented as a completed requirement. |
 | RF7 | 0.70.0 | Partial — RF7.2 (README leads with the per-platform installation section, verify-your-download and uninstall semantics) and RF7.3 (`packaging/README.md` documents every template and its maintainer) delivered; the rest of the documentation/layout work remains pending. |
 | RF8 | 0.74.0 and 0.75.1 | Partial — RF8.1 is implemented in the desktop for direct/AppImage, Homebrew Caskroom, the exact `cuotai` Scoop component, winget's package-cache path and generic Linux package roots; generic Linux guidance no longer prescribes Debian's package manager. With the repository's default current-user NSIS mode, a normal winget install still shares `%LocalAppData%\Cuotai` with a manual install, so safe ownership detection needs a durable installer/receipt marker that the repository does not define. The detector also remains in the desktop updater module rather than the core, and CLI/Cargo-source detection is pending. RF8.2 is implemented (per-channel uninstall semantics documented; winget/Scoop CI tests prove a configuration file survives uninstalling; cask `zap` is explicit-only). RF8.3 is pending. |
-| RF9 | 0.70.0 | Partial — RF9.1 (owner checklist with the per-channel secrets, enabling variables and repositories in `docs/releasing.md`); the secrets themselves, RF9.3 and the rest remain pending. |
+| RF9 | 0.70.0; no version bump for RF9.4 | Partial — RF9.1 is the owner checklist with the per-channel secrets, enabling variables and repositories in `docs/releasing.md`. RF9.4 is implemented by the executable rollback/yank procedure, per-step verification, updater behaviour evidence and signing-key rotation runbooks in `docs/releasing.md` and `docs/updater-security.md`; it changes documentation only, so the product stays at 0.75.1. The owner-controlled secrets themselves, RF9.2, RF9.3 and RF9.5 remain pending. |
 
 ## 1. Context
 
