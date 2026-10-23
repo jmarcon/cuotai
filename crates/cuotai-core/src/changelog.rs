@@ -11,6 +11,12 @@
 //! order, only the six fixed categories, no empty category, and entries as
 //! `- ` bullet lines (a released section may instead carry a plain
 //! paragraph, e.g. "No user-visible changes").
+//!
+//! The internal builds that were never published (0.1.0 to 0.79.0, PRD
+//! 0039 D11) are summarized by one optional, last section, the
+//! [`PreRelease`] history: `## Pre-release history (0.1.0–0.79.0, …)`.
+//! It is not a version: it has no date and no footer link, and every
+//! released section above it must be newer than its range.
 
 use std::fmt;
 use std::sync::LazyLock;
@@ -26,12 +32,14 @@ pub fn entries() -> &'static Changelog {
     &CHANGELOG
 }
 
-/// One parsed changelog: the `[Unreleased]` section plus every released
-/// version in the file's (descending) order.
+/// One parsed changelog: the `[Unreleased]` section, every released
+/// version in the file's (descending) order and, last, the optional
+/// pre-release history of the internal builds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Changelog {
     pub unreleased: Section,
     pub releases: Vec<Release>,
+    pub pre_release: Option<PreRelease>,
 }
 
 impl Changelog {
@@ -40,11 +48,26 @@ impl Changelog {
         self.releases.iter().find(|r| r.version == version)
     }
 
+    /// The pre-release history when it covers `version` (an internal
+    /// build summarized there instead of having its own section).
+    pub fn pre_release_of(&self, version: &str) -> Option<&PreRelease> {
+        self.pre_release
+            .as_ref()
+            .filter(|history| history.covers(version))
+    }
+
+    /// Whether `version` is recorded at all: its own section, or the
+    /// pre-release history's range.
+    pub fn knows(&self, version: &str) -> bool {
+        self.find(version).is_some() || self.pre_release_of(version).is_some()
+    }
+
     /// Every `PRD NNNN RFx` reference cited by any entry, in file order.
     pub fn references(&self) -> Vec<&PlanRef> {
         let mut refs = Vec::new();
         for section in std::iter::once(&self.unreleased)
             .chain(self.releases.iter().map(|release| &release.section))
+            .chain(self.pre_release.iter().map(|history| &history.section))
         {
             for block in &section.categories {
                 for entry in &block.entries {
@@ -69,6 +92,42 @@ pub struct Release {
     pub body: String,
     pub section: Section,
 }
+
+/// The pre-release history (owner decision of 2026-10-23, PRD 0039 D11):
+/// one section that summarizes the internal builds `first`..=`last`, which
+/// were never tagged or published, instead of one section per version.
+/// Heading: `## Pre-release history (0.1.0–0.79.0, <free note>)`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreRelease {
+    /// The heading text without `## ` (shown as the section title).
+    pub title: String,
+    /// The oldest internal version of the range ("0.1.0").
+    pub first: String,
+    /// The newest internal version of the range ("0.79.0").
+    pub last: String,
+    /// The raw Markdown body, like [`Release::body`].
+    pub body: String,
+    pub section: Section,
+}
+
+impl PreRelease {
+    /// Whether `version` (`X.Y.Z`) lies in `first..=last`.
+    pub fn covers(&self, version: &str) -> bool {
+        valid_version(version)
+            && compare_versions(version, &self.first) != std::cmp::Ordering::Less
+            && compare_versions(version, &self.last) != std::cmp::Ordering::Greater
+    }
+
+    /// The range as written in the heading ("0.1.0–0.79.0").
+    pub fn range(&self) -> String {
+        format!("{}{PRE_RELEASE_DASH}{}", self.first, self.last)
+    }
+}
+
+/// The heading prefix of the pre-release history.
+pub const PRE_RELEASE_PREFIX: &str = "Pre-release history (";
+/// The range separator of the pre-release heading (an en dash).
+pub const PRE_RELEASE_DASH: char = '–';
 
 /// The parsed content of one section (released or `[Unreleased]`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -232,6 +291,7 @@ fn fail<T>(line: usize, message: impl Into<String>) -> Result<T, ParseError> {
 pub fn parse(text: &str) -> Result<Changelog, ParseError> {
     let mut unreleased: Option<Section> = None;
     let mut releases: Vec<Release> = Vec::new();
+    let mut pre_release: Option<PreRelease> = None;
     // Current section being filled: its heading line, body lines and
     // category state.
     let mut current: Option<SectionBuilder> = None;
@@ -242,9 +302,42 @@ pub fn parse(text: &str) -> Result<Changelog, ParseError> {
         let line = raw.trim_end();
         if line.starts_with("## ") {
             if let Some(builder) = current.take() {
-                finish_section(builder, &mut unreleased, &mut releases)?;
+                finish_section(builder, &mut unreleased, &mut releases, &mut pre_release)?;
             }
             let heading = line.trim_start_matches("## ").trim();
+            if pre_release.is_some() {
+                return fail(
+                    line_number,
+                    format!(
+                        "section '## {heading}' after the pre-release history: the pre-release history is the last section"
+                    ),
+                );
+            }
+            if heading.starts_with("Pre-release history") {
+                if unreleased.is_none() {
+                    return fail(
+                        line_number,
+                        "pre-release history before '## [Unreleased]': the unreleased section comes first",
+                    );
+                }
+                let (first, last) = parse_pre_release_heading(heading, line_number)?;
+                if let Some(oldest) = releases.last() {
+                    if compare_versions(&oldest.version, &last) != std::cmp::Ordering::Greater {
+                        return fail(
+                            line_number,
+                            format!(
+                                "the pre-release history ends at {last}, but [{}] above it is not newer: released sections follow the internal builds",
+                                oldest.version
+                            ),
+                        );
+                    }
+                }
+                current = Some(SectionBuilder::new(
+                    line_number,
+                    Heading::PreRelease(heading.to_string(), first, last),
+                ));
+                continue;
+            }
             if heading == "[Unreleased]" {
                 if unreleased.is_some() || !releases.is_empty() {
                     return fail(
@@ -252,7 +345,7 @@ pub fn parse(text: &str) -> Result<Changelog, ParseError> {
                         "'## [Unreleased]' must be the first section and appear only once",
                     );
                 }
-                current = Some(SectionBuilder::unreleased(line_number));
+                current = Some(SectionBuilder::new(line_number, Heading::Unreleased));
             } else {
                 if unreleased.is_none() {
                     return fail(
@@ -276,7 +369,10 @@ pub fn parse(text: &str) -> Result<Changelog, ParseError> {
                         );
                     }
                 }
-                current = Some(SectionBuilder::release(line_number, version, date));
+                current = Some(SectionBuilder::new(
+                    line_number,
+                    Heading::Release(version, date),
+                ));
             }
             continue;
         }
@@ -300,7 +396,7 @@ pub fn parse(text: &str) -> Result<Changelog, ParseError> {
         section.push(line_number, line)?;
     }
     if let Some(builder) = current.take() {
-        finish_section(builder, &mut unreleased, &mut releases)?;
+        finish_section(builder, &mut unreleased, &mut releases, &mut pre_release)?;
     }
     let Some(unreleased) = unreleased else {
         return fail(0, "no '## [Unreleased]' section");
@@ -308,7 +404,45 @@ pub fn parse(text: &str) -> Result<Changelog, ParseError> {
     Ok(Changelog {
         unreleased,
         releases,
+        pre_release,
     })
+}
+
+/// `Pre-release history (X.Y.Z–X.Y.Z)` or `Pre-release history
+/// (X.Y.Z–X.Y.Z, <note>)`, strictly; returns `(first, last)`.
+fn parse_pre_release_heading(heading: &str, line: usize) -> Result<(String, String), ParseError> {
+    let expected = "expected '## Pre-release history (X.Y.Z–X.Y.Z, <note>)' with an en dash";
+    let Some(inner) = heading
+        .strip_prefix(PRE_RELEASE_PREFIX)
+        .and_then(|rest| rest.strip_suffix(')'))
+    else {
+        return fail(
+            line,
+            format!("malformed pre-release heading '## {heading}': {expected}"),
+        );
+    };
+    let range = inner.split_once(", ").map_or(inner, |(range, _)| range);
+    let Some((first, last)) = range.split_once(PRE_RELEASE_DASH) else {
+        return fail(
+            line,
+            format!("malformed pre-release heading '## {heading}': {expected}"),
+        );
+    };
+    if !valid_version(first) || !valid_version(last) {
+        return fail(
+            line,
+            format!(
+                "malformed pre-release heading '## {heading}': '{range}' is not an X.Y.Z–X.Y.Z range"
+            ),
+        );
+    }
+    if compare_versions(first, last) == std::cmp::Ordering::Greater {
+        return fail(
+            line,
+            format!("pre-release range '{range}' is reversed: the oldest version comes first"),
+        );
+    }
+    Ok((first.to_string(), last.to_string()))
 }
 
 /// `## [X.Y.Z] - YYYY-MM-DD`, strictly; reports the exact broken part.
@@ -397,29 +531,28 @@ fn is_link_definition(line: &str) -> bool {
     (label == "Unreleased" || valid_version(label)) && after.starts_with(": ")
 }
 
+/// Which section a [`SectionBuilder`] fills.
+enum Heading {
+    Unreleased,
+    /// `(version, date)`.
+    Release(String, String),
+    /// `(title, first, last)`.
+    PreRelease(String, String, String),
+}
+
 struct SectionBuilder {
     line: usize,
-    heading: Option<(String, String)>,
+    heading: Heading,
     body: Vec<String>,
     section: Section,
     current_category: Option<usize>,
 }
 
 impl SectionBuilder {
-    fn unreleased(line: usize) -> Self {
+    fn new(line: usize, heading: Heading) -> Self {
         Self {
             line,
-            heading: None,
-            body: Vec::new(),
-            section: Section::default(),
-            current_category: None,
-        }
-    }
-
-    fn release(line: usize, version: String, date: String) -> Self {
-        Self {
-            line,
-            heading: Some((version, date)),
+            heading,
             body: Vec::new(),
             section: Section::default(),
             current_category: None,
@@ -489,14 +622,15 @@ fn finish_section(
     builder: SectionBuilder,
     unreleased: &mut Option<Section>,
     releases: &mut Vec<Release>,
+    pre_release: &mut Option<PreRelease>,
 ) -> Result<(), ParseError> {
     for block in &builder.section.categories {
         if block.entries.is_empty() {
-            let where_ = builder
-                .heading
-                .as_ref()
-                .map(|(version, _)| format!(" of [{version}]"))
-                .unwrap_or_else(|| " of [Unreleased]".to_string());
+            let where_ = match &builder.heading {
+                Heading::Unreleased => " of [Unreleased]".to_string(),
+                Heading::Release(version, _) => format!(" of [{version}]"),
+                Heading::PreRelease(..) => " of the pre-release history".to_string(),
+            };
             return Err(ParseError {
                 line: builder.line,
                 message: format!(
@@ -516,13 +650,28 @@ fn finish_section(
         }
     }
     match builder.heading {
-        None => *unreleased = Some(builder.section),
-        Some((version, date)) => releases.push(Release {
+        Heading::Unreleased => *unreleased = Some(builder.section),
+        Heading::Release(version, date) => releases.push(Release {
             version,
             date,
             body: body.join("\n"),
             section: builder.section,
         }),
+        Heading::PreRelease(title, first, last) => {
+            if builder.section.is_empty() {
+                return fail(
+                    builder.line,
+                    "the pre-release history is empty: it summarizes the internal builds",
+                );
+            }
+            *pre_release = Some(PreRelease {
+                title,
+                first,
+                last,
+                body: body.join("\n"),
+                section: builder.section,
+            });
+        }
     }
     Ok(())
 }

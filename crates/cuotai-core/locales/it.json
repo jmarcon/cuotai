@@ -1082,6 +1082,7 @@
   "changelog.category.removed": "Rimosso",
   "changelog.category.security": "Sicurezza",
   "changelog.entries_language": "Le voci restano in inglese, la lingua del registro delle modifiche.",
+  "changelog.pre_release_note": "La versione \"{wanted}\" era una build interna e non è mai stata pubblicata. Le sue modifiche sono riassunte nella cronologia pre-rilascio ({range}).",
   "changelog.title": "Novità",
   "changelog.unknown_version": "La versione \"{wanted}\" non è nel registro delle modifiche. Versioni note: {known}.",
   "cost.confirm.answer": "sì",

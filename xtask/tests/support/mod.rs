@@ -88,6 +88,26 @@ Preface.
 [0.79.0]: https://github.com/o/r/commit/1111111
 ";
 
+/// [`CHANGELOG`] with the internal versions folded into the pre-release
+/// history (owner decision of 2026-10-23, PRD 0039 D11).
+pub const PRE_RELEASE_CHANGELOG: &str = "\
+# Changelog
+
+Preface.
+
+## [Unreleased]
+
+## Pre-release history (0.1.0–0.79.0, internal builds, never published)
+
+A summary of the internal builds.
+
+### Added
+
+- Base (PRD 0001 RF1).
+
+[Unreleased]: https://github.com/o/r/compare/1111111...HEAD
+";
+
 fn write_tree(root: &Path, v: &str) {
     let req = v.rsplit_once('.').unwrap().0;
     write_file(

@@ -271,3 +271,67 @@ fn next_token_in_plans_is_accepted_between_releases() {
     );
     check(dir.path()).unwrap();
 }
+
+/// [`CHANGELOG`] after the internal versions were folded into the
+/// pre-release history (PRD 0039 D11): no section and no footer link per
+/// internal version.
+const WITH_HISTORY: &str = "\
+# Changelog
+
+All notable changes to Cuotai are recorded here.
+
+## [Unreleased]
+
+## Pre-release history (0.1.0–0.79.0, internal builds, never published)
+
+The internal builds, summarized.
+
+### Added
+
+- A new thing you can do (PRD 0019 RF7.7).
+
+### Fixed
+
+- An old thing fixed (PRD 0001 RF1).
+
+[Unreleased]: https://example/compare/abc1234...HEAD
+";
+
+#[test]
+fn internal_versions_cited_by_plans_resolve_through_the_pre_release_history() {
+    // The plan and §3 rows cite 0.1.0 and 0.2.0, which have no section.
+    let dir = fixture(WITH_HISTORY);
+    check(dir.path()).unwrap();
+    // A reference inside the history is still checked.
+    let dir = fixture(&WITH_HISTORY.replace("PRD 0019 RF7.7", "PRD 0019 RF77"));
+    let error = check(dir.path()).unwrap_err();
+    assert!(error.contains("has no RF77"), "{error}");
+    // A version outside the range still needs a section.
+    let dir = fixture(WITH_HISTORY);
+    let plan = dir.path().join("docs/plans/0019_packaging.md");
+    let text = std::fs::read_to_string(&plan)
+        .unwrap()
+        .replace("0.2.0 |", "0.80.0 |");
+    std::fs::write(&plan, text).unwrap();
+    let error = check(dir.path()).unwrap_err();
+    assert!(error.contains("marks 0.80.0 as delivered"), "{error}");
+    // A footer link for a folded version has no section.
+    let dir = fixture(&format!(
+        "{WITH_HISTORY}[0.2.0]: https://example/compare/def5678...abc1234\n"
+    ));
+    let error = check(dir.path()).unwrap_err();
+    assert!(
+        error.contains("footer link [0.2.0] has no section"),
+        "{error}"
+    );
+}
+
+#[test]
+fn the_pre_release_history_covers_internal_versions_only() {
+    let dir = fixture(&WITH_HISTORY.replace("0.1.0–0.79.0", "0.1.0–0.80.0"));
+    let error = check(dir.path()).unwrap_err();
+    assert!(
+        error.contains("after the last internal version 0.79.0"),
+        "{error}"
+    );
+}
