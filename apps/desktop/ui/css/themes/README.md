@@ -42,6 +42,11 @@ Surfaces and effects (optional):
 `--shadow`, `--shadow-dialog`, `--card-bg` (accepts a gradient), `--head-bg` (card header, accepts a gradient),
 `--topbar-bg`, `--btn-bg`, `--btn-fg`, `--input-bg`, `--switch-knob`, `--body-bg` (accepts a gradient/image).
 
+The Cuotai logo keeps fixed colors and is never themed. `themes.css` shows `img/logo-on-dark.svg` in dark mode and
+`img/logo-on-light.svg` in light mode (switched by `data-mode`, since an SVG inside `<img>` cannot see the app's mode);
+every arc keeps at least 3:1 against the built-in surfaces. A built-in theme whose top bar stays a saturated color in
+both modes points `:root[data-theme="<id>"] .topbar .brand` at `img/logo-on-color.svg` (Windows XP does).
+
 Motion (optional; defaults live in `themes.css`, user themes inherit them):
 
 | Token | Default | Use |

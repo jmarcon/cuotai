@@ -13,11 +13,17 @@ How to read the history before this file existed:
 
 ## [Unreleased]
 
+## [0.76.1] - 2026-10-23
+
+### Fixed
+
+- The Cuotai logo in the window and tray headers is now clearly visible in light mode: its four arcs switch to deeper shades of the same hues on light surfaces (at least 3:1 contrast in every built-in theme), keep their original colors in dark mode, and use brighter tints on the Windows XP theme's blue title bar; the README and the browser-tab icon follow the system's light or dark appearance.
+
 ## [0.76.0] - 2026-10-23
 
 ### Added
 
-- A new built-in **Cuotai** theme, the app's own identity: pastel colors on a blue-leaning gray in both dark and light modes, a calm lilac accent and status colors chosen to stay readable (WCAG AA text contrast) and distinguishable with common color-vision deficiencies. Pick it under Settings → Appearance → Theme, in the new "Original" group.
+- A new built-in **Cuotai** theme, the app's own identity: pastel colors on a blue-leaning gray in both dark and light modes, a calm lilac accent and status colors chosen to stay readable (WCAG AA text contrast) and distinguishable with common color-vision deficiencies. Pick it under Settings → Appearance → Theme, in the new "Original" group (409d81a).
 
 ### Changed
 
@@ -665,7 +671,8 @@ First version. It also covers the work committed up to 2026-10-17 that precedes 
 
 - A CSS clash that broke the alert styling in the desktop details, and the available percentage is now shown explicitly (c5a873d).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.76.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.76.1...HEAD
+[0.76.1]: https://github.com/jmarcon/cuotai/compare/v0.76.0...v0.76.1
 [0.76.0]: https://github.com/jmarcon/cuotai/compare/v0.75.3...v0.76.0
 [0.75.3]: https://github.com/jmarcon/cuotai/compare/v0.75.2...v0.75.3
 [0.75.2]: https://github.com/jmarcon/cuotai/compare/v0.75.1...v0.75.2

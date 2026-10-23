@@ -160,7 +160,7 @@ function render() {
   root.innerHTML = `<div class="pop">
     <header class="pop-head">
       ${cur ? `<button class="icon back" data-back title="${te("common.back")}">${icon("back")}</button>` : ""}
-      <div class="pop-title"><h1>${cur ? esc(brand(cur.provider).label) : `<button class="brand-link" data-open-main title="${te("common.open")}" aria-label="${te("common.open")}"><img class="brand" src="img/logo.svg" alt="" width="18" height="18" />Cuotai</button>`}</h1>
+      <div class="pop-title"><h1>${cur ? esc(brand(cur.provider).label) : `<button class="brand-link" data-open-main title="${te("common.open")}" aria-label="${te("common.open")}"><span class="brand" aria-hidden="true"></span>Cuotai</button>`}</h1>
         ${cur ? `<span class="sub">${esc(cur.account)}</span>` : ""}
       </div>
       ${cur ? "" : `<button class="icon" data-view title="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}" aria-label="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}">${icon(trayView === "donut" ? "list" : "grid")}</button>`}

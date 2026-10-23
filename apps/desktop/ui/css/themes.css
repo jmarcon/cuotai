@@ -258,10 +258,21 @@ svg.i {
   height: 16px;
 }
 
+/* The Cuotai mark (DS-ID-2): fixed colors, one variant per kind of surface it sits on, picked by
+   `data-mode` (the app's own mode, which `prefers-color-scheme` inside an <img> cannot see).
+   Every arc keeps >= 3:1 against the surfaces of every built-in theme; a theme whose header is
+   a saturated color in both modes (winxp) switches to `logo-on-color.svg` in its own file. */
 .brand {
   display: inline-block;
+  flex: none;
+  width: 22px;
+  height: 22px;
   vertical-align: middle;
   margin-right: 8px;
+  background: url("../img/logo-on-dark.svg") center / contain no-repeat;
+}
+:root[data-mode="light"] .brand {
+  background-image: url("../img/logo-on-light.svg");
 }
 
 /* bandeiras e menu de idioma */

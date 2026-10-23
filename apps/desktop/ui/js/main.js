@@ -277,7 +277,7 @@ function render() {
   // Reconciliação por cartão (`data-card`): foco, cursor do filtro, rolagem e barras sobrevivem ao redesenho.
   patch(root, `<div class="shell">
     <header class="topbar" data-tauri-drag-region>
-      <img class="brand" src="img/logo.svg" alt="" width="22" height="22" data-tauri-drag-region /><h1 data-tauri-drag-region>Cuotai</h1><div class="spacer" data-tauri-drag-region></div>
+      <span class="brand" aria-hidden="true" data-tauri-drag-region></span><h1 data-tauri-drag-region>Cuotai</h1><div class="spacer" data-tauri-drag-region></div>
       <div class="filter"><span class="filter-ico">${icon("search")}</span>
         <input id="filter" type="text" autocomplete="off" spellcheck="false" value="${esc(filterText)}" placeholder="${te("filter.placeholder")}" aria-label="${te("filter.placeholder")}" />
         ${filterText ? `<button class="icon" data-clear-filter title="${te("filter.clear")}" aria-label="${te("filter.clear")}">${icon("x")}</button>` : ""}</div>

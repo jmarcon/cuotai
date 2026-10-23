@@ -827,7 +827,7 @@ dependencies = [
 
 [[package]]
 name = "cuotai-core"
-version = "0.76.0"
+version = "0.76.1"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -859,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "cuotai-desktop"
-version = "0.76.0"
+version = "0.76.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",

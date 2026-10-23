@@ -1,5 +1,9 @@
 <div align="center">
-  <img src="apps/desktop/ui/img/logo.svg" alt="Cuotai logo" width="84" height="84" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/desktop/ui/img/logo-on-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="apps/desktop/ui/img/logo-on-light.svg" />
+    <img src="apps/desktop/ui/img/logo.svg" alt="Cuotai logo" width="84" height="84" />
+  </picture>
   <h1>Cuotai</h1>
   <p><strong>All your AI quotas, usage limits and costs in one place.</strong></p>
   <p>
