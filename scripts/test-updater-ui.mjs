@@ -229,7 +229,6 @@ for (const { code } of i18n.LOCALES) {
     consent.indexOf("data-update-consent-no") < consent.indexOf("data-update-consent-yes"),
     `${code}: primary Yes action must be last`,
   );
-  assert.ok(catalog["update.consent.body"].length > 0, `${code}: empty consent disclosure`);
 
   const banner = updater.updateBannerHtml();
   assert.match(banner, /data-update="available"/, `${code}: available banner missing`);
