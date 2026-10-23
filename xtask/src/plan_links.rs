@@ -23,6 +23,9 @@ pub fn run(root: &Path, text: &str) -> Res<()> {
     check_references(&changelog, &plans, &mut problems);
     check_delivered_versions(root, &changelog, &mut problems);
     check_footer_links(text, &changelog, &mut problems);
+    if let Some(control) = control_text(root) {
+        problems.extend(plan_graph_problems(&control));
+    }
     if !problems.is_empty() {
         return err(format!(
             "changelog/plan check failed ({} problem(s)):\n - {}",
@@ -334,6 +337,123 @@ fn plans_of(root: &Path) -> Vec<(String, String)> {
 
 /// The "Delivered by version" section of `docs/plans/0000_control.md`, as
 /// `(file name, section text)`.
+/// The whole `docs/plans/0000_*.md` text.
+fn control_text(root: &Path) -> Option<String> {
+    let entry = std::fs::read_dir(root.join("docs/plans"))
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .find(|path| {
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("0000_") && n.ends_with(".md"))
+        })?;
+    std::fs::read_to_string(entry).ok()
+}
+
+/// Text outside parentheses (qualifiers such as `(RF6)` or
+/// `(which supersede 0019 RF3)` name requirements, not dependencies).
+fn outside_parentheses(text: &str) -> String {
+    let mut depth = 0usize;
+    text.chars()
+        .filter(|c| match c {
+            '(' => {
+                depth += 1;
+                false
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                false
+            }
+            _ => depth == 0,
+        })
+        .collect()
+}
+
+/// Every four-digit plan number of `text`, outside parentheses.
+fn plan_numbers(text: &str) -> std::collections::BTreeSet<String> {
+    outside_parentheses(text)
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|token| token.len() == 4)
+        .map(str::to_string)
+        .collect()
+}
+
+/// PRD 0039 RF11: the strong dependencies of §2, the solid edges of the §4
+/// graph (`P24 --> P29`: 0024 depends on 0029; sub-nodes such as `P29R0`
+/// are not plans) and the "What each plan unblocks" table agree.
+pub fn plan_graph_problems(control: &str) -> Vec<String> {
+    use std::collections::BTreeSet;
+    let mut section = "";
+    let mut strong: BTreeSet<(String, String)> = BTreeSet::new();
+    let mut graph: BTreeSet<(String, String)> = BTreeSet::new();
+    let mut unblocks: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut in_unblocks = false;
+    for line in control.lines() {
+        if line.starts_with("## ") {
+            section = line;
+        }
+        if line.starts_with("### ") || line.starts_with("## ") {
+            in_unblocks = line.starts_with("### What each plan unblocks");
+        }
+        if section.starts_with("## 2.") && line.starts_with("| [") {
+            let cells: Vec<&str> = line.trim().trim_matches('|').split('|').collect();
+            let plan = cells[0].trim().get(1..5).unwrap_or_default().to_string();
+            if let Some(deps) = cells.get(4) {
+                for dep in plan_numbers(deps) {
+                    strong.insert((plan.clone(), dep));
+                }
+            }
+        }
+        if let Some((from, to)) = line.trim().split_once(" --> ") {
+            let node = |n: &str| -> Option<String> {
+                let digits = n.trim().strip_prefix('P')?;
+                (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+                    .then(|| format!("{:04}", digits.parse::<u32>().unwrap_or(0)))
+            };
+            if let (Some(a), Some(b)) = (node(from), node(to)) {
+                graph.insert((a, b));
+            }
+        }
+        if in_unblocks {
+            let cells: Vec<&str> = line.trim().trim_matches('|').split('|').collect();
+            let plan = cells[0].trim();
+            if plan.len() == 4 && plan.bytes().all(|b| b.is_ascii_digit()) && cells.len() > 1 {
+                unblocks.insert(plan.to_string(), plan_numbers(cells[1]));
+            }
+        }
+    }
+    let mut problems = Vec::new();
+    for (a, b) in strong.difference(&graph) {
+        problems.push(format!(
+            "0000_control.md: §2 says {a} strongly depends on {b}, but the §4 graph has no 'P{} --> P{}' edge",
+            a.trim_start_matches('0'),
+            b.trim_start_matches('0')
+        ));
+    }
+    for (a, b) in graph.difference(&strong) {
+        problems.push(format!(
+            "0000_control.md: the §4 graph has a strong edge {a} --> {b} that §2 does not list"
+        ));
+    }
+    let mut expected: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for (a, b) in &strong {
+        expected.entry(b.clone()).or_default().insert(a.clone());
+    }
+    let plans: BTreeSet<&String> = expected.keys().chain(unblocks.keys()).collect();
+    for plan in plans {
+        let want = expected.get(plan).cloned().unwrap_or_default();
+        let have = unblocks.get(plan).cloned().unwrap_or_default();
+        if want != have {
+            problems.push(format!(
+                "0000_control.md: \"What each plan unblocks\" for {plan} lists {:?}, but §2's strong dependencies give {:?}",
+                have, want
+            ));
+        }
+    }
+    problems
+}
+
 fn control_table(root: &Path) -> Option<(String, String)> {
     let dir = root.join("docs/plans");
     let entry = std::fs::read_dir(&dir)
@@ -359,4 +479,58 @@ fn control_table(root: &Path) -> Option<(String, String)> {
         }
     }
     Some((name, table))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plan_graph_problems;
+
+    const CONTROL: &str = "\
+## 2. Current situation
+
+| ID | Plan | Status | Delivered | Depends on (strong) | Depends on (weak) | Notes |
+|---|---|---|---|---|---|---|
+| [0018](0018_x.md) | U | In progress | — | 0019 (RF2), 0021 (RF1–RF4, which supersede 0019 RF3) | 0019 (RF7) | — |
+| [0024](0024_x.md) | P | Proposed | — | 0008; 0029 RF1 (for RF7) | 0010 | — |
+| [0029](0029_x.md) | I | Proposed | — | — | — | — |
+
+## 4. Dependency graph
+
+```mermaid
+graph LR
+  P18 --> P19
+  P18 --> P21
+  P24 --> P8
+  P24 --> P29
+  P29 --> P29R0
+  P24 -.-> P10
+```
+
+### What each plan unblocks
+
+| Plan | Unblocks (strong) | Benefits (weak) |
+|---|---|---|
+| 0008 | 0024 | — |
+| 0019 | 0018 | 0018 |
+| 0021 | 0018 | — |
+| 0029 | 0024 (RF7) | — |
+
+## 5. Next
+";
+
+    #[test]
+    fn agreeing_views_pass() {
+        let problems = plan_graph_problems(CONTROL);
+        assert!(problems.is_empty(), "{problems:?}");
+    }
+
+    #[test]
+    fn a_missing_edge_an_extra_edge_and_a_stale_cell_fail() {
+        let missing = CONTROL.replace("  P24 --> P29\n", "");
+        assert!(plan_graph_problems(&missing)[0].contains("0024 strongly depends on 0029"));
+        let extra = CONTROL.replace("  P24 -.-> P10\n", "  P24 --> P10\n");
+        assert!(plan_graph_problems(&extra)[0].contains("strong edge 0024 --> 0010"));
+        let stale = CONTROL.replace("| 0021 | 0018 | — |", "| 0021 | — | — |");
+        assert!(plan_graph_problems(&stale)[0].contains("unblocks\" for 0021"));
+    }
 }
