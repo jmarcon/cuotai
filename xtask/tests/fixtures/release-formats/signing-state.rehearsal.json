@@ -1,0 +1,101 @@
+{
+  "schema": 2,
+  "version": "1.2.3",
+  "channel": "stable",
+  "artifacts": [
+    {
+      "name": "Cuotai_1.2.3_amd64.AppImage",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "Cuotai_1.2.3_amd64.deb",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "Cuotai_1.2.3_amd64.rpm",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "Cuotai_1.2.3_universal.dmg",
+      "signed": false,
+      "method": "ad-hoc",
+      "status": "unsigned",
+      "note": "app payload and DMG container are ad-hoc signed but have no trusted identity; Gatekeeper requires a manual override"
+    },
+    {
+      "name": "Cuotai_1.2.3_x64-setup.exe",
+      "signed": false,
+      "method": "none",
+      "status": "unsigned",
+      "note": "no Windows certificate configured; the installed application and installer have no Authenticode trust"
+    },
+    {
+      "name": "Cuotai_1.2.3_x64_en-US.msi",
+      "signed": false,
+      "method": "none",
+      "status": "unsigned",
+      "note": "no Windows certificate configured; the installed application and installer have no Authenticode trust"
+    },
+    {
+      "name": "cuotai-1.2.3-aarch64-apple-darwin.tar.gz",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-apple-darwin.tar.gz",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-pc-windows-msvc.zip",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-unknown-linux-gnu.tar.gz",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-unknown-linux-musl.tar.gz",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    },
+    {
+      "name": "sbom.cdx.json",
+      "signed": false,
+      "method": "checksum-signature",
+      "status": "unsigned",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available; checksum signature unavailable: dry-run: checksum signature not produced (dispatch runs never publish)"
+    }
+  ],
+  "checksums": {
+    "signed": false,
+    "method": "none",
+    "status": "dry-run: checksum signature not produced (dispatch runs never publish)"
+  },
+  "updater": {
+    "available": false,
+    "artifacts": [],
+    "reason": "complete Tauri updater signing credentials are not configured in the release environment"
+  }
+}

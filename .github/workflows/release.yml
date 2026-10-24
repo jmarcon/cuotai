@@ -1,7 +1,7 @@
-# Release pipeline (PRD 0021 RF1–RF5/RF9). One annotated `vX.Y.Z` (or
+# Release pipeline (PRD 0021 RF1–RF6/RF9). One annotated `vX.Y.Z` (or
 # `vX.Y.Z-rc.N`) tag on `main` builds every artifact, assembles the manifest,
-# checksums and signing state, and publishes a GitHub Release as
-# draft → verified → published. A routine `workflow_dispatch` is a cheap,
+# checksums and signing state, smoke-tests the packaged artifacts on every
+# system, and publishes a GitHub Release as draft → verified → published. A routine `workflow_dispatch` is a cheap,
 # secretless preflight; selecting `full_rehearsal` builds and uploads the same
 # artifacts without creating a Release or contacting a package manager.
 #
@@ -40,6 +40,11 @@ env:
   # Cargo-installed tooling, pinned (installed with --locked).
   TAURI_CLI_VERSION: "2.12.4"
   CARGO_CYCLONEDX_VERSION: "0.5.9"
+  # RF6 smoke containers, pinned by multi-arch index digest (workflow-check
+  # rejects a tag-only image). Ubuntu 22.04 is the oldest supported glibc.
+  SMOKE_UBUNTU_IMAGE: "ubuntu:22.04@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956"
+  SMOKE_ALPINE_IMAGE: "alpine:3.23@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63"
+  SMOKE_FEDORA_IMAGE: "fedora:43@sha256:a651ddf48ea28a06ed4e1e6519f51c9f47e7a5a138722ade87369b8fbb7e5b42"
 
 jobs:
   # RF1/RF9: fail before any build when the tag, versions, lockfiles,
@@ -903,12 +908,192 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 7
+      # RF6: the small hand-off the smoke jobs check their inputs against, so
+      # each smoke downloads only its own payload plus these files.
+      - name: Upload checksums and signing state for the smoke jobs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-checksums
+          path: |
+            dist/SHA256SUMS
+            dist/manifest.json
+            dist/signing-state.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # RF6.1: every packaged CLI archive, downloaded as published, on a native
+  # runner of its own system. Each smoke first proves its input is the exact
+  # file SHA256SUMS lists; a failure skips `publish`. Secret-free, read-only
+  # token, no environment; runs in the full rehearsal too.
+  smoke-cli:
+    name: smoke cli (${{ matrix.target }})
+    needs: [check, assemble]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin, archive: tar.gz }
+          # Runs under Rosetta 2 on the Apple-silicon runner.
+          - { os: macos-latest, target: x86_64-apple-darwin, archive: tar.gz }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, archive: tar.gz, container: ubuntu }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, archive: tar.gz, container: alpine }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, archive: zip }
+          # Optional legs (RF2.5): an archive that was not produced is not
+          # published and has nothing to smoke; one that was produced must pass.
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, archive: tar.gz, container: ubuntu, optional: true }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, archive: zip, optional: true }
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download checksums and signing state
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-checksums
+          path: smoke/sums
+      - name: Download the CLI archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: ${{ matrix.optional == true }}
+        with:
+          name: ${{ matrix.optional && format('optional-cli-{0}', matrix.target) || format('dist-cli-{0}', matrix.target) }}
+          path: smoke/artifact
+      - name: Smoke the packaged CLI (RF6.1)
+        shell: bash
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          ARCHIVE_EXT: ${{ matrix.archive }}
+          OPTIONAL: ${{ matrix.optional == true }}
+          SMOKE_IMAGE: ${{ matrix.container == 'ubuntu' && env.SMOKE_UBUNTU_IMAGE || matrix.container == 'alpine' && env.SMOKE_ALPINE_IMAGE || '' }}
+        run: |
+          set -euo pipefail
+          name="cuotai-${VERSION}-${TARGET}.${ARCHIVE_EXT}"
+          archive=""
+          for candidate in "smoke/artifact/$name" "smoke/artifact/dist/$name"; do
+            if [ -f "$candidate" ]; then archive="$candidate"; fi
+          done
+          listed=false
+          if awk -v n="$name" 'substr($0, 67) == n { found = 1 } END { exit !found }' smoke/sums/SHA256SUMS; then
+            listed=true
+          fi
+          if [ -z "$archive" ] && [ "$OPTIONAL" = "true" ] && [ "$listed" = "false" ]; then
+            echo "optional CLI leg $TARGET was not produced, so nothing is published or smoked (RF2.5)" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          [ -n "$archive" ] || { echo "::error::$name is listed for release but its archive is missing"; exit 1; }
+          scripts/release/smoke-checksum.sh smoke/sums/SHA256SUMS "$archive"
+          scripts/release/smoke-cli.sh "$archive" "$VERSION" crates/cuotai-tui/tests/fixtures/smoke.toml
+          echo "CLI smoke passed: $name" >> "$GITHUB_STEP_SUMMARY"
+
+  # RF6.2: the macOS DMG: codesign state as recorded, universal binary,
+  # bundle version, and a headless start.
+  smoke-desktop-macos:
+    name: smoke desktop (macOS)
+    needs: [check, assemble]
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download checksums and signing state
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-checksums
+          path: smoke/sums
+      - name: Download the macOS desktop artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-desktop-macos
+          path: smoke/dist
+      - name: Smoke the DMG (RF6.2)
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          dmg="smoke/dist/Cuotai_${VERSION}_universal.dmg"
+          scripts/release/smoke-checksum.sh smoke/sums/SHA256SUMS "$dmg"
+          scripts/release/smoke-desktop-macos.sh "$dmg" "$VERSION" smoke/sums/signing-state.json
+
+  # RF6.2: the Windows x64 installers: Authenticode state as recorded, silent
+  # NSIS install, start and uninstall, silent MSI install and uninstall.
+  smoke-desktop-windows:
+    name: smoke desktop (Windows x64)
+    needs: [check, assemble]
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download checksums and signing state
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-checksums
+          path: smoke/sums
+      - name: Download the Windows desktop artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-desktop-windows
+          path: smoke/dist
+      - name: Installers are the published bytes
+        shell: bash
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          scripts/release/smoke-checksum.sh smoke/sums/SHA256SUMS \
+            "smoke/dist/Cuotai_${VERSION}_x64-setup.exe" "smoke/dist/Cuotai_${VERSION}_x64_en-US.msi"
+      - name: Smoke the installers (RF6.2)
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: scripts/release/smoke-desktop-windows.ps1 -Version $env:VERSION -DistDir smoke/dist -SigningState smoke/sums/signing-state.json
+
+  # RF6.2: the Linux x64 packages: deb and AppImage in a clean Ubuntu 22.04
+  # container (metadata, ldd, headless start), rpm metadata in Fedora.
+  smoke-desktop-linux:
+    name: smoke desktop (Linux x64)
+    needs: [check, assemble]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download checksums and signing state
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-checksums
+          path: smoke/sums
+      - name: Download the Linux desktop artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-desktop-linux
+          path: smoke/dist
+      - name: Smoke the packages (RF6.2)
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          DEB_IMAGE: ${{ env.SMOKE_UBUNTU_IMAGE }}
+          RPM_IMAGE: ${{ env.SMOKE_FEDORA_IMAGE }}
+        run: |
+          set -euo pipefail
+          scripts/release/smoke-checksum.sh smoke/sums/SHA256SUMS \
+            "smoke/dist/Cuotai_${VERSION}_amd64.AppImage" \
+            "smoke/dist/Cuotai_${VERSION}_amd64.deb" \
+            "smoke/dist/Cuotai_${VERSION}_amd64.rpm"
+          scripts/release/smoke-desktop-linux.sh smoke/dist "$VERSION"
 
   # RF4.1/RF4.3: tag runs only, behind the owner-configured `release` environment.
-  # A failed or interrupted run leaves at most a draft.
+  # A failed or interrupted run leaves at most a draft. RF6: every smoke job
+  # must succeed first; the implicit success() of this `if` skips publishing
+  # otherwise, and workflow-check keeps it that way.
   publish:
     name: draft, verify and publish the GitHub Release
-    needs: [check, assemble]
+    needs: [check, assemble, smoke-cli, smoke-desktop-macos, smoke-desktop-windows, smoke-desktop-linux]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
