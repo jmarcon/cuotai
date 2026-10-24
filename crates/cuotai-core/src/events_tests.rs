@@ -143,6 +143,7 @@ impl Watch {
             page_url: "https://status.claude.com/".into(),
             read_at: Some(t0()),
             stale,
+            expired: false,
         }];
     }
 }

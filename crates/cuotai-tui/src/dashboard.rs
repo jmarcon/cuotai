@@ -950,7 +950,7 @@ fn render_card(
     // PRD 0011 RF5: the provider's incident badge on the top border, to the
     // right of the name and never over it.
     let badge = incident_of(view, account.provider)
-        .and_then(|status| incident_badge(status, tui_locale()))
+        .and_then(|status| incident_badge(status, tui_locale(), view.now))
         .and_then(|badge| {
             let room = usize::from(area.width.saturating_sub(3))
                 .saturating_sub(Span::raw(title.as_str()).width());
@@ -1209,23 +1209,47 @@ fn incident_look(state: IncidentState) -> (&'static str, Color) {
     }
 }
 
-pub(crate) fn incident_badge(status: &ProviderStatus, locale: &str) -> Option<IncidentBadge> {
+pub(crate) fn incident_badge(
+    status: &ProviderStatus,
+    locale: &str,
+    now: DateTime<Utc>,
+) -> Option<IncidentBadge> {
     let notice = !matches!(
         status.state,
         IncidentState::Operational | IncidentState::Unknown
     );
-    if !notice && !status.stale {
+    if !notice && !status.stale && !status.expired {
         return None;
     }
     let url = status
         .incident
         .as_ref()
         .map_or_else(|| status.page_url.clone(), |incident| incident.url.clone());
-    if !notice {
+    let checked = status
+        .read_at
+        .map(|read_at| format!("lido {}", age_text(read_at, now)));
+    if status.expired {
+        let mut label = status.state.label().resolve(locale);
+        if let Some(checked) = checked {
+            label.push_str(&format!(" · {checked}"));
+        }
         return Some(IncidentBadge {
             glyph: "?",
             color: MUTED,
-            label: "Página de status indisponível".into(),
+            label,
+            title: None,
+            url,
+        });
+    }
+    if !notice {
+        let mut label = "Página de status indisponível".to_owned();
+        if let Some(checked) = checked {
+            label.push_str(&format!(" · {checked}"));
+        }
+        return Some(IncidentBadge {
+            glyph: "?",
+            color: MUTED,
+            label,
             title: None,
             url,
         });
@@ -1234,6 +1258,9 @@ pub(crate) fn incident_badge(status: &ProviderStatus, locale: &str) -> Option<In
     let mut label = status.state.label().resolve(locale);
     if status.stale {
         label.push_str(" · última leitura");
+        if let Some(checked) = checked {
+            label.push_str(&format!(" · {checked}"));
+        }
     }
     Some(IncidentBadge {
         glyph,
@@ -3580,6 +3607,7 @@ mod tests {
             page_url: "https://status.example.com/".into(),
             read_at: (!stale).then(|| at_min(-2)),
             stale,
+            expired: false,
         };
         vec![
             ProviderStatus {
@@ -3657,12 +3685,25 @@ mod tests {
         assert!(!text.contains("Operacional"), "{text}");
         assert!(text.contains("? Página de status indisponível"), "{text}");
 
-        // A stale incident is marked as the last reading.
+        // A stale incident names the original check's age.
         let mut stale = statuses();
         stale[0].stale = true;
-        let text = render_status(&three_accounts(), (false, 0), &stale, (80, 30)).join("\n");
+        let text = render_status(&three_accounts(), (false, 0), &stale, (100, 30)).join("\n");
         assert!(
-            text.contains("▲ Interrupção parcial · última leitura"),
+            text.contains("▲ Interrupção parcial · última leitura · lido há 2 min"),
+            "{text}"
+        );
+
+        // Once the core expires the retained reading, the card says unknown,
+        // keeps the check age, and no longer presents the old incident.
+        let mut expired = statuses();
+        expired[0].state = IncidentState::Unknown;
+        expired[0].incident = None;
+        expired[0].read_at = Some(at_min(-31));
+        expired[0].expired = true;
+        let text = render_status(&three_accounts(), (false, 0), &expired, (100, 30)).join("\n");
+        assert!(
+            text.contains("? Status desconhecido · lido há 31 min"),
             "{text}"
         );
     }

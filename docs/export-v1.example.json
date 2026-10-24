@@ -132,7 +132,8 @@
         },
         "page_url": "https://status.claude.com/",
         "read_at": "2026-10-20T11:59:00Z",
-        "stale": false
+        "stale": false,
+        "expired": false
       }
     },
     {
@@ -278,7 +279,8 @@
         "event": null,
         "page_url": "https://groqstatus.com/",
         "read_at": null,
-        "stale": true
+        "stale": true,
+        "expired": false
       }
     },
     {

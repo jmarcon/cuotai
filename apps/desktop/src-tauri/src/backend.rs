@@ -491,7 +491,9 @@ fn status_view(
     StatusView {
         enabled,
         domains,
-        outage: statuses.iter().any(|status| status.state.is_outage()),
+        outage: statuses
+            .iter()
+            .any(|status| !status.stale && status.state.is_outage()),
     }
 }
 
@@ -1593,6 +1595,10 @@ impl Backend {
     /// never touching a quota query) and shows a changed status. While off
     /// it makes no request.
     pub async fn run_incidents(self: Arc<Self>, app: AppHandle) {
+        // Compare each pass with what the loop last published, not with a
+        // second view of the same cache. That makes the wall-clock-only
+        // transition to `expired` observable even when the due retry fails.
+        let mut shown = Vec::new();
         loop {
             if self.stopping.load(Ordering::Relaxed) {
                 return;
@@ -1605,10 +1611,13 @@ impl Backend {
                     .map(|l| Arc::clone(&l.monitor))
             };
             if let Some(monitor) = monitor {
-                let before = monitor.incident_statuses();
-                if monitor.refresh_incidents().await != before {
+                let statuses = monitor.refresh_incidents().await;
+                if statuses != shown {
+                    shown = statuses;
                     self.emit(&app).await;
                 }
+            } else {
+                shown.clear();
             }
             let nudged = self.status_nudge.notified();
             tokio::select! {
@@ -4149,6 +4158,7 @@ mod tests {
             page_url: "https://status.claude.com/".into(),
             read_at: Some(chrono::Utc::now()),
             stale: false,
+            expired: false,
         }
     }
 
@@ -4172,9 +4182,16 @@ mod tests {
             "https://status.claude.com/incidents/abc"
         );
         assert_eq!(claude["stale"], false);
+        assert_eq!(claude["expired"], false);
         assert!(incident_view(&statuses, Provider::Kiro).is_none());
 
         assert!(status_view(true, vec![], &statuses).outage);
+        let mut stale = provider_status(Provider::Claude, PartialOutage);
+        stale.stale = true;
+        assert!(
+            !status_view(true, vec![], &[stale]).outage,
+            "the tray must not present a failed query's old outage as current"
+        );
         for calm in [Degraded, Maintenance, Unknown, Operational] {
             let only = [provider_status(Provider::Claude, calm)];
             assert!(!status_view(true, vec![], &only).outage, "{calm:?}");

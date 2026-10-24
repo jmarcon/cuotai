@@ -665,7 +665,7 @@ fn report_text(
     at: impl Fn(DateTime<Utc>) -> String,
 ) -> String {
     let mut out = format!("\n{}\n", report_heading(report, now));
-    if let Some(line) = status.and_then(|status| incident_line(status, locale, &at)) {
+    if let Some(line) = status.and_then(|status| incident_line(status, locale, now, &at)) {
         out += &line;
     }
     for (index, metric) in report.metrics.iter().enumerate() {
@@ -705,9 +705,10 @@ fn report_text(
 fn incident_line(
     status: &ProviderStatus,
     locale: &str,
+    now: DateTime<Utc>,
     at: impl Fn(DateTime<Utc>) -> String,
 ) -> Option<String> {
-    let badge = dashboard::incident_badge(status, locale)?;
+    let badge = dashboard::incident_badge(status, locale, now)?;
     let mut parts = vec![badge.label];
     parts.extend(badge.title);
     if let Some(start) = status.incident.as_ref().and_then(|i| i.started_at) {
@@ -1115,6 +1116,7 @@ mod tests {
             page_url: "https://status.claude.com/".into(),
             read_at: Some(now),
             stale: false,
+            expired: false,
         };
         assert_eq!(
             report_text(&failed, &[], Some(&outage), now, "en-US", at),
@@ -1134,7 +1136,7 @@ mod tests {
         assert_eq!(
             report_text(&ready, &[], Some(&maintenance), now, "pt-BR", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
-             \x20 Status do provedor: Em manutenção · última leitura · https://status.claude.com/\n"
+             \x20 Status do provedor: Em manutenção · última leitura · lido agora · https://status.claude.com/\n"
         );
         let unreadable = ProviderStatus {
             state: IncidentState::Unknown,
@@ -1143,6 +1145,16 @@ mod tests {
         };
         assert!(report_text(&ready, &[], Some(&unreadable), now, "pt-BR", at)
             .contains("  Status do provedor: Página de status indisponível · https://status.claude.com/\n"));
+        let expired = ProviderStatus {
+            state: IncidentState::Unknown,
+            incident: None,
+            read_at: Some(now - chrono::Duration::minutes(31)),
+            stale: false,
+            expired: true,
+            ..outage.clone()
+        };
+        assert!(report_text(&ready, &[], Some(&expired), now, "pt-BR", at)
+            .contains("Status do provedor: Status desconhecido · lido há 31 min"));
         for state in [IncidentState::Operational, IncidentState::Unknown] {
             let quiet = ProviderStatus {
                 state,

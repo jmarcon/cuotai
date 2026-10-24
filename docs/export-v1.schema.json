@@ -169,7 +169,7 @@
     },
     "ProviderIncident": {
       "type": "object",
-      "required": ["state", "label", "event", "page_url", "read_at", "stale"],
+      "required": ["state", "label", "event", "page_url", "read_at", "stale", "expired"],
       "properties": {
         "state": { "enum": ["operational", "degraded", "partial_outage", "major_outage", "maintenance", "unknown"] },
         "label": { "$ref": "#/$defs/Localized" },
@@ -189,8 +189,9 @@
           "description": "The most severe active event in the provider's scope."
         },
         "page_url": { "type": "string", "description": "Public status page of the source." },
-        "read_at": { "type": ["string", "null"], "format": "date-time", "description": "When the reading was obtained; null before the first one." },
-        "stale": { "type": "boolean", "description": "The latest status query failed; state is the previous reading (unknown without one)." }
+        "read_at": { "type": ["string", "null"], "format": "date-time", "description": "When the retained reading was obtained; null before the first one." },
+        "stale": { "type": "boolean", "description": "The latest status query failed; state is the previous reading (unknown without one)." },
+        "expired": { "type": "boolean", "description": "The retained reading is older than 30 minutes; state is unknown and event is null." }
       }
     },
     "Localized": {
