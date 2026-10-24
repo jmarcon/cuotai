@@ -21,10 +21,7 @@ fn every_provider_has_a_verified_scope_or_an_explicit_none() {
             Some(include_str!("fixtures/openai-components.json")),
         ),
         (Claude, Some(include_str!("fixtures/claude.json"))),
-        (
-            GeminiApi,
-            Some(include_str!("fixtures/google-products.json")),
-        ),
+        (GeminiApi, None),
         (
             VertexAi,
             Some(include_str!("fixtures/google-products.json")),
@@ -113,6 +110,15 @@ fn every_provider_has_a_verified_scope_or_an_explicit_none() {
 }
 
 #[test]
+fn gemini_api_does_not_borrow_google_cloud_component_health() {
+    assert_eq!(source(Provider::GeminiApi), None);
+
+    let vertex = source(Provider::VertexAi).expect("verified Vertex AI source");
+    assert!(vertex.includes_component("Z0FZJAMvEB4j3NbCJs6B"));
+    assert!(vertex.includes_component("3zaaDb7antc73BM1UAVT"));
+}
+
+#[test]
 fn shared_platforms_do_not_leak_unrelated_components() {
     for (a, b) in [
         (Provider::OpenAiApi, Provider::ChatGpt),
@@ -128,11 +134,6 @@ fn shared_platforms_do_not_leak_unrelated_components() {
             assert!(!a.includes_component(c.id));
         }
     }
-    let gemini = source(Provider::GeminiApi).unwrap();
-    let vertex = source(Provider::VertexAi).unwrap();
-    assert_eq!(gemini.url, vertex.url);
-    assert!(!gemini.includes_component("Z0FZJAMvEB4j3NbCJs6B"));
-    assert!(vertex.includes_component("Z0FZJAMvEB4j3NbCJs6B"));
     for (provider, unrelated) in [
         (Provider::Copilot, "br0l2tvcx85d"),      // Actions
         (Provider::Windsurf, "k1sy38n3ktcq"),     // Netlify API
