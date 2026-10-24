@@ -86,7 +86,7 @@ export function stateRing(kind, pct = 0, size = 12) {
   const sw = size <= 12 ? 5.4 : 4.8;
   if (kind === "exhausted") return RING(0, "bad", sw, size).replace('stroke="var(--track)"', 'stroke="var(--bad)" stroke-opacity=".55"');
   if (kind === "unknown") return RING(0, "info", sw, size).replace("<g ", '<g opacity=".4" ');
-  if (kind === "stale") return RING(pct, levelOf(pct), sw, size).replace("<g ", '<g opacity=".5" stroke-dasharray="0.1 4.2" ').replace(/stroke-linecap="round"/, 'stroke-linecap="round"');
+  if (kind === "stale") return RING(pct, levelOf(pct), sw, size).replace("<g ", '<g opacity=".5" stroke-dasharray="0.1 4.2" ');
   return RING(pct, levelOf(pct), sw, size);
 }
 export const stateIcon = (name, role, size = "s12") => ic(name, `${size} r-${role}`);
