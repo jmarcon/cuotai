@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Browser-free UI smoke for PRD 0018 RF3 and PRD 0022 RF17.2/RF17.4:
-// render the production Settings page and updater banner with every built-in catalog.
+// render the production Settings About page and updater banner with every built-in catalog.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
@@ -56,7 +56,7 @@ globalThis.fetch = async (relative) => {
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const updater = await import("../apps/desktop/ui/js/updater.js");
 const lib = await import("../apps/desktop/ui/js/lib.js");
-const settings = await import("../apps/desktop/ui/js/settings.js");
+const aboutPage = await import("../apps/desktop/ui/js/settings/about.js");
 await i18n.initI18n();
 await updater.initUpdates();
 await new Promise((resolve) => setTimeout(resolve, 0));
@@ -145,34 +145,8 @@ if (consentMode) {
   process.exit(0);
 }
 
-const SETTINGS_CAPTURED = Symbol("settings-captured");
-let capturedSettingsHtml = "";
-document.createElement = (tag) => {
-  assert.equal(tag, "dialog", "Settings must create a dialog");
-  return {
-    open: false,
-    className: "",
-    addEventListener: () => {},
-    showModal: () => {},
-    set innerHTML(html) {
-      capturedSettingsHtml = html;
-      throw SETTINGS_CAPTURED;
-    },
-  };
-};
-const settingsPageHtml = async () => {
-  capturedSettingsHtml = "";
-  document.hidden = true;
-  try {
-    await settings.openSettings();
-    assert.fail("Settings rendered without capturing its production HTML");
-  } catch (error) {
-    assert.equal(error, SETTINGS_CAPTURED, "Settings failed before rendering its production HTML");
-  } finally {
-    document.hidden = false;
-  }
-  return capturedSettingsHtml;
-};
+// PRD 0020 RF2.5: Updates lives on the Settings window's About page; render that production page module.
+const settingsPageHtml = async () => aboutPage.html({ settings: await lib.getSettings(), update: await lib.updaterStatus() });
 
 const base = {
   enabled: true,
@@ -219,7 +193,7 @@ for (const { code } of i18n.LOCALES) {
   const headings = Array.from(page.matchAll(/<h3>([^<]*)<\/h3>/g), (match) => match[1])
     .filter((heading) => heading === catalog["update.title"]);
   assert.match(section, /^<section class="set-sec" data-updates>/, `${code}: updater section wrapper missing`);
-  assert.deepEqual(headings, [catalog["update.title"]], `${code}: Settings must render exactly one updater heading`);
+  assert.deepEqual(headings, [catalog["update.title"]], `${code}: the About page must render exactly one updater heading`);
   renderedHeadings.push(`${code}: ${headings[0]}`);
   assert.match(section, /id="update-automatic"/, `${code}: settings switch missing`);
   assert.ok(!section.includes("update."), `${code}: untranslated updater key rendered`);

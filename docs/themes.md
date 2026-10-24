@@ -1,6 +1,6 @@
 # Themes
 
-The Cuotai desktop app ships 15 built-in themes. **Every theme offers both a dark and a light mode**, and the mode follows your system unless you pick one. Choose the theme in **Settings → Appearance** and the mode (system, light, dark) with the switch there or in the top bar. The terminal dashboard has its own fixed Dracula palette.
+The Cuotai desktop app ships 15 built-in themes. **Every theme offers both a dark and a light mode**, and the mode follows your system unless you pick one. Choose the theme in **Settings › General** and the mode (system, light, dark) with the switch there or in the top bar. The terminal dashboard has its own fixed Dracula palette.
 
 The screenshots below are the browser demo of the interface with made-up accounts (`example.com` addresses), captured at the same window size in each theme and mode.
 
@@ -47,10 +47,10 @@ Cuotai's own theme: a gray that leans to blue, a calm lilac accent and pastel st
 
 You can add themes without recompiling Cuotai.
 
-1. Open the folder: `<configuration folder>/cuotai/themes/`. It is `~/Library/Application Support/cuotai/themes` on macOS, `%APPDATA%\cuotai\themes` on Windows and `~/.config/cuotai/themes` on Linux, or the `themes` folder inside the folder named by the `CUOTAI_USER_DIR` environment variable. Create it if it does not exist. (**Settings → Themes and languages folder** shows the folder in use, opens it and lets you choose another.)
+1. Open the folder: `<configuration folder>/cuotai/themes/`. It is `~/Library/Application Support/cuotai/themes` on macOS, `%APPDATA%\cuotai\themes` on Windows and `~/.config/cuotai/themes` on Linux, or the `themes` folder inside the folder named by the `CUOTAI_USER_DIR` environment variable. Create it if it does not exist. (**Settings › Advanced › Files** shows the folder in use, opens it and lets you choose another.)
 2. Put a file there named `<id>.css`. The id (the file name without `.css`) uses only `a-z`, `0-9` and `-`, up to 32 characters, and cannot repeat a built-in theme's id.
 3. Optionally start the file with a header that names the theme and its modes: `/*! cuotai-theme {"label":"My theme","group":"custom","modes":["dark","light"]} */`. Without it the name is the id, the group is "My themes" and the modes are deduced from the selectors.
-4. Restart Cuotai and pick the theme in **Settings → Appearance**. If a file is invalid, it is ignored and the main window shows a warning with the reason.
+4. Restart Cuotai and pick the theme in **Settings › General**. If a file is invalid, it is ignored and the main window shows a warning with the reason.
 
 A theme defines colors (and optionally shape, fonts and effects) as CSS variables, once per mode. A minimal theme named `ocean`:
 

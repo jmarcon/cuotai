@@ -66,7 +66,7 @@ Retro themes may override them (Win98 uses `steps()`; the CRT uses `0ms`). Alway
 The dashboard effects (`js/motion.js`) derive from these tokens: entrance, FLIP, exit and the chip pulse use `--motion-base`;
 the percentage counting, the "shake" on exhaustion and the level highlight (1.5 × `--motion-slow`) use `--motion-slow`; the button
 spin and the "Waiting" shimmer (2 × `--motion-spin`) use `--motion-spin`. A token at `0ms` = the effect is off.
-With `data-motion="reduced"`/`"off"` on `<html>` (Settings → Appearance → Animations) or with
+With `data-motion="reduced"`/`"off"` on `<html>` (Settings › General › Animations) or with
 `prefers-reduced-motion: reduce` (except `data-motion="always"`), `themes.css` forces the durations to `0ms`
 with `!important`, overriding the theme.
 

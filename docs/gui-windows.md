@@ -61,11 +61,11 @@ The taskbar and the native menu are drawn by Windows, so they do not appear in t
 
 ## Widgets
 
-Cuotai has no Windows widget (nothing on the Widgets board or the taskbar beyond the tray icon). The tray popover above is the at-a-glance view. With **Settings → Widgets** on, the app writes `%LOCALAPPDATA%\cuotai\widget.json` for third-party tools; its format is in [widgets.md](widgets.md#windows).
+Cuotai has no Windows widget (nothing on the Widgets board or the taskbar beyond the tray icon). The tray popover above is the at-a-glance view. With **Settings › Advanced › Integrations › Widgets** on, the app writes `%LOCALAPPDATA%\cuotai\widget.json` for third-party tools; its format is in [widgets.md](widgets.md#windows).
 
 ## Details, history and local cost
 
-The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings → Local cost** can count Claude Code and Codex CLI tokens from their local logs, in your user profile (`%USERPROFILE%\.claude`, `%USERPROFILE%\.config\claude` or `CLAUDE_CONFIG_DIR`, and `%USERPROFILE%\.codex` or `CODEX_HOME`), only after you accept a dialog that lists the exact folders.
+The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings › Advanced › Local cost** can count Claude Code and Codex CLI tokens from their local logs, in your user profile (`%USERPROFILE%\.claude`, `%USERPROFILE%\.config\claude` or `CLAUDE_CONFIG_DIR`, and `%USERPROFILE%\.codex` or `CODEX_HOME`), only after you accept a dialog that lists the exact folders.
 
 <div align="center">
   <img src="assets/screenshots/desktop-details.png" alt="Account details" width="48%" />
@@ -74,7 +74,7 @@ The magnifier on a card opens the details: each window with its bar, expected-us
 
 ## Notifications
 
-Turn them on in **Settings → Notifications** (reset notices, and optionally usage alerts with thresholds, exhaustion and recovery). Turning a switch on asks the system for permission; if notifications are blocked, the switch stays off and Cuotai tells you where to fix it:
+Turn them on in **Settings › Alerts** (reset notices, and optionally usage alerts with thresholds, exhaustion and recovery). Turning a switch on asks the system for permission; if notifications are blocked, the switch stays off and Cuotai tells you where to fix it:
 
 - Open **Settings → System → Notifications**, make sure notifications are on, find **Cuotai** in the list and allow it.
 - Check that **Do not disturb** or **Focus** is not silencing them.
@@ -88,7 +88,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Themes and languages
 
-**Settings → Appearance** has the theme picker, the light/dark/system switch and the animation setting (it also follows the Windows "reduce animations" preference when set to System). All [15 themes](themes.md) work in both modes, including Windows 11, Windows 98 and Windows XP looks. The language list (Portuguese, English, Spanish, Italian) is in the same dialog.
+**Settings › General** has the theme picker, the light/dark/system switch and the animation setting (it also follows the Windows "reduce animations" preference when set to System). All [15 themes](themes.md) work in both modes, including Windows 11, Windows 98 and Windows XP looks. The language list (Portuguese, English, Spanish, Italian) is on the same page.
 
 ## Launch at sign-in
 
@@ -96,7 +96,7 @@ Cuotai has no built-in "start with Windows" switch. To start it with Windows, pr
 
 ## Updates
 
-**Settings → Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A copy installed by Scoop or winget is updated by that tool and the in-app updater shows the command; for winget installs set `CUOTAI_UPDATER=off` for now so the app does not also offer its own update (a durable marker is still pending, see [`releasing.md`](releasing.md#uninstall-keeps-your-data-rf82)).
+**Settings › About › Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A copy installed by Scoop or winget is updated by that tool and the in-app updater shows the command; for winget installs set `CUOTAI_UPDATER=off` for now so the app does not also offer its own update (a durable marker is still pending, see [`releasing.md`](releasing.md#uninstall-keeps-your-data-rf82)).
 
 ## Credential vault: Credential Manager
 
@@ -106,7 +106,7 @@ OAuth sign-ins, pasted web sessions and the local-server token are stored in **W
 
 | What | Location |
 |---|---|
-| Accounts file | `%APPDATA%\cuotai\config.toml` (or the file chosen in Settings → Accounts file, or `CUOTAI_CONFIG`) |
+| Accounts file | `%APPDATA%\cuotai\config.toml` (or the file chosen in Settings › Advanced › Files, or `CUOTAI_CONFIG`) |
 | Desktop preferences (`desktop.json`), user themes and languages | `%APPDATA%\cuotai\` (`themes\`, `locales\`; `CUOTAI_USER_DIR` overrides) |
 | History, local cost index, notification state, extensions | `%LOCALAPPDATA%\cuotai\` (`history\`, `cost\`, `notified.json`, `extensions\`) |
 | Widget snapshot (only if you turn it on) | `%LOCALAPPDATA%\cuotai\widget.json` ([`widgets.md`](widgets.md)) |

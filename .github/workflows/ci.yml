@@ -286,6 +286,9 @@ jobs:
       # PRD 0022 RF17.7: render the remaining-share unit in every built-in
       # locale and keep the UI-owned catalog key sets in parity.
       - run: node scripts/test-card-wording-ui.mjs
+      # PRD 0020 RF1/RF2: the Settings window's page registry, sidebar
+      # navigation and the page of every control of the old dialog.
+      - run: node scripts/test-settings-window-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified

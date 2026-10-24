@@ -70,6 +70,12 @@ struct Stored {
     /// Read leniently like `notify` ([`UpdaterPrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     updater: Option<serde_json::Value>,
+    /// The last size and position of the Settings window (PRD 0020 RF1.1), in
+    /// logical pixels; absent until the window is first closed. Read
+    /// leniently ([`WindowGeometry::from_value`]): an invalid value means
+    /// "center it again" and never invalidates the other fields.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    settings_window: Option<serde_json::Value>,
 }
 
 /// PRD 0018 RF2.6/RF3.3: the update-check preferences of this device.
@@ -573,6 +579,64 @@ pub fn save_widgets(prefs: &WidgetPrefs) -> Result<(), &'static str> {
     write_widgets(&file, prefs)
 }
 
+/// PRD 0020 RF1.1: the Settings window's outer position and inner size in
+/// logical pixels. Window state, not a preference: nothing in the interface
+/// reads or edits it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct WindowGeometry {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// The largest side kept, so a hand-edited value cannot ask for a window
+/// larger than any screen or placed absurdly far away.
+const MAX_WINDOW_SIDE: f64 = 16_384.0;
+
+impl WindowGeometry {
+    /// `None` unless every field is a finite number, the size is at least
+    /// `min` and at most [`MAX_WINDOW_SIDE`], and the position is within
+    /// four times that bound.
+    pub fn checked(self, min: (f64, f64)) -> Option<Self> {
+        let finite = [self.x, self.y, self.width, self.height]
+            .iter()
+            .all(|v| v.is_finite());
+        let sized = (min.0..=MAX_WINDOW_SIDE).contains(&self.width)
+            && (min.1..=MAX_WINDOW_SIDE).contains(&self.height);
+        let far = MAX_WINDOW_SIDE * 4.0;
+        let placed = self.x.abs() <= far && self.y.abs() <= far;
+        (finite && sized && placed).then_some(self)
+    }
+
+    fn from_value(value: &serde_json::Value) -> Option<Self> {
+        let field = |key: &str| value[key].as_f64();
+        Some(Self {
+            x: field("x")?,
+            y: field("y")?,
+            width: field("width")?,
+            height: field("height")?,
+        })
+    }
+}
+
+/// PRD 0020 RF1.1: the Settings window geometry stored in `file`, if valid
+/// for a window of at least `min`.
+pub fn read_settings_window(file: &Path, min: (f64, f64)) -> Option<WindowGeometry> {
+    read(file)
+        .settings_window
+        .as_ref()
+        .and_then(WindowGeometry::from_value)
+        .and_then(|g| g.checked(min))
+}
+
+/// Store the Settings window geometry in `file`, keeping the other fields.
+pub fn write_settings_window(file: &Path, geometry: &WindowGeometry) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.settings_window = serde_json::to_value(geometry).ok()
+    })
+}
+
 /// PRD 0003 RF3: the reset notice preferences stored in `file`.
 pub fn read_notify(file: &Path) -> NotifyPrefs {
     notify_of(&read(file))
@@ -947,6 +1011,39 @@ mod tests {
         assert_eq!(motion_of(&stored), "system");
         assert_eq!(stored.user_dir.as_deref(), Some("/u"));
         assert_eq!(save_motion("fast"), Err("invalid_motion"));
+    }
+
+    #[test]
+    fn settings_window_geometry_round_trips_and_ignores_invalid_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let min = (640.0, 460.0);
+        assert_eq!(read_settings_window(&file, min), None);
+        update(&file, |s| s.motion = Some("off".into())).unwrap();
+        let g = WindowGeometry {
+            x: 120.0,
+            y: -40.5,
+            width: 900.0,
+            height: 700.0,
+        };
+        write_settings_window(&file, &g).unwrap();
+        assert_eq!(read_settings_window(&file, min), Some(g));
+        assert_eq!(motion_of(&read(&file)), "off");
+        // Below the minimum size, missing, mistyped or absurd values: centered again.
+        for text in [
+            r#"{"settings_window":{"x":0,"y":0,"width":200,"height":700}}"#,
+            r#"{"settings_window":{"x":0,"y":0,"width":900}}"#,
+            r#"{"settings_window":{"x":"0","y":0,"width":900,"height":700}}"#,
+            r#"{"settings_window":{"x":1e12,"y":0,"width":900,"height":700}}"#,
+            r#"{"settings_window":{"x":0,"y":0,"width":1e9,"height":700}}"#,
+            r#"{"settings_window":7}"#,
+        ] {
+            fs::write(&file, text).unwrap();
+            assert_eq!(read_settings_window(&file, min), None, "{text}");
+        }
+        // A bad value never invalidates the other fields.
+        fs::write(&file, r#"{"motion":"off","settings_window":"x"}"#).unwrap();
+        assert_eq!(motion_of(&read(&file)), "off");
     }
 
     #[test]

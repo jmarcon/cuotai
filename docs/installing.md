@@ -94,4 +94,4 @@ The maintainers' reference for this behavior (and how it is proven in CI) is [`r
 
 ## Updating
 
-Copies installed by Homebrew, Scoop, winget or a Linux system package are updated by that manager; the in-app updater turns itself off for them and shows the command to use. For other installs, **Settings → Updates** checks once a day (off by preference) and sends only the version, the operating system and the architecture. Details and the key custody are in [`updater-security.md`](updater-security.md).
+Copies installed by Homebrew, Scoop, winget or a Linux system package are updated by that manager; the in-app updater turns itself off for them and shows the command to use. For other installs, **Settings › About › Updates** checks once a day (off by preference) and sends only the version, the operating system and the architecture. Details and the key custody are in [`updater-security.md`](updater-security.md).

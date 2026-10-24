@@ -60,7 +60,7 @@ The native menu and the system menu bar are drawn by macOS, so they do not appea
 
 ## Widgets
 
-Cuotai has three WidgetKit widgets: **Summary** (small, medium, large), **Account** (one pinned account; small, medium) and **History** (medium). They only read the `widget.json` the app writes while **Settings → Widgets** is on.
+Cuotai has three WidgetKit widgets: **Summary** (small, medium, large), **Account** (one pinned account; small, medium) and **History** (medium). They only read the `widget.json` the app writes while **Settings › Advanced › Integrations › Widgets** is on.
 
 <div align="center">
   <img src="assets/screenshots/widgets/macos-gallery-light.png" alt="Cuotai macOS widgets, light mode" width="48%" />
@@ -71,7 +71,7 @@ These images are the widgets' SwiftUI views rendered off-screen from an example 
 
 ## Details, history and local cost
 
-The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings → Local cost** can count Claude Code and Codex CLI tokens from their local logs; on macOS it reads `~/.config/claude` and `~/.claude` (or `CLAUDE_CONFIG_DIR`) and `~/.codex` (or `CODEX_HOME`), only after you accept a dialog that lists the exact folders. If macOS asks whether Cuotai may access files in a protected folder, that is the OS prompt for those directories; declining just leaves the source without data.
+The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings › Advanced › Local cost** can count Claude Code and Codex CLI tokens from their local logs; on macOS it reads `~/.config/claude` and `~/.claude` (or `CLAUDE_CONFIG_DIR`) and `~/.codex` (or `CODEX_HOME`), only after you accept a dialog that lists the exact folders. If macOS asks whether Cuotai may access files in a protected folder, that is the OS prompt for those directories; declining just leaves the source without data.
 
 <div align="center">
   <img src="assets/screenshots/desktop-details.png" alt="Account details" width="48%" />
@@ -80,7 +80,7 @@ The magnifier on a card opens the details: each window with its bar, expected-us
 
 ## Notifications
 
-Turn them on in **Settings → Notifications** (reset notices, and optionally usage alerts with thresholds, exhaustion and recovery). Turning a switch on makes macOS ask whether Cuotai may send notifications. If you refused, or later changed your mind, the switch stays off and Cuotai tells you where to fix it:
+Turn them on in **Settings › Alerts** (reset notices, and optionally usage alerts with thresholds, exhaustion and recovery). Turning a switch on makes macOS ask whether Cuotai may send notifications. If you refused, or later changed your mind, the switch stays off and Cuotai tells you where to fix it:
 
 - Open **System Settings → Notifications → Cuotai** and allow notifications (choose Banners or Alerts as you prefer).
 - Check that a Focus mode is not silencing them.
@@ -94,7 +94,7 @@ Notices come while the window is hidden in the menu bar, but not after you Quit.
 
 ## Themes and languages
 
-**Settings → Appearance** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes. The language list (Portuguese, English, Spanish, Italian) is in the same dialog; the app follows your system language the first time.
+**Settings › General** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes. The language list (Portuguese, English, Spanish, Italian) is on the same page; the app follows your system language the first time.
 
 ## Launch at login
 
@@ -102,7 +102,7 @@ Cuotai has no built-in "start at login" switch. To start it with your Mac, add i
 
 ## Updates
 
-**Settings → Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A Homebrew install is updated with `brew upgrade --cask cuotai` and the in-app updater tells you so. An app running from the mounted disk image cannot update itself: drag it to Applications first.
+**Settings › About › Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A Homebrew install is updated with `brew upgrade --cask cuotai` and the in-app updater tells you so. An app running from the mounted disk image cannot update itself: drag it to Applications first.
 
 ## Credential vault: Keychain
 
@@ -112,7 +112,7 @@ OAuth sign-ins, pasted web sessions and the local-server token are stored in you
 
 | What | Location |
 |---|---|
-| Accounts file | `~/Library/Application Support/cuotai/config.toml` (or the file chosen in Settings → Accounts file, or `CUOTAI_CONFIG`) |
+| Accounts file | `~/Library/Application Support/cuotai/config.toml` (or the file chosen in Settings › Advanced › Files, or `CUOTAI_CONFIG`) |
 | Desktop preferences (`desktop.json`), user themes and languages | `~/Library/Application Support/cuotai/` (`themes/`, `locales/`; `CUOTAI_USER_DIR` overrides) |
 | History, local cost index, notification state, extensions | `~/Library/Application Support/cuotai/` (`history/`, `cost/`, `notified.json`, `extensions/`) |
 | Widget snapshot (only if you turn it on) | `~/Library/Application Support/cuotai/widget.json` ([`widgets.md`](widgets.md)) |

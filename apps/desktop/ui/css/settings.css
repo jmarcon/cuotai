@@ -1,0 +1,193 @@
+/* PRD 0020 RF1/RF2: the Settings window. Sidebar of pages (DS-CMP-SEG-5) on --surface, content on --bg with a
+   readable maximum width, groups as a small-caps label over one rounded card (RF2.2). Layout values follow the
+   DS-TOK-SPC scale (8/12/16/20/24 px) and DS-TOK-LAY-1 (sidebar about 220 px, content at most 640 px). Colors are
+   theme roles only. The row anatomy, search and visual pass are later steps (RF3, RF6, RF9). */
+.set-window {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 100%;
+  background: var(--bg);
+}
+
+/* macOS: overlay title bar; this strip holds the traffic lights and drags the window. */
+.set-titlebar {
+  flex: none;
+  height: 12px;
+}
+:root[data-platform="mac"] .set-titlebar {
+  height: 40px;
+}
+
+.set-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: var(--border-w) solid var(--border);
+  background: var(--surface);
+}
+.set-side > [data-nav] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+.set-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px 12px;
+}
+.set-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.set-nav-bottom {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: var(--border-w) solid var(--border);
+}
+.set-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: start;
+}
+.set-nav-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-nav-item svg.i {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.set-nav-item:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.set-nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* RF2.2: the selected page has an accent bar and a heavier label. */
+.set-nav-item[aria-current="page"] {
+  background: var(--surface-2);
+  color: var(--fg);
+  font-weight: 600;
+}
+.set-nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset: 6px auto 6px 0;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.set-nav-toggle .set-nav-chev {
+  margin-inline-start: auto;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.set-nav-toggle[aria-expanded="true"] .set-nav-chev {
+  transform: rotate(90deg);
+}
+.set-nav-sub .set-nav-item {
+  padding-inline-start: 28px;
+}
+
+.set-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+  user-select: text;
+}
+.set-main > .set-titlebar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+}
+.set-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 20px 32px;
+}
+.set-title {
+  font-size: 18px;
+  font-weight: 650;
+}
+.set-title:focus {
+  outline: none;
+}
+
+/* RF2.2: a group is a small-caps label over one rounded card. */
+.set-content .set-sec {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  scroll-margin-top: 56px;
+}
+.set-content .set-sec > h3 {
+  position: absolute;
+  bottom: 100%;
+  left: 4px;
+  margin-bottom: 6px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.set-content [data-section] {
+  scroll-margin-top: 56px;
+}
+
+/* Below 560 px (browser demo only; the window's minimum is 640): the pages go above the content. */
+@media (max-width: 559px) {
+  .set-window {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .set-side {
+    border-right: 0;
+    border-bottom: var(--border-w) solid var(--border);
+  }
+  .set-nav-bottom {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-nav-toggle .set-nav-chev {
+    transition: none;
+  }
+}
+:root[data-motion="off"] .set-nav-toggle .set-nav-chev,
+:root[data-motion="reduced"] .set-nav-toggle .set-nav-chev {
+  transition: none;
+}

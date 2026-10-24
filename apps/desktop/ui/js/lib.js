@@ -44,6 +44,11 @@ const paths = {
   monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
   bell: '<path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M3.26 15.33A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.67C19.41 13.96 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.41 5.96-2.74 7.33"/>',
   bellOff: '<path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M17 17H4a1 1 0 0 1-.74-1.67C4.59 13.96 6 12.5 6 8a6 6 0 0 1 .26-1.74"/><path d="M8.67 3.21A6 6 0 0 1 18 8c0 2.43.41 3.94.98 5"/><path d="m2 2 20 20"/>',
+  // PRD 0020 RF2.5: settings sidebar pages (Data & privacy, Integrations, Local cost, About).
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  coins: '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
 };
 export const icon = (name, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 
@@ -229,7 +234,30 @@ export async function pickExportFile(format) {
 export const aboutInfo = () => call("about_info");
 /** Abre no navegador um repositório da lista do "Sobre" (o shell recusa qualquer outro endereço). */
 export const openExternal = (url) => (isDesktop ? call("open_external", { url }) : Promise.resolve(window.open(url, "_blank", "noopener,noreferrer")));
-export const openSettingsWindow = () => isDesktop && T.core.invoke("open_settings");
+/** PRD 0020 RF1.3: every entry point opens (or focuses) the one Settings window, optionally on a page of its
+ *  sidebar and an anchor inside it (`{ page: "cost", anchor: "cost-sources" }`). The browser demo opens
+ *  `settings.html` in a named window, so a second click reuses it (RF1.5). */
+export function openSettingsWindow({ page = null, anchor = null } = {}) {
+  if (isDesktop) return T.core.invoke("open_settings", { page, anchor }).catch(() => {});
+  const query = new URLSearchParams(Object.entries({ page, anchor }).filter(([, v]) => v)).toString();
+  window.open(`settings.html${query ? `?${query}` : ""}`, "cuotai-settings");
+  return Promise.resolve();
+}
+/** PRD 0020 RF1.3: `⌘,` on macOS, `Ctrl+,` elsewhere, in every window. */
+export function bindSettingsShortcut(open = () => openSettingsWindow()) {
+  addEventListener("keydown", (e) => {
+    if (e.key !== "," || e.altKey || e.shiftKey) return;
+    const mac = /Mac/i.test(navigator.platform || navigator.userAgent || "");
+    if (mac ? !e.metaKey || e.ctrlKey : !e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    open();
+  });
+}
+/** PRD 0020 RF7.1 (minimum for RF1): the Settings window says what it changed; the other windows repaint as the
+ *  old in-window dialog made them do. Preferences mirrored in localStorage also reach them by `storage` events. */
+export const SETTINGS_CHANGED = "settings-changed";
+export const emitSettingsChanged = (key = "") => (isDesktop ? T.event.emit(SETTINGS_CHANGED, { key }).catch(() => {}) : Promise.resolve());
+export const onSettingsChanged = (cb) => (isDesktop ? T.event.listen(SETTINGS_CHANGED, (e) => cb(e.payload?.key ?? "")) : Promise.resolve(() => {}));
 /** Seletor nativo de pasta (plugin de diálogo do Tauri). */
 export async function pickFolder(defaultPath) {
   if (isDesktop && T.dialog) return T.dialog.open({ directory: true, multiple: false, defaultPath: defaultPath || undefined });

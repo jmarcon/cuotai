@@ -98,7 +98,7 @@ const scenarios = [
   { stored: null, system: ["ja"], expected: "en-US", label: "unsupported locale fallback" },
 ];
 
-for (const page of ["index.html", "tray.html"]) {
+for (const page of ["index.html", "tray.html", "settings.html"]) {
   for (const scenario of scenarios) {
     const preferred = scenario.storageThrows ? null : scenario.stored;
     const productionExpected = i18n.pickLocale(preferred, scenario.system);
@@ -132,4 +132,4 @@ assert.equal(storage.get("cuotai.locale"), "es", "runtime language change was no
 assert.ok(langMenuHtml({ inline: true }).includes(`aria-label="${spanishCatalog["lang.label"]}"`), "runtime language change did not re-render the production menu");
 console.log(`runtime selector render: lang=es; tray.ok=${i18n.t("tray.ok")}`);
 
-console.log("PASS: both HTML roots apply stored/detected language before module boot; production boot and runtime selection stay synchronized");
+console.log("PASS: every HTML root (main, tray, settings) applies stored/detected language before module boot; production boot and runtime selection stay synchronized");
