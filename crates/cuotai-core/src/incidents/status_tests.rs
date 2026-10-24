@@ -205,7 +205,6 @@ async fn every_format_normalizes_scoped_active_incidents() {
             OpenAiApi,
             ChatGpt,
             VertexAi,
-            GeminiApi,
             AwsBedrock,
             Grok,
         ],
@@ -251,12 +250,6 @@ async fn every_format_normalizes_scoped_active_incidents() {
     assert_eq!(
         incident.url,
         "https://status.cloud.google.com/incidents/active"
-    );
-    // The closed Monitoring incident is history, not an active one.
-    let gemini = status_of(&statuses, GeminiApi);
-    assert_eq!(
-        (gemini.state, gemini.incident.as_ref()),
-        (IncidentState::Operational, None)
     );
 
     // The newest update of the Bedrock event decides; resolved and
@@ -471,7 +464,7 @@ async fn queries_only_when_enabled_and_only_configured_sources() {
         )
         .await;
     }
-    let monitor = only(&[Claude, Mistral], &server);
+    let monitor = only(&[Claude, GeminiApi], &server);
     monitor.incidents().set_enabled(false);
     assert!(!IncidentMonitor::new().is_enabled(), "off until enabled");
     monitor.refresh().await;
@@ -481,7 +474,7 @@ async fn queries_only_when_enabled_and_only_configured_sources() {
 
     monitor.incidents().set_enabled(true);
     let statuses = monitor.refresh_incidents().await;
-    // Mistral has no verified source: absent, never "operational".
+    // Gemini API has no verified product-scoped source: absent, never "operational".
     assert_eq!(
         statuses.iter().map(|s| s.provider).collect::<Vec<_>>(),
         [Claude]
@@ -500,13 +493,15 @@ async fn queries_only_when_enabled_and_only_configured_sources() {
 async fn status_domains_are_listed_while_off_without_a_request() {
     use Provider::*;
     let server = MockServer::start().await;
-    let monitor = only(&[Claude, Mistral, AnthropicApi, Groq, ChatGpt], &server);
+    let monitor = only(&[Claude, GeminiApi, AnthropicApi, Groq, ChatGpt], &server);
     monitor.incidents().set_enabled(false);
     assert_eq!(
         monitor.status_domains(),
         ["status.claude.com", "groqstatus.com", "status.openai.com"]
     );
-    assert!(only(&[Mistral, Kiro], &server).status_domains().is_empty());
+    assert!(only(&[GeminiApi, Kiro], &server)
+        .status_domains()
+        .is_empty());
     assert_eq!(requests(&server).await, 0);
 }
 

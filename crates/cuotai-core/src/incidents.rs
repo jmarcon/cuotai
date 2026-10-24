@@ -158,16 +158,6 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
                 component("bpp5gb3hpjcl", "Claude Cowork"),
             ]
         ),
-        // The standalone Gemini API is not Vertex Gemini API. Only its actual
-        // measurement dependency is covered by this Google Cloud source.
-        Provider::GeminiApi => source_entry!(
-            JsonCustom(GoogleCloud),
-            GOOGLE,
-            &[component(
-                "3zaaDb7antc73BM1UAVT",
-                "Cloud Monitoring (measurement only)"
-            ),]
-        ),
         Provider::VertexAi => source_entry!(
             JsonCustom(GoogleCloud),
             GOOGLE,
@@ -267,6 +257,7 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         // Explicitly unverified, never a synthetic operational reading. The
         // dated exclusion audit in docs/providers.md records the reasons.
         Provider::AzureOpenAi
+        | Provider::GeminiApi
         | Provider::Qwen
         | Provider::Mistral
         | Provider::OllamaCloud
