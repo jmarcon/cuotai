@@ -55,12 +55,12 @@ done
 "$XTASK" verify-download --dir "$work" --manifest "$work/manifest.json"
 (cd "$work" && shasum -a 256 -c SHA256SUMS)
 
-for required in SHA256SUMS.sig SHA256SUMS.pem; do
-  [ -s "$work/$required" ] || { echo "missing Sigstore metadata: $required" >&2; exit 1; }
-done
+[ -s "$work/SHA256SUMS.sigstore.json" ] || {
+  echo "missing Sigstore bundle: SHA256SUMS.sigstore.json" >&2
+  exit 1
+}
 cosign verify-blob \
-  --signature "$work/SHA256SUMS.sig" \
-  --certificate "$work/SHA256SUMS.pem" \
+  --bundle "$work/SHA256SUMS.sigstore.json" \
   --certificate-identity "https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "$work/SHA256SUMS"

@@ -833,6 +833,11 @@ fn release_notes_combine_changelog_signing_and_verification() {
     .unwrap();
     let body = xtask::notes::render_body("### Added\n\n- X.", &state, &manifest, "owner/cuotai");
     assert!(body.contains("cosign verify-blob"));
+    assert!(body.contains("--bundle SHA256SUMS.sigstore.json"));
+    assert!(!body.contains("SHA256SUMS.sig "));
+    assert!(body.contains(
+        r"--certificate-identity-regexp '^https://github\.com/owner/cuotai/\.github/workflows/release\.yml@refs/tags/v'"
+    ));
     assert!(body.contains("gh attestation verify"));
     assert!(body.contains("certificate-oidc-issuer https://token.actions.githubusercontent.com"));
 }

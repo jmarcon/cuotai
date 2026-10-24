@@ -197,9 +197,10 @@ Choose **Actions → Release → Run workflow**, optionally provide a tag name
   and execution gates. Only `check` runs.
 - Select **full_rehearsal** to exercise RF1.4 deliberately. The prerequisite
   gate and bounded desktop/CLI/SBOM jobs run in the secretless `rehearsal`
-  environment, assembly records updater and checksum signatures as
-  unavailable, and the complete unsigned artifact set plus rendered package
-  manifests is uploaded to the workflow run.
+  environment, assembly signs and verifies `SHA256SUMS` with the rehearsal's
+  branch identity (the bundle is discarded), records updater and checksum
+  signatures as unavailable, and the complete unsigned artifact set plus
+  rendered package manifests is uploaded to the workflow run.
 
 Neither dispatch mode creates a GitHub Release, publishes an attestation,
 contacts a package-manager repository or receives a production secret.
@@ -318,7 +319,7 @@ Stable names (package manifests can rely on them):
 | CLI macOS | `macos-latest` | `cuotai-<version>-aarch64-apple-darwin.tar.gz`, `…-x86_64-apple-darwin.tar.gz` |
 | CLI Linux | `ubuntu-22.04` | `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz`, `…-x86_64-unknown-linux-musl.tar.gz`; `…-aarch64-unknown-linux-gnu.tar.gz` (optional) |
 | CLI Windows | `windows-latest` / `windows-11-arm` | `cuotai-<version>-x86_64-pc-windows-msvc.zip`; `…-aarch64-pc-windows-msvc.zip` (optional) |
-| Integrity | assembly job | `SHA256SUMS`, `SHA256SUMS.sig` + `SHA256SUMS.pem` (tag runs), `manifest.json`, `signing-state.json`, `sbom.cdx.json` |
+| Integrity | assembly job | `SHA256SUMS`, `SHA256SUMS.sigstore.json` (tag runs), `manifest.json`, `signing-state.json`, `sbom.cdx.json` |
 | Updater (PRD 0018) | assembly job | `latest.json` (only when the updater artifacts are signed), `Cuotai.app.tar.gz` + `.sig` (macOS), `<installer>.sig` next to the Windows NSIS/MSI and the Linux AppImage/deb/rpm |
 
 Notes and limits:
@@ -392,10 +393,19 @@ Per platform:
 - **Linux and CLI archives**: unsigned files; trust comes from the signed
   `SHA256SUMS` (and, later, from package-repository keys).
 - **`SHA256SUMS`**: on tag runs it is signed with **Sigstore keyless**
-  (cosign, identity = this repository's GitHub Actions OIDC token), producing
-  `SHA256SUMS.sig` + `SHA256SUMS.pem`. The dispatch preflight produces no
-  checksum file and makes no signing claim. There is no project key to rotate;
-  the identity is the workflow.
+  (cosign v3, identity = this repository's GitHub Actions OIDC token),
+  producing one Sigstore bundle, `SHA256SUMS.sigstore.json` (signature,
+  certificate and transparency-log proof). The assembly verifies the bundle
+  against the run's own workflow identity right after signing. A
+  `full_rehearsal` dispatch runs the same sign-and-verify step with its branch
+  identity (`release.yml@refs/heads/<branch>`), so the commands are exercised
+  before a tag needs them; that rehearsal bundle stays outside the assembly,
+  is never a release asset and `signing-state.json` still records the
+  checksum signature as unavailable. Its only outside trace is a public
+  Sigstore transparency-log entry for a branch identity, which the documented
+  verification (`release.yml@refs/tags/v…`) never accepts. The cheap dispatch
+  preflight produces no checksum file and makes no signing claim. There is no
+  project key to rotate; the identity is the workflow.
 - **Tauri updater key** (`TAURI_SIGNING_PRIVATE_KEY` +
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`): used **only** for the in-app updater
   signatures of PRD 0018, never for code signing or checksums. The public key
@@ -433,8 +443,7 @@ when an entry describes a file that does not exist, or when an entry claims
 - The publish job creates a **draft**, uploads every desired asset, downloads
   the complete draft set, rejects missing or extra names and compares every
   byte with the local assembly. It also rechecks payload checksums, verifies
-  the Sigstore signature/certificate against this repository's tag workflow
-  identity, and verifies every GitHub provenance attestation before flipping
+  the Sigstore bundle against this repository's tag workflow identity, and verifies every GitHub provenance attestation before flipping
   `draft=false`. A final `verify-public` job repeats the complete comparison
   and all integrity/provenance checks against the public release.
 - **Idempotence**: a draft rerun deletes stale draft-only assets, then replaces
@@ -569,8 +578,8 @@ read before the first signed release.
 shasum -a 256 -c SHA256SUMS
 gh attestation verify Cuotai_0.68.0_universal.dmg --repo jmarcon/cuotai
 cosign verify-blob \
-  --signature SHA256SUMS.sig --certificate SHA256SUMS.pem \
-  --certificate-identity-regexp '^https://github.com/jmarcon/cuotai/' \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity-regexp '^https://github\.com/jmarcon/cuotai/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 ```

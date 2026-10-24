@@ -699,6 +699,59 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
             ));
         }
     }
+    check_checksum_signing(jobs)
+}
+
+/// PRD 0021 RF3.2: `assemble` signs `SHA256SUMS` as a Sigstore bundle and
+/// verifies it in the same step, unconditionally, so a full rehearsal runs
+/// the exact commands a tag run depends on (run 40119269466 first reached a
+/// tag-only signing step on a real release and failed there).
+fn check_checksum_signing(jobs: &Mapping) -> Res<()> {
+    let assemble = mapping(need(jobs, "assemble", "release jobs")?, "job assemble")?;
+    let steps = steps(assemble)?;
+    let installer = steps.iter().find(|step| {
+        scalar(step, "uses").is_some_and(|uses| uses.starts_with("sigstore/cosign-installer@"))
+    });
+    if installer.is_none_or(|step| step.contains_key(Value::String("if".into()))) {
+        return err("assemble must install cosign unconditionally (rehearsals sign too)");
+    }
+    let signing: Vec<&&Mapping> = steps
+        .iter()
+        .filter(|step| scalar(step, "run").is_some_and(|run| run.contains("cosign sign-blob")))
+        .collect();
+    let [step] = signing.as_slice() else {
+        return err("assemble must sign SHA256SUMS in exactly one step");
+    };
+    let run = scalar(step, "run").unwrap_or_default();
+    // The signing command itself (one line), apart from the verification
+    // that follows it, which also passes `--bundle`.
+    let sign_command = run
+        .lines()
+        .find(|line| line.contains("cosign sign-blob"))
+        .unwrap_or_default();
+    if step.contains_key(Value::String("if".into())) {
+        return err("the SHA256SUMS signing step must run in full rehearsals too (no if:)");
+    }
+    if !sign_command.contains("--bundle ")
+        || sign_command.trim_end().ends_with('\\')
+        || run.contains("--output-signature")
+        || run.contains("--output-certificate")
+    {
+        return err(
+            "SHA256SUMS must be signed as a Sigstore bundle (--bundle), not as detached .sig/.pem",
+        );
+    }
+    if !run.contains("cosign verify-blob")
+        || !run.contains("--certificate-identity ")
+        || !run.contains("--certificate-oidc-issuer https://token.actions.githubusercontent.com")
+    {
+        return err(
+            "the SHA256SUMS signing step must verify the bundle against the workflow identity",
+        );
+    }
+    if !run.contains("refs/heads/*) ;;") {
+        return err("a rehearsal must refuse to sign SHA256SUMS from a non-branch ref");
+    }
     Ok(())
 }
 
@@ -1351,6 +1404,56 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("SMOKE_ALPINE_IMAGE"));
+    }
+
+    #[test]
+    fn rejects_checksum_signing_skipped_in_rehearsals_or_detached() {
+        let signing_step = "      - name: Sign and verify SHA256SUMS (Sigstore keyless)\n";
+        let gated = RELEASE_WORKFLOW.replacen(
+            signing_step,
+            &format!("{signing_step}        if: needs.check.outputs.dry_run != 'true'\n"),
+            1,
+        );
+        assert_ne!(gated, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &gated).is_err());
+
+        let installer = "      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2\n";
+        let gated_installer = RELEASE_WORKFLOW.replacen(
+            &format!("{installer}      - name: Sign and verify"),
+            &format!("{installer}        if: needs.check.outputs.dry_run != 'true'\n      - name: Sign and verify"),
+            1,
+        );
+        assert_ne!(gated_installer, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &gated_installer).is_err());
+
+        let detached = RELEASE_WORKFLOW.replacen(
+            "cosign sign-blob --yes --bundle \"$bundle\" dist/SHA256SUMS",
+            "cosign sign-blob --yes --output-signature dist/SHA256SUMS.sig dist/SHA256SUMS",
+            1,
+        );
+        assert_ne!(detached, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &detached).is_err());
+
+        // Only the signing command's own `--bundle` counts, not the verifier's.
+        let unbundled = RELEASE_WORKFLOW.replacen(
+            "cosign sign-blob --yes --bundle \"$bundle\" dist/SHA256SUMS",
+            "cosign sign-blob --yes dist/SHA256SUMS",
+            1,
+        );
+        assert_ne!(unbundled, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unbundled).is_err());
+
+        let any_ref = RELEASE_WORKFLOW.replacen("              refs/heads/*) ;;\n", "", 1);
+        assert_ne!(any_ref, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &any_ref).is_err());
+
+        let unverified = RELEASE_WORKFLOW.replacen(
+            "          cosign verify-blob \\\n",
+            "          true \\\n",
+            1,
+        );
+        assert_ne!(unverified, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unverified).is_err());
     }
 
     #[test]

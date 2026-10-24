@@ -254,8 +254,8 @@ project key pair to upload. Verify its identity and issuer exactly as usual:
 
 ```sh
 cosign verify-blob \
-  --signature SHA256SUMS.sig --certificate SHA256SUMS.pem \
-  --certificate-identity-regexp '^https://github.com/jmarcon/cuotai/' \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity-regexp '^https://github\.com/jmarcon/cuotai/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 ```
