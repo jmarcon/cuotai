@@ -5,7 +5,7 @@ import { syncTrayMenu } from "./tray-menu.js";
 import { easeOut, motionMs } from "./motion.js";
 import {
   bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
-  logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow,
+  logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
   bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, nextNoticeText,
   incidentBadge, incidentHtml, bindStatusLinks, wordmark,
 } from "./lib.js";
@@ -207,6 +207,9 @@ initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();
+// PRD 0020 RF1.3/RF7.1: Cmd/Ctrl+, opens Settings; its changes repaint the popover.
+bindSettingsShortcut();
+onSettingsChanged(() => render());
 // PRD 0018 RF2.2: the tray popover shows the same update line as the native
 // menu; subscribe only after every render dependency has been initialized.
 await initUpdates();

@@ -107,7 +107,7 @@ Verification: **CI** on all three OSes.
 
 ## Local server
 
-`cuotai --serve` and the desktop's Settings → Integration run the same
+`cuotai --serve` and the desktop's Settings › Advanced › Integrations run the same
 read-only loopback server on `127.0.0.1` with an optional vault-stored
 bearer token. No platform restriction; behavior is identical on all three
 OSes.

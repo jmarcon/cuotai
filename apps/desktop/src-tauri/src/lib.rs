@@ -7,6 +7,7 @@ mod local_cost;
 mod local_server;
 mod notify;
 mod settings;
+mod settings_window;
 mod updater;
 mod user_content;
 mod widgets;
@@ -443,6 +444,16 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
 /// Atualiza o menu do clique direito. Comando síncrono: roda na thread principal, onde o menu nativo vive.
 #[tauri::command]
 fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String> {
+    // PRD 0020 RF1.4: the localized "Settings" also titles the next Settings
+    // window and the macOS app menu item.
+    app.state::<settings_window::State>()
+        .set_title(&payload.settings);
+    #[cfg(target_os = "macos")]
+    if let Some(item) = app.try_state::<AppMenuSettings>() {
+        let _ = item
+            .0
+            .set_text(format!("{}…", clean_menu_line(&payload.settings)));
+    }
     let menu = build_tray_menu(&app, &payload).map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("cuotai") {
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
@@ -972,10 +983,82 @@ async fn updater_restart(app: AppHandle, b: Shared<'_>, u: Updates<'_>) -> Resul
     u.restart(&app, login, || b.prepare_for_restart())
 }
 
+/// PRD 0020 RF1.2/RF1.3: open the Settings window (or focus it) on an optional
+/// page and anchor of its sidebar registry. Async, as Tauri requires for a
+/// command that creates a window (a synchronous one can deadlock on Windows).
 #[tauri::command]
-fn open_settings(app: AppHandle) {
-    show_main_window(app.clone());
-    let _ = app.emit("open-settings", ());
+async fn open_settings(
+    app: AppHandle,
+    page: Option<String>,
+    anchor: Option<String>,
+) -> Result<(), String> {
+    open_settings_window(&app, settings_window::Target::new(page, anchor));
+    Ok(())
+}
+
+/// Every entry point lands here; the tray popover gives way to the window.
+fn open_settings_window(app: &AppHandle, target: settings_window::Target) {
+    if let Some(w) = app.get_webview_window("tray") {
+        let _ = w.hide();
+    }
+    if let Err(e) = settings_window::open(app, target) {
+        eprintln!("cuotai: settings window: {e}");
+    }
+}
+
+/// The page and anchor the Settings window was opened on, read once by that
+/// window (on load and after [`settings_window::NAVIGATE_EVENT`]).
+#[tauri::command]
+fn settings_target(app: AppHandle, window: WebviewWindow) -> Option<settings_window::Target> {
+    (window.label() == settings_window::LABEL)
+        .then(|| settings_window::take_target(&app))
+        .flatten()
+}
+
+/// RF1.4: the Settings window titles itself in the interface language.
+#[tauri::command]
+fn set_settings_title(window: WebviewWindow, title: String) -> Result<(), String> {
+    if window.label() != settings_window::LABEL {
+        return Err("not_settings".into());
+    }
+    let title = settings_window::clean_title(&title);
+    if title.is_empty() {
+        return Ok(());
+    }
+    window.set_title(&title).map_err(|e| e.to_string())
+}
+
+/// macOS: the "Settings…" item (`⌘,`) of the app menu, kept so its text
+/// follows the interface language.
+#[cfg(target_os = "macos")]
+struct AppMenuSettings(MenuItem<tauri::Wry>);
+
+/// The id of that item; the tray menu's own item is `settings`.
+#[cfg(target_os = "macos")]
+const APP_MENU_SETTINGS: &str = "app-settings";
+
+/// macOS: the default app menu (Edit, Window and the rest) with "Settings…"
+/// after "About", as macOS apps place it.
+#[cfg(target_os = "macos")]
+fn app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::default(app)?;
+    let item = MenuItem::with_id(
+        app,
+        APP_MENU_SETTINGS,
+        "Settings…",
+        true,
+        Some("CmdOrCtrl+,"),
+    )?;
+    if let Some(submenu) = menu
+        .items()?
+        .first()
+        .and_then(|first| first.as_submenu().cloned())
+    {
+        submenu.insert(&item, 2)?;
+        submenu.insert(&PredefinedMenuItem::separator(app)?, 3)?;
+    }
+    app.manage(AppMenuSettings(item));
+    Ok(menu)
 }
 
 #[tauri::command]
@@ -1315,7 +1398,16 @@ pub fn run() {
     // install source and keeps both scheduled and manual requests behind the persisted
     // one-time answer before the first possible request.
     let updates = Arc::new(updater::Service::new());
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // PRD 0020 RF1.3: "Settings…" with ⌘, in the macOS app menu; Windows and
+    // Linux have no app menu, and the interface handles Ctrl+, itself.
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(app_menu).on_menu_event(|app, event| {
+        if event.id() == APP_MENU_SETTINGS {
+            open_settings_window(app, settings_window::Target::default());
+        }
+    });
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         // PRD 0018 RF1.1: official updater plugin (2.x). The web UI never calls it — the
@@ -1324,6 +1416,7 @@ pub fn run() {
         .manage(Arc::clone(&backend))
         .manage(local_cost)
         .manage(Arc::clone(&updates))
+        .manage(settings_window::State::new(settings::settings_path()))
         .invoke_handler(tauri::generate_handler![
             get_view,
             refresh_all,
@@ -1413,6 +1506,8 @@ pub fn run() {
             set_locale,
             send_test_notification,
             open_settings,
+            settings_target,
+            set_settings_title,
             show_main_window,
             quit_app
         ])
@@ -1432,7 +1527,7 @@ pub fn run() {
                     // PRD 0018 RF2.2: the update line opens the window, where the notice,
                     // the release notes and the buttons live.
                     "update" => show_main_window(app.clone()),
-                    "settings" => open_settings(app.clone()),
+                    "settings" => open_settings_window(app, settings_window::Target::default()),
                     "quit" => app.exit(0),
                     _ => {}
                 })

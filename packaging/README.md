@@ -71,7 +71,7 @@ are therefore identical for winget and manual installs. The repository
 produces no winget-specific receipt, file, registry value or shortcut.
 
 Until the owner chooses a durable marker contract, normal winget NSIS users
-must set `CUOTAI_UPDATER=off`; Settings → Updates displays that override as
+must set `CUOTAI_UPDATER=off`; Settings › About › Updates displays that override as
 the disabled reason. Treating every shared NSIS path or standard uninstall
 entry as winget-owned is rejected because it would disable safe in-app
 updates for direct-download users. A reliable automatic distinction requires

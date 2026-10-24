@@ -57,7 +57,7 @@ The panel and the native menu are drawn by your desktop, so they do not appear i
 
 ## Widgets
 
-Cuotai ships no native Linux widget. With **Settings → Widgets** on, the app writes `~/.local/share/cuotai/widget.json`, and panels read it. [widgets.md](widgets.md#linux-waybar) has an example **Waybar** module, a short `jq` script:
+Cuotai ships no native Linux widget. With **Settings › Advanced › Integrations › Widgets** on, the app writes `~/.local/share/cuotai/widget.json`, and panels read it. [widgets.md](widgets.md#linux-waybar) has an example **Waybar** module, a short `jq` script:
 
 <div align="center">
   <img src="assets/screenshots/widgets/linux-waybar.png" alt="Waybar with the Cuotai example module: Work 80%, Team 65% (stale), Personal 42%" width="100%" />
@@ -67,7 +67,7 @@ That is a real Waybar screenshot (headless sway, example data). There is no GNOM
 
 ## Details, history and local cost
 
-The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings → Local cost** can count Claude Code and Codex CLI tokens from their local logs (`~/.config/claude`, `~/.claude` or `CLAUDE_CONFIG_DIR`, and `~/.codex` or `CODEX_HOME`), only after you accept a dialog that lists the exact folders.
+The magnifier on a card opens the details: each window with its bar, expected-use mark and reset time, a history chart (24 hours, 7 or 30 days), quota hide/mute buttons and the model catalog. **Settings › Advanced › Local cost** can count Claude Code and Codex CLI tokens from their local logs (`~/.config/claude`, `~/.claude` or `CLAUDE_CONFIG_DIR`, and `~/.codex` or `CODEX_HOME`), only after you accept a dialog that lists the exact folders.
 
 <div align="center">
   <img src="assets/screenshots/desktop-details.png" alt="Account details" width="48%" />
@@ -76,9 +76,9 @@ The magnifier on a card opens the details: each window with its bar, expected-us
 
 ## Notifications
 
-Turn them on in **Settings → Notifications** (reset notices, and optionally usage alerts with thresholds, exhaustion and recovery). Notifications go through the desktop's notification service over D-Bus, so a notification daemon must be running (every mainstream desktop environment ships one). Turning a switch on asks the system for permission; if it is refused, the switch stays off and Cuotai tells you where to fix it:
+Turn them on in **Settings › Alerts** (reset notices, and optionally usage alerts with thresholds, exhaustion and recovery). Notifications go through the desktop's notification service over D-Bus, so a notification daemon must be running (every mainstream desktop environment ships one). Turning a switch on asks the system for permission; if it is refused, the switch stays off and Cuotai tells you where to fix it:
 
-- Check your desktop's notification settings (for example **Settings → Notifications → Cuotai** on GNOME, **System Settings → Notifications** on KDE) and that **Do Not Disturb** is off.
+- Check your desktop's notification settings (for example **Settings → Notifications → Cuotai** on GNOME, **System Settings › Alerts** on KDE) and that **Do Not Disturb** is off.
 - Press **Send test notification** in Cuotai to confirm they arrive.
 
 Notices come while the window is hidden in the tray, but not after you Quit. The app never queries a provider to notify you.
@@ -89,7 +89,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Themes and languages
 
-**Settings → Appearance** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes, including an Ubuntu look. The language list (Portuguese, English, Spanish, Italian) is in the same dialog.
+**Settings › General** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes, including an Ubuntu look. The language list (Portuguese, English, Spanish, Italian) is on the same page.
 
 ## Launch at login
 
@@ -97,7 +97,7 @@ Cuotai has no built-in "start at login" switch. Use your desktop's session setti
 
 ## Updates
 
-**Settings → Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. Copies installed by a system package (`.deb`, `.rpm`, AUR) are updated by your package manager and the in-app updater shows the manager to use; reinstall the newer package, or fetch the newer AppImage.
+**Settings › About › Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. Copies installed by a system package (`.deb`, `.rpm`, AUR) are updated by your package manager and the in-app updater shows the manager to use; reinstall the newer package, or fetch the newer AppImage.
 
 ## Credential vault: Secret Service
 
@@ -107,7 +107,7 @@ OAuth sign-ins, pasted web sessions and the local-server token are stored throug
 
 | What | Location |
 |---|---|
-| Accounts file | `~/.config/cuotai/config.toml` (or the file chosen in Settings → Accounts file, or `CUOTAI_CONFIG`) |
+| Accounts file | `~/.config/cuotai/config.toml` (or the file chosen in Settings › Advanced › Files, or `CUOTAI_CONFIG`) |
 | Desktop preferences (`desktop.json`), user themes and languages | `~/.config/cuotai/` (`themes/`, `locales/`; `CUOTAI_USER_DIR` overrides) |
 | History, local cost index, notification state, extensions | `~/.local/share/cuotai/` (`history/`, `cost/`, `notified.json`, `extensions/`) |
 | Widget snapshot (only if you turn it on) | `~/.local/share/cuotai/widget.json` ([`widgets.md`](widgets.md); readable by Waybar, GNOME and KDE panels) |

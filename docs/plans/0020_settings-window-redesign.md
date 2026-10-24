@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0020 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | Desktop (`apps/desktop`): usability and design |
 | Consumers | `apps/desktop/ui` (new `settings.html`), `apps/desktop/src-tauri` (window, menu, capabilities) |
 | Depends on | none |
@@ -12,6 +12,14 @@
 | Date | 2026-10-21; amended 2026-10-23 (review item SET-01: preferences move to `desktop.json`; RF2.1 superseded by `docs/design-system.md` DS-CMP-SEG-5) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
+
+## Implementation status (2026-10-24)
+
+| RF | Version | Delivery |
+|---|---|---|
+| RF1 | vNEXT | Delivered. `settings.html` opens in its own window (label `settings`, `src-tauri/src/settings_window.rs`), created on demand, destroyed on close, single instance (a second request focuses it), not modal; 860 × 640 by default, minimum 640 × 460, centered over the main window the first time and restored to its last size and position afterwards (`desktop.json` `settings_window`, dropped when its title bar would be off every screen). Entry points: the gears of the main window and the tray popover, the tray menu, the macOS app menu "Settings…" with `⌘,`, `Ctrl+,` in the windows elsewhere, the serve and hooks banners (Integrations page) and the cost "open settings" links (Local cost page); the `open_settings` command takes `page` and `anchor` (plain tokens only), and the window reads them once through `settings_target`. macOS uses the overlay title bar; Windows and Linux the native frame; the title follows the interface language (`set_settings_title`). `capabilities/default.json` adds the window to the existing grant and nothing else. The browser demo opens `settings.html?page=…&anchor=…` in one named window. The old in-window dialog and its `open-settings` event are gone. Shell tests cover the page/anchor tokens, the single instance with a new target, centering, off-screen restore and the stored geometry. As the minimum of RF7.1, the window broadcasts `settings-changed` and the main window and tray repaint as the old dialog made them; the `localStorage` mirrors keep reaching them by `storage` events (the move to `desktop.json`, RF7.2, is still open). |
+| RF2 | vNEXT | Delivered except as noted. One registry (`ui/js/settings/registry.js`: page id, icon, label key, order, sections) drives the sidebar per DS-CMP-SEG-5: General, Dashboard, Alerts, Data & privacy, the collapsible Advanced group (Integrations, Local cost, Files, its open state remembered) and About at the bottom; one module per page, loaded only when shown. The 12 sections of the old dialog (and Updates) map as in the RF2.5 table: theme, mode, animations and language → General; order, the "Recharging" group, pace and the refresh interval → Dashboard; notices and alerts → Alerts; history and status pages → Data & privacy; local server, hooks and widgets → Integrations; local cost → Local cost; accounts file and themes folder → Files; About and Updates → About. Each page opens with its title and the former sections as groups (a small-caps label over one card); the current page has an accent bar and a heavier label and is remembered; arrow keys, `Home` and `End` move between sidebar entries and focus moves to the page title on a page change. `scripts/test-settings-window-ui.mjs` checks the order, the navigation and that each of the 61 controls of the old dialog renders on its page in the four catalogs. Not yet: the Menu bar page (PRD 0025 RF4) and the Extensions page (PRDs 0017 and 0028 RF7) join the registry when their content moves here (the extension manager stays in the main window); account management in Dashboard (DS-CMP-SEG-5) is PRD 0025; the 8-row limit and the sub-page/sheet presentation of deep content (RF2.2, RF2.3) come with the row components of RF3–RF5 (today the hook editor, price table and directory editors stay inline in their groups, and only the existing safety confirmations open as dialogs); search over collapsed Advanced pages is RF6. |
+| RF3–RF11 | — | Proposed. |
 
 ## 1. Context
 

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en-US" data-theme="dracula" data-mode="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      /* Applies language and theme before the first paint; runtime logic lives in
+         js/i18n.js and js/lib.js. Motion mirrors desktop.json. */
+      var supportedLocales = ["pt-BR", "en-US", "es", "it"];
+      try {
+        var userLocales = JSON.parse(localStorage.getItem("cuotai.userLocales") || "[]");
+        if (Array.isArray(userLocales)) {
+          for (var j = 0; j < userLocales.length; j++) {
+            var userLocale = userLocales[j];
+            if (typeof userLocale === "string" &&
+                /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(userLocale) &&
+                !supportedLocales.includes(userLocale)) supportedLocales.push(userLocale);
+          }
+        }
+      } catch (e) {}
+      var storedLocale = "";
+      try { storedLocale = localStorage.getItem("cuotai.locale") || ""; } catch (e) {}
+      var locale = supportedLocales.includes(storedLocale) ? storedLocale : "";
+      if (!locale) {
+        var detectedLocales = navigator.languages && navigator.languages.length
+          ? navigator.languages : [navigator.language];
+        locale = "en-US";
+        for (var i = 0; i < detectedLocales.length; i++) {
+          var requested = detectedLocales[i];
+          if (!requested) continue;
+          var requestedLower = requested.toLowerCase();
+          var exact = supportedLocales.find(function (candidate) {
+            return candidate.toLowerCase() === requestedLower;
+          });
+          var base = requestedLower.split("-")[0];
+          var sameLanguage = supportedLocales.find(function (candidate) {
+            return candidate.split("-")[0].toLowerCase() === base;
+          });
+          if (exact || sameLanguage) {
+            locale = exact || sameLanguage;
+            break;
+          }
+        }
+      }
+      document.documentElement.lang = locale;
+      try {
+        var m = localStorage.getItem("cuotai.themeMode") || "system";
+        var d = m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = localStorage.getItem("cuotai.theme") || "dracula";
+        document.documentElement.dataset.mode = d ? "dark" : "light";
+        document.documentElement.dataset.motion = localStorage.getItem("cuotai.motion") || "system";
+      } catch (e) {}
+    </script>
+    <link rel="icon" type="image/svg+xml" href="img/logo.svg" />
+    <title>Cuotai</title>
+    <link rel="stylesheet" href="css/themes.css" />
+    <link rel="stylesheet" href="css/themes/index.css" />
+    <link rel="stylesheet" href="css/detail.css" />
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/dialog.css" />
+    <link rel="stylesheet" href="css/settings.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="js/settings/window.js"></script>
+  </body>
+</html>

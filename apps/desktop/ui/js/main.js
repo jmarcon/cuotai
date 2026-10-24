@@ -1,6 +1,5 @@
 import { boot } from "./boot.js";
 import { te, t, tl } from "./i18n.js";
-import { openSettings } from "./settings.js";
 import { skippedMessage, userContent } from "./usercontent.js";
 import { confirmDelete, offerExternalReload, openAccountDialog } from "./account-dialog.js";
 import { openExtensionsDialog } from "./extensions-dialog.js";
@@ -13,6 +12,7 @@ import {
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
   cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks, costUsage,
+  openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
 import { patch } from "./util.js";
 import * as motion from "./motion.js";
@@ -37,8 +37,9 @@ async function loadLocalCost() {
   render();
   refreshCostDetails();
 }
-const costContext = { summary: () => localCost, onSettings: () => openSettingsDialog() };
-const openSettingsDialog = () => openSettings({ onChange: () => { loadLocalCost(); return isDesktop ? render() : store.reload(); }, view: () => store.view });
+// PRD 0020 RF1.3: every entry point opens the one Settings window; the cost links land on the Local cost page.
+const openCostSettings = () => openSettingsWindow({ page: "cost" });
+const costContext = { summary: () => localCost, onSettings: openCostSettings };
 
 /** Uma janela do card (5h ou semanal). Sem a janela, o espaço continua lá, vazio, para o card manter o tamanho. */
 function windowSlot(r, name, w) {
@@ -254,7 +255,7 @@ const detailsContext = {
   onMetricAlert: (accountKey, label, on) =>
     setMetricAlert(accountKey, label, on).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
   localCost: () => localCost,
-  onSettings: () => openSettingsDialog(),
+  onSettings: openCostSettings,
 };
 /** PRD 0003 RF3.2: the bell lives in desktop.json; the backend answers with a new view ("snapshot"). */
 function toggleBell(accountKey, on) {
@@ -301,8 +302,8 @@ function render() {
     ${updateBannerHtml()}
     ${view?.history_warning ? `<div class="banner bad" role="status" data-history-warning>${icon("warn")} ${esc(tl(view.history_warning))}</div>` : ""}
     ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${
-      view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings>${te("serve.bannerOpen")}</button></div>` : ""}
-    ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings>${te("serve.bannerOpen")}</button></div>` : ""}
+      view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
+    ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings="integrations" data-settings-anchor="hooks">${te("serve.bannerOpen")}</button></div>` : ""}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
@@ -333,7 +334,8 @@ root.addEventListener("click", (e) => {
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
   const paste = t.closest("[data-paste-session]");
   if (paste) return pasteSession(Number(paste.dataset.pasteSession));
-  if (t.closest("[data-settings]")) return openSettingsDialog();
+  const settings = t.closest("[data-settings]");
+  if (settings) return openSettingsWindow({ page: settings.dataset.settings || null, anchor: settings.dataset.settingsAnchor || null });
   if (t.closest("[data-extensions]")) return openExtensionManager();
   const costDetails = t.closest("[data-cost-details]");
   if (costDetails) return openCostDetails(costDetails.dataset.costDetails, costContext, costDetails.closest("[data-card]"));
@@ -446,6 +448,10 @@ initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();
+// PRD 0020 RF1.3/RF7.1: Cmd/Ctrl+, opens Settings; a change made there repaints the dashboard (and reads the local
+// cost again) as the old in-window dialog did.
+bindSettingsShortcut();
+onSettingsChanged(() => { loadLocalCost(); render(); });
 // PRD 0018 RF2.2/RF2.6: the backend state repaints update notices, while the main
 // window alone hosts the one-time consent dialog. Its native modal layer does not
 // block backend or tray startup; closing it records nothing and sends nothing.
@@ -457,9 +463,8 @@ loadLocalCost();
 setInterval(loadLocalCost, 30_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLocalCost(); });
 
-// Eventos do shell: abrir a tela de configurações (vindo do popover) e recarregar quando a pasta do usuário mudar.
+// Reload when the user folder changes.
 if (window.__TAURI__) {
-  window.__TAURI__.event.listen("open-settings", () => openSettingsDialog());
   window.__TAURI__.event.listen("user-content-changed", () => location.reload());
 }
 

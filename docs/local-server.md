@@ -1,6 +1,6 @@
 # Local HTTP server (`serve::LocalServer`)
 
-`cuotai-core` can publish the [`export::v1`](export-v1.md) contract over a read-only HTTP server on loopback, so status bars and scripts read the last known state without making Cuotai query a provider on every read (PRD 0012 RF2 and RF3). It lives behind the core's `serve` feature, which is **off by default**; the front ends that offer it turn it on (`cuotai --serve` since PRD 0012 RF4, the desktop's Settings → Integration since RF5), and the server itself stays off until the user starts it.
+`cuotai-core` can publish the [`export::v1`](export-v1.md) contract over a read-only HTTP server on loopback, so status bars and scripts read the last known state without making Cuotai query a provider on every read (PRD 0012 RF2 and RF3). It lives behind the core's `serve` feature, which is **off by default**; the front ends that offer it turn it on (`cuotai --serve` since PRD 0012 RF4, the desktop's Settings › Advanced › Integrations since RF5), and the server itself stays off until the user starts it.
 
 ## From the command line (`cuotai --serve`)
 
@@ -24,7 +24,7 @@ curl -s -H "Authorization: Bearer $(cat "<token file announced on stderr>")" htt
 
 `cuotai --json-v1` prints the same `Export` once, after one query, without a server (exit codes as `--json`).
 
-## In the desktop app (Settings → Integration)
+## In the desktop app (Settings › Advanced › Integrations)
 
 - **Off by default.** The switch "Serve my usage on a local address" starts the server inside the app; it is remembered in `desktop.json` (`serve`) and starts again with the app until you turn it off. Turning it off closes the port.
 - **Same refresh cycle.** The server serves the app's own readings: every time the window updates, the app hands the server a copy of the state it shows, and each request only builds the export from it. No second refresh loop runs and no request queries a provider.

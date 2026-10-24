@@ -336,7 +336,7 @@ consents to an update is the platform artifact downloaded from
 `github.com/jmarcon/cuotai/releases/download/<tag>/<asset>` — the same file a
 browser would fetch.
 
-The user can turn the feature off entirely (**Settings → Updates**), after
+The user can turn the feature off entirely (**Settings › About › Updates**), after
 which the app makes no updater request at all. The desktop detects Homebrew
 Caskroom, the exact Scoop `apps\cuotai` component, winget's package-cache path
 and Linux system package roots, and turns the in-app updater off for those

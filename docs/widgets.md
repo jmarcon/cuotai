@@ -13,9 +13,9 @@ The file is a projection of [`export::v1`](export-v1.md) with **its own** `schem
 | Windows | `%LOCALAPPDATA%\cuotai\widget.json` | third-party panels and scripts |
 | Linux | `~/.local/share/cuotai/widget.json` | third-party panels and scripts (Waybar, GNOME, KDE) |
 
-The app resolves the *app group* container first and falls back to this user's data directory when the entitlement is missing (an unsigned or unprovisioned build has no container). Settings → Widgets shows the resolved path and states which of the two it is, so the fallback is never a surprise.
+The app resolves the *app group* container first and falls back to this user's data directory when the entitlement is missing (an unsigned or unprovisioned build has no container). Settings › Advanced › Integrations › Widgets shows the resolved path and states which of the two it is, so the fallback is never a surprise.
 
-With the feature off, **no file is written and an existing one is deleted** (RF2.2). Settings → Widgets also has a "Delete widget data" button.
+With the feature off, **no file is written and an existing one is deleted** (RF2.2). Settings › Advanced › Integrations › Widgets also has a "Delete widget data" button.
 
 > macOS: reading the file from a WidgetKit extension needs an [Apple developer account](https://developer.apple.com), the *app group* entitlement `group.dev.cuotai.desktop` and a provisioning profile that includes it. Those are owner prerequisites of [PRD 0019](plans/0019_packaging-and-distribution.md) (Apple Developer account, Developer ID signing, notarization); until they exist, only third-party integrations can read the snapshot.
 
@@ -81,7 +81,7 @@ Windows has no Cuotai widget: PRD 0014 delivers no native widget there. The app 
 
 ## Privacy
 
-The file can be read by any process of the same user and by the extension. Therefore it carries **no credentials, no credential variable names, no provider notes, no response bodies and no authenticated URLs** — notes are not projected at all. The e-mail of an account appears only when Settings → Widgets has "include identity (e-mail)" turned on, which is off by default. On Unix the file is written `0600` (readable by its owner only); on Windows the per-user data directory provides the equivalent.
+The file can be read by any process of the same user and by the extension. Therefore it carries **no credentials, no credential variable names, no provider notes, no response bodies and no authenticated URLs** — notes are not projected at all. The e-mail of an account appears only when Settings › Advanced › Integrations › Widgets has "include identity (e-mail)" turned on, which is off by default. On Unix the file is written `0600` (readable by its owner only); on Windows the per-user data directory provides the equivalent.
 
 The same rules that apply to [`export::v1`](export-v1.md#what-never-appears) apply here, and `widget_snapshot` inherits the redacted fields it projects.
 

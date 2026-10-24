@@ -1,6 +1,6 @@
 # Events (`events`)
 
-`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. `cuotai --watch` streams them (PRD 0013 RF2), and `cuotai --watch --hooks` and the desktop app's Settings → Integration run your own commands on them (PRD 0013 RF3 and RF4).
+`cuotai-core`'s event engine (PRD 0013 RF1) turns two consecutive readings of one account into **edge events**: one event per real transition, with a stable name and a payload free of secrets. `cuotai --watch` streams them (PRD 0013 RF2), and `cuotai --watch --hooks` and the desktop app's Settings › Advanced › Integrations run your own commands on them (PRD 0013 RF3 and RF4).
 
 ## Watching from the command line (`cuotai --watch`)
 
@@ -66,7 +66,7 @@ printf '%s\n' "$payload" | jq -r '.current.threshold // empty' >> "$HOME/cuotai-
 
 ### Hooks in the desktop app
 
-**Settings → Integration → Hooks** runs the same rules inside the desktop app, from the `hooks.toml` next to the accounts' file it has open.
+**Settings › Advanced › Integrations › Hooks** runs the same rules inside the desktop app, from the `hooks.toml` next to the accounts' file it has open.
 
 - **Off by default.** The **Run hooks** switch is saved in `desktop.json`; while it is off no command runs.
 - **Editor.** Each rule has a name, the events it runs on (a box per payload name) and the command as one field per argument, the first being the program (an absolute path or a bare name looked up in `PATH`); arguments are passed exactly as typed, without a shell. Saving goes through the same validation as `cuotai --watch --hooks` and never replaces a file edited outside the app since it was shown (reload it first). Filters and time limits written by hand in `hooks.toml` are shown and kept; comments of the rules you keep survive a save, those of a removed rule go with it.

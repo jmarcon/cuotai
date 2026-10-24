@@ -112,7 +112,7 @@ Keyboard shortcuts, the account wizard, filters, the command line and its exit c
 
 ## Themes
 
-Fifteen built-in themes, every one with a dark and a light mode. The picker is in **Settings → Appearance**, and the mode switch (system, light, dark) sits in the top bar.
+Fifteen built-in themes, every one with a dark and a light mode. The picker is in **Settings › General**, and the mode switch (system, light, dark) sits in the top bar.
 
 <table>
   <tr>
