@@ -17,7 +17,7 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF0 | vNEXT | Implemented: account TOML accepts the future `id` key and a missing `name` while rejecting other unknown keys; validation permits an unnamed account only when it has no provider peer; `ConfigFile` preserves existing ids without generating them. |
+| RF0 | 0.80.0 | Implemented: account TOML accepts the future `id` key and a missing `name` while rejecting other unknown keys; validation permits an unnamed account only when it has no provider peer; `ConfigFile` preserves existing ids without generating them. |
 | RF1 | — | Proposed. |
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
