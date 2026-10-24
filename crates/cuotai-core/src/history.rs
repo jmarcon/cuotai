@@ -652,14 +652,28 @@ impl HistoryStore {
     ) -> rusqlite::Result<Option<StoredReport>> {
         let account_digest = account_key(account);
         let cutoff = future_sample_cutoff(now);
-        let Some(seen_at) = db.query_row(
+        let current_seen_at = db.query_row(
             "SELECT MAX(seen_at) FROM series
              WHERE config_key = ?1 AND account_digest = ?2 AND seen_at <= ?3",
             rusqlite::params![self.config_key, account_digest, cutoff],
             |row| row.get::<_, Option<i64>>(0),
-        )?
-        else {
-            return Ok(None);
+        )?;
+        // Older builds may have advanced every series cursor to a future row.
+        // If no bounded cursor survives, recover the last readable report
+        // from the bounded samples instead of hiding all valid history.
+        let (seen_at, recover_poisoned_cursor) = if let Some(seen_at) = current_seen_at {
+            (seen_at, false)
+        } else {
+            let Some(seen_at) = db.query_row(
+                "SELECT MAX(taken_at) FROM samples
+                 WHERE config_key = ?1 AND account_digest = ?2 AND taken_at <= ?3",
+                rusqlite::params![self.config_key, account_digest, cutoff],
+                |row| row.get::<_, Option<i64>>(0),
+            )?
+            else {
+                return Ok(None);
+            };
+            (seen_at, true)
         };
         let mut query = db.prepare_cached(
             "SELECT s.metric_key, s.label, x.taken_at, x.used, x.\"limit\", x.remaining,
@@ -667,15 +681,22 @@ impl HistoryStore {
              FROM series s JOIN samples x
                ON x.config_key = s.config_key AND x.account_digest = s.account_digest
               AND x.metric_key = s.metric_key
-             WHERE s.config_key = ?1 AND s.account_digest = ?2 AND s.seen_at = ?3
+             WHERE s.config_key = ?1 AND s.account_digest = ?2
+               AND (?3 OR s.seen_at = ?4)
                AND x.taken_at = (SELECT MAX(taken_at) FROM samples
                     WHERE config_key = s.config_key AND account_digest = s.account_digest
-                      AND metric_key = s.metric_key AND taken_at <= ?4)
+                      AND metric_key = s.metric_key AND taken_at <= ?5)
              ORDER BY s.position",
         )?;
         let metrics = query
             .query_map(
-                rusqlite::params![self.config_key, account_digest, seen_at, cutoff],
+                rusqlite::params![
+                    self.config_key,
+                    account_digest,
+                    recover_poisoned_cursor,
+                    seen_at,
+                    cutoff
+                ],
                 |row| {
                     Ok(StoredMetric {
                         key: row.get(0)?,
@@ -1443,17 +1464,22 @@ credential_env = "GROQ_KEY_BETA"
         let now = t0();
         let metric = quota("5h", Some(10.0), Some(100.0));
         history.record_at(&alpha, now, &[metric], now).unwrap();
-        raw(&db)
-            .execute(
-                "INSERT INTO samples
-                    (config_key, account_digest, metric_key, taken_at, used, \"limit\",
-                     remaining, unit, kind, \"window\", resets_at)
-                 SELECT config_key, account_digest, metric_key, ?1, 99.0, \"limit\",
-                        remaining, unit, kind, \"window\", resets_at
-                 FROM samples WHERE taken_at = ?2",
-                rusqlite::params![millis(now + mins(10)), millis(now)],
-            )
-            .unwrap();
+        let db = raw(&db);
+        db.execute(
+            "INSERT INTO samples
+                (config_key, account_digest, metric_key, taken_at, used, \"limit\",
+                 remaining, unit, kind, \"window\", resets_at)
+             SELECT config_key, account_digest, metric_key, ?1, 99.0, \"limit\",
+                    remaining, unit, kind, \"window\", resets_at
+             FROM samples WHERE taken_at = ?2",
+            rusqlite::params![millis(now + mins(10)), millis(now)],
+        )
+        .unwrap();
+        db.execute(
+            "UPDATE series SET seen_at = ?1 WHERE seen_at = ?2",
+            rusqlite::params![millis(now + mins(10)), millis(now)],
+        )
+        .unwrap();
 
         let latest = history.latest_at(&alpha, now).unwrap().unwrap();
         assert_eq!(latest.checked_at, now);
