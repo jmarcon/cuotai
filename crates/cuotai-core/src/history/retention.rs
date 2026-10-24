@@ -591,15 +591,20 @@ mod tests {
         for day in 0..=40 {
             let used = Some(day as f64);
             history
-                .record(alpha, t0() + days(day), &[quota("5h", used, Some(100.0))])
+                .record_at(
+                    alpha,
+                    t0() + days(day),
+                    &[quota("5h", used, Some(100.0))],
+                    now,
+                )
                 .unwrap();
         }
         history
-            .record(beta, now - hours(1), &[quota("5h", Some(1.0), None)])
+            .record_at(beta, now - hours(1), &[quota("5h", Some(1.0), None)], now)
             .unwrap();
         // Another configuration on the same device shares the retention.
         store(&db, "two")
-            .record(alpha, t0(), &[quota("5h", Some(5.0), None)])
+            .record_at(alpha, t0(), &[quota("5h", Some(5.0), None)], now)
             .unwrap();
 
         let report = history.prune(now).unwrap();
@@ -613,7 +618,7 @@ mod tests {
         assert_eq!(kept.first().map(|p| p.taken_at), Some(t0() + days(10)));
         assert_eq!(kept.last().map(|p| p.taken_at), Some(now));
         assert!(
-            store(&db, "two").latest(alpha).unwrap().is_none(),
+            store(&db, "two").latest_at(alpha, now).unwrap().is_none(),
             "orphan series dropped"
         );
 
@@ -622,10 +627,10 @@ mod tests {
             .mark_removed(&config.without_account(1).unwrap(), now)
             .unwrap();
         assert_eq!(history.prune(now + hours(23)).unwrap().removed, 0);
-        assert!(history.latest(beta).unwrap().is_some());
+        assert!(history.latest_at(beta, now).unwrap().is_some());
         assert_eq!(history.prune(now + hours(24)).unwrap().removed, 1);
-        assert!(history.latest(beta).unwrap().is_none());
-        assert!(history.latest(alpha).unwrap().is_some());
+        assert!(history.latest_at(beta, now + hours(24)).unwrap().is_none());
+        assert!(history.latest_at(alpha, now + hours(24)).unwrap().is_some());
     }
 
     #[test]

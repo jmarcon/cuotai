@@ -74,6 +74,10 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// RF2.3: a sample identical to the previous one of its metric taken less
 /// than this after it is not stored.
 const COMPACT_WITHIN_MS: i64 = 15 * 60 * 1000;
+/// FIX-10: tolerate small wall-clock differences, but never let a later
+/// timestamp poison the history. Times in the database have millisecond
+/// precision, so the bound uses the same unit.
+const FUTURE_SAMPLE_TOLERANCE_MS: i64 = 5 * 60 * 1000;
 /// Ceiling of the WAL file kept after a checkpoint, so a large prune does
 /// not leave a large side file behind.
 const WAL_SIZE_LIMIT: i64 = 4 << 20;
@@ -212,6 +216,9 @@ struct WindowSample {
 
 fn millis(at: DateTime<Utc>) -> i64 {
     at.timestamp_millis()
+}
+fn future_sample_cutoff(now: DateTime<Utc>) -> i64 {
+    millis(now).saturating_add(FUTURE_SAMPLE_TOLERANCE_MS)
 }
 
 fn instant(ms: i64) -> rusqlite::Result<DateTime<Utc>> {
@@ -465,20 +472,36 @@ impl HistoryStore {
 
     /// Record the reading of `account` taken at `taken_at`: one sample per
     /// metric, in one transaction. Non-finite values are stored as `NULL`.
-    /// A sample already stored for the same account, metric and time (to
-    /// the millisecond) is kept as is, and a sample identical to the
-    /// previous one of its metric taken less than 15 minutes before it is
-    /// not stored unless `resets_at` moved beyond [`DRIFT_TOLERANCE`] (a new
-    /// window; RF2.3). The series still notes the reading, so
-    /// [`Self::latest`] dates it. Returns how many samples were new.
+    /// FIX-10 rejects the whole reading when it is more than five minutes
+    /// ahead of the current UTC wall clock, before opening or changing the
+    /// store. Older readings have no lower bound. A sample already stored
+    /// for the same account, metric and time (to the millisecond) is kept as
+    /// is, and a sample identical to the previous one of its metric taken
+    /// less than 15 minutes before it is not stored unless `resets_at` moved
+    /// beyond [`DRIFT_TOLERANCE`] (a new window; RF2.3). The series still
+    /// notes the reading, so [`Self::latest`] dates it. Returns how many
+    /// samples were new.
     pub fn record(
         &self,
         account: &Account,
         taken_at: DateTime<Utc>,
         metrics: &[Metric],
     ) -> Result<usize, HistoryError> {
-        let account_digest = account_key(account);
+        self.record_at(account, taken_at, metrics, Utc::now())
+    }
+
+    fn record_at(
+        &self,
+        account: &Account,
+        taken_at: DateTime<Utc>,
+        metrics: &[Metric],
+        now: DateTime<Utc>,
+    ) -> Result<usize, HistoryError> {
         let at = millis(taken_at);
+        if at > future_sample_cutoff(now) {
+            return Ok(0);
+        }
+        let account_digest = account_key(account);
         let mut db = self.open()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let mut added = 0;
@@ -584,10 +607,20 @@ impl HistoryStore {
     }
 
     /// The metrics of the last recorded reading of `account`, each with its
-    /// last stored sample; `None` when nothing was recorded.
+    /// last stored sample; `None` when nothing was recorded. FIX-10 ignores
+    /// samples more than five minutes ahead of the current UTC wall clock,
+    /// including rows written by an older Cuotai version.
     pub fn latest(&self, account: &Account) -> Result<Option<StoredReport>, HistoryError> {
+        self.latest_at(account, Utc::now())
+    }
+
+    fn latest_at(
+        &self,
+        account: &Account,
+        now: DateTime<Utc>,
+    ) -> Result<Option<StoredReport>, HistoryError> {
         let db = self.open()?;
-        Ok(self.latest_in(&db, account)?)
+        Ok(self.latest_in(&db, account, now)?)
     }
 
     /// PRD 0010 RF2.3: the last recorded reading of every account of
@@ -599,12 +632,13 @@ impl HistoryStore {
         let Some(db) = self.open_existing()? else {
             return Ok(vec![None; config.accounts.len()]);
         };
+        let now = Utc::now();
         config
             .accounts
             .iter()
             .map(|account| {
                 Ok(self
-                    .latest_in(&db, account)?
+                    .latest_in(&db, account, now)?
                     .map(|stored| stored.into_report(account)))
             })
             .collect()
@@ -614,11 +648,14 @@ impl HistoryStore {
         &self,
         db: &Connection,
         account: &Account,
+        now: DateTime<Utc>,
     ) -> rusqlite::Result<Option<StoredReport>> {
         let account_digest = account_key(account);
+        let cutoff = future_sample_cutoff(now);
         let Some(seen_at) = db.query_row(
-            "SELECT MAX(seen_at) FROM series WHERE config_key = ?1 AND account_digest = ?2",
-            [&self.config_key, &account_digest],
+            "SELECT MAX(seen_at) FROM series
+             WHERE config_key = ?1 AND account_digest = ?2 AND seen_at <= ?3",
+            rusqlite::params![self.config_key, account_digest, cutoff],
             |row| row.get::<_, Option<i64>>(0),
         )?
         else {
@@ -633,12 +670,12 @@ impl HistoryStore {
              WHERE s.config_key = ?1 AND s.account_digest = ?2 AND s.seen_at = ?3
                AND x.taken_at = (SELECT MAX(taken_at) FROM samples
                     WHERE config_key = s.config_key AND account_digest = s.account_digest
-                      AND metric_key = s.metric_key)
+                      AND metric_key = s.metric_key AND taken_at <= ?4)
              ORDER BY s.position",
         )?;
         let metrics = query
             .query_map(
-                rusqlite::params![self.config_key, account_digest, seen_at],
+                rusqlite::params![self.config_key, account_digest, seen_at, cutoff],
                 |row| {
                     Ok(StoredMetric {
                         key: row.get(0)?,
@@ -1311,6 +1348,116 @@ credential_env = "GROQ_KEY_BETA"
             crate::freshness::age(stored.checked_at, later + mins(30)),
             Duration::from_secs(30 * 60)
         );
+    }
+
+    #[test]
+    fn future_sample_is_rejected_and_last_good_stays_latest() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        let now = t0();
+        let good_at = now - mins(1);
+        let good = quota("5h", Some(10.0), Some(100.0));
+
+        assert_eq!(history.record_at(&alpha, good_at, &[good], now), Ok(1));
+        assert_eq!(
+            history.record_at(
+                &alpha,
+                now + mins(5) + TimeDelta::milliseconds(1),
+                &[quota("5h", Some(99.0), Some(100.0))],
+                now,
+            ),
+            Ok(0)
+        );
+
+        assert_eq!(count(&db, "1 = 1"), 1);
+        let latest = history.latest_at(&alpha, now).unwrap().unwrap();
+        assert_eq!(latest.checked_at, good_at);
+        assert_eq!(latest.metrics[0].metric.used, Some(10.0));
+    }
+
+    #[test]
+    fn current_samples_and_the_future_tolerance_boundary_are_accepted() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        let now = t0();
+        let accepted = [
+            (now - TimeDelta::milliseconds(1), 10.0),
+            (now, 11.0),
+            (now + mins(5), 12.0),
+        ];
+
+        for (taken_at, used) in accepted {
+            assert_eq!(
+                history.record_at(
+                    &alpha,
+                    taken_at,
+                    &[quota("5h", Some(used), Some(100.0))],
+                    now,
+                ),
+                Ok(1),
+                "{taken_at} should be inside the future bound"
+            );
+        }
+
+        assert_eq!(count(&db, "1 = 1"), 3);
+        assert_eq!(
+            history.latest_at(&alpha, now).unwrap().unwrap().checked_at,
+            now + mins(5)
+        );
+    }
+
+    #[test]
+    fn backdated_sample_is_accepted_without_replacing_the_newer_reading() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        let now = t0();
+        let old = now - TimeDelta::days(30);
+
+        assert_eq!(
+            history.record_at(&alpha, now, &[quota("5h", Some(20.0), Some(100.0))], now,),
+            Ok(1)
+        );
+        assert_eq!(
+            history.record_at(&alpha, old, &[quota("5h", Some(5.0), Some(100.0))], now,),
+            Ok(1)
+        );
+
+        assert_eq!(count(&db, "1 = 1"), 2, "the old import is retained");
+        let latest = history.latest_at(&alpha, now).unwrap().unwrap();
+        assert_eq!(latest.checked_at, now);
+        assert_eq!(latest.metrics[0].metric.used, Some(20.0));
+    }
+
+    #[test]
+    fn latest_ignores_a_future_row_already_present_in_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        let now = t0();
+        let metric = quota("5h", Some(10.0), Some(100.0));
+        history.record_at(&alpha, now, &[metric], now).unwrap();
+        raw(&db)
+            .execute(
+                "INSERT INTO samples
+                    (config_key, account_digest, metric_key, taken_at, used, \"limit\",
+                     remaining, unit, kind, \"window\", resets_at)
+                 SELECT config_key, account_digest, metric_key, ?1, 99.0, \"limit\",
+                        remaining, unit, kind, \"window\", resets_at
+                 FROM samples WHERE taken_at = ?2",
+                rusqlite::params![millis(now + mins(10)), millis(now)],
+            )
+            .unwrap();
+
+        let latest = history.latest_at(&alpha, now).unwrap().unwrap();
+        assert_eq!(latest.checked_at, now);
+        assert_eq!(latest.metrics[0].metric.used, Some(10.0));
     }
 
     #[test]

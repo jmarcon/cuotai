@@ -22,6 +22,7 @@
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
 | RF5 | vNEXT | RF5.1–RF5.2 delivered: metered accounts use a 3600 s default; compatible 300–899 s overrides run at 900 s and add `note.metered.interval_raised` to the account report; smaller overrides retain the field- and account-specific rejection. RF5.3–RF5.4 remain proposed. |
+| FIX-10 | vNEXT | History rejects a reading more than five minutes ahead of the UTC wall clock before changing the series, retains legitimate older readings without a lower age bound, and excludes pre-existing out-of-bound future rows from `latest_in`. |
 | RF6 | — | Proposed. |
 
 ## 1. Context
