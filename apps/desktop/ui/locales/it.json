@@ -600,7 +600,7 @@
   "update.title": "Aggiornamenti",
   "update.privacy": "Durante la verifica l'app legge solo la versione attuale, il sistema operativo e l'architettura di questo computer e le confronta con un elenco pubblico delle versioni. Non viene inviato nessun account, dato d'uso, nome o identificatore. Puoi disattivare le verifiche qui sotto.",
   "update.consent.title": "Controllare automaticamente gli aggiornamenti?",
-  "update.consent.body": "Una verifica invia solo la versione attuale, il sistema operativo e l'architettura di questo computer al servizio pubblico delle versioni di GitHub. Non invia account, dati d'uso, nome o identificatore della macchina. Nulla viene scaricato o installato senza un clic.",
+  "update.consent.body": "Una verifica recupera il manifesto pubblico delle versioni di GitHub. La versione attuale, il sistema operativo e l'architettura vengono confrontati localmente e non vengono inviati. Non vengono inviati account, dati d'uso, nomi o identificatori della macchina. Nulla viene scaricato o installato senza un clic.",
   "update.consent.yes": "Sì",
   "update.consent.no": "No",
   "update.consent.pending": "Rispondi alla domanda sugli aggiornamenti prima di verificare.",

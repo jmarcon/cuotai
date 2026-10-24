@@ -99,7 +99,7 @@ export async function promptForUpdateConsent() {
     no.disabled = true;
     yes.disabled = true;
     try {
-      publish(await updaterAnswerAutomatic(on));
+      await updaterAnswerAutomatic(on);
       dlg.close();
     } catch (reason) {
       no.disabled = false;

@@ -606,7 +606,7 @@
   "update.title": "Atualizações",
   "update.privacy": "Ao verificar, o app lê apenas a versão atual, o sistema operacional e a arquitetura deste computador e compara com um arquivo público de versões. Nenhuma conta, uso, nome ou identificador é enviado. Você pode desligar as verificações abaixo.",
   "update.consent.title": "Verificar atualizações automaticamente?",
-  "update.consent.body": "Uma verificação envia apenas a versão atual, o sistema operacional e a arquitetura deste computador ao serviço público de versões do GitHub. Ela não envia conta, uso, nome nem identificador da máquina. Nada é baixado ou instalado sem um clique.",
+  "update.consent.body": "Uma verificação busca o manifesto público de versões do GitHub. A versão atual, o sistema operacional e a arquitetura deste computador são comparados localmente e não são enviados. Nenhuma conta, dado de uso, nome ou identificador da máquina é enviado. Nada é baixado ou instalado sem um clique.",
   "update.consent.yes": "Sim",
   "update.consent.no": "Não",
   "update.consent.pending": "Responda à pergunta sobre atualizações antes de verificar.",
