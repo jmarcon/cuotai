@@ -174,7 +174,7 @@ Every item below waits only for the owner: the code is delivered and covered by 
 | 0.80.0 | 0016 | SES-01, SES-02 (1027d8e). |
 | 0.80.0 | 0018 | RF1.1, RF3.1, RF2.6 (1e019d1, cbd10db, b6fcb9d, 364240b, 2bc2d82). |
 | 0.80.0 | 0020 | RF1, RF2 (5c65747, 4a378ba, 4d356e7). |
-| 0.80.0 | 0021 | RF6.1, RF6.2, RF6.3 (768cac3). |
+| 0.80.0 | 0021 | RF6.1, RF6.2, RF6.3, RF3.2 (768cac3, 04cc112). |
 | 0.80.0 | 0022 | RF17.7, RF17.4, RF17.2, RF17.6, RF17.1 (a1303ca, 9d0cf1b, e64e330, a36fe2b, b7159f9, 38933a4, 7ee13f1, 9cc16f2). |
 | 0.80.0 | 0024 | FIX-11 (e160b91). |
 | 0.80.0 | 0029 | RF0 (e534fa2, 295234b). |

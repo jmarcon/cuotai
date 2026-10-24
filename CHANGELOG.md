@@ -44,6 +44,7 @@ How to read the history:
 - Stale or aging readings no longer show a pace, and the pace of a fresh reading is computed at the time it was measured (PRD 0024 FIX-11; e160b91).
 - A web session the provider rejected now offers "Paste new session", and a pasted session is saved only after a successful test query, or with an explicit "Save anyway" when the provider could not be reached (PRD 0016 SES-01, SES-02; 1027d8e).
 - The notice that the TUI uses another config file ignores temporary or deleted files, has a close button, and shows only once for the same pair of files (PRD 0002 RF1.2; dd1a572, f98e6cf).
+- Release checksums are signed as a Sigstore bundle (`SHA256SUMS.sigstore.json`); see the updated verification steps (PRD 0021 RF3.2; 04cc112).
 
 ## Pre-release history (0.1.0–0.79.0, internal builds, never published)
 
