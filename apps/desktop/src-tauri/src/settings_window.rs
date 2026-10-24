@@ -127,9 +127,18 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, target: Target) -> tauri::Result<()>
         .and_then(|file| settings::read_settings_window(file, MIN_SIZE))
         .filter(|g| on_screen(g, &monitor_rects(app)));
     let size = saved.map_or(DEFAULT_SIZE, |g| (g.width, g.height));
-    let position = saved
-        .map(|g| (g.x, g.y))
-        .or_else(|| main_rect(app).map(|main| centered_over(main, size)));
+    // Centered over a small main window near a screen edge, the title bar could
+    // fall off the screen: then the window is centered on the screen instead.
+    let position = saved.map(|g| (g.x, g.y)).or_else(|| {
+        let (x, y) = centered_over(main_rect(app)?, size);
+        let placed = WindowGeometry {
+            x,
+            y,
+            width: size.0,
+            height: size.1,
+        };
+        on_screen(&placed, &monitor_rects(app)).then_some((x, y))
+    });
     let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
         .title(state.title())
         .inner_size(size.0, size.1)
@@ -328,10 +337,17 @@ mod tests {
             (100.0 + 170.0, 50.0 + 90.0)
         );
         // A main window smaller than Settings still centers it on the same axis.
-        assert_eq!(
-            centered_over((0.0, 0.0, 520.0, 480.0), DEFAULT_SIZE),
-            (-170.0, -80.0)
-        );
+        let (x, y) = centered_over((0.0, 0.0, 520.0, 480.0), DEFAULT_SIZE);
+        assert_eq!((x, y), (-170.0, -80.0));
+        // ...which would put its title bar above the screen: that place is
+        // refused (the window is then centered on the screen).
+        let placed = WindowGeometry {
+            x,
+            y,
+            width: DEFAULT_SIZE.0,
+            height: DEFAULT_SIZE.1,
+        };
+        assert!(!on_screen(&placed, &[(0.0, 0.0, 1512.0, 982.0)]));
     }
 
     #[test]

@@ -4,7 +4,7 @@
 import { boot } from "../boot.js";
 import { t, te } from "../i18n.js";
 import { bindThemeSwitch, emitSettingsChanged, getSettings, getView, initOrderSync, initTheme, isDesktop, updaterStatus } from "../lib.js";
-import { initUpdates } from "../updater.js";
+import { initUpdates, updateState } from "../updater.js";
 import { ADVANCED, nextEntry, pageById, pageOfAnchor, resolvePage, sidebarHtml } from "./registry.js";
 
 const T = window.__TAURI__;
@@ -58,7 +58,7 @@ async function paintPage({ anchor = null, focusTitle = false } = {}) {
   const token = ++paintToken;
   for (const fn of leaving.splice(0)) { try { fn(); } catch {} }
   const page = resolvePage(current);
-  const [mod, settings, update] = await Promise.all([page.load(), getSettings(), updaterStatus().catch(() => null)]);
+  const [mod, settings, update] = await Promise.all([page.load(), getSettings(), updateState() ?? updaterStatus().catch(() => null)]);  // the state this window follows (initUpdates)
   if (token !== paintToken) return;
   ctx.settings = settings;
   ctx.update = update;

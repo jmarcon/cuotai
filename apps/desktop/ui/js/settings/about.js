@@ -2,7 +2,7 @@
 import { t, te } from "../i18n.js";
 import { esc } from "../lib.js";
 import { openLibraries } from "../about-dialog.js";
-import { bindUpdates, updatesSectionHtml } from "../updater.js";
+import { bindUpdates, onUpdateState, updatesSectionHtml } from "../updater.js";
 import { group } from "./common.js";
 
 export function html({ settings: s, update }) {
@@ -13,8 +13,20 @@ export function html({ settings: s, update }) {
     + updatesSectionHtml(update);
 }
 
-export function bind(root) {
+/** What the page shows of the updater; another change (a download's progress) does not redraw it. */
+const shownState = (s) => JSON.stringify([s?.phase, s?.version, s?.enabled, s?.automatic, s?.consent_pending, s?.disabled_reason, s?.last_check, s?.error]);
+
+export function bind(root, ctx) {
   root.querySelector("[data-libraries]").onclick = () => openLibraries();
-  // PRD 0018 RF3.1: updater controls use the state fetched for this page.
+  // PRD 0018 RF3.1: updater controls use the state fetched for this page; a change made elsewhere (the main
+  // window's banner, the consent question, the daily check) redraws the page while it is shown.
   bindUpdates(root.querySelector("[data-update-body]"));
+  const drawn = shownState(ctx.update);
+  let stop = null;
+  stop = onUpdateState((next) => {
+    if (shownState(next) === drawn) return;
+    stop?.();
+    ctx.rerender();
+  });
+  ctx.onLeave?.(() => stop?.());
 }

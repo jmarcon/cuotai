@@ -451,7 +451,14 @@ render();
 // PRD 0020 RF1.3/RF7.1: Cmd/Ctrl+, opens Settings; a change made there repaints the dashboard (and reads the local
 // cost again) as the old in-window dialog did.
 bindSettingsShortcut();
-onSettingsChanged(() => { loadLocalCost(); render(); });
+// Switching the accounts file there (no longer modal) would leave an open editor, delete confirmation or details
+// dialog here bound to an index of the old file: they close, as the old modal dialog guaranteed (closing an editor
+// cancels its sign-in and writes nothing).
+onSettingsChanged((key) => {
+  if (key === "config_file") for (const d of document.querySelectorAll("dialog[open]")) d.close();
+  loadLocalCost();
+  render();
+});
 // PRD 0018 RF2.2/RF2.6: the backend state repaints update notices, while the main
 // window alone hosts the one-time consent dialog. Its native modal layer does not
 // block backend or tray startup; closing it records nothing and sends nothing.
