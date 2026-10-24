@@ -34,7 +34,7 @@ Run from the workspace root:
 cargo run -p cuotai-tui -- --list-providers
 cargo run -p cuotai-tui -- --config cuotai.toml --json
 cargo run -p cuotai-tui                    # interactive TUI
-sh run.sh                                  # debug-only SQLite credential store
+sh run.sh [tui|gui]                        # dev build with the debug-only SQLite credential store
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --workspace
