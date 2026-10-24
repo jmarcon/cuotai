@@ -36,7 +36,7 @@
         "pace": {
           "type": "array",
           "items": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Pace" }] },
-          "description": "One entry per report.metrics item, same order; empty without a report."
+          "description": "One entry per report.metrics item, same order, computed at report.checked_at; every entry is null unless freshness is fresh; empty without a report."
         },
         "access": { "$ref": "#/$defs/UsageAccess" },
         "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." }

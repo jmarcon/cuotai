@@ -577,9 +577,17 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 .reports
                 .iter()
                 .enumerate()
-                .map(|(index, report)| monitor.recent_points(index, &report.metrics, now))
+                .map(|(index, report)| {
+                    monitor.recent_points(index, &report.metrics, report.checked_at)
+                })
                 .collect();
-            print_snapshot(&snapshot, &recent, &monitor.incident_statuses(), now);
+            print_snapshot(
+                &file.config,
+                &snapshot,
+                &recent,
+                &monitor.incident_statuses(),
+                now,
+            );
         }
         if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
             eprintln!("cuotai: {}", warning.resolve(ui::tui_locale()));
@@ -625,6 +633,7 @@ fn single_export(
 }
 
 fn print_snapshot(
+    config: &Config,
     snapshot: &Snapshot,
     recent: &[Vec<Vec<Point>>],
     incidents: &[ProviderStatus],
@@ -638,12 +647,20 @@ fn print_snapshot(
     for (index, report) in snapshot.reports.iter().enumerate() {
         let recent = recent.get(index).map_or(&[][..], Vec::as_slice);
         let status = incidents.iter().find(|s| s.provider == report.provider);
+        // The snapshot keeps the configuration's account order.
+        let interval = config.accounts.get(index).map_or(
+            Duration::from_secs(config.refresh_seconds),
+            |account| {
+                Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds))
+            },
+        );
         print!(
             "{}",
             report_text(
                 report,
                 recent,
                 status,
+                interval,
                 now,
                 ui::tui_locale(),
                 ui::local_time
@@ -655,11 +672,14 @@ fn print_snapshot(
 /// One `--once` account block: heading, the provider's flagged status (PRD
 /// 0011 RF5, the card's rule), metrics (with the PRD 0007 RF4 pace line
 /// under each eligible one, projected from the recorded `recent` points of
-/// each metric when there are enough), notes and source.
+/// each metric when there are enough, at the reading's `checked_at` and only
+/// while it is fresh for the account's `interval`, PRD 0024 FIX-11), notes
+/// and source.
 fn report_text(
     report: &Report,
     recent: &[Vec<Point>],
     status: Option<&ProviderStatus>,
+    interval: Duration,
     now: DateTime<Utc>,
     locale: &str,
     at: impl Fn(DateTime<Utc>) -> String,
@@ -681,7 +701,7 @@ fn report_text(
             out += &format!("    Renova: {}\n", reset.to_rfc3339());
         }
         let points = recent.get(index).map(Vec::as_slice);
-        if let Some(pace) = pace::assess(metric, now, points) {
+        if let Some(pace) = pace::assess_reading(metric, report.checked_at, interval, now, points) {
             let text = dashboard::pace_text(&pace, locale, &at);
             out += &format!("    Ritmo: {text} (estimativa linear)\n");
         }
@@ -887,6 +907,9 @@ fn history_text(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The default refresh interval of the `--once` block tests.
+    const FIVE_MIN: Duration = Duration::from_secs(300);
     use chrono::TimeZone;
     use cuotai_core::{Metric, MetricKind, MetricWindow};
 
@@ -1035,7 +1058,7 @@ mod tests {
         );
         let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
         assert_eq!(
-            report_text(&report, &[], None, now, "en-US", at),
+            report_text(&report, &[], None, FIVE_MIN, now, "en-US", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
              \x20 Window5h: 40.00 % / 100.00\n\
              \x20   Renova: 2026-01-01T02:00:00+00:00\n\
@@ -1047,7 +1070,7 @@ mod tests {
              \x20   Renova: 2026-01-01T23:55:00+00:00\n\
              \x20 Monthly: 10.00 % / 100.00\n"
         );
-        assert!(report_text(&report, &[], None, now, "es", at)
+        assert!(report_text(&report, &[], None, FIVE_MIN, now, "es", at)
             .contains("Ritmo: 6 puntos por encima del ritmo · se agota a las 18:49"));
 
         // PRD 0007 RF1.5 with the recorded history: the 5-hour window rose
@@ -1057,8 +1080,37 @@ mod tests {
             used,
         };
         let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
-        assert!(report_text(&report, &recent, None, now, "en-US", at)
-            .contains("Ritmo: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"));
+        assert!(
+            report_text(&report, &recent, None, FIVE_MIN, now, "en-US", at).contains(
+                "Ritmo: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"
+            )
+        );
+    }
+
+    /// PRD 0024 FIX-11: `--once` evaluates the pace at the reading's
+    /// `checked_at` and prints none for a reading that is not fresh.
+    #[test]
+    fn once_pace_follows_the_reading_time_and_freshness() {
+        let mut report = report(
+            "Work",
+            Status::Ready,
+            vec![quota(MetricWindow::Window5h, 40.0, None)],
+        );
+        let checked_at = report.checked_at;
+        // Reset 2 hours after `now`; the reading is 90 minutes older.
+        let now = checked_at + chrono::Duration::minutes(90);
+        report.metrics[0].resets_at = Some(now + chrono::Duration::minutes(120));
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let hour = Duration::from_secs(3600);
+        // Fresh at a 1-hour interval: at `checked_at` 30% of the window had
+        // elapsed, so 40% used is 10 points above the pace (the wall clock
+        // would say 20 points in reserve).
+        assert!(report_text(&report, &[], None, hour, now, "en-US", at)
+            .contains("Ritmo: 10 points above the pace"));
+        // Stale at a 5-minute interval: the age only, no pace.
+        let text = report_text(&report, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(text.contains("consultado há"), "{text}");
+        assert!(!text.contains("Ritmo"), "{text}");
     }
 
     /// RF5.2: opt-in through `--status` or `CUOTAI_STATUS`; `--no-status`
@@ -1119,7 +1171,7 @@ mod tests {
             expired: false,
         };
         assert_eq!(
-            report_text(&failed, &[], Some(&outage), now, "en-US", at),
+            report_text(&failed, &[], Some(&outage), FIVE_MIN, now, "en-US", at),
             "\nWork / Claude — Erro · consultado agora\n\
              \x20 Status do provedor: Major outage · Elevated errors on Claude Code · desde 23:30 · https://status.claude.com/incidents/abc123\n\
              \x20 Network failure or query timeout.\n\
@@ -1134,7 +1186,7 @@ mod tests {
         };
         let ready = report("Work", Status::Ready, Vec::new());
         assert_eq!(
-            report_text(&ready, &[], Some(&maintenance), now, "pt-BR", at),
+            report_text(&ready, &[], Some(&maintenance), FIVE_MIN, now, "pt-BR", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
              \x20 Status do provedor: Em manutenção · última leitura · lido agora · https://status.claude.com/\n"
         );
@@ -1143,7 +1195,7 @@ mod tests {
             read_at: None,
             ..maintenance.clone()
         };
-        assert!(report_text(&ready, &[], Some(&unreadable), now, "pt-BR", at)
+        assert!(report_text(&ready, &[], Some(&unreadable), FIVE_MIN, now, "pt-BR", at)
             .contains("  Status do provedor: Página de status indisponível · https://status.claude.com/\n"));
         let expired = ProviderStatus {
             state: IncidentState::Unknown,
@@ -1153,16 +1205,20 @@ mod tests {
             expired: true,
             ..outage.clone()
         };
-        assert!(report_text(&ready, &[], Some(&expired), now, "pt-BR", at)
-            .contains("Status do provedor: Status desconhecido · lido há 31 min"));
+        assert!(
+            report_text(&ready, &[], Some(&expired), FIVE_MIN, now, "pt-BR", at)
+                .contains("Status do provedor: Status desconhecido · lido há 31 min")
+        );
         for state in [IncidentState::Operational, IncidentState::Unknown] {
             let quiet = ProviderStatus {
                 state,
                 stale: false,
                 ..unreadable.clone()
             };
-            assert!(!report_text(&ready, &[], Some(&quiet), now, "pt-BR", at)
-                .contains("Status do provedor"));
+            assert!(
+                !report_text(&ready, &[], Some(&quiet), FIVE_MIN, now, "pt-BR", at)
+                    .contains("Status do provedor")
+            );
         }
     }
 

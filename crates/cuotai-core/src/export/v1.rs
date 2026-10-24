@@ -93,8 +93,10 @@ pub struct AccountExport {
     pub last_good: Option<LastGood>,
     /// [`metrics::binding`] of `report`.
     pub binding: Option<Binding>,
-    /// [`pace::assess`] per metric of `report`, same length and order;
-    /// `null` for a metric without a pace. Empty without a report.
+    /// [`pace::assess_reading`] per metric of `report`, same length and
+    /// order: evaluated at `report.checked_at`, `null` for a metric without
+    /// a pace and for every metric of a reading that is not `Fresh` (PRD
+    /// 0024 FIX-11). Empty without a report.
     pub pace: Vec<Option<Pace>>,
     /// [`access::describe`] of the account.
     pub access: UsageAccess,
@@ -286,7 +288,7 @@ fn account_export(
             report
                 .metrics
                 .iter()
-                .map(|metric| pace::assess(metric, now, None))
+                .map(|metric| pace::assess_reading(metric, report.checked_at, interval, now, None))
                 .collect()
         }),
         access: access::describe(account),
@@ -821,6 +823,46 @@ mod tests {
             assert!(pending[field].is_null(), "{field}");
         }
         assert_eq!(pending["pace"], serde_json::json!([]));
+    }
+
+    /// PRD 0024 FIX-11: the pace is evaluated at the reading's `checked_at`
+    /// and is `null` for every metric of a reading that is not `Fresh`.
+    #[test]
+    fn pace_follows_the_reading_time_and_freshness() {
+        let config = Config {
+            accounts: vec![account("Personal", Provider::Claude)],
+            refresh_seconds: 3600,
+            ..Config::default()
+        };
+        let pace_of = |age_minutes: i64| {
+            let mut cycle = RefreshCycle::new(&config, Instant::now());
+            let mut ready = report(&config.accounts[0], Status::Ready, minutes_ago(age_minutes));
+            // Half of the 5-hour window elapsed at `now()`, half used.
+            ready.metrics = vec![Metric {
+                resets_at: Some(now() + chrono::TimeDelta::minutes(150)),
+                ..quota("Sessão (5h)", 50.0, MetricWindow::Window5h, 0)
+            }];
+            finish(&mut cycle, 0, ready);
+            let json = export(&config, &cycle, Options::default());
+            let account = &json["accounts"][0];
+            (account["freshness"].clone(), account["pace"][0].clone())
+        };
+        // Just measured: on pace, as at the wall clock.
+        let (freshness, pace) = pace_of(0);
+        assert_eq!(freshness, "fresh");
+        assert_eq!(pace["stage"], "on_pace");
+        // 90 minutes old, still Fresh at a 1-hour interval: at its own time
+        // only 20% of the window had elapsed, so it is above the pace.
+        let (freshness, pace) = pace_of(90);
+        assert_eq!(freshness, "fresh");
+        assert_eq!(pace["stage"], "ahead");
+        assert_eq!(pace["elapsed_fraction"], 0.2);
+        // Aging and Stale readings carry no pace.
+        for age in [91, 181] {
+            let (freshness, pace) = pace_of(age);
+            assert_ne!(freshness, "fresh");
+            assert!(pace.is_null(), "{age} minutes");
+        }
     }
 
     /// PRD 0015 RF4.3: `local_cost` travels beside the accounts, never in a

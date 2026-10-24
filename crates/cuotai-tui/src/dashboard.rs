@@ -206,17 +206,58 @@ struct MetricRow {
     pace: Option<Pace>,
 }
 
-/// `pace_at` is the clock for the pace; `None` shows no pace. `recent` are
-/// the recorded points of the metric (PRD 0006), which project the pace
-/// from the recent slope when there are enough of them (PRD 0007 RF1.5).
-fn metric_row(metric: &Metric, pace_at: Option<DateTime<Utc>>, recent: &[Point]) -> MetricRow {
+/// The reading a pace is read from (PRD 0024 FIX-11): its `checked_at`,
+/// the account's effective refresh `interval` and the drawing clock `now`.
+#[derive(Debug, Clone, Copy)]
+struct PaceClock {
+    checked_at: DateTime<Utc>,
+    interval: std::time::Duration,
+    now: DateTime<Utc>,
+}
+
+/// The clock for the pace of account `account_index`'s current `report`;
+/// `None` for the preserved (stale) reading, which shows no pace.
+fn pace_clock(
+    view: &View<'_>,
+    account_index: usize,
+    report: &Report,
+    preserved: bool,
+    now: DateTime<Utc>,
+) -> Option<PaceClock> {
+    let seconds = view
+        .accounts
+        .get(account_index)
+        .map_or(view.refresh_seconds, |account| {
+            account.effective_refresh_seconds(view.refresh_seconds)
+        });
+    (!preserved).then_some(PaceClock {
+        checked_at: report.checked_at,
+        interval: std::time::Duration::from_secs(seconds),
+        now,
+    })
+}
+
+/// `clock` is the reading the pace is read from; `None` shows no pace. The
+/// core evaluates it at the reading's `checked_at` and only while the
+/// reading is fresh. `recent` are the recorded points of the metric (PRD
+/// 0006), which project the pace from the recent slope when there are
+/// enough of them (PRD 0007 RF1.5).
+fn metric_row(metric: &Metric, clock: Option<PaceClock>, recent: &[Point]) -> MetricRow {
     MetricRow {
         label: metric.label.clone(),
         text: metric_text(metric),
         state: classify_metric(metric),
         period: metric.period.clone(),
         resets_at: metric.resets_at,
-        pace: pace_at.and_then(|now| pace::assess(metric, now, Some(recent))),
+        pace: clock.and_then(|clock| {
+            pace::assess_reading(
+                metric,
+                clock.checked_at,
+                clock.interval,
+                clock.now,
+                Some(recent),
+            )
+        }),
     }
 }
 
@@ -423,6 +464,10 @@ pub(crate) struct View<'a> {
     /// PRD 0007 RF1.5: recorded points per account and metric of its
     /// current report (PRD 0006); same length as `accounts` or empty.
     pub(crate) recent: &'a [Vec<Vec<Point>>],
+    /// The configuration's global `refresh_seconds`, from which each
+    /// account's effective interval (and so its freshness) follows; the
+    /// pace shows only for a fresh reading (PRD 0024 FIX-11).
+    pub(crate) refresh_seconds: u64,
     /// PRD 0006 RF6.1: the selected account's history in the details;
     /// `None` without a history (nothing is shown).
     pub(crate) history: Option<&'a DetailHistory>,
@@ -596,6 +641,7 @@ pub(crate) fn render_for_test(
         anim: None,
         last_good: empty_history,
         recent: empty_recent,
+        refresh_seconds: 300,
         history: None,
         banner: None,
         incidents: &[],
@@ -884,9 +930,9 @@ fn render_card(
         .or(report)
         .map(|report| {
             // The preserved reading is old: no pace from today's clock.
-            let pace_at = stale.is_none().then_some(now);
+            let clock = pace_clock(view, account_index, report, stale.is_some(), now);
             let recent = recent_of(view, account_index);
-            let row = |(index, metric)| metric_row(metric, pace_at, points(recent, index));
+            let row = |(index, metric)| metric_row(metric, clock, points(recent, index));
             report
                 .metrics
                 .iter()
@@ -1746,6 +1792,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     }
 
     let shown = stale.unwrap_or(report);
+    let clock = pace_clock(view, account_index, shown, stale.is_some(), now);
     if shown.metrics.is_empty() {
         if explanation.is_none() {
             lines.push(Line::from(Span::styled(
@@ -1756,7 +1803,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     } else {
         for (index, metric) in shown.metrics.iter().enumerate() {
             let recent = points(recent_of(view, account_index), index);
-            let row = metric_row(metric, stale.is_none().then_some(now), recent);
+            let row = metric_row(metric, clock, recent);
             lines.push(Line::default());
             lines.push(Line::from(vec![
                 Span::styled(
@@ -2554,6 +2601,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        refresh_seconds: 300,
                         history: None,
                         banner: None,
                         incidents: &[],
@@ -2616,6 +2664,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        refresh_seconds: 300,
                         history: None,
                         banner: None,
                         incidents: &[],
@@ -2670,6 +2719,7 @@ mod tests {
                             anim: None,
                             last_good: &[],
                             recent: &[],
+                            refresh_seconds: 300,
                             history: None,
                             banner: None,
                             incidents: &[],
@@ -2717,6 +2767,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        refresh_seconds: 300,
                         history: None,
                         banner: None,
                         incidents: &[],
@@ -2763,6 +2814,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        refresh_seconds: 300,
                         history: None,
                         banner: None,
                         incidents: &[],
@@ -2816,6 +2868,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        refresh_seconds: 300,
                         history: None,
                         banner: None,
                         incidents: &[],
@@ -2860,6 +2913,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        refresh_seconds: 300,
                         history: None,
                         banner: None,
                         incidents: &[],
@@ -2903,6 +2957,7 @@ mod tests {
                         anim: None,
                         last_good: &[],
                         recent: &[],
+                        refresh_seconds: 300,
                         history: None,
                         banner: None,
                         incidents: &[],
@@ -2953,6 +3008,7 @@ mod tests {
                             anim: None,
                             last_good: &[],
                             recent: &[],
+                            refresh_seconds: 300,
                             history: None,
                             banner,
                             incidents: &[],
@@ -3018,6 +3074,7 @@ mod tests {
                             anim: Some(anim),
                             last_good: &[],
                             recent: &[],
+                            refresh_seconds: 300,
                             history: None,
                             banner: None,
                             incidents: &[],
@@ -3176,6 +3233,7 @@ mod tests {
                         anim: None,
                         last_good,
                         recent: &[],
+                        refresh_seconds: 300,
                         history,
                         banner: None,
                         incidents,
@@ -3290,6 +3348,29 @@ mod tests {
         // Narrow details wrap the line instead of cutting the stage.
         let narrow = render_sized(&paced(), &[], &[], true, at_min(0), (45, 40)).join("\n");
         assert!(narrow.contains("20 pontos de reserva"), "{narrow}");
+    }
+
+    /// PRD 0024 FIX-11: the pace is read at the reading's `checked_at` and
+    /// disappears once the reading is no longer fresh (300 s interval).
+    #[test]
+    fn pace_follows_the_reading_time_and_hides_once_not_fresh() {
+        // 7 minutes later the reading is still fresh: the stage is the one
+        // at `checked_at` (20 points), not at the wall clock (22 points).
+        let fresh = render_at(&paced(), &[], &[], true, at_min(7)).join("\n");
+        assert!(fresh.contains("↓ 20 pontos de reserva"), "{fresh}");
+        assert!(fresh.contains("esperado 60% usado"), "{fresh}");
+        let card = render_at(&paced(), &[], &[], false, at_min(7)).join("\n");
+        assert!(card.contains("↓ Sessao:"), "{card}");
+        // Past 1.5× the interval it is aging: the age only, no pace.
+        for minutes in [8, 20] {
+            let text = render_at(&paced(), &[], &[], true, at_min(minutes)).join("\n");
+            assert!(!text.contains("estimativa linear"), "{text}");
+            let card = render_at(&paced(), &[], &[], false, at_min(minutes)).join("\n");
+            assert!(
+                card.contains("Sessao:") && !card.contains("↓ Sessao:"),
+                "{card}"
+            );
+        }
     }
 
     /// PRD 0010 RF5.1: a failed query whose cycle preserved the last valid
