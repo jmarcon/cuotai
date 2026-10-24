@@ -502,6 +502,8 @@ pub(crate) enum FooterAction {
     CloseDetails,
     Add,
     Edit,
+    /// SES-01: "Paste a new session" of the selected account.
+    PasteSession,
     MoveUp,
     MoveDown,
     Delete,
@@ -797,6 +799,15 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
     actions.push(plain("a adicionar", Some(FooterAction::Add)));
     actions.push(separator());
     actions.push(plain("e editar", Some(FooterAction::Edit)));
+    // SES-01: the selected account's vault session was rejected; the core
+    // offers pasting a new one straight away.
+    if selected_offers_new_paste(view) {
+        actions.push(separator());
+        actions.push(plain(
+            "p colar nova sessão",
+            Some(FooterAction::PasteSession),
+        ));
+    }
     actions.push(separator());
     actions.push(plain("K mover ↑", Some(FooterAction::MoveUp)));
     actions.push(separator());
@@ -808,6 +819,16 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
     actions.push(separator());
     actions.push(plain(&count, None));
     [navigation, actions]
+}
+
+/// SES-01: whether the selected card (or the open details) is an account
+/// whose session the core asks to paste again.
+fn selected_offers_new_paste(view: &View<'_>) -> bool {
+    view.selected
+        .and_then(|position| view.visible.get(position))
+        .and_then(|&index| view.reports.get(index))
+        .and_then(Option::as_ref)
+        .is_some_and(cuotai_core::user_session::offers_new_paste)
 }
 
 fn render_footer(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Targets) {
@@ -3942,5 +3963,47 @@ mod tests {
         );
         assert!(off.contains("cuotai --cost-enable"), "{off}");
         assert!(!off.contains("Hoje:"), "{off}");
+    }
+
+    // SES-01: a rejected vault session puts "Paste a new session" in the
+    // footer of its card and of its details; any other state does not.
+    #[test]
+    fn a_rejected_session_offers_a_new_paste_on_its_card_and_details() {
+        let account = Account {
+            name: "MiMo".into(),
+            provider: Provider::XiaomiMimo,
+            ..Default::default()
+        };
+        let rejected = |id: &'static str| {
+            let mut report = report(Status::AuthenticationError, Vec::new());
+            report.provider = Provider::XiaomiMimo;
+            report.notes_l10n = vec![cuotai_core::text::Localized::fixed(id, "x")];
+            report.notes = vec!["x".into()];
+            report
+        };
+        let footer = |report: Report, details: bool| {
+            render_view(
+                std::slice::from_ref(&account),
+                &[Some(report)],
+                &[],
+                &[],
+                (details, 0),
+                Utc::now(),
+                (260, 40),
+                None,
+                &[],
+                None,
+            )
+            .join("\n")
+        };
+        for details in [false, true] {
+            let text = footer(rejected("user_session.rejected"), details);
+            assert!(text.contains("p colar nova sessão"), "{text}");
+            let text = footer(rejected("query.transport"), details);
+            assert!(!text.contains("colar nova sessão"), "{text}");
+        }
+        let mut ready = rejected("user_session.rejected");
+        ready.status = Status::Ready;
+        assert!(!footer(ready, false).contains("colar nova sessão"));
     }
 }

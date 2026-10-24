@@ -19,7 +19,7 @@ function open(html) {
   return dlg;
 }
 
-export async function openAccountDialog(index = null, { onSaved = () => {} } = {}) {
+export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false } = {}) {
   // RF4: cheap external-change detection. If the file on disk
   // changed since the last view render, give the user a chance to
   // reload BEFORE they spend time editing the now-stale draft.
@@ -318,12 +318,15 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   const draftFields = () => schema.fields.filter((f) => visible.has(f.key)).map((f) => ({ key: f.key, text: values.get(f.key)?.text ?? (f.options ? null : ""), choice: values.get(f.key)?.choice ?? (f.options ? 0 : null) }));
   // PRD 0005 RF3: the core describes how the draft's usage is read; the dialog only renders it.
   let confirmUnavailable = false;
+  // SES-02: set when the core's test before save could not reach the provider; the next save is "Save anyway".
+  let confirmUntested = false;
   let accessSeq = 0;
   async function renderAccess() {
     const seq = ++accessSeq;
     const access = await draftAccess(provider, authMode, draftFields(), sessionSlots());
     if (seq !== accessSeq) return; // a newer change is already being described
     confirmUnavailable = false; // any change withdraws a pending "Save anyway"
+    confirmUntested = false;
     dlg.querySelector("#ok").textContent = t("common.save");
     costWarn.textContent = tl(access.cost_advisory);
     costWarn.hidden = !access.cost_advisory;
@@ -828,6 +831,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   dlg.querySelector("[data-cancel]").addEventListener("click", () => {
     if (!committing) dlg.close();
   });
+  // SES-02: any edit withdraws a pending "Save anyway" of an untested session.
+  form.addEventListener("input", () => {
+    if (!confirmUntested) return;
+    confirmUntested = false;
+    dlg.querySelector("#ok").textContent = t("common.save");
+  });
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (committing) return;
@@ -857,8 +866,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
     ok.disabled = true;
     committing = true;
     dlg.querySelector("[data-cancel]").disabled = true;
+    // SES-02: a pasted session is saved only after the core's test query, run by the save itself.
+    const sessions = pastes();
+    const testStatus = sessionBox.querySelector("#session-test-status");
+    if (sessions.length && testStatus) testStatus.textContent = t("dialog.session.testingSave");
     try {
-      const result = await saveAccount({ ...draftInput(), sessions: pastes() });
+      const result = await saveAccount({ ...draftInput(), sessions, saveAnyway: confirmUntested });
       committing = false;
       dlg.close();
       onSaved(result);
@@ -872,6 +885,22 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
       // instead of just a red message.
       const parsed = parseErrorEnvelope(x);
       clearFieldErrors();
+      if (testStatus) testStatus.textContent = "";
+      // SES-02: only a transport failure of the test before save offers "Save anyway"; a rejection never does.
+      if (parsed && parsed.id === "user_session.save.unreachable") {
+        confirmUntested = true;
+        err.textContent = errText(parsed);
+        ok.textContent = t("dialog.saveAnyway");
+        ok.disabled = false;
+        committing = false;
+        dlg.querySelector("[data-cancel]").disabled = false;
+        return;
+      }
+      if (confirmUntested) {
+        // "Save anyway" was tried and the save still failed: the next save tests again.
+        confirmUntested = false;
+        ok.textContent = t("common.save");
+      }
       if (parsed && parsed.id === "edit_error.conflict") {
         // Offer the reload — the user keeps the dialog draft and
         // can retry the same save afterwards. The button replaces
@@ -924,7 +953,15 @@ export async function openAccountDialog(index = null, { onSaved = () => {} } = {
   dlg.addEventListener("close", () => { modelsSeq++; models?.dispose(); });
   await renderDynamic();
   renderModels();
-  dlg.querySelector("[name=name]").focus();
+  // SES-01: "Paste a new session" opens this editor on the account's paste box.
+  const pasteField = pasteSession ? sessionBox.querySelector("textarea[data-slot]") : null;
+  if (pasteField) {
+    sessionBox.querySelector("#session-status").textContent = t("dialog.session.pasteNew");
+    sessionBox.scrollIntoView({ block: "center" });
+    pasteField.focus();
+  } else {
+    dlg.querySelector("[name=name]").focus();
+  }
 }
 
 /** Confirma a remoção. Conta com credencial no cofre pergunta se a credencial também deve ser apagada.

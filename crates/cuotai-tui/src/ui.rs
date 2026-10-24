@@ -363,6 +363,9 @@ pub async fn run(
         About,
         /// PRD 0006 RF6.1: span of the details' history (1, 2, 3).
         HistoryRange(HistoryRange),
+        /// SES-01: "Paste a new session" for the selected account whose
+        /// vault session the provider rejected (the core decides).
+        PasteSession,
     }
 
     /// Map a keyboard event onto a dashboard command. Returns `None` when the
@@ -394,6 +397,7 @@ pub async fn run(
             KeyCode::Char('d') | KeyCode::Delete => Command::Delete,
             KeyCode::Char('a') => Command::Add,
             KeyCode::Char('e') => Command::Edit,
+            KeyCode::Char('p') => Command::PasteSession,
             KeyCode::Char('K') => Command::MoveUp,
             KeyCode::Char('J') => Command::MoveDown,
             KeyCode::Char('/') => Command::Filter,
@@ -441,6 +445,7 @@ pub async fn run(
                     config,
                     edit,
                     sessions,
+                    clearance,
                 } => {
                     // PRD 0016 RF2/RF3.4: the pasted sessions reach the vault
                     // first (an existing reference keeps its entry); any later
@@ -449,9 +454,16 @@ pub async fn run(
                         Ok(None)
                     } else {
                         let index = edit.unwrap_or(config.accounts.len().saturating_sub(1));
-                        user_session::stage_pasted(session.as_ref(), &config, index, &sessions)
-                            .await
-                            .map(Some)
+                        // SES-02: only with the clearance of the test before save.
+                        user_session::stage_pasted(
+                            session.as_ref(),
+                            &config,
+                            index,
+                            &sessions,
+                            clearance.as_ref(),
+                        )
+                        .await
+                        .map(Some)
                     };
                     drop(sessions);
                     // FIX-06: a provider switch drops the account's session
@@ -566,7 +578,7 @@ pub async fn run(
                     // RF2.1: read-only, never stored or recorded.
                     let monitor = Arc::clone(&monitor);
                     session_test = Some(tokio::spawn(async move {
-                        monitor.test_session(&account, &sessions).await
+                        user_session::test_pasted(&monitor, &account, &sessions).await
                     }));
                 }
                 Action::ConflictReload => {
@@ -760,6 +772,29 @@ pub async fn run(
                         }
                         account_refresh.abort_all();
                         deletion = Some(DeletionState::Confirm { index });
+                    }
+                }
+                Command::PasteSession => {
+                    // SES-01: straight to the paste step of that account,
+                    // only when the core offers it for its current report.
+                    let reports = cycle_slot_reports(&refresh_cycle);
+                    let target = state
+                        .selection
+                        .selected()
+                        .and_then(|i| state.visible(&reports).get(i).copied())
+                        .filter(|&index| {
+                            reports
+                                .get(index)
+                                .and_then(Option::as_ref)
+                                .is_some_and(user_session::offers_new_paste)
+                        });
+                    if let Some(index) = target {
+                        if let Some((job, _token)) = refresh.0.take() {
+                            job.abort();
+                        }
+                        account_refresh.abort_all();
+                        wizard = Some(Wizard::paste_session(&file.config, index));
+                        authorized = None;
                     }
                 }
                 Command::Add | Command::Edit => {
@@ -1055,8 +1090,13 @@ pub async fn run(
         if session_test.as_ref().is_some_and(JoinHandle::is_finished) {
             if let Some(job) = session_test.take() {
                 dirty = true;
-                if let (Ok(report), Some(active)) = (job.await, &mut wizard) {
-                    active.session_tested(&report);
+                let then = match (job.await, &mut wizard) {
+                    (Ok(report), Some(active)) => active.session_tested(&report),
+                    _ => None,
+                };
+                // SES-02: a test started by the save saves once cleared.
+                if let Some(action) = then {
+                    dispatch_wizard_action!(action);
                 }
             }
         }
@@ -1476,6 +1516,7 @@ pub async fn run(
                                 FooterAction::CloseDetails => Command::CloseDetails,
                                 FooterAction::Add => Command::Add,
                                 FooterAction::Edit => Command::Edit,
+                                FooterAction::PasteSession => Command::PasteSession,
                                 FooterAction::MoveUp => Command::MoveUp,
                                 FooterAction::MoveDown => Command::MoveDown,
                                 FooterAction::Delete => Command::Delete,
