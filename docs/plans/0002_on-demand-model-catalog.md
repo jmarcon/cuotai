@@ -17,7 +17,7 @@ All RFs were implemented in the core, the TUI and the desktop app, one at a time
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | 0.8.0, 0.14.0 | A single resolution in the core (TUI: `--config` > `CUOTAI_CONFIG` > an existing `./cuotai.toml` > OS; desktop: `CUOTAI_CONFIG` > chosen file > OS), TOML choice in the desktop settings, normalized `ConfigIdentity` and a warning when the TUI and the desktop app use different files. |
+| RF1 | 0.8.0, 0.14.0, vNEXT | A single resolution in the core (TUI: `--config` > `CUOTAI_CONFIG` > an existing `./cuotai.toml` > OS; desktop: `CUOTAI_CONFIG` > chosen file > OS), TOML choice in the desktop settings, normalized `ConfigIdentity` and a warning when the TUI and the desktop app use different files. vNEXT: configs under the OS temp dir are not recorded and a recorded path that is temporary or gone is ignored; the main-window banner has a close button and shows each (TUI path, app path) pair in one session only (`scripts/test-other-config-ui.mjs`), while Settings › Advanced › Files keeps the hint. |
 | RF2 | 0.9.0 | `ModelInfo`/`ModelCatalog`/`ModelState` and `Monitor::{model_state, load_models, sync_models}` reusing the client, OAuth, timeout and semaphore. |
 | RF3 | 0.10.0 | `models.sqlite3` in the data directory (0700/0600, digests only), `fetching`/`ready`/`failed`/`interrupted` states, claiming across processes and `prune_models`. |
 | RF4 | 0.11.0 | Verified adapters (Groq, AWS Bedrock, Antigravity, Gemini AI Studio, Kimi, Poolside, Alibaba Model Studio intl), bounded pagination and the matrix of the 36 providers in `docs/providers.md`. |

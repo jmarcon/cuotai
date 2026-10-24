@@ -289,6 +289,9 @@ jobs:
       # PRD 0020 RF1/RF2: the Settings window's page registry, sidebar
       # navigation and the page of every control of the old dialog.
       - run: node scripts/test-settings-window-ui.mjs
+      # PRD 0002 RF1.2: the other-config banner is dismissable and shows
+      # each (TUI path, app path) pair in one session only.
+      - run: node scripts/test-other-config-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified

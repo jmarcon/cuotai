@@ -608,6 +608,26 @@
   width: 13px;
   height: 13px;
 }
+/* DS-CMP-MSG-2: icon + text + dismiss; the text wraps, the close button stays at the end. */
+.banner.dismissable {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.banner.dismissable > svg.i {
+  flex: none;
+  margin-top: 2px;
+}
+.banner.dismissable > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.banner.dismissable > .icon {
+  flex: none;
+  margin: -7px -10px -7px 0; /* 32 px target (DS-TOK-HIT-1) without growing the banner */
+  color: inherit;
+}
 .banner.ok {
   color: var(--good);
 }
