@@ -1,6 +1,6 @@
 // Settings › Data & privacy (PRD 0020 RF2.5): the measurement history and the provider status pages.
 import { t, te } from "../i18n.js";
-import { brand, esc, historyErase, historyExport, historySize, icon, pickExportFile, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
+import { STALE, brand, esc, historyErase, historyExport, historySize, icon, pickExportFile, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
 import { errorText, fmtBytes, group, l10nError } from "./common.js";
 
 /** Accounts of the loaded configuration that have a report, as `[index, label]` for the history scope. */
@@ -11,6 +11,10 @@ const PERIODS = [["1", "settings.history.period.day"], ["7", "settings.history.p
 export function html({ settings: s, view }) {
   return historyHtml(s, view()) + privacyHtml(s, view());
 }
+
+/** The account list is indexed by the configuration generation it was drawn from; when the accounts change
+ *  (moved, added or removed from another window while this one is open) the page is drawn again. */
+export const viewChanged = (next, prev) => (next?.generation ?? null) !== (prev?.generation ?? null);
 
 function historyHtml(s, view) {
   return group("history", te("settings.history.title"), `
@@ -71,6 +75,12 @@ function bindHistory(root, ctx) {
   const dataMsg = root.querySelector("#history-data-msg");
   const select = root.querySelector("#history-account");
   const account = () => (select.value === "" ? null : Number(select.value));
+  // The indices in the list belong to this generation; the shell refuses one of another (`stale`).
+  const generation = ctx.view()?.generation ?? null;
+  const failed = (e) => {
+    if (e === STALE) { ctx.rerender().then(() => document.querySelector("#history-data-msg")?.replaceChildren(t("settings.history.stale"))); return; }
+    report(l10nError(e), false);
+  };
   const period = () => { const v = root.querySelector("#history-period").value; return v === "" ? null : Number(v); };
   const confirm = root.querySelector("#history-confirm");
   const report = (text, ok) => { dataMsg.classList.toggle("ok", ok); dataMsg.textContent = text; };
@@ -97,8 +107,8 @@ function bindHistory(root, ctx) {
     const format = button.dataset.export;
     const path = await pickExportFile(format);
     if (typeof path !== "string" || !path) return; // cancelled
-    try { report(t("settings.history.exported", { count: await historyExport(account(), period(), format, path), path }), true); }
-    catch (e) { report(l10nError(e), false); }
+    try { report(t("settings.history.exported", { count: await historyExport(account(), period(), format, path, generation), path }), true); }
+    catch (e) { failed(e); }
   };
   // The scope is fixed when the confirmation opens, so changing the list afterwards cannot widen it.
   let scope = null;
@@ -113,8 +123,8 @@ function bindHistory(root, ctx) {
   confirm.querySelector("[data-erase-cancel]").onclick = () => { confirm.hidden = true; root.querySelector("[data-erase]").focus(); };
   confirm.querySelector("[data-erase-confirm]").onclick = async () => {
     confirm.hidden = true;
-    try { report(t("settings.history.erased", { count: await historyErase(scope) }), true); ctx.changed("history"); }
-    catch (e) { report(l10nError(e), false); }
+    try { report(t("settings.history.erased", { count: await historyErase(scope, generation) }), true); ctx.changed("history"); }
+    catch (e) { failed(e); }
     showSize();
   };
 }

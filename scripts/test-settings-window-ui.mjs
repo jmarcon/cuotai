@@ -109,6 +109,17 @@ assert.equal(registry.pageOfAnchor("cost").id, "cost");
 assert.equal(registry.pageOfAnchor("updates").id, "about");
 assert.equal(registry.pageOfAnchor("nope"), null);
 
+// Settings is not modal, so the accounts can change under the history's account list: the page is drawn again
+// on a new configuration generation, and one account's export or erasure carries the generation of its index.
+const data = modules.get("data");
+assert.equal(data.viewChanged({ generation: 2 }, { generation: 1 }), true);
+assert.equal(data.viewChanged({ generation: 2 }, { generation: 2 }), false);
+const live = (await lib.getView()).generation;
+await assert.rejects(lib.historyErase(0, live + 1), (e) => e === lib.STALE, "an erase of another generation must be refused");
+await assert.rejects(lib.historyExport(0, null, "csv", "/tmp/x.csv"), (e) => e === lib.STALE, "an export without its generation must be refused");
+assert.equal(await lib.historyExport(null, null, "csv", "/tmp/x.csv"), 42, "every account needs no generation");
+assert.equal(await lib.historyErase(0, live), 7);
+
 // RF1.5: the browser demo opens settings.html in one named window, with the page and anchor in the query.
 await lib.openSettingsWindow({ page: "cost", anchor: "cost" });
 await lib.openSettingsWindow();
