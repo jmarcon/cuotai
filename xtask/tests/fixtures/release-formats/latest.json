@@ -1,0 +1,51 @@
+{
+  "notes": "### Added\n\n- Format fixture.",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai.app.tar.gz"
+    },
+    "darwin-aarch64-app": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai.app.tar.gz"
+    },
+    "darwin-x86_64-app": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai.app.tar.gz"
+    },
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai_1.2.3_amd64.AppImage"
+    },
+    "linux-x86_64-appimage": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai_1.2.3_amd64.AppImage"
+    },
+    "linux-x86_64-deb": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai_1.2.3_amd64.deb"
+    },
+    "linux-x86_64-rpm": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai_1.2.3_amd64.rpm"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai_1.2.3_x64-setup.exe"
+    },
+    "windows-x86_64-msi": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai_1.2.3_x64_en-US.msi"
+    },
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGZvcm1hdCBmaXh0dXJlIG9ubHkK",
+      "url": "https://github.com/jmarcon/cuotai/releases/download/v1.2.3/Cuotai_1.2.3_x64-setup.exe"
+    }
+  },
+  "pub_date": "2026-10-24T12:00:00Z",
+  "version": "1.2.3"
+}

@@ -21,6 +21,10 @@ const RELEASE_JOBS: &[&str] = &[
     "cli",
     "sbom",
     "assemble",
+    "smoke-cli",
+    "smoke-desktop-macos",
+    "smoke-desktop-windows",
+    "smoke-desktop-linux",
     "publish",
     "verify-public",
     "package-manifests",
@@ -40,6 +44,26 @@ const RELEASE_HEAVY_JOBS: &[&str] = &[
     "cli",
     "sbom",
 ];
+
+/// PRD 0021 RF6: the produced-artifact smoke jobs, each with the script it
+/// must run. `publish` waits for all of them.
+const RELEASE_SMOKE_JOBS: &[(&str, &str)] = &[
+    ("smoke-cli", "scripts/release/smoke-cli.sh"),
+    (
+        "smoke-desktop-macos",
+        "scripts/release/smoke-desktop-macos.sh",
+    ),
+    (
+        "smoke-desktop-windows",
+        "scripts/release/smoke-desktop-windows.ps1",
+    ),
+    (
+        "smoke-desktop-linux",
+        "scripts/release/smoke-desktop-linux.sh",
+    ),
+];
+const PUBLISH_CONDITION: &str =
+    "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')";
 
 const HEAVY_JOB_CONDITION: &str = "(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)";
 const RELEASE_OR_REHEARSAL_ENVIRONMENT: &str =
@@ -318,6 +342,7 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
 
     if name == "release.yml" {
         check_release_policy(jobs)?;
+        check_smoke_policy(root, jobs)?;
     }
     if name == "ci.yml" {
         check_ci_result_policy(jobs)?;
@@ -675,6 +700,106 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
         }
     }
     Ok(())
+}
+
+/// PRD 0021 RF6: the smoke jobs test the assembled artifacts before anything
+/// is published, on every system, without secrets, and nothing can publish
+/// around them.
+fn check_smoke_policy(root: &Mapping, jobs: &Mapping) -> Res<()> {
+    for (job_name, script) in RELEASE_SMOKE_JOBS {
+        let job = mapping(
+            need(jobs, job_name, "release jobs")?,
+            &format!("job {job_name}"),
+        )?;
+        let needs: BTreeSet<&str> = scalar_sequence(job, "needs")?.into_iter().collect();
+        if needs != BTreeSet::from(["check", "assemble"]) {
+            return err(format!(
+                "smoke job {job_name} must wait for exactly check and assemble"
+            ));
+        }
+        // No condition and no tolerated failure: a smoke runs whenever the
+        // assembly succeeded and its failure is a failed run.
+        for forbidden in ["if", "continue-on-error", "environment"] {
+            if job.contains_key(Value::String(forbidden.into())) {
+                return err(format!(
+                    "smoke job {job_name} must not set {forbidden}: it gates publishing"
+                ));
+            }
+        }
+        let runs_script = steps(job)?.iter().any(|step| {
+            scalar(step, "run").is_some_and(|run| run.contains(script))
+                && !step.contains_key(Value::String("continue-on-error".into()))
+                && !step.contains_key(Value::String("if".into()))
+        });
+        if !runs_script {
+            return err(format!(
+                "smoke job {job_name} must run {script} unconditionally"
+            ));
+        }
+    }
+
+    let publish = mapping(need(jobs, "publish", "release jobs")?, "publish job")?;
+    let needs: BTreeSet<&str> = scalar_sequence(publish, "needs")?.into_iter().collect();
+    for (job_name, _) in RELEASE_SMOKE_JOBS {
+        if !needs.contains(job_name) {
+            return err(format!(
+                "publish must wait for smoke job {job_name} (PRD 0021 RF6)"
+            ));
+        }
+    }
+    // The implicit success() of this exact condition is what makes a failed
+    // or skipped smoke skip publishing; always()/failure() would bypass it.
+    if normalized_condition(publish) != PUBLISH_CONDITION {
+        return err(
+            "publish must run only on pushed tags and only after every needed job succeeded",
+        );
+    }
+
+    // Every CLI target the release builds is smoked on a runner of its own.
+    let cli_targets = matrix_targets(mapping(need(jobs, "cli", "release jobs")?, "cli job")?)?;
+    let smoke = mapping(need(jobs, "smoke-cli", "release jobs")?, "smoke-cli job")?;
+    if matrix_targets(smoke)? != cli_targets {
+        return err("smoke-cli must cover exactly the targets of the cli matrix");
+    }
+
+    // Smoke containers are pinned by digest, like the actions.
+    if let Some(env) = root.get(Value::String("env".into())) {
+        for (key, value) in mapping(env, "workflow env")? {
+            let key = string(key, "workflow env name")?;
+            if !(key.starts_with("SMOKE_") && key.ends_with("_IMAGE")) {
+                continue;
+            }
+            let image = value.as_str().unwrap_or_default();
+            let pinned = image.split_once("@sha256:").is_some_and(|(name, digest)| {
+                !name.is_empty()
+                    && digest.len() == 64
+                    && digest
+                        .bytes()
+                        .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+            });
+            if !pinned {
+                return err(format!(
+                    "{key} must pin its container image by sha256 digest"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn matrix_targets(job: &Mapping) -> Res<BTreeSet<String>> {
+    let strategy = mapping(need(job, "strategy", "job")?, "strategy")?;
+    let matrix = mapping(need(strategy, "matrix", "strategy")?, "matrix")?;
+    need(matrix, "include", "matrix")?
+        .as_sequence()
+        .ok_or_else(|| Error::Msg("matrix include must be a sequence".into()))?
+        .iter()
+        .map(|row| {
+            scalar(mapping(row, "matrix row")?, "target")
+                .map(str::to_string)
+                .ok_or_else(|| Error::Msg("matrix row has no target".into()))
+        })
+        .collect()
 }
 
 fn check_external_rules_policy(jobs: &Mapping, text: &str) -> Res<()> {
@@ -1148,6 +1273,84 @@ mod tests {
             1,
         );
         assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_publish_that_does_not_wait_for_every_smoke() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "    needs: [check, assemble, smoke-cli, smoke-desktop-macos, smoke-desktop-windows, smoke-desktop-linux]\n",
+            "    needs: [check, assemble, smoke-cli, smoke-desktop-macos, smoke-desktop-windows]\n",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow)
+            .unwrap_err()
+            .to_string()
+            .contains("smoke-desktop-linux"));
+    }
+
+    #[test]
+    fn rejects_publish_that_runs_after_a_failed_smoke() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    environment: release\n",
+            "    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    environment: release\n",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_a_tolerated_or_conditional_smoke() {
+        for (from, to) in [
+            (
+                "  smoke-desktop-macos:\n    name: smoke desktop (macOS)\n",
+                "  smoke-desktop-macos:\n    name: smoke desktop (macOS)\n    continue-on-error: true\n",
+            ),
+            (
+                "  smoke-desktop-linux:\n    name: smoke desktop (Linux x64)\n",
+                "  smoke-desktop-linux:\n    name: smoke desktop (Linux x64)\n    if: github.event_name == 'push'\n",
+            ),
+            (
+                "      - name: Smoke the installers (RF6.2)\n",
+                "      - name: Smoke the installers (RF6.2)\n        continue-on-error: true\n",
+            ),
+        ] {
+            let unsafe_workflow = RELEASE_WORKFLOW.replacen(from, to, 1);
+            assert_ne!(unsafe_workflow, RELEASE_WORKFLOW, "{from}");
+            assert!(
+                check_text(Path::new("release.yml"), &unsafe_workflow).is_err(),
+                "accepted {to}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_a_cli_target_without_smoke() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, archive: tar.gz, container: alpine }\n",
+            "",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow)
+            .unwrap_err()
+            .to_string()
+            .contains("smoke-cli"));
+    }
+
+    #[test]
+    fn rejects_a_smoke_image_without_digest() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "  SMOKE_ALPINE_IMAGE: \"alpine:3.23@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63\"\n",
+            "  SMOKE_ALPINE_IMAGE: \"alpine:3.23\"\n",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow)
+            .unwrap_err()
+            .to_string()
+            .contains("SMOKE_ALPINE_IMAGE"));
     }
 
     #[test]

@@ -1,0 +1,130 @@
+{
+  "schema": 2,
+  "version": "1.2.3",
+  "channel": "stable",
+  "artifacts": [
+    {
+      "name": "Cuotai.app.tar.gz",
+      "signed": true,
+      "method": "tauri-updater-key",
+      "status": "signed",
+      "updater_signature": "Cuotai.app.tar.gz.sig"
+    },
+    {
+      "name": "Cuotai_1.2.3_amd64.AppImage",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "updater_signature": "Cuotai_1.2.3_amd64.AppImage.sig",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "Cuotai_1.2.3_amd64.deb",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "updater_signature": "Cuotai_1.2.3_amd64.deb.sig",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "Cuotai_1.2.3_amd64.rpm",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "updater_signature": "Cuotai_1.2.3_amd64.rpm.sig",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "Cuotai_1.2.3_universal.dmg",
+      "signed": true,
+      "method": "developer-id",
+      "status": "signed+notarized",
+      "note": "Developer ID signatures; app payload and DMG notarized, stapled and Gatekeeper-validated"
+    },
+    {
+      "name": "Cuotai_1.2.3_x64-setup.exe",
+      "signed": true,
+      "method": "authenticode",
+      "status": "signed",
+      "updater_signature": "Cuotai_1.2.3_x64-setup.exe.sig"
+    },
+    {
+      "name": "Cuotai_1.2.3_x64_en-US.msi",
+      "signed": true,
+      "method": "authenticode",
+      "status": "signed",
+      "updater_signature": "Cuotai_1.2.3_x64_en-US.msi.sig"
+    },
+    {
+      "name": "cuotai-1.2.3-aarch64-apple-darwin.tar.gz",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-apple-darwin.tar.gz",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-pc-windows-msvc.zip",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-unknown-linux-gnu.tar.gz",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "cuotai-1.2.3-x86_64-unknown-linux-musl.tar.gz",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "latest.json",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    },
+    {
+      "name": "sbom.cdx.json",
+      "signed": true,
+      "method": "checksum-signature",
+      "status": "signed",
+      "note": "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
+    }
+  ],
+  "checksums": {
+    "signed": true,
+    "method": "sigstore-keyless",
+    "status": "signed by the GitHub Actions OIDC identity (Sigstore keyless)"
+  },
+  "updater": {
+    "available": true,
+    "artifacts": [
+      "Cuotai.app.tar.gz",
+      "Cuotai.app.tar.gz.sig",
+      "Cuotai_1.2.3_amd64.AppImage",
+      "Cuotai_1.2.3_amd64.AppImage.sig",
+      "Cuotai_1.2.3_amd64.deb",
+      "Cuotai_1.2.3_amd64.deb.sig",
+      "Cuotai_1.2.3_amd64.rpm",
+      "Cuotai_1.2.3_amd64.rpm.sig",
+      "Cuotai_1.2.3_x64-setup.exe",
+      "Cuotai_1.2.3_x64-setup.exe.sig",
+      "Cuotai_1.2.3_x64_en-US.msi",
+      "Cuotai_1.2.3_x64_en-US.msi.sig"
+    ]
+  }
+}

@@ -68,7 +68,8 @@ on demand by the owner (PRD 0039 D8):
    re-renders the **same** version's section as
    `chore(release): X.Y.Z (refresh)`, followed by `release tag --rc` (rc.2) or `release tag`.
 6. On that pushed tag, `.github/workflows/release.yml` runs: **check → builds
-   → assemble → publish → verify-public → package-manifests → channel jobs**.
+   → assemble → artifact smoke → publish → verify-public → package-manifests
+   → channel jobs**.
    Its `check` job also runs `release prepare --check` on the tagged commit.
 
 The first release after the cutover is a release candidate of the next
@@ -82,9 +83,12 @@ check ──┬─ desktop-macos ───┐
         ├─ desktop-linux ───┤
         ├─ desktop-linux-arm64 (optional) ───┤
         ├─ cli (7 legs, 2 optional) ─────────┤
-        └─ sbom ────────────┴─► assemble ─► publish ─► verify-public
-                                                       │
-                                                       └─► package-manifests
+        └─ sbom ────────────┴─► assemble ─┬─ smoke-cli (7 legs) ──────┐
+                                          ├─ smoke-desktop-macos ────┤
+                                          ├─ smoke-desktop-windows ──┤
+                                          └─ smoke-desktop-linux ────┴─► publish ─► verify-public
+                                                                                  │
+                                                                                  └─► package-manifests
                                                              ├─► channel-homebrew
                                                              ├─► channel-winget
                                                              ├─► channel-scoop
@@ -96,6 +100,71 @@ An interrupted or failing run leaves at most a **draft** release — never a
 public partial one. The channel jobs run last, are independent of each
 other, and nothing depends on them: a channel failure never affects the
 GitHub Release (RF5.7).
+
+## Artifact smoke tests (RF6)
+
+Between `assemble` and `publish`, four secret-free jobs test the artifacts
+users download, on a runner of each system. They have the read-only token,
+no environment, no condition and no tolerated failure, and `publish` needs
+all of them, so one failure means nothing is published (`workflow-check`
+rejects any change that weakens this). `assemble` uploads a small
+`release-checksums` artifact (`SHA256SUMS`, `manifest.json`,
+`signing-state.json`); every smoke first runs
+`scripts/release/smoke-checksum.sh`, which proves its input is the exact file
+`SHA256SUMS` lists, so a stray build output can never pass for a release
+asset.
+
+| Job | Runner | What must hold |
+|---|---|---|
+| `smoke-cli` (RF6.1) | the native runner of each of the seven CLI targets (`x86_64-apple-darwin` under Rosetta 2) | `scripts/release/smoke-cli.sh`: the archive holds exactly the binary and both licenses; `--version` reports the release version; `--list-providers` exits 0 and lists the sample's providers; `--once` and `--json` on `crates/cuotai-tui/tests/fixtures/smoke.toml` exit 2, and the JSON classifies every account as `needs_configuration`, which proves no provider was queried. |
+| `smoke-desktop-macos` (RF6.2) | `macos-latest` | `scripts/release/smoke-desktop-macos.sh`: `codesign --verify --strict` on the DMG and `--deep` on the app; the signature kind matches `signing-state.json` (Developer ID or ad-hoc, never more, never less); `lipo` shows `arm64` and `x86_64`; `CFBundleShortVersionString` is the release version; the app is still running 15 s after a start with a throw-away `HOME`. |
+| `smoke-desktop-windows` (RF6.2) | `windows-latest` | `scripts/release/smoke-desktop-windows.ps1`: the Authenticode status of both installers and of the installed `Cuotai.exe` matches `signing-state.json` (`Valid` for `authenticode`, `NotSigned` for `none`); the NSIS installer installs silently (`/S`) with the release version, the app is still running after 15 s, and the silent uninstaller removes it; the MSI installs and uninstalls with `msiexec /qn`. |
+| `smoke-desktop-linux` (RF6.2) | `ubuntu-latest` | `scripts/release/smoke-desktop-linux.sh`: in a clean Ubuntu 22.04 container (the oldest supported glibc) the `.deb` installs with apt, its `Version`/`Architecture` match, `ldd` resolves every library and the app keeps running under Xvfb; the extracted AppImage passes the same `ldd` and start checks on that base; in a Fedora container with `--network none` the rpm's name, version, architecture, payload digests and `/usr/bin` entry are checked. |
+
+**No network for the CLI.** On Linux the binary runs in a pinned minimal
+container with `--network none` (Ubuntu 22.04 for the glibc targets, Alpine
+for musl, which also proves the musl binary is static); on macOS it runs
+under `sandbox-exec` with every network operation denied. Windows has no
+unprivileged per-process block on the runner, so there, as everywhere, the
+proxy variables point at a closed local port and the `needs_configuration`
+classification is the proof.
+
+**Optional legs.** An optional CLI archive (ARM64) that was produced is
+published and therefore must pass its smoke; one that was not produced is not
+listed in `SHA256SUMS` and its row reports "not produced". The optional ARM64
+desktop packages are not smoke-tested and stay in the manual checklist.
+
+**Container images** are the `SMOKE_*_IMAGE` variables at the top of
+`release.yml`, pinned by multi-arch index digest; `workflow-check` rejects a
+tag-only image. To move one, resolve the new digest with
+`docker buildx imagetools inspect <image>:<tag>` and update the variable.
+
+**Rehearsal.** A `full_rehearsal` dispatch runs the same smoke jobs on the
+unsigned artifacts, so they are proven without a tag:
+`gh workflow run release.yml --ref <branch> -f full_rehearsal=true`.
+
+**Locally**, each script runs on its own system against a downloaded
+artifact (for example the `release-assembly` artifact of a rehearsal run):
+
+```sh
+scripts/release/smoke-checksum.sh dist/SHA256SUMS dist/cuotai-X.Y.Z-aarch64-apple-darwin.tar.gz
+scripts/release/smoke-cli.sh dist/cuotai-X.Y.Z-aarch64-apple-darwin.tar.gz X.Y.Z \
+  crates/cuotai-tui/tests/fixtures/smoke.toml
+SMOKE_IMAGE=ubuntu:22.04 scripts/release/smoke-cli.sh \
+  dist/cuotai-X.Y.Z-x86_64-unknown-linux-gnu.tar.gz X.Y.Z crates/cuotai-tui/tests/fixtures/smoke.toml
+```
+
+**Format contracts (RF6.3).** `xtask/tests/release_formats.rs` runs the
+assembly's own `xtask` subcommands on a deterministic artifact set and
+compares `SHA256SUMS`, `signing-state.json` (signed tag and rehearsal) and
+`latest.json` byte for byte with the golden copies in
+`xtask/tests/fixtures/release-formats/`, then checks each against an
+independent schema of what its consumers read (`shasum -c`, the smoke
+scripts, the release notes and package renderers, `tauri-plugin-updater`).
+A format change therefore fails `cargo test --workspace`. After an intended
+change, run
+`CUOTAI_REGENERATE_RELEASE_FORMATS=1 cargo test -p xtask --test release_formats`,
+review the diff and update every consumer in the same commit.
 
 ## Trigger rules (RF1)
 
@@ -165,6 +234,10 @@ free-tier budget.
   release build. Tests prove failures for broad permissions, missing timeouts,
   unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,
   a bypassable heavy-job condition and a missing prerequisite dependency.
+  For RF6 it also fails when `publish` does not wait for every smoke job or
+  could run after a failed one, when a smoke job or its script step is
+  conditional or tolerates failure, when `smoke-cli` does not cover exactly
+  the `cli` targets, and when a smoke container image is not pinned by digest.
 
 ## Monthly external-rule and action-pin review (RF9.3)
 
@@ -751,10 +824,16 @@ a release, a person completes every item:
 
 - [ ] Open the DMG/app on macOS and record the Gatekeeper verdict when it is
   notarized.
-- [ ] Run the NSIS installer and the MSI on Windows (including silent `/S` for
-  NSIS).
-- [ ] Install the `.deb` on the oldest supported Ubuntu, run the AppImage, and
-  run `cuotai --once` from every CLI archive.
+- [ ] Run the NSIS installer and the MSI interactively on Windows (the silent
+  install, start and uninstall are automated by `smoke-desktop-windows`).
+- [ ] Open the desktop window and the tray on a real Linux desktop: the
+  automated `smoke-desktop-linux` proves the `.deb`/AppImage install, link
+  and start headless, not the user interface. Install the `.rpm` on Fedora
+  (its metadata only is automated) and, when produced, the optional ARM64
+  installer and packages.
+- [ ] Confirm the `smoke-*` jobs of the tag run passed (they block `publish`;
+  every CLI archive's `--version`, `--list-providers` and `--once` is
+  automated there).
 - [ ] Re-check [`docs/platforms.md`](platforms.md) (PRD 0019 RF5.1): every cell
   still matches the code, and items verified only in CI remain marked that way.
 - [ ] Complete the [rollback drill](#rollback-drill) in a fork and test channel
