@@ -275,6 +275,31 @@ export async function pickTomlFile(defaultPath) {
 export const configLabel = (view) => view?.config_path ? `${view.config_path} · ${t(`settings.config.source.${view.config_source}`)}` : "";
 /** RF1.2: aviso quando a TUI usou outro arquivo por último; texto não escapado. */
 export const otherConfigNotice = (view) => view?.other_config ? t("config.other", { tui: view.other_config, app: view.config_path }) : "";
+/** RF1.2 banner of the main window (DS-CMP-MSG-2, dismissable): each (TUI path, app path) pair shows in one session
+ *  only. The first render while the window is visible records the pair in localStorage, so a later launch does not show
+ *  it again; within the session it stays until the close button hides it, also after switching files and back. A
+ *  different pair shows again. Settings › Advanced › Files keeps the hint (`otherConfigNotice`). */
+const OTHER_SEEN_KEY = "cuotai.otherConfigSeen";
+const OTHER_SEEN_MAX = 20;
+const otherShown = new Set();
+const otherDismissed = new Set();
+const otherPair = (view) => JSON.stringify([view.other_config, view.config_path]);
+export function otherConfigBanner(view) {
+  const text = otherConfigNotice(view);
+  if (!text) return "";
+  const pair = otherPair(view);
+  if (otherDismissed.has(pair)) return "";
+  if (otherShown.has(pair)) return text;
+  let seen = [];
+  try { const v = JSON.parse(localStorage.getItem(OTHER_SEEN_KEY) || "[]"); if (Array.isArray(v)) seen = v; } catch {}
+  if (seen.includes(pair)) return "";
+  // A hidden window renders too: nobody saw it yet, so it is not recorded (the next visible render does).
+  if (globalThis.document?.hidden) return text;
+  otherShown.add(pair);
+  try { localStorage.setItem(OTHER_SEEN_KEY, JSON.stringify([...seen.filter((x) => x !== pair), pair].slice(-OTHER_SEEN_MAX))); } catch {}
+  return text;
+}
+export function dismissOtherConfig(view) { if (view?.other_config) otherDismissed.add(otherPair(view)); }
 export const setTrayMenu = (payload) => isDesktop && T.core.invoke("set_tray_menu", { payload });
 export const openMainWindow = () => isDesktop && T.core.invoke("show_main_window");
 export const quitApp = () => isDesktop && T.core.invoke("quit_app");

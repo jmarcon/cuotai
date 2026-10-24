@@ -10,7 +10,7 @@ import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, u
 import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, returnText, splitRecharging,
+  currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks, costUsage,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
@@ -184,6 +184,11 @@ function setNotice(tone, text, retry = null) {
   noticeTimer = setTimeout(() => { notice = null; render(); }, 12000);
   render();
 }
+// PRD 0002 RF1.2: other config file, dismissable and shown once per pair (`otherConfigBanner`).
+function otherBannerHtml() {
+  const text = otherConfigBanner(store.view);
+  return text ? `<div class="banner dismissable" role="status" data-other-config>${icon("info")}<span>${esc(text)}</span><button class="icon" data-dismiss-other-config title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>` : "";
+}
 function onDeleted(result) {
   if (!result) return;
   const retry = result.recovery_handle ? { handle: result.recovery_handle } : null;
@@ -296,7 +301,7 @@ function render() {
       <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh")}</button>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
-    ${otherConfigNotice(view) ? `<div class="banner" role="status">${esc(otherConfigNotice(view))}</div>` : ""}
+    ${otherBannerHtml()}
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${updateBannerHtml()}
@@ -324,6 +329,7 @@ root.addEventListener("click", (e) => {
   }
   if (t.closest("[data-clear-filter]")) { filterText = ""; return render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
+  if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
   if (t.closest("[data-retry-delete]")) return retryDelete();
   const move = t.closest("[data-move-from]");
   if (move) return reorderAccounts(Number(move.dataset.moveFrom), Number(move.dataset.moveTo));
@@ -469,6 +475,8 @@ await promptForUpdateConsent();
 loadLocalCost();
 setInterval(loadLocalCost, 30_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLocalCost(); });
+// PRD 0002 RF1.2: a banner rendered while hidden is recorded as seen only once the window shows it.
+document.addEventListener("visibilitychange", () => { if (!document.hidden && otherConfigNotice(store.view)) render(); });
 
 // Reload when the user folder changes.
 if (window.__TAURI__) {
