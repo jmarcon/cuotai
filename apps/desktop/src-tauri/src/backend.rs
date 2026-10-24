@@ -335,9 +335,10 @@ pub struct MetricView {
     /// "available") plus `no_cap` or `ratio`/`uncapped`.
     #[serde(flatten)]
     state: MetricState,
-    /// PRD 0007 RF3.1: the core's pace (`pace::assess` with the backend's
-    /// clock and, PRD 0006, the metric's recorded points); `None` for
-    /// ineligible metrics and for the preserved reading.
+    /// PRD 0007 RF3.1: the core's pace (`pace::assess_reading` at the
+    /// reading's `checked_at` and, PRD 0006, the metric's recorded points);
+    /// `None` for ineligible metrics, for a reading that is not fresh (PRD
+    /// 0024 FIX-11) and for the preserved reading.
     pace: Option<PaceView>,
     /// PRD 0008 RF3.2/RF3.4: while usage alerts are on and the metric can
     /// alert, whether it is muted in the details and has an active alert.
@@ -617,6 +618,7 @@ fn report_view(
     let account = &config.accounts[index];
     let binding = binding(report);
     let refresh_seconds = account.effective_refresh_seconds(config.refresh_seconds);
+    let interval = Duration::from_secs(refresh_seconds);
     let now = chrono::Utc::now();
     let metrics: Vec<MetricView> = report
         .metrics
@@ -625,7 +627,9 @@ fn report_view(
         .map(|(i, metric)| {
             let points = recent.get(i).map(Vec::as_slice);
             MetricView {
-                pace: pace::assess(metric, now, points).map(pace_view),
+                // PRD 0024 FIX-11: at the reading's time, only while fresh.
+                pace: pace::assess_reading(metric, report.checked_at, interval, now, points)
+                    .map(pace_view),
                 ..metric_view(metric)
             }
         })
@@ -649,7 +653,7 @@ fn report_view(
         model_count,
         binding,
         binding_rank,
-        freshness: assess(report.checked_at, Duration::from_secs(refresh_seconds), now),
+        freshness: assess(report.checked_at, interval, now),
         clock_adjusted: clock_adjusted(report.checked_at, now),
         last_good: None,
         pending: false,
@@ -855,7 +859,10 @@ impl Inner {
                 let last_good = l.cycle.last_good_report(i);
                 let mut view = match (slot, last_good) {
                     (Some(report), _) => {
-                        let recent = l.monitor.recent_points(i, &report.metrics, clock);
+                        // PRD 0024 FIX-11: the lookback ends at the reading, like its pace.
+                        let recent = l
+                            .monitor
+                            .recent_points(i, &report.metrics, report.checked_at);
                         let mut view =
                             report_view(i, report, &l.file.config, next, models, ranks[i], &recent);
                         self.mark_usage_alerts(&mut view, report);
@@ -4426,6 +4433,47 @@ mod tests {
         // The binding is the 95% "credits"; the card's pace line uses the week.
         assert_eq!(view["binding"]["index"], 2);
         assert_eq!(view["pace_index"], 1);
+    }
+
+    /// PRD 0024 FIX-11: the pace is read at the reading's `checked_at` and
+    /// is absent once the reading is not fresh.
+    #[test]
+    fn view_reads_the_pace_at_the_reading_time_and_only_while_fresh() {
+        use cuotai_core::MetricWindow::Window5h;
+        let config = |refresh_seconds| Config {
+            accounts: vec![plain_account("a")],
+            refresh_seconds,
+            ..Config::default()
+        };
+        // 3 h of 5 h gone now, 50% used; the reading is 80 minutes old, when
+        // only 100 of 300 minutes had gone (about 17 points above the pace).
+        let report = Report {
+            checked_at: chrono::Utc::now() - chrono::Duration::minutes(80),
+            ..ready("a", vec![quota("5h", 50.0, Window5h, 2)])
+        };
+        let view = |refresh_seconds| {
+            serde_json::to_value(report_view(
+                0,
+                &report,
+                &config(refresh_seconds),
+                None,
+                None,
+                0,
+                &[],
+            ))
+            .unwrap()
+        };
+        // Fresh at a 1-hour interval: the stage at the reading's time
+        // ("ahead"), not at the wall clock ("reserve").
+        let fresh = view(3600);
+        assert_eq!(fresh["freshness"], "fresh");
+        assert_eq!(fresh["metrics"][0]["pace"]["stage"], "ahead");
+        assert_eq!(fresh["pace_index"], 0);
+        // Stale at a 5-minute interval: the age chip only, no pace.
+        let stale = view(300);
+        assert_eq!(stale["freshness"], "stale");
+        assert!(stale["metrics"][0]["pace"].is_null());
+        assert!(stale["pace_index"].is_null());
     }
 
     /// PRD 0005 RF4: each report carries its account's access descriptor,

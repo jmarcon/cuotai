@@ -6,10 +6,12 @@
 //! of the recent samples or the average since the start. It is an estimate,
 //! not a promise, and front ends present it as such.
 
+use crate::freshness::{self, Freshness};
 use crate::model::{Metric, MetricKind, MetricWindow};
 use crate::text::{params, Localized};
 use chrono::{DateTime, Months, TimeDelta, Utc};
 use serde::Serialize;
+use std::time::Duration;
 
 /// One measurement of a metric at `taken_at` (a PRD 0006 history sample).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -143,6 +145,34 @@ pub fn assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> 
         projected_exhaustion_at,
         lasts_until_reset: !exhausted && projected_exhaustion_at.is_none(),
     })
+}
+
+/// Pace of `metric` as measured by a reading taken at `checked_at`, for a
+/// surface that shows it at `now` (PRD 0024 FIX-11, RF6.4). The one rule
+/// every surface (dashboard, `--once`, `export::v1`, desktop) applies:
+///
+/// * the reading must be [`Freshness::Fresh`] against the account's
+///   effective refresh `interval` at `now` (PRD 0010); an `Aging` or `Stale`
+///   reading shows no pace, only its age;
+/// * the pace is evaluated at `checked_at`, never at `now`, so an old `used`
+///   is never paired with the current clock;
+/// * a window that reset after the reading (`resets_at <= now`) has no pace.
+///
+/// Otherwise the same as [`assess`] at `checked_at`.
+pub fn assess_reading(
+    metric: &Metric,
+    checked_at: DateTime<Utc>,
+    interval: Duration,
+    now: DateTime<Utc>,
+    recent: Option<&[Point]>,
+) -> Option<Pace> {
+    if freshness::assess(checked_at, interval, now) != Freshness::Fresh {
+        return None;
+    }
+    if metric.resets_at.is_some_and(|at| at <= now) {
+        return None;
+    }
+    assess(metric, checked_at, recent)
 }
 
 /// Start of the span whose samples [`assess`] reads as `recent` for `metric`
@@ -664,5 +694,78 @@ mod tests {
         for (case, metric, expected) in cases {
             assert_eq!(recent_since(&metric, now()), expected, "{case}");
         }
+    }
+
+    /// PRD 0024 FIX-11: a reading's pace is evaluated at its `checked_at`
+    /// and only while the reading is `Fresh` (PRD 0010 thresholds).
+    #[test]
+    fn reading_pace_is_evaluated_at_checked_at_and_only_when_fresh() {
+        let secs = |n: i64| TimeDelta::seconds(n);
+        // Half of the 5-hour window elapsed at `now()`, 50% used: on pace
+        // at `now()`, but above the pace for a reading taken earlier.
+        let metric = five_h(50.0);
+        // (case, refresh interval seconds, reading age seconds, expected)
+        let cases = [
+            ("just measured", 300, 0, Some(PaceStage::OnPace)),
+            ("fresh edge", 300, 450, Some(PaceStage::OnPace)),
+            ("aging", 300, 451, None),
+            ("aging edge", 300, 900, None),
+            ("stale", 300, 901, None),
+            // 90 minutes old with a 1-hour interval: still Fresh. At its
+            // `checked_at` only 20% of the window had elapsed, so 50% used
+            // is 30 points above the pace; the wall clock would say on pace.
+            ("fresh, long interval", 3600, 5400, Some(PaceStage::Ahead)),
+            ("stale, long interval", 3600, 10_801, None),
+        ];
+        for (case, interval, age, expected) in cases {
+            let checked_at = now() - secs(age);
+            let pace = assess_reading(
+                &metric,
+                checked_at,
+                Duration::from_secs(interval),
+                now(),
+                None,
+            );
+            assert_eq!(pace.as_ref().map(|p| p.stage), expected, "{case}");
+            if let Some(pace) = pace {
+                assert_eq!(Some(pace), assess(&metric, checked_at, None), "{case}");
+            }
+        }
+        let wall_clock = assess(&metric, now(), None).unwrap();
+        assert_eq!(wall_clock.stage, PaceStage::OnPace);
+    }
+
+    #[test]
+    fn reading_pace_ends_when_the_window_reset_after_the_reading() {
+        let metric = quota(MetricWindow::Window5h, 50.0, now() - mins(1));
+        let checked_at = now() - mins(2);
+        let interval = Duration::from_secs(300);
+        // The reading alone still has a pace; the window it measured is over.
+        assert!(assess(&metric, checked_at, None).is_some());
+        assert_eq!(
+            assess_reading(&metric, checked_at, interval, now(), None),
+            None
+        );
+    }
+
+    #[test]
+    fn reading_pace_uses_the_recent_samples_up_to_checked_at() {
+        let checked_at = now() - mins(5);
+        let metric = five_h(45.0);
+        let point = |minutes: i64, used: f64| Point {
+            taken_at: checked_at - mins(minutes),
+            used,
+        };
+        let recent = [point(40, 15.0), point(20, 30.0), point(0, 45.0)];
+        let pace = assess_reading(
+            &metric,
+            checked_at,
+            Duration::from_secs(300),
+            now(),
+            Some(&recent),
+        )
+        .unwrap();
+        assert_eq!(pace.source, PaceSource::Recent);
+        assert_eq!(Some(pace), assess(&metric, checked_at, Some(&recent)));
     }
 }

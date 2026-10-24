@@ -69,10 +69,10 @@
       },
       "pace": [
         {
-          "elapsed_fraction": 0.6,
-          "expected_used_fraction": 0.6,
+          "elapsed_fraction": 0.5933333333333334,
+          "expected_used_fraction": 0.5933333333333334,
           "used_fraction": 0.3,
-          "delta_points": -30.0,
+          "delta_points": -29.333333333333336,
           "stage": "reserve",
           "tone": "good",
           "source": "average",
@@ -81,15 +81,15 @@
           "lasts_until_reset": true
         },
         {
-          "elapsed_fraction": 0.7142857142857143,
-          "expected_used_fraction": 0.7142857142857143,
+          "elapsed_fraction": 0.7140873015873016,
+          "expected_used_fraction": 0.7140873015873016,
           "used_fraction": 0.8,
-          "delta_points": 8.57142857142857,
+          "delta_points": 8.591269841269835,
           "stage": "ahead",
           "tone": "warn",
           "source": "average",
           "resets_at": "2026-10-22T12:00:00Z",
-          "projected_exhaustion_at": "2026-10-21T18:00:00Z",
+          "projected_exhaustion_at": "2026-10-21T17:57:30Z",
           "lasts_until_reset": false
         },
         null

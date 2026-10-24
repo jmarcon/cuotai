@@ -259,6 +259,7 @@ pub async fn run(
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let mut state = State {
         accounts: file.config.accounts.clone(),
+        refresh_seconds: file.config.refresh_seconds,
         selection: TableState::default(),
         filter: String::new(),
         filtering: false,
@@ -2522,6 +2523,10 @@ fn start_refresh(monitor: &Arc<Monitor>) -> JoinHandle<Snapshot> {
 
 struct State {
     accounts: Vec<Account>,
+    /// The configuration's global `refresh_seconds`: with each account's
+    /// own it decides whether a reading is fresh enough for a pace (PRD
+    /// 0024 FIX-11).
+    refresh_seconds: u64,
     selection: TableState,
     filter: String,
     filtering: bool,
@@ -2623,7 +2628,7 @@ impl HistoryView {
             let stamp = report.map(|report| report.checked_at);
             if stamp != self.read_for[index] {
                 self.recent[index] = report
-                    .map(|report| monitor.recent_points(index, &report.metrics, now))
+                    .map(|report| monitor.recent_points(index, &report.metrics, report.checked_at))
                     .unwrap_or_default();
                 self.read_for[index] = stamp;
             }
@@ -2668,6 +2673,7 @@ impl State {
     /// the accounts no longer there are forgotten.
     fn set_accounts(&mut self, config: &Config) {
         self.accounts = config.accounts.clone();
+        self.refresh_seconds = config.refresh_seconds;
         if let Some(notices) = &mut self.notices {
             notices.keep_accounts(config);
         }
@@ -2767,6 +2773,7 @@ impl State {
                     anim: self.anim.as_ref(),
                     last_good: &last_good,
                     recent: &self.history.recent,
+                    refresh_seconds: self.refresh_seconds,
                     history: self.history.detail.as_ref(),
                     banner: self
                         .notices
@@ -3027,6 +3034,7 @@ mod tests {
     fn state_with(accounts: Vec<Account>) -> State {
         State {
             accounts,
+            refresh_seconds: Config::default().refresh_seconds,
             selection: TableState::default(),
             filter: String::new(),
             filtering: false,
