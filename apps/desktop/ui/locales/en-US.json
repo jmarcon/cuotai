@@ -599,7 +599,7 @@
   "update.title": "Updates",
   "update.privacy": "When checking, the app reads only the current version, the operating system and this computer's architecture, and compares them with a public list of releases. No account, usage, name or identifier is sent. You can turn the checks off below.",
   "update.consent.title": "Check for updates automatically?",
-  "update.consent.body": "A check sends only the current version, the operating system and this computer's architecture to GitHub's public release service. It sends no account, usage, name or machine identifier. Nothing downloads or installs without a click.",
+  "update.consent.body": "A check fetches GitHub's public release manifest. Your current version, operating system and computer architecture are compared with it locally and are not sent. No account, usage data, name or machine identifier is sent. Nothing downloads or installs without a click.",
   "update.consent.yes": "Yes",
   "update.consent.no": "No",
   "update.consent.pending": "Answer the update question before checking.",

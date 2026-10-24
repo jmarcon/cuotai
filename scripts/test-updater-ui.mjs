@@ -38,7 +38,7 @@ Object.defineProperty(globalThis, "navigator", {
   value: { languages: ["en-US"], language: "en-US" },
   configurable: true,
 });
-globalThis.location = { search: consentMode === "managed" ? "?update=managed" : consentMode ? "?update=consent" : "" };
+globalThis.location = { search: consentMode === "managed" ? "?update=managed" : consentMode === "yes" ? "?update=consent&update-consent-race" : consentMode ? "?update=consent" : "" };
 globalThis.localStorage = {
   getItem: (key) => storage.get(key) ?? null,
   setItem: (key, value) => storage.set(key, value),
@@ -131,6 +131,10 @@ if (consentMode) {
     assert.equal(state.consent_pending, false, `${consentMode}: answer was not recorded`);
     assert.equal(state.automatic, consentMode === "yes", `${consentMode}: automatic choice differs`);
     assert.equal(state.enabled, consentMode === "yes", `${consentMode}: request gate differs`);
+    if (consentMode === "yes") {
+      assert.equal(state.phase, "available", "newer updater event was overwritten by consent response");
+      assert.match(updater.updateBannerHtml(), /data-update="available"/, "available update disappeared after consent");
+    }
     if (consentMode === "no") {
       await assert.rejects(lib.updaterCheckNow(), (error) => error === "updater_off");
     }

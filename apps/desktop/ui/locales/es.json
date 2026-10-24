@@ -599,7 +599,7 @@
   "update.title": "Actualizaciones",
   "update.privacy": "Al comprobar, la aplicación solo lee la versión actual, el sistema operativo y la arquitectura de este ordenador, y las compara con una lista pública de versiones. No se envía ninguna cuenta, uso, nombre ni identificador. Puedes desactivar las comprobaciones abajo.",
   "update.consent.title": "¿Comprobar actualizaciones automáticamente?",
-  "update.consent.body": "Una comprobación envía solo la versión actual, el sistema operativo y la arquitectura de este ordenador al servicio público de versiones de GitHub. No envía ninguna cuenta, uso, nombre ni identificador del equipo. Nada se descarga ni se instala sin un clic.",
+  "update.consent.body": "Una comprobación obtiene el manifiesto público de versiones de GitHub. Tu versión actual, sistema operativo y arquitectura se comparan con él localmente y no se envían. No se envía ninguna cuenta, dato de uso, nombre ni identificador del equipo. Nada se descarga ni se instala sin un clic.",
   "update.consent.yes": "Sí",
   "update.consent.no": "No",
   "update.consent.pending": "Responde a la pregunta sobre actualizaciones antes de comprobar.",

@@ -1345,8 +1345,14 @@ const demo = {
     demoUpdate.consentAnswered = true;
     demoUpdate.automatic = on;
     demoUpdate.disabledReason = on ? null : "preference";
-    demoUpdateEmit(demoUpdateView());
-    return demoUpdateView();
+    const reply = demoUpdateView();
+    if (on && new URLSearchParams(location.search).has("update-consent-race")) {
+      demoUpdate.phase = "available";
+      demoUpdateEmit(demoUpdateView());
+    } else {
+      demoUpdateEmit(reply);
+    }
+    return reply;
   },
   updater_check_now: async () => {
     if (!demoUpdateView().enabled) throw demoUpdate.consentAnswered ? "updater_off" : "updater_consent_required";

@@ -8,9 +8,9 @@
 //! Privacy (RF2.6): no automatic or manual check can happen before the one-time
 //! answer. After "Yes", the `desktop.json` preference must still be on, no
 //! environment or build key may disable it, and a package manager must not own
-//! the installation (RF3.2/RF2.5). The disclosed check context is limited to the
-//! current app version, operating system and architecture; no account, usage,
-//! name or machine identifier is included.
+//! the installation (RF3.2/RF2.5). The check fetches the same public release
+//! manifest for every user; the app version, operating system and architecture
+//! are compared locally and are not sent with account, usage or identity data.
 //!
 //! A assinatura (RF4.1) é conferida pelo plugin contra a chave pública de
 //! `tauri.conf.json` (`plugins.updater.pubkey`, gerada por `cargo tauri signer generate`);
