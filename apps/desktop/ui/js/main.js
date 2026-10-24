@@ -132,13 +132,17 @@ function card(r, position, ordered, recharging = false) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${paceLine(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${paceLine(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
     <div class="card-foot">
       ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
     </div>
   </section>`;
 }
+
+/** SES-01: the core says the account's vault session was rejected: the cause line gets its one recovery action. */
+const pasteSessionHtml = (r) => r.paste_session
+  ? `<button type="button" class="btn" data-paste-session="${r.index}">${icon("edit")}<span>${te("card.pasteSession")}</span></button>` : "";
 
 /** PRD 0007 RF3.2: one short pace line for the core's most restrictive metric that has one ("Week: 8 points…"). */
 function paceLine(r) {
@@ -233,12 +237,15 @@ const isExtensionAccount = (index) =>
 
 const editAccount = (index) =>
   isExtensionAccount(index) ? openExtensionManager() : openAccountDialog(index, { onSaved });
+/** SES-01: "Paste a new session" opens the account's editor on its paste box. */
+const pasteSession = (index) => openAccountDialog(index, { onSaved, pasteSession: true });
 
 const detailsContext = {
   reports: () => store.view?.reports ?? [],
   generation: () => store.view?.generation ?? 0,
   historyEpoch: () => store.view?.history_epoch ?? 0,
   onEdit: editAccount,
+  onPasteSession: pasteSession,
   onRemove: (index, label) =>
     confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),
   onChange: () => render(),
@@ -324,6 +331,8 @@ root.addEventListener("click", (e) => {
   const all = t.closest("[data-refresh-all]");
   if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
+  const paste = t.closest("[data-paste-session]");
+  if (paste) return pasteSession(Number(paste.dataset.pasteSession));
   if (t.closest("[data-settings]")) return openSettingsDialog();
   if (t.closest("[data-extensions]")) return openExtensionManager();
   const costDetails = t.closest("[data-cost-details]");

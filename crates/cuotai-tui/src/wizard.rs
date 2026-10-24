@@ -52,6 +52,9 @@ pub(crate) enum Action {
         /// PRD 0016 RF2: pasted sessions, already reduced by the core, to
         /// store in the vault with this save.
         sessions: Vec<ReducedSession>,
+        /// SES-02: the core's clearance of the test before save; `Some`
+        /// whenever `sessions` is not empty.
+        clearance: Option<user_session::SaveClearance>,
     },
     /// Start any core-described flow through the same request/interface.
     Login {
@@ -319,6 +322,12 @@ pub(crate) struct Wizard {
     sessions: Vec<SessionPaste>,
     session_idx: usize,
     session_test: Option<(bool, String)>,
+    /// SES-02: the running test was started by Enter on the summary, so a
+    /// cleared result saves. Any key withdraws it.
+    test_then_save: bool,
+    /// SES-02: the test before save could not reach the provider; the next
+    /// Enter saves anyway with this report, any other key withdraws it.
+    confirm_untested: Option<Box<Report>>,
 }
 
 impl Wizard {
@@ -387,7 +396,20 @@ impl Wizard {
             sessions: session_pastes(provider),
             session_idx: 0,
             session_test: None,
+            test_then_save: false,
+            confirm_untested: None,
         }
+    }
+
+    /// SES-01: the editor of the account at `index` opened straight on its
+    /// paste step ("Paste a new session" on the card or the details). Other
+    /// providers open on the first step, as the editor does.
+    pub(crate) fn paste_session(config: &Config, index: usize) -> Self {
+        let mut wizard = Self::new(config, Some(index));
+        if !wizard.sessions.is_empty() {
+            wizard.step = Step::Session;
+        }
+        wizard
     }
 
     pub(crate) fn base_account(&self, index: usize) -> Option<&Account> {
@@ -1098,6 +1120,10 @@ impl Wizard {
         // does; only a second F3 moves the session. Any other key cancels.
         let migrate_confirmed = std::mem::take(&mut self.confirm_migrate);
         let forget_confirmed = std::mem::take(&mut self.confirm_forget);
+        // SES-02: any key withdraws a pending save after the test, and only
+        // the next Enter confirms "Save anyway".
+        self.test_then_save = false;
+        let untested_confirmed = self.confirm_untested.take();
         if self.step == Step::Summary && key.code == KeyCode::F(3) {
             let Some(index) = self
                 .editing
@@ -1200,11 +1226,7 @@ impl Wizard {
                             self.confirm_save = true;
                             Action::Continue
                         }
-                        Ok(config) => Action::Save {
-                            config,
-                            edit: self.editing,
-                            sessions: self.reduced_sessions(),
-                        },
+                        Ok(config) => self.save(config, untested_confirmed),
                         Err(message) => {
                             self.error = Some(message);
                             Action::Continue
@@ -1635,6 +1657,44 @@ impl Wizard {
             .collect()
     }
 
+    /// The save of `config`. SES-02: pasted sessions go through the core's
+    /// test before save first; `untested` is the unreachable test the user
+    /// now confirmed to save anyway.
+    fn save(&mut self, config: Config, untested: Option<Box<Report>>) -> Action {
+        let sessions = self.reduced_sessions();
+        if sessions.is_empty() {
+            return Action::Save {
+                config,
+                edit: self.editing,
+                sessions,
+                clearance: None,
+            };
+        }
+        if let Some(report) = untested {
+            return match user_session::clear_for_save(&report, true) {
+                Ok(clearance) => Action::Save {
+                    config,
+                    edit: self.editing,
+                    sessions,
+                    clearance: Some(clearance),
+                },
+                Err(refused) => {
+                    self.error = Some(crate::ui::resolve_l10n(&refused.note));
+                    Action::Continue
+                }
+            };
+        }
+        let index = self.editing.unwrap_or(config.accounts.len() - 1);
+        self.error = None;
+        self.test_then_save = true;
+        self.session_test = None;
+        self.notice = Some("Testando a sessão antes de salvar…".into());
+        Action::TestSession {
+            account: Box::new(config.accounts[index].clone()),
+            sessions,
+        }
+    }
+
     /// PRD 0016 RF2.1: F4 on the paste step. The draft must be complete and
     /// at least one paste reducible; the query itself runs in `ui.rs`.
     fn test_session(&mut self) -> Action {
@@ -1666,8 +1726,11 @@ impl Wizard {
     }
 
     /// The outcome of [`Action::TestSession`]: whether the read-only query
-    /// answered, with the core's note or the session's expiry.
-    pub(crate) fn session_tested(&mut self, report: &Report) {
+    /// answered, with the core's note or the session's expiry. SES-02: after
+    /// a test started by the save, the core's clearance saves (returned
+    /// action); a transport failure offers "Save anyway" on the next Enter
+    /// and any other failure blocks the save.
+    pub(crate) fn session_tested(&mut self, report: &Report) -> Option<Action> {
         let resolve = crate::ui::resolve_l10n;
         let text = if report.status == Status::Ready {
             let mut text = format!(
@@ -1686,6 +1749,33 @@ impl Wizard {
             }
         };
         self.session_test = Some((report.status == Status::Ready, text));
+        if !std::mem::take(&mut self.test_then_save) {
+            return None;
+        }
+        self.notice = None;
+        match user_session::clear_for_save(report, false) {
+            Ok(clearance) => match self.build_config() {
+                Ok(config) => Some(Action::Save {
+                    config,
+                    edit: self.editing,
+                    sessions: self.reduced_sessions(),
+                    clearance: Some(clearance),
+                }),
+                Err(message) => {
+                    self.error = Some(message);
+                    None
+                }
+            },
+            Err(refused) => {
+                let mut message = resolve(&refused.note);
+                if refused.save_anyway {
+                    message.push_str(" Enter: salvar mesmo assim.");
+                    self.confirm_untested = Some(Box::new(report.clone()));
+                }
+                self.error = Some(message);
+                None
+            }
+        }
     }
 
     /// PRD 0016 RF2.1: bracketed paste is on only while this step shows,
@@ -2773,13 +2863,132 @@ mod tests {
             !summary.contains("SECRET") && !summary.contains("TRACKER"),
             "{summary}"
         );
-        match press(&mut wiz, KeyCode::Enter) {
-            Action::Save { sessions, .. } => {
+        // SES-02: Enter tests the paste first; the core's clearance saves.
+        let tested = match press(&mut wiz, KeyCode::Enter) {
+            Action::TestSession { account, sessions } => {
+                assert_eq!(sessions[0].kept(), ["api-platform_serviceToken", "userId"]);
+                account
+            }
+            _ => panic!("Enter tests the paste before saving"),
+        };
+        match wiz.session_tested(&test_report(&tested, Status::Ready, "")) {
+            Some(Action::Save {
+                sessions,
+                clearance,
+                ..
+            }) => {
                 assert_eq!(sessions.len(), 1);
                 assert_eq!(sessions[0].kept(), ["api-platform_serviceToken", "userId"]);
+                assert!(clearance.is_some());
             }
-            _ => panic!("Enter saves with the paste"),
+            _ => panic!("a passed test saves with the paste"),
         }
+    }
+
+    /// The report of a test query of `account`: `status` with `note` first.
+    fn test_report(account: &Account, status: Status, note: &'static str) -> Report {
+        let notes_l10n = if note.is_empty() {
+            Vec::new()
+        } else {
+            vec![cuotai_core::text::Localized::fixed(note, "x")]
+        };
+        Report {
+            account: account.name.clone(),
+            provider: account.provider,
+            checked_at: chrono::Utc::now(),
+            status,
+            metrics: Vec::new(),
+            notes: notes_l10n.iter().map(|n| n.fallback.to_string()).collect(),
+            notes_l10n,
+            source: String::new(),
+            session_expires_at: None,
+        }
+    }
+
+    /// A MiMo account at 0 on the summary with a reducible platform paste.
+    fn mimo_with_paste() -> Wizard {
+        let mut mimo = account("MiMo", "XIAOMI_MIMO_API_KEY");
+        mimo.provider = Provider::XiaomiMimo;
+        let config = Config {
+            accounts: vec![mimo],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::paste_session(&config, 0);
+        assert_eq!(wiz.step, Step::Session, "SES-01 opens on the paste step");
+        wiz.session_idx = 1;
+        wiz.paste("api-platform_serviceToken=SECRET-TOKEN; userId=7");
+        wiz.step = Step::Summary;
+        wiz
+    }
+
+    // SES-02: a rejected or incompatible test blocks the save; a transport
+    // failure offers "Save anyway" on the next Enter only.
+    #[test]
+    fn the_save_waits_for_the_core_test_and_only_a_transport_failure_offers_save_anyway() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let test = |w: &mut Wizard| match press(w, KeyCode::Enter) {
+            Action::TestSession { account, .. } => account,
+            _ => panic!("the save starts the test"),
+        };
+        for (status, note) in [
+            (Status::AuthenticationError, "user_session.rejected"),
+            (Status::Error, "query.schema"),
+            (Status::NeedsConfiguration, "query.missing_param"),
+        ] {
+            let mut wiz = mimo_with_paste();
+            let account = test(&mut wiz);
+            assert!(wiz
+                .session_tested(&test_report(&account, status, note))
+                .is_none());
+            let error = wiz.error.clone().expect("the refusal is shown");
+            assert!(!error.contains("SECRET"), "{error}");
+            // No "Save anyway": the next Enter tests again.
+            test(&mut wiz);
+        }
+
+        let mut wiz = mimo_with_paste();
+        let account = test(&mut wiz);
+        let unreachable = test_report(&account, Status::Error, "query.transport");
+        assert!(wiz.session_tested(&unreachable).is_none());
+        assert!(wiz.error.as_deref().unwrap().contains("Enter"));
+        // Any other key withdraws "Save anyway".
+        press(&mut wiz, KeyCode::Down);
+        let account = test(&mut wiz);
+        assert!(wiz.session_tested(&unreachable).is_none());
+        match press(&mut wiz, KeyCode::Enter) {
+            Action::Save {
+                sessions,
+                clearance,
+                edit: Some(0),
+                ..
+            } => {
+                assert_eq!(sessions.len(), 1);
+                assert!(clearance.is_some());
+            }
+            _ => panic!("Enter saves anyway after a transport failure"),
+        }
+
+        // A key pressed while the test runs cancels the save it started.
+        let mut wiz = mimo_with_paste();
+        test(&mut wiz);
+        press(&mut wiz, KeyCode::Down);
+        assert!(wiz
+            .session_tested(&test_report(&account, Status::Ready, ""))
+            .is_none());
+    }
+
+    // SES-01: only providers with a session open on the paste step.
+    #[test]
+    fn paste_a_new_session_opens_the_paste_step_of_that_account() {
+        let config = Config {
+            accounts: vec![account("OpenAI", "OPENAI_ADMIN_KEY")],
+            ..Config::default()
+        };
+        let wiz = Wizard::paste_session(&config, 0);
+        assert_eq!(wiz.step, Step::Provider);
+        let wiz = mimo_with_paste();
+        assert_eq!(wiz.editing, Some(0));
+        assert!(!wiz.reduced_sessions().is_empty());
     }
 
     #[test]

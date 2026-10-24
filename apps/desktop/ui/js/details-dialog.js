@@ -8,7 +8,7 @@ import { showDialog } from "./motion.js";
 
 let dlg = null;
 let currentKey = null;
-let ctx = null; // { reports(), generation(), historyEpoch(), view(), localCost(), onEdit(index), onRemove(index, label), onChange(), onBell(key, on), onMetricAlert(key, label, on), onSettings() }
+let ctx = null; // { reports(), generation(), historyEpoch(), view(), localCost(), onEdit(index), onPasteSession(index), onRemove(index, label), onChange(), onBell(key, on), onMetricAlert(key, label, on), onSettings() }
 let models = null; // seção de modelos montada uma vez por diálogo; sobrevive aos redesenhos
 let history = null; // PRD 0006 RF5.2: idem, para o histórico
 
@@ -45,6 +45,7 @@ function render() {
       </div>
     </div>
     ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
+    ${r.paste_session ? `<div class="dlg-actions"><button type="button" class="btn" data-paste-session>${icon("edit")}<span>${te("card.pasteSession")}</span></button></div>` : ""}
     <div class="det-body">${detailHtml(r, { eye: true })}${localCostHtml(r)}<div data-history-slot></div><div data-models-slot></div></div>
     <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;
@@ -86,6 +87,8 @@ export function openDetails(key, context, from = null) {
         return;
       }
       if (t.closest("[data-edit]")) { const rep = r(); dlg.close(); if (rep) ctx.onEdit(rep.index); }
+      // SES-01: straight to the account's paste box.
+      else if (t.closest("[data-paste-session]")) { const rep = r(); dlg.close(); if (rep) ctx.onPasteSession(rep.index); }
       else if (t.closest("[data-remove]")) {
         const rep = r(); dlg.close();
         if (rep) ctx.onRemove(rep.index, `${brand(rep.provider).label} — ${rep.account}`);

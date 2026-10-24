@@ -453,6 +453,9 @@ pub struct ReportView {
     /// PRD 0016 RF3.2: the known expiry of the web session the query used
     /// ("expires in N days" on the card), never its value.
     session_expiry: Option<user_session::SessionExpiry>,
+    /// SES-01: the core offers "Paste a new session" (the vault session
+    /// was rejected or is gone) on the card and in the details.
+    paste_session: bool,
 }
 
 /// The core's provider status plus its state's text.
@@ -664,6 +667,7 @@ fn report_view(
         usage_alerts: Vec::new(),
         incident: None,
         session_expiry: user_session::report_expiry(report, now),
+        paste_session: user_session::offers_new_paste(report),
     }
 }
 
@@ -2131,7 +2135,8 @@ impl Backend {
         input: AccountInput,
     ) -> Result<SaveAccountResult, String> {
         self.ensure_loaded().await;
-        let (refresh_target, cleanup_warning) = self.drive_save_account(input).await?;
+        let clearance = self.test_before_save(&input).await?;
+        let (refresh_target, cleanup_warning) = self.drive_save_account(input, clearance).await?;
         self.emit(app).await;
         if let Some(index) = refresh_target {
             self.refresh_account(app, index).await?;
@@ -2139,12 +2144,54 @@ impl Backend {
         Ok(SaveAccountResult { cleanup_warning })
     }
 
+    /// SES-02: the core's test before save of the dialog's pasted sessions
+    /// (one read-only query, outside the lock), `None` without a paste. A
+    /// refusal is the core's note: `user_session.save.unreachable` lets the
+    /// dialog offer "Save anyway" (`saveAnyway`), any other one blocks.
+    pub(crate) async fn test_before_save(
+        &self,
+        input: &AccountInput,
+    ) -> Result<Option<user_session::SaveClearance>, String> {
+        let Some((account, monitor, pasted)) = self.session_probe(input).await? else {
+            return Ok(None);
+        };
+        user_session::test_before_save(&monitor, &account, &pasted, input.save_anyway)
+            .await
+            .map_err(|refused| l10n_to_json(&refused.note))
+    }
+
+    /// The dialog's draft account, the monitor to query it and its reduced
+    /// pasted sessions; `None` without a paste.
+    async fn session_probe(&self, input: &AccountInput) -> Result<Option<SessionProbe>, String> {
+        let pasted = reduce_pastes(input.provider, &input.sessions)?;
+        if pasted.is_empty() {
+            return Ok(None);
+        }
+        let g = self.inner.lock().await;
+        let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        let completed = g
+            .login
+            .as_ref()
+            .filter(|p| {
+                input.commit_login
+                    && p.provider == input.provider
+                    && p.index == input.index
+                    && p.attempt == input.login_attempt
+            })
+            .and_then(|p| p.completed.as_ref());
+        let account = input_account(&l.file.config, input, completed)?;
+        Ok(Some((account, Arc::clone(&l.monitor), pasted)))
+    }
+
     /// Testable half of [`Backend::save_account`]: the vault (a committed
     /// login, PRD 0016 pasted sessions), the TOML and the staged runtime;
-    /// returns the account to refresh and a cleanup warning.
+    /// returns the account to refresh and a cleanup warning. SES-02: pasted
+    /// sessions are written only with the `clearance` of
+    /// [`Backend::test_before_save`].
     pub(crate) async fn drive_save_account(
         &self,
         input: AccountInput,
+        clearance: Option<user_session::SaveClearance>,
     ) -> Result<(Option<usize>, Option<cuotai_core::text::Localized>), String> {
         // Everything below runs under ONE inner.lock so a concurrent
         // refresh / scheduler tick cannot observe a half-applied edit.
@@ -2209,9 +2256,15 @@ impl Backend {
             } else {
                 let vault = vault.as_deref().ok_or("Sessão OAuth não inicializada.")?;
                 Some(
-                    user_session::stage_pasted(vault, &updated, edit_index, &pasted)
-                        .await
-                        .map_err(|note| l10n_to_json(&note))?,
+                    user_session::stage_pasted(
+                        vault,
+                        &updated,
+                        edit_index,
+                        &pasted,
+                        clearance.as_ref(),
+                    )
+                    .await
+                    .map_err(|note| l10n_to_json(&note))?,
                 )
             };
             drop(pasted);
@@ -2896,27 +2949,10 @@ impl Backend {
     /// the TOML or the history.
     pub async fn test_session(&self, input: AccountInput) -> Result<SessionTestView, String> {
         self.ensure_loaded().await;
-        let pasted = reduce_pastes(input.provider, &input.sessions)?;
-        if pasted.is_empty() {
+        let Some((account, monitor, pasted)) = self.session_probe(&input).await? else {
             return Err("Cole uma sessão antes de testar.".into());
-        }
-        let (account, monitor) = {
-            let g = self.inner.lock().await;
-            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
-            let completed = g
-                .login
-                .as_ref()
-                .filter(|p| {
-                    input.commit_login
-                        && p.provider == input.provider
-                        && p.index == input.index
-                        && p.attempt == input.login_attempt
-                })
-                .and_then(|p| p.completed.as_ref());
-            let account = input_account(&l.file.config, &input, completed)?;
-            (account, Arc::clone(&l.monitor))
         };
-        let report = monitor.test_session(&account, &pasted).await;
+        let report = user_session::test_pasted(&monitor, &account, &pasted).await;
         Ok(SessionTestView::from_report(&report))
     }
 
@@ -3399,6 +3435,10 @@ pub struct AccountInput {
     /// reduces them before anything else; the text is never logged or kept.
     #[serde(default)]
     pub sessions: Vec<SessionPasteInput>,
+    /// SES-02: the user explicitly chose "Save anyway" after the test before
+    /// save could not reach the provider (never after a rejection).
+    #[serde(default)]
+    pub save_anyway: bool,
 }
 
 /// One pasted session of the dialog; the text is overwritten when dropped.
@@ -3604,6 +3644,14 @@ pub fn preview_session(
         expiry: reduced.expires_at().map(|at| user_session::expiry(at, now)),
     })
 }
+
+/// The dialog's draft account, the monitor that queries it and its reduced
+/// pasted sessions (PRD 0016 test, SES-02 test before save).
+type SessionProbe = (
+    cuotai_core::Account,
+    Arc<Monitor>,
+    Vec<user_session::ReducedSession>,
+);
 
 /// PRD 0016 RF2.1: the outcome of the dialog's read-only session test.
 #[derive(Serialize)]
@@ -5151,7 +5199,81 @@ mod tests {
                 slot: "platform_session_env".into(),
                 paste: paste.into(),
             }],
+            save_anyway: false,
         }
+    }
+
+    /// SES-02: the core's clearance of a passed test before save, for the
+    /// tests of the vault and TOML half of the save.
+    fn cleared() -> Option<user_session::SaveClearance> {
+        let mut report = ready("MiMo", Vec::new());
+        report.provider = Provider::XiaomiMimo;
+        Some(user_session::clear_for_save(&report, false).expect("a passed test clears"))
+    }
+
+    // SES-02: a paste reaches the vault only with the clearance of the test
+    // before save; without it nothing is written and the TOML is unchanged.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_paste_without_the_test_before_save_never_reaches_the_vault() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![session_env_account("MIMO_COOKIE")]).await;
+        let error = backend
+            .inner
+            .drive_save_account(
+                pasted_input("api-platform_serviceToken=DESKTOP-SECRET; userId=1"),
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert!(error.contains("user_session.save.untested"), "{error}");
+        assert!(!error.contains("DESKTOP-SECRET"), "{error}");
+        assert!(store.entries.lock().is_empty());
+        assert!(backend.loaded_config().await.accounts[0].session.is_none());
+        // Without a paste there is nothing to test and no query is made.
+        let mut plain = pasted_input("");
+        plain.sessions.clear();
+        assert!(backend
+            .inner
+            .test_before_save(&plain)
+            .await
+            .unwrap()
+            .is_none());
+        // A paste the core cannot reduce is refused before any query.
+        let error = backend
+            .inner
+            .test_before_save(&pasted_input("userId=1; tracking=DESKTOP-SECRET"))
+            .await
+            .expect_err("unreducible paste");
+        assert!(error.contains("user_session.paste.missing"), "{error}");
+    }
+
+    // SES-01: the card and the details offer "Paste a new session" exactly
+    // when the core does (a rejected vault session), never otherwise.
+    #[test]
+    fn the_view_offers_a_new_paste_only_for_a_rejected_session() {
+        let config = Config {
+            accounts: vec![session_env_account("MIMO_COOKIE")],
+            ..Config::default()
+        };
+        let mut report = ready("MiMo", Vec::new());
+        report.provider = Provider::XiaomiMimo;
+        let offered = |report: &Report| {
+            serde_json::to_value(report_view(0, report, &config, None, None, 0, &[])).unwrap()
+                ["paste_session"]
+                .as_bool()
+                .unwrap()
+        };
+        assert!(!offered(&report));
+        report.status = Status::AuthenticationError;
+        report.notes_l10n = vec![cuotai_core::text::Localized::fixed(
+            "user_session.rejected",
+            "Sessão expirada ou revogada; cole uma nova no assistente da conta.",
+        )];
+        report.notes = vec![report.notes_l10n[0].fallback.to_string()];
+        assert!(offered(&report));
+        report.status = Status::Error;
+        report.notes_l10n = vec![cuotai_core::text::Localized::fixed("query.transport", "x")];
+        assert!(!offered(&report));
     }
 
     // PRD 0016 RF2/RF3.4: the dialog's paste reaches the vault reduced to the
@@ -5162,9 +5284,12 @@ mod tests {
         let backend = build_backend(store.clone(), vec![session_env_account("MIMO_COOKIE")]).await;
         backend
             .inner
-            .drive_save_account(pasted_input(
-                "Cookie: api-platform_serviceToken=DESKTOP-SECRET; userId=1; _ga=TRACKER",
-            ))
+            .drive_save_account(
+                pasted_input(
+                    "Cookie: api-platform_serviceToken=DESKTOP-SECRET; userId=1; _ga=TRACKER",
+                ),
+                cleared(),
+            )
             .await
             .unwrap();
         let values = || -> Vec<String> {
@@ -5190,7 +5315,7 @@ mod tests {
             .inner
             .drive_save_account(pasted_input(
                 "curl 'https://platform.xiaomimimo.com/' -b 'userId=1; api-platform_serviceToken=RENEWED'",
-            ))
+            ), cleared())
             .await
             .unwrap();
         assert_eq!(values(), ["api-platform_serviceToken=RENEWED; userId=1"]);
@@ -5207,7 +5332,7 @@ mod tests {
         let backend = build_backend(store.clone(), vec![session_env_account("MIMO_COOKIE")]).await;
         let error = backend
             .inner
-            .drive_save_account(pasted_input("userId=1; tracking=DESKTOP-SECRET"))
+            .drive_save_account(pasted_input("userId=1; tracking=DESKTOP-SECRET"), cleared())
             .await
             .unwrap_err();
         assert!(error.contains("user_session.paste.missing"), "{error}");
@@ -5221,9 +5346,10 @@ mod tests {
         std::fs::write(&path, external).unwrap();
         let error = backend
             .inner
-            .drive_save_account(pasted_input(
-                "api-platform_serviceToken=DESKTOP-SECRET; userId=1",
-            ))
+            .drive_save_account(
+                pasted_input("api-platform_serviceToken=DESKTOP-SECRET; userId=1"),
+                cleared(),
+            )
             .await
             .unwrap_err();
         assert!(error.contains("edit_error.conflict"), "{error}");
@@ -5240,7 +5366,7 @@ mod tests {
         let paste = "api-platform_serviceToken=DESKTOP-SECRET; userId=1";
         backend
             .inner
-            .drive_save_account(pasted_input(paste))
+            .drive_save_account(pasted_input(paste), cleared())
             .await
             .unwrap();
 

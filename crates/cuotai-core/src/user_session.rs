@@ -37,6 +37,11 @@
 //!   slot through its descriptor (`providers::web_session`), from the vault
 //!   or from the `session_env`-style variable kept as an alternative, and
 //!   refuse a session without its required cookies before any request.
+//! * SES-01: [`offers_new_paste`] tells the cards and details when to offer
+//!   "Paste a new session". SES-02: [`stage_pasted`] writes only with the
+//!   [`SaveClearance`] of the test before save ([`clear_for_save`],
+//!   [`test_before_save`]): a passed test query, or an explicit "Save
+//!   anyway" after a transport failure, never after a rejection.
 //!
 //! Session values never appear in the TOML, `Debug`, errors or reports.
 //!
@@ -501,7 +506,13 @@ pub async fn stage_migration(
                     ),
                 )
             })?;
-        values.push((candidate.slot, value, None));
+        // SES-02: only the descriptor's cookies reach the vault, never the
+        // variable's whole cookie jar; a value without them stores nothing.
+        let mut value = value;
+        let reduced = reduce(account.provider, candidate.slot, &value, Utc::now());
+        wipe(&mut value);
+        let reduced = reduced?;
+        values.push((candidate.slot, reduced.cookie.clone(), reduced.expires_at));
     }
     write_sessions(oauth, config, index, values).await
 }
@@ -512,12 +523,20 @@ pub async fn stage_migration(
 /// vault reference keeps it, so a new paste replaces the value in the same
 /// vault entry; one without gets a fresh reference. The stored slots stop
 /// naming a variable. Only the reduced cookies reach the vault.
+///
+/// SES-02: nothing is written without the [`SaveClearance`] of the test
+/// before save ([`clear_for_save`]); `None` refuses the save with
+/// `user_session.save.untested`.
 pub async fn stage_pasted(
     oauth: &OAuthSession,
     config: &Config,
     index: usize,
     sessions: &[ReducedSession],
+    clearance: Option<&SaveClearance>,
 ) -> Result<StagedSession, Localized> {
+    if clearance.is_none() {
+        return Err(untested());
+    }
     let account = config.accounts.get(index).ok_or_else(no_account)?;
     let mut values = Vec::with_capacity(sessions.len());
     for session in sessions {
@@ -604,6 +623,214 @@ async fn undo_writes(
         }
     }
     result
+}
+
+// ---------------------------------------------------------- SES-01, SES-02
+
+/// SES-01: whether `report` failed because the account's vault session is
+/// gone or no longer works (rejected or redirected by the provider, missing
+/// from the vault, or without its required cookies), so the card and the
+/// details offer "Paste a new session" for it. Only for providers that
+/// declare a session.
+pub fn offers_new_paste(report: &crate::Report) -> bool {
+    const PASTE_AGAIN: &[&str] = &[
+        "user_session.rejected",
+        "user_session.not_found",
+        "user_session.invalid_reference",
+        "query.session.missing_cookies",
+    ];
+    !descriptors(report.provider).is_empty()
+        && report.status != crate::Status::Ready
+        && report
+            .notes_l10n
+            .first()
+            .is_some_and(|note| PASTE_AGAIN.contains(&note.id.as_ref()))
+}
+
+/// SES-02: what the read-only test query of a pasted session
+/// ([`crate::Monitor::test_session`]) says about saving it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionCheck {
+    /// The query answered with the pasted session.
+    Passed,
+    /// The provider could not be reached (network failure or timeout):
+    /// nothing is known about the session, so the user may explicitly save
+    /// it anyway.
+    Unreachable,
+    /// The provider rejected the session, answered with an incompatible
+    /// schema or failed otherwise, or the draft cannot be queried: the
+    /// session is never saved.
+    Rejected,
+}
+
+impl SessionCheck {
+    /// The check of a test report. A transport failure is the query's own
+    /// `query.transport` or `query.timeout` note, which the report carries
+    /// first.
+    pub fn of(report: &crate::Report) -> Self {
+        let unreachable = report.notes_l10n.first().is_some_and(|note| {
+            matches!(
+                note.id.as_ref(),
+                crate::providers::TRANSPORT_NOTE | crate::providers::TIMEOUT_NOTE
+            )
+        });
+        match report.status {
+            crate::Status::Ready => Self::Passed,
+            crate::Status::Error if unreachable => Self::Unreachable,
+            _ => Self::Rejected,
+        }
+    }
+}
+
+/// SES-02: proof that the pasted sessions of one save passed the test
+/// before save, or that the user explicitly chose "Save anyway" after a
+/// transport failure. Only [`clear_for_save`] makes one, and
+/// [`stage_pasted`] writes nothing without it.
+#[derive(Debug)]
+pub struct SaveClearance {
+    _private: (),
+}
+
+/// SES-02: why a pasted session was not saved. `save_anyway` is set only
+/// after a transport failure: the front end may then offer "Save anyway".
+#[derive(Debug, Clone)]
+pub struct SaveRefused {
+    pub note: Localized,
+    pub save_anyway: bool,
+}
+
+/// The cause of a failed test, for the refusal: the query's own note (no
+/// body, URL or value ever reaches it) or else the status.
+fn test_cause(report: &crate::Report) -> Localized {
+    report
+        .notes_l10n
+        .first()
+        .cloned()
+        .unwrap_or_else(|| crate::text::status_l10n(report.status))
+}
+
+/// SES-02: the policy of the test before save. A passed test clears the
+/// save; a transport failure clears it only when the user explicitly chose
+/// `save_anyway`; a rejected session, an incompatible schema or any other
+/// failure never does.
+pub fn clear_for_save(
+    report: &crate::Report,
+    save_anyway: bool,
+) -> Result<SaveClearance, SaveRefused> {
+    let check = SessionCheck::of(report);
+    if check == SessionCheck::Passed || (check == SessionCheck::Unreachable && save_anyway) {
+        return Ok(SaveClearance { _private: () });
+    }
+    let cause = test_cause(report);
+    let fallback = cause.fallback.to_string();
+    let cause = params([("cause", ParamValue::from(cause))]);
+    Err(if check == SessionCheck::Unreachable {
+        SaveRefused {
+            note: Localized::with_params(
+                "user_session.save.unreachable",
+                cause,
+                format!(
+                    "Não foi possível testar a sessão ({fallback}); nada foi salvo. Escolha \"Salvar mesmo assim\" para guardá-la sem teste, ou tente de novo."
+                ),
+            ),
+            save_anyway: true,
+        }
+    } else {
+        SaveRefused {
+            note: Localized::with_params(
+                "user_session.save.rejected",
+                cause,
+                format!(
+                    "O teste da sessão falhou ({fallback}); nada foi salvo. Cole uma sessão válida e tente de novo."
+                ),
+            ),
+            save_anyway: false,
+        }
+    })
+}
+
+/// SES-02: the test before save of `account` (the draft about to be saved)
+/// with its pasted `sessions`: one read-only query through `monitor`, then
+/// [`clear_for_save`]. Without pasted sessions there is nothing to test and
+/// no clearance is needed (`Ok(None)`).
+pub async fn test_before_save(
+    monitor: &crate::Monitor,
+    account: &Account,
+    sessions: &[ReducedSession],
+    save_anyway: bool,
+) -> Result<Option<SaveClearance>, SaveRefused> {
+    if sessions.is_empty() {
+        return Ok(None);
+    }
+    let report = test_pasted(monitor, account, sessions).await;
+    clear_for_save(&report, save_anyway).map(Some)
+}
+
+/// `account` reading only the session `slot`: every other session slot of
+/// its provider is dropped (vault reference and variable), so an adapter
+/// that prefers another session (MiMo's `session_env` over
+/// `platform_session_env`) queries with this one.
+fn only_slot(account: &Account, slot: &str) -> Account {
+    let mut probe = account.clone();
+    for other in descriptors(account.provider) {
+        if other.slot != slot {
+            probe.params.remove(other.slot);
+        }
+    }
+    if let Some(session) = probe.session.as_mut() {
+        session.slots.retain(|kept| kept == slot);
+        if session.slots.is_empty() {
+            probe.session = None;
+        }
+    }
+    probe
+}
+
+/// SES-02: the RF3 test of each pasted session on its own (one read-only
+/// query per slot, with the account's other sessions left out), so a
+/// working session of another slot never vouches for a paste and a broken
+/// one never blocks it. The report is the first rejected one, else the
+/// first unreachable one, else the last passed one; nothing is stored.
+pub async fn test_pasted(
+    monitor: &crate::Monitor,
+    account: &Account,
+    sessions: &[ReducedSession],
+) -> crate::Report {
+    let mut worst: Option<(SessionCheck, crate::Report)> = None;
+    for session in sessions {
+        let probe = only_slot(account, session.slot);
+        let report = monitor
+            .test_session(&probe, std::slice::from_ref(session))
+            .await;
+        let check = SessionCheck::of(&report);
+        let rank = |check: SessionCheck| match check {
+            SessionCheck::Rejected => 2,
+            SessionCheck::Unreachable => 1,
+            SessionCheck::Passed => 0,
+        };
+        let replace = worst.as_ref().is_none_or(|(kept, _)| {
+            rank(check) > rank(*kept)
+                || (check == SessionCheck::Passed && *kept == SessionCheck::Passed)
+        });
+        if replace {
+            worst = Some((check, report));
+        }
+        if check == SessionCheck::Rejected {
+            break;
+        }
+    }
+    match worst {
+        Some((_, report)) => report,
+        None => monitor.test_session(account, sessions).await,
+    }
+}
+
+/// SES-02: a save of pasted sessions without the test before save.
+pub fn untested() -> Localized {
+    Localized::fixed(
+        "user_session.save.untested",
+        "Teste a sessão colada antes de salvá-la; nada foi salvo.",
+    )
 }
 
 // ------------------------------------------------------------------- RF2.2

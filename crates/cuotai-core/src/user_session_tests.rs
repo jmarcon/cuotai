@@ -7,6 +7,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 const SECRET: &str = "SECRET-SESSION-VALUE";
+/// A MiMo platform session carrying [`SECRET`] with its required cookies,
+/// as a variable holds it for a migration (SES-02: reduced on the way).
+const MIGRATED: &str = "api-platform_serviceToken=SECRET-SESSION-VALUE; userId=7";
 
 #[derive(Default)]
 struct MemoryStore {
@@ -167,7 +170,7 @@ async fn failed_vault_write_leaves_no_entry_and_rollback_undoes_a_staged_one() {
         fail_saves: true,
         ..Default::default()
     });
-    let env = Env(vec![("MIMO_COOKIE", SECRET)]);
+    let env = Env(vec![("MIMO_COOKIE", MIGRATED)]);
     let legacy = config(vec![mimo(&[("platform_session_env", "MIMO_COOKIE")])]);
     let error = stage_migration(&session(&failing), &env, &legacy, 0)
         .await
@@ -179,7 +182,7 @@ async fn failed_vault_write_leaves_no_entry_and_rollback_undoes_a_staged_one() {
     let store = Arc::new(MemoryStore::default());
     let oauth = session(&store);
     let staged = stage_migration(&oauth, &env, &legacy, 0).await.unwrap();
-    assert_eq!(store.values(), [SECRET]);
+    assert_eq!(store.values(), [MIGRATED]);
     rollback(&oauth, staged).await.unwrap();
     assert!(store.values().is_empty());
 }
@@ -201,12 +204,12 @@ async fn rollback_restores_the_session_a_migration_replaced() {
         .lock()
         .insert(key, token("OLD-SESSION".into(), None));
     account.session = Some(reference);
-    let env = Env(vec![("MIMO_COOKIE", SECRET)]);
+    let env = Env(vec![("MIMO_COOKIE", MIGRATED)]);
 
     let staged = stage_migration(&oauth, &env, &config(vec![account]), 0)
         .await
         .unwrap();
-    assert_eq!(store.values(), [SECRET]);
+    assert_eq!(store.values(), [MIGRATED]);
     rollback(&oauth, staged).await.unwrap();
     assert_eq!(store.values(), ["OLD-SESSION"]);
 }
@@ -256,9 +259,27 @@ async fn a_query_reads_the_vault_session_through_its_credentials() {
 
 #[tokio::test]
 async fn the_report_of_a_vault_session_never_carries_its_value() {
-    // A platform cookie without the descriptor's required cookies fails
-    // before any request; the message proves the vault value was read.
-    let (_, monitor) = migrated("platform_session_env", "other=SECRET-SESSION-VALUE").await;
+    // A platform cookie without the descriptor's required cookies (stored
+    // before SES-02 reduced migrations) fails before any request; the
+    // message proves the vault value was read.
+    let store = Arc::new(MemoryStore::default());
+    let mut account = mimo(&[("region", "sgp")]);
+    let reference = SessionConfig {
+        credential_ref: "6f1d3c1e-8a52-4a3c-9f7e-2a8b5b1c0d11".into(),
+        slots: ["platform_session_env".to_string()].into(),
+    };
+    let key = storage_key(account.provider, &reference, "platform_session_env").unwrap();
+    store
+        .entries
+        .lock()
+        .insert(key, token("other=SECRET-SESSION-VALUE".into(), None));
+    account.session = Some(reference);
+    let monitor = Monitor::with_oauth(
+        config(vec![account]),
+        Arc::new(Env(Vec::new())),
+        Arc::new(session(&store)),
+    )
+    .unwrap();
     let report = monitor.refresh_account(0).await;
     assert_eq!(report.status, Status::NeedsConfiguration);
     assert_eq!(report.notes_l10n[0].id, "query.session.missing_cookies");
@@ -293,7 +314,7 @@ async fn a_reference_moved_to_another_provider_or_slot_finds_nothing() {
     let oauth = session(&store);
     let staged = stage_migration(
         &oauth,
-        &Env(vec![("MIMO_VAR", SECRET)]),
+        &Env(vec![("MIMO_VAR", "serviceToken=SECRET-SESSION-VALUE")]),
         &config(vec![mimo(&[("session_env", "MIMO_VAR")])]),
         0,
     )
@@ -399,7 +420,7 @@ async fn the_development_store_keeps_the_session_across_reopen() {
     let oauth = OAuthSession::development_sqlite(&db).unwrap();
     let staged = stage_migration(
         &oauth,
-        &Env(vec![("MIMO_VAR", SECRET)]),
+        &Env(vec![("MIMO_VAR", MIGRATED)]),
         &config(vec![mimo(&[("platform_session_env", "MIMO_VAR")])]),
         0,
     )
@@ -413,7 +434,7 @@ async fn the_development_store_keeps_the_session_across_reopen() {
         .iter()
         .map(|session| (session.slot, session.value.as_str()))
         .collect();
-    assert_eq!(loaded, [("platform_session_env", SECRET)]);
+    assert_eq!(loaded, [("platform_session_env", MIGRATED)]);
 }
 
 // ------------------------------------------------------------ RF2.2: paste
@@ -601,7 +622,7 @@ async fn only_the_reduced_cookies_reach_the_vault_and_the_toml_keeps_the_referen
         now(),
     )
     .unwrap();
-    let staged = stage_pasted(&oauth, &file.config, 0, &[reduced])
+    let staged = stage_pasted(&oauth, &file.config, 0, &[reduced], Some(&cleared()))
         .await
         .unwrap();
     file.save(staged.config().clone()).unwrap();
@@ -619,16 +640,24 @@ async fn a_new_paste_replaces_the_session_in_the_same_vault_entry() {
     let store = Arc::new(MemoryStore::default());
     let oauth = session(&store);
     let first = reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap();
-    let saved = stage_pasted(&oauth, &config(vec![mimo(&[])]), 0, &[first])
-        .await
-        .unwrap()
-        .config()
-        .clone();
+    let saved = stage_pasted(
+        &oauth,
+        &config(vec![mimo(&[])]),
+        0,
+        &[first],
+        Some(&cleared()),
+    )
+    .await
+    .unwrap()
+    .config()
+    .clone();
     let reference = saved.accounts[0].session.clone().unwrap();
 
     let table = "api-platform_serviceToken\tNEW-TOKEN\t.x\t/\t2026-12-01T00:00:00Z\nuserId\t7\t.x\t/\tSession";
     let second = reduce(Provider::XiaomiMimo, PLATFORM, table, now()).unwrap();
-    let replaced = stage_pasted(&oauth, &saved, 0, &[second]).await.unwrap();
+    let replaced = stage_pasted(&oauth, &saved, 0, &[second], Some(&cleared()))
+        .await
+        .unwrap();
 
     assert_eq!(replaced.config().accounts.len(), 1);
     assert_eq!(
@@ -660,9 +689,15 @@ async fn pasted(paste: &str) -> (Account, Monitor) {
     let store = Arc::new(MemoryStore::default());
     let oauth = Arc::new(session(&store));
     let reduced = reduce(Provider::XiaomiMimo, PLATFORM, paste, Utc::now()).unwrap();
-    let staged = stage_pasted(&oauth, &config(vec![mimo(&[])]), 0, &[reduced])
-        .await
-        .unwrap();
+    let staged = stage_pasted(
+        &oauth,
+        &config(vec![mimo(&[])]),
+        0,
+        &[reduced],
+        Some(&cleared()),
+    )
+    .await
+    .unwrap();
     let config = staged.config().clone();
     let account = config.accounts[0].clone();
     let monitor = Monitor::with_oauth(config, Arc::new(Env(Vec::new())), oauth).unwrap();
@@ -969,7 +1004,7 @@ async fn two_pasted(store: &Arc<MemoryStore>, dir: &tempfile::TempDir) -> Config
     for (index, token) in [(0, "SECRET-A"), (1, "SECRET-B")] {
         let paste = format!("api-platform_serviceToken={token}; userId=7");
         let reduced = reduce(Provider::XiaomiMimo, PLATFORM, &paste, now()).unwrap();
-        accounts = stage_pasted(&oauth, &accounts, index, &[reduced])
+        accounts = stage_pasted(&oauth, &accounts, index, &[reduced], Some(&cleared()))
             .await
             .unwrap()
             .config()
@@ -1191,7 +1226,7 @@ async fn a_failed_drop_undoes_the_paste_it_was_given() {
     // A paste for the second account, then a switch of the first.
     let paste = "api-platform_serviceToken=SECRET-C; userId=7";
     let reduced = reduce(Provider::XiaomiMimo, PLATFORM, paste, now()).unwrap();
-    let staged = stage_pasted(&oauth, &file.config, 1, &[reduced])
+    let staged = stage_pasted(&oauth, &file.config, 1, &[reduced], Some(&cleared()))
         .await
         .unwrap();
     let mut after = staged.config().clone();
@@ -1216,4 +1251,359 @@ async fn forgetting_a_reference_without_its_entry_only_drops_the_reference() {
         .unwrap();
     assert_eq!(staged.config().accounts[0].session, None);
     assert!(store.entries.lock().is_empty());
+}
+
+// ------------------------------------- SES-01, SES-02: test before save
+
+/// A clearance for the tests that exercise the vault rather than the test
+/// before save.
+fn cleared() -> SaveClearance {
+    SaveClearance { _private: () }
+}
+
+/// The test report `Monitor::test_session` builds from one query result.
+fn test_report(
+    account: &Account,
+    result: Result<crate::providers::Data, crate::providers::QueryError>,
+) -> crate::Report {
+    let (status, metrics, notes_l10n) = match result {
+        Ok(data) => (Status::Ready, data.metrics, data.notes_l10n),
+        Err(error) => (error.status, Vec::new(), vec![error.note]),
+    };
+    crate::Report {
+        account: account.name.clone(),
+        provider: account.provider,
+        checked_at: now(),
+        status,
+        metrics,
+        notes: notes_l10n.iter().map(|n| n.fallback.to_string()).collect(),
+        notes_l10n,
+        source: String::new(),
+        session_expires_at: None,
+    }
+}
+
+/// A MiMo draft without a vault session, its store and vault, its pasted
+/// session (extra cookies included) and the test report of that paste
+/// against `base`.
+async fn tested(
+    paste: &str,
+    base: &str,
+) -> (
+    Account,
+    Arc<MemoryStore>,
+    Arc<OAuthSession>,
+    ReducedSession,
+    crate::Report,
+) {
+    let store = Arc::new(MemoryStore::default());
+    let oauth = Arc::new(session(&store));
+    let draft = mimo(&[]);
+    let monitor = Monitor::with_oauth(
+        config(vec![draft.clone()]),
+        Arc::new(Env(Vec::new())),
+        Arc::clone(&oauth),
+    )
+    .unwrap();
+    let probe = reduce(Provider::XiaomiMimo, PLATFORM, paste, now()).unwrap();
+    let (result, _) = query_platform(&monitor, &draft, &[probe], base).await;
+    let report = test_report(&draft, result);
+    let reduced = reduce(Provider::XiaomiMimo, PLATFORM, paste, now()).unwrap();
+    (draft, store, oauth, reduced, report)
+}
+
+fn refusal_text(refused: &SaveRefused) -> String {
+    ["pt-BR", "en-US", "es", "it"]
+        .iter()
+        .map(|locale| refused.note.resolve(locale))
+        .chain([format!("{:?}", refused.note)])
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[tokio::test]
+async fn a_passed_test_clears_the_save_and_only_the_descriptor_cookies_reach_the_vault() {
+    let server = balance_server().await;
+    let (draft, store, oauth, reduced, report) = tested(
+        &format!("Cookie: {KEPT}; _ga=TRACKER; JSESSIONID=OTHER"),
+        &server.uri(),
+    )
+    .await;
+    assert_eq!(SessionCheck::of(&report), SessionCheck::Passed);
+    let clearance = clear_for_save(&report, false).expect("passed test clears the save");
+    stage_pasted(
+        &oauth,
+        &config(vec![draft]),
+        0,
+        &[reduced],
+        Some(&clearance),
+    )
+    .await
+    .unwrap();
+    assert_eq!(store.values(), [KEPT]);
+}
+
+#[tokio::test]
+async fn a_rejected_test_blocks_the_save_even_with_save_anyway() {
+    use wiremock::matchers::method;
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("GET"))
+        .respond_with(wiremock::ResponseTemplate::new(401).set_body_string("SECRET-BODY"))
+        .mount(&server)
+        .await;
+    let (draft, store, oauth, reduced, report) = tested(KEPT, &server.uri()).await;
+    assert_eq!(report.status, Status::AuthenticationError);
+    assert_eq!(SessionCheck::of(&report), SessionCheck::Rejected);
+    for save_anyway in [false, true] {
+        let refused = clear_for_save(&report, save_anyway).expect_err("rejected session");
+        assert_eq!(refused.note.id, "user_session.save.rejected");
+        assert!(!refused.save_anyway);
+        let text = refusal_text(&refused);
+        assert!(
+            text.contains("revoked") && text.contains("revogada"),
+            "{text}"
+        );
+        for absent in ["SECRET", server.uri().as_str()] {
+            assert!(!text.contains(absent), "{absent}: {text}");
+        }
+    }
+    let error = stage_pasted(&oauth, &config(vec![draft]), 0, &[reduced], None)
+        .await
+        .err()
+        .expect("no clearance, no save");
+    assert_eq!(error.id, "user_session.save.untested");
+    assert!(store.values().is_empty());
+}
+
+#[tokio::test]
+async fn a_transport_failure_offers_save_anyway_and_only_then_saves() {
+    // A loopback port nothing listens on (wiremock pools its servers, so a
+    // dropped one may still answer).
+    let unreachable = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        format!("http://{}", listener.local_addr().unwrap())
+    };
+    let (draft, store, oauth, reduced, report) = tested(KEPT, &unreachable).await;
+    assert_eq!(
+        SessionCheck::of(&report),
+        SessionCheck::Unreachable,
+        "{report:?}"
+    );
+    let refused = clear_for_save(&report, false).expect_err("not without the explicit choice");
+    assert_eq!(refused.note.id, "user_session.save.unreachable");
+    assert!(refused.save_anyway);
+    let text = refusal_text(&refused);
+    assert!(
+        !text.contains("SECRET") && !text.contains(&unreachable),
+        "{text}"
+    );
+    assert!(store.values().is_empty());
+
+    let clearance = clear_for_save(&report, true).expect("save anyway after a transport failure");
+    stage_pasted(
+        &oauth,
+        &config(vec![draft]),
+        0,
+        &[reduced],
+        Some(&clearance),
+    )
+    .await
+    .unwrap();
+    assert_eq!(store.values(), [KEPT]);
+}
+
+#[tokio::test]
+async fn an_incompatible_schema_blocks_the_save() {
+    use wiremock::matchers::method;
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("GET"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_string("<html>SECRET</html>"))
+        .mount(&server)
+        .await;
+    let (_, store, _, _, report) = tested(KEPT, &server.uri()).await;
+    assert_eq!(report.status, Status::Error);
+    assert_eq!(SessionCheck::of(&report), SessionCheck::Rejected);
+    let refused = clear_for_save(&report, true).expect_err("schema failure");
+    assert_eq!(refused.note.id, "user_session.save.rejected");
+    assert!(!refused.save_anyway);
+    assert!(!refusal_text(&refused).contains("SECRET"));
+    assert!(store.values().is_empty());
+}
+
+#[test]
+fn a_timeout_is_a_transport_failure_and_a_refused_endpoint_is_not() {
+    let draft = mimo(&[]);
+    let report = test_report(&draft, Err(crate::providers::QueryError::timeout()));
+    assert_eq!(SessionCheck::of(&report), SessionCheck::Unreachable);
+    let report = test_report(&draft, Err(crate::providers::QueryError::insecure()));
+    assert_eq!(SessionCheck::of(&report), SessionCheck::Rejected);
+}
+
+#[tokio::test]
+async fn the_test_before_save_refuses_an_invalid_draft_and_needs_nothing_without_a_paste() {
+    let store = Arc::new(MemoryStore::default());
+    let draft = mimo(&[]);
+    let monitor = Monitor::with_oauth(
+        config(vec![draft.clone()]),
+        Arc::new(Env(Vec::new())),
+        Arc::new(session(&store)),
+    )
+    .unwrap();
+    assert!(test_before_save(&monitor, &draft, &[], false)
+        .await
+        .unwrap()
+        .is_none());
+    let mut invalid = draft;
+    invalid.refresh_seconds = Some(1);
+    let paste = reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap();
+    let refused = test_before_save(&monitor, &invalid, &[paste], true)
+        .await
+        .expect_err("an invalid draft is never saved");
+    assert_eq!(refused.note.id, "user_session.save.rejected");
+    assert!(!refused.save_anyway);
+}
+
+// SES-02 / RF5 decision: an Alibaba paste keeps only the descriptor's
+// cookies, never the console's whole cookie jar.
+#[tokio::test]
+async fn an_alibaba_paste_never_stores_the_whole_cookie_jar() {
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let account = Account {
+        name: "Coding".into(),
+        provider: Provider::AlibabaCodingPlan,
+        ..Default::default()
+    };
+    let jar = "Cookie: aliyun_choice=intl; login_aliyunid_ticket=TICKET; _ga=GA1; cna=CNA; JSESSIONID=J; aliyun_lang=en";
+    let reduced = reduce(Provider::AlibabaCodingPlan, "session_env", jar, now()).unwrap();
+    assert_eq!(reduced.discarded(), 4);
+    stage_pasted(
+        &oauth,
+        &config(vec![account]),
+        0,
+        &[reduced],
+        Some(&cleared()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(store.values(), ["login_aliyunid_ticket=TICKET; cna=CNA"]);
+}
+
+#[tokio::test]
+async fn a_migrated_variable_keeps_only_the_descriptor_cookies() {
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let env = Env(vec![(
+        "MIMO_COOKIE",
+        "_ga=TRACKER; api-platform_serviceToken=SECRET-TOKEN; userId=7; other=JAR",
+    )]);
+    let legacy = config(vec![mimo(&[(PLATFORM, "MIMO_COOKIE")])]);
+    stage_migration(&oauth, &env, &legacy, 0).await.unwrap();
+    assert_eq!(store.values(), [KEPT]);
+}
+
+#[test]
+fn only_a_failed_vault_session_offers_a_new_paste() {
+    let draft = mimo(&[]);
+    let failed = |provider: Provider, status: Status, id: &'static str| crate::Report {
+        provider,
+        ..test_report(
+            &draft,
+            Err(crate::providers::QueryError {
+                status,
+                note: Localized::fixed(id, "x"),
+            }),
+        )
+    };
+    for id in [
+        "user_session.rejected",
+        "user_session.not_found",
+        "query.session.missing_cookies",
+    ] {
+        for provider in [Provider::XiaomiMimo, Provider::AlibabaTokenPlan] {
+            assert!(offers_new_paste(&failed(
+                provider,
+                Status::AuthenticationError,
+                id
+            )));
+        }
+    }
+    assert!(!offers_new_paste(&failed(
+        Provider::XiaomiMimo,
+        Status::Error,
+        "query.transport"
+    )));
+    assert!(!offers_new_paste(&failed(
+        Provider::OpenAiApi,
+        Status::AuthenticationError,
+        "user_session.rejected"
+    )));
+    let mut ready = failed(
+        Provider::XiaomiMimo,
+        Status::AuthenticationError,
+        "user_session.rejected",
+    );
+    ready.status = Status::Ready;
+    assert!(!offers_new_paste(&ready));
+}
+
+// SES-02 review: each pasted slot is tested on its own, so a MiMo account
+// session (which the adapter prefers) never vouches for, nor blocks, a
+// pasted platform session.
+#[test]
+fn each_pasted_slot_is_tested_without_the_accounts_other_sessions() {
+    let mut account = mimo(&[("session_env", "MIMO_ACCOUNT"), ("region", "sgp")]);
+    account.session = Some(SessionConfig {
+        credential_ref: "6f1d3c1e-8a52-4a3c-9f7e-2a8b5b1c0d11".into(),
+        slots: ["session_env".to_string(), PLATFORM.to_string()].into(),
+    });
+    let platform = only_slot(&account, PLATFORM);
+    assert!(!platform.params.contains_key("session_env"));
+    assert_eq!(
+        platform.params.get("region").map(String::as_str),
+        Some("sgp")
+    );
+    assert_eq!(
+        platform
+            .session
+            .as_ref()
+            .map(|s| s.slots.iter().cloned().collect::<Vec<_>>()),
+        Some(vec![PLATFORM.to_string()])
+    );
+    let mut plain = mimo(&[("session_env", "MIMO_ACCOUNT")]);
+    plain.session = None;
+    let probe = only_slot(&plain, PLATFORM);
+    assert!(probe.params.is_empty() && probe.session.is_none());
+    let account_slot = only_slot(&account, "session_env");
+    assert_eq!(
+        account_slot.params.get("session_env").map(String::as_str),
+        Some("MIMO_ACCOUNT")
+    );
+}
+
+#[tokio::test]
+async fn the_pasted_test_reports_the_worst_slot() {
+    let store = Arc::new(MemoryStore::default());
+    let mut invalid = mimo(&[]);
+    invalid.refresh_seconds = Some(1);
+    let monitor = Monitor::with_oauth(
+        config(vec![mimo(&[])]),
+        Arc::new(Env(Vec::new())),
+        Arc::new(session(&store)),
+    )
+    .unwrap();
+    let pastes = [
+        reduce(Provider::XiaomiMimo, PLATFORM, KEPT, now()).unwrap(),
+        reduce(
+            Provider::XiaomiMimo,
+            "session_env",
+            "serviceToken=SECRET-SESSION-VALUE",
+            now(),
+        )
+        .unwrap(),
+    ];
+    let report = test_pasted(&monitor, &invalid, &pastes).await;
+    assert_eq!(report.status, Status::NeedsConfiguration);
+    assert_eq!(SessionCheck::of(&report), SessionCheck::Rejected);
+    assert!(store.values().is_empty());
 }
