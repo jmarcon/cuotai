@@ -391,10 +391,12 @@ impl HistoryStore {
 
     /// RF4.4: write the samples of `accounts` (of this configuration), of
     /// one metric (`metric_key`) or all, taken within `range`, to `out` in
-    /// `format`, ordered by account, metric position and time. Rows carry
-    /// the account name and provider given here, the metric label, unit,
-    /// kind and window, and the stored values; a missing value is `null`
-    /// (JSON) or an empty field (CSV), never zero. Returns the rows written.
+    /// `format`, ordered by account, metric position and time. FIX-10 also
+    /// excludes rows more than five minutes ahead of the UTC wall clock,
+    /// including rows written by an older Cuotai version. Rows carry the
+    /// account name and provider given here, the metric label, unit, kind
+    /// and window, and the stored values; a missing value is `null` (JSON)
+    /// or an empty field (CSV), never zero. Returns the rows written.
     pub fn export(
         &self,
         accounts: &[Account],
@@ -403,7 +405,10 @@ impl HistoryStore {
         format: ExportFormat,
         out: &mut dyn Write,
     ) -> Result<usize, HistoryError> {
-        let (start, end) = super::span(range);
+        let (start, requested_end) = super::span(range);
+        // Match `latest_in` at this public read boundary so an unbounded
+        // export cannot serve a legacy poisoned row.
+        let end = requested_end.min(super::future_sample_cutoff(Utc::now()));
         let write = |out: &mut dyn Write, text: &str| {
             out.write_all(text.as_bytes())
                 .map_err(|_| HistoryError::Export)
@@ -851,6 +856,47 @@ mod tests {
             history.export(&config.accounts, None, .., ExportFormat::Csv, &mut Refuses),
             Err(HistoryError::Export)
         );
+    }
+
+    #[test]
+    fn export_omits_a_future_row_already_present_in_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        let now = t0();
+        history
+            .record_at(&alpha, now, &[quota("5h", Some(10.0), Some(100.0))], now)
+            .unwrap();
+        Connection::open(&db)
+            .unwrap()
+            .execute(
+                "INSERT INTO samples
+                    (config_key, account_digest, metric_key, taken_at, used, \"limit\",
+                     remaining, unit, kind, \"window\", resets_at)
+                 SELECT config_key, account_digest, metric_key, ?1, 99.0, \"limit\",
+                        remaining, unit, kind, \"window\", resets_at
+                 FROM samples WHERE taken_at = ?2",
+                rusqlite::params![millis(DateTime::<Utc>::MAX_UTC), millis(now)],
+            )
+            .unwrap();
+
+        let mut out = Vec::new();
+        let rows = history.export(
+            std::slice::from_ref(&alpha),
+            None,
+            ..,
+            ExportFormat::Json,
+            &mut out,
+        );
+        let json: serde_json::Value = serde_json::from_slice(&out).unwrap();
+        let used: Vec<_> = json["samples"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|sample| sample["used"].as_f64())
+            .collect();
+        assert_eq!((rows, used), (Ok(1), vec![Some(10.0)]));
     }
 
     #[test]
