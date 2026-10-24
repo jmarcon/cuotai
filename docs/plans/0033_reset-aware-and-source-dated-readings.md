@@ -21,9 +21,9 @@
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
-| RF5 | vNEXT | RF5.1–RF5.2 delivered: metered accounts use a 3600 s default; compatible 300–899 s overrides run at 900 s and add `note.metered.interval_raised` to the account report; smaller overrides retain the field- and account-specific rejection. RF5.3–RF5.4 remain proposed. |
-| FIX-10 | vNEXT | History rejects a reading more than five minutes ahead of the UTC wall clock before changing the series, retains legitimate older readings without a lower age bound, and excludes pre-existing out-of-bound future rows from `latest_in`. |
-| FIX-09 | vNEXT | Provider-status readings expire after 30 minutes (six five-minute cache windows) against the UTC wall clock: the retained cache is not erased, but its presented state becomes `unknown`, its incident is absent, and its original check time remains visible. Desktop cards and tray content and TUI/`--once` name the last-check age; the desktop outage dot ignores every stale reading. `export::v1.incident.expired` makes the transition additive and explicit. |
+| RF5 | 0.80.0 | RF5.1–RF5.2 delivered: metered accounts use a 3600 s default; compatible 300–899 s overrides run at 900 s and add `note.metered.interval_raised` to the account report; smaller overrides retain the field- and account-specific rejection. RF5.3–RF5.4 remain proposed. |
+| FIX-10 | 0.80.0 | History rejects a reading more than five minutes ahead of the UTC wall clock before changing the series, retains legitimate older readings without a lower age bound, and excludes pre-existing out-of-bound future rows from `latest_in`. |
+| FIX-09 | 0.80.0 | Provider-status readings expire after 30 minutes (six five-minute cache windows) against the UTC wall clock: the retained cache is not erased, but its presented state becomes `unknown`, its incident is absent, and its original check time remains visible. Desktop cards and tray content and TUI/`--once` name the last-check age; the desktop outage dot ignores every stale reading. `export::v1.incident.expired` makes the transition additive and explicit. |
 | RF6 | — | Proposed. |
 
 ## 1. Context

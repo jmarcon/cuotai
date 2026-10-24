@@ -13,6 +13,38 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-10-24
+
+### Added
+
+- Cuotai opens configurations that carry stable account ids or omit account names, so you can return to this version after a later one writes them (PRD 0029 RF0; e534fa2).
+- The What's new screen and `cuotai --changelog` show the internal builds 0.1.0–0.79.0 as one pre-release history, and `cuotai --changelog 0.5.0` prints that history instead of failing (1afacb9).
+- Metered accounts now refresh hourly by default, and shorter compatible intervals are raised to 15 minutes with a visible note (PRD 0033 RF5.1, RF5.2; f71d389).
+- Cuotai asks before checking for updates and sends no update request until you answer (PRD 0018 RF2.6; b6fcb9d).
+- Settings opens in its own window beside the dashboard, from the gear, the tray, the tray menu or Cmd+, (Ctrl+, on Windows and Linux), and remembers its size, position and last page (PRD 0020 RF1, RF2; 5c65747).
+- Settings is organized in pages with a sidebar: General, Dashboard, Alerts, Data & privacy, Advanced (Integrations, Local cost, Files) and About (PRD 0020 RF1, RF2; 5c65747).
+
+### Fixed
+
+- The menu-bar popover now opens on top of full-screen apps on macOS (85fe9e1).
+- Metered accounts with their own refresh interval no longer force the global interval above the metered floor (PRD 0001 FIX-08; fb47c70).
+- Config loading now names the account and field when a metered refresh interval is below 300 seconds (PRD 0033 RF5.2; 2594a4c).
+- English quota figures now say how much is left instead of how much is available (PRD 0022 RF17.7; a1303ca).
+- Settings displays the Updates heading only once (PRD 0022 RF17.4; 9d0cf1b).
+- The update banner now shows release dates in the selected language instead of raw ISO timestamps (PRD 0022 RF17.2; e64e330).
+- Local-cost charts and price tables now show dates in the selected language instead of raw ISO values (PRD 0022 RF17.2; a36fe2b).
+- The window and tray now open in the stored or detected language from the first painted frame (PRD 0022 RF17.6; b7159f9).
+- The tray no longer opens blank when an updater status is already cached (PRD 0022 RF17.1; 9cc16f2).
+- Update consent now describes the public manifest request accurately and preserves newer update notices after an answer (PRD 0018 RF2.6, RF3.1; 2bc2d82, 364240b, cbd10db).
+- Gemini API status no longer reports Cloud Monitoring health as Gemini API health (PRD 0011 GEM-01; dc679dc, 0d3357a).
+- History now rejects readings more than five minutes in the future without replacing the last good reading (PRD 0033 FIX-10; 6936672).
+- History exports now omit readings more than five minutes in the future (PRD 0033 FIX-10; 3b1f76f).
+- History restores the last valid reading when legacy future metadata remains in the store (PRD 0033 FIX-10; b4434ea).
+- Old provider outages now expire to an unknown status after 30 minutes while preserving the last-check age (PRD 0033 FIX-09; d8608c3).
+- Stale or aging readings no longer show a pace, and the pace of a fresh reading is computed at the time it was measured (PRD 0024 FIX-11; e160b91).
+- A web session the provider rejected now offers "Paste new session", and a pasted session is saved only after a successful test query, or with an explicit "Save anyway" when the provider could not be reached (PRD 0016 SES-01, SES-02; 1027d8e).
+- The notice that the TUI uses another config file ignores temporary or deleted files, has a close button, and shows only once for the same pair of files (PRD 0002 RF1.2; dd1a572, f98e6cf).
+
 ## Pre-release history (0.1.0–0.79.0, internal builds, never published)
 
 Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2026-10-23. None of them was tagged or published, so what they delivered is summarized here by area. The first published version, `0.80.0`, contains all of it.
@@ -38,4 +70,5 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/2bbb39a...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.80.0...HEAD
+[0.80.0]: https://github.com/jmarcon/cuotai/compare/2bbb39a...v0.80.0

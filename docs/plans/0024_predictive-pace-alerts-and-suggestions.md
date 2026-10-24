@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0024 |
-| Status | In progress (review fix FIX-11 delivered in vNEXT) |
+| Status | In progress (review fix FIX-11 delivered in 0.80.0) |
 | Owner | `cuotai-core` (pace texts, alert evaluation, events, best-account ranking), desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray, Settings → Alerts), `crates/cuotai-tui` (cards, `--once`, `--notify`), `--watch`/hooks consumers, `export::v1` and `/v1/limits` consumers, PRDs 0025, 0026 and 0031 |
 | Depends on | PRD 0007 (RF1, RF2: `pace::assess`, `projected_exhaustion_at`), PRD 0008 (RF1, RF2: `alerts::evaluate`, `AlertState`, delivery), PRD 0006 (RF2, RF3: recent samples for `source = recent`); PRD 0029 (RF1: account `id`) for RF7, whose `[[groups]]` and suggestions name accounts |
@@ -25,7 +25,7 @@
 | RF6 | — | Proposed. |
 | RF7 | — | Proposed (rewritten on 2026-10-23: "best account now" with groups, decision C). |
 | RF8 | — | Proposed. |
-| FIX-11 | vNEXT | Delivered: `pace::assess_reading` is the one rule every surface uses (TUI cards and details, `--once`, `export::v1` and so `widget.json` and the local server, desktop cards and details): the pace is evaluated at the reading's `checked_at`, never at the current clock, and is absent unless the reading is `Fresh` for the account's effective refresh interval, or once its window reset after the reading. In `export::v1` a non-fresh reading now reports `null` pace entries (same shape). `docs/tui.md` states the recent-slope source and the freshness rule (review item DOC-03). The RF2.2 alert criterion reuses the same function when RF2 lands. |
+| FIX-11 | 0.80.0 | Delivered: `pace::assess_reading` is the one rule every surface uses (TUI cards and details, `--once`, `export::v1` and so `widget.json` and the local server, desktop cards and details): the pace is evaluated at the reading's `checked_at`, never at the current clock, and is absent unless the reading is `Fresh` for the account's effective refresh interval, or once its window reset after the reading. In `export::v1` a non-fresh reading now reports `null` pace entries (same shape). `docs/tui.md` states the recent-slope source and the freshness rule (review item DOC-03). The RF2.2 alert criterion reuses the same function when RF2 lands. |
 
 ## 1. Context
 
