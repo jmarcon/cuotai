@@ -65,4 +65,4 @@ cargo test --workspace
 
 For desktop changes, also run `cargo clippy --all-targets -- -D warnings` and `cargo test` in `apps/desktop/src-tauri`. CI runs the same checks on Linux, macOS and Windows; the full list, the dependency policy and the CodeQL script are in [`../CONTRIBUTING.md`](../CONTRIBUTING.md#checks-before-submitting) and [`architecture.md`](architecture.md#development-and-verification-commands).
 
-For a debug-only run of the terminal dashboard with a plaintext SQLite credential store (never for real credentials), `sh run.sh` selects `--dev-credentials-sqlite ./cuotai-dev.sqlite3`; release builds reject the flag.
+For a debug-only run of the terminal dashboard with a plaintext SQLite credential store (never for real credentials), `sh run.sh tui` (the default) selects the repository's `cuotai.toml` and `--dev-credentials-sqlite cuotai-dev.sqlite3`, and `sh run.sh gui` starts the desktop app with the same files; release builds reject that store.

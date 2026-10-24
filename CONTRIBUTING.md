@@ -17,10 +17,11 @@ Thank you for wanting to help. Cuotai is a **read-only** monitor for AI-provider
 cargo build --workspace
 cargo run -p cuotai-tui -- --list-providers
 cargo run -p cuotai-tui                       # interactive TUI
-cd apps/desktop && ./dev.sh                   # desktop app in development mode
+sh run.sh tui                                 # the same TUI with the development credential store
+sh run.sh gui                                 # desktop app in development mode (apps/desktop/src-tauri)
 ```
 
-The desktop app is a separate workspace (`apps/desktop/src-tauri`). `dev.sh` uses a SQLite file that stores **tokens in plain text**, for development only; release builds refuse that store. Never use it with credentials you cannot afford to lose.
+The desktop app is a separate workspace (`apps/desktop/src-tauri`). `run.sh` (`tui` or `gui`, `tui` by default; `apps/desktop/dev.sh` is a wrapper for `gui`) uses a SQLite file that stores **tokens in plain text**, for development only; release builds refuse that store. Never use it with credentials you cannot afford to lose.
 
 ## Checks before submitting
 
