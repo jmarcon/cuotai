@@ -119,6 +119,9 @@ pub struct IncidentExport {
     /// The latest status query failed: `state` is the previous reading (or
     /// `unknown` without one).
     pub stale: bool,
+    /// The retained reading exceeded the status age bound, so `state` is
+    /// `unknown` and `event` is `null`.
+    pub expired: bool,
 }
 
 impl From<&ProviderStatus> for IncidentExport {
@@ -130,6 +133,7 @@ impl From<&ProviderStatus> for IncidentExport {
             page_url: status.page_url.clone(),
             read_at: status.read_at,
             stale: status.stale,
+            expired: status.expired,
         }
     }
 }
@@ -653,6 +657,7 @@ mod tests {
                 page_url: "https://status.claude.com/".into(),
                 read_at: Some(minutes_ago(1)),
                 stale: false,
+                expired: false,
             },
             ProviderStatus {
                 provider: Provider::Groq,
@@ -661,6 +666,7 @@ mod tests {
                 page_url: "https://groqstatus.com/".into(),
                 read_at: None,
                 stale: true,
+                expired: false,
             },
         ]
     }
@@ -871,6 +877,7 @@ mod tests {
             "https://status.claude.com/incidents/abc123"
         );
         assert_eq!(claude["stale"], false);
+        assert_eq!(claude["expired"], false);
         // OpenAI was not read; Groq's page never answered: unknown, stale.
         assert!(accounts[1]["incident"].is_null());
         let groq = &accounts[2]["incident"];

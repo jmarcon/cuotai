@@ -411,6 +411,51 @@ async fn a_timeout_keeps_the_last_known_reading_marked_stale() {
     assert!(second.stale);
 }
 
+/// FIX-09: the cached reading remains available inside six cache windows,
+/// then stops presenting the old incident as the provider's current state.
+#[test]
+fn a_status_reading_expires_after_thirty_minutes() {
+    let incidents = IncidentMonitor::new();
+    let source = super::super::source(Provider::Claude).unwrap();
+    let reading =
+        super::super::parse::parse(source.format, CLAUDE_INCIDENT.as_bytes(), source.host())
+            .unwrap();
+    let now = at("2026-10-23T12:00:00Z").unwrap();
+    let thirty_minutes = chrono::TimeDelta::minutes(30);
+    assert_eq!(READING_MAX_AGE, Duration::from_secs(30 * 60));
+    let cache = incidents.cache(source.url);
+    {
+        let mut known = lock(&cache.known);
+        known.reading = Some(Arc::new(reading));
+        known.read_at = Some(now - thirty_minutes);
+    }
+    let current = incidents.status_at(Provider::Claude, source, now);
+    assert_eq!(current.state, IncidentState::PartialOutage);
+    assert!(current.incident.is_some());
+    assert!(!current.stale && !current.expired);
+
+    lock(&cache.known).failed = true;
+    let stale = incidents.status_at(Provider::Claude, source, now);
+    assert_eq!(
+        stale.state,
+        IncidentState::PartialOutage,
+        "a recent failed query keeps the last known incident"
+    );
+    assert!(stale.stale && !stale.expired);
+
+    let old_read_at = now - thirty_minutes - chrono::TimeDelta::seconds(1);
+    lock(&cache.known).read_at = Some(old_read_at);
+    let expired = incidents.status_at(Provider::Claude, source, now);
+    assert_eq!(expired.state, IncidentState::Unknown);
+    assert!(expired.incident.is_none());
+    assert_eq!(expired.read_at, Some(old_read_at), "the cache is retained");
+    assert!(expired.stale, "the latest status query still failed");
+    assert!(
+        expired.expired,
+        "the retained reading also exceeded its age"
+    );
+}
+
 /// RF2.2: one request per source per TTL, however many accounts and
 /// products share the URL and however many callers race for it.
 #[tokio::test]

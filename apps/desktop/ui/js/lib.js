@@ -429,15 +429,20 @@ export const sessionNoticeHtml = (notice) => notice
 const INCIDENT_LOOK = { degraded: ["warn", "warn"], partial_outage: ["bad", "alert"], major_outage: ["bad", "xcircle"],
   maintenance: ["info", "wrench"], operational: ["good", "check"], unknown: ["muted", "clock"] };
 const isNotice = (s) => s.state !== "operational" && s.state !== "unknown";
-/** What the card and the tray flag: an incident or maintenance (also as last known) or a status page the last
- *  query could not read; null otherwise. An unknown reading never reads as healthy, but shows no badge either. */
+/** What the card and tray flag: a current incident/maintenance, a failed
+ * status read, or a retained reading that expired to unknown. */
 export function incidentBadge(r) {
   const s = r.incident;
-  if (!s || (!isNotice(s) && !s.stale)) return null;
+  if (!s || (!isNotice(s) && !s.stale && !s.expired)) return null;
+  const checked = s.read_at ? t("incident.checked", { age: fmtAge(s.read_at) }) : "";
+  if (s.expired) {
+    return { tone: "muted", glyph: "clock", text: [tl(s.label), checked].filter(Boolean).join(" · "),
+      url: s.page_url, outage: false };
+  }
   const [tone, glyph] = isNotice(s) ? INCIDENT_LOOK[s.state] : ["muted", "warn"];
   const text = isNotice(s)
-    ? [tl(s.label), s.incident?.title ?? "", s.stale ? t("incident.lastKnown") : ""].filter(Boolean).join(" · ")
-    : t("incident.unavailable");
+    ? [tl(s.label), s.incident?.title ?? "", s.stale ? t("incident.lastKnown") : "", s.stale ? checked : ""].filter(Boolean).join(" · ")
+    : [t("incident.unavailable"), checked].filter(Boolean).join(" · ");
   return { tone, glyph, text, url: s.incident?.url ?? s.page_url, outage: s.state === "partial_outage" || s.state === "major_outage" };
 }
 /** "Open status page": the shell opens only the core's verified status hosts (`open_external`). */

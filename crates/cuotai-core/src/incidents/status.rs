@@ -10,6 +10,7 @@
 
 use super::parse::{self, Baseline, Event, Reading};
 use super::{Format, StatusSource};
+use crate::freshness;
 use crate::text::{Localized, Notes};
 use crate::{Provider, Status};
 use chrono::{DateTime, Utc};
@@ -22,6 +23,11 @@ use tokio::sync::Semaphore;
 
 /// One reading per source is reused for this long (AWS publishes `ttl=5`).
 pub const CACHE_TTL: Duration = Duration::from_secs(300);
+/// A status reading stops representing the provider after six cache windows.
+///
+/// The client still retains the reading until a later successful query; only
+/// its presentation expires to [`IncidentState::Unknown`].
+pub const READING_MAX_AGE: Duration = Duration::from_secs(CACHE_TTL.as_secs() * 6);
 /// Deadline for one status request, independent of the quota timeout.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// Larger bodies are refused unread (Cloudflare's summary is ~240 KiB).
@@ -130,6 +136,9 @@ pub struct ProviderStatus {
     /// The latest query failed: the state is the last known reading (or
     /// `Unknown` without one).
     pub stale: bool,
+    /// The retained reading is older than [`READING_MAX_AGE`], so `state` is
+    /// `Unknown` and `incident` is absent even when that reading had one.
+    pub expired: bool,
 }
 
 /// Opt-in status preference and per-source cache. Cloning shares both, so
@@ -262,15 +271,33 @@ impl IncidentMonitor {
         }
     }
 
-    /// The cached status of `provider` (no network).
+    /// The cached status of `provider` (no network), assessed against the UTC
+    /// wall clock because `read_at` is an absolute timestamp shared by every
+    /// frontend.
     pub(crate) fn status(&self, provider: Provider, source: StatusSource) -> ProviderStatus {
+        self.status_at(provider, source, Utc::now())
+    }
+
+    fn status_at(
+        &self,
+        provider: Provider,
+        source: StatusSource,
+        now: DateTime<Utc>,
+    ) -> ProviderStatus {
         let known = lock(&self.cache(source.url).known).clone();
-        let (state, incident) = known
-            .reading
-            .as_deref()
-            .map_or((IncidentState::Unknown, None), |reading| {
-                evaluate(reading, source)
-            });
+        let expired = known
+            .read_at
+            .is_some_and(|read_at| freshness::age(read_at, now) > READING_MAX_AGE);
+        let (state, incident) = if expired {
+            (IncidentState::Unknown, None)
+        } else {
+            known
+                .reading
+                .as_deref()
+                .map_or((IncidentState::Unknown, None), |reading| {
+                    evaluate(reading, source)
+                })
+        };
         ProviderStatus {
             provider,
             state,
@@ -278,6 +305,7 @@ impl IncidentMonitor {
             page_url: page_url(source),
             read_at: known.read_at,
             stale: known.failed,
+            expired,
         }
     }
 }
