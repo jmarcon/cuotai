@@ -124,8 +124,9 @@ export const syncSettings = () => getSettings().then((s) => { applyMotion(s.moti
 export const openUserDir = () => call("open_user_dir");
 // PRD 0006 RF4: measurement history retention (desktop.json), export and erasure; the core does the work.
 export const setHistoryDays = (days) => call("set_history_days", { days });
-export const historyExport = (index, days, format, path) => call("history_export", { index, days, format, path });
-export const historyErase = (index) => call("history_erase", { index });
+// PRD 0006 RF4.4: one account (`index`) is named with the configuration `generation` its index was read from.
+export const historyExport = (index, days, format, path, generation = null) => call("history_export", { index, generation, days, format, path });
+export const historyErase = (index, generation = null) => call("history_erase", { index, generation });
 // PRD 0006 RF5: the recording switch (desktop.json), the file's size on disk and an account's recorded history
 // (`range`: day, week or month; `metricKey` null = every metric), bound to the view's `generation` like the models.
 export const setHistoryRecording = (on) => call("set_history_recording", { on });
@@ -1309,8 +1310,8 @@ const demo = {
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
   // erased account (or everything) leaves the synthetic history of `account_history`.
-  history_export: async ({ index }) => (index == null ? 42 : 7),
-  history_erase: async ({ index }) => { demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
+  history_export: async ({ index, generation }) => { if (index != null && generation !== demoSettings.generation) throw STALE; return index == null ? 42 : 7; },
+  history_erase: async ({ index, generation }) => { if (index != null && generation !== demoSettings.generation) throw STALE; demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
   set_status_enabled: async ({ on }) => { demoSettings.statusQueries = on; },
   serve_status: async () => demoServeView(),

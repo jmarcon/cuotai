@@ -23,6 +23,7 @@ let advancedOpen = get(ADVANCED_KEY) === "open";
 let view = null;
 let leaving = [];
 let paintToken = 0;
+let shown = null; // the module of the page on screen
 
 /** What a page module sees: the shell's state read for this paint and the ways back into the shell. */
 const ctx = {
@@ -61,6 +62,7 @@ async function paintPage({ anchor = null, focusTitle = false } = {}) {
   if (token !== paintToken) return;
   ctx.settings = settings;
   ctx.update = update;
+  shown = mod;
   const body = root.querySelector("[data-page-body]");
   body.innerHTML = `<h1 class="set-title" id="set-page-title" tabindex="-1">${te(page.label)}</h1>${mod.html(ctx)}`;
   const drawn = mod.bind(body, ctx);
@@ -139,7 +141,12 @@ initOrderSync(() => paintPage());
 
 if (isDesktop) {
   T.event.listen("settings-navigate", () => takeTarget().then(applyTarget));
-  T.event.listen("snapshot", (e) => { view = e.payload; });
+  // A page drawn from the view (the history's account list) is drawn again when its data changed under it.
+  T.event.listen("snapshot", (e) => {
+    const prev = view;
+    view = e.payload;
+    if (shown?.viewChanged?.(view, prev)) paintPage();
+  });
   T.event.listen("user-content-changed", () => location.reload());
 }
 // PRD 0018 RF3.1: the Updates group (About page) acts on the updater state this window follows.

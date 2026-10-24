@@ -228,6 +228,7 @@
   "settings.history.eraseOne": "Cancellare la cronologia delle misurazioni di {account}? L'operazione non può essere annullata.",
   "settings.history.eraseConfirm": "Cancella",
   "settings.history.erased": "{count} campioni cancellati.",
+  "settings.history.stale": "Gli account sono cambiati. Scegli di nuovo l'account.",
   "settings.history.record": "Registra le letture",
   "settings.history.recordHelp": "Disattivato: non viene registrato nulla di nuovo e ciò che era già stato registrato resta (conservato per i giorni indicati sotto) finché non lo cancelli. Vale per questa app; il terminale e la riga di comando continuano a registrare.",
   "settings.history.size": "Su disco: {size} (l'intera cronologia su questo computer).",

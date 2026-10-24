@@ -228,6 +228,7 @@
   "settings.history.eraseOne": "Erase the measurement history of {account}? This cannot be undone.",
   "settings.history.eraseConfirm": "Erase",
   "settings.history.erased": "{count} samples erased.",
+  "settings.history.stale": "The accounts changed. Choose the account again.",
   "settings.history.record": "Record readings",
   "settings.history.recordHelp": "Off: nothing new is recorded, and what was already recorded stays (kept for the days below) until you erase it. Applies to this app; the terminal and the command line still record.",
   "settings.history.size": "On disk: {size} (the whole history on this computer).",

@@ -2675,7 +2675,7 @@ impl Backend {
     /// PRD 0006 RF5.3: bytes the history file takes on this device, measured
     /// once the queued jobs (a prune from a retention change) have run.
     pub async fn history_size(&self) -> Result<u64, String> {
-        let (store, _) = self.history_scope(None).await?;
+        let (store, _) = self.history_scope(None, None).await?;
         let monitor = self
             .inner
             .lock()
@@ -2695,14 +2695,22 @@ impl Backend {
     }
 
     /// The history store and the accounts of `index` (every account with
-    /// `None`) of the loaded configuration.
+    /// `None`) of the loaded configuration. An index only names an account
+    /// in the configuration `generation` it was read from: any other
+    /// generation (a move, save, removal or reload since, possibly from
+    /// another window while Settings is open) yields [`STALE`], so an export
+    /// or an erasure never lands on the account that took its place.
     async fn history_scope(
         &self,
         index: Option<usize>,
+        generation: Option<u64>,
     ) -> Result<(HistoryStore, Vec<cuotai_core::Account>), String> {
         self.ensure_loaded().await;
         let g = self.inner.lock().await;
         let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        if index.is_some() && generation != Some(l.generation) {
+            return Err(STALE.into());
+        }
         let store = l
             .monitor
             .history()
@@ -2727,6 +2735,7 @@ impl Backend {
     pub async fn history_export(
         &self,
         index: Option<usize>,
+        generation: Option<u64>,
         days: Option<u32>,
         format: ExportFormat,
         path: PathBuf,
@@ -2735,7 +2744,7 @@ impl Backend {
         if !path.is_absolute() {
             return Err(export_error());
         }
-        let (store, accounts) = self.history_scope(index).await?;
+        let (store, accounts) = self.history_scope(index, generation).await?;
         let since = days.map(|days| chrono::Utc::now() - chrono::TimeDelta::days(days.into()));
         tauri::async_runtime::spawn_blocking(move || {
             let file =
@@ -2756,8 +2765,9 @@ impl Backend {
         &self,
         app: &AppHandle,
         index: Option<usize>,
+        generation: Option<u64>,
     ) -> Result<usize, String> {
-        let (store, accounts) = self.history_scope(index).await?;
+        let (store, accounts) = self.history_scope(index, generation).await?;
         let removed = tauri::async_runtime::spawn_blocking(move || match index {
             Some(_) => store.erase_account(&accounts[0]),
             None => store.erase_all(),
@@ -5591,6 +5601,51 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    // PRD 0006 RF4.4 with PRD 0020 RF1: Settings is not modal, so the accounts
+    // can move under its history selector. An export or erasure of one
+    // account is refused for any other configuration generation, so it never
+    // lands on the account now at that index; "every account" needs none.
+    #[tokio::test(flavor = "current_thread")]
+    async fn history_scope_of_one_account_is_refused_for_another_generation() {
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("alpha"), plain_account("beta")],
+        )
+        .await;
+        let b = &backend.inner;
+        let dir = tempfile::tempdir().unwrap();
+        let store = HistoryStore::new(
+            dir.path().join("history.sqlite3"),
+            &cuotai_core::config_file::ConfigIdentity::Explicit("one".into()),
+        );
+        {
+            let mut g = b.inner.lock().await;
+            let l = g.loaded.as_mut().unwrap();
+            let monitor = l.monitor.with_config(l.file.config.clone()).unwrap();
+            l.monitor = Arc::new(monitor.with_history(store));
+        }
+        let names =
+            |accounts: Vec<Account>| accounts.into_iter().map(|a| a.name).collect::<Vec<_>>();
+        let (_, one) = b.history_scope(Some(1), Some(1)).await.unwrap();
+        assert_eq!(names(one), ["beta"]);
+        let (_, all) = b.history_scope(None, None).await.unwrap();
+        assert_eq!(names(all), ["alpha", "beta"]);
+        assert_eq!(b.history_scope(Some(1), None).await.err().unwrap(), STALE);
+        assert_eq!(
+            b.history_scope(Some(1), Some(0)).await.err().unwrap(),
+            STALE
+        );
+        // After a removal, index 0 of the old view is refused; the live one works.
+        b.drive_delete_account(0, false).await.unwrap();
+        assert_eq!(
+            b.history_scope(Some(0), Some(1)).await.err().unwrap(),
+            STALE
+        );
+        let live = b.view().await.generation;
+        let (_, one) = b.history_scope(Some(0), Some(live)).await.unwrap();
+        assert_eq!(names(one), ["beta"]);
     }
 
     // -------------------------------------------------------------------

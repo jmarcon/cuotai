@@ -228,6 +228,7 @@
   "settings.history.eraseOne": "¿Borrar el historial de mediciones de {account}? No se puede deshacer.",
   "settings.history.eraseConfirm": "Borrar",
   "settings.history.erased": "{count} muestras borradas.",
+  "settings.history.stale": "Las cuentas cambiaron. Elige la cuenta de nuevo.",
   "settings.history.record": "Grabar lecturas",
   "settings.history.recordHelp": "Desactivado: no se graba nada nuevo y lo ya grabado se conserva (durante los días de abajo) hasta que lo borres. Vale para esta app; la terminal y la línea de comandos siguen grabando.",
   "settings.history.size": "En disco: {size} (todo el historial de este equipo).",

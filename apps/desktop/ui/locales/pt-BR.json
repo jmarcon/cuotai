@@ -234,6 +234,7 @@
   "settings.history.eraseOne": "Apagar o histórico de medições de {account}? Não dá para desfazer.",
   "settings.history.eraseConfirm": "Apagar",
   "settings.history.erased": "{count} amostras apagadas.",
+  "settings.history.stale": "As contas mudaram. Escolha a conta de novo.",
   "settings.history.record": "Gravar leituras",
   "settings.history.recordHelp": "Desligado: nada novo é gravado e o que já foi gravado continua (pelos dias abaixo) até você apagar. Vale para este app; o terminal e a linha de comando continuam gravando.",
   "settings.history.size": "No disco: {size} (todo o histórico deste computador).",

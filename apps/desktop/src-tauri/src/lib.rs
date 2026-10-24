@@ -519,28 +519,40 @@ async fn set_history_days(app: AppHandle, b: Shared<'_>, days: u32) -> Result<()
 
 /// PRD 0006 RF4.4: export the history of account `index` (`None` = every
 /// account) of the last `days` days (`None` = everything) to the file the
-/// user chose in the native save dialog. Returns the rows written.
+/// user chose in the native save dialog. Returns the rows written. An account
+/// `index` comes with the configuration `generation` it was read from (any
+/// other one: `stale`).
 #[tauri::command]
 async fn history_export(
     b: Shared<'_>,
     index: Option<usize>,
+    generation: Option<u64>,
     days: Option<u32>,
     format: cuotai_core::history::ExportFormat,
     path: String,
 ) -> Result<usize, String> {
-    b.history_export(index, days, format, std::path::PathBuf::from(path))
-        .await
+    b.history_export(
+        index,
+        generation,
+        days,
+        format,
+        std::path::PathBuf::from(path),
+    )
+    .await
 }
 
 /// PRD 0006 RF4.4: erase the history of account `index`, or all of it with
 /// `None`, after the confirmation the UI asked for. Returns the samples removed.
+/// An account `index` comes with its configuration `generation` (any other
+/// one: `stale`).
 #[tauri::command]
 async fn history_erase(
     app: AppHandle,
     b: Shared<'_>,
     index: Option<usize>,
+    generation: Option<u64>,
 ) -> Result<usize, String> {
-    b.history_erase(&app, index).await
+    b.history_erase(&app, index, generation).await
 }
 
 /// PRD 0006 RF5.3: record new readings on this device or not (saved in
