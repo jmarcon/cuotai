@@ -22,8 +22,7 @@ const GENERATED_METADATA: &[&str] = &[
     "manifest.json",
     "SHA256SUMS",
     "signing-state.json",
-    "SHA256SUMS.sig",
-    "SHA256SUMS.pem",
+    "SHA256SUMS.sigstore.json",
 ];
 
 /// One distributable file.
