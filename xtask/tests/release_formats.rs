@@ -398,8 +398,7 @@ fn sha256sums_is_byte_stable_and_coreutils_compatible() {
         "SHA256SUMS",
         "manifest.json",
         "signing-state.json",
-        "SHA256SUMS.sig",
-        "SHA256SUMS.pem",
+        "SHA256SUMS.sigstore.json",
     ] {
         assert!(!names.iter().any(|n| n == generated), "{generated} listed");
     }

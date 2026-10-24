@@ -83,6 +83,13 @@ jobs:
           ./target/debug/xtask workflow-check
           args=(release-check --json-out check.json --changelog-out notes.txt)
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            # A full rehearsal signs SHA256SUMS with the identity of the
+            # dispatched ref; only a branch keeps that identity apart from the
+            # `release.yml@refs/tags/v…` one release verifiers accept.
+            if [ "$FULL_REHEARSAL" = "true" ] && [[ "$GITHUB_REF" != refs/heads/* ]]; then
+              echo "a full rehearsal must be dispatched on a branch, not $GITHUB_REF" >&2
+              exit 1
+            fi
             # Dry run: the tag may not exist, so no git ancestry check.
             [ -n "$INPUT_TAG" ] && args+=(--tag "$INPUT_TAG")
             dry_run=true
@@ -870,17 +877,45 @@ jobs:
           fi
       - name: Manifest and SHA256SUMS
         run: ./target/debug/xtask release-manifest --artifacts-dir dist --version "$VERSION" --channel "$CHANNEL" --out-dir dist
+      # RF3.2: cosign v3 writes one Sigstore bundle (signature, certificate
+      # and transparency-log proof). The step runs in the full rehearsal too,
+      # so the exact signing and verification commands are exercised before a
+      # tag needs them (run 40119269466 failed here after every build had
+      # passed). A rehearsal bundle carries the branch identity, stays outside
+      # `dist/` and is never a release asset or a signing claim.
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        if: needs.check.outputs.dry_run != 'true'
-      - name: Sign SHA256SUMS (Sigstore keyless)
-        if: needs.check.outputs.dry_run != 'true'
-        run: cosign sign-blob --yes --output-signature dist/SHA256SUMS.sig --output-certificate dist/SHA256SUMS.pem dist/SHA256SUMS
+      - name: Sign and verify SHA256SUMS (Sigstore keyless)
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            # Never sign a rehearsal with a tag identity (the check job also
+            # refuses a full rehearsal dispatched on a non-branch ref).
+            case "$GITHUB_REF" in
+              refs/heads/*) ;;
+              *) echo "refusing to sign a rehearsal from $GITHUB_REF" >&2; exit 1 ;;
+            esac
+            mkdir -p rehearsal
+            bundle=rehearsal/SHA256SUMS.sigstore.json
+          else
+            bundle=dist/SHA256SUMS.sigstore.json
+          fi
+          cosign sign-blob --yes --bundle "$bundle" dist/SHA256SUMS
+          # The certificate must name this workflow at the ref that ran it:
+          # the tag on a release, the dispatched branch on a rehearsal.
+          cosign verify-blob \
+            --bundle "$bundle" \
+            --certificate-identity "https://github.com/${REPO}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            dist/SHA256SUMS
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "dry-run: SHA256SUMS signed and verified with the rehearsal identity (${GITHUB_REF}); the bundle is not a release asset" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Signing state
         run: |
           set -euo pipefail
           if [ "$DRY_RUN" = "true" ]; then
             checksums=unavailable
-            status="dry-run: checksum signature not produced (dispatch runs never publish)"
+            status="dry-run: checksum signature not shipped (a rehearsal signature is verified, then discarded; dispatch runs never publish)"
           else
             checksums=signed
             status="signed by the GitHub Actions OIDC identity (Sigstore keyless)"

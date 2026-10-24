@@ -84,10 +84,14 @@ pub fn render_body(
         );
         out.push_str("```sh\n");
         out.push_str("cosign verify-blob \\\n");
-        out.push_str("  --signature SHA256SUMS.sig \\\n");
-        out.push_str("  --certificate SHA256SUMS.pem \\\n");
+        out.push_str("  --bundle SHA256SUMS.sigstore.json \\\n");
+        // Only a tag run of the release workflow is a release identity; a
+        // dispatch rehearsal signs with its branch ref and must not match.
+        let identity =
+            format!("^https://github.com/{repo}/.github/workflows/release.yml@refs/tags/v")
+                .replace('.', "\\.");
         out.push_str(&format!(
-            "  --certificate-identity-regexp '^https://github.com/{repo}/' \\\n"
+            "  --certificate-identity-regexp '{identity}' \\\n"
         ));
         out.push_str(
             "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\n",

@@ -29,7 +29,7 @@ Names are stable so package managers can rely on them (`<version>` is for exampl
 | macOS | `Cuotai_<version>_universal.dmg` (Apple silicon and Intel) | `cuotai-<version>-aarch64-apple-darwin.tar.gz`, `cuotai-<version>-x86_64-apple-darwin.tar.gz` |
 | Windows | `Cuotai_<version>_x64-setup.exe`, `Cuotai_<version>_x64_en-US.msi`; ARM64: `Cuotai_<version>_arm64-setup.exe` (optional) | `cuotai-<version>-x86_64-pc-windows-msvc.zip`; ARM64 zip (optional) |
 | Linux | `Cuotai_<version>_amd64.AppImage`, `.deb`, `.rpm`; ARM64: `_aarch64.*` (optional) | `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz`, `…-x86_64-unknown-linux-musl.tar.gz`; ARM64 gnu (optional) |
-| Integrity | `SHA256SUMS`, `SHA256SUMS.sig` + `SHA256SUMS.pem`, `manifest.json`, `signing-state.json`, `sbom.cdx.json` | |
+| Integrity | `SHA256SUMS`, `SHA256SUMS.sigstore.json`, `manifest.json`, `signing-state.json`, `sbom.cdx.json` | |
 
 The Linux terminal archives are built on the oldest supported Ubuntu runner; the musl build needs a D-Bus session for the credential vault (without it, use environment-variable credentials).
 
@@ -54,13 +54,15 @@ shasum -a 256 -c SHA256SUMS                        # macOS / Linux
 # the build provenance of one file (needs the GitHub CLI)
 gh attestation verify Cuotai_<version>_universal.dmg --repo jmarcon/cuotai
 
-# the signature of the checksum file itself (needs cosign)
+# the signature of the checksum file itself (needs cosign v3 or later)
 cosign verify-blob \
-  --signature SHA256SUMS.sig --certificate SHA256SUMS.pem \
-  --certificate-identity-regexp '^https://github.com/jmarcon/cuotai/' \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity-regexp '^https://github\.com/jmarcon/cuotai/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 ```
+
+`SHA256SUMS.sigstore.json` is a Sigstore bundle: it holds the signature, the short-lived signing certificate and the transparency-log proof in one file.
 
 Release builds use a pinned toolchain and locked dependencies, and ship a per-release SBOM (see [`release-policy.md`](release-policy.md)).
 
