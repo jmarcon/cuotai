@@ -1032,7 +1032,7 @@ const demoReports = [
       summary: { id: "overage.limit_hit_on_extra", params: { amount: "$6.25" }, fallback: "Limite atingido · no extra $6.25" }, caveat: null } },
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
   { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging", plan: "Plus" },
-  { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("Premium requests", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
+  { ...dr("octo-dev", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("Premium requests", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
   // PRD 0023 RF10.3 demo: the video model is at its limit (the core's `scope_blocks`); the account keeps its quota.
   { ...dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),

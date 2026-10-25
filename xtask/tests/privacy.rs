@@ -107,3 +107,65 @@ fn no_personal_email_address_is_committed() {
         offenders.join("\n")
     );
 }
+
+/// The owner's GitHub handle may appear only in the repository's own address
+/// (`github.com/<owner>/cuotai`); demo fixtures and smokes use placeholders
+/// such as `octo-dev`.
+fn handle_outside_repo_urls(text: &str, handle: &str) -> bool {
+    let repo = format!("github.com/{handle}/");
+    let lower = text.to_ascii_lowercase();
+    lower
+        .match_indices(handle)
+        .any(|(i, _)| !lower[..i + handle.len() + 1].ends_with(&repo))
+}
+
+#[test]
+fn handle_scan_ignores_only_the_repository_address() {
+    let handle = ["jm", "arcon"].concat();
+    assert!(!handle_outside_repo_urls(
+        &format!("https://github.com/{handle}/cuotai"),
+        &handle
+    ));
+    assert!(handle_outside_repo_urls(
+        &format!("dr(\"{handle}\", \"copilot\")"),
+        &handle
+    ));
+}
+
+#[test]
+fn demo_fixtures_never_name_the_owner() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let handle = ["jm", "arcon"].concat();
+    let listing = match Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .args([
+            "ls-files",
+            "-z",
+            "apps/desktop/ui",
+            "apps/desktop/tools",
+            "scripts",
+        ])
+        .output()
+    {
+        Ok(out) if out.status.success() => out.stdout,
+        _ => return,
+    };
+    let mut offenders = Vec::new();
+    for rel in listing.split(|b| *b == 0).filter(|p| !p.is_empty()) {
+        let rel = String::from_utf8_lossy(rel).into_owned();
+        let Ok(text) = std::fs::read_to_string(root.join(&rel)) else {
+            continue;
+        };
+        for (n, line) in text.lines().enumerate() {
+            if handle_outside_repo_urls(line, &handle) {
+                offenders.push(format!("{rel}:{}", n + 1));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "the owner's handle is in demo data; use a placeholder (octo-dev):\n{}",
+        offenders.join("\n")
+    );
+}
