@@ -914,14 +914,7 @@ pub async fn run(
                     }
                 }
                 Command::CycleAggregator => {
-                    let aggregators: Vec<usize> = state
-                        .accounts
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, account)| account.provider.is_aggregator())
-                        .map(|(index, _)| index)
-                        .collect();
-                    state.aggregator_filter = next_focus(state.aggregator_filter, &aggregators);
+                    state.cycle_aggregator(&cycle_slot_reports(&refresh_cycle));
                     state.connection_focus = None;
                     state.selection.select(Some(0));
                     state.detail_scroll = 0;
@@ -3424,6 +3417,18 @@ impl State {
         }
     }
 
+    /// PRD 0036 RF9.1: `f` moves to the next aggregator the text filter
+    /// still shows (one it hides is skipped, so the list never goes empty),
+    /// then back to every account.
+    fn cycle_aggregator(&mut self, reports: &[Option<cuotai_core::Report>]) {
+        let aggregators: Vec<usize> =
+            dashboard::visible_indices(&self.accounts, reports, &self.filter, self.show_unmeasured)
+                .into_iter()
+                .filter(|index| self.accounts[*index].provider.is_aggregator())
+                .collect();
+        self.aggregator_filter = next_focus(self.aggregator_filter, &aggregators);
+    }
+
     fn visible(&self, reports: &[Option<cuotai_core::Report>]) -> Vec<usize> {
         let mut visible =
             dashboard::visible_indices(&self.accounts, reports, &self.filter, self.show_unmeasured);
@@ -4147,6 +4152,19 @@ mod tests {
         assert_eq!(next_focus(Some(1), &[1, 3]), Some(3));
         assert_eq!(next_focus(Some(3), &[1, 3]), None);
         assert_eq!(next_focus(Some(0), &[2]), Some(2));
+    }
+
+    #[test]
+    fn aggregator_cycle_skips_one_the_text_filter_hides() {
+        let mut state = state_with(three_accounts());
+        state.accounts[0].provider = cuotai_core::Provider::NineRouter;
+        state.accounts[2].provider = cuotai_core::Provider::NineRouter;
+        state.filter = state.accounts[2].name.clone();
+        state.cycle_aggregator(&[]);
+        assert_eq!(state.aggregator_filter, Some(2));
+        assert_eq!(state.visible(&[]), vec![2]);
+        state.cycle_aggregator(&[]);
+        assert_eq!(state.aggregator_filter, None, "back to every account");
     }
 
     #[test]
