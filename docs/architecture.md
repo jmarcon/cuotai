@@ -51,7 +51,7 @@ apps/desktop/             Tauri 2 app: main window, tray popover and native menu
 A new provider touches only the core; the TUI and the desktop app render its descriptors and reports generically.
 
 1. Add the variant to `Provider` (`model.rs`: `label`, `slug`, `ALL`), the adapter under `providers/` and its dispatch in `lib.rs`.
-2. **Declare its access descriptor (mandatory).** Add the arm to the exhaustive `match` in `access::classify` (level, credential class, scope, plan requirement, public evidence and the summary/reason texts), one arm per `params` value or login that changes the queried interface, and the `access.summary.<slug>` (plus `access.reason.<slug>` for `Unavailable`) ids in `locales/en-US.json`, `es.json` and `it.json`. The build fails without the arm, and the `access` tests fail without the texts or when `Unavailable` lacks a reason or `Official` lacks a documentation URL.
+2. **Declare its access descriptor (mandatory).** Add the arm to the exhaustive `match` in `access::classify` (level, credential class, scope, plan requirement, public evidence and the summary/reason texts), one arm per `params` value or login that changes the queried interface, and the `access.summary.<slug>` (plus `access.reason.<slug>` for `Unavailable`) ids in `locales/pt-BR.json`, `es.json` and `it.json` (the English text is the `fallback` in the code). The build fails without the arm, and the `access` tests fail without the texts or when `Unavailable` lacks a reason or `Official` lacks a documentation URL.
 3. Regenerate the usage access matrix of [`providers.md`](providers.md) with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix`; the same test without the variable fails while the document differs from `access::describe`. A new interface-switching param also goes into the `MODES` list of the `access` tests, which the matrix and the invariant tests walk.
 4. Add the account fields in `account_edit.rs`, the credential help, an example to `cuotai.example.toml` and the `wiremock` contract tests.
 5. A provider that reads usage with a **web session** (PRD 0016) also declares its slot in `user_session::descriptors` (accepted and required cookie names, the only hosts, delivery) and its adapter reads it with `providers::web_session` and sends it with `providers::send_session`; it enters only with evidence that the query is read-only and that the session alone is enough (vendor documentation, or a contract verified in 9router or a community client), recorded as the access descriptor's evidence. The `access` tests fail when a `UserSession` interface has no descriptor or a descriptor has no `UserSession` interface.
@@ -79,16 +79,22 @@ async fn query(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 
 Structured texts emitted by the core carry `Localized { id, params, fallback }`:
 
+- **English is the source locale (PRD 0034).** The `fallback` written in the
+  code is the English text: constructors take the English template and
+  interpolate the parameters into it. New texts are written in English
+  first and added to every catalog.
 - The **core owns the catalog of the ids it emits**:
-  `crates/cuotai-core/locales/{en-US,es,it}.json` (loaded through
+  `crates/cuotai-core/locales/{pt-BR,es,it}.json` (loaded through
   `include_str!` and `serde_json` behind a `LazyLock`). Every core id
   (field.*, native.*, login.*, credential_help.*, oauth.*,
   access.*, edit_error.*, query.*, note.*, remove_error.*,
-  remove.kept.*, status.*, provider.*, binding.*, metric_window.*, pace.*, alerts.*, incident.*) lives in `en-US.json` and `es.json`
-  with the same set of keys; `pt-BR` does not consult a catalog and uses
-  the Portuguese `fallback` embedded in each `Localized`. Resolution
-  (`Localized::resolve`, `cuotai_core::text::core_catalog`) follows the order
-  exact locale → same language → `en-US` → `fallback`.
+  remove.kept.*, status.*, provider.*, binding.*, metric_window.*, pace.*, alerts.*, incident.*) lives in all three
+  with the same set of keys; en-US has no catalog and renders the English
+  `fallback`. Resolution (`Localized::resolve`, `cuotai_core::text::core_catalog`)
+  follows the order exact locale → same language → `fallback`.
+- The core tests enforce the catalogs: equal key sets, equal placeholder
+  names, and no Portuguese marker in an English fallback (every
+  `Localized` built in the core tests passes `text::portuguese_markers`).
 - The desktop app receives the core catalog through the Tauri command
   `core_catalog(locale)`, and `js/i18n.js` merges it under the UI catalog
   (`apps/desktop/ui/locales/*.json`); user packs (in
@@ -96,12 +102,16 @@ Structured texts emitted by the core carry `Localized { id, params, fallback }`:
   on text**: `t()` and `tl()` look the id up in the catalog.
 - The TUI resolves the core's `Localized` values through `Localized::resolve` in the
   active locale (`CUOTAI_LANG`, default `pt-BR`); Ratatui's own captions
-  (shortcuts, frames, ...) are outside the scope of RF8 and remain in
-  Portuguese.
-- `Report.notes` keeps Portuguese text for compatibility with CLI/JSON
-  consumers; `Report.notes_l10n` accompanies the notes in the same order
-  with structured ids and parameters (never containing tokens). Adding a
+  (shortcuts, frames, ...) are the TUI's own texts (PRD 0034 RF2).
+- `Report.notes` holds the English `fallback` of each note;
+  `Report.notes_l10n` accompanies the notes in the same order with
+  structured ids and parameters (never containing tokens). Adding a
   language only means adding a catalog.
+- Machine outputs (`--json`, `--json-v1`, `--serve`, `--watch --jsonl`)
+  carry the English fallbacks; `--fallback-locale pt-BR` or
+  `CUOTAI_FALLBACK_LOCALE=pt-BR` renders them (and the plain `notes`)
+  through that catalog for consumers that display them verbatim
+  (`text::localize_json_fallbacks`, `ServeConfig::fallback_locale`).
 
 ## Development and verification commands
 

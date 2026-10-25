@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0034 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (`text`, catalogs, every `Localized` fallback), TUI/CLI (chrome texts, help), desktop (catalog loading) |
 | Consumers | every front end, `--json`/`--json-v1`/`--serve`/`--watch` consumers reading `fallback` or `Report.notes`, translators, PRD 0035 (additional languages) |
 | Depends on | PRD 0001 RF8 (the `Localized` contract and core catalogs) |
@@ -14,17 +14,17 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. The **source locale** is the language of the `fallback` text written in code; a **catalog** is a JSON file mapping ids to texts for one locale. **Chrome** is the TUI's own interface text (frames, shortcuts, captions). Code references are to `origin/main` at `0ba9c9b`.
 
-## Implementation status (2026-10-23)
+## Implementation status (2026-10-25)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
+| RF1 | vNEXT | Every core `Localized` fallback is English: constructors take the English template (the en-US catalog text for the id) and interpolate the params into `fallback`; `Report.notes` and the `Display` texts of the core errors are English. `crates/cuotai-core/locales/pt-BR.json` was generated from the old Portuguese fallbacks (call-site templates recovered mechanically and checked against a capture of every `Localized` the test suite builds: the pt-BR rendering equals the old fallback); `en-US.json` is removed; `core_catalog("pt-*")` returns pt-BR and `en-US` none. The TUI renders status labels, wizard field labels/help/options and login texts through their ids, so `CUOTAI_LANG=pt-BR` output is unchanged; the desktop demo fixtures and UI smokes moved to English fallbacks. |
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
+| RF4 | vNEXT | `text` tests: pt-BR, es and it carry the same ids and the same `{placeholder}` names (paths with literal braces allow-listed); `text::portuguese_markers` (ã, õ, ç and " não ", " já ", " está ", " conta ", " cota ", with an allow-list for proper names) runs on every `Localized` built in the core's tests, so a Portuguese fallback fails the suite; a seeded fallback is caught. The per-module "every id is in every catalog" tests now walk pt-BR, es and it. |
+| RF5 | vNEXT | `fallback` and `notes` of `--json`, `--json-v1`, `/v1/*` and `--watch --jsonl` are English. `--fallback-locale pt-BR` (and `CUOTAI_FALLBACK_LOCALE`) renders them through a catalog (`text::localize_json_fallbacks`, `ServeConfig::fallback_locale`); shapes, ids, params and `schema` are unchanged (export, server and binary tests in both modes; the schema validation runs on the rendered export). `docs/export-v1.md` and `docs/events.md` updated. |
+| RF6 | vNEXT | `AGENTS.md` "Documentation Language", `text.rs` module docs, `docs/architecture.md` (Internationalization and "Adding a provider"), `CONTRIBUTING.md`, `README.md`, `docs/tui.md`, `docs/advanced.md` and `apps/desktop/ui/locales/README.md` updated. |
+| RF7 | — | Proposed. The Tauri `core_catalog` already serves pt-BR and the browser demo reads `pt-BR.json`; the remaining demo fixtures with Portuguese fallbacks and the desktop's raw descriptor labels stay for RF7. |
 
 ## 1. Context
 
@@ -170,3 +170,13 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 | English fallbacks in `export::v1`, `--json`, events | **Breaking**: minor bump with a `BREAKING CHANGE:` footer, migration through `CUOTAI_FALLBACK_LOCALE=pt-BR` (RF5.2); shape and ids unchanged, so `schema` stays 1. |
 | `en-US.json` | **Removed** once English is the fallback (RF1.3); no generated copy. |
 | `--help` | **English only** (RF3.1). |
+
+### Implementation decisions (RF1, RF4–RF6 delivery, 2026-10-25)
+
+| Topic | Decision |
+|---|---|
+| English text per id | The en-US catalog text, except where it did not match the code: placeholder names that no parameter carried (`{line_count}`, `{plan_name}`, `{timestamp}`, `{url}`, `{value}`, …) were renamed to the parameters in the English text and in es/it, and texts whose meaning differed from the Portuguese (Alibaba billing notes, Grok and Perplexity notes, Cloudflare and Qwen reasons, the Xiaomi credential note) were rewritten from the Portuguese and retranslated in es/it. |
+| One text for different messages | Where one id carried several Portuguese messages (`models.unsupported` with a per-provider reason, the MiniMax balance alert state, the inference endpoint hint, the purge-vault wrappers) the variable part became a nested `Localized` parameter with its own id, so pt-BR stays identical and es/it get the translated part. |
+| Shared field/native descriptors | A native-login option borrowed from the account form has one English text (the form's); the `native.*` ids keep their own translations in the catalogs. |
+| Not `Localized` today | Metric labels, units and periods (provider data), the login progress lines (`LoginEvent::Progress`), the Xiaomi code-rejection message and the TUI's own captions keep their wording; they belong to RF2/RF7 or a later change. |
+| Stale ids | Catalog ids that no code emits (`edit_error.save`, `query.oauth`, `models.unsupported.admin_key`, …) were dropped from es/it with `en-US.json`. |

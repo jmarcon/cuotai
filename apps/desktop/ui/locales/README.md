@@ -1,8 +1,9 @@
 # Cuotai languages
 
 Each built-in language has a core catalog and a desktop UI catalog. The core
-catalogs in `crates/cuotai-core/locales/{en-US,es,it}.json` contain the texts
-emitted by the backend. The desktop UI catalogs in
+catalogs in `crates/cuotai-core/locales/{pt-BR,es,it}.json` contain the texts
+emitted by the backend; English is the text written in the core's code (the
+`fallback`), so en-US has no core catalog. The desktop UI catalogs in
 `apps/desktop/ui/locales/<code>.json` contain shell labels, dialogs, tray
 messages, settings and themes.
 
@@ -32,8 +33,9 @@ messages, settings and themes.
    `field.*`, `native.*`, `login.*`, `credential_help.*`, `oauth.*`,
    `access.*`, `edit_error.*`, `query.*`, `note.*`, `remove_error.*`,
    `remove.kept.*`, `status.*`, `provider.*`, `binding.*`,
-   `metric_window.*`, and `pace.*`. Portuguese is the embedded fallback for
-   `pt-*`; other languages use their catalog and fall back to `en-US`.
+   `metric_window.*`, and `pace.*`. English is the embedded fallback; every
+   other language uses its catalog and falls back to that English text. The
+   core tests fail when the catalog lacks an id or renames a placeholder.
 2. Add `apps/desktop/ui/locales/<code>.json` with the UI's `common.*`,
    `dialog.*`, `tray.*`, `settings.*`, `theme.*`, `account.*`, `card.*`,
    `delete.*`, `filter.*`, `lang.*`, `metric.*`, `quota.*`, `sort.*`,

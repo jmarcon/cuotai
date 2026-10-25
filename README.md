@@ -155,7 +155,7 @@ Cuotai is a one-person, open-source project and every bit of help counts. Suppor
 - **Star the repository** so more people find it.
 - **Get help.** [`SUPPORT.md`](SUPPORT.md) says where to ask and what response to expect.
 - **Report a bug or ask for something** in [Issues](https://github.com/jmarcon/cuotai/issues). There are templates for bugs, provider problems and **new provider requests** (tell us which service you need and what its usage page or API looks like). Use [private reporting](SECURITY.md) for security issues, and never paste a real key or token.
-- **Translate or improve a language.** The interface is available in Portuguese, English, Spanish and Italian, and you can add another language as a single JSON file ([how](apps/desktop/ui/locales/README.md)). Proofreading an existing language is welcome too.
+- **Translate or improve a language.** The interface is available in Portuguese, English, Spanish and Italian, and you can add another language as a single JSON file ([how](apps/desktop/ui/locales/README.md)). English is the source language: every text is written in English first and translated from it. Proofreading an existing language is welcome too.
 - **Contribute a theme, a fix or a provider.** Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.
 - **Tell others** if it saved you from hitting a limit mid-task.
 

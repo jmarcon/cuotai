@@ -64,7 +64,7 @@ Use `--once` instead of `--json` for human-readable, single-refresh output (`--j
 
 The README and all repository documentation are written in **English**, the norm for open-source repositories: `README.md`, `docs/` (including the PRDs in `docs/plans/`), `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CHANGELOG.md`, issue templates and code comments.
 
-- The product stays multilingual: UI strings live in the Portuguese, English, Spanish and Italian catalogs, and core `Localized` fallbacks stay in Portuguese by design.
+- The product stays multilingual: UI strings live in the English source and the Portuguese, Spanish and Italian catalogs; core `Localized` fallbacks are English; new texts are written in English first and added to every catalog (PRD 0034).
 - Semantic commits (subject and body), pull request titles and descriptions, and issue text are also written in **English** from now on; see "Versioning, Commits & Changelog" below.
 - Write every new document in English; every existing document has already been migrated. Never mix languages inside one file.
 
