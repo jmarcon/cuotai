@@ -381,7 +381,9 @@ async fn fetch_antigravity_at(
         } else {
             entry.display_name.clone()
         };
-        metrics.push(build_model_metric(label, entry));
+        // One quota per model: exhausting a model must not block the account.
+        let scope = crate::Scope::model(key.clone(), label.clone());
+        metrics.push(build_model_metric(label, entry).scoped(scope));
     }
 
     for (_, entry) in parsed_weekly.iter_weekly() {
@@ -427,6 +429,8 @@ fn build_model_metric(label: String, entry: &QuotaEntry) -> Metric {
         }
     }
     Metric {
+        billing: Default::default(),
+        scope: None,
         label,
         used: None,
         limit: None,
@@ -1755,6 +1759,23 @@ mod tests {
         assert!(labels.contains(&"Gemini (Semanal)"));
         assert!(labels.contains(&"Gemini (5h)"));
         assert!(data.metrics.iter().all(|m| m.kind == MetricKind::Quota));
+        // Per-model quotas are scoped; the family aggregates are not.
+        let flash = data
+            .metrics
+            .iter()
+            .find(|m| m.label == "Gemini 3.8 Flash (High)")
+            .unwrap();
+        assert_eq!(
+            flash.scope.as_ref().map(|s| s.kind),
+            Some(crate::ScopeKind::Model)
+        );
+        assert!(data
+            .metrics
+            .iter()
+            .find(|m| m.label == "Gemini (5h)")
+            .unwrap()
+            .scope
+            .is_none());
 
         // Reconciliação: gemini_3.8_flash_high tem 0.85 (não zero),
         // então a sessão permanece intacta em 100%.

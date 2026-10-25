@@ -4146,6 +4146,8 @@ mod tests {
 
     fn quota(label: &str, used: f64, window: cuotai_core::MetricWindow, resets_h: i64) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used: Some(used),
             limit: Some(100.0),

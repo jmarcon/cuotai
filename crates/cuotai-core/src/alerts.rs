@@ -12,7 +12,7 @@
 //! one notification.
 
 use crate::metrics::{classify_metric, window_param, MetricState};
-use crate::model::{Account, Metric, MetricKind, MetricWindow, Report, Status};
+use crate::model::{Account, Metric, MetricWindow, Report, Status};
 use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
 use crate::text::{params, provider_l10n, Localized};
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
@@ -562,7 +562,7 @@ fn level(consumption: Consumption, prefs: &AlertPrefs) -> Option<u8> {
 /// not eligible. Follows [`classify_metric`]: a finite `used` wins over
 /// `remaining`.
 fn consumption(metric: &Metric) -> Option<Consumption> {
-    if metric.kind != MetricKind::Quota {
+    if !crate::metrics::is_plan_limit(metric) {
         return None;
     }
     let finite = |value: Option<f64>| value.filter(|value| value.is_finite());
@@ -846,7 +846,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::Provider;
+    use crate::model::{MetricKind, Provider};
     use chrono::TimeZone;
 
     fn t0() -> DateTime<Utc> {
@@ -868,6 +868,8 @@ mod tests {
 
     fn quota(used: Option<f64>, resets_at: DateTime<Utc>) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: "5h".into(),
             used,
             limit: Some(100.0),
@@ -1002,6 +1004,11 @@ mod tests {
             (
                 "non-finite value",
                 with(|m| m.used = Some(f64::NAN)),
+                vec![],
+            ),
+            (
+                "overage",
+                with(|m| m.billing = crate::model::Billing::Overage),
                 vec![],
             ),
             ("balance", with(|m| m.kind = MetricKind::Balance), vec![]),

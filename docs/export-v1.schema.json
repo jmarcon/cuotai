@@ -95,7 +95,18 @@
         "kind": { "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] },
         "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }] },
         "period": { "type": ["string", "null"] },
-        "resets_at": { "type": ["string", "null"], "format": "date-time" }
+        "resets_at": { "type": ["string", "null"], "format": "date-time" },
+        "billing": { "enum": ["overage"], "description": "Present only on paid extra usage (billed on top of the plan); absent means included in the plan." },
+        "scope": {
+          "type": "object",
+          "required": ["kind", "id", "label"],
+          "description": "Present only when the metric limits one model rather than the whole account.",
+          "properties": {
+            "kind": { "enum": ["model"] },
+            "id": { "type": "string" },
+            "label": { "type": "string" }
+          }
+        }
       }
     },
     "LastGoodMetric": {

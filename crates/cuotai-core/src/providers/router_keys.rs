@@ -229,6 +229,8 @@ async fn opencode_go_at(
         };
         let used = percent.clamp(0.0, 100.0);
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used: Some(used),
             limit: Some(100.0),
@@ -307,6 +309,8 @@ pub(crate) async fn groq_at(
             .and_then(|d| chrono::Duration::from_std(d).ok())
             .map(|d| now + d);
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: format!("{label} (rate limit)"),
             used: Some((limit - remaining).max(0.0)),
             limit: Some(limit),
@@ -483,6 +487,8 @@ async fn kimi_coding_at(
         let reset = parse_reset_time(pick(&["resetTime", "ResetTime", "reset_at", "resetAt"]));
         if let Some(limit) = limit.filter(|l| *l > 0.0) {
             metrics.push(Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Semanal".into(),
                 used: Some(used),
                 limit: Some(limit),
@@ -510,6 +516,8 @@ async fn kimi_coding_at(
             };
             let remaining = finite(pick(&["remaining", "Remaining"])).unwrap_or(limit);
             metrics.push(Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Rate limit".into(),
                 used: Some((limit - remaining).max(0.0)),
                 limit: Some(limit),
@@ -827,6 +835,8 @@ fn mimo_data_from_body(
         });
 
     let metrics = vec![Metric {
+        billing: Default::default(),
+        scope: None,
         label: "Semanal".into(),
         used: Some(used),
         limit: Some(100.0),

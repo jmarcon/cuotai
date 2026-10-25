@@ -64,6 +64,10 @@ println!("{}", serde_json::to_string(&export)?);
 
 Localized texts are objects `{ "id", "params", "fallback" }`: resolve `id` in your own catalog (Cuotai's are `crates/cuotai-core/locales/*.json`) or show the Portuguese `fallback`.
 
+## Overage and model scope
+
+A metric whose amount is billed on top of the plan (Claude extra usage, Cursor and Grok on-demand, Kiro overage) carries `"billing": "overage"`; plan metrics omit the field. A metric that limits one model carries `"scope": {"kind": "model", "id", "label"}`; account-wide metrics omit it. Both are additive. Consumers that read `kind = "quota"` as the plan limit should skip metrics with `billing` and treat metrics with `scope` as limits of that model only, as Cuotai does for the binding limit and the account state.
+
 ## Limits summary (`Limits`)
 
 `Limits::from_export(&export)` is the body of the local server's `/v1/limits`: `schema`, `generated_at` and, per account in configuration order, `index`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness` and `stale`, with the same meaning as in `AccountExport`. It is part of version 1 under the same additive policy and is declared as `$defs/Limits` in the schema (checked by `export::v1::tests::limits_summary_follows_its_schema`).

@@ -70,6 +70,8 @@ fn require_finite(value: f64) -> Result<(), QueryError> {
 fn push_balance(metrics: &mut Vec<Metric>, label: &str, balance: f64) -> Result<(), QueryError> {
     require_finite(balance)?;
     metrics.push(Metric {
+        billing: Default::default(),
+        scope: None,
         label: label.into(),
         used: None,
         limit: None,

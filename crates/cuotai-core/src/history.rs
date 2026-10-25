@@ -702,6 +702,8 @@ impl HistoryStore {
                         key: row.get(0)?,
                         taken_at: instant(row.get(2)?)?,
                         metric: Metric {
+                            billing: Default::default(),
+                            scope: None,
                             label: row.get(1)?,
                             used: finite(row.get(3)?),
                             limit: finite(row.get(4)?),
@@ -926,6 +928,8 @@ credential_env = "GROQ_KEY_BETA"
 
     pub(super) fn quota(label: &str, used: Option<f64>, limit: Option<f64>) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used,
             limit,

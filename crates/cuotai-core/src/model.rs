@@ -572,6 +572,54 @@ pub struct Metric {
     pub window: Option<MetricWindow>,
     pub period: Option<String>,
     pub resets_at: Option<DateTime<Utc>>,
+    /// Whether the amount is part of the plan or billed on top of it.
+    #[serde(default, skip_serializing_if = "Billing::is_included")]
+    pub billing: Billing,
+    /// Set when the metric limits one model (or another sub-scope) rather
+    /// than the whole account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Scope>,
+}
+
+/// Whether a metric is covered by the plan or is paid extra usage (overage).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Billing {
+    /// Part of the plan's included allowance (the default).
+    #[default]
+    Included,
+    /// Billed on top of the plan (extra usage, on-demand, overage).
+    Overage,
+}
+
+impl Billing {
+    pub fn is_included(&self) -> bool {
+        *self == Billing::Included
+    }
+}
+
+/// The sub-scope a metric is limited to, such as one model.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Scope {
+    pub kind: ScopeKind,
+    pub id: String,
+    pub label: String,
+}
+
+impl Scope {
+    pub fn model(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            kind: ScopeKind::Model,
+            id: id.into(),
+            label: label.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeKind {
+    Model,
 }
 
 impl Metric {
@@ -620,7 +668,21 @@ impl Metric {
             window,
             period: None,
             resets_at: None,
+            billing: Billing::Included,
+            scope: None,
         }
+    }
+
+    /// Marks the metric as paid extra usage.
+    pub fn overage(mut self) -> Self {
+        self.billing = Billing::Overage;
+        self
+    }
+
+    /// Limits the metric to one model (or another sub-scope).
+    pub fn scoped(mut self, scope: Scope) -> Self {
+        self.scope = Some(scope);
+        self
     }
 }
 

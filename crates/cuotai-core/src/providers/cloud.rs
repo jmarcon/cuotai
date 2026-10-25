@@ -197,6 +197,8 @@ fn google_metrics(label: &str, limits: &[Ts], usage: &[Ts]) -> Result<Vec<Metric
             .map(String::as_str)
             .unwrap_or("global");
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: format!("{label}: {quota} / {limit_name} ({location})"),
             used: None,
             limit: Some(value),

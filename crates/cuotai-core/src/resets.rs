@@ -12,7 +12,7 @@ pub use timeline::{timeline, AccountView, Lane, ShareLevel, Timeline, TimelineRa
 
 use crate::alerts::AlertState;
 use crate::metrics::{classify_metric, window_param, MetricState};
-use crate::model::{Account, Config, Metric, MetricKind, MetricWindow, Report};
+use crate::model::{Account, Config, Metric, MetricWindow, Report};
 use crate::text::{params, provider_l10n, Localized};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
@@ -436,7 +436,7 @@ fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Option<ResetM
         MetricWindow::Other => prefs.include_other,
         _ => true,
     })?;
-    if metric.kind != MetricKind::Quota {
+    if !crate::metrics::is_plan_limit(metric) {
         return None;
     }
     let exhausted = matches!(classify_metric(metric), MetricState::Exhausted { .. });
@@ -461,7 +461,7 @@ fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Option<ResetM
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Account, Provider, Status};
+    use crate::model::{Account, MetricKind, Provider, Status};
     use chrono::TimeZone;
 
     fn now() -> DateTime<Utc> {
@@ -474,6 +474,8 @@ mod tests {
 
     fn quota(label: &str, used: Option<f64>, resets_at: Option<DateTime<Utc>>) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used,
             limit: Some(100.0),
@@ -605,6 +607,14 @@ mod tests {
                     with(used.clone(), |m| m.kind = MetricKind::RateLimit),
                     with(used.clone(), |m| m.kind = MetricKind::Balance),
                 ],
+                prefs(NotifyWhen::Always),
+                vec![],
+            ),
+            (
+                "overage never enters",
+                vec![with(used.clone(), |m| {
+                    m.billing = crate::model::Billing::Overage
+                })],
                 prefs(NotifyWhen::Always),
                 vec![],
             ),

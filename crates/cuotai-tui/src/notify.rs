@@ -310,6 +310,8 @@ mod tests {
             checked_at: start(),
             status: Status::Ready,
             metrics: vec![Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "5h".into(),
                 used: Some(used),
                 limit: Some(100.0),

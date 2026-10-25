@@ -137,6 +137,8 @@ async fn grok_cli(
         if let Some(grpc) = fetch_grpc_credits(ctx, grpc_base, &token).await {
             let used = grpc.percent_used.round().clamp(0.0, 100.0);
             metrics.push(Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Grok CLI: semanal SuperGrok".into(),
                 used: Some(used),
                 limit: Some(100.0),
@@ -329,6 +331,8 @@ fn quota_metric(
         _ => None,
     };
     Metric {
+        billing: Default::default(),
+        scope: None,
         label: label.into(),
         used,
         limit,
@@ -377,20 +381,25 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
     let cap = unwrap_val(field(config, root, &["onDemandCap"]));
     let used = unwrap_val(field(config, root, &["onDemandUsed"]));
     match cap {
-        Some(cap) if cap > 0.0 => metrics.push(quota_metric(
-            "Grok CLI: sob demanda",
-            used,
-            Some(cap),
-            "créditos",
-            Some("ciclo de cobrança"),
-            Some(MetricWindow::Monthly),
-            resets_at,
-        )),
+        Some(cap) if cap > 0.0 => metrics.push(
+            quota_metric(
+                "Grok CLI: sob demanda",
+                used,
+                Some(cap),
+                "créditos",
+                Some("ciclo de cobrança"),
+                Some(MetricWindow::Monthly),
+                resets_at,
+            )
+            .overage(),
+        ),
         // Cap 0 is the exhausted free/promo state (chat returns 402
         // spending-limit). The zero limit is real data from the provider.
         Some(0.0) if !subscription_access && used.is_some() => {
             on_demand_exhausted = true;
             metrics.push(Metric {
+                billing: crate::Billing::Overage,
+                scope: None,
                 label: "Grok CLI: sob demanda".into(),
                 used,
                 limit: Some(0.0),
@@ -410,6 +419,8 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
     {
         has_prepaid = true;
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Grok CLI: pré-pago".into(),
             used: None,
             limit: None,
@@ -433,6 +444,8 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
     {
         let used = percent.clamp(0.0, 100.0);
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Grok CLI: semanal SuperGrok".into(),
             used: Some(used),
             limit: Some(100.0),

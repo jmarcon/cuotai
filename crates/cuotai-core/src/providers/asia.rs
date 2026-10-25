@@ -189,6 +189,8 @@ async fn minimax_balance_at(
     Ok(Data::new(
         vec![
             Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Saldo disponível".into(),
                 used: None,
                 limit: None,
@@ -200,6 +202,8 @@ async fn minimax_balance_at(
                 resets_at: None,
             },
             Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Saldo em caixa".into(),
                 used: None,
                 limit: None,
@@ -211,6 +215,8 @@ async fn minimax_balance_at(
                 resets_at: None,
             },
             Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Voucher".into(),
                 used: None,
                 limit: None,
@@ -222,6 +228,8 @@ async fn minimax_balance_at(
                 window: None,
             },
             Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Crédito".into(),
                 used: None,
                 limit: None,
@@ -233,6 +241,8 @@ async fn minimax_balance_at(
                 resets_at: None,
             },
             Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "Valor devido (dívida)".into(),
                 used: None,
                 limit: None,
@@ -300,6 +310,8 @@ async fn kimi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     let mut metrics = Vec::with_capacity(3);
     let mut add = |label: &str, value: f64, kind: MetricKind| {
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used: None,
             limit: None,

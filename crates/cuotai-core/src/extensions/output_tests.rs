@@ -90,6 +90,40 @@ fn a_valid_output_becomes_a_ready_report_of_the_extension() {
 }
 
 #[test]
+fn billing_and_scope_are_optional_and_unknown_values_are_rejected() {
+    let with = |metric: Value| {
+        json!({"schema": 1, "status": "ready", "metrics": [metric]})
+            .to_string()
+            .into_bytes()
+    };
+    let base = json!({"label": "Extra", "unit": "USD", "kind": "spend"});
+    let plain = check("p", &with(base.clone()));
+    assert!(plain.violations.is_empty());
+    assert_eq!(plain.metrics[0].billing, crate::Billing::Included);
+    assert!(plain.metrics[0].scope.is_none());
+
+    let mut ok = base.clone();
+    ok["billing"] = json!("overage");
+    ok["scope"] = json!({"kind": "model", "id": "opus", "label": "Opus"});
+    let checked = check("p", &with(ok));
+    assert!(checked.violations.is_empty(), "{:?}", checked.violations);
+    assert_eq!(checked.metrics[0].billing, crate::Billing::Overage);
+    assert_eq!(checked.metrics[0].scope.as_ref().unwrap().id, "opus");
+
+    for (key, bad) in [
+        ("billing", json!("free")),
+        ("scope", json!({"kind": "galaxy", "id": "x", "label": "X"})),
+        ("scope", json!("opus")),
+    ] {
+        let mut metric = base.clone();
+        metric[key] = bad;
+        let checked = check("p", &with(metric));
+        assert_eq!(checked.status, Status::Error, "{key}");
+        assert!(!checked.violations.is_empty(), "{key}");
+    }
+}
+
+#[test]
 fn absent_values_stay_unknown_and_unknown_fields_are_ignored() {
     let partial = json!({
         "schema": 1,

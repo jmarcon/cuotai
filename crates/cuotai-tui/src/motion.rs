@@ -370,6 +370,8 @@ mod tests {
             checked_at: chrono::Utc::now(),
             status: Status::Ready,
             metrics: vec![Metric {
+                billing: Default::default(),
+                scope: None,
                 label: "m".into(),
                 used: Some(10.0 - remaining),
                 limit: Some(10.0),

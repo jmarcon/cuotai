@@ -57,6 +57,8 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
 
     let remaining = credits.remaining.ok_or_else(QueryError::schema)?;
     let mut metrics = vec![Metric {
+        billing: Default::default(),
+        scope: None,
         label: "Créditos restantes".into(),
         used: None,
         limit: None,
@@ -298,6 +300,8 @@ fn push_budget_metric(
         (None, None)
     };
     metrics.push(Metric {
+        billing: Default::default(),
+        scope: None,
         label,
         used: Some(used),
         limit,

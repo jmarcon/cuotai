@@ -89,6 +89,8 @@ fn qoder_metric(
         return Ok(None);
     }
     Ok(Some(Metric {
+        billing: Default::default(),
+        scope: None,
         label: label.into(),
         used: quota.used.map(finite).transpose()?,
         limit: quota.total.map(finite).transpose()?,
@@ -397,6 +399,8 @@ async fn ollama(
         }
         let used = (ratio.clamp(0.0, 1.0) * 100.0).round();
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: (*label).into(),
             used: Some(used),
             limit: Some(100.0),
