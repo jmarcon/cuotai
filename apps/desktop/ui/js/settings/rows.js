@@ -76,7 +76,7 @@ export const disc = (key, summary, body) =>
   `<details class="set-disc" data-disc="${esc(key)}" ${get(DISC_KEY(key)) === "open" ? "open" : ""}><summary>${icon("chev", "set-disc-chev")}<span>${summary}</span></summary><div class="set-disc-body">${body}</div></details>`;
 
 /** RF2.3: a row that opens a sub-page of this page (chevron right, DS-CMP-NAV-2). */
-export const subRow = ({ key, label, desc = "", info = "", keywords = "" }) => row({ key, label, desc, info, keywords,
+export const subRow = ({ key, label, desc = "", info = "", kw = key }) => row({ key, label, desc, info, kw,
   control: (a) => `<button type="button" class="icon set-open-sub" data-open-sub="${esc(key)}" ${a}>${icon("chev")}</button>` });
 
 /** RF2.3: the sub-page itself, hidden until its row opens it; a back button returns (DS-CMP-NAV-1). */

@@ -1147,6 +1147,7 @@ fn a_rule_can_filter_by_account_id() {
 #[test]
 fn a_rule_on_an_aggregator_covers_its_connections() {
     let rule = Rule {
+        quiet: Default::default(),
         account_id: None,
         name: "pool".into(),
         events: vec![EventKind::QuotaExhausted, EventKind::PoolExhausted],

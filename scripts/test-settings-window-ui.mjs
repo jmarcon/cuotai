@@ -229,7 +229,7 @@ for (const { code } of i18n.LOCALES) {
   // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
   // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
   const alertsPage = rendered.get("alerts");
-  assert.ok(alertsPage.includes('data-row="quiet"') && /data-row="quiet"[^>]*data-keywords="[^"]+"/.test(alertsPage), `${code}: quiet row or its keywords missing`);
+  assert.ok(alertsPage.includes('data-row="quiet"') && /data-row="quiet"[^>]*data-kw="[^"]+"/.test(alertsPage), `${code}: quiet row or its keywords missing`);
   for (const id of ['id="quiet-on"', 'id="quiet-digest"', 'id="notify-private"', "data-quiet-days"]) assert.ok(alertsPage.includes(id), `${code}: ${id} missing from the Alerts page`);
   const { quietDaysHtml, quietSummary } = modules.get("alerts");
   const week = Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => [day, [{ from: "22:00", to: "08:00" }]]));
