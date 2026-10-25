@@ -75,13 +75,24 @@
   margin-right: auto;
   font-size: var(--text-lg);
 }
+/* PRD 0022 (mockup 70): the scope select draws its own chevron. */
+.st-scope select,
+.pop-head .st-scope select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%), linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
 .st-scope select {
   height: 28px;
   max-width: 260px;
   padding: 0 var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--fg);
 }
 .st-status:empty {
@@ -504,7 +515,7 @@
   padding: 0 var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--fg);
   font: inherit;
 }
@@ -591,4 +602,10 @@
 .st-time {
   flex: none;
   white-space: nowrap;
+}
+
+/* Room for the scope chevron (mockup 70); after the padding shorthands above. */
+.st-scope select,
+.pop-head .st-scope select {
+  padding-right: calc(var(--space-2) + 14px);
 }
