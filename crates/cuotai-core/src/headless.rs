@@ -127,7 +127,7 @@ impl Driver {
         (0..cycle.len()).any(|index| {
             cycle
                 .account_report(index)
-                .is_some_and(|report| report.status != Status::Ready)
+                .is_some_and(crate::aggregators::has_failure)
         })
     }
 

@@ -223,6 +223,18 @@ pub fn expand(config: &Config, readings: &[Option<&Report>]) -> Expanded {
     expanded
 }
 
+/// PRD 0036 RF9.3: whether `report` counts as a failure for
+/// `--strict-exit`: a failed account, or an aggregator whose instance is
+/// ready but one of its active connections failed. (Without the strict
+/// flag only the instance's own status counts.)
+pub fn has_failure(report: &Report) -> bool {
+    report.status != Status::Ready
+        || report
+            .sub_reports
+            .iter()
+            .any(|sub| sub_is_active(sub) && sub.status != Status::Ready)
+}
+
 /// RF5.2: an e-mail as compared for duplicates: trimmed and case-folded.
 pub fn normalize_email(raw: &str) -> String {
     raw.trim().to_lowercase()
@@ -835,6 +847,23 @@ mod tests {
         let config = dedup_config(off);
         mark_duplicates(&config, &config.accounts[1], &mut router);
         assert_eq!(router.sub_reports[0].duplicate_of, None);
+    }
+
+    #[test]
+    fn a_failed_active_connection_is_a_strict_failure() {
+        let ok = report(
+            Status::Ready,
+            vec![sub("a", "claude", Status::Ready, Vec::new())],
+        );
+        assert!(!has_failure(&ok));
+        let mut bad = report(
+            Status::Ready,
+            vec![sub("a", "claude", Status::Error, Vec::new())],
+        );
+        assert!(has_failure(&bad));
+        bad.sub_reports[0].duplicate_of = Some("claude:work".into());
+        assert!(!has_failure(&bad), "a duplicate never counts");
+        assert!(has_failure(&report(Status::Error, Vec::new())));
     }
 
     #[test]
