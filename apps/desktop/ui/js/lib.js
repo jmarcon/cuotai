@@ -1195,6 +1195,37 @@ const DEMO_PACES = new Map([
   [8, [0, { 0: dp("reserve", "good", 0.656, 0, 248) }]],
   [14, [0, { 0: dp("exhausted", "bad", 0.866, 1, 100) }]],
 ].map(([index, pace]) => [demoReports[index], pace]));
+// PRD 0022 RF18.2: `?fixture=six` swaps the demo accounts for the mockups' set (the six accounts plus a second Claude
+// account, example.com identities only), so the captures compare with `assets/0022/after/` (01, 03, 10, 11). With
+// `&bedrock` it adds an AWS Bedrock account (PRD 0027 RF3.1 "Billed per query" chip). `?mono=XY` (any demo) gives the
+// first account a monogram override (DS-CMP-MONO-4), as `desktop.json` would.
+const DEMO_QUERY = new URLSearchParams(globalThis.location?.search ?? "");
+if (DEMO_QUERY.get("fixture") === "six") {
+  const overage = (amount) => ({ state: "active", spent: amount, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300),
+    text: { id: "overage.on_extra", params: { amount: `$${amount.toFixed(2)}` }, fallback: `On extra · $${amount.toFixed(2)}` },
+    summary: { id: "overage.limit_hit_on_extra", params: { amount: `$${amount.toFixed(2)}` }, fallback: `Limit hit · on extra $${amount.toFixed(2)}` }, caveat: null });
+  const six = [
+    [{ ...dr("work@example.com", "claude", [dm("session (5h)", 78, 100, 1.2, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 70, "quota", "weekly", "%")]), plan: "Max", model_count: 3 },
+      [0, 0], [0, { 0: dp("ahead", "warn", 0.62, 0.78, 1.2, 0.4) }]],
+    [{ ...dr("side@example.com", "claude", [dm("session (5h)", 29, 100, 3.1, "quota", "window_5h", "%"), dm("weekly (7d)", 12, 100, 120, "quota", "weekly", "%")]), plan: "Pro" },
+      [0, 3], [0, { 0: dp("on_pace", "good", 0.3, 0.29, 3.1) }]],
+    [{ ...dr("me@example.com", "chat_gpt", [dm("5h", 37, 100, 2.4, "quota", "window_5h", "%"), dm("weekly", 20, 100, 90, "quota", "weekly", "%")]), plan: "Plus" }, [0, 2], [0, { 0: dp("reserve", "good", 0.5, 0.37, 2.4) }]],
+    [{ ...dr("dev@example.com", "cursor", [dm("Fast requests", 500, 500, 200, "quota", "monthly"),
+      { label: "Extra usage", used: 6.25, limit: 50, remaining: null, unit: "USD", kind: "spend", window: "monthly", period: null, resets_at: h(200), billing: "overage",
+        state: "available", ratio: null, uncapped: true, no_cap: false }]), class: "exhausted", plan: "Pro", overage: overage(6.25) }, [0, 1], null],
+    [dr("ops@example.com", "kimi", [dm("Weekly", 41, 100, 50, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]), [0, 4], [0, { 0: dp("on_pace", "neutral", 0.42, 0.41, 50) }]],
+    [{ ...drn("team@example.com", "groq", [], demoNote("down", "Service unavailable right now."), "error"), checked_at: ago(2),
+      last_good: { checked_at: ago(38), metrics: [dm("Requests (day)", 26, 100, 9, "quota", "daily")] } }, [null, 5], null],
+    [drn("api@example.com", "anthropic_api", [], demoNote("auth", "Credential missing or expired."), "authentication_error"), [null, 6], null],
+    ...(DEMO_QUERY.has("bedrock") ? [[dr("billing@example.com", "aws_bedrock", [], ["Cost Explorer: no spend recorded this month (demo)."]), [null, 7], null]] : []),
+  ];
+  demoReports.splice(0, demoReports.length, ...six.map(([r]) => r));
+  for (const [r, binding, pace] of six) {
+    DEMO_BINDINGS.set(r, binding);
+    if (pace) DEMO_PACES.set(r, pace);
+  }
+}
+if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
 // The core's binding of a demo connection: its most consumed quota (demo only; the app gets it from the core).
 const demoConnectionBinding = (c) => {
   const ratio = (m) => (m.limit ? m.used / m.limit : 0);

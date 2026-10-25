@@ -335,6 +335,7 @@ jobs:
       - run: node scripts/test-renewed-reading-ui.mjs
       - run: node scripts/test-menu-bar-ui.mjs
       - run: node scripts/test-density-ui.mjs
+      - run: node scripts/test-demo-fixture-ui.mjs
       # PRD 0022 RF1.9/RF15.5: literal colors, durations and keyframes in the
       # UI, the theme contract, and strict contrast against the baseline.
       - if: runner.os == 'Linux'
@@ -364,10 +365,9 @@ jobs:
 
   # Browser-demo checks of the desktop UI (PRD 0022 RF14.2, PRD 0020 RNF), on
   # macOS where Chrome is preinstalled. The overflow check (every language and
-  # the 200 % zoom sizes) is stable and blocks. The axe-core pass and the
-  # render/open-time probes depend on a CDN download and on runner speed, so
-  # they report without failing the job (advisory). The demo binds to
-  # 127.0.0.1 only and reads no credential.
+  # the 200 % zoom sizes), the axe-core pass (serious/critical; a CDN failure
+  # only warns) and the open-time and interaction-work probes block. The demo
+  # binds to 127.0.0.1 only and reads no credential.
   ui-checks:
     name: ui checks (overflow, 200 % zoom, accessibility, timing)
     needs: changes

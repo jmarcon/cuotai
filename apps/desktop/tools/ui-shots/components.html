@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- PRD 0022 RF10.5 component fixture page (dev-only, never bundled): the surfaces for planned features rendered by
+     the production modules from the browser demo's fixtures, one section per component. Served from the repository
+     root by driver.mjs; `<base>` points at apps/desktop/ui so the app's relative paths (catalogs, styles) resolve. -->
+<html lang="en-US" data-theme="dracula" data-mode="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="../../ui/" />
+    <title>Cuotai components</title>
+    <link rel="stylesheet" href="css/themes.css" />
+    <link rel="stylesheet" href="css/themes/index.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/detail.css" />
+    <link rel="stylesheet" href="css/stats.css" />
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/dialog.css" />
+    <style>
+      body { overflow: auto; }
+      .fx { display: grid; gap: var(--space-4); padding: var(--space-4); max-width: 760px; }
+      .fx > section { display: grid; gap: var(--space-2); }
+      .fx h2 { margin: 0; color: var(--fg-muted); font-size: var(--text-xs); letter-spacing: 0.06em; text-transform: uppercase; }
+      .fx .fx-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+      .fx .fx-meters { display: grid; gap: var(--space-2); max-width: 320px; }
+      .fx .fx-panel { padding: var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+    </style>
+  </head>
+  <body>
+    <main id="app" class="fx" aria-busy="true"></main>
+    <script type="module" src="../tools/ui-shots/components.mjs"></script>
+  </body>
+</html>

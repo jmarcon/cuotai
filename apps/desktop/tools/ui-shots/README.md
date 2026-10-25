@@ -24,6 +24,17 @@ repository root.
 `screens.tsv` columns: name, page (with its query), width, height, theme, mode, language, clicks
 (`|`-separated selectors) and storage presets (`key=value;…`, for example `cuotai.trayView=rings`) and an optional `selector:px` to scroll an element before the shot (the scrolled mockups).
 
+Demo switches (URL query, no app file edited, RF18.4): `?fixture=six` swaps the demo accounts for the mockups' set
+(two Claude accounts, Codex, Cursor on extra usage, Kimi, a stale Groq and an Anthropic API account needing sign-in) so
+the `*.fixture` captures compare with `assets/0022/after/` (01, 03, 10, 11); `&bedrock` adds an AWS Bedrock account
+(the "Billed per query" chip); `?mono=XY` gives the first account a monogram override (DS-CMP-MONO-4); `?aggwarn` gives
+the 9router instance both standing warnings (PRD 0036 RF2.3/RF2.4).
+
+[`components.html`](components.html) is the PRD 0022 RF10.5 component fixture page: meters, state rings, the extra-usage
+chip and sub-row, the forecast callout, rows with monograms, the filter tabs with an aggregator tab and the chips, drawn
+by the production modules from the demo's fixtures (a surface without data is left out). `screens.tsv` captures it as
+`90-components*` in the four reference themes (Dracula, GitHub light, Win98, CRT).
+
 How it works: [`driver.mjs`](driver.mjs) serves the repository root with `python3 -m http.server`,
 starts headless Chrome with a throwaway profile and drives it over the DevTools protocol (window
 size, scale, color scheme, reduced motion). The demo's language and theme are preset in

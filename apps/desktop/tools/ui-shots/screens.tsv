@@ -60,3 +60,11 @@
 50-settings-alerts-quiet	settings.html?page=alerts	860	900	dracula	dark	en-US	[data-open-sub="quiet"]|#quiet-on|[data-quiet-same]
 50-settings-cost	settings.html?page=cost	860	900	dracula	dark	en-US
 50-settings-cost-plans	settings.html?page=cost	860	900	dracula	dark	en-US	[data-open-sub="cost-plans"]
+01-tray-overview.fixture	tray.html?fixture=six	380	600	dracula	dark	en-US
+03-tray-account-claude-expanded.fixture	tray.html?fixture=six	380	600	dracula	dark	en-US	[data-open]
+10-main-overview.fixture	index.html?fixture=six&bedrock	1200	820	dracula	dark	en-US
+11-main-overview-full.fixture	index.html?fixture=six&bedrock	1200	1400	dracula	dark	en-US
+90-components	../tools/ui-shots/components.html?aggwarn&mono=zq	800	1600	dracula	dark	en-US
+90-components.github-light	../tools/ui-shots/components.html?aggwarn&mono=zq	800	1600	github	light	en-US
+90-components.win98	../tools/ui-shots/components.html?aggwarn&mono=zq	800	1600	win98	light	en-US
+90-components.crt	../tools/ui-shots/components.html?aggwarn&mono=zq	800	1600	crt	dark	en-US
