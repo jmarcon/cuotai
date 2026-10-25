@@ -226,9 +226,6 @@
 .bars .today .bar {
   background: var(--accent);
 }
-.bars .full .bar {
-  background: var(--bad);
-}
 .bars .bar.ghost {
   height: 100%;
   border-radius: var(--radius-xs) var(--radius-xs) 0 0;
@@ -295,10 +292,6 @@
 }
 .mini-bar.last {
   background: var(--accent);
-}
-.mini-bar.last.full,
-.mini-bar.full {
-  background: var(--bad);
 }
 .mini-bar.gap {
   height: 100%;
