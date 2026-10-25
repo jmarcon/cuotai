@@ -569,9 +569,13 @@ pub struct OverageView {
 fn overage_view(report: &Report) -> Option<OverageView> {
     let state = cuotai_core::overage::assess(report)?;
     let exhausted = classify_report(Some(report)) == AccountClass::Exhausted;
+    let blocks = cuotai_core::metrics::scope_blocks(report);
     Some(OverageView {
         summary: if exhausted {
             state.summary_with_limit_hit()
+        } else if !blocks.is_empty() {
+            // PRD 0023 RF10.3: a model at its limit marks only its scope.
+            state.summary_with_scope_hit(&blocks)
         } else {
             state.text()
         },

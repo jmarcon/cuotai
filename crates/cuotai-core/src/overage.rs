@@ -324,6 +324,34 @@ impl Overage {
     }
 }
 
+impl Overage {
+    /// The card summary when some model-scoped plan limits are exhausted
+    /// while the account itself is not (PRD 0023 RF10): "Opus limit hit ·
+    /// on extra $6.25". Falls back to [`Self::text`] when nothing is billed,
+    /// no amount is known or no scope is blocked.
+    pub fn summary_with_scope_hit(&self, blocks: &[crate::metrics::ScopeBlock]) -> Localized {
+        let models = blocks
+            .iter()
+            .map(|block| block.label.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        match (self.state.is_billing(), self.amount(), models.is_empty()) {
+            (true, Some(amount), false) => {
+                let plain = match &amount {
+                    ParamValue::Text(t) => t.clone(),
+                    ParamValue::L10n(l) => l.fallback.to_string(),
+                };
+                Localized::with_params(
+                    "overage.scope_limit_hit_on_extra",
+                    params([("model", models.as_str().into()), ("amount", amount)]),
+                    format!("{models} no limite · no extra {plain}"),
+                )
+            }
+            _ => self.text(),
+        }
+    }
+}
+
 fn on_extra(id: &'static str, amount: ParamValue, pt_prefix: &str) -> Localized {
     let plain = match &amount {
         ParamValue::Text(t) => t.clone(),
@@ -462,6 +490,34 @@ mod tests {
         assert_eq!(o.spent, None);
         assert_eq!(o.currency, None);
         assert_eq!(o.items.len(), 2);
+    }
+
+    /// PRD 0023 RF10: a model at its limit while extra usage bills.
+    #[test]
+    fn a_model_limit_hit_summary_names_the_model_and_the_amount() {
+        use crate::metrics::ScopeBlock;
+        let blocks = vec![ScopeBlock {
+            index: 0,
+            label: "Opus".into(),
+            resets_at: None,
+        }];
+        let active = assess(&report(vec![spend("a", Some(6.25), None, "USD")], None)).unwrap();
+        let text = active.summary_with_scope_hit(&blocks);
+        assert_eq!(text.id, "overage.scope_limit_hit_on_extra");
+        assert_eq!(text.fallback, "Opus no limite · no extra $6.25");
+        assert_eq!(text.resolve("en-US"), "Opus limit hit · on extra $6.25");
+        assert_eq!(
+            text.resolve("es"),
+            "Límite de Opus alcanzado · en extra $6.25"
+        );
+        assert_eq!(
+            text.resolve("it"),
+            "Limite di Opus raggiunto · in extra $6.25"
+        );
+        // Nothing blocked, or nothing billing: the plain state line.
+        assert_eq!(active.summary_with_scope_hit(&[]).id, "overage.on_extra");
+        let armed = assess(&report(vec![spend("a", Some(0.0), Some(5.0), "USD")], None)).unwrap();
+        assert_eq!(armed.summary_with_scope_hit(&blocks).id, "overage.armed");
     }
 
     #[test]

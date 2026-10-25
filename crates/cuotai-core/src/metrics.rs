@@ -67,6 +67,66 @@ pub fn limits_account(metric: &Metric) -> bool {
     is_plan_limit(metric) && metric.scope.is_none()
 }
 
+/// PRD 0023 RF10.3: a plan limit scoped to one model that is exhausted. It
+/// marks only its scope; the account keeps its own state.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopeBlock {
+    /// Index of the metric in the report.
+    pub index: usize,
+    /// The scope's display name (the model).
+    pub label: String,
+    /// When the scoped limit returns, if known.
+    pub resets_at: Option<DateTime<Utc>>,
+}
+
+impl ScopeBlock {
+    /// "{model} at its limit until 19:30" (`metrics.scope_blocked`), or
+    /// "{model} at its limit" (`metrics.scope_blocked_unknown`) when the
+    /// return is unknown. `at` formats the time in the caller's clock.
+    pub fn summary(&self, at: impl FnOnce(DateTime<Utc>) -> String) -> Localized {
+        match self.resets_at {
+            Some(until) => {
+                let at = at(until);
+                let fallback = format!("{} no limite até {at}", self.label);
+                let params = params([("model", self.label.as_str().into()), ("at", at.into())]);
+                Localized::with_params("metrics.scope_blocked", params, fallback)
+            }
+            None => Localized::with_param(
+                "metrics.scope_blocked_unknown",
+                "model",
+                self.label.as_str(),
+                format!("{} no limite", self.label),
+            ),
+        }
+    }
+}
+
+/// The exhausted model-scoped plan limits of a `Ready` report, in report
+/// order (PRD 0023 RF10.3). Empty when none is exhausted.
+pub fn scope_blocks(report: &Report) -> Vec<ScopeBlock> {
+    if report.status != Status::Ready {
+        return Vec::new();
+    }
+    report
+        .metrics
+        .iter()
+        .enumerate()
+        .filter(|(_, metric)| is_plan_limit(metric))
+        .filter_map(|(index, metric)| {
+            let scope = metric.scope.as_ref()?;
+            matches!(
+                classify_metric(metric),
+                MetricState::Exhausted { no_cap: false }
+            )
+            .then(|| ScopeBlock {
+                index,
+                label: scope.label.clone(),
+                resets_at: metric.resets_at,
+            })
+        })
+        .collect()
+}
+
 /// Classify an account using the latest report, if any. A `None` report or a
 /// non-`Ready` status is never classified as available.
 pub fn classify_report(report: Option<&Report>) -> AccountClass {
@@ -1107,6 +1167,36 @@ mod tests {
         );
         assert!(binding(&r).is_none());
         assert_eq!(classify_report(Some(&r)), AccountClass::Available);
+    }
+
+    /// PRD 0023 RF10.3: an exhausted model limit is named with its return.
+    #[test]
+    fn scope_blocks_name_the_exhausted_models_only() {
+        let r = report(
+            Status::Ready,
+            vec![
+                pq("5h", 100.0, 100.0),
+                model("Opus", 100.0),
+                model("Sonnet", 30.0),
+            ],
+        );
+        let blocks = scope_blocks(&r);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!((blocks[0].index, blocks[0].label.as_str()), (1, "Opus"));
+        let at = |_| "19:30".to_owned();
+        let text = blocks[0].summary(at);
+        assert_eq!(text.id, "metrics.scope_blocked");
+        assert_eq!(text.resolve("en-US"), "Opus at its limit until 19:30");
+        assert_eq!(text.resolve("es"), "Opus en su límite hasta las 19:30");
+        assert_eq!(text.resolve("it"), "Opus al limite fino alle 19:30");
+        let mut unknown = blocks[0].clone();
+        unknown.resets_at = None;
+        let text = unknown.summary(at);
+        assert_eq!(text.id, "metrics.scope_blocked_unknown");
+        assert_eq!(text.resolve("en-US"), "Opus at its limit");
+        // Not ready, or nothing scoped exhausted: no block.
+        assert!(scope_blocks(&report(Status::Error, vec![model("Opus", 100.0)])).is_empty());
+        assert!(scope_blocks(&report(Status::Ready, vec![pq("5h", 100.0, 100.0)])).is_empty());
     }
 
     #[test]

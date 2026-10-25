@@ -15,7 +15,9 @@ use cuotai_core::access;
 use cuotai_core::cost::{self, SourceCost};
 use cuotai_core::history::{self, HistoryRange, MetricHistory, Trend};
 use cuotai_core::incidents::{IncidentState, ProviderStatus};
-use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
+use cuotai_core::metrics::{
+    binding, classify_metric, classify_report, scope_blocks, AccountClass, MetricState,
+};
 use cuotai_core::overage;
 use cuotai_core::pace::{self, Pace, PaceStage, PaceTone, Point};
 #[cfg(test)]
@@ -1589,8 +1591,12 @@ fn render_card(
 /// the account is also at its limit; `None` otherwise.
 pub(crate) fn extra_usage_text(report: &Report, locale: &str) -> Option<String> {
     let state = overage::assess(report).filter(|state| state.state.is_billing())?;
+    let blocks = scope_blocks(report);
     let text = if classification(Some(report)) == AccountClass::Exhausted {
         state.summary_with_limit_hit()
+    } else if !blocks.is_empty() {
+        // PRD 0023 RF10.3: an exhausted model limit marks only its scope.
+        state.summary_with_scope_hit(&blocks)
     } else {
         state.text()
     };
@@ -2203,6 +2209,20 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Span::styled(
                 safe(&resolve_l10n(&limit.summary(local_time))).into_owned(),
                 Style::default().fg(PINK).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+    }
+    // PRD 0023 RF10.3: a model at its limit is named with its return; the
+    // account keeps its own state.
+    for block in scope_blocks(report) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "  MODELO  ",
+                Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                safe(&resolve_l10n(&block.summary(local_time))).into_owned(),
+                Style::default().fg(PINK),
             ),
         ]));
     }
@@ -4072,6 +4092,21 @@ mod tests {
         );
     }
 
+    /// PRD 0023 RF10.3: a model at its limit names itself in the summary
+    /// while extra usage bills; the account keeps its own state.
+    #[test]
+    fn extra_usage_text_names_a_model_at_its_limit() {
+        let mut reports = on_extra(false, 6.25);
+        let report = reports[0].as_mut().unwrap();
+        let mut opus = metric("Opus", Some(100.0), Some(100.0), None);
+        opus.scope = Some(cuotai_core::Scope::model("opus", "Opus"));
+        report.metrics.insert(1, opus);
+        assert_eq!(
+            extra_usage_text(report, "en-US").as_deref(),
+            Some("Opus limit hit · on extra $6.25")
+        );
+    }
+
     #[test]
     fn card_without_binding_keeps_adapter_order() {
         let mut reports = blocked_by_week();
@@ -4527,6 +4562,7 @@ mod tests {
                 kind: session.kind,
                 window: session.window,
                 billing: cuotai_core::Billing::Included,
+                scoped: false,
                 limit: Some(100.0),
                 points: vec![point(24, 0.0), point(12, 90.0), point(0, 40.0)],
                 windows: Vec::new(),

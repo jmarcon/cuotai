@@ -54,6 +54,10 @@ pub struct MetricHistory {
     pub window: Option<MetricWindow>,
     /// Plan allowance or paid extra usage (PRD 0026 RF1.5).
     pub billing: Billing,
+    /// A limit of one model, not of the account (PRD 0023 RF10): it does
+    /// not count as a limit hit of the account.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub scoped: bool,
     /// The last finite `limit` recorded in the span, if any.
     pub limit: Option<f64>,
     /// Samples with a finite `used`, in time order.
@@ -280,7 +284,7 @@ impl HistoryStore {
         let account_digest = series_digest(&db, &self.config_key, account)?;
         let mut query = db.prepare(
             "SELECT x.metric_key, s.label, x.unit, x.kind, x.\"window\", x.taken_at,
-                    x.used, x.\"limit\", x.resets_at, s.billing
+                    x.used, x.\"limit\", x.resets_at, s.billing, s.scope IS NOT NULL
              FROM samples x JOIN series s ON s.config_key = x.config_key
                AND s.account_digest = x.account_digest AND s.metric_key = x.metric_key
              WHERE x.config_key = ?1 AND x.account_digest = ?2 AND x.taken_at BETWEEN ?3 AND ?4
@@ -313,6 +317,7 @@ impl HistoryStore {
                             .map(untag::<MetricWindow>)
                             .transpose()?,
                         billing: untag(row.get(9)?)?,
+                        scoped: row.get(10)?,
                         limit: None,
                         points: Vec::new(),
                         windows: Vec::new(),
@@ -355,6 +360,7 @@ mod tests {
             kind: MetricKind::Quota,
             window: Some(MetricWindow::Window5h),
             billing: Billing::Included,
+            scoped: false,
             limit,
             points: points
                 .iter()

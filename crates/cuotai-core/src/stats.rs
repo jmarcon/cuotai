@@ -7,7 +7,8 @@
 //! counted; fewer than two days of data is reported as not enough.
 //!
 //! Only plan limits count: included `MetricKind::Quota` metrics with a
-//! finite positive limit (the stored form of `metrics::is_plan_limit`). The tightest limit of an account on a day is the plan limit with
+//! finite positive limit that applies to the whole account (the stored form of
+//! `metrics::limits_account`: model-scoped limits are left out, PRD 0023 RF10). The tightest limit of an account on a day is the plan limit with
 //! the highest peak share that day, so shares never exceed 1.0 here even
 //! when a provider reports use above the cap.
 //!
@@ -203,7 +204,7 @@ pub fn summarize<Tz: TimeZone>(
         }
         for metric in histories
             .iter()
-            .filter(|m| m.kind == MetricKind::Quota && m.billing == Billing::Included)
+            .filter(|m| m.kind == MetricKind::Quota && m.billing == Billing::Included && !m.scoped)
         {
             let Some(limit) = metric.limit.filter(|l| l.is_finite() && *l > 0.0) else {
                 unknown_limits += 1;
@@ -392,6 +393,50 @@ credential_env = "GROQ_KEY_BETA"
             Some(0.6),
             "accounts without data are not zeros"
         );
+    }
+
+    /// PRD 0023 RF10: a model-scoped limit at its cap is not a limit hit of
+    /// the account, and the stored reading keeps its scope.
+    #[test]
+    fn a_model_limit_is_not_an_account_limit_hit() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(dir.path());
+        let alpha = &accounts()[0];
+        let resets = at(19, 0) + TimeDelta::days(1);
+        let mut opus = metric("Opus", 100.0, Some(100.0), resets);
+        opus.scope = Some(crate::Scope::model("opus", "Opus"));
+        let whole = metric("daily", 20.0, Some(100.0), resets);
+        history
+            .record(alpha, at(19, 10), &[whole, opus.clone()])
+            .unwrap();
+        history
+            .record(
+                alpha,
+                at(20, 10),
+                &[
+                    metric("daily", 30.0, Some(100.0), resets + TimeDelta::days(1)),
+                    opus,
+                ],
+            )
+            .unwrap();
+        let s = summary(&history, StatsRange::Days7, at(20, 12));
+        assert_eq!(s.hits, 0, "the exhausted model is not an account hit");
+        let share = s.daily.iter().rev().find_map(|d| d.share).unwrap();
+        assert!(
+            (share - 0.3).abs() < 1e-9,
+            "the tightest limit is the whole-account one"
+        );
+        let stored = history.latest(alpha).unwrap().unwrap();
+        let scoped = stored
+            .metrics
+            .iter()
+            .find(|m| m.metric.label == "Opus")
+            .expect("the model limit is restored");
+        assert_eq!(
+            scoped.metric.scope,
+            Some(crate::Scope::model("opus", "Opus"))
+        );
+        assert!(stored.metrics.iter().any(|m| m.metric.scope.is_none()));
     }
 
     #[test]

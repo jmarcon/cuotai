@@ -94,7 +94,7 @@ const WAL_SIZE_LIMIT: i64 = 4 << 20;
 /// Times are UTC unix milliseconds. Version 2 indexes samples by age (the
 /// file-wide retention and size pruning, RF4) and adds `meta` (the
 /// resolution reduction's progress).
-const MIGRATIONS: [&str; 5] = [
+const MIGRATIONS: [&str; 6] = [
     "CREATE TABLE series (
     config_key TEXT NOT NULL,
     account_digest TEXT NOT NULL,
@@ -130,6 +130,9 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;"
     // Version 5 (PRD 0026 RF3.2): the digest of the aggregator account for
     // an event of one of its 9router connections (PRD 0036 RF7.3).
     journal::PARENT_MIGRATION,
+    // Version 6 (PRD 0023 RF10): the model scope of a metric as JSON, so
+    // statistics skip model limits and a restored reading keeps them scoped.
+    "ALTER TABLE series ADD COLUMN scope TEXT;",
 ];
 
 /// PRD 0029 RF2.2: `legacy_digest` (the pre-0029 series identity,
@@ -172,8 +175,8 @@ pub(crate) fn series_digest(
         let tx = db.unchecked_transaction()?;
         tx.execute(
             "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label,
-                position, seen_at, removed_at, billing)
-             SELECT config_key, ?3, metric_key, label, position, seen_at, removed_at, billing
+                position, seen_at, removed_at, billing, scope)
+             SELECT config_key, ?3, metric_key, label, position, seen_at, removed_at, billing, scope
              FROM series WHERE config_key = ?1 AND account_digest = ?2",
             rusqlite::params![config_key, legacy, current],
         )?;
@@ -595,11 +598,12 @@ impl HistoryStore {
         {
             let mut series = tx.prepare(
                 "INSERT INTO series (config_key, account_digest, metric_key, label, position, seen_at,
-                    billing)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                    billing, scope)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                  ON CONFLICT (config_key, account_digest, metric_key) DO UPDATE SET
                     label = excluded.label,
                     billing = excluded.billing,
+                    scope = excluded.scope,
                     position = CASE WHEN excluded.seen_at >= seen_at
                         THEN excluded.position ELSE position END,
                     seen_at = MAX(seen_at, excluded.seen_at),
@@ -626,7 +630,11 @@ impl HistoryStore {
                     metric.label,
                     position,
                     at,
-                    tag(metric.billing)
+                    tag(metric.billing),
+                    metric
+                        .scope
+                        .as_ref()
+                        .and_then(|scope| serde_json::to_string(scope).ok())
                 ])?;
                 let values = Values::of(metric);
                 let last = previous
@@ -771,7 +779,7 @@ impl HistoryStore {
         };
         let mut query = db.prepare_cached(
             "SELECT s.metric_key, s.label, x.taken_at, x.used, x.\"limit\", x.remaining,
-                    x.unit, x.kind, x.\"window\", x.resets_at, s.billing
+                    x.unit, x.kind, x.\"window\", x.resets_at, s.billing, s.scope
              FROM series s JOIN samples x
                ON x.config_key = s.config_key AND x.account_digest = s.account_digest
               AND x.metric_key = s.metric_key
@@ -797,7 +805,9 @@ impl HistoryStore {
                         taken_at: instant(row.get(2)?)?,
                         metric: Metric {
                             billing: untag(row.get(10)?)?,
-                            scope: None,
+                            scope: row
+                                .get::<_, Option<String>>(11)?
+                                .and_then(|json| serde_json::from_str(&json).ok()),
                             label: row.get(1)?,
                             used: finite(row.get(3)?),
                             limit: finite(row.get(4)?),
