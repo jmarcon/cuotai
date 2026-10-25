@@ -28,7 +28,12 @@ const FLAGS = {
   jp: `<rect width="30" height="20" fill="#fff"/><circle cx="15" cy="10" r="6" fill="#bc002d"/>`,
 };
 const GLOBE = `<rect width="30" height="20" fill="#4a6fa5"/><circle cx="15" cy="10" r="7" fill="none" stroke="#fff" stroke-width="1.2"/><path d="M8 10h14M15 3c-3 3-3 11 0 14m0-14c3 3 3 11 0 14" stroke="#fff" stroke-width="1" fill="none"/>`;
-const LANG_FLAG = { en: "us", es: "es", pt: "pt", fr: "fr", de: "de", it: "it", nl: "nl", ru: "ru", pl: "pl", ja: "jp" };
+// PRD 0022 RF17.9 (DS-CMP-SEL-3): a language without a region takes its reference country. `pt` alone is Portugal on
+// purpose (Portuguese's reference flag); the shipped catalog is `pt-BR`, which resolves to Brazil by its region, and a
+// user pack can set `_meta.flag`. ko, vi, tr, zh, hi and id are mapped ahead of their artwork (PRD 0035 RF7.1): until
+// then they show the globe.
+const LANG_FLAG = { en: "us", es: "es", pt: "pt", fr: "fr", de: "de", it: "it", nl: "nl", ru: "ru", pl: "pl", ja: "jp",
+  ko: "kr", vi: "vn", tr: "tr", zh: "cn", hi: "in", id: "id" };
 
 /** País da bandeira de um idioma: `_meta.flag` explícito, senão a região do código (pt-BR → br), senão a língua. */
 export function flagCountry(code, explicit) {
