@@ -2319,8 +2319,9 @@ impl Backend {
                 .filter(|_| input.commit_login)
                 .and_then(|p| p.completed.as_ref());
             let config = &l.file.config;
-            let account = input_account(config, &input, completed)?;
-            let updated = config
+            let base = with_named_peer(config, &input)?;
+            let account = input_account(&base, &input, completed)?;
+            let updated = base
                 .upsert_account(account, input.index)
                 .map_err(|e| l10n_to_json(&e.l10n()))?;
             let prev = config.clone();
@@ -2362,12 +2363,18 @@ impl Backend {
             // Stage the new cycle on a copy so a structural-diff rejection
             // (e.g. reorder) leaves the live state untouched.
             let mut staged = l.cycle.clone_state_for_edit();
-            let due = match staged.apply_edit(
-                &prev,
-                &updated,
-                Edit::Upsert(edit_index),
-                Instant::now(),
-            ) {
+            // PRD 0029 RF3.3: the named peer first (its reading stays),
+            // then the account itself.
+            let peer = account_edit::unnamed_peer(&prev, input.provider, input.index);
+            let renamed = match peer {
+                Some(peer) => staged
+                    .apply_edit(&prev, &base, Edit::Rename(peer), Instant::now())
+                    .map(|_| &base),
+                None => Ok(&prev),
+            };
+            let due = match renamed.and_then(|before| {
+                staged.apply_edit(before, &updated, Edit::Upsert(edit_index), Instant::now())
+            }) {
                 Ok(due) => due,
                 Err(e) => {
                     undo_paste(vault.as_deref(), staged_paste).await;
@@ -3565,6 +3572,10 @@ pub struct AccountInput {
     pub index: Option<usize>,
     pub provider: Provider,
     pub name: String,
+    /// PRD 0029 RF3.3: the name typed for the provider's existing, unnamed
+    /// account when this one is added beside it; saved in the same write.
+    #[serde(default)]
+    pub peer_name: Option<String>,
     pub credential: String,
     pub fields: Vec<FieldValue>,
     pub interval: String,
@@ -3697,6 +3708,18 @@ async fn undo_paste(vault: Option<&OAuthSession>, staged: Option<user_session::S
 
 /// The account the dialog describes, built by the core against `config`
 /// (`completed`: the login this save commits, if any).
+/// PRD 0029 RF3.3: `config` with the provider's unnamed account named
+/// from the dialog's `peer_name`, when the dialog adds an account beside
+/// one; unchanged otherwise.
+fn with_named_peer(config: &Config, input: &AccountInput) -> Result<Config, String> {
+    match account_edit::unnamed_peer(config, input.provider, input.index) {
+        Some(peer) => config
+            .rename_account(peer, input.peer_name.as_deref().unwrap_or_default())
+            .map_err(|e| l10n_to_json(&e.l10n())),
+        None => Ok(config.clone()),
+    }
+}
+
 fn input_account(
     config: &Config,
     input: &AccountInput,
@@ -5442,6 +5465,7 @@ mod tests {
             index: Some(0),
             provider: Provider::XiaomiMimo,
             name: "MiMo".into(),
+            peer_name: None,
             credential: "XIAOMI_MIMO_API_KEY".into(),
             fields: Vec::new(),
             interval: String::new(),
@@ -5456,6 +5480,44 @@ mod tests {
             }],
             save_anyway: false,
         }
+    }
+
+    /// PRD 0029 RF3.3: adding a second MiMo account beside an unnamed one
+    /// names both in one save; without the peer's name nothing is written.
+    #[tokio::test(flavor = "current_thread")]
+    async fn adding_beside_an_unnamed_account_names_it_in_the_same_save() {
+        let store = Arc::new(MemoryStore::default());
+        let mut unnamed = session_env_account("MIMO_COOKIE");
+        unnamed.name.clear();
+        let backend = build_backend(store, vec![unnamed]).await;
+        let id = backend.loaded_config().await.accounts[0].id();
+        let mut input = pasted_input("");
+        input.sessions.clear();
+        input.index = None;
+        input.name = "Work".into();
+        let error = backend
+            .inner
+            .drive_save_account(input, None)
+            .await
+            .unwrap_err();
+        assert!(error.contains("edit_error.name_required"), "{error}");
+        assert_eq!(backend.loaded_config().await.accounts.len(), 1);
+
+        let mut input = pasted_input("");
+        input.sessions.clear();
+        input.index = None;
+        input.name = "Work".into();
+        input.peer_name = Some("Personal".into());
+        backend
+            .inner
+            .drive_save_account(input, None)
+            .await
+            .unwrap();
+        let config = backend.loaded_config().await;
+        assert_eq!(config.accounts.len(), 2);
+        assert_eq!(config.accounts[0].name, "Personal");
+        assert_eq!(config.accounts[0].id(), id);
+        assert_eq!(config.accounts[1].name, "Work");
     }
 
     /// SES-02: the core's clearance of a passed test before save, for the

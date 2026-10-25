@@ -186,6 +186,7 @@
   "edit_error.monitor_with_config": "La nueva configuración de la cuenta es inválida: {detail}.",
   "edit_error.monitor_with_config_move": "La configuración reordenada es inválida: {detail}.",
   "edit_error.name_required": "Indique un nombre para la cuenta.",
+  "edit_error.name_required_same_provider": "Dé un nombre a esta cuenta: tiene otra cuenta de {provider}.",
   "edit_error.oauth_required": "Ejecute el login OAuth (Enter en \"Iniciar login\") antes de guardar, o vuelva a la variable de entorno con Tab.",
   "edit_error.param.billing_cycle": "Indique el ciclo en el formato YYYY-MM.",
   "edit_error.param.email": "Correo electrónico inválido.",

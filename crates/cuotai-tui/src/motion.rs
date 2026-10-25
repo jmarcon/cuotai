@@ -169,9 +169,9 @@ impl Anim {
                     .map(|metric| target(classify_metric(metric)))
             };
             let class = report.as_ref().map(|report| classify_report(Some(report)));
-            let Some(card) = self.cards.get_mut(&account.name) else {
+            let Some(card) = self.cards.get_mut(&account.state_key()) else {
                 self.cards.insert(
-                    account.name.clone(),
+                    account.state_key(),
                     Card {
                         from: Vec::new(),
                         to: targets().collect(),
@@ -395,6 +395,11 @@ mod tests {
         })
     }
 
+    /// Cards are keyed by the account's state key (PRD 0029).
+    fn key() -> String {
+        accounts()[0].state_key()
+    }
+
     fn at(anim: &mut Anim, start: Instant, ms: u64) {
         anim.track([false].into_iter(), (false, false, false), start + MS(ms));
     }
@@ -405,17 +410,17 @@ mod tests {
         let start = anim.now;
         anim.observe(&accounts(), &[ready(8.0)]);
         assert!(!anim.active(), "first sight never animates");
-        assert_eq!(anim.bar("a", 0, -1.0), 0.8);
+        assert_eq!(anim.bar(&key(), 0, -1.0), 0.8);
 
         anim.observe(&accounts(), &[ready(2.0)]);
         assert!(anim.active());
-        assert_eq!(anim.bar("a", 0, -1.0), 0.8, "t=0 shows the old value");
+        assert_eq!(anim.bar(&key(), 0, -1.0), 0.8, "t=0 shows the old value");
         at(&mut anim, start, 100);
-        let mid = anim.bar("a", 0, -1.0);
+        let mid = anim.bar(&key(), 0, -1.0);
         assert!(mid > 0.2 && mid < 0.8, "intermediate: {mid}");
         assert!(anim.active());
         at(&mut anim, start, 300);
-        assert_eq!(anim.bar("a", 0, -1.0), 0.2);
+        assert_eq!(anim.bar(&key(), 0, -1.0), 0.2);
         assert!(!anim.active(), "idle after the tween: no redraws");
         assert_eq!(anim.bar("missing", 0, 0.5), 0.5);
     }
@@ -426,16 +431,19 @@ mod tests {
         let start = anim.now;
         anim.observe(&accounts(), &[None]);
         anim.observe(&accounts(), &[ready(5.0)]);
-        assert!(!anim.blinking("a"), "pending -> data is not a class change");
+        assert!(
+            !anim.blinking(&key()),
+            "pending -> data is not a class change"
+        );
         at(&mut anim, start, 400);
         anim.observe(&accounts(), &[ready(0.0)]);
-        assert!(anim.blinking("a"), "Disponível -> Esgotado blinks");
+        assert!(anim.blinking(&key()), "Disponível -> Esgotado blinks");
         at(&mut anim, start, 400 + 300);
-        assert!(!anim.blinking("a"));
+        assert!(!anim.blinking(&key()));
         at(&mut anim, start, 400 + 600);
-        assert!(anim.blinking("a"), "second flash");
+        assert!(anim.blinking(&key()), "second flash");
         at(&mut anim, start, 400 + 750);
-        assert!(!anim.blinking("a") && !anim.active());
+        assert!(!anim.blinking(&key()) && !anim.active());
     }
 
     #[test]

@@ -4,7 +4,7 @@ import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import { easeOut, motionMs } from "./motion.js";
 import {
-  bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
+  accountLabel, bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
   bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, paceLabelOf, nextNoticeText,
   incidentBadge, incidentHtml, bindStatusLinks, wordmark, overageChipHtml, billingOverage,
@@ -31,7 +31,7 @@ function row(r) {
     ${logo(r.provider, 32)}
     <div class="row-main">
       <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${lv}">${esc(value)}</span></div>
-      <div class="row-sub">${esc(r.account)}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
+      <div class="row-sub">${esc(accountLabel(r))}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
       ${r.usage_alerts?.length ? `<div class="row-alert">${icon("bell")}<span>${esc(ALERTS.find((c) => c.id === "usage").label(r))}</span></div>` : ""}
       <div class="row-age">${ageHtml(r)}</div>
       ${overageChipHtml(r)}
@@ -92,7 +92,7 @@ function tile(r) {
   return `<button class="tile${r.usage_alerts?.length ? " usage-alert" : ""}${incident ? ` incident ${incident.tone}` : ""}" data-open="${esc(reportKey(r))}" title="${esc(tip.join("\n"))}" data-binding="${esc(r.binding?.window ?? "")}">
     ${donutHtml(alert && pct == null ? 100 : pct, tone, center)}
     <span class="tile-name">${logo(r.provider, 14)}<b>${esc(brand(r.provider).label)}</b></span>
-    <span class="tile-acct">${esc(r.account)}</span>${ageHtml(r)}</button>`;
+    <span class="tile-acct">${esc(accountLabel(r))}</span>${ageHtml(r)}</button>`;
 }
 const te2 = (key, vars) => t(key, vars);
 /** PRD 0007 RF3.3: "Week: lasts until the reset" / "Week: runs out at 16:40, 2h 10m before the reset". */
@@ -159,7 +159,7 @@ function render() {
     <header class="pop-head">
       ${cur ? `<button class="icon back" data-back title="${te("common.back")}">${icon("back")}</button>` : ""}
       <div class="pop-title"><h1>${cur ? esc(brand(cur.provider).label) : `<button class="brand-link wordmark" data-open-main title="${te("common.open")}" aria-label="${te("common.open")}">${wordmark()}</button>`}</h1>
-        ${cur ? `<span class="sub">${esc(cur.account)}</span>` : ""}
+        ${cur ? `<span class="sub">${esc(accountLabel(cur))}</span>` : ""}
       </div>
       ${cur ? "" : `<button class="icon" data-view title="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}" aria-label="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}">${icon(trayView === "donut" ? "list" : "grid")}</button>`}
       ${sortMenuHtml()}${langMenuHtml()}

@@ -284,6 +284,11 @@ pub(crate) struct Wizard {
     picker: Vec<Provider>,
     provider_offset: u16,
     name: String,
+    /// PRD 0029 RF3.3: name typed for the existing, unnamed account of the
+    /// same provider (prefilled with the provider name) and whether the
+    /// Name step's focus is on it.
+    peer_name: String,
+    peer_focus: bool,
     credential: String,
     fields: Vec<Field>,
     field_idx: usize,
@@ -372,6 +377,8 @@ impl Wizard {
             picker,
             provider_offset: 0,
             name,
+            peer_name: provider.label().to_string(),
+            peer_focus: false,
             credential,
             fields,
             field_idx: 0,
@@ -657,6 +664,7 @@ impl Wizard {
 
     fn current_text_mut(&mut self) -> Option<&mut String> {
         match self.step {
+            Step::Name if self.peer_focus && self.peer().is_some() => Some(&mut self.peer_name),
             Step::Name => Some(&mut self.name),
             Step::Credential => {
                 if self.selected_mode().is_some() {
@@ -709,8 +717,10 @@ impl Wizard {
                     self.session_idx = 0;
                     self.session_test = None;
                     self.invalidate_oauth();
+                    self.peer_name = selected.label().to_string();
                 }
                 self.step = Step::Name;
+                self.peer_focus = false;
             }
             Step::Name => self.step = Step::Credential,
             Step::Credential => {
@@ -1248,6 +1258,11 @@ impl Wizard {
                 self.error = None;
                 self.back();
             }
+            (KeyCode::Up | KeyCode::Down, _)
+                if self.step == Step::Name && self.peer().is_some() =>
+            {
+                self.peer_focus = !self.peer_focus;
+            }
             (KeyCode::Tab, _) if self.step == Step::Credential && self.auth_choice_count() > 1 => {
                 self.cycle_auth_mode();
             }
@@ -1510,6 +1525,12 @@ impl Wizard {
         }
     }
 
+    /// PRD 0029 RF3.3: the unnamed account of the same provider that needs
+    /// a name once this one is saved beside it.
+    fn peer(&self) -> Option<usize> {
+        edit::unnamed_peer(&self.base, self.provider, self.editing)
+    }
+
     fn current_is_choice(&self) -> bool {
         let visible = self.visible_fields();
         visible
@@ -1523,7 +1544,16 @@ impl Wizard {
     /// o wizard apenas invoca os helpers e devolve a mensagem.
     fn validate_step(&self) -> Result<(), String> {
         let result = match self.step {
-            Step::Name => edit::validate_name(&self.name, &self.base, self.editing).map(|_| ()),
+            Step::Name => edit::validate_name(&self.name, self.provider, &self.base, self.editing)
+                .map(|_| ())
+                .and_then(|()| match self.peer() {
+                    Some(peer) => self
+                        .base
+                        .rename_account(peer, &self.peer_name)
+                        .map(|_| ())
+                        .map_err(|error| error.l10n()),
+                    None => Ok(()),
+                }),
             Step::Credential => {
                 let (credential, _) = self.account_login_inputs()?;
                 match edit::credential_kind(self.provider) {
@@ -1829,10 +1859,18 @@ impl Wizard {
             fields: &draft_fields,
             interval_text: &self.interval,
         };
+        // PRD 0029 RF3.3: name the existing account first, so the pair is
+        // saved in one go.
+        let base = match self.peer() {
+            Some(peer) => self
+                .base
+                .rename_account(peer, &self.peer_name)
+                .map_err(|e| e.to_string())?,
+            None => self.base.clone(),
+        };
         let account =
-            edit::build_account(&draft, &self.base, self.editing).map_err(|e| e.to_string())?;
-        self.base
-            .upsert_account(account, self.editing)
+            edit::build_account(&draft, &base, self.editing).map_err(|e| e.to_string())?;
+        base.upsert_account(account, self.editing)
             .map_err(|e| e.to_string())
     }
 
@@ -1841,13 +1879,22 @@ impl Wizard {
         let mut lines = vec![
             Line::from(vec![
                 Span::styled("Nome: ", dim),
-                Span::raw(crate::ui::safe(self.name.trim()).into_owned()),
+                match self.name.trim() {
+                    "" => Span::styled(format!("{} (sem nome)", self.provider.label()), dim),
+                    name => Span::raw(crate::ui::safe(name).into_owned()),
+                },
             ]),
             Line::from(vec![
                 Span::styled("Provedor: ", dim),
                 Span::raw(self.provider.label()),
             ]),
         ];
+        if self.peer().is_some() {
+            lines.push(Line::from(vec![
+                Span::styled("Conta existente renomeada para: ", dim),
+                Span::raw(crate::ui::safe(self.peer_name.trim()).into_owned()),
+            ]));
+        }
         if let Some(mode) = self.selected_mode() {
             let (status, color) =
                 if self.oauth_authorized.is_some() || self.external_login_params.is_some() {
@@ -2053,16 +2100,46 @@ impl Wizard {
             ),
             Step::Provider => self.draw_provider(frame, inner),
             Step::Name => {
-                let lines = vec![
-                    Line::from("Nome único para identificar a conta no painel:"),
+                let provider = self.provider.label();
+                let peer = self.peer();
+                let marker = |focused: bool| if focused { "> " } else { "  " };
+                let name = if self.name.is_empty() && peer.is_none() {
+                    Span::styled(provider, Style::default().fg(DRACULA_COMMENT))
+                } else {
+                    Span::raw(crate::ui::safe(&self.name).into_owned())
+                };
+                let mut lines = vec![
+                    Line::from("Nome da conta (opcional):"),
                     Line::default(),
-                    Line::from(format!("> {}", crate::ui::safe(&self.name))),
+                    Line::from(vec![
+                        Span::raw(marker(!self.peer_focus || peer.is_none())),
+                        name,
+                    ]),
                     Line::default(),
                     Line::from(Span::styled(
-                        "Letras, números e espaços; não pode repetir outra conta.",
+                        format!(
+                            "Opcional; necessário quando você adicionar outra conta {provider}. Não pode repetir outra conta."
+                        ),
                         Style::default().fg(DRACULA_COMMENT),
                     )),
                 ];
+                if peer.is_some() {
+                    lines.extend([
+                        Line::default(),
+                        Line::from(format!(
+                            "Você já tem uma conta {provider} sem nome; dê um nome a ela também:"
+                        )),
+                        Line::from(format!(
+                            "{}{}",
+                            marker(self.peer_focus),
+                            crate::ui::safe(&self.peer_name)
+                        )),
+                        Line::from(Span::styled(
+                            "↑↓ alterna entre os dois campos.",
+                            Style::default().fg(DRACULA_COMMENT),
+                        )),
+                    ]);
+                }
                 frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
             }
             Step::Credential => self.draw_credential(frame, inner),
@@ -2838,6 +2915,55 @@ mod tests {
         let mut wiz = Wizard::new(&config, Some(0));
         wiz.interval = interval.into();
         wiz
+    }
+
+    /// PRD 0029 RF3.3/RF3.5: the name is optional for a provider's only
+    /// account; adding a second one asks for a name for both and saves
+    /// them together.
+    #[test]
+    fn adding_a_second_account_names_the_existing_unnamed_one() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let empty = Config {
+            accounts: Vec::new(),
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&empty, None);
+        wiz.provider = Provider::OpenAiApi;
+        wiz.step = Step::Name;
+        assert!(wiz.peer().is_none());
+        assert_eq!(
+            wiz.validate_step(),
+            Ok(()),
+            "the only account needs no name"
+        );
+
+        let config = Config {
+            accounts: vec![account("", "A_KEY")],
+            ..Config::default()
+        };
+        let id = config.accounts[0].id();
+        let mut wiz = Wizard::new(&config, None);
+        wiz.provider = Provider::OpenAiApi;
+        wiz.peer_name = Provider::OpenAiApi.label().into();
+        wiz.credential = "B_KEY".into();
+        wiz.step = Step::Name;
+        assert_eq!(wiz.peer(), Some(0));
+        assert!(wiz.validate_step().is_err(), "the new account needs a name");
+        wiz.name = "Work".into();
+        assert!(wiz.validate_step().is_ok());
+        // ↓ moves the focus to the existing account's name.
+        press(&mut wiz, KeyCode::Down);
+        press(&mut wiz, KeyCode::Char('!'));
+        assert_eq!(wiz.peer_name, "OpenAI API!");
+        assert_eq!(wiz.name, "Work");
+        let saved = wiz.build_config().unwrap();
+        assert_eq!(saved.accounts.len(), 2);
+        assert_eq!(saved.accounts[0].name, "OpenAI API!");
+        assert_eq!(saved.accounts[0].id(), id);
+        assert_eq!(saved.accounts[1].name, "Work");
+        // Editing the existing account alone asks for nothing else.
+        let wiz = Wizard::new(&config, Some(0));
+        assert!(wiz.peer().is_none());
     }
 
     // PRD 0016 RF2.1: the paste step exists only for session providers, is

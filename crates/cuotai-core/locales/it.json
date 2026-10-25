@@ -186,6 +186,7 @@
   "edit_error.monitor_with_config": "La configurazione del nuovo account non è valida: {detail}.",
   "edit_error.monitor_with_config_move": "La configurazione riordinata non è valida: {detail}.",
   "edit_error.name_required": "Imposta un nome per l'account.",
+  "edit_error.name_required_same_provider": "Dai un nome a questo account: hai un altro account {provider}.",
   "edit_error.oauth_required": "Esegui il login OAuth (premi Invio su \"Accedi\") prima di salvare, oppure torna a una variabile d'ambiente con Tab.",
   "edit_error.param.billing_cycle": "Usa il formato YYYY-MM per il ciclo.",
   "edit_error.param.email": "Email non valida.",

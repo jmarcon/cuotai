@@ -72,7 +72,11 @@ pub struct AccountExport {
     /// [`Account::key`]: `<provider slug>:<name>`, stable across reordering
     /// but changed by a rename; prefer `id`.
     pub key: String,
+    /// PRD 0029 RF3.4: [`Account::display_name`], never empty.
     pub name: String,
+    /// PRD 0029 RF4.1: whether `name` was configured (false: it is the
+    /// provider's name).
+    pub named: bool,
     pub provider: Provider,
     /// Present only with [`Options::include_identity`]; `null` when unknown.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -322,6 +326,7 @@ pub struct AccountLimit {
     pub id: String,
     pub key: String,
     pub name: String,
+    pub named: bool,
     pub provider: Provider,
     pub class: AccountClass,
     pub binding: Option<Binding>,
@@ -373,6 +378,7 @@ impl Limits {
                     id: account.id.clone(),
                     key: account.key.clone(),
                     name: account.name.clone(),
+                    named: account.named,
                     provider: account.provider,
                     class: account.class,
                     binding: account.binding.clone(),
@@ -451,7 +457,8 @@ fn account_export(
         index,
         id: account.state_key(),
         key: account.key(),
-        name: account.name.clone(),
+        name: account.display_name().into_owned(),
+        named: account.named(),
         provider: account.provider,
         email: options
             .include_identity

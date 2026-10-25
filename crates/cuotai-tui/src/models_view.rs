@@ -347,7 +347,7 @@ impl ModelsView {
         .split(area);
         let title = format!(
             " MODELOS · {} · {} ",
-            safe(&self.account.name),
+            safe(&self.account.display_name()),
             self.account.provider.label()
         );
         frame.render_widget(

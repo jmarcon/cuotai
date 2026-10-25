@@ -718,6 +718,9 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
         // every other key, and its comments, in place.
         table.sort_values_by(|a, _, b, _| (a.get() != "id").cmp(&(b.get() != "id")));
     }
+    if account.name.is_empty() {
+        table.remove("name");
+    }
     if account.credential_env.is_none() {
         table.remove("credential_env");
     }

@@ -1057,7 +1057,7 @@ fn summary_lines(
         };
         out.push_str(&format!(
             "{}  {}\n",
-            ui::safe(&report.account),
+            ui::safe(&report.display_name()),
             ui::safe(&state)
         ));
     }
@@ -1068,7 +1068,7 @@ fn summary_lines(
 fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
     format!(
         "{} / {} — {} · consultado {}{}",
-        ui::safe(&report.account),
+        ui::safe(&report.display_name()),
         report.provider.label(),
         report.status.label(),
         ui::age_text(report.checked_at, now),
@@ -1089,7 +1089,9 @@ fn account_histories<'a>(
     let accounts: Vec<&Account> = config
         .accounts
         .iter()
-        .filter(|account| name.is_none_or(|name| account.name == name))
+        .filter(|account| {
+            name.is_none_or(|name| account.name == name || account.display_name() == name)
+        })
         .collect();
     if let (Some(name), true) = (name, accounts.is_empty()) {
         return Err(format!(
@@ -1134,7 +1136,7 @@ fn history_json(
         "accounts": found
             .iter()
             .map(|(account, metrics)| serde_json::json!({
-                "account": account.name,
+                "account": account.display_name(),
                 "provider": account.provider,
                 "metrics": metrics,
             }))
@@ -1161,7 +1163,7 @@ fn history_text(
     for (account, metrics) in found {
         out += &format!(
             "\n{} / {}\n",
-            ui::safe(&account.name),
+            ui::safe(&account.display_name()),
             account.provider.label()
         );
         if metrics.is_empty() {

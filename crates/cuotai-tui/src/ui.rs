@@ -2065,14 +2065,31 @@ fn apply_edit_to_config(
     // 1) Stage the new cycle on a clone so a structural-diff rejection
     //    leaves the live cycle untouched.
     let mut staged_cycle = refresh_cycle.clone_state_for_edit();
-    let due = staged_cycle
-        .apply_edit(&prev, &config, operation, Instant::now())
-        .map_err(|e| {
-            cuotai_core::edit_error::validation_note(
-                None,
-                cuotai_core::text::Localized::fixed("edit_error.refresh_cycle_diff", e.to_string()),
-            )
-        })?;
+    // PRD 0029 RF3.3: the wizard may also have named the provider's
+    // existing account; that rename is applied first (its reading stays).
+    let renamed = prev
+        .accounts
+        .iter()
+        .zip(&config.accounts)
+        .enumerate()
+        .find(|(index, (before, after))| *index != edit_index && before != after)
+        .map(|(index, (_, after))| {
+            let mut renamed = prev.clone();
+            renamed.accounts[index] = after.clone();
+            (index, renamed)
+        });
+    let due = match &renamed {
+        Some((index, renamed)) => staged_cycle
+            .apply_edit(&prev, renamed, Edit::Rename(*index), Instant::now())
+            .and_then(|_| staged_cycle.apply_edit(renamed, &config, operation, Instant::now())),
+        None => staged_cycle.apply_edit(&prev, &config, operation, Instant::now()),
+    }
+    .map_err(|e| {
+        cuotai_core::edit_error::validation_note(
+            None,
+            cuotai_core::text::Localized::fixed("edit_error.refresh_cycle_diff", e.to_string()),
+        )
+    })?;
     // 2) Build the new monitor BEFORE touching disk. `Monitor::with_config`
     //    validates the new config up-front (refresh/timeout/concurrency
     //    bounds, account-name uniqueness, OAuth shape). A failure here

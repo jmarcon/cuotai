@@ -1660,26 +1660,44 @@ pub struct AccountDraft<'a> {
 /// account in `config`. `editing` excludes the slot being replaced so the
 /// own name remains valid while editing.
 ///
+/// PRD 0029 RF3.1/RF3.2: the name is optional; it is required only when
+/// another account of the same `provider` exists (for extension accounts,
+/// any other extension account, since the form does not know the
+/// extension id yet; [`Config::validate`] applies the exact per-extension
+/// rule). Present names stay unique case-insensitively across providers.
+///
 /// The duplicate-name error is intentionally generic: the user's typed
 /// value is never echoed back, so a tampered draft (or a hostile front-end)
 /// cannot smuggle a misleading message into the displayed error.
 pub fn validate_name(
     name: &str,
+    provider: Provider,
     config: &Config,
     editing: Option<usize>,
 ) -> Result<String, crate::text::Localized> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return Err(crate::text::Localized::fixed(
-            "edit_error.name_required",
-            "Informe um nome para a conta.",
-        ));
+        let has_peer = config.accounts.iter().enumerate().any(|(i, a)| {
+            Some(i) != editing && a.provider == provider && provider != Provider::Extension
+        });
+        if has_peer {
+            return Err(crate::text::Localized::with_param(
+                "edit_error.name_required_same_provider",
+                "provider",
+                crate::text::provider_l10n(provider),
+                format!(
+                    "Dê um nome a esta conta: você tem outra conta {}.",
+                    provider.label()
+                ),
+            ));
+        }
+        return Ok(String::new());
     }
     let collision = config
         .accounts
         .iter()
         .enumerate()
-        .any(|(i, a)| Some(i) != editing && a.name.eq_ignore_ascii_case(trimmed));
+        .any(|(i, a)| Some(i) != editing && a.name.trim().eq_ignore_ascii_case(trimmed));
     if collision {
         return Err(crate::text::Localized::fixed(
             "edit_error.duplicate_name",
@@ -1687,6 +1705,32 @@ pub fn validate_name(
         ));
     }
     Ok(trimmed.to_string())
+}
+
+/// PRD 0029 RF3.3: the index of an existing, unnamed account that shares
+/// `provider` with the account being added or edited at `editing`. When
+/// one exists, the form asks for a name for it too and saves both with
+/// [`Config::rename_account`] followed by [`Config::upsert_account`].
+/// An edit that keeps its provider asks for nothing: the pair is already
+/// configured.
+pub fn unnamed_peer(config: &Config, provider: Provider, editing: Option<usize>) -> Option<usize> {
+    if editing
+        .and_then(|i| config.accounts.get(i))
+        .is_some_and(|account| account.provider == provider)
+    {
+        return None;
+    }
+    config
+        .accounts
+        .iter()
+        .enumerate()
+        .find(|(i, a)| {
+            Some(*i) != editing
+                && a.provider == provider
+                && provider != Provider::Extension
+                && a.name.trim().is_empty()
+        })
+        .map(|(i, _)| i)
 }
 
 /// Resolve the `credential_env` field for an account given the provider
@@ -2129,7 +2173,7 @@ pub fn build_account(
         interval_text,
     } = draft;
 
-    let name = validate_name(name, config, editing)
+    let name = validate_name(name, *provider, config, editing)
         .map_err(|message| build_account_field_error("name", message))?;
     apply_aws_profile(*provider, credential)
         .map_err(|message| build_account_field_error("credential", message))?;
@@ -2273,7 +2317,7 @@ impl Config {
             Some(existing) => account.id = Some(existing.id()),
             None => account.id = Some(crate::AccountId::random()),
         }
-        account.name = validate_name(&account.name, self, editing)
+        account.name = validate_name(&account.name, account.provider, self, editing)
             .map_err(|message| build_account_field_error("name", message))?;
         let mut updated = self.clone();
         match editing {
@@ -2283,6 +2327,40 @@ impl Config {
         updated.validate().map_err(|e| {
             crate::edit_error::validation_note(None, crate::edit_error::config_error_note(&e))
         })?;
+        Ok(updated)
+    }
+
+    /// PRD 0029 RF3.3: give the account at `index` the name `name` (the
+    /// "name the existing account" step of the form). The name must be
+    /// non-empty and unique; the id, and so every piece of state, stays.
+    pub fn rename_account(
+        &self,
+        index: usize,
+        name: &str,
+    ) -> Result<Config, crate::edit_error::EditError> {
+        let Some(account) = self.accounts.get(index) else {
+            return Err(crate::edit_error::index_out_of_range(
+                index,
+                self.accounts.len(),
+            ));
+        };
+        if name.trim().is_empty() {
+            return Err(build_account_field_error(
+                "peer_name",
+                crate::text::Localized::fixed(
+                    "edit_error.name_required",
+                    "Informe um nome para a conta.",
+                ),
+            ));
+        }
+        let name = validate_name(name, account.provider, self, Some(index))
+            .map_err(|message| build_account_field_error("peer_name", message))?;
+        let mut updated = self.clone();
+        let renamed = &mut updated.accounts[index];
+        if renamed.id.is_none() {
+            renamed.id = Some(renamed.id());
+        }
+        renamed.name = name;
         Ok(updated)
     }
 
@@ -3945,9 +4023,101 @@ mod tests {
             fields: &[],
             interval_text: "",
         };
-        let err = build_account(&draft, &config_with(Vec::new()), None).unwrap_err();
+        // PRD 0029 RF3.1: the only account of its provider needs no name.
+        let built = build_account(&draft, &config_with(Vec::new()), None).unwrap();
+        assert_eq!(built.name, "");
+        // A second account of the provider does.
+        let config = config_with(vec![env_account(
+            "",
+            Provider::OpenAiApi,
+            "OPENAI_ADMIN_KEY",
+        )]);
+        let err = build_account(&draft, &config, None).unwrap_err();
         assert_eq!(err.field(), Some("name"));
-        assert_eq!(err.l10n().id, "edit_error.name_required");
+        assert_eq!(err.l10n().id, "edit_error.name_required_same_provider");
+    }
+
+    /// PRD 0029 RF3.1/RF3.2: the optional-name rule.
+    #[test]
+    fn validate_name_requires_a_name_only_beside_a_provider_peer() {
+        let config = config_with(vec![
+            env_account("", Provider::Claude, "X"),
+            env_account("Work", Provider::OpenAiApi, "Y"),
+        ]);
+        // Unnamed is fine for a provider with no other account.
+        assert_eq!(
+            validate_name(" ", Provider::Groq, &config, None).unwrap(),
+            ""
+        );
+        // Editing the only Claude account keeps it unnamed.
+        assert_eq!(
+            validate_name("", Provider::Claude, &config, Some(0)).unwrap(),
+            ""
+        );
+        // A second Claude account needs a name.
+        assert_eq!(
+            validate_name("", Provider::Claude, &config, None)
+                .unwrap_err()
+                .id,
+            "edit_error.name_required_same_provider"
+        );
+        // Names stay unique across providers, case-insensitively.
+        assert_eq!(
+            validate_name("work", Provider::Claude, &config, None)
+                .unwrap_err()
+                .id,
+            "edit_error.duplicate_name"
+        );
+        assert_eq!(unnamed_peer(&config, Provider::Claude, None), Some(0));
+        assert_eq!(unnamed_peer(&config, Provider::Claude, Some(0)), None);
+        // Switching the OpenAI account to Claude asks to name the peer.
+        assert_eq!(unnamed_peer(&config, Provider::Claude, Some(1)), Some(0));
+        assert_eq!(unnamed_peer(&config, Provider::OpenAiApi, None), None);
+    }
+
+    /// PRD 0029 RF3.3: adding a second account of a provider names both in
+    /// one configuration; the existing account keeps its id.
+    #[test]
+    fn adding_a_second_account_names_the_unnamed_peer() {
+        let config = config_with(vec![env_account("", Provider::Claude, "X")]);
+        let id = config.accounts[0].id();
+        let second = env_account("Work", Provider::Claude, "Y");
+        // Without naming the peer, the document rule rejects the pair.
+        assert!(config.upsert_account(second.clone(), None).is_err());
+        let err = config.rename_account(0, " ").unwrap_err();
+        assert_eq!(err.field(), Some("peer_name"));
+        assert!(config.rename_account(0, "WORK").is_ok());
+        let updated = config
+            .rename_account(0, "Personal")
+            .unwrap()
+            .upsert_account(second, None)
+            .unwrap();
+        assert_eq!(updated.accounts[0].name, "Personal");
+        assert_eq!(updated.accounts[0].id(), id);
+        assert_eq!(updated.accounts[1].name, "Work");
+        // A same name for the peer and the new account is rejected.
+        let clash = env_account("Personal", Provider::Claude, "Y");
+        assert!(config
+            .rename_account(0, "Personal")
+            .unwrap()
+            .upsert_account(clash, None)
+            .is_err());
+    }
+
+    /// PRD 0029 RF3.4: display names fall back to the provider.
+    #[test]
+    fn display_name_falls_back_to_the_provider() {
+        let unnamed = env_account("", Provider::Claude, "X");
+        assert_eq!(unnamed.display_name(), "Claude");
+        assert!(!unnamed.named());
+        let named = env_account(" Work ", Provider::Claude, "X");
+        assert_eq!(named.display_name(), "Work");
+        assert!(named.named());
+        let mut extension = env_account("", Provider::Extension, "X");
+        extension
+            .params
+            .insert("extension_id".into(), "acme".into());
+        assert_eq!(extension.display_name(), "acme");
     }
 
     #[test]
@@ -3998,7 +4168,7 @@ mod tests {
             Provider::OpenAiApi,
             "OPENAI_ADMIN_KEY",
         )]);
-        let err = validate_name("OpenAI", &config, None).unwrap_err();
+        let err = validate_name("OpenAI", Provider::OpenAiApi, &config, None).unwrap_err();
         assert!(
             !err.text().contains("OpenAI"),
             "message echoed the name: {err}"
@@ -4007,7 +4177,7 @@ mod tests {
         assert_eq!(err.id, "edit_error.duplicate_name");
 
         // Tabs and newlines must not slip past the generic message either.
-        let err = validate_name("\tOpenAI ", &config, None).unwrap_err();
+        let err = validate_name("\tOpenAI ", Provider::OpenAiApi, &config, None).unwrap_err();
         assert!(
             !err.text().contains("OpenAI"),
             "message echoed the name: {err}"

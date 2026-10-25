@@ -281,6 +281,9 @@ pub struct Account {
     /// derives it from the legacy key. `ConfigFile` fills it when loading.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<crate::account_id::AccountId>,
+    /// PRD 0029 RF3.1: optional; omitted from the TOML when empty. Use
+    /// [`Account::display_name`] to show it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
     pub provider: Provider,
     #[serde(default)]
@@ -422,11 +425,38 @@ impl Account {
             .unwrap_or_else(|| crate::account_id::AccountId::derive(&self.key(), None))
     }
 
+    /// PRD 0029 RF3.4: the name shown for this account: the configured
+    /// name, else the provider's name (for an extension account, its
+    /// extension id). Front ends that localize provider names use
+    /// [`Account::named`] and their catalog instead of the fallback.
+    pub fn display_name(&self) -> std::borrow::Cow<'_, str> {
+        display_name(&self.name, self.provider, self.extension_id())
+    }
+
+    /// PRD 0029 RF4.1: whether the account has a configured name.
+    pub fn named(&self) -> bool {
+        !self.name.trim().is_empty()
+    }
+
     /// PRD 0029 RF2.1: the key every piece of per-account state uses (bells,
     /// mutes, ledger and alert marks, history series): the id, which
     /// survives renames and parameter edits.
     pub fn state_key(&self) -> String {
         self.id().as_str().to_owned()
+    }
+}
+
+fn display_name<'a>(
+    name: &'a str,
+    provider: Provider,
+    extension_id: Option<&'a str>,
+) -> std::borrow::Cow<'a, str> {
+    match name.trim() {
+        "" => match extension_id {
+            Some(id) if provider == Provider::Extension => id.into(),
+            _ => provider.label().into(),
+        },
+        name => name.into(),
     }
 }
 
@@ -455,6 +485,15 @@ impl Report {
             }
         }
         account_key(self.provider, &self.account)
+    }
+
+    /// [`Account::display_name`] of the account this report belongs to.
+    pub fn display_name(&self) -> std::borrow::Cow<'_, str> {
+        display_name(
+            &self.account,
+            self.provider,
+            self.source.strip_prefix("extension:"),
+        )
     }
 
     /// [`Account::state_key`] of the account this report belongs to: its

@@ -121,7 +121,7 @@ pub(crate) fn visible_indices(
         .enumerate()
         .filter(|(_, account)| {
             needle.is_empty()
-                || account.name.to_lowercase().contains(&needle)
+                || account.display_name().to_lowercase().contains(&needle)
                 || account.provider.label().to_lowercase().contains(&needle)
         })
         .filter(|(index, _)| {
@@ -1016,8 +1016,8 @@ fn render_card(
         Style::default().fg(FG).add_modifier(Modifier::BOLD)
     };
     let title = match view.anim.and_then(|anim| anim.spinner(account_index)) {
-        Some(spinner) => format!(" {spinner} {} ", safe(&account.name)),
-        None => format!(" {} ", safe(&account.name)),
+        Some(spinner) => format!(" {spinner} {} ", safe(&account.display_name())),
+        None => format!(" {} ", safe(&account.display_name())),
     };
     // PRD 0011 RF5: the provider's incident badge on the top border, to the
     // right of the name and never over it.
@@ -1111,7 +1111,10 @@ fn render_card(
             status_spans.push(Span::styled(
                 class_label(class),
                 Style::default().fg(class_color(class)).add_modifier(
-                    if view.anim.is_some_and(|anim| anim.blinking(&account.name)) {
+                    if view
+                        .anim
+                        .is_some_and(|anim| anim.blinking(&account.state_key()))
+                    {
                         Modifier::BOLD | Modifier::REVERSED
                     } else {
                         Modifier::BOLD
@@ -1181,12 +1184,13 @@ fn render_card(
         }
     }
 
+    let motion_key = account.state_key();
     for (index, metric) in rows.iter().take(METRICS_VISIBLE_IN_CARD) {
         // A preserved reading stays still: no bar transition.
         let motion = view
             .anim
             .filter(|_| stale.is_none())
-            .map(|anim| (anim, account.name.as_str(), *index));
+            .map(|anim| (anim, motion_key.as_str(), *index));
         render_metric_block(frame, &chunks, &mut chunk_index, metric, now, motion);
     }
     if note_rows > 0 {
@@ -1733,7 +1737,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                safe(&account.name),
+                safe(&account.display_name()).into_owned(),
                 Style::default().fg(FG).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -1885,6 +1889,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             )));
         }
     } else {
+        let motion_key = account.state_key();
         for (index, metric) in shown.metrics.iter().enumerate() {
             let recent = points(recent_of(view, account_index), index);
             let row = metric_row(metric, clock, recent);
@@ -1916,7 +1921,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             let motion = view
                 .anim
                 .filter(|_| stale.is_none())
-                .map(|anim| (anim, account.name.as_str(), index));
+                .map(|anim| (anim, motion_key.as_str(), index));
             lines.push(line_bar(&row, body.width.max(20), now, motion));
             // PRD 0007 RF4: one pace line per metric, labelled a linear
             // estimate; it wraps at small widths.

@@ -170,7 +170,11 @@ impl Notices {
             let account = &config.accounts[event.account_index];
             let notice = event.notice(account, now);
             let title = notice.title.resolve(locale);
-            lines.push(format!("{} ({})", safe(&title), safe(&account.name)));
+            lines.push(format!(
+                "{} ({})",
+                safe(&title),
+                safe(&account.display_name())
+            ));
             if self.osc9 {
                 osc9(
                     &mut out,

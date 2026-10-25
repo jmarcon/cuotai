@@ -125,6 +125,10 @@ pub enum Edit {
     /// Move an account to its final index. Reports, intervals, deadlines and
     /// failure history move with it and no account needs a fresh query.
     Move { from: usize, to: usize },
+    /// PRD 0029 RF3.3: only the name of the account at `index` changed (the
+    /// "name the existing account" step of the form). Its reports follow
+    /// the new name and no account needs a fresh query.
+    Rename(usize),
 }
 
 /// Reasons an [`Edit`] cannot be applied to the supplied configuration pair.
@@ -903,6 +907,48 @@ impl RefreshCycle {
                 self.attempted_full = false;
                 Ok(Vec::new())
             }
+            Edit::Rename(index) => {
+                let (Some(prev), Some(next)) = (
+                    prev_config.accounts.get(index),
+                    new_config.accounts.get(index),
+                ) else {
+                    return Err(EditError::Index(index));
+                };
+                // Only the name may differ (and an effective id may become
+                // explicit, as `Config::rename_account` writes it).
+                let mut renamed = prev.clone();
+                renamed.name.clone_from(&next.name);
+                renamed.id.clone_from(&next.id);
+                let same_otherwise = prev_config.accounts.len() == new_config.accounts.len()
+                    && prev_config.refresh_seconds == new_config.refresh_seconds
+                    && prev_config.concurrency == new_config.concurrency
+                    && prev_config.timeout_seconds == new_config.timeout_seconds
+                    && prev.id() == next.id();
+                let others_equal = prev_config
+                    .accounts
+                    .iter()
+                    .zip(&new_config.accounts)
+                    .enumerate()
+                    .all(|(i, (a, b))| i == index || a == b);
+                if !same_otherwise || !others_equal || &renamed != next {
+                    return Err(EditError::UnexpectedDiff);
+                }
+                let rename = |report: &mut Report| report.account.clone_from(&next.name);
+                if let Some(Some(report)) = self.slots.get_mut(index) {
+                    rename(report);
+                }
+                if let Some(Some(report)) = self.last_good.get_mut(index) {
+                    rename(report);
+                }
+                if let Some(report) = self
+                    .snapshot
+                    .as_mut()
+                    .and_then(|snapshot| snapshot.reports.get_mut(index))
+                {
+                    rename(report);
+                }
+                Ok(Vec::new())
+            }
             Edit::Move { from, to } => {
                 self.verify_move(prev_config, new_config, from, to)?;
                 if from == to {
@@ -1533,6 +1579,44 @@ mod tests {
         assert_eq!(cycle.failures, [1, 2, 0]);
         assert!(cycle.pending_indices().is_empty());
         assert!(cycle.attempted_full());
+    }
+
+    /// PRD 0029 RF3.3: naming an existing account keeps its reading and
+    /// deadline, and anything but a rename is refused.
+    #[test]
+    fn apply_edit_rename_keeps_state_and_refuses_other_changes() {
+        let prev = config_with(vec![account("", Some(30)), account("beta", Some(45))]);
+        let now = Instant::now();
+        let mut cycle = RefreshCycle::new(&prev, now);
+        prime_with_snapshot(
+            &mut cycle,
+            Snapshot {
+                started_at: Utc.timestamp_opt(1, 0).unwrap(),
+                finished_at: Utc.timestamp_opt(2, 0).unwrap(),
+                reports: vec![report("", 5), report("beta", 6)],
+            },
+            now,
+        );
+        let deadlines = cycle.deadlines_snapshot();
+        let renamed = prev.rename_account(0, "alpha").expect("valid rename");
+        let mut changed = renamed.clone();
+        changed.accounts[0].refresh_seconds = Some(60);
+        assert_eq!(
+            cycle
+                .clone_state_for_edit()
+                .apply_edit(&prev, &changed, Edit::Rename(0), now),
+            Err(EditError::UnexpectedDiff)
+        );
+        let due = cycle
+            .apply_edit(&prev, &renamed, Edit::Rename(0), now)
+            .expect("rename accepted");
+        assert!(due.is_empty(), "a rename never queries");
+        assert_eq!(cycle.account_report(0).unwrap().account, "alpha");
+        assert_eq!(
+            cycle.snapshot().expect("complete snapshot").reports[0].account,
+            "alpha"
+        );
+        assert_eq!(cycle.deadlines_snapshot(), deadlines);
     }
 
     #[test]

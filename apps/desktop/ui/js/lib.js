@@ -673,6 +673,8 @@ const brands = {
   extension: B("Extension", "#8b5cf6", "Ex"),
 };
 export const brand = (p) => brands[p] ?? B(p, "#888888");
+/** PRD 0029 RF3.4: the account's display name, its configured name or else its provider's. */
+export const accountLabel = (r) => (r.account ?? "").trim() || brand(r.provider).label;
 // Logos de provider: glifos SVG monocromáticos (lobehub/icons, MIT; zed: simple-icons, CC0; ver img/providers/NOTICE.md)
 // pintados por máscara CSS sobre um ladrilho com a cor da marca — nítidos em qualquer tamanho e sem fundo branco.
 // [arquivo, fundo do ladrilho, cor do glifo]; o fundo omitido usa a cor da marca e o glifo, branco.
@@ -1421,8 +1423,15 @@ const demo = {
   },
   save_account: async ({ input }) => {
     window.__lastSaveRequest = input;
-    if (!input.name.trim()) throw "Informe um nome para a conta.";
-    const r = dr(input.name, input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
+    // PRD 0029 RF3: the core rule — a name is needed only beside another account of the provider.
+    const others = demoReports.filter((x, i) => i !== input.index && x.provider === input.provider);
+    if (!input.name.trim() && others.length) throw JSON.stringify({ id: "edit_error.name_required_same_provider", params: { provider: { id: `provider.${input.provider}`, params: {}, fallback: input.provider } }, fallback: "Dê um nome a esta conta: você tem outra conta do provedor." });
+    const peer = input.index == null ? others.find((x) => !x.account.trim()) : null;
+    if (peer) {
+      if (!input.peerName?.trim()) throw JSON.stringify({ id: "edit_error.name_required", field: "peer_name", params: {}, fallback: "Informe um nome para a conta." });
+      peer.account = input.peerName.trim();
+    }
+    const r = dr(input.name.trim(), input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
     // PRD 0016 demo: a paste goes to the vault; otherwise the account keeps where its session was.
     const prev = input.index == null ? null : demoReports[input.index];
     if (input.sessions?.some((p) => p.paste.trim())) demoSettings.sessionMigrated.add(r);

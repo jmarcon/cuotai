@@ -186,6 +186,7 @@
   "edit_error.monitor_with_config": "The new account configuration is invalid: {detail}.",
   "edit_error.monitor_with_config_move": "The reordered configuration is invalid: {detail}.",
   "edit_error.name_required": "Set a name for the account.",
+  "edit_error.name_required_same_provider": "Name this account: you have another {provider} account.",
   "edit_error.oauth_required": "Run OAuth login (Enter on \"Start login\") before saving, or switch back to an environment variable with Tab.",
   "edit_error.param.billing_cycle": "Use the YYYY-MM format for the cycle.",
   "edit_error.param.email": "Invalid email.",

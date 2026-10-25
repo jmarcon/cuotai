@@ -8,6 +8,7 @@
       "id": "acc_1crv1gsny95j",
       "key": "claude:Personal",
       "name": "Personal",
+      "named": true,
       "provider": "claude",
       "class": "available",
       "report": {
@@ -167,6 +168,7 @@
       "id": "acc_76xeex2rdj2r",
       "key": "open_ai_api:Work",
       "name": "Work",
+      "named": true,
       "provider": "open_ai_api",
       "class": "unmeasured",
       "report": {
@@ -252,6 +254,7 @@
       "id": "acc_6krg88fgngxa",
       "key": "groq:Groq",
       "name": "Groq",
+      "named": true,
       "provider": "groq",
       "class": "unmeasured",
       "report": {
@@ -331,6 +334,7 @@
       "id": "acc_w4vqcwbqxcc9",
       "key": "kimi:Kimi",
       "name": "Kimi",
+      "named": true,
       "provider": "kimi",
       "class": "unmeasured",
       "report": null,

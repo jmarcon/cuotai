@@ -2,7 +2,7 @@
 // RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
-  configChangedOnDisk, deleteAccount, draftAccess, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
+  accountLabel, configChangedOnDisk, deleteAccount, draftAccess, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, sessionNoticeHtml, testSession, visibleFields,
 } from "./lib.js";
@@ -62,7 +62,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <label class="f" data-field="provider"><span>${te("dialog.provider")}</span>
       <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>
       <small class="field-err" hidden></small></label>
-    <label class="f" data-field="name"><span>${te("dialog.name")}</span><input name="name" value="${esc(existing?.name ?? "")}" required /><small class="field-err" id="name-err" role="alert" hidden></small></label>
+    <label class="f" data-field="name"><span>${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
+    <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" /><small class="field-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
     <div class="login-panel" id="login-panel" hidden>
       <div class="login-log" id="login-log" role="status" aria-live="polite"></div>
@@ -101,6 +102,27 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const costWarn = dlg.querySelector("#cost-warn");
   const choiceNotice = dlg.querySelector("#choice-notice");
   const nameInput = dlg.querySelector('[name="name"]');
+  const peerRow = dlg.querySelector("#peer-row");
+  const peerInput = dlg.querySelector('[name="peer_name"]');
+  // PRD 0029 RF3: the name is optional unless another account of the provider exists (the core decides on save;
+  // this only shapes the form). Adding beside an unnamed account also asks for that account's name.
+  let nameNeeded = false;
+  let peerShown = false;
+  const providerLabel = () => providers.find((p) => p.id === provider)?.label ?? provider;
+  async function syncNameRule() {
+    const view = await getView().catch(() => null);
+    const same = (view?.reports ?? []).filter((r) => r.provider === provider && r.index !== index);
+    nameNeeded = same.length > 0;
+    const peer = editing ? null : same.find((r) => !(r.account ?? "").trim());
+    const label = providerLabel();
+    nameInput.placeholder = label;
+    dlg.querySelector("#name-hint").textContent = nameNeeded ? t("dialog.nameNeeded", { provider: label }) : t("dialog.nameHint", { provider: label });
+    if (Boolean(peer) !== peerShown) peerInput.value = peer ? label : "";
+    peerShown = Boolean(peer);
+    peerRow.hidden = !peerShown;
+    dlg.querySelector("#peer-label").textContent = t("dialog.peerName", { provider: label });
+    syncLoginBtn();
+  }
   // O login só começa com a conta nomeada (ao terminar ela é salva sozinha). Em vez de `disabled`, que engole o
   // clique sem explicar, o botão fica apagado, mostra o motivo logo abaixo e, ao clicar, leva ao campo do nome.
   const showNameError = () => {
@@ -111,7 +133,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     nameInput.focus();
   };
   const syncLoginBtn = () => {
-    const missing = nameInput.value.trim() === "";
+    const missing = nameNeeded && nameInput.value.trim() === "";
     if (!missing) { nameInput.classList.remove("invalid"); nameErr.hidden = true; }
     const btn = dlg.querySelector("#login-btn");
     if (!btn) return;
@@ -673,7 +695,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const mode = selectedMode();
     if (!mode) return;
     err.textContent = "";
-    if (nameInput.value.trim() === "") { showNameError(); return; }
+    if (nameNeeded && nameInput.value.trim() === "") { showNameError(); return; }
     await resetLogin();
     const { options, registration } = collectModeInputs(mode);
     btn.disabled = true;
@@ -794,6 +816,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       schema = await formSchema(provider);
       values.clear();
       await resetLogin();
+      await syncNameRule();
       authMode = schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential";
       await renderDynamic();
       renderSession();
@@ -819,6 +842,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const { options } = collectModeInputs(mode);
     return {
       index, provider, name: String(data.get("name") ?? ""),
+      peerName: peerShown ? String(data.get("peer_name") ?? "") : null,
       credential: mode ? "" : String(data.get("credential") ?? ""),
       fields: draftFields(),
       interval: String(data.get("interval") ?? ""),
@@ -944,7 +968,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     models = null;
     modelsHost.innerHTML = editing || !same.length
       ? `<div data-models-slot></div>${support ? `<p class="hint">${te("models.title")}: ${tl(support.text, {}, true)}${support.supported ? ` ${te("models.saveFirst")}` : ""}</p>` : ""}`
-      : `<label class="f"><span>${te("models.pick")}</span><select id="models-pick"><option value="">${te("models.pickNone")}</option>${same.map((r) => `<option value="${esc(reportKey(r))}">${esc(r.account)}</option>`).join("")}</select></label><div data-models-slot></div>`;
+      : `<label class="f"><span>${te("models.pick")}</span><select id="models-pick"><option value="">${te("models.pickNone")}</option>${same.map((r) => `<option value="${esc(reportKey(r))}">${esc(accountLabel(r))}</option>`).join("")}</select></label><div data-models-slot></div>`;
     if (editing) return mountIn(`${existing.provider}::${existing.name}`, index, generation);
     modelsHost.querySelector("#models-pick")?.addEventListener("change", (e) => {
       const r = same.find((x) => reportKey(x) === e.target.value);
@@ -952,6 +976,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     });
   }
   dlg.addEventListener("close", () => { modelsSeq++; models?.dispose(); });
+  await syncNameRule();
   await renderDynamic();
   renderModels();
   // SES-01: "Paste a new session" opens this editor on the account's paste box.
