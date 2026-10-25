@@ -18,17 +18,17 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
+| RF1 | vNEXT (partial) | `Provider::NineRouter` and `Provider::is_aggregator`, `Report::sub_reports` / `SubReport` (additive, skipped when empty), `Snapshot::units()`, `metrics::classify_report` returning the pool class for an aggregator, the `access::classify` arm (`Undocumented`, new credential class `AggregatorLogin`, new scope `Instance`, `access.risk.nine_router`) with the regenerated matrix. **Pending:** binding, pace, alerts, resets, freshness, history and events iterate `units()` (today they still see the aggregator account only); the `AggregatorShape` adapter trait (there is one adapter, so `nine_router.rs` is the only implementation). |
+| RF2 | vNEXT (partial) | `account_edit` descriptors (`base_url`, `allow_private_http`, `include`, `exclude`; optional password variable in `credential_env`, blank = no password), base URL rules per host class (loopback HTTP, HTTPS elsewhere, private-network opt-in, no userinfo/query/fragment) validated in `Config::validate` (`ConfigError::BaseUrl`), `Monitor::test_nine_router` with every RF2.2 outcome (health, version, login, connection list; connected, not 9router, password wrong, lockout with the wait, login refused, password required, unreachable), the exposure and private-HTTP notes, TOML example. **Pending:** wiring Test connection into the TUI wizard and the desktop form (mandatory before the first save), `tls_ca_file` / `tls_pin_sha256` with the trust-on-first-use dialog, the consent-gated presence probe (needs PRD 0027), the pasted `auth_token` session for SSO instances (needs PRD 0016 slot), the vault-stored password (env variable only today), hidden connections editor, the version-below-minimum warning (needs `tested_min`, task T2). |
+| RF3 | vNEXT (partial) | `providers/nine_router.rs`: the closed `Route` allow-list (health, version, login, connection list, usage by id `[A-Za-z0-9_-]{1,128}`; never `/api/providers`, reset routes, settings, keys or `/v1`; never `force=1`), in-memory login shared per instance (renewed 10 minutes before the JWT `exp`, a rejected password or `Retry-After` window is not retried, redirects not followed and classified as authentication), paged discovery (cap 10 pages / 1000), field allow-list at deserialization, usage normalization (quota metrics with windows from labels, `unlimited` and unmeasured entries without a meter, `total = 0` is no cap, invalid `resetAt` is `None`, `limitReached` without detail is an exhausted signal, soft `{message}` failures classified without showing the text, 401 = reconnect, 404 = gone, 5xx/timeout = error), the upstream mapping table, opaque sub-account ids, masked labels, `via` evidence and the "via 9router" caveats. `wiremock` fixtures cover every branch and a request recorder proves the allow-list. **Pending:** RF3.8 `tested_min` and PRD 0028's canary (owner task T2). |
+| RF4 | vNEXT (partial) | Interval floor of 120 s for an aggregator account, concurrency 2 inside the global semaphore, 15 s per request, 60 s per instance (the account deadline is raised to 60 s), connections past the deadline become timeout sub-reports, a manual refresh never sends `force=1`. **Pending:** per-sub-account freshness, `last_good` and stale treatment (PRD 0010), refresh of one connection only, the 30-second post-reset query for sub-accounts. |
 | RF5 | — | Proposed (needs PRD 0029). |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
+| RF6 | vNEXT (partial) | RF6.3 `aggregators::pools` / `Pool::summary` ("Claude · 2 of 3 available", "all exhausted · returns …", the earliest return time), computed over active connections only. **Pending:** per-sub-account binding, pace and alerts, `AlertKind::PoolExhausted` and the alert grouping preference, "best account now" ranking and incidents for sub-accounts. |
+| RF7 | vNEXT (partial) | `Report::sub_reports` reaches `--json` and the `export::v1` report (redacted like the account's own texts; the schema documents `SubReport`). **Pending:** the `sub_accounts` / `aggregator` blocks of `AccountExport`, local-server items with `parent`, events with `parent` and `pool_exhausted` / `pool_recovered`, widgets. |
+| RF8 | vNEXT (partial) | The 9router brand mark in the desktop (`lib.js`). **Pending:** the dedicated tray tab, grouped "All" row, main-window section, details, account form and Test connection dialog. |
+| RF9 | vNEXT (partial) | `--list-providers` marks `nine_router` as an aggregator; `--once` prints the pools and every connection under the aggregator account; `--json` carries `sub_reports`. **Pending:** the TUI dashboard section (collapse key, filter), the wizard Test connection and fingerprint prompt, `--strict-exit` handling. |
 | RF10 | — | Proposed (second adapter, gated on evidence). |
-| RF11 | — | Proposed. |
+| RF11 | vNEXT (partial) | `docs/providers.md` section "Aggregators" and 9router paragraph, the regenerated matrix, `cuotai.example.toml`, README counts and the `THIRD_PARTY_NOTICES` line. **Pending:** `docs/export-v1.md`, `docs/events.md`, `docs/local-server.md` and `docs/tui.md` descriptions once their code lands. |
 
 ## 1. Context
 
