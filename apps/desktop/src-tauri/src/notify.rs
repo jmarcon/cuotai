@@ -12,7 +12,7 @@ use cuotai_core::{
     aggregators,
     alerts::{self, AlertEvent, AlertPrefs, NOTICE_SPACING},
     resets::{self, Ledger, ResetEvent},
-    Config, Metric, Report,
+    Account, Config, Metric, Report,
 };
 use std::path::PathBuf;
 
@@ -361,27 +361,38 @@ impl Notices {
         self.locale.as_deref().unwrap_or(DEFAULT_LOCALE)
     }
 
-    /// The next notice still ahead of `now` (tray and tooltip); `None` when
-    /// notices are off.
+    /// The next notice still ahead of `now` (tray and tooltip) and the
+    /// account it names; `None` when notices are off. PRD 0036: for a
+    /// connection of an aggregator, `account_index` is the aggregator's and
+    /// the account is the connection's display form.
     pub fn next(
         &self,
         config: &Config,
         readings: &[Option<&Report>],
         now: DateTime<Utc>,
-    ) -> Option<ResetEvent> {
+    ) -> Option<(ResetEvent, Account)> {
         if !self.prefs.enabled {
             return None;
         }
         let prefs = self.prefs.planner();
         let expanded = aggregators::expand(config, readings);
-        resets::plan(
+        let mut event = resets::plan(
             &expanded.config,
             expanded.readings(),
             now,
             &prefs,
             &self.ledger,
         )
-        .next
+        .next?;
+        let account = expanded.display(event.account_index).clone();
+        if let Some(unit) = expanded
+            .origin
+            .get(event.account_index)
+            .and_then(Option::as_ref)
+        {
+            event.account_index = unit.parent_index;
+        }
+        Some((event, account))
     }
 
     /// One pass of the timer at `now`: deliver the reset notices that are
@@ -919,6 +930,21 @@ mod tests {
             }],
             ..Config::default()
         }
+    }
+
+    /// PRD 0036: the next reset of a connection names the connection and
+    /// points at its aggregator's position, never past the configuration.
+    #[test]
+    fn the_next_reset_of_a_connection_points_at_its_aggregator() {
+        let notices = on(0);
+        let cfg = router_config();
+        let reading = router(t0() - mins(60), 50.0, 0.0);
+        let (event, account) = notices
+            .next(&cfg, &[Some(&reading)], t0() - mins(5))
+            .expect("a used connection has a reset ahead");
+        assert_eq!(event.account_index, 0);
+        assert_eq!(account.name, "home · a");
+        assert_eq!(account.provider, Provider::Claude);
     }
 
     /// PRD 0036 RF6.4: an aggregator notifies once when a whole pool runs

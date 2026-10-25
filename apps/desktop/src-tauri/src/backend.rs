@@ -905,8 +905,10 @@ fn finish_full(
     }
 }
 
-fn next_notice_view(event: &cuotai_core::resets::ResetEvent, config: &Config) -> NextNoticeView {
-    let account = &config.accounts[event.account_index];
+fn next_notice_view(
+    event: &cuotai_core::resets::ResetEvent,
+    account: &cuotai_core::Account,
+) -> NextNoticeView {
     let first = &event.metrics[0];
     NextNoticeView {
         index: event.account_index,
@@ -1022,7 +1024,7 @@ impl Inner {
         let next = self
             .notices
             .next(&l.file.config, &notice_readings(&l.cycle), clock)
-            .map(|event| next_notice_view(&event, &l.file.config));
+            .map(|(event, account)| next_notice_view(&event, &account));
         View {
             config_path: Some(config_label(&l.file)),
             config_source: Some(l.file.source),
