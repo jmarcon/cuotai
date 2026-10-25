@@ -13,7 +13,9 @@
 
 use std::sync::Mutex;
 
-use cuotai_core::tray::{self, AccountView, Badge, Level, TrayItem, TraySelection, TrayStyle, TraySummary};
+use cuotai_core::tray::{
+    self, AccountView, Badge, Level, TrayItem, TraySelection, TrayStyle, TraySummary,
+};
 use tauri::{image::Image, AppHandle};
 
 use crate::settings::{self, TrayPrefs};
@@ -52,7 +54,11 @@ fn local_hhmm(at: chrono::DateTime<chrono::Utc>) -> String {
 }
 
 /// The summary of `accounts` for `style` and `selection`, now.
-pub fn summarize(accounts: &[AccountView], style: TrayStyle, selection: &TraySelection) -> TraySummary {
+pub fn summarize(
+    accounts: &[AccountView],
+    style: TrayStyle,
+    selection: &TraySelection,
+) -> TraySummary {
     tray::summary(accounts, style, selection, chrono::Utc::now(), local_hhmm)
 }
 
@@ -153,7 +159,11 @@ fn render(summary: &TraySummary, colored: bool, locale: &str, menu_tooltip: &str
     };
     let title = summary.title.clone().filter(|t| !t.is_empty());
     // On Windows the title is part of the tooltip's first line.
-    let title = if cfg!(target_os = "windows") { None } else { title };
+    let title = if cfg!(target_os = "windows") {
+        None
+    } else {
+        title
+    };
     Applied {
         title,
         image: pack(rgba, w, h),
@@ -251,7 +261,11 @@ pub(crate) fn meters(items: &[TrayItem], colored: bool) -> (Vec<u8>, u32, u32) {
     let mut rgba = vec![0u8; (W * H * 4) as usize];
     for (i, item) in items.iter().take(n as usize).enumerate() {
         let y0 = top + i as u32 * (bar + gap);
-        let rgb = if colored { level_rgb(item.level) } else { [0, 0, 0] };
+        let rgb = if colored {
+            level_rgb(item.level)
+        } else {
+            [0, 0, 0]
+        };
         let share = item.remaining.unwrap_or(0.0).clamp(0.0, 1.0);
         let mut fill = (share * f64::from(W)).round() as u32;
         if share > 0.0 {
@@ -272,7 +286,11 @@ pub(crate) fn meters(items: &[TrayItem], colored: bool) -> (Vec<u8>, u32, u32) {
                 }
                 let edge = y == y0 || y == y0 + bar - 1 || x == 0 || x == W - 1;
                 let alpha = if item.exhausted {
-                    if edge { 0xff } else { 0 }
+                    if edge {
+                        0xff
+                    } else {
+                        0
+                    }
                 } else if item.remaining.is_some() && x < fill {
                     0xff
                 } else {
@@ -306,7 +324,9 @@ mod tests {
     }
 
     fn alpha_row(rgba: &[u8], w: u32, y: u32) -> Vec<u8> {
-        (0..w).map(|x| rgba[((y * w + x) * 4 + 3) as usize]).collect()
+        (0..w)
+            .map(|x| rgba[((y * w + x) * 4 + 3) as usize])
+            .collect()
     }
 
     #[test]
@@ -341,7 +361,9 @@ mod tests {
     #[test]
     fn colored_meters_use_the_level_colors() {
         let (rgba, _, _) = meters(&[item(Some(0.9), false)], true);
-        assert!(rgba.chunks(4).any(|p| p[3] == 0xff && p[..3] == level_rgb(Some(Level::Good))));
+        assert!(rgba
+            .chunks(4)
+            .any(|p| p[3] == 0xff && p[..3] == level_rgb(Some(Level::Good))));
     }
 
     #[test]
@@ -391,7 +413,10 @@ mod tests {
         } else {
             assert_eq!(a.title.as_deref(), Some("22% · Work"));
         }
-        assert_eq!(a.tooltip, "Cuotai — Work 22% left\noldest reading: 2 min ago");
+        assert_eq!(
+            a.tooltip,
+            "Cuotai — Work 22% left\noldest reading: 2 min ago"
+        );
         let colored = render(&s, true, "en-US", "");
         assert!(!colored.template);
         let m = render(

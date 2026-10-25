@@ -8,8 +8,7 @@
 use crate::settings::{self, AlertSettings, NotifyPrefs};
 use chrono::{DateTime, Utc};
 use cuotai_core::{
-    account_id,
-    aggregators,
+    account_id, aggregators,
     alerts::{self, AlertEvent, AlertKind, AlertPrefs, Lead, PaceInput, NOTICE_SPACING},
     resets::{self, Ledger, ResetEvent},
     Account, Config, Metric, Report,
@@ -1064,9 +1063,7 @@ mod tests {
         assert!(fake.0.borrow()[0].1.starts_with("home · a"));
 
         // A save keeps the connection's muted metric and the mode.
-        notices
-            .set_metric_alert(&conn, "5h", false)
-            .unwrap();
+        notices.set_metric_alert(&conn, "5h", false).unwrap();
         notices.keep_accounts(&cfg).unwrap();
         assert!(notices.metric_muted(&conn, "5h"));
         assert!(notices.alerts().pool_each.contains(&id));

@@ -62,7 +62,11 @@ impl FeedSlot {
         let (export, generation) = (self.clone(), self.clone());
         serve::with_generation(
             move || export.export(),
-            move || generation.generation.load(std::sync::atomic::Ordering::Relaxed),
+            move || {
+                generation
+                    .generation
+                    .load(std::sync::atomic::Ordering::Relaxed)
+            },
         )
     }
 
@@ -243,10 +247,7 @@ impl Integration {
 
         // Hot swap on the live listener.
         if let Some(server) = self.server.as_ref() {
-            match server
-                .reconfigure(new_config.clone(), feed.source())
-                .await
-            {
+            match server.reconfigure(new_config.clone(), feed.source()).await {
                 Ok(serve::Reconfigure::Replaced) => {
                     self.prefs = prefs;
                     self.error = None;

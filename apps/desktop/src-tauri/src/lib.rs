@@ -660,7 +660,9 @@ fn set_tray_prefs(
 ) -> Result<(), String> {
     let style = cuotai_core::tray::TrayStyle::parse(&style).ok_or("invalid_tray_style")?;
     let popover_view = popover_view
-        .map(|v| serde_json::from_value(serde_json::Value::String(v)).map_err(|_| "invalid_popover_view"))
+        .map(|v| {
+            serde_json::from_value(serde_json::Value::String(v)).map_err(|_| "invalid_popover_view")
+        })
         .transpose()?;
     let existing = tray_bar::account_keys();
     let accounts = accounts.map(|ids| {
@@ -704,9 +706,11 @@ async fn first_run_turn_on(app: AppHandle, b: Shared<'_>) -> Result<String, Stri
     let thresholds: Vec<u8> = recommended.thresholds().collect();
     if permission == "granted" {
         b.update_notices(&app, |n| {
-            let mut alerts =
-                n.alerts()
-                    .with_choices(&thresholds, recommended.exhaustion, recommended.recovery)?;
+            let mut alerts = n.alerts().with_choices(
+                &thresholds,
+                recommended.exhaustion,
+                recommended.recovery,
+            )?;
             // PRD 0023 RF4.6 and PRD 0024 RF4.1: the extra-usage notices and
             // the projected warning (60 minutes ahead) are part of the
             // recommendation.

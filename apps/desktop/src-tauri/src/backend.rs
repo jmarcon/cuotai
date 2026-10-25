@@ -30,11 +30,10 @@ use cuotai_core::{
     models::{self, ModelError, ModelState},
     oauth::{vault_index, OAuthSession},
     pace::{self, Pace, Point},
-    tray,
     refresh::{Edit, RefreshCycle},
     resets::TimelineRange,
     stats::{StatsRange, StatsSummary},
-    user_session, Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor,
+    tray, user_session, Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor,
     Provider, Report, Status,
 };
 use serde::{Deserialize, Serialize};
@@ -823,12 +822,16 @@ fn tray_account(view: &ReportView, last_good: Option<&Report>) -> tray::AccountV
         provider: view.provider.slug().to_owned(),
         provider_label: view.provider.label().to_owned(),
         name: view.account.clone(),
-        remaining: current.as_ref().map(|b| (1.0 - b.used_ratio).clamp(0.0, 1.0)),
+        remaining: current
+            .as_ref()
+            .map(|b| (1.0 - b.used_ratio).clamp(0.0, 1.0)),
         stale: current.is_some() && (preserved || view.freshness == Freshness::Stale),
         exhausted: current
             .as_ref()
             .is_some_and(|b| b.reason == cuotai_core::metrics::BindingReason::Exhausted),
-        resets_at: current.as_ref().and_then(|b| b.blocked_until.or(b.resets_at)),
+        resets_at: current
+            .as_ref()
+            .and_then(|b| b.blocked_until.or(b.resets_at)),
         runs_out_at,
         alert: !view.usage_alerts.is_empty(),
         incident: view
@@ -986,14 +989,14 @@ fn aggregator_views(
                 let mut view = if ready.is_some() {
                     let mut view =
                         report_view(index, &reading, &keyed, next_refresh_at_ms, None, 0, &[]);
-                    view.last_good =
-                        last_good_sub(&sub.id).map(|good| last_good_view(&good, chrono::Utc::now()));
+                    view.last_good = last_good_sub(&sub.id)
+                        .map(|good| last_good_view(&good, chrono::Utc::now()));
                     view
                 } else {
                     let mut view =
                         pending_view(index, &reading, &keyed, next_refresh_at_ms, None, 0);
-                    view.last_good =
-                        (sub.status == Status::Ready).then(|| last_good_view(&reading, chrono::Utc::now()));
+                    view.last_good = (sub.status == Status::Ready)
+                        .then(|| last_good_view(&reading, chrono::Utc::now()));
                     view
                 };
                 view.provider = sub.provider.unwrap_or(parent.provider);
@@ -1816,12 +1819,11 @@ impl Backend {
                     .position(|account| account.index == index)?;
                 table.get(position)?.clone()
             };
-            let _ = self.journal.lock().await.observe_with(
-                &store,
-                &export,
-                export.generated_at,
-                pace,
-            );
+            let _ =
+                self.journal
+                    .lock()
+                    .await
+                    .observe_with(&store, &export, export.generated_at, pace);
         }
         if let Some((path, export, table)) = watched {
             let mut hooks = self.hooks.lock().await;
@@ -5294,7 +5296,8 @@ mod tests {
         .overage();
         extra.limit = Some(50.0);
         blocked.metrics.push(extra);
-        let view = serde_json::to_value(report_view(0, &blocked, &config, None, None, 0, &[])).unwrap();
+        let view =
+            serde_json::to_value(report_view(0, &blocked, &config, None, None, 0, &[])).unwrap();
         let overage = &view["overage"];
         assert_eq!(overage["state"], "active");
         assert_eq!(overage["spent"], 6.25);
@@ -5308,7 +5311,8 @@ mod tests {
         assert_eq!(view["binding"]["window"], "weekly");
 
         let plain = ready("plain", vec![quota("5h", 40.0, Window5h, 2)]);
-        let view = serde_json::to_value(report_view(1, &plain, &config, None, None, 0, &[])).unwrap();
+        let view =
+            serde_json::to_value(report_view(1, &plain, &config, None, None, 0, &[])).unwrap();
         assert!(view["overage"].is_null());
     }
 
@@ -5370,11 +5374,7 @@ mod tests {
         let id = config.accounts[0].state_key();
         assert_eq!(
             keys,
-            [
-                format!("{id}/a1"),
-                format!("{id}/b2"),
-                format!("{id}/g7")
-            ]
+            [format!("{id}/a1"), format!("{id}/b2"), format!("{id}/g7")]
         );
         assert!(views.iter().all(|v| v.index == 0));
         assert_eq!(views[0].provider, Provider::Claude);
@@ -6699,11 +6699,7 @@ mod tests {
         input.index = None;
         input.name = "Work".into();
         input.peer_name = Some("Personal".into());
-        backend
-            .inner
-            .drive_save_account(input, None)
-            .await
-            .unwrap();
+        backend.inner.drive_save_account(input, None).await.unwrap();
         let config = backend.loaded_config().await;
         assert_eq!(config.accounts.len(), 2);
         assert_eq!(config.accounts[0].name, "Personal");
@@ -7419,4 +7415,3 @@ mod tests {
         );
     }
 }
-
