@@ -1,4 +1,10 @@
-# Copy to cuotai.toml. Use unique names; repeat providers for multiple accounts.
+# Copy to cuotai.toml. Repeat providers for multiple accounts.
+# `name` is optional: without it the account shows its provider's name. Two accounts of the same
+# provider both need a name, and names are unique (case-insensitive) across the file.
+# Cuotai adds an `id = "acc_…"` line as the first key of each account on its next save: it keeps the
+# account's bell, mutes, alerts and history across renames. When you copy an [[accounts]] block,
+# delete its `id` line (a repeated id is rejected). Cuotai 0.80.0 is the oldest version that reads
+# a file with ids or unnamed accounts; to go further back, delete the `id` lines and name every account.
 # Credentials live in the environment or in the OAuth vault, never in this file. Remove accounts you do not use.
 # For a login: wizard, Credential step, Tab → Sign in. It generates [accounts.oauth].
 # 9router's native logins do not need your own client_id; Cloud Monitoring/Azure do.
@@ -29,7 +35,7 @@ credential_env = "CHATGPT_ACCESS_TOKEN"
 # params = { account_id = "your-account-id" }
 
 [[accounts]]
-name = "Claude"
+# No name: shown as "Claude", the only account of its provider here.
 provider = "claude"
 credential_env = "CLAUDE_OAUTH_TOKEN"
 # Interface not officially documented, subject to change.

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0029 |
-| Status | In progress |
+| Status | Implemented |
 | Owner | `cuotai-core` (`Account::id`, `ConfigFile`, `account_edit`, state migrations, vault index), desktop and TUI |
 | Consumers | `apps/desktop` (account form, bells, mutes, tray selection), `crates/cuotai-tui` (wizard, `--notify`), `export::v1`/`--serve`/`--watch` consumers, hooks, PRDs 0024, 0025, 0026 |
 | Depends on | PRD 0001 (`ConfigFile`, `account_edit`), PRD 0016 (RF1, RF4: `[accounts.session]`, `stage_forget`) |
@@ -24,7 +24,7 @@
 | RF4 | vNEXT | `id` and `named` on `AccountExport` and `AccountLimit`, `id` on the widget snapshot, `account_id` on events and `--json` reports, `/v1/accounts/{id_or_key}`; hooks receive `CUOTAI_ACCOUNT_ID` and `hooks.toml` rules accept an `account_id` filter (validated as an `AccountId`); docs and schema updated. |
 | RF5 | 0.77.1, vNEXT | RF5.1 and the session half of RF5.2 delivered as PRD 0016 FIX-06 (`d265960`): removing an account or switching its provider deletes its vault web session, restored when the save fails. vNEXT: `account_edit::switched_oauth`/`switched_oauth_notice`/`purge_switched_oauth` purge the old OAuth token after a successful save of a provider switch (shared-key guard applies) and the TUI summary says so before saving (the desktop dialog does not allow a provider switch while editing); `RemovedAccount::sessions_removed` reports the session apart from the OAuth credential in the TUI result and the desktop notice (RF5.3). Decision kept: "keep credentials" still keeps only the OAuth token; the session goes with the account, as FIX-06 decided, since no other account can read it. |
 | RF6 | vNEXT | Implemented: `oauth::vault_index::IndexedStore` wraps the OS vault (`OAuthSession::system`) and the development SQLite store (its own `<database>.vault-index.json`), recording each saved key and its creation time in `vault-index.json` (`0600`, never a value; missing or corrupt reads as empty, write failures ignored); `vault_index::audit`/`prune` resolve kind, provider, account id and display name from the configuration at audit time (the store only sees opaque keys) and mark orphans; `cuotai --vault-audit [--json]` (exit 2 with orphans) and `--vault-prune` (terminal confirmation); desktop Settings › Advanced › Files › Stored credentials with Remove unused. Not indexed: `serve_token` (kept in a file, not the vault) and entries written before this release. |
-| RF7 | — | Proposed. |
+| RF7 | vNEXT | `cuotai.example.toml` (optional `name`, the `id` line, copying blocks, the 0.80.0 downgrade floor), `README.md` (adding accounts), `docs/architecture.md` ("Account identity"), `docs/export-v1.md`/schema, `docs/events.md`, `docs/tui.md`, `docs/oauth.md` and `docs/widgets.md`; the TOML compatibility note is in the RF7 commit's `Changelog:` trailer. |
 
 ## 1. Context
 
