@@ -480,16 +480,6 @@ dialog:focus-visible {
    `data-rows-hide` on the root lists the elements the layout leaves out; a hidden element takes no space. The figure
    and the meter have no hook: they are never hidden. The account label hides only as a secondary label (`.ac`),
    never as the row title. */
-.plan-b {
-  flex: none;
-  padding: 0 var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--fg-muted);
-  font-family: var(--font-mono), var(--font-script);
-  font-size: var(--text-2xs);
-  line-height: 18px;
-}
 .subl {
   overflow: hidden;
   color: var(--fg-muted);
@@ -497,7 +487,7 @@ dialog:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:root[data-rows-hide~="plan"] .plan-b,
+:root[data-rows-hide~="plan"] .plan-badge,
 :root[data-rows-hide~="label"] .r1 .ac,
 :root[data-rows-hide~="monogram"] .mono-badge,
 :root[data-rows-hide~="unit"] .fig small,
@@ -591,3 +581,42 @@ dialog:focus-visible {
   display: block;
   margin: var(--space-0) 0;
 }
+/* ---- DS-CMP-BADGE-1: plan badge (the core's plan name; outlined, mono, neutral, never filled) ---- */
+.plan-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 calc(var(--space-1) + var(--space-0));
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.who-t {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.who-t h2 { min-width: 0; }
+/* PRD 0023 RF10.3: a model at its limit with its return (text and icon, never color alone) */
+.scope-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  color: var(--bad);
+  font-size: var(--text-sm);
+}
+.scope-block svg.i { flex: none; width: 14px; height: 14px; }
+/* PRD 0036 RF5.2: a connection that duplicates a direct account stays readable but steps back */
+.card.dup .summary,
+.card.dup .card-head .who,
+.row.dup .rc { opacity: 0.62; }
+/* Mockup 03 (#16): "Alert me" sits at the end of the run-out callout */
+.call > .btn { flex: none; margin-left: auto; align-self: center; }
+.conn-actions { flex-wrap: wrap; }

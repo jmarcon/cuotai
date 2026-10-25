@@ -109,4 +109,17 @@ assert.match(dialogSrc, /s\.secret\s*\n?\s*\/\/[^\n]*\n\s*\? `<input type="passw
 assert.ok(dialogSrc.includes("${s.hosts.length ? `<small"), "no empty hosts line for account-host slots");
 assert.ok(dialogSrc.includes("testAggregator({ ...draftInput(), sessions: pastes() })"), "Test connection carries the pastes");
 assert.ok(!dialogSrc.includes('querySelectorAll("textarea[data-slot]")'), "pastes are read from every field kind");
+// PRD 0036 RF4.4/RF8.5: per-connection Refresh and Hide; "Show in both" only for a duplicate (or one already shown).
+const work = connections.find((c) => c.connection.label === "work");
+const acts = agg.connectionActionsHtml(work, router.index);
+assert.ok(acts.includes("data-conn-refresh") && acts.includes('data-conn-flag="hidden"') && acts.includes(`data-sub="${work.connection.sub}"`));
+assert.ok(!acts.includes('data-conn-flag="show_both"'), "no duplicate, no Show in both");
+const dup = { ...work, connection: { ...work.connection, duplicate_of: "claude:Account 2" } };
+assert.ok(agg.connectionActionsHtml(dup, router.index).includes('data-conn-flag="show_both"'));
+await lib.setConnectionFlag(router.index, "hidden", work.connection.sub, true);
+assert.equal(agg.connectionsOf((await lib.getView()).reports.find(agg.isAggregator)).length, 3, "a hidden connection leaves the view");
+await lib.setConnectionFlag(router.index, "hidden", work.connection.sub, false);
+assert.equal(agg.connectionsOf((await lib.getView()).reports.find(agg.isAggregator)).length, 4);
+assert.equal(work.plan, "Max", "the connection's plan rides on the view");
+
 console.log("PASS: 9router instance, pools, connections and details render in pt-BR, en-US, es and it without raw keys, paths or e-mails");

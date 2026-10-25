@@ -10,7 +10,7 @@ import { buttons, row } from "./rows.js";
 
 export function html({ settings: s, update }) {
   return group("about", te("settings.about"),
-    row({ key: "version", label: `Cuotai ${esc(s.version)}`,
+    row({ key: "version", label: `Cuotai ${esc(s.version)}${update?.build ? ` (${esc(update.build)})` : ""}`,
       desc: `${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: t("update.state." + (update?.phase ?? "idle"), { version: update?.version ?? "" }) })}`,
       control: () => buttons(`<button class="btn sm" data-libraries>${te("about.libraries")}</button><button class="btn sm" data-whats-new>${te("about.whatsNew")}</button><button class="btn sm" data-report-problem>${te("report.action")}</button>`) }))
     // PRD 0018 RF3.1 / PRD 0022 RF17.4: the updater owns its whole group, heading included (anchor `[data-updates]`).

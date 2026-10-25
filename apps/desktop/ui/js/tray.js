@@ -13,7 +13,8 @@ import { costLineHtml, sourceFor } from "./cost.js";
 import {
   accountLabel, bestChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
   initOrderSync, initTheme, initTrayView, level, nextNoticeText, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
-  openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, sortReports, statusLabel, trayViewPref, wordmark,
+  openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
+  errText, isDesktop,
 } from "./lib.js";
 import {
   accountMeterHtml, accountState, announceChanges, clearChange, figureHtml, figureOf, filterTabsHtml, fitStatusLines, meterHtml, monograms,
@@ -21,7 +22,7 @@ import {
 } from "./components.js";
 import {
   accessibleName, aggregatorsInAll, activeConnection, connectionChips, connectionInfoHtml, connectionsOf, groupsOf, instanceHeadHtml,
-  isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, withConnections,
+  handleConnectionAction, isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, withConnections,
 } from "./aggregator.js";
 import { initUpdates, onUpdateState } from "./updater.js";
 import { initRowLayout } from "./density.js";
@@ -316,6 +317,16 @@ root.addEventListener("click", (e) => {
   }
   const dashboard = el.closest("[data-agg-dashboard]");
   if (dashboard) return openAggregatorDashboard(Number(dashboard.dataset.aggDashboard)).catch(() => {});
+  const fail = (x) => { store.error = errText(x); render(); };
+  if (handleConnectionAction(el, () => isDesktop || store.reload(), fail)) return;
+  const settingsPage = el.closest("[data-settings]");
+  if (settingsPage) return openSettingsWindow({ page: settingsPage.dataset.settings || null });
+  // Mockup 03 (#16): "Alert me" in the run-out callout turns that metric's usage alert on.
+  const alertMe = el.closest("[data-metric-alert]");
+  if (alertMe) {
+    const { metricAlert: key, metricLabel: label, metricOn: on } = alertMe.dataset;
+    return setMetricAlert(key, label, on !== "true").then(() => isDesktop || store.reload(), fail);
+  }
   const open = el.closest("[data-open]");
   if (open) {
     const key = open.dataset.open;

@@ -3,7 +3,7 @@
 // its own `account_key`, with `index` pointing at the aggregator so every action acts on it). Nothing here classifies
 // or counts on its own: figures and pool sentences come from the core.
 import { t, te, tl } from "./i18n.js";
-import { bindingPct, brand, esc, icon, level, logo } from "./lib.js";
+import { bindingPct, brand, esc, icon, level, logo, refreshAccount, setConnectionFlag } from "./lib.js";
 
 export const isAggregator = (r) => !!r?.aggregator;
 export const isConnection = (r) => !!r?.connection;
@@ -101,8 +101,35 @@ export function connectionInfoHtml(c, parentIndex) {
     <dl>${rows.map(([dt, dd]) => `<dt>${dt}</dt><dd>${dd}</dd>`).join("")}</dl>
     ${connectionChips(c) ? `<p class="agg-chips">${connectionChips(c)}</p>` : ""}
     <p class="hint">${te("agg.caveat")}</p>
-    <div class="dlg-actions left"><button type="button" class="link" data-agg-dashboard="${parentIndex}">${icon("window")}<span>${te("agg.openDashboard")}</span></button></div>
+    <div class="dlg-actions left conn-actions">${connectionActionsHtml(c, parentIndex)}<button type="button" class="link" data-agg-dashboard="${parentIndex}">${icon("window")}<span>${te("agg.openDashboard")}</span></button></div>
   </div>`;
+}
+
+/** PRD 0036 RF4.4/RF8.5: what a connection offers on its own: refresh only it (`refresh_account` with its `sub`),
+ *  hide it (`params.hidden`) and, while it duplicates a direct account, list it in both places
+ *  (`params.show_both`). The core writes the parameters; nothing is decided here. */
+export function connectionActionsHtml(c, parentIndex) {
+  const k = c.connection;
+  if (!k?.sub) return "";
+  const at = `data-index="${parentIndex}" data-sub="${esc(k.sub)}"`;
+  const both = k.duplicate_of || k.show_both
+    ? `<button type="button" class="link" data-conn-flag="show_both" data-on="${!k.show_both}" ${at} aria-pressed="${!!k.show_both}" title="${te("agg.showBothTitle")}">${icon("copy")}<span>${te(k.show_both ? "agg.showBothOn" : "agg.showBoth")}</span></button>` : "";
+  return `<button type="button" class="link" data-conn-refresh ${at}>${icon("refresh")}<span>${te("agg.refreshConnection")}</span></button>
+    <button type="button" class="link" data-conn-flag="hidden" data-on="true" ${at} title="${te("agg.hideConnectionTitle")}">${icon("eyeOff")}<span>${te("agg.hideConnection")}</span></button>${both}`;
+}
+
+/** Runs a connection action of `connectionActionsHtml` under `el`; `after` re-reads the view (the browser demo has
+ *  no "snapshot" event). Returns whether `el` was one. */
+export function handleConnectionAction(el, after = () => {}, onError = () => {}) {
+  const refresh = el.closest("[data-conn-refresh]");
+  const flag = el.closest("[data-conn-flag]");
+  const btn = refresh ?? flag;
+  if (!btn) return false;
+  const index = Number(btn.dataset.index);
+  const run = refresh ? refreshAccount(index, btn.dataset.sub)
+    : setConnectionFlag(index, flag.dataset.connFlag, btn.dataset.sub, flag.dataset.on === "true");
+  run.then(after, (e) => onError(String(e)));
+  return true;
 }
 
 /** PRD 0036 RF8.5: the instance's details: address (host only), version, connections, pools and the alert mode. */

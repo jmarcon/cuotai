@@ -550,6 +550,59 @@ pub struct ReportView {
     /// PRD 0024 RF7.3: while this account is exhausted or projected to run
     /// out, what the best account of its group has left.
     advice: Option<AdviceView>,
+    /// PRD 0022 RF4: the plan the provider reports (`metrics::plan_name`),
+    /// shown as a pill next to the title; `None` draws no pill.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    plan: Option<String>,
+    /// PRD 0023 RF10.3: the exhausted model-scoped limits, each with the
+    /// core's "{model} at its limit until 19:30" sentence.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    scope_blocks: Vec<ScopeBlockView>,
+}
+
+/// Whether `id` is in the comma-separated list parameter `key` of `account`.
+fn connection_listed(account: &cuotai_core::Account, key: &str, id: &str) -> bool {
+    account.params.get(key).is_some_and(|raw| {
+        raw.split(',')
+            .any(|item| item.trim().eq_ignore_ascii_case(id))
+    })
+}
+
+/// `raw` with `id` added to (or removed from) its comma-separated list;
+/// `None` once the list is empty.
+fn toggle_listed(raw: Option<&str>, id: &str, on: bool) -> Option<String> {
+    let mut items: Vec<String> = raw
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty() && !item.eq_ignore_ascii_case(id))
+        .map(str::to_owned)
+        .collect();
+    if on {
+        items.push(id.to_ascii_lowercase());
+    }
+    (!items.is_empty()).then(|| items.join(","))
+}
+
+/// PRD 0023 RF10.3: one model at its limit and when it returns.
+#[derive(Serialize, Clone)]
+pub struct ScopeBlockView {
+    index: usize,
+    label: String,
+    resets_at: Option<chrono::DateTime<chrono::Utc>>,
+    text: cuotai_core::text::Localized,
+}
+
+fn scope_block_views(report: &Report) -> Vec<ScopeBlockView> {
+    cuotai_core::metrics::scope_blocks(report)
+        .into_iter()
+        .map(|block| ScopeBlockView {
+            text: block.summary(local_at),
+            index: block.index,
+            label: block.label,
+            resets_at: block.resets_at,
+        })
+        .collect()
 }
 
 /// The core's overage reading plus its texts, so no surface composes them.
@@ -629,6 +682,11 @@ pub struct ConnectionView {
     duplicate_of: Option<String>,
     plan: Option<String>,
     via: Option<String>,
+    /// The connection's stable sub id: `refresh_account`'s `sub` and the
+    /// id `set_connection_flag` writes into `hidden` / `show_both`.
+    sub: String,
+    /// Its id is in the aggregator's `show_both` list.
+    show_both: bool,
 }
 
 /// PRD 0024 RF7.3: "Work runs out ≈18:53 · Personal has 64% left", and the
@@ -949,6 +1007,8 @@ fn report_view(
         group_label: advice::group_label(config, account).map(str::to_owned),
         best_now: None,
         advice: None,
+        plan: cuotai_core::metrics::plan_name(report),
+        scope_blocks: scope_block_views(report),
     }
 }
 
@@ -1018,7 +1078,12 @@ fn aggregator_views(
                     duplicate_of: sub.duplicate_of.clone(),
                     plan: sub.plan.clone(),
                     via: sub.via.clone(),
+                    sub: sub.id.clone(),
+                    show_both: connection_listed(parent, "show_both", &sub.id),
                 });
+                if sub.plan.is_some() {
+                    view.plan = sub.plan.clone();
+                }
                 views.push(view);
             }
         }
@@ -3840,6 +3905,60 @@ impl Backend {
         Ok(())
     }
 
+    /// PRD 0036 RF8.5: hide one connection of the aggregator at `index`
+    /// (`params.hidden`) or keep it beside its direct account
+    /// (`params.show_both`), then read the aggregator again. Only these two
+    /// list parameters of an aggregator account are writable here.
+    pub async fn set_connection_flag(
+        &self,
+        app: &AppHandle,
+        index: usize,
+        key: &str,
+        sub: &str,
+        on: bool,
+    ) -> Result<(), String> {
+        if !matches!(key, "hidden" | "show_both")
+            || sub.is_empty()
+            || !sub.chars().all(|c| c.is_ascii_alphanumeric())
+        {
+            return Err("Parâmetro de conexão inválido.".into());
+        }
+        self.ensure_loaded().await;
+        {
+            let mut g = self.inner.lock().await;
+            let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let prev = l.file.config.clone();
+            let account = prev.accounts.get(index).ok_or("Conta inexistente.")?;
+            if !account.provider.is_aggregator() {
+                return Err("Conta inexistente.".into());
+            }
+            let mut updated = prev.clone();
+            let params = &mut updated.accounts[index].params;
+            match toggle_listed(params.get(key).map(String::as_str), sub, on) {
+                Some(list) => params.insert(key.to_owned(), list),
+                None => params.remove(key),
+            };
+            if updated.accounts[index].params == prev.accounts[index].params {
+                return Ok(());
+            }
+            let mut staged_cycle = l.cycle.clone_state_for_edit();
+            staged_cycle
+                .apply_edit(&prev, &updated, Edit::Upsert(index), Instant::now())
+                .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))?;
+            let new_monitor = l
+                .monitor
+                .with_config(updated.clone())
+                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
+            l.file.save(updated).map_err(|e| edit_error_to_json(&e))?;
+            l.cycle = staged_cycle;
+            l.monitor = Arc::new(new_monitor);
+            l.generation += 1;
+            g.generation = l.generation;
+        }
+        self.emit(app).await;
+        self.refresh_account(app, index).await
+    }
+
     pub async fn get_account(&self, index: usize) -> Result<AccountForm, String> {
         let g = self.inner.lock().await;
         let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
@@ -5390,6 +5509,23 @@ pub fn tray_view() -> TrayView {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn toggle_listed_adds_and_removes_one_sub_id() {
+        assert_eq!(
+            super::toggle_listed(None, "AB12", true).as_deref(),
+            Some("ab12")
+        );
+        assert_eq!(
+            super::toggle_listed(Some("x, ab12"), "ab12", true).as_deref(),
+            Some("x,ab12")
+        );
+        assert_eq!(
+            super::toggle_listed(Some("x,AB12"), "ab12", false).as_deref(),
+            Some("x")
+        );
+        assert_eq!(super::toggle_listed(Some("ab12"), "ab12", false), None);
+    }
+
     use super::*;
 
     /// PRD 0027 RF1.3: a discovered extension is an "Extension: {name}"

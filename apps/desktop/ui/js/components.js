@@ -7,6 +7,7 @@ import { t, te, tl } from "./i18n.js";
 import {
   ALERTS, billingOverage, bindingPct, brand, fmtExtra, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
   shownAt, staleView, statusLabel, summaryOf, windowsOf,
+  planBadgeHtml,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
 import { oneStatus, rowLayout } from "./density.js";
@@ -485,14 +486,15 @@ export function rowHtml(r, { title, sub = "", mono = "", open = null, key = repo
   // shows one status. The plan badge and the sub-limit line exist only when the account has them; the accessible
   // name carries every element whatever the layout (DS-CMP-DENS-2).
   const lay = rowLayout();
-  const plan = r.connection?.plan ?? r.plan ?? "";
+  const plan = r.plan ?? r.connection?.plan ?? "";
+  const dup = r.connection?.duplicate_of ? " dup" : "";
   const name = [rowName(r, st), plan, subLimitsText(r)].filter(Boolean).join(", ");
   const status = lay.one ? oneStatusHtml(r, st) : `${statusLineHtml(r, st)}${extraLineHtml(r, st)}`;
-  return `<article class="row${open != null ? " open" : ""}" data-row="${esc(key)}">
+  return `<article class="row${open != null ? " open" : ""}${dup}" data-row="${esc(key)}">
     <button class="rh" data-open="${esc(key)}" aria-expanded="${open != null}" aria-label="${esc(name)}" title="${esc(name)}">
       ${tileHtml(r.provider, 32, mono)}
       <span class="rc">
-        <span class="r1"><span class="nm">${esc(title)}</span>${plan ? `<span class="plan-b">${esc(plan)}</span>` : ""}${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim, cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
+        <span class="r1"><span class="nm">${esc(title)}</span>${planBadgeHtml({ plan })}${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim, cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
         ${meter ? `<span class="rm">${meter}</span>` : ""}
         ${status}
         ${lay.elements.sublimits ? subLimitsHtml(r) : ""}

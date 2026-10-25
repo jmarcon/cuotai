@@ -1,12 +1,12 @@
 // Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, histórico, notas, selos e ações.
 import { te, tl } from "./i18n.js";
-import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
+import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, openSettingsWindow, reportKey, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
 import { showDialog } from "./motion.js";
 import { openReportProblem } from "./report-dialog.js";
-import { connectionInfoHtml, instanceInfoHtml, isAggregator, isConnection } from "./aggregator.js";
+import { connectionInfoHtml, handleConnectionAction, instanceInfoHtml, isAggregator, isConnection } from "./aggregator.js";
 
 let dlg = null;
 let currentKey = null;
@@ -115,6 +115,10 @@ export function openDetails(key, context, from = null) {
       // PRD 0036 RF8.5: the aggregator's own dashboard, and its alert mode (each connection or whole pools).
       const dashboard = t.closest("[data-agg-dashboard]");
       if (dashboard) return ctx.onDashboard?.(Number(dashboard.dataset.aggDashboard));
+      const settingsPage = t.closest("[data-settings]");
+      if (settingsPage) { dlg.close(); return openSettingsWindow({ page: settingsPage.dataset.settings || null }); }
+      // PRD 0036 RF8.5: refresh, hide or "show in both" for this connection; a hidden one leaves the dialog.
+      if (handleConnectionAction(t, () => { if (t.closest("[data-conn-flag=hidden]")) dlg.close(); ctx.onConnectionChange?.(); }, (x) => ctx.onError?.(x))) return;
       const each = t.closest("[data-pool-each]");
       if (each) return ctx.onPoolAlerts?.(each.dataset.poolEach, each.checked);
       if (t.closest("[data-edit]")) { const rep = r(); dlg.close(); if (rep) ctx.onEdit(rep.index); }

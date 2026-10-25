@@ -16,10 +16,11 @@ import {
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
+  planBadgeHtml, scopeBlocksHtml,
 } from "./lib.js";
 import { patch } from "./util.js";
 import { initRowLayout } from "./density.js";
-import { connectionChips, groupsOf, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
+import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
 import {
   accountState, announceChanges, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
   repeatedProviders, statusLineHtml, tileHtml, trackChanges,
@@ -147,12 +148,15 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const sub = repeated ? brand(r.provider).label : accountLabel(r);
   const st = accountState(r);
   const refreshName = isBusy ? te("tray.refreshing") : te("common.refresh");
-  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${stripeOf(r, alert)}" data-card="${esc(key)}">
+  // PRD 0036 RF5.2: a connection that duplicates a direct account stays listed, dimmed, with its "also direct" chip.
+  const dup = connection && r.connection.duplicate_of ? " dup" : "";
+  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${stripeOf(r, alert)}${dup}" data-card="${esc(key)}">
     <div class="card-head">
       ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorderKeys")}" aria-label="${te("account.reorder")}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">${icon("grip")}</button>` : ""}
       ${tileHtml(r.provider, 40, ctx.monos.get(key) ?? "")}
-      <div class="who"><h2 title="${esc(title)}">${esc(title)}</h2>${sub ? `<p title="${esc(sub)}">${esc(sub)}</p>` : ""}</div>
+      <div class="who"><div class="who-t"><h2 title="${esc(title)}">${esc(title)}</h2>${planBadgeHtml(r)}</div>${sub ? `<p title="${esc(sub)}">${esc(sub)}</p>` : ""}</div>
       <div class="actions">
+        ${connection && r.connection.sub ? `<button class="icon" title="${te("agg.refreshConnection")}" aria-label="${te("agg.refreshConnection")}" data-conn-refresh data-index="${index}" data-sub="${esc(r.connection.sub)}" ${isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>` : ""}
         ${connection ? "" : `<button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""} ${isBusy ? 'aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>`}
         <span class="card-more">
           <button class="icon" data-card-more="${esc(key)}" aria-haspopup="menu" aria-expanded="${moreFor === key}" title="${te("card.more")}" aria-label="${te("card.more")}">${icon("more")}</button>
@@ -166,7 +170,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${statusLineHtml(r, st, { compact: false, reset: false })}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>
@@ -364,6 +368,8 @@ const detailsContext = {
   onPoolAlerts: (accountKey, each) =>
     setPoolAlerts(accountKey, each).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
   onDashboard: (index) => openAggregatorDashboard(index).catch((x) => setNotice("bad", errText(x))),
+  onConnectionChange: () => isDesktop || store.reload(),
+  onError: (x) => setNotice("bad", errText(x)),
 };
 /** PRD 0003 RF3.2: the bell lives in desktop.json; the backend answers with a new view ("snapshot"). */
 function toggleBell(accountKey, on) {
@@ -525,6 +531,7 @@ root.addEventListener("click", (e) => {
   if (bell) return toggleBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
   const dashboard = t.closest("[data-agg-dashboard]");
   if (dashboard) return detailsContext.onDashboard(Number(dashboard.dataset.aggDashboard));
+  if (handleConnectionAction(t, () => isDesktop || store.reload(), (x) => setNotice("bad", errText(x)))) return;
   const tog = t.closest("[data-toggle]");
   if (tog) { disabled.toggle(tog.dataset.toggle); return render(); }
 });

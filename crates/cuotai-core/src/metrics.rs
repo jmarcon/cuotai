@@ -127,6 +127,20 @@ pub fn scope_blocks(report: &Report) -> Vec<ScopeBlock> {
         .collect()
 }
 
+/// PRD 0022 RF4 (plan pill): the plan name a provider reported for this
+/// reading, taken from the `plan` parameter of its notes (Alibaba, Grok,
+/// Kimi, MiMo, subscriptions…). `None` when the provider states no plan; the
+/// UI then shows no pill rather than guessing one.
+pub fn plan_name(report: &Report) -> Option<String> {
+    report
+        .notes_l10n
+        .iter()
+        .find_map(|note| match note.params.get("plan") {
+            Some(ParamValue::Text(plan)) if !plan.trim().is_empty() => Some(plan.trim().to_owned()),
+            _ => None,
+        })
+}
+
 /// Classify an account using the latest report, if any. A `None` report or a
 /// non-`Ready` status is never classified as available.
 pub fn classify_report(report: Option<&Report>) -> AccountClass {
@@ -1167,6 +1181,20 @@ mod tests {
         );
         assert!(binding(&r).is_none());
         assert_eq!(classify_report(Some(&r)), AccountClass::Available);
+    }
+
+    #[test]
+    fn plan_name_reads_the_plan_note_only() {
+        let mut r = report(Status::Ready, vec![pq("5h", 10.0, 100.0)]);
+        assert_eq!(plan_name(&r), None);
+        r.notes_l10n.push(Localized::fixed("note.other", "Outro."));
+        r.notes_l10n.push(Localized::with_param(
+            "note.x.plan",
+            "plan",
+            " Pro ",
+            "Plano: Pro.",
+        ));
+        assert_eq!(plan_name(&r).as_deref(), Some("Pro"));
     }
 
     /// PRD 0023 RF10.3: an exhausted model limit is named with its return.

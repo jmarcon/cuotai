@@ -3,7 +3,7 @@
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  adviceHtml, fmtMetricExtra, forecastHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 import { expectedLeft, meterHtml } from "./components.js";
 
@@ -46,7 +46,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     </div>
     ${gauge}
     ${pace || resetText ? `<div class="metric-meta">${pace ? `<span class="pace-line" data-pace="${esc(pace.stage)}" title="${esc(paceTip)}">${icon({ good: "check", neutral: "clock", warn: "warn", bad: "xcircle" }[pace.tone] ?? "clock", pace.tone)}<span>${esc(tl(pace.label))}</span></span>` : "<span></span>"}${resetText ? `<span class="resets">${esc(resetText)}</span>` : ""}</div>` : ""}
-    ${forecastHtml(m)}
+    ${stale ? "" : forecastHtml(m, r)}
     ${m.alert?.missed ? `<div class="resets missed" data-missed>${icon("clock")}<span>${te("alerts.missed", { percent: m.alert.missed })}</span></div>` : ""}
   </div>`;
 }
@@ -73,7 +73,7 @@ export function detailHtml(r, { eye = false, action = eye } = {}) {
     return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${reading}${rest}</div>`;
   }
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
-  return `<div class="detail">${incident}${overageDetailHtml(r)}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${reading}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  return `<div class="detail">${incident}${overageDetailHtml(r)}${scopeBlocksHtml(r)}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${reading}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
 }
 
 // ---------- modelos (PRD 0002 RF6) ----------

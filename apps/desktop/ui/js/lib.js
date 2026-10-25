@@ -85,7 +85,9 @@ export const isDesktop = !!T;
 const call = (cmd, args) => (isDesktop ? T.core.invoke(cmd, args) : demo[cmd](args ?? {}));
 export const getView = () => call("get_view");
 export const refreshAll = () => call("refresh_all");
-export const refreshAccount = (index) => call("refresh_account", { index });
+export const refreshAccount = (index, sub = null) => call("refresh_account", { index, sub });
+/** PRD 0036 RF8.5: hide one aggregator connection (`hidden`) or keep it beside its direct account (`show_both`). */
+export const setConnectionFlag = (index, key, sub, on) => call("set_connection_flag", { index, key, sub, on });
 export const listProviders = () => call("list_providers");
 // PRD 0027: the Add-account catalog (core search, ranking and grouping), its modes and the consented detection.
 export const searchProviders = (query, locale) => call("search_providers", { query, locale });
@@ -1014,15 +1016,17 @@ const demoReports = [
   { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 24.6, "quota", "weekly", "%"),
       { label: "Extra usage", used: 6.25, limit: 50, remaining: null, unit: "USD", kind: "spend", window: "monthly", period: null, resets_at: h(300), billing: "overage",
         state: "available", ratio: null, uncapped: true, no_cap: false }]),
-    class: "exhausted", model_count: 1,
+    class: "exhausted", model_count: 1, plan: "Max",
     overage: { state: "active", spent: 6.25, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300),
       text: { id: "overage.on_extra", params: { amount: "$6.25" }, fallback: "No extra · $6.25" },
       summary: { id: "overage.limit_hit_on_extra", params: { amount: "$6.25" }, fallback: "Limite atingido · no extra $6.25" }, caveat: null } },
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
-  { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging" },
+  { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging", plan: "Plus" },
   { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("Premium requests", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
-  dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
+  // PRD 0023 RF10.3 demo: the video model is at its limit (the core's `scope_blocks`); the account keeps its quota.
+  { ...dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
+    scope_blocks: [{ index: 2, label: "Video", resets_at: h(2.6), text: { id: "metrics.scope_blocked", params: { model: "Video", at: new Date(h(2.6)).toTimeString().slice(0, 5) }, fallback: `Video no limite até ${new Date(h(2.6)).toTimeString().slice(0, 5)}` } }] },
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
   dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),
   dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
@@ -1051,16 +1055,19 @@ const demoReports = [
 ];
 // PRD 0036 RF8 demo: a local 9router instance with four connections (two Claude, one of them exhausted; a Codex one
 // off in 9router; an unmapped GLM one whose query failed). `?aggregator=off` leaves it out.
+// PRD 0036 RF8.5 demo: the `hidden` and `show_both` lists of the 9router account (sub ids).
+const demoConnFlags = { hidden: new Set(), show_both: new Set() };
 const demoConnection = (id, label, upstream, mapped, metrics, extra = {}) => ({
   ...dr(`home/${id}`, mapped ?? "nine_router", metrics), account: label, demo_id: id,
-  connection: { label, upstream, mapped, enabled_upstream: true, duplicate_of: null, plan: null, via: `open-sse/services/usage/${upstream}.js` }, ...extra,
+  connection: { label, upstream, mapped, enabled_upstream: true, duplicate_of: null, plan: null, via: `open-sse/services/usage/${upstream}.js`, sub: id, show_both: false }, ...extra,
 });
 if (new URLSearchParams(location.search).get("aggregator") !== "off") {
   const conns = [
-    demoConnection("a1b2c3", "work", "claude", "claude", [dm("session (5h)", 22, 100, 3, "quota", "window_5h", "%"), dm("weekly (7d)", 40, 100, 80, "quota", "weekly", "%")]),
+    demoConnection("a1b2c3", "work", "claude", "claude", [dm("session (5h)", 22, 100, 3, "quota", "window_5h", "%"), dm("weekly (7d)", 40, 100, 80, "quota", "weekly", "%")],
+      { plan: "Max", connection: { label: "work", upstream: "claude", mapped: "claude", enabled_upstream: true, duplicate_of: new URLSearchParams(location.search).has("dup") ? "claude:Account 2" : null, plan: "Max", via: "open-sse/services/usage/claude.js", sub: "a1b2c3", show_both: false } }),
     { ...demoConnection("d4e5f6", "personal", "claude", "claude", [dm("session (5h)", 100, 100, 2, "quota", "window_5h", "%")]), class: "exhausted" },
     demoConnection("0718aa", "team", "codex", "chat_gpt", [], { status: "ready", notes: ["Off in 9router."],
-      connection: { label: "team", upstream: "codex", mapped: "chat_gpt", enabled_upstream: false, duplicate_of: null, plan: null, via: null } }),
+      connection: { label: "team", upstream: "codex", mapped: "chat_gpt", enabled_upstream: false, duplicate_of: null, plan: null, via: null, sub: "0718aa", show_both: false } }),
     { ...demoConnection("9bc0de", "zhipu", "glm", null, [], { status: "error", notes: ["Reconnect this account in 9router."], class: "unmeasured" }) },
   ];
   demoReports.push({ ...dr("home", "nine_router", [], ["2 of 4 9router connections with usage.", "9router 0.5.109."]),
@@ -1164,7 +1171,10 @@ const demoView = () => {
     // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
     const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;
     // PRD 0036 RF8: a connection keeps its aggregator's index (actions act on it) and its own core key.
-    const connections = (r.connections ?? []).map((c) => ({ ...c, index, binding: demoConnectionBinding(c), binding_rank: 0, pace_index: null,
+    const connections = (r.connections ?? []).filter((c) => !demoConnFlags.hidden.has(c.demo_id))
+      .map((c) => ({ ...c, connection: { ...c.connection, show_both: demoConnFlags.show_both.has(c.demo_id),
+        duplicate_of: demoConnFlags.show_both.has(c.demo_id) ? null : c.connection.duplicate_of } }))
+      .map((c) => ({ ...c, index, binding: demoConnectionBinding(c), binding_rank: 0, pace_index: null,
       metrics: c.metrics.map((m) => ({ ...m, pace: null, alert: null })), next_refresh_at_ms: Date.now() + 90e3, access: demoAccess(r),
       account_key: `nine_router:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
     return { ...r, connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
@@ -1684,6 +1694,11 @@ const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
   // Demo of PRD 0010 RF3.2: refreshing the failing account succeeds, so its preserved reading (and badge) goes away.
+  set_connection_flag: async ({ key, sub, on }) => {
+    const set = demoConnFlags[key];
+    if (!set) throw new Error("bad key");
+    if (on) set.add(sub); else set.delete(sub);
+  },
   refresh_account: async ({ index }) => {
     const r = demoReports[index];
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
@@ -1695,7 +1710,8 @@ const demo = {
     const q = fold(query).trim();
     return Object.entries(brands).filter(([id]) => !DEMO_NO_QUERY.includes(id) && id !== "extension")
       .filter(([id, b]) => !q || fold(b.label).includes(q) || id.includes(q))
-      .map(([id, b]) => demoPickerEntry(id, b));
+      .map(([id, b]) => demoPickerEntry(id, b))
+      .sort((x, y) => (x.method === y.method ? 0 : x.method === "self_hosted_gateway" ? 1 : y.method === "self_hosted_gateway" ? -1 : 0));
   },
   provider_modes: async ({ provider }) => [demoPickerEntry(provider, brand(provider))],
   detect_sources: async () => (demoSettings.detect.enabled ? [{ provider: "cursor", kind: "cursor_app", mode: "oauth",
@@ -2260,10 +2276,21 @@ export function paceHtml(p, opts) {
 }
 /** PRD 0024 RF4.3 (DS-CMP-CALL-3): the forecast callout of a metric, from the core's text; icon and border carry the
  *  tone, not color alone. Empty unless the core projects a stop before the reset and pace is shown. */
-export function forecastHtml(m) {
+export function forecastHtml(m, r = null) {
   if (!m.forecast || !showPace) return "";
-  return `<p class="call warn" role="note">${icon("warn")}<span>${esc(tl(m.forecast.callout))}</span></p>`;
+  // Mockup 03 (#16): "Alert me" unmutes this metric's usage alert or, while usage alerts are off, opens their
+  // Settings page; once the alert is on, the callout carries no action.
+  const label = `${icon("bell")}<span>${te("alerts.alertMe")}</span>`;
+  const alertMe = !r?.account_key || (m.alert && !m.alert.muted) ? ""
+    : m.alert ? `<button type="button" class="btn ghost sm" data-metric-alert="${esc(r.account_key)}" data-metric-label="${esc(m.label)}" data-metric-on="false">${label}</button>`
+    : `<button type="button" class="btn ghost sm" data-settings="alerts">${label}</button>`;
+  return `<p class="call warn" role="note">${icon("warn")}<span>${esc(tl(m.forecast.callout))}</span>${alertMe}</p>`;
 }
+/** DS-CMP-BADGE-1: the plan the core reports ("Max", "Pro"), outlined and neutral; nothing when it states none. */
+export const planBadgeHtml = (r) => (r?.plan ? `<span class="plan-badge" data-plan title="${esc(t("agg.plan"))}: ${esc(r.plan)}">${esc(r.plan)}</span>` : "");
+/** PRD 0023 RF10.3: each model at its limit with its return ("Opus at its limit until 19:30"), from the core. */
+export const scopeBlocksHtml = (r) => (r?.scope_blocks ?? []).map((b) =>
+  `<p class="scope-block" data-scope-block="${esc(b.label)}">${icon("clock")}<span>${esc(tl(b.text))}</span></p>`).join("");
 /** PRD 0024 RF4.3: the card's outlook chip ("↑ Runs out ≈18:53") from the core chip, text as tooltip and name. */
 export function forecastChipHtml(m) {
   if (!m.forecast || !showPace) return "";
@@ -2413,8 +2440,11 @@ const DEMO_LEVELS = {
   official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud", "open_router"],
 };
 // Providers without a usage query in any mode (`access::has_usage_query`, demo only): left out of the picker.
-const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, method: "api_key",
-  method_label: { id: "catalog.method.api_key", params: {}, fallback: "Chave de API" },
+// The core groups aggregators under "Self-hosted gateway" (`catalog::SignInMethod::SelfHostedGateway`).
+const DEMO_GATEWAYS = ["nine_router", "litellm"];
+const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, ...(DEMO_GATEWAYS.includes(id)
+    ? { method: "self_hosted_gateway", method_label: { id: "catalog.method.self_hosted_gateway", params: {}, fallback: "Gateway auto-hospedado" } }
+    : { method: "api_key", method_label: { id: "catalog.method.api_key", params: {}, fallback: "Chave de API" } }),
   hint: { id: "catalog.hint.api_key", params: {}, fallback: "Chave de API" }, metered: id === "aws_bedrock", recommended: true });
 const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside", "alibaba_model_studio"];
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";

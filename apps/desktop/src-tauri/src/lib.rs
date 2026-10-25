@@ -43,6 +43,19 @@ async fn refresh_all(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
     Ok(())
 }
 
+/// PRD 0036 RF8.5: hide a connection or show it beside its direct account.
+#[tauri::command]
+async fn set_connection_flag(
+    app: AppHandle,
+    b: Shared<'_>,
+    index: usize,
+    key: String,
+    sub: String,
+    on: bool,
+) -> Result<(), String> {
+    b.set_connection_flag(&app, index, &key, &sub, on).await
+}
+
 #[tauri::command]
 async fn refresh_account(
     app: AppHandle,
@@ -1946,6 +1959,7 @@ pub fn run() {
             first_run_record,
             refresh_all,
             refresh_account,
+            set_connection_flag,
             list_providers,
             search_providers,
             provider_modes,
