@@ -4140,6 +4140,8 @@ mod tests {
         use cuotai_core::{MetricKind, MetricWindow};
         let now = chrono::Utc::now();
         let metric = |label: &str, resets_in: i64| Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used: Some(100.0),
             limit: Some(100.0),
@@ -4151,6 +4153,9 @@ mod tests {
             resets_at: Some(now + chrono::Duration::hours(resets_in)),
         };
         let report = Report {
+            account_id: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
             account: "a".into(),
             provider: Provider::Claude,
             checked_at: now - chrono::Duration::hours(4),

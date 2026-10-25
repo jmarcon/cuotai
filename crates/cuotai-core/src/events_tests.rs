@@ -821,6 +821,7 @@ fn a_steep_recent_pace_projects_exhaustion_once() {
                 used,
             });
             let report = Report {
+                as_of: Default::default(),
                 sub_reports: Vec::new(),
                 diagnostic: Default::default(),
                 account_id: None,

@@ -708,7 +708,7 @@ impl Monitor {
                 );
                 match store.begin(account, interval, self.now()) {
                     // Another process paid for this interval's query.
-                    metered_record::Decision::Reuse(report) => return report,
+                    metered_record::Decision::Reuse(report) => return *report,
                     metered_record::Decision::Query => {
                         let report = self.query_report(account, &[]).await;
                         store.finish(account, &report, self.now());
@@ -840,7 +840,8 @@ impl Monitor {
             )
             .await;
         let mut diagnostic = None;
-        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of) = match result {
+        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of) = match result
+        {
             Ok(data) => (
                 Status::Ready,
                 data.metrics,
@@ -1813,6 +1814,9 @@ credential_env = "OPENAI_ADMIN_KEY"
         };
         // Another process already paid for this interval's query.
         let cached = Report {
+            account_id: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
             account: account.name.clone(),
             provider: Provider::AwsBedrock,
             checked_at: Utc::now() - chrono::TimeDelta::minutes(5),

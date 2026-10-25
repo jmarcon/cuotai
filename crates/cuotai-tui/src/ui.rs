@@ -2976,6 +2976,8 @@ mod tests {
     fn collapsed_metric_says_when_it_renewed_in_local_time() {
         let resets_at = chrono::Utc::now() - chrono::Duration::hours(3);
         let metric = Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Week".into(),
             used: None,
             limit: None,
@@ -3001,6 +3003,9 @@ mod tests {
     fn data_time_is_named_only_when_it_lags_the_query() {
         let checked_at = chrono::Utc::now();
         let mut report = cuotai_core::Report {
+            account_id: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
             account: "a".into(),
             provider: Provider::OpenAiApi,
             checked_at,

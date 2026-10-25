@@ -13,7 +13,7 @@ use chrono::{TimeDelta, Utc};
 /// PRD 0033 RF2.2: restored readings older than this are not used.
 pub const RESTORE_MAX_AGE: TimeDelta = TimeDelta::hours(24);
 
-use crate::{Account, Config, MetricKind, Report, Snapshot, Status};
+use crate::{Account, Config, Report, Snapshot, Status};
 
 /// PRD 0033 RF1.2: the reset-driven query runs this long after the reset.
 pub const RESET_QUERY_DELAY: TimeDelta = TimeDelta::seconds(30);
@@ -208,7 +208,7 @@ impl RefreshCycle {
         let mut resets: Vec<_> = report
             .metrics
             .iter()
-            .filter(|m| m.kind == MetricKind::Quota)
+            .filter(|m| crate::metrics::is_plan_limit(m))
             .filter_map(|m| m.resets_at)
             .filter(|at| *at > wall)
             .collect();
@@ -216,7 +216,7 @@ impl RefreshCycle {
         let Some(first) = resets.first().copied() else {
             return;
         };
-        let key = report.account_key();
+        let key = report.state_key();
         if let Some(done) = self.reset_queries.get(&key) {
             if (done.instance - first).abs() < crate::resets::DRIFT_TOLERANCE {
                 return;
@@ -2662,6 +2662,7 @@ mod prd0033_rf2_tests {
     fn cycle_with(provider: Provider, seconds: u64) -> (RefreshCycle, Instant) {
         let now = Instant::now();
         let acct = crate::Account {
+            id: None,
             name: "a".into(),
             provider,
             credential_env: None,
@@ -2743,5 +2744,16 @@ mod prd0033_rf2_tests {
         report.status = Status::AuthenticationError;
         finish_one(&mut cycle, report, now);
         assert!(cycle.next_refresh_in(0, now) >= Duration::from_secs(3600));
+    }
+
+    /// PRD 0023 RF1: only plan limits bring the account forward; the reset
+    /// of paid extra usage (overage) arms no query.
+    #[test]
+    fn an_overage_reset_does_not_arm_a_reset_query() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let mut report = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
+        report.metrics[0].billing = crate::model::Billing::Overage;
+        finish_one(&mut cycle, report, now);
+        assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(3600));
     }
 }

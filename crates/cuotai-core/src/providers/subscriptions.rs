@@ -1166,6 +1166,7 @@ mod tests {
         // Regression: the extra meter is not the binding limit, has no pace
         // and raises no threshold alert; the 5-hour window stays binding.
         let report = crate::Report {
+            as_of: Default::default(),
             sub_reports: Vec::new(),
             diagnostic: Default::default(),
             account_id: None,

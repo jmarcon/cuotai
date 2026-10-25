@@ -29,7 +29,7 @@ struct Record {
 /// What [`Store::begin`] decided.
 pub(crate) enum Decision {
     /// Another process queried within the interval: use its report.
-    Reuse(Report),
+    Reuse(Box<Report>),
     /// Query now.
     Query,
 }
@@ -50,8 +50,22 @@ impl Store {
         dirs::data_local_dir().map(|dir| dir.join("cuotai").join("metered"))
     }
 
+    /// The record of `account`, named after a digest of its stable id
+    /// (PRD 0029 RF2). A record written under the legacy name key by an
+    /// earlier build moves to the id name the first time it is looked up.
     fn path(&self, account: &Account) -> PathBuf {
-        let digest = crate::models::digest(account.key().as_bytes());
+        let path = self.file(&account.state_key());
+        if !path.exists() {
+            let legacy = self.file(&account.key());
+            if legacy.exists() {
+                let _ = std::fs::rename(&legacy, &path);
+            }
+        }
+        path
+    }
+
+    fn file(&self, key: &str) -> PathBuf {
+        let digest = crate::models::digest(key.as_bytes());
         self.dir.join(format!("{digest}.json"))
     }
 
@@ -102,7 +116,7 @@ impl Store {
             .is_some_and(|at| at <= now && now - at < CLAIM_TTL);
         let decision = match record.report.clone() {
             Some(report) if report.status == Status::Ready && (fresh || claimed) => {
-                Decision::Reuse(report)
+                Decision::Reuse(Box::new(report))
             }
             _ => Decision::Query,
         };
@@ -146,6 +160,9 @@ mod tests {
 
     fn report(status: Status) -> Report {
         Report {
+            account_id: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
             account: "b".into(),
             provider: Provider::AwsBedrock,
             checked_at: Utc::now(),
@@ -195,5 +212,43 @@ mod tests {
         store.finish(&account, &report(Status::Error), t0);
         let next = t0 + TimeDelta::seconds(1);
         assert!(matches!(store.begin(&account, hour, next), Decision::Query));
+    }
+
+    /// PRD 0029 RF2: the record follows the stable id across a rename, and
+    /// a record an earlier build wrote under the name key is adopted.
+    #[test]
+    fn the_record_is_keyed_by_the_id_and_adopts_the_legacy_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let account = Account {
+            id: Some(crate::AccountId::parse("acc_0123456789ab").unwrap()),
+            ..account()
+        };
+        let t0 = Utc::now();
+        let hour = TimeDelta::hours(1);
+        // Written under the legacy name key, as before the stable id.
+        let legacy = store.file(&account.key());
+        Store::write(
+            &legacy,
+            &Record {
+                queried_at: Some(t0),
+                claimed_at: None,
+                report: Some(report(Status::Ready)),
+            },
+        );
+        let soon = t0 + TimeDelta::minutes(5);
+        assert!(matches!(
+            store.begin(&account, hour, soon),
+            Decision::Reuse(_)
+        ));
+        assert!(!legacy.exists());
+        let renamed = Account {
+            name: "renamed".into(),
+            ..account.clone()
+        };
+        assert!(matches!(
+            store.begin(&renamed, hour, soon),
+            Decision::Reuse(_)
+        ));
     }
 }

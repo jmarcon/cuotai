@@ -199,6 +199,7 @@ mod tests {
 
     fn report(account: &Account, status: Status) -> Report {
         Report {
+            as_of: Default::default(),
             sub_reports: Vec::new(),
             account_id: None,
             account: account.name.clone(),
