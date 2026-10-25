@@ -384,7 +384,7 @@ pub async fn run(
     let mut status_job: Option<JoinHandle<Vec<ProviderStatus>>> = None;
     let mut status_due = Instant::now();
     // PRD 0015 RF4.2: the index read in flight and when the next is due.
-    let mut cost_job: Option<JoinHandle<Option<cuotai_core::cost::CostSummary>>> = None;
+    let mut cost_job: Option<JoinHandle<Option<crate::cost::CostPanel>>> = None;
     let mut cost_due = Instant::now();
 
     // Both the keyboard and mouse event paths run the same dashboard
@@ -1411,8 +1411,9 @@ pub async fn run(
         } else if let Some(cost) = local_cost.as_ref().filter(|_| cost_job.is_none()) {
             if Instant::now() >= cost_due {
                 let cost = cost.clone();
+                let accounts = file.config.accounts.clone();
                 cost_job = Some(tokio::task::spawn_blocking(move || {
-                    cost.summary(chrono::Utc::now())
+                    cost.panel(&accounts, chrono::Utc::now())
                 }));
             }
         }
@@ -2824,7 +2825,7 @@ struct State {
     incidents: Vec<ProviderStatus>,
     /// PRD 0015 RF4.2: the local cost the details show; `None` before the
     /// first read or without a local data directory.
-    local_cost: Option<cuotai_core::cost::CostSummary>,
+    local_cost: Option<crate::cost::CostPanel>,
 }
 
 /// Per-account synced catalog sizes shown on the cards. Read from the local

@@ -124,6 +124,11 @@ impl DisplayCurrency {
         u32::try_from((today - self.set_on).num_days()).unwrap_or(0)
     }
 
+    /// From [`RATE_STALE_DAYS`] days on, the rate asks to be updated.
+    pub fn stale(&self, today: NaiveDate) -> bool {
+        self.age_days(today) >= RATE_STALE_DAYS
+    }
+
     /// `usd` in the display currency, to two decimals; computed for
     /// display only, never stored or exported.
     pub fn convert(&self, usd: Usd) -> f64 {
@@ -156,6 +161,56 @@ impl DisplayCurrency {
             fallback,
         )
     }
+}
+
+/// RF1.1: one configured account whose tool a source reads, with the plan
+/// price saved for it (if any); what the front ends list to type a plan.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct PlanAccount {
+    /// [`Account::state_key`]: the key the plan is saved under.
+    pub id: String,
+    pub name: String,
+    pub provider: crate::Provider,
+    pub source: SourceId,
+    pub label: &'static str,
+    pub plan: Option<PlanSetting>,
+}
+
+/// The accounts of `accounts` shown by a source, in configuration order,
+/// each with its plan (saved under its id, or still under the legacy
+/// `provider:name` key of an earlier build).
+pub fn plan_accounts(
+    plans: &BTreeMap<String, PlanSetting>,
+    accounts: &[Account],
+) -> Vec<PlanAccount> {
+    accounts
+        .iter()
+        .filter_map(|account| {
+            let source = SourceId::for_provider(account.provider)?;
+            Some(PlanAccount {
+                id: account.state_key(),
+                name: account.name.clone(),
+                provider: account.provider,
+                source,
+                label: source.label(),
+                plan: plans
+                    .get(&account.state_key())
+                    .or_else(|| plans.get(&account.key()))
+                    .cloned(),
+            })
+        })
+        .collect()
+}
+
+/// RF1.1 / PRD 0029 RF2.3: move the plans saved under a legacy
+/// `provider:name` key of `accounts` to the account id. An id that already
+/// has a plan wins. Idempotent; `true` when something moved.
+pub fn migrate_plan_keys(plans: &mut BTreeMap<String, PlanSetting>, accounts: &[Account]) -> bool {
+    let legacy: BTreeMap<String, String> = accounts
+        .iter()
+        .map(|account| (account.key(), account.state_key()))
+        .collect();
+    crate::account_id::migrate_map(plans, &legacy)
 }
 
 /// One price a source's accounts pay, in one currency.

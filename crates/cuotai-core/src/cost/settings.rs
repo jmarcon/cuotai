@@ -387,6 +387,21 @@ impl SettingsStore {
         })
     }
 
+    /// PRD 0030 RF1.1: move the plans saved under a legacy `provider:name`
+    /// key of `accounts` to the account id. Writes only when something
+    /// moved; `true` then.
+    pub fn migrate_plans(&self, accounts: &[crate::Account]) -> Result<bool, CostError> {
+        let mut settings = self.load()?;
+        if !super::migrate_plan_keys(&mut settings.plans, accounts) {
+            return Ok(false);
+        }
+        self.update(|saved| {
+            super::migrate_plan_keys(&mut saved.plans, accounts);
+            Ok(())
+        })?;
+        Ok(true)
+    }
+
     /// PRD 0030 RF6.1: save (or, with `None`, remove) the display currency.
     pub fn set_display_currency(
         &self,
@@ -545,5 +560,33 @@ mod tests {
             .permissions()
             .mode();
         assert_eq!(dir_mode & 0o777, 0o700);
+    }
+
+    /// PRD 0030 RF1.1: a plan saved under `provider:name` moves to the
+    /// account id once; a second call writes nothing.
+    #[test]
+    fn plans_move_from_the_legacy_key_to_the_account_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SettingsStore::at(dir.path().join("cost/settings.json"));
+        let account = crate::Account {
+            id: None,
+            name: "Work".into(),
+            provider: crate::Provider::Claude,
+            credential_env: None,
+            oauth: None,
+            session: None,
+            params: BTreeMap::new(),
+            refresh_seconds: None,
+        };
+        let plan = PlanSetting::new(100.0, "USD", Some(15)).unwrap();
+        store.set_plan(&account.key(), Some(plan.clone())).unwrap();
+        let accounts = [account.clone()];
+        assert!(store.migrate_plans(&accounts).unwrap());
+        let saved = store.load().unwrap();
+        assert_eq!(
+            saved.plans.into_iter().collect::<Vec<_>>(),
+            [(account.state_key(), plan)]
+        );
+        assert!(!store.migrate_plans(&accounts).unwrap());
     }
 }

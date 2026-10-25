@@ -109,9 +109,58 @@ impl LocalCost {
             .ok()
     }
 
+    /// What the interactive TUI shows: [`Self::summary`] plus PRD 0030's
+    /// plan lines for `accounts` (RF1) and the display currency (RF6).
+    /// Plans still saved under a legacy `provider:name` key move to the
+    /// account id first. Never part of the export.
+    pub(crate) fn panel(
+        &self,
+        accounts: &[Account],
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Option<CostPanel> {
+        let summary = self.summary(now)?;
+        let _ = self.scanner.settings().migrate_plans(accounts);
+        let display = self
+            .scanner
+            .settings()
+            .load()
+            .ok()
+            .and_then(|saved| saved.display_currency);
+        let plans = self
+            .scanner
+            .plan_values(&self.pricing, accounts, now)
+            .unwrap_or_default();
+        Some(CostPanel {
+            summary,
+            plans,
+            display,
+        })
+    }
+
     /// RF4.3: the export's `local_cost`, `None` while every source is off.
     pub(crate) fn export(&self, now: chrono::DateTime<chrono::Utc>) -> Option<CostSummary> {
         self.summary(now).filter(CostSummary::any_on)
+    }
+}
+
+/// The local cost as the TUI draws it: the core's summary, the plan values
+/// of the configured accounts and the typed display currency.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CostPanel {
+    pub(crate) summary: CostSummary,
+    pub(crate) plans: Vec<cost::PlanValue>,
+    pub(crate) display: Option<cost::DisplayCurrency>,
+}
+
+impl CostPanel {
+    /// A panel with neither plans nor a second currency.
+    #[cfg(test)]
+    pub(crate) fn of(summary: CostSummary) -> Self {
+        Self {
+            summary,
+            plans: Vec::new(),
+            display: None,
+        }
     }
 }
 
@@ -304,6 +353,11 @@ pub(crate) fn run(
                 serde_json::to_writer_pretty(&mut stdout, &summary).map_err(|e| e.to_string())?;
                 writeln!(stdout).map_err(io_error)?;
             } else {
+                if let Some(configured) = configured.as_deref() {
+                    // PRD 0030 RF1.1: plans typed under `provider:name`
+                    // move to the account id.
+                    let _ = scanner.settings().migrate_plans(configured);
+                }
                 let saved = scanner.settings().load().unwrap_or_default();
                 let accounts = configured
                     .clone()

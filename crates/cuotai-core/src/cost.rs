@@ -48,8 +48,8 @@ mod worker;
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 pub use index::{CostIndex, DailyUsage, Indexed};
 pub use plan::{
-    cycle_start, earliest_cycle, plan_values, DisplayCurrency, PlanAmount, PlanInput, PlanSetting,
-    PlanValue, MAX_CYCLE_DAY, RATE_STALE_DAYS,
+    cycle_start, earliest_cycle, migrate_plan_keys, plan_accounts, plan_values, DisplayCurrency,
+    PlanAccount, PlanAmount, PlanInput, PlanSetting, PlanValue, MAX_CYCLE_DAY, RATE_STALE_DAYS,
 };
 pub use prices::{
     pricing_ignored, Price, PriceOrigin, PriceRow, PriceTable, Prices, PricingError, PricingFile,

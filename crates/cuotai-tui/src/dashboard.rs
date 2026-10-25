@@ -12,7 +12,7 @@ use crate::ui::{
 };
 use chrono::{DateTime, Local, Utc};
 use cuotai_core::access;
-use cuotai_core::cost::{self, CostSummary, SourceCost};
+use cuotai_core::cost::{self, SourceCost};
 use cuotai_core::history::{self, HistoryRange, MetricHistory, Trend};
 use cuotai_core::incidents::{IncidentState, ProviderStatus};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
@@ -601,7 +601,7 @@ pub(crate) struct View<'a> {
     pub(crate) incidents: &'a [ProviderStatus],
     /// PRD 0015 RF4.2: this computer's local cost, shown in the details of
     /// every account of a source's tool; `None` shows nothing.
-    pub(crate) local_cost: Option<&'a CostSummary>,
+    pub(crate) local_cost: Option<&'a crate::cost::CostPanel>,
     /// Clock for ages and countdowns, injected so rendering is testable.
     pub(crate) now: DateTime<Utc>,
     /// PRD 0036 RF9.1: per account (same length as `accounts`, or empty),
@@ -2378,9 +2378,9 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     }
     // PRD 0015 RF4.2: this computer's local usage of the tool the account is
     // used through, the same section on every account of that tool.
-    if let Some(summary) = view.local_cost {
-        if let Some(tool) = summary.for_provider(account.provider) {
-            lines.extend(local_cost_lines(summary, tool));
+    if let Some(panel) = view.local_cost {
+        if let Some(tool) = panel.summary.for_provider(account.provider) {
+            lines.extend(local_cost_lines(panel, tool));
         }
     }
     let source = (!report.source.is_empty()).then_some(safe(&report.source));
@@ -2440,7 +2440,8 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
 /// rows (why there are no complete numbers, today, yesterday and the
 /// span, by model and by day), the notice that it is an estimate and an
 /// ignored `pricing.json`; a source that is off explains how to turn it on.
-fn local_cost_lines(summary: &CostSummary, tool: &SourceCost) -> Vec<Line<'static>> {
+fn local_cost_lines(panel: &crate::cost::CostPanel, tool: &SourceCost) -> Vec<Line<'static>> {
+    let summary = &panel.summary;
     let text = |l10n: &cuotai_core::text::Localized| safe(&resolve_l10n(l10n)).into_owned();
     let mut lines = vec![
         Line::default(),
@@ -2458,6 +2459,23 @@ fn local_cost_lines(summary: &CostSummary, tool: &SourceCost) -> Vec<Line<'stati
             Row::Item => ("    ", Style::default().fg(MUTED)),
         };
         lines.push(Line::styled(format!("{indent}{}", text(&line)), style));
+    }
+    if let Some(usage) = &tool.usage {
+        // PRD 0030 RF6.2: the period's total at the typed rate, under it.
+        if let (Some(display), Some(total)) = (&panel.display, usage.period.total) {
+            lines.push(Line::styled(
+                format!("  {}", text(&display.text(total, summary.span.last_day))),
+                Style::default().fg(MUTED),
+            ));
+        }
+        // PRD 0030 RF1: the plan price next to the estimate; nothing
+        // without a plan.
+        for value in panel.plans.iter().filter(|v| v.source == tool.source) {
+            lines.push(Line::styled(
+                format!("  {}", text(&value.text)),
+                Style::default().fg(FG),
+            ));
+        }
     }
     let tail = match &tool.usage {
         None => vec![cost::enable_hint()],
@@ -3918,8 +3936,10 @@ mod tests {
         (width, height): (u16, u16),
         history: Option<&DetailHistory>,
         incidents: &[ProviderStatus],
-        local_cost: Option<&CostSummary>,
+        local_cost: Option<&cuotai_core::cost::CostSummary>,
     ) -> Vec<String> {
+        let panel = local_cost.map(|summary| crate::cost::CostPanel::of(summary.clone()));
+        let local_cost = panel.as_ref();
         let visible = visible_indices(accounts, reports, "", true);
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
@@ -4859,6 +4879,84 @@ mod tests {
         );
         assert!(off.contains("cuotai --cost-enable"), "{off}");
         assert!(!off.contains("Hoje:"), "{off}");
+    }
+
+    /// PRD 0030 RF1/RF6: the details of the tool's accounts show the plan
+    /// price next to the estimate and the period total at the typed rate;
+    /// without either, nothing is added.
+    #[test]
+    fn details_show_the_plan_line_and_the_amount_at_the_typed_rate() {
+        use cuotai_core::cost::{
+            plan_values, summarize, DailyUsage, DisplayCurrency, Period, PlanInput, PlanSetting,
+            Prices, SourceId, Span, SummaryInput, Tokens,
+        };
+        let account = Account {
+            id: None,
+            name: "max".into(),
+            provider: Provider::Claude,
+            ..Account::default()
+        };
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+        let usage = [DailyUsage {
+            source: SourceId::ClaudeCode,
+            day: today,
+            model: "claude-opus-5-5".into(),
+            tokens: Tokens {
+                input: 1_000_000,
+                ..Tokens::default()
+            },
+            requests: 3,
+            sessions: 1,
+        }];
+        let prices = Prices::embedded();
+        let enabled = [SourceId::ClaudeCode];
+        let summary = summarize(&SummaryInput {
+            today,
+            span: Span::Period(Period::Last7Days),
+            enabled: &enabled,
+            usage: &usage,
+            prices: &prices,
+            pricing_error: None,
+            last: None,
+        });
+        let plans = std::collections::BTreeMap::from([(
+            account.state_key(),
+            PlanSetting::new(20.0, "USD", None).unwrap(),
+        )]);
+        let display = DisplayCurrency::new("BRL", 5.0, today).unwrap();
+        let accounts = [account.clone()];
+        let values = plan_values(&PlanInput {
+            today,
+            plans: &plans,
+            accounts: &accounts,
+            enabled: &enabled,
+            usage: &usage,
+            prices: &prices,
+            display: Some(&display),
+        });
+        assert_eq!(values.len(), 1);
+        let panel = crate::cost::CostPanel {
+            summary,
+            plans: values,
+            display: Some(display),
+        };
+        let tool = panel.summary.for_provider(Provider::Claude).unwrap();
+        let shown: String = local_cost_lines(&panel, tool)
+            .iter()
+            .map(|line| line.to_string() + "\n")
+            .collect();
+        assert!(shown.contains("BRL 20.00"), "{shown}");
+        assert!(shown.contains("no seu câmbio"), "{shown}");
+        assert!(shown.contains("plano USD 20.00"), "{shown}");
+        let plain = crate::cost::CostPanel::of(panel.summary.clone());
+        let plain: String = local_cost_lines(&plain, tool)
+            .iter()
+            .map(|line| line.to_string() + "\n")
+            .collect();
+        assert!(
+            !plain.contains("plano") && !plain.contains("câmbio"),
+            "{plain}"
+        );
     }
 
     // SES-01: a rejected vault session puts "Paste a new session" in the
