@@ -2215,6 +2215,62 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    /// Security review: the webviews run under a Content Security Policy.
+    /// Every interface string is escaped before it reaches `innerHTML`, and
+    /// this is the second barrier: with `withGlobalTauri` any script that
+    /// slipped through could call the IPC commands (vault secrets, the
+    /// server token), so no inline or remote script may run, no frame,
+    /// object or form may load, and connections stay on the app origin and
+    /// Tauri's IPC protocol. Tauri appends the hash of the first-paint
+    /// inline script itself; the inline `style` attributes the components
+    /// write need `'unsafe-inline'` for styles only.
+    #[test]
+    fn the_webviews_run_under_a_restrictive_content_security_policy() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let csp = config["app"]["security"]["csp"]
+            .as_str()
+            .expect("app.security.csp is a string, not null");
+        let directives: std::collections::BTreeMap<&str, Vec<&str>> = csp
+            .split(';')
+            .map(str::trim)
+            .filter(|directive| !directive.is_empty())
+            .map(|directive| {
+                let mut parts = directive.split_whitespace();
+                (parts.next().unwrap(), parts.collect())
+            })
+            .collect();
+        assert_eq!(directives["default-src"], ["'self'"]);
+        assert_eq!(directives["script-src"], ["'self'"]);
+        assert_eq!(directives["object-src"], ["'none'"]);
+        assert_eq!(directives["base-uri"], ["'none'"]);
+        assert_eq!(directives["frame-src"], ["'none'"]);
+        assert_eq!(directives["form-action"], ["'none'"]);
+        assert_eq!(
+            directives["connect-src"],
+            ["'self'", "ipc:", "http://ipc.localhost"],
+            "the IPC protocol of every platform, nothing remote"
+        );
+        for (name, sources) in &directives {
+            assert!(
+                !sources.iter().any(|source| {
+                    *source == "'unsafe-eval'"
+                        || *source == "*"
+                        || source.starts_with("https:")
+                        || source.starts_with("data:")
+                        || source.starts_with("blob:")
+                }),
+                "{name} must not allow eval, wildcards, remote origins or data URLs: {sources:?}"
+            );
+        }
+        assert!(
+            config["app"]["security"]
+                .get("dangerousDisableAssetCspModification")
+                .is_none(),
+            "Tauri keeps adding the inline script hash and the IPC nonce"
+        );
+    }
+
     /// PRD 0024 RF7.3: the tooltip lists the next notice and the best
     /// account on their own lines, skipping blank ones.
     #[test]
