@@ -1400,7 +1400,7 @@ function demoAccess(r) {
   const changed = level === "undocumented" && r.status === "error" && r.notes_l10n?.some((n) => n.id === "query.schema")
     ? { id: "access.interface_changed", params: { evidence: url }, fallback: `The response does not follow the known internal interface: it may have changed without notice. Reference contract: ${url}` }
     : null;
-  return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Demo usage query."), reason,
+  return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Demo usage query."), reason, metered: r.provider === "aws_bedrock",
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
     explanation: r.status === "ready" ? null : reason ?? changed, session: demoSessionNotice(demoSessionState(r)) };
 }

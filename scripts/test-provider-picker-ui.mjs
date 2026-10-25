@@ -187,4 +187,10 @@ for (const [provider, kind, tool] of lib.DEMO_NATIVE_DETECT) {
 }
 const about = await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/src/about.rs", root)), "utf8");
 assert.ok(about.includes(`"${lib.NEW_PROVIDER_URL}"`), "the new-provider address is allow-listed by open_external");
+// PRD 0027 RF3.1: the "Billed per query" warning stays on the account card after creation, from the report's access
+// descriptor (`metered`), with the same catalog text as the picker.
+const mainSrc = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/main.js", root)), "utf8");
+assert.match(mainSrc, /r\.access\?\.metered \? `<span class="mini warn" data-metered-chip>\$\{icon\("warn"\)\}<span class="mini-t">\$\{te\("dialog\.picker\.metered"\)\}/);
+const bedrockAccess = (await lib.getView()).reports.map((r) => r.access?.metered);
+assert.ok(bedrockAccess.every((m) => m === false), "no demo account is metered by default");
 console.log("provider picker UI smoke: ok");

@@ -136,6 +136,8 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const missedLevel = Math.max(0, ...r.metrics.map((m) => m.alert?.missed ?? 0));
   // DS-CMP-CARD-3: at most four chips in the foot; the rest lives in the details dialog.
   const chips = [
+    // PRD 0027 RF3.1 (DS-CMP-BADGE-2): the warning the catalog showed stays on the account: every query is billed.
+    r.access?.metered ? `<span class="mini warn" data-metered-chip>${icon("warn")}<span class="mini-t">${te("dialog.picker.metered")}</span></span>` : "",
     connection ? connectionChips(r) : "",
     recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : "",
     stale || hasExtraColumn(r) ? "" : overageChipHtml(r),
