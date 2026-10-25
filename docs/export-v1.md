@@ -81,7 +81,7 @@ Connections are **nested** under their aggregator account and never appended to 
 
 Freshness and the preserved reading are per connection: a connection whose own query failed keeps its last successful reading in `last_good` while its siblings update; when the whole instance fails, every connection has `report: null` and, when one is known, its `last_good`. To flatten the export into one list, iterate `accounts` and, after each, its `sub_accounts`; `Export::units()` does exactly that in Rust.
 
-Localized texts are objects `{ "id", "params", "fallback" }`: resolve `id` in your own catalog (Cuotai's are `crates/cuotai-core/locales/*.json`) or show the Portuguese `fallback`.
+Localized texts are objects `{ "id", "params", "fallback" }`: the English `fallback`; resolve `id` in a catalog, Cuotai's are `crates/cuotai-core/locales/*.json`. The plain `notes` of a report are the English fallbacks of its `notes_l10n`. Since PRD 0034 the fallbacks are English (they were Portuguese before); a consumer that displays them verbatim and wants the earlier language sets `CUOTAI_FALLBACK_LOCALE=pt-BR` (or passes `--fallback-locale pt-BR` to `--json-v1` and `--serve`), which renders every `fallback` and the `notes` through the `pt-BR` catalog with the same ids, params and schema. The option is supported for at least the 90-day window of the contract policy and then kept or removed by an explicit decision.
 
 ## Overage and model scope
 

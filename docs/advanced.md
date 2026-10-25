@@ -114,6 +114,7 @@ Then the interactive TUI and `--once`, when run on a terminal, read the same sig
 |---|---|
 | `CUOTAI_CONFIG` | Accounts file to use (terminal and desktop). |
 | `CUOTAI_LANG` | Locale for the texts delivered by the core in the terminal (`en-US`, `es`, `it`, `pt-BR`...). |
+| `CUOTAI_FALLBACK_LOCALE` | Language of the localized `fallback` texts and plain `notes` in `--json`, `--json-v1`, `--serve` and `--watch --jsonl` (`pt-BR`, `es` or `it`; English without it). Same as `--fallback-locale`. |
 | `CUOTAI_PACE_UNIT` | `points` (default) or `percent`: how the terminal shows the pace deviation (`--pace-unit` wins). |
 | `CUOTAI_STATUS=1` | Show providers' public status in the terminal and `--once` / `--json` (`--no-status` always wins). |
 | `CUOTAI_NO_ANIMATIONS=1`, `CUOTAI_ANIMATIONS=1` | Turn terminal animations off or back on (see [`tui.md`](tui.md#animations)). |
