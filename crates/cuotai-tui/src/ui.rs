@@ -2771,9 +2771,17 @@ impl State {
                 .map(|index| cycle.account_report(index).cloned())
                 .collect(),
         };
-        let last_good: Vec<Option<&cuotai_core::Report>> = (0..cycle.len())
-            .map(|index| cycle.last_good_report(index))
+        // PRD 0033 RF2.1: expired metrics of a preserved reading collapse.
+        let now = chrono::Utc::now();
+        let collapsed: Vec<Option<cuotai_core::Report>> = (0..cycle.len())
+            .map(|index| {
+                cycle
+                    .last_good_report(index)
+                    .map(|report| report.collapse_expired(now))
+            })
             .collect();
+        let last_good: Vec<Option<&cuotai_core::Report>> =
+            collapsed.iter().map(Option::as_ref).collect();
         let visible = self.visible(&slot_reports);
         if visible.is_empty() {
             self.selection.select(None);

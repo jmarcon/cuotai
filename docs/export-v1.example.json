@@ -179,7 +179,8 @@
             "kind": "spend",
             "window": "monthly",
             "period": "2026-10",
-            "resets_at": null
+            "resets_at": null,
+            "expired": false
           }
         ]
       },

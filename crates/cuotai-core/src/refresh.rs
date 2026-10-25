@@ -8,7 +8,10 @@
 
 use std::time::{Duration, Instant};
 
-use chrono::Utc;
+use chrono::{TimeDelta, Utc};
+
+/// PRD 0033 RF2.2: restored readings older than this are not used.
+pub const RESTORE_MAX_AGE: TimeDelta = TimeDelta::hours(24);
 
 use crate::{Account, Config, Report, Snapshot, Status};
 
@@ -211,12 +214,24 @@ impl RefreshCycle {
     /// a preserved reading yet, so it shows as stale until the first query
     /// finishes. Does nothing when the count differs from the accounts'.
     pub fn restore_last_good(&mut self, readings: Vec<Option<Report>>) {
+        self.restore_last_good_at(readings, Utc::now());
+    }
+
+    /// [`Self::restore_last_good`] against an explicit clock.
+    pub fn restore_last_good_at(
+        &mut self,
+        readings: Vec<Option<Report>>,
+        now: chrono::DateTime<Utc>,
+    ) {
         if readings.len() != self.last_good.len() {
             return;
         }
         for ((kept, slot), reading) in self.last_good.iter_mut().zip(&self.slots).zip(readings) {
             if kept.is_none() && slot.is_none() {
-                *kept = reading.filter(|report| report.status == Status::Ready);
+                *kept = reading
+                    .filter(|report| report.status == Status::Ready)
+                    .filter(|report| now - report.checked_at <= RESTORE_MAX_AGE)
+                    .map(|report| report.collapse_expired(now));
             }
         }
     }
@@ -2358,9 +2373,15 @@ mod tests {
     fn restored_readings_show_until_the_first_query_answers() {
         let config = config_with(vec![account("a", None), account("b", None)]);
         let mut cycle = RefreshCycle::new(&config, Instant::now());
-        cycle.restore_last_good(vec![Some(report("a", 5)), None, None]);
+        cycle.restore_last_good_at(
+            vec![Some(report("a", 5)), None, None],
+            Utc.timestamp_opt(60, 0).unwrap(),
+        );
         assert!(cycle.last_good_report(0).is_none(), "wrong count: ignored");
-        cycle.restore_last_good(vec![Some(report("a", 5)), None]);
+        cycle.restore_last_good_at(
+            vec![Some(report("a", 5)), None],
+            Utc.timestamp_opt(60, 0).unwrap(),
+        );
         assert_eq!(key(cycle.last_good_report(0)), Some(("a", 5, READY)));
         assert!(cycle.last_good_report(1).is_none());
         assert!(cycle.snapshot().is_none(), "never a current report");
@@ -2372,7 +2393,10 @@ mod tests {
         assert!(cycle.last_good_report(0).is_none());
         // Restoring again never overrides what this session already knows.
         finish(&mut cycle, 1, failed("b", 31, Status::Error));
-        cycle.restore_last_good(vec![Some(report("a", 1)), Some(report("b", 1))]);
+        cycle.restore_last_good_at(
+            vec![Some(report("a", 1)), Some(report("b", 1))],
+            Utc.timestamp_opt(60, 0).unwrap(),
+        );
         finish(&mut cycle, 0, failed("a", 40, Status::Error));
         assert_eq!(key(cycle.last_good_report(0)), Some(("a", 30, READY)));
         assert!(cycle.last_good_report(1).is_none(), "b already answered");
@@ -2437,5 +2461,68 @@ mod tests {
         let mut rebuilt = RefreshCycle::new(&edited, Instant::now());
         rebuilt.keep_last_good_from(&cycle);
         assert_eq!(key(rebuilt.last_good_report(0)), Some(("c", 12, READY)));
+    }
+}
+
+#[cfg(test)]
+mod prd0033_rf2_tests {
+    use super::*;
+    use crate::{Metric, MetricKind, MetricWindow, Provider};
+    use chrono::TimeDelta;
+
+    fn reading(checked_ago: TimeDelta, resets_in: TimeDelta) -> Report {
+        let now = Utc::now();
+        Report {
+            account: "a".into(),
+            provider: Provider::Claude,
+            checked_at: now - checked_ago,
+            status: Status::Ready,
+            metrics: vec![Metric {
+                label: "Week".into(),
+                used: Some(100.0),
+                limit: Some(100.0),
+                remaining: Some(0.0),
+                unit: "%".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Weekly),
+                period: None,
+                resets_at: Some(now + resets_in),
+            }],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+        }
+    }
+
+    #[test]
+    fn expired_metric_collapses_and_old_reading_is_ignored() {
+        let config = Config {
+            accounts: vec![crate::Account {
+                name: "a".into(),
+                provider: Provider::Claude,
+                credential_env: None,
+                session: None,
+                oauth: None,
+                params: Default::default(),
+                refresh_seconds: None,
+            }],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        cycle.restore_last_good(vec![Some(reading(
+            TimeDelta::hours(2),
+            TimeDelta::hours(-1),
+        ))]);
+        let kept = cycle.last_good_report(0).unwrap();
+        assert_eq!(kept.metrics[0].used, None);
+        assert_eq!(kept.metrics[0].remaining, None);
+
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        cycle.restore_last_good(vec![Some(reading(
+            TimeDelta::hours(30),
+            TimeDelta::hours(5),
+        ))]);
+        assert!(cycle.last_good_report(0).is_none());
     }
 }

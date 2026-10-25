@@ -456,6 +456,7 @@
   "login.zed.oauth.completion_notice": "Login authorised; account parameters filled in automatically.",
   "login.zed.oauth.help": "EXPERIMENTAL flow based on the provider's native client (internal interface, without official support; may fail or be restricted at any time). Consent happens in the browser/device-code; no password or token is typed into Cuotai.",
   "login.zed.oauth.label": "Native browser login",
+  "metric.renewed_waiting": "Renewed at {time}; waiting for a reading.",
   "metric_window.daily": "daily",
   "metric_window.monthly": "monthly",
   "metric_window.weekly": "weekly",

@@ -1117,12 +1117,14 @@ fn attach_history(
         };
         // The very metrics the core projected: the preserved ones while the
         // account is stale, the current ones otherwise.
-        let metrics = exported
-            .last_good
-            .as_ref()
-            .map(|last_good| &last_good.metrics)
-            .or_else(|| exported.report.as_ref().map(|report| &report.metrics));
-        let Some(metric) = metrics.and_then(|metrics| metrics.get(binding)) else {
+        let metric = match &exported.last_good {
+            Some(last_good) => last_good.metrics.get(binding).map(|m| &m.metric),
+            None => exported
+                .report
+                .as_ref()
+                .and_then(|report| report.metrics.get(binding)),
+        };
+        let Some(metric) = metric else {
             continue;
         };
         let range = match metric.window {

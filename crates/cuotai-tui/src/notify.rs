@@ -599,12 +599,13 @@ mod tests {
         let window = start() + TimeDelta::hours(3);
         let mut cycle = RefreshCycle::new(&config, Instant::now());
         // The history's last readings, 30 minutes before the TUI opened.
-        cycle.restore_last_good(
+        cycle.restore_last_good_at(
             config
                 .accounts
                 .iter()
                 .map(|account| Some(measured(account, 50.0, start() - mins(30), window)))
                 .collect(),
+            start(),
         );
         let mut notices = Notices::new(start(), false);
         answer(

@@ -18,7 +18,7 @@
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
+| RF2 | vNEXT | Core: restored readings older than 24 h are ignored (`RESTORE_MAX_AGE`); preserved and restored readings collapse every metric whose `resets_at` passed (`Report::collapse_expired`); `export::v1` `last_good.metrics[*]` gains `expired` and `renewed_waiting` (`metric.renewed_waiting` in the core catalogs); the TUI dashboard collapses preserved readings. Desktop card collapse text, TUI/`--once` text rendering and per-language card snapshots remain. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
 | RF5 | 0.80.0 | RF5.1–RF5.2 delivered: metered accounts use a 3600 s default; compatible 300–899 s overrides run at 900 s and add `note.metered.interval_raised` to the account report; smaller overrides retain the field- and account-specific rejection. RF5.3–RF5.4 remain proposed. |

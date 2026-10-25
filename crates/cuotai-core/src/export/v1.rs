@@ -146,7 +146,20 @@ pub struct LastGood {
     /// Original measurement time, never refreshed.
     pub checked_at: DateTime<Utc>,
     pub age_seconds: u64,
-    pub metrics: Vec<Metric>,
+    /// Expired metrics are collapsed (PRD 0033 RF2.1).
+    pub metrics: Vec<LastGoodMetric>,
+}
+
+/// A metric of [`LastGood`].
+#[derive(Debug, Clone, Serialize)]
+pub struct LastGoodMetric {
+    #[serde(flatten)]
+    pub metric: Metric,
+    /// PRD 0033 RF2.3: the window renewed after the reading; the value is
+    /// absent and `renewed_waiting` says so.
+    pub expired: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renewed_waiting: Option<Localized>,
 }
 
 impl Export {
@@ -281,7 +294,22 @@ fn account_export(
         last_good: last_good.map(|reading| LastGood {
             checked_at: reading.checked_at,
             age_seconds: age(reading.checked_at),
-            metrics: reading.metrics.clone(),
+            metrics: reading
+                .metrics
+                .iter()
+                .map(|metric| {
+                    let expired = metric.is_expired(now);
+                    LastGoodMetric {
+                        metric: if expired {
+                            metric.collapsed()
+                        } else {
+                            metric.clone()
+                        },
+                        expired,
+                        renewed_waiting: expired.then(|| metric.renewed_waiting()).flatten(),
+                    }
+                })
+                .collect(),
         }),
         binding: report.and_then(metrics::binding),
         pace: report.map_or_else(Vec::new, |report| {

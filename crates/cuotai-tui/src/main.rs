@@ -625,7 +625,7 @@ fn single_export(
     now: DateTime<Utc>,
 ) -> Export {
     let mut cycle = RefreshCycle::new(config, Instant::now());
-    cycle.restore_last_good(restored);
+    cycle.restore_last_good_at(restored, now);
     if let Some(token) = cycle.begin_full() {
         cycle.finish_full(Some(snapshot), token, Instant::now());
     }

@@ -392,6 +392,18 @@ fn account_key(provider: Provider, name: &str) -> String {
 }
 
 impl Report {
+    /// PRD 0033 RF2.1: a copy for showing as a preserved or restored
+    /// reading at `now`, with every expired metric collapsed.
+    pub fn collapse_expired(&self, now: DateTime<Utc>) -> Self {
+        let mut copy = self.clone();
+        for metric in &mut copy.metrics {
+            if metric.is_expired(now) {
+                *metric = metric.collapsed();
+            }
+        }
+        copy
+    }
+
     /// [`Account::key`] of the account this report belongs to.
     pub fn account_key(&self) -> String {
         if self.provider == Provider::Extension {
@@ -563,6 +575,34 @@ pub struct Metric {
 }
 
 impl Metric {
+    /// PRD 0033 RF2.1: the metric's window renewed before `now`, so a
+    /// preserved or restored value of it no longer describes anything.
+    pub fn is_expired(&self, now: DateTime<Utc>) -> bool {
+        self.resets_at.is_some_and(|at| at < now)
+    }
+
+    /// PRD 0033 RF2.1: the metric without value, limit or remaining, kept
+    /// only as the marker that its window renewed.
+    pub fn collapsed(&self) -> Self {
+        Self {
+            used: None,
+            limit: None,
+            remaining: None,
+            ..self.clone()
+        }
+    }
+
+    /// The `metric.renewed_waiting` text of an expired metric.
+    pub fn renewed_waiting(&self) -> Option<crate::text::Localized> {
+        let at = self.resets_at?;
+        let time = at.format("%H:%M UTC").to_string();
+        Some(crate::text::Localized::with_params(
+            "metric.renewed_waiting",
+            crate::text::params([("time", crate::text::ParamValue::from(time.clone()))]),
+            format!("Renovada às {time}; aguardando leitura."),
+        ))
+    }
+
     pub fn usage(
         label: impl Into<String>,
         used: f64,
