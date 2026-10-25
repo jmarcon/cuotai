@@ -237,6 +237,8 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
         window: Some(window),
         period: None,
         resets_at,
+        billing: Default::default(),
+        scope: None,
     }];
 
     // Extra usage (RF5).
@@ -259,17 +261,22 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
                 "O uso extra não tem teto de créditos.",
             );
         }
-        metrics.push(Metric {
-            label: "Créditos extras usados".into(),
-            used: Some(extra),
-            limit: *cap,
-            remaining: cap.map(|cap| (cap - extra).max(0.0)),
-            unit: CREDITS_UNIT.into(),
-            kind: MetricKind::Usage,
-            window: Some(window),
-            period: None,
-            resets_at,
-        });
+        metrics.push(
+            Metric {
+                label: "Créditos extras usados".into(),
+                used: Some(extra),
+                limit: *cap,
+                remaining: cap.map(|cap| (cap - extra).max(0.0)),
+                unit: CREDITS_UNIT.into(),
+                kind: MetricKind::Usage,
+                window: Some(window),
+                period: None,
+                resets_at,
+                billing: Default::default(),
+                scope: None,
+            }
+            .overage(),
+        );
     }
     if let Some(overage) = body.get("current_overage").and_then(Value::as_object) {
         let amount = match overage.get("amount") {
@@ -287,17 +294,22 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
             .map(str::to_ascii_lowercase)
             .filter(|c| CURRENCIES.contains(&c.as_str()));
         match (amount, currency) {
-            (Some(amount), Some(currency)) if enabled || amount > 0.0 => metrics.push(Metric {
-                label: "Custo do uso extra".into(),
-                used: Some(amount),
-                limit: None,
-                remaining: None,
-                unit: currency.to_ascii_uppercase(),
-                kind: MetricKind::Spend,
-                window: Some(window),
-                period: None,
-                resets_at,
-            }),
+            (Some(amount), Some(currency)) if enabled || amount > 0.0 => metrics.push(
+                Metric {
+                    label: "Custo do uso extra".into(),
+                    used: Some(amount),
+                    limit: None,
+                    remaining: None,
+                    unit: currency.to_ascii_uppercase(),
+                    kind: MetricKind::Spend,
+                    window: Some(window),
+                    period: None,
+                    resets_at,
+                    billing: Default::default(),
+                    scope: None,
+                }
+                .overage(),
+            ),
             (Some(_), Some(_)) => {}
             _ if overage.get("amount").is_some_and(|v| !v.is_null()) => notes.push(
                 "note.eleven_labs.overage_amount_unreadable",
@@ -351,6 +363,8 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
                 window: None,
                 period: None,
                 resets_at: None,
+                billing: Default::default(),
+                scope: None,
             });
         }
     }
@@ -561,6 +575,11 @@ mod tests {
         let cost = metric(&data, "Custo do uso extra").unwrap();
         assert_eq!(cost.kind, MetricKind::Spend);
         assert_eq!((cost.used, cost.unit.as_str()), (Some(0.18), "USD"));
+        // PRD 0023 RF1: extra credits and their cost are overage, the plan
+        // credits stay included.
+        assert_eq!(credits.billing, crate::model::Billing::Included);
+        assert_eq!(extra.billing, crate::model::Billing::Overage);
+        assert_eq!(cost.billing, crate::model::Billing::Overage);
     }
 
     #[tokio::test]
