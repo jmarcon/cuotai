@@ -444,8 +444,8 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
         .unwrap_or(0)
         .max(6);
     out += &format!(
-        "\n{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  Origem\n",
-        "Modelo", "Entrada", "Saída", "Leitura cache", "Gravação cache"
+        "\n{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {:>17}  Origem\n",
+        "Modelo", "Entrada", "Saída", "Leitura cache", "Gravação cache", "Gravação cache 1h"
     );
     for row in &rows {
         let origin = match row.origin {
@@ -453,12 +453,15 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
             PriceOrigin::User => "sua tabela",
         };
         out += &format!(
-            "{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {origin}\n",
+            "{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {:>17}  {origin}\n",
             row.model,
             row.rates.input.to_string(),
             row.rates.output.to_string(),
             row.rates.cache_read.to_string(),
-            row.rates.cache_write.to_string()
+            row.rates.cache_write.to_string(),
+            row.rates
+                .cache_write_1h
+                .map_or_else(|| "—".to_owned(), |rate| rate.to_string())
         );
     }
     out +=

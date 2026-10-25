@@ -834,6 +834,25 @@ fn streamed_repeats_apply_only_the_growth() {
     assert_eq!(usage[0].requests, 1);
 }
 
+/// PRD 0030 RF7.1: a transcript reduced to ids and counts (no content), after
+/// the evidence that streamed messages repeat their key with growing
+/// `output_tokens` (3, 3, 1880). The rule kept: the highest count per key.
+#[test]
+fn the_streamed_numbers_fixture_keeps_the_highest_output_per_message() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let fixture = include_str!("../../tests/fixtures/cost/claude_streamed_numbers.jsonl");
+    write(&f.claude_log("s1"), fixture);
+    f.scan();
+    let once = f.usage();
+    assert_eq!(once.len(), 1, "{once:?}");
+    assert_eq!(once[0].requests, 4);
+    assert_eq!(once[0].tokens.output, 1880 + 812 + 1 + 220);
+    assert_eq!(once[0].tokens.cache_write_1h, 4 * 100);
+    f.scan();
+    assert_eq!(f.usage(), once, "a re-scan is idempotent");
+}
+
 #[test]
 fn schema_one_is_migrated_and_claude_is_read_again() {
     let f = fixture();

@@ -1126,9 +1126,9 @@ const demoCostView = () => {
 };
 const DEMO_EFFECTIVE = "2026-10-21";
 const demoNotice = () => demoL10n("cost.estimate.notice", {}, "Estimativa a preços de API, não é uma cobrança; valores em USD.");
-const tokenSum = (t) => t.input + t.output + t.cache_read + t.cache_write;
-const addTokens = (a, b) => ({ input: a.input + b.input, output: a.output + b.output, cache_read: a.cache_read + b.cache_read, cache_write: a.cache_write + b.cache_write });
-const ZERO_TOKENS = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
+const tokenSum = (t) => t.input + t.output + t.cache_read + t.cache_write + (t.cache_write_1h ?? 0);
+const addTokens = (a, b) => ({ input: a.input + b.input, output: a.output + b.output, cache_read: a.cache_read + b.cache_read, cache_write: a.cache_write + b.cache_write, cache_write_1h: (a.cache_write_1h ?? 0) + (b.cache_write_1h ?? 0) });
+const ZERO_TOKENS = { input: 0, output: 0, cache_read: 0, cache_write: 0, cache_write_1h: 0 };
 /** The demo price of `model` (model names are unique across the demo sources); `null`: cost unknown. */
 const demoPrice = (model) => Object.values(DEMO_COST).map((s) => s.models[model]).find((p) => p !== undefined) ?? null;
 /** The core's `cost::estimate` of demo rows `{ model, tokens, requests }` at the demo prices. */
@@ -1142,7 +1142,7 @@ const demoEstimate = (rows) => {
   const models = [...by.keys()].sort().map((model) => {
     const { tokens: mt, requests: mr } = by.get(model);
     const p = demoPrice(model);
-    const cost = p ? (mt.input * p.input + mt.output * p.output + mt.cache_read * p.cache_read + mt.cache_write * p.cache_write) / 1e6 : null;
+    const cost = p ? (mt.input * p.input + mt.output * p.output + mt.cache_read * p.cache_read + mt.cache_write * p.cache_write + (mt.cache_write_1h ?? 0) * p.input * 2) / 1e6 : null;
     tokens = addTokens(tokens, mt);
     requests += mr;
     if (cost == null) unknown = addTokens(unknown, mt); else { total += cost; priced = true; }
@@ -1157,7 +1157,7 @@ const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 const demoDayRows = (id, back) => Object.keys(DEMO_COST[id].models).flatMap((model, i) => {
   const k = (back * 7 + i * 5 + id.length) % 9;
   if (k === 0 || (i > 0 && back % 3)) return [];
-  return [{ model, requests: 4 * k, tokens: { input: 3_000 * k, output: 1_500 * k, cache_read: 45_000 * k, cache_write: 2_500 * k } }];
+  return [{ model, requests: 4 * k, tokens: { input: 3_000 * k, output: 1_500 * k, cache_read: 45_000 * k, cache_write: 2_500 * k, cache_write_1h: 500 * k } }];
 });
 /** The core's `CostSummary` of the demo sources over the saved period. */
 const demoCostUsage = () => {

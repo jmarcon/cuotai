@@ -565,6 +565,7 @@
   "cost.detail.byModel": "By model ({period})",
   "cost.detail.prices": "Prices of {date} ({origin}).",
   "cost.col.day": "Day",
+  "cost.tokens.breakdown": "Input {input} · Output {output} · Cache read {cache_read} · Cache write 5 min {cache_write} · Cache write 1 h {cache_write_1h}",
   "cost.col.tokens": "Tokens",
   "cost.col.requests": "Requests",
   "cost.col.cost": "Estimated cost",

@@ -565,6 +565,7 @@
   "cost.detail.byModel": "Por modelo ({period})",
   "cost.detail.prices": "Precios del {date} ({origin}).",
   "cost.col.day": "Día",
+  "cost.tokens.breakdown": "Entrada {input} · Salida {output} · Lectura de caché {cache_read} · Escritura de caché 5 min {cache_write} · Escritura de caché 1 h {cache_write_1h}",
   "cost.col.tokens": "Tokens",
   "cost.col.requests": "Solicitudes",
   "cost.col.cost": "Costo estimado",

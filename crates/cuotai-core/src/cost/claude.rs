@@ -11,6 +11,13 @@
 //! `cache_read_input_tokens` (and `cache_creation.ephemeral_{5m,1h}_input_tokens`
 //! when present); `message.content`, `cwd` and every other
 //! field are never deserialized into a value.
+//!
+//! PRD 0030 RF7.1 finding: a streamed message is written as several lines
+//! with the same `message.id` and `requestId` and a growing
+//! `output_tokens` (in 19,918 local assistant lines, 507 of 9,525 keys
+//! repeated with differing counts, e.g. 3, 3, 1880). The index therefore
+//! keeps the highest count per key; the reduced, numbers-only transcript is
+//! `tests/fixtures/cost/claude_streamed_numbers.jsonl`.
 
 use super::source::{anonymous, instant, is_object, listed_dirs, model_name, under_home, Entry};
 use super::source::{FileState, Line, Source};

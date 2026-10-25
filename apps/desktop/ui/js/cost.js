@@ -8,7 +8,9 @@ import { currentLocale, t, te, tl } from "./i18n.js";
 import { esc, fmtDate, icon, logo } from "./lib.js";
 import { showDialog } from "./motion.js";
 
-const sum = (tokens) => tokens.input + tokens.output + tokens.cache_read + tokens.cache_write;
+const sum = (tokens) => tokens.input + tokens.output + tokens.cache_read + tokens.cache_write + (tokens.cache_write_1h ?? 0);
+/** PRD 0030 RF5: the token kinds of `tokens`, for a tooltip; 5-minute and 1-hour cache writes apart. */
+const breakdown = (tokens) => t("cost.tokens.breakdown", { input: fmtTokens(tokens.input), output: fmtTokens(tokens.output), cache_read: fmtTokens(tokens.cache_read), cache_write: fmtTokens(tokens.cache_write), cache_write_1h: fmtTokens(tokens.cache_write_1h ?? 0) });
 const usd = (amount) => new Intl.NumberFormat(currentLocale(), { style: "currency", currency: "USD" }).format(amount);
 
 /** "$3.40"; a positive amount below a cent reads "< $0.01", never free. */
@@ -74,7 +76,7 @@ function chartHtml(sc, summary) {
     day: date(peak.day),
   });
   const bars = days.map((d) => `<span class="lc-bar${d.cost == null && sum(d.tokens) ? " unknown" : ""}" style="height:${top ? Math.max((value(d) / top) * 100, value(d) ? 2 : 0).toFixed(1) : 0}%" title="${esc(`${date(d.day)}: ${shown(d)}`)}"></span>`).join("");
-  const rows = days.map((d) => `<tr><th scope="row">${esc(date(d.day))}</th><td>${esc(fmtTokens(sum(d.tokens)))}</td><td>${esc(String(d.requests))}</td><td>${esc(costText(d))}</td></tr>`).join("");
+  const rows = days.map((d) => `<tr><th scope="row">${esc(date(d.day))}</th><td title="${esc(breakdown(d.tokens))}">${esc(fmtTokens(sum(d.tokens)))}</td><td>${esc(String(d.requests))}</td><td>${esc(costText(d))}</td></tr>`).join("");
   return `<figure class="lc-chart"><figcaption>${te("cost.detail.byDay", { period: tl(summary.span.label) })}</figcaption>
     <div class="lc-bars" role="img" aria-label="${esc(label)}">${bars}</div>
     <div class="lc-axis sub" aria-hidden="true"><span>${esc(date(days[0].day))}</span><span>${esc(date(days.at(-1).day))}</span></div>
@@ -86,7 +88,7 @@ function chartHtml(sc, summary) {
 function modelsHtml(sc, summary) {
   const models = sc.usage.period.models;
   if (!models.length) return "";
-  const rows = models.map((m) => `<tr><th scope="row"><code>${esc(m.model)}</code></th><td>${esc(fmtTokens(sum(m.tokens)))}</td><td>${esc(String(m.requests))}</td>
+  const rows = models.map((m) => `<tr><th scope="row"><code>${esc(m.model)}</code></th><td title="${esc(breakdown(m.tokens))}">${esc(fmtTokens(sum(m.tokens)))}</td><td>${esc(String(m.requests))}</td>
     <td class="${m.cost == null ? "dim" : ""}">${esc(m.cost == null ? t("cost.unknown") : fmtUsd(m.cost))}</td>
     <td>${m.price ? te(`cost.origin.${m.price.origin}`) : "—"}</td></tr>`).join("");
   return `<table class="lc-models"><caption>${te("cost.detail.byModel", { period: tl(summary.span.label) })}</caption>
