@@ -1813,4 +1813,24 @@ mod tests {
         assert!(source.is_err());
         assert!(crate::models::support(&account(None, None)).is_ok());
     }
+    #[test]
+    fn native_sign_in_issues_an_inference_key_so_it_cannot_use_the_account_product() {
+        let mut signed_in = account(None, None);
+        signed_in.credential_env = None;
+        signed_in.oauth = Some(crate::oauth::OAuthConfig::new(String::new()));
+        let ok = crate::Config {
+            accounts: vec![signed_in.clone()],
+            ..crate::Config::default()
+        };
+        ok.validate().expect("key view with a native sign-in");
+        signed_in.params.insert("product".into(), "account".into());
+        let bad = crate::Config {
+            accounts: vec![signed_in],
+            ..crate::Config::default()
+        };
+        assert!(matches!(
+            bad.validate(),
+            Err(crate::ConfigError::OpenRouter)
+        ));
+    }
 }

@@ -376,6 +376,7 @@ fn oauth_help(provider: Provider) -> String {
         Provider::Cursor => "Importa a sessão pessoal do Cursor instalado neste computador. Não inicia OAuth: faça login no aplicativo Cursor primeiro. Somente após confirmar, accessToken e machine ID serão lidos do SQLite local em modo somente leitura. Tokens não serão exibidos; a cópia só será salva no cofre na revisão final.".into(),
         Provider::Qwen => "Fluxo EXPERIMENTAL baseado no cliente nativo. Qwen Code: OAuth gratuito descontinuado em 15/04/2026; a tentativa pode ser recusada e login não garante quota disponível. Nenhuma senha ou token é digitada no Cuotai.".into(),
         Provider::Claude => "Fluxo EXPERIMENTAL baseado no cliente nativo. O provedor pode restringir este fluxo a clientes próprios; se recusado, use a variável de ambiente. Nenhuma senha ou token é digitada no Cuotai.".into(),
+        Provider::OpenRouter => "Fluxo OAuth PKCE documentado pela OpenRouter. O consentimento acontece no navegador e a OpenRouter devolve uma chave de inferência guardada no cofre do sistema; ela mostra os números da chave, não o saldo da conta (use uma chave de gerenciamento para isso). Nenhuma senha é digitada no Cuotai.".into(),
         Provider::XiaomiMimo => "O código autoriza uma chave de inferência, não a sessão do console. Saldo e Token Plan usam platform_session_env; quota semanal do Desktop usa session_env. Nenhuma senha é digitada no Cuotai.".into(),
         _ => "Fluxo EXPERIMENTAL baseado no cliente nativo do provedor (interface interna, sem suporte oficial; pode falhar ou ser restringido a qualquer momento). O consentimento acontece no navegador/código de dispositivo; nenhuma senha ou token é digitada no Cuotai.".into(),
     }
@@ -384,6 +385,7 @@ fn oauth_help(provider: Provider) -> String {
 fn oauth_completion_notice(provider: Provider) -> String {
     match provider {
         Provider::Cursor => "Sessão Cursor importada em memória. Revise e grave para persistir no cofre.".into(),
+        Provider::OpenRouter => "Login autorizado; a chave de inferência da OpenRouter foi guardada no cofre do sistema.".into(),
         Provider::XiaomiMimo => "Chave MiMo autorizada. Para consultar saldo/plano, configure platform_session_env com a sessão web; não repita o código.".into(),
         _ => "Login autorizado; parâmetros da conta preenchidos automaticamente.".into(),
     }

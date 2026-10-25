@@ -25,7 +25,8 @@ use std::collections::BTreeMap;
 // PRD 0027 RF1/RF2: the provider catalog and its search live in `catalog.rs`
 // and are exposed here with the other account-editing descriptors.
 pub use crate::catalog::{
-    catalog, search, CatalogEntry, CatalogMatch, Category, LocalSource, SignInMethod,
+    catalog, detect_env_keys, process_env_is_set, search, CatalogEntry, CatalogMatch, Category,
+    EnvDetection, LocalSource, SignInMethod,
 };
 
 /// Minimum interval accepted for an individual account override. Matches the
@@ -296,6 +297,9 @@ pub fn native_param_keys(provider: Provider) -> &'static [&'static str] {
         Provider::Kiro => &["auth_method", "profile_arn", "region"],
         Provider::Zed => &["user_id", "system_id"],
         Provider::XiaomiMimo => &["region", "auth_method"],
+        // The sign-in issues an inference key: the account view needs a
+        // management key and is not offered with it.
+        Provider::OpenRouter => &["product", "breakdown", "low_balance"],
         _ => &[],
     }
 }

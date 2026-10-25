@@ -12,6 +12,7 @@ Cuotai supports native authentication flows (browser OAuth, Device Code, AWS SSO
 | GitHub Copilot, Kimi Coding, Grok CLI | Device code in the browser | Native login compatible with 9router; no need to register your own application |
 | Kiro | AWS SSO OIDC with dynamic client registration and device code | Builder ID (default) or Identity Center; region and start URL are configurable, no AWS CLI profile required |
 | ChatGPT/Codex, Claude, Gemini CLI | Browser with local callback and PKCE | Experimental native login; Codex requires local port 1455 to be free. It is not official provider support |
+| OpenRouter | Browser with local callback (documented PKCE) | The code is exchanged for an ordinary inference API key, kept in the vault; it never expires and has no refresh token. It shows the key's numbers, not the account balance (that needs a management key in the environment) |
 | Cline | Browser with local callback | Cline session received in the callback or exchanged for a token; no need to copy an access token |
 | Qoder, CodeBuddy | Browser with state/device polling | International/CN region selectable before login |
 | Zed | Browser with an ephemeral RSA key | Native protocol, not standard OAuth; `user_id` and `system_id` are filled in automatically |

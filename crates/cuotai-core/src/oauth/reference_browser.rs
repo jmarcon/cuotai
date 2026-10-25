@@ -70,6 +70,13 @@ const CLINE_TOKEN_EXCHANGE_URL: &str = "https://api.cline.bot/api/v1/auth/token"
 const CLINE_REFRESH_URL: &str = "https://api.cline.bot/api/v1/auth/refresh";
 const CLINE_AUTHORIZE_HOSTS: &[&str] = &["api.cline.bot"];
 
+// OpenRouter documents this flow for any app (no client registration):
+// https://openrouter.ai/docs/guides/overview/auth/oauth. The exchange returns
+// an ordinary inference API key; it has no expiry and no refresh token.
+const OPENROUTER_AUTHORIZE_URL: &str = "https://openrouter.ai/auth";
+const OPENROUTER_KEY_EXCHANGE_URL: &str = "https://openrouter.ai/api/v1/auth/keys";
+const OPENROUTER_AUTHORIZE_HOSTS: &[&str] = &["openrouter.ai"];
+
 // ---------------------------------------------------------------------------
 // Shared bounds.
 // ---------------------------------------------------------------------------
@@ -162,6 +169,20 @@ impl Endpoints {
                 userinfo_url: None,
                 load_code_assist_url: None,
                 fixed_port: None,
+                callback_path: None,
+                redirect_host: "localhost",
+            },
+            Provider::OpenRouter => Self {
+                authorize_url: OPENROUTER_AUTHORIZE_URL.into(),
+                authorize_hosts: hosts(OPENROUTER_AUTHORIZE_HOSTS),
+                require_https: true,
+                token_url: OPENROUTER_KEY_EXCHANGE_URL.into(),
+                refresh_url: None,
+                userinfo_url: None,
+                load_code_assist_url: None,
+                fixed_port: None,
+                // No state parameter exists: the random callback path is the
+                // CSRF capability, as for Cline.
                 callback_path: None,
                 redirect_host: "localhost",
             },
@@ -265,6 +286,10 @@ enum Exchange {
         code_verifier: String,
     },
     Cline,
+    /// PKCE code exchanged for an inference API key.
+    OpenRouter {
+        code_verifier: String,
+    },
 }
 
 async fn begin_with(
@@ -406,6 +431,24 @@ async fn begin_with(
             (
                 format!("{}?{query}", endpoints.authorize_url),
                 Exchange::Cline,
+                None,
+            )
+        }
+        Provider::OpenRouter => {
+            let verifier = random_url_safe_32()?;
+            let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+            let query = url::form_urlencoded::Serializer::new(String::new())
+                .extend_pairs([
+                    ("callback_url", redirect_uri.as_str()),
+                    ("code_challenge", challenge.as_str()),
+                    ("code_challenge_method", "S256"),
+                ])
+                .finish();
+            (
+                format!("{}?{query}", endpoints.authorize_url),
+                Exchange::OpenRouter {
+                    code_verifier: verifier,
+                },
                 None,
             )
         }
@@ -555,6 +598,33 @@ impl LoopbackLogin {
                 .map_err(|_| OAuthError::Expired)??;
                 check_oauth_error(&body, status)?;
                 parse_cline_token_envelope(&body, None, now)
+            }
+            Exchange::OpenRouter { code_verifier } => {
+                let body = serde_json::json!({
+                    "code": callback.code,
+                    "code_verifier": code_verifier,
+                    "code_challenge_method": "S256",
+                });
+                let (status, body) = timeout_at(
+                    self.deadline,
+                    post_json(&self.http, endpoints_token_url, &body),
+                )
+                .await
+                .map_err(|_| OAuthError::Expired)??;
+                check_oauth_error(&body, status)?;
+                // Only the key is kept: `user_id` is never stored.
+                let key = body
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|key| !key.is_empty())
+                    .ok_or(OAuthError::InvalidResponse)?;
+                Ok(OAuthToken {
+                    access_token: key.to_owned(),
+                    refresh_token: None,
+                    expires_at: None,
+                    metadata: BTreeMap::new(),
+                })
             }
         }
     }
@@ -1353,6 +1423,7 @@ mod tests {
         let base = server.uri();
         let (refresh_url, userinfo_url, load_code_assist_url) = match provider {
             Provider::Cline => (Some(format!("{base}/refresh")), None, None),
+            Provider::OpenRouter => (None, None, None),
             Provider::GeminiAi => (None, None, None),
             _ => (None, None, None),
         };
@@ -1366,7 +1437,7 @@ mod tests {
             load_code_assist_url,
             fixed_port: None,
             callback_path: match provider {
-                Provider::Cline => None,
+                Provider::Cline | Provider::OpenRouter => None,
                 _ => Some("/callback".into()),
             },
             redirect_host: "127.0.0.1",
@@ -1672,6 +1743,65 @@ mod tests {
         let expired = fake_jwt(&json!({"exp": now().timestamp() - 7200}));
         let payload = B64_STANDARD.encode(json!({"accessToken": expired}).to_string());
         assert!(decode_cline_code(&payload, now()).is_none());
+    }
+
+    #[tokio::test]
+    async fn openrouter_pkce_exchanges_the_code_for_an_inference_key() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("or-callback-code"))
+            .and(body_string_contains("\"code_challenge_method\":\"S256\""))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "key": "sk-or-v1-issued",
+                "user_id": "user_must_not_be_kept"
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let pending = begin_with(
+            &client(),
+            Provider::OpenRouter,
+            &test_config(),
+            loopback_endpoints(&server, Provider::OpenRouter),
+        )
+        .await
+        .expect("begin");
+        let url = url::Url::parse(&pending.prompt().url).expect("prompt url");
+        let pairs: BTreeMap<_, _> = url.query_pairs().into_owned().collect();
+        assert_eq!(
+            pairs.get("code_challenge_method").map(String::as_str),
+            Some("S256")
+        );
+        assert!(pairs.contains_key("code_challenge"));
+        assert!(
+            !pairs.contains_key("state"),
+            "OpenRouter has no state parameter"
+        );
+        let callback = url::Url::parse(&pairs["callback_url"]).expect("callback");
+        assert_eq!(callback.host_str(), Some("127.0.0.1"));
+        assert!(
+            callback.path().len() > 20,
+            "the random path is the CSRF capability"
+        );
+        let port = callback.port().expect("port");
+        let path_and_query = format!("{}?code=or-callback-code", callback.path());
+        let hit = tokio::spawn(async move {
+            let mut stream = TcpStream::connect((Ipv4Addr::LOCALHOST, port))
+                .await
+                .unwrap();
+            stream
+                .write_all(format!("GET {path_and_query} HTTP/1.1\r\nHost: x\r\n\r\n").as_bytes())
+                .await
+                .unwrap();
+            let mut out = Vec::new();
+            let _ = stream.read_to_end(&mut out).await;
+        });
+        let token = pending.finish().await.expect("token");
+        hit.await.unwrap();
+        assert_eq!(token.access_token, "sk-or-v1-issued");
+        assert!(token.refresh_token.is_none() && token.expires_at.is_none());
+        assert!(token.metadata.is_empty(), "user_id is not stored");
     }
 
     #[tokio::test]

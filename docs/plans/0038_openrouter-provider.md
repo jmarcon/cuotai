@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0038 |
-| Status | Proposed |
+| Status | Implemented in vNEXT (owner-blocked: RF5.4, RF10, RF13.1) |
 | Owner | `cuotai-core` (`model`, `providers/open_router.rs`, `access`, `account_edit`, `incidents`, `models`, locales), desktop and TUI (generic rendering only) |
 | Consumers | `apps/desktop` (cards, details, account dialog, tray), `crates/cuotai-tui` (cards, details, `--once`, wizard), `export::v1` and `--watch` consumers, PRDs 0002, 0006, 0007, 0008, 0011, 0027 |
 | Depends on | PRD 0005 (RF1: the mandatory access descriptor) |
@@ -18,20 +18,20 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
-| RF10 | — | Proposed. |
-| RF11 | — | Proposed. |
-| RF12 | — | Proposed. |
-| RF13 | — | Proposed. |
-| RF14 | — | Proposed. |
+| RF1 | vNEXT | Provider variant, dispatch, adapter, `product` and `breakdown` validation, example TOML, issue template and desktop brand. |
+| RF2 | vNEXT | Key cap, budget layers and reset, with fixtures F1 to F5. |
+| RF3 | vNEXT | Spend by period and BYOK. |
+| RF4 | vNEXT | Free-model counter (`Quota` for free-tier keys, `Usage` otherwise; `classify_report` no longer lets an exhausted `Usage` counter exhaust an account). |
+| RF5 | vNEXT | Credit balance without a gauge, in "credits" (no `$`); RF5.4 (real-account unit check) is owner-blocked. |
+| RF6 | vNEXT | Optional `/activity` breakdown by provider or model, cached per UTC day; failure keeps the balance. |
+| RF7 | vNEXT | Error classification and wrong-key-class diagnosis; `Retry-After` is not honored yet (the refresh engine has no per-account delay hook), `429` is `RateLimited`. |
+| RF8 | vNEXT | Access arms (key and account), texts in every core catalog and the regenerated matrices. |
+| RF9 | vNEXT | Eligibility verified by the fixtures; `overage::assess` is unchanged. |
+| RF10 | — | Not delivered: the status page could not be verified, so `incidents::source` stays `None` (owner-blocked, needs a network check). |
+| RF11 | vNEXT | Live model listing for the key view (`offset` pages, `output_modalities=all`); `Unsupported` for the account view. |
+| RF12 | vNEXT | One catalog entry (category Router, aliases `openrouter`, `open router`, `router`, `or`) with a native sign-in and a key mode; the product (key or account) is chosen in the account form instead of a second entry. |
+| RF13 | vNEXT | Fixtures F1 to F23 in `providers/open_router.rs`; RF13.1 (real-account check) is owner-blocked. |
+| RF14 | vNEXT | Documentation, example config, this status and the control row. |
 
 ## 1. Context
 
@@ -298,6 +298,15 @@ RF1 and RF8 first (the build fails without the arms), then RF2 to RF4 (key view)
 At each step: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, the desktop tests, and a smoke test (`cargo run -p cuotai-tui -- --config <fixture TOML> --once` and `--json` with a local fake). The requirement is only delivered when a real inference key shows its cap, spend and free-request counter, a real management key shows the credit balance, a wrong key class is explained instead of reported as a bare 403, no field is ever zero when absent, and the keys appear nowhere in output.
 
 ## 12. Open questions
+
+### Owner decisions (2026-10-25)
+
+| # | Decision | Delivered as |
+|---|---|---|
+| 3 | **Low-balance threshold: yes**, with a documented default. | `params.low_balance` (account product only): a `note.open_router.low_balance` note when the balance is at or below the value; **default 5** credits, `0` turns it off. A note, not an alert: balances stay out of the threshold-alert engine (PRD 0023 section 4). |
+| 5 | **Environment detection of `OPENROUTER_API_KEY`: yes**, presence-only and with consent. | `account_edit::detect_env_keys(consented, is_set)` checks nothing without consent and never reads the value (`process_env_is_set` tests presence). The wizard/picker that asks for consent and offers the variable belongs to PRD 0027 RF6/RF7, which is not delivered yet; this PRD ships the core API only. CLI/TUI only: the desktop process does not inherit the shell environment. |
+| 6 | **Native "Sign in with OpenRouter" (PKCE): yes.** | Browser flow in `oauth/reference_browser.rs` (loopback callback with a random path, no state parameter; exchange at `POST /api/v1/auth/keys`). It stores the returned inference key in the vault; no expiry or refresh token, `user_id` is discarded. Native sign-in cannot be combined with `product = "account"` (`Config::validate`). |
+
 
 | # | Question | Recommendation |
 |---|---|---|

@@ -67,11 +67,13 @@ pub(super) async fn begin(
                 .await
                 .map(PendingLogin::Device)
         }
-        Provider::Claude | Provider::ChatGpt | Provider::GeminiAi | Provider::Cline => {
-            reference_browser::begin(http, provider, config)
-                .await
-                .map(PendingLogin::Browser)
-        }
+        Provider::Claude
+        | Provider::ChatGpt
+        | Provider::GeminiAi
+        | Provider::Cline
+        | Provider::OpenRouter => reference_browser::begin(http, provider, config)
+            .await
+            .map(PendingLogin::Browser),
         Provider::Qoder | Provider::CodeBuddy | Provider::Zed => {
             reference_native::begin(http, provider, config)
                 .await
@@ -98,9 +100,11 @@ pub(super) async fn refresh(
         Provider::Copilot | Provider::Kimi | Provider::Kiro | Provider::Grok => {
             reference_device::refresh(http, provider, config, token).await
         }
-        Provider::Claude | Provider::ChatGpt | Provider::GeminiAi | Provider::Cline => {
-            reference_browser::refresh(http, provider, config, token).await
-        }
+        Provider::Claude
+        | Provider::ChatGpt
+        | Provider::GeminiAi
+        | Provider::Cline
+        | Provider::OpenRouter => reference_browser::refresh(http, provider, config, token).await,
         Provider::Qoder | Provider::CodeBuddy | Provider::Zed => {
             reference_native::refresh(http, provider, config, token).await
         }

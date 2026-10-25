@@ -230,6 +230,40 @@ fn category(provider: Provider) -> Category {
     }
 }
 
+/// PRD 0038 Q5: an environment variable that, when set, means the person
+/// already has a key for `provider`. Presence only: the value is never read.
+const ENV_HINTS: &[(Provider, &str)] = &[(Provider::OpenRouter, "OPENROUTER_API_KEY")];
+
+/// One environment variable found set, offered as "use this key" (the
+/// account gets the variable's name, never its value).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct EnvDetection {
+    pub provider: Provider,
+    pub variable: &'static str,
+}
+
+/// PRD 0038 Q5: consent-gated, presence-only detection of known API-key
+/// variables. Without `consented` nothing is checked; `is_set` is asked only
+/// whether a name is set and non-empty (for the process environment, pass
+/// [`process_env_is_set`]). Meant for the CLI/TUI wizard: a GUI-launched
+/// desktop app does not inherit the shell environment.
+pub fn detect_env_keys(consented: bool, is_set: impl Fn(&str) -> bool) -> Vec<EnvDetection> {
+    if !consented {
+        return Vec::new();
+    }
+    ENV_HINTS
+        .iter()
+        .filter(|(_, variable)| is_set(variable))
+        .map(|&(provider, variable)| EnvDetection { provider, variable })
+        .collect()
+}
+
+/// Whether the process environment has `name` set to a non-empty value,
+/// without keeping the value.
+pub fn process_env_is_set(name: &str) -> bool {
+    std::env::var_os(name).is_some_and(|value| !value.is_empty())
+}
+
 /// The CLI a `LocalCli` credential uses, for the "Uses the {cli} CLI" hint.
 fn cli_name(provider: Provider) -> &'static str {
     match provider {
@@ -254,6 +288,10 @@ fn method_and_hint(
         return (SignInMethod::Extension, hint("extension", "Extensão local"));
     }
     match credential {
+        Credential::InferenceKey if native_login => (
+            SignInMethod::BrowserSignIn,
+            hint("browser_sign_in", "Entre pelo navegador"),
+        ),
         Credential::InferenceKey => (SignInMethod::ApiKey, hint("api_key", "Chave de API")),
         Credential::AdminKey => (
             SignInMethod::ApiKey,
@@ -570,6 +608,31 @@ pub(crate) static DOC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn env_detection_is_consent_gated_and_presence_only() {
+        use std::cell::RefCell;
+        let asked = RefCell::new(Vec::new());
+        let set = |name: &str| {
+            asked.borrow_mut().push(name.to_string());
+            name == "OPENROUTER_API_KEY"
+        };
+        assert!(detect_env_keys(false, set).is_empty());
+        assert!(
+            asked.borrow().is_empty(),
+            "nothing is checked without consent"
+        );
+        let found = detect_env_keys(true, set);
+        assert_eq!(
+            found,
+            [EnvDetection {
+                provider: Provider::OpenRouter,
+                variable: "OPENROUTER_API_KEY"
+            }]
+        );
+        assert!(detect_env_keys(true, |_| false).is_empty());
+        assert!(!process_env_is_set("CUOTAI_SURELY_UNSET_VARIABLE_0038"));
+    }
     use crate::text::core_catalog;
 
     fn names(query: &str, locale: &str) -> Vec<&'static str> {

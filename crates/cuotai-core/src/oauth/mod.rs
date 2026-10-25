@@ -294,6 +294,7 @@ pub fn supports_login(provider: Provider) -> bool {
             | Provider::Cursor
             | Provider::Qwen
             | Provider::Antigravity
+            | Provider::OpenRouter
     )
 }
 

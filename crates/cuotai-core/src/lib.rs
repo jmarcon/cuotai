@@ -262,7 +262,12 @@ impl Config {
                 }
             }
             if account.provider == Provider::OpenRouter
-                && !providers::open_router::params_valid(&account.params)
+                && (!providers::open_router::params_valid(&account.params)
+                    || (account.oauth.is_some()
+                        && account
+                            .params
+                            .get("product")
+                            .is_some_and(|p| p == "account")))
             {
                 return Err(ConfigError::OpenRouter);
             }
