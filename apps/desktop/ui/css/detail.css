@@ -781,3 +781,10 @@
   width: 14px;
   height: 14px;
 }
+/* DS-CMP-ROW-1a: sub-limit figures are neutral; the level stays on the icon and the meter */
+.metric .pct {
+  color: var(--fg);
+}
+.metric .pct.good svg.i { color: var(--good); }
+.metric .pct.warn svg.i { color: var(--warn); }
+.metric .pct.bad svg.i { color: var(--bad); }

@@ -125,9 +125,32 @@ export function pickLocale(preferred, systemLangs = navigator.languages ?? [navi
   return FALLBACK;
 }
 
+// ---------- PRD 0022 RF14.3 (DS-MSG-16): the en-XA pseudo-locale, development only ----------
+// Generated at load from en-US (UI and core catalogs) and registered only in the browser demo with `?pseudo` in the
+// address: never in the desktop app, so release builds cannot offer it. Each string grows (+100 % up to 10
+// characters, +50 % up to 20, +40 % beyond), its letters take accents, and it is wrapped in ⟦ ⟧, so hard-coded
+// text, concatenation and clipping show. Placeholders such as {count} are kept.
+export const PSEUDO = "en-XA";
+const ACCENTED = { a: "á", e: "ë", i: "ï", o: "ô", u: "ü", c: "ç", n: "ñ", y: "ý", A: "Å", E: "É", I: "Î", O: "Ö", U: "Ü", C: "Ç", N: "Ñ" };
+export function pseudoText(text) {
+  if (typeof text !== "string") return text;
+  const parts = text.split(/(\{\w+\})/);
+  const letters = parts.map((p) => (/^\{\w+\}$/.test(p) ? p : [...p].map((ch) => ACCENTED[ch] ?? ch).join(""))).join("");
+  const n = [...text.replace(/\{\w+\}/g, "")].length;
+  const grow = Math.ceil(n * (n <= 10 ? 1 : n <= 20 ? 0.5 : 0.4));
+  return `⟦${letters}${"·".repeat(grow)}⟧`;
+}
+const pseudoCatalog = (catalog) => Object.fromEntries(Object.entries(catalog).filter(([k]) => k !== "_meta").map(([k, v]) =>
+  [k, v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([r, x]) => [r, pseudoText(x)])) : pseudoText(v)]));
+const pseudoWanted = () => !globalThis.window?.__TAURI__ && /[?&]pseudo(=|&|$)/.test(globalThis.location?.search ?? "");
+
 export async function initI18n() {
   await loadUi(FALLBACK);
   await loadCore(FALLBACK);
+  if (pseudoWanted() && !hasLocale(PSEUDO)) {
+    registerLocale(PSEUDO, "Pseudo", { ...pseudoCatalog(coreCatalogs.get(FALLBACK) ?? {}), ...pseudoCatalog(uiCatalogs.get(FALLBACK) ?? {}) });
+    store.set(PSEUDO);
+  }
   current = pickLocale(store.get());
   await loadUi(current);
   await loadCore(current);

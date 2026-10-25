@@ -1,0 +1,30 @@
+01-tray-overview	tray.html	380	600	dracula	dark	en-US
+01-tray-overview.cuotai	tray.html	380	600	cuotai	dark	en-US
+01-tray-overview.cuotai-light	tray.html	380	600	cuotai	light	en-US
+01-tray-overview.pt-BR	tray.html	380	600	dracula	dark	pt-BR
+01-tray-overview.es	tray.html	380	600	dracula	dark	es
+01-tray-overview.it	tray.html	380	600	dracula	dark	it
+01-tray-overview.win98	tray.html	380	600	win98	light	en-US
+01-tray-overview.crt	tray.html	380	600	crt	dark	en-US
+01c-tray-rings-view	tray.html	380	600	dracula	dark	en-US		cuotai.trayView=rings
+01d-tray-compact-view	tray.html	380	600	dracula	dark	en-US		cuotai.trayView=compact
+03-tray-account-expanded	tray.html	380	600	dracula	dark	en-US	[data-open]
+09-tray-overview-light	tray.html	380	600	github	light	en-US
+10-main-overview	index.html	1200	820	dracula	dark	en-US
+10-main-overview.cuotai	index.html	1200	820	cuotai	dark	en-US
+10-main-overview.cuotai-light	index.html	1200	820	cuotai	light	en-US
+10-main-overview.pt-BR	index.html	1200	820	dracula	dark	pt-BR
+10-main-overview.es	index.html	1200	820	dracula	dark	es
+10-main-overview.it	index.html	1200	820	dracula	dark	it
+10-main-overview.github-light	index.html	1200	820	github	light	en-US
+10-main-overview.win98	index.html	1200	820	win98	light	en-US
+10-main-overview.crt	index.html	1200	820	crt	dark	en-US
+15-main-narrow	index.html	520	820	dracula	dark	en-US
+15-main-narrow.pt-BR	index.html	520	820	dracula	dark	pt-BR
+15-main-narrow.es	index.html	520	820	dracula	dark	es
+15-main-narrow.it	index.html	520	820	dracula	dark	it
+20-detail	index.html	1200	900	dracula	dark	en-US	[data-details]
+40-extensions	index.html	1200	700	dracula	dark	en-US	[data-extensions]
+50-settings-general	settings.html?page=general	860	640	dracula	dark	en-US
+50-settings-dashboard	settings.html?page=dashboard	860	640	dracula	dark	en-US
+50-settings-alerts	settings.html?page=alerts	860	900	dracula	dark	en-US
