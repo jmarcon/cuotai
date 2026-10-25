@@ -733,6 +733,13 @@ fn set_show_pace(show: bool) -> Result<(), String> {
     settings::save_show_pace(show).map_err(str::to_owned)
 }
 
+/// PRD 0024 RF1.3: how pace deviations read on every surface, `points` or
+/// `percent`. Errors: `invalid_pace_unit`, `unwritable`.
+#[tauri::command]
+fn set_pace_unit(unit: String) -> Result<(), String> {
+    settings::save_pace_unit(&unit).map_err(str::to_owned)
+}
+
 /// PRD 0006 RF4.1: days of measurement history kept on this device (7 to
 /// 365), saved in `desktop.json`; prunes at once. Errors:
 /// `invalid_history_days`, `unwritable`.
@@ -1806,6 +1813,7 @@ pub fn run() {
             set_show_pace,
             set_preference,
             migrate_local_storage,
+            set_pace_unit,
             set_history_days,
             history_export,
             history_erase,

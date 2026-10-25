@@ -287,6 +287,11 @@ struct Args {
         requires = "notify"
     )]
     notify_projected: Option<String>,
+    /// Como mostrar o desvio do ritmo: `points` (pontos percentuais, o
+    /// padrão) ou `percent` (relativo ao uso esperado: "20% mais rápido que
+    /// o ritmo"). Também: CUOTAI_PACE_UNIT.
+    #[arg(long, value_name = "UNIDADE", value_parser = ["points", "percent"])]
+    pace_unit: Option<String>,
     /// Consulta as páginas públicas de status dos provedores configurados
     /// (sem credenciais, cookies ou dados da conta; cada página no máximo a
     /// cada 5 min) e mostra incidentes nos cartões, nos detalhes e no
@@ -595,6 +600,19 @@ fn status_enabled(status: bool, no_status: bool, var: impl Fn(&str) -> Option<St
     !no_status && (status || set)
 }
 
+/// PRD 0024 RF1.3: the unit of the pace deviation: `--pace-unit`, else
+/// `CUOTAI_PACE_UNIT`, else points. An unknown environment value reads as
+/// the default (the flag is validated by the parser).
+fn pace_unit(
+    arg: Option<&str>,
+    var: impl Fn(&str) -> Option<String>,
+) -> cuotai_core::pace::PaceUnit {
+    arg.map(str::to_owned)
+        .or_else(|| var("CUOTAI_PACE_UNIT"))
+        .and_then(|value| cuotai_core::pace::PaceUnit::parse(value.trim()))
+        .unwrap_or_default()
+}
+
 /// PRD 0006 RF4.1: the retention of `--history-days`, or the default.
 fn retention(days: Option<u32>) -> Result<Retention, String> {
     days.map_or(Ok(Retention::default()), |days| {
@@ -721,6 +739,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         && args.report_problem.is_none()
         && !args.canary;
     let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
+    dashboard::set_pace_unit(pace_unit(args.pace_unit.as_deref(), |key| {
+        std::env::var(key).ok()
+    }));
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err(
             "A TUI requer terminal interativo. Use --once, --json, --json-v1, --serve ou --watch."
@@ -1671,6 +1692,27 @@ mod tests {
         let text = report_text(&report, &[], None, FIVE_MIN, now, "en-US", at);
         assert!(text.contains("consultado há"), "{text}");
         assert!(!text.contains("Ritmo"), "{text}");
+    }
+
+    /// PRD 0024 RF1.3: points by default; the flag beats the environment.
+    #[test]
+    fn the_pace_unit_follows_the_flag_then_the_environment() {
+        use cuotai_core::pace::PaceUnit::{Percent, Points};
+        let env = |value: Option<&'static str>| {
+            move |key: &str| {
+                (key == "CUOTAI_PACE_UNIT")
+                    .then_some(value)
+                    .flatten()
+                    .map(String::from)
+            }
+        };
+        assert_eq!(pace_unit(None, env(None)), Points);
+        assert_eq!(pace_unit(None, env(Some("percent"))), Percent);
+        assert_eq!(pace_unit(Some("points"), env(Some("percent"))), Points);
+        assert_eq!(pace_unit(Some("percent"), env(None)), Percent);
+        assert_eq!(pace_unit(None, env(Some("loud"))), Points);
+        assert!(Args::try_parse_from(["cuotai", "--pace-unit", "loud"]).is_err());
+        assert!(Args::try_parse_from(["cuotai", "--pace-unit", "percent"]).is_ok());
     }
 
     /// RF5.2: opt-in through `--status` or `CUOTAI_STATUS`; `--no-status`

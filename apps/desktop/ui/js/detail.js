@@ -39,7 +39,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
     ${gauge}
     ${pace ? paceHtml(pace, { expected: true }) : ""}
     ${forecastHtml(m)}
-    ${reset && !renewed ? `<div class="resets">${te("metric.resetsAt", { when: reset })}</div>` : ""}
+    ${reset && !renewed ? `<div class="resets">${m.resets_label ? esc(tl(m.resets_label)) : te("metric.resetsAt", { when: reset })}</div>` : ""}
   </div>`;
 }
 

@@ -1,7 +1,7 @@
 // Settings › Dashboard (PRD 0020 RF2.5): account order, the "Recharging" group, consumption pace and the refresh
 // interval. Account management (PRD 0025 / DS-CMP-SEG-5) joins this page when it moves out of the main window.
 import { t, te } from "../i18n.js";
-import { currentSort, groupingRecharging, setGroupRecharging, setRefreshSeconds, setShowPace, setSort } from "../lib.js";
+import { currentSort, groupingRecharging, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort } from "../lib.js";
 import { errorText, group, l10nError } from "./common.js";
 import { commitField, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
@@ -20,7 +20,10 @@ export function html({ settings: s, view }) {
         control: (a) => sw("show-pace", s.show_pace !== false, a) })
       // PRD 0036 RF8.3: how the popover's "All" shows 9router connections.
       + row({ key: "agg-in-all", label: te("settings.agg.all"), info: te("settings.agg.allHelp"),
-        control: (a) => select("agg-in-all", AGG_MODES.map((m) => [m, te(`settings.agg.all.${m}`)]), aggregatorsInAll(), a) }))
+        control: (a) => select("agg-in-all", AGG_MODES.map((m) => [m, te(`settings.agg.all.${m}`)]), aggregatorsInAll(), a) })
+      + row({ key: "pace-unit", label: te("settings.pace.unit"), info: te("settings.pace.unitHelp"), msg: "pace-unit-msg",
+        control: (a) => seg("pace-unit", [["points", te("settings.pace.points")], ["percent", te("settings.pace.percent")]], s.pace_unit ?? "points", a),
+        body: `<p class="hint" id="pace-unit-example">${te("settings.pace.unitExample")}</p>` }))
     + group("refresh", te("settings.refresh.title"),
       row({ key: "refresh", label: te("settings.refresh.label"), desc: te("settings.refresh.min"), info: te("settings.refresh.help"), msg: "refresh-msg",
         control: (a) => num("refresh-seconds", { value: seconds, min: 30, unit: "s", apply: "data-apply-refresh" }, a),
@@ -39,6 +42,12 @@ export function bind(root, ctx) {
   root.querySelector("#show-pace").onchange = (e) => setShowPace(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("show_pace"); },
     (x) => { e.target.checked = !e.target.checked; rowError(e.target, errorText(x)); e.target.focus(); });
+  // PRD 0024 RF1.3: the unit is the user's choice; saved on change, put back when refused.
+  const unit = root.querySelector("#pace-unit");
+  let savedUnit = unit.value;
+  unit.addEventListener("change", () => setPaceUnit(unit.value).then(
+    () => { savedUnit = unit.value; rowError(unit, ""); toast(); ctx.changed("pace_unit"); },
+    (x) => { unit.value = savedUnit; rowError(unit, errorText(x)); }));
   // RF4.2: the interval saves on Enter, on leaving the field or with the row's Apply; a preset saves at once.
   const input = root.querySelector("#refresh-seconds");
   const presets = root.querySelector("#refresh-presets");

@@ -352,6 +352,9 @@ pub struct MetricView {
     /// (whether or not the warning is on), the callout text and the outlook
     /// chip; `None` otherwise.
     forecast: Option<ForecastView>,
+    /// PRD 0024 RF1.4: "Resets 19:30 · in 1h 35m" from the core, for a
+    /// metric whose window resets in the future; `None` otherwise.
+    resets_label: Option<cuotai_core::text::Localized>,
     /// PRD 0008 RF3.2/RF3.4: while usage alerts are on and the metric can
     /// alert, whether it is muted in the details and has an active alert.
     alert: Option<MetricAlertView>,
@@ -399,12 +402,27 @@ pub struct PaceView {
     pace: Pace,
     label: cuotai_core::text::Localized,
     outlook: Option<cuotai_core::text::Localized>,
+    /// PRD 0024 RF1.3: the stage chip in both units; the interface picks
+    /// one by the user's "Show pace as" choice and never converts.
+    chips: PaceChips,
+}
+
+/// The core's stage chip in each [`cuotai_core::pace::PaceUnit`].
+#[derive(Serialize, Clone)]
+pub struct PaceChips {
+    points: cuotai_core::pace::Chip,
+    percent: cuotai_core::pace::Chip,
 }
 
 fn pace_view(pace: Pace) -> PaceView {
+    use cuotai_core::pace::PaceUnit;
     PaceView {
         label: pace.stage_label(),
         outlook: pace.outlook_label(local_at, compact_span),
+        chips: PaceChips {
+            points: pace.chip(PaceUnit::Points),
+            percent: pace.chip(PaceUnit::Percent),
+        },
         pace,
     }
 }
@@ -807,6 +825,7 @@ fn metric_view(metric: &Metric) -> MetricView {
         state: classify_metric(metric),
         pace: None,
         forecast: None,
+        resets_label: None,
         alert: None,
         expired: false,
     }
@@ -845,6 +864,10 @@ fn report_view(
                     now,
                     points.unwrap_or_default(),
                 ),
+                resets_label: metric
+                    .resets_at
+                    .filter(|at| *at > now)
+                    .map(|at| cuotai_core::resets::pair_label(&local_at(at), at - now)),
                 ..metric_view(metric)
             }
         })
@@ -5710,6 +5733,45 @@ mod tests {
         assert_eq!(stale["freshness"], "stale");
         assert!(stale["metrics"][0]["pace"].is_null());
         assert!(stale["pace_index"].is_null());
+    }
+
+    /// PRD 0024 RF1.3/RF1.4: the pace carries the core's chip in both
+    /// units (the interface only picks one) and the metric the core's
+    /// "Resets {at} · {in}" pair; a past reset has neither.
+    #[test]
+    fn view_carries_the_core_chips_in_both_units_and_the_reset_pair() {
+        use cuotai_core::MetricWindow::Window5h;
+        let config = Config {
+            accounts: vec![plain_account("a")],
+            refresh_seconds: 3600,
+            ..Config::default()
+        };
+        let report = Report {
+            checked_at: chrono::Utc::now() - chrono::Duration::minutes(2),
+            ..ready("a", vec![quota("5h", 50.0, Window5h, 2)])
+        };
+        let view =
+            serde_json::to_value(report_view(0, &report, &config, None, None, 0, &[])).unwrap();
+        let pace = &view["metrics"][0]["pace"];
+        assert!(pace["chips"]["points"]["text"]["id"]
+            .as_str()
+            .unwrap()
+            .starts_with("pace.chip."));
+        assert_ne!(
+            pace["chips"]["points"]["text"]["id"],
+            pace["chips"]["percent"]["text"]["id"],
+            "the percent form names the comparison"
+        );
+        let pair = &view["metrics"][0]["resets_label"];
+        assert_eq!(pair["id"], "resets.pair");
+        assert_eq!(pair["params"]["in"]["id"], "text.countdown");
+        let past = Report {
+            checked_at: chrono::Utc::now(),
+            ..ready("a", vec![quota("5h", 50.0, Window5h, -1)])
+        };
+        let view =
+            serde_json::to_value(report_view(0, &past, &config, None, None, 0, &[])).unwrap();
+        assert!(view["metrics"][0]["resets_label"].is_null());
     }
 
     /// PRD 0005 RF4: each report carries its account's access descriptor,

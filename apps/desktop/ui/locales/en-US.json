@@ -928,5 +928,12 @@
   "settings.alerts.projectedLead15": "15 min",
   "settings.alerts.projectedLead30": "30 min",
   "settings.alerts.projectedLead60": "1 h",
-  "settings.error.invalid_lead": "Choose 15 minutes, 30 minutes or 1 hour."
+  "settings.error.invalid_lead": "Choose 15 minutes, 30 minutes or 1 hour.",
+  "settings.pace.unit": "Show pace as",
+  "settings.pace.unitHelp": "Points: difference from the expected share. Percent: how much faster or slower than expected.",
+  "settings.pace.unitExample": "Example: 50% expected and 60% used reads \"10 pts ahead\" in points and \"20% faster than pace\" in percent.",
+  "settings.kw.pace-unit": "pace deviation percent points ahead reserve",
+  "settings.pace.points": "Points",
+  "settings.pace.percent": "Percent",
+  "settings.error.invalid_pace_unit": "Choose points or percent."
 }

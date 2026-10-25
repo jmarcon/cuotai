@@ -427,7 +427,14 @@ export function textualMetric(m) {
   }
   return null;
 }
-export function fmtCountdown(iso) {
+/** PRD 0024 RF1.4/RF6.1: "Resets 19:30 · in 1h 35m", worded by the core (`resets_label`); only a reading without it
+ *  (the browser demo, a window already past) falls back to the local countdown. Null without a reset time. */
+export function resetsText(m) {
+  if (m.resets_label) return tl(m.resets_label);
+  const left = legacyCountdown(m.resets_at);
+  return left ? t("quota.resetsIn", { time: left }) : null;
+}
+function legacyCountdown(iso) {
   if (!iso) return null;
   let s = Math.floor((new Date(iso).getTime() - Date.now()) / 1000);
   if (Number.isNaN(s)) return null;
@@ -995,7 +1002,7 @@ const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
     on_pace: { id: "pace.on_pace", fallback: "No ritmo" }, ahead: { id: "pace.ahead", params: { delta: points }, fallback: `${points} pontos acima do ritmo` },
     exhausted: { id: "pace.exhausted", fallback: "Limite atingido até a renovação" } }[stage];
   const at = runsOutH == null ? null : h(runsOutH);
-  const margin = runsOutH == null ? "" : fmtCountdown(h(resetH - runsOutH)).replace(/^(\d+d \d+h) \d+m$/, "$1");
+  const margin = runsOutH == null ? "" : legacyCountdown(h(resetH - runsOutH)).replace(/^(\d+d \d+h) \d+m$/, "$1");
   const outlook = stage === "exhausted" ? null : at
     ? { id: "pace.runs_out_at", params: { at: hhmm(at), margin }, fallback: `acaba às ${hhmm(at)}, ${margin} antes da renovação` }
     : { id: "pace.lasts_until_reset", fallback: "dura até a renovação" };
@@ -1683,6 +1690,7 @@ const demo = {
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
   first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
+  set_pace_unit: async ({ unit }) => { if (!["points", "percent"].includes(unit)) throw "invalid_pace_unit"; },
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
   // erased account (or everything) leaves the synthetic history of `account_history`.
@@ -1935,6 +1943,12 @@ const PACE_KEY = "cuotai.pace";
 let showPace = get(PACE_KEY, "on") !== "off";
 const applyPace = (on) => { showPace = on !== false; put(PACE_KEY, showPace ? "on" : "off"); };
 export const paceShown = () => showPace;
+// PRD 0024 RF1.3: "points" (default) or "percent"; the core ships both chips and the view only picks one.
+const PACE_UNIT_KEY = "cuotai.pace.unit";
+let paceUnitNow = get(PACE_UNIT_KEY, "points") === "percent" ? "percent" : "points";
+const applyPaceUnit = (unit) => { paceUnitNow = unit === "percent" ? "percent" : "points"; put(PACE_UNIT_KEY, paceUnitNow); };
+export const paceUnit = () => paceUnitNow;
+export const setPaceUnit = async (unit) => { await call("set_pace_unit", { unit }); applyPaceUnit(unit); await emitSettingsChanged("pace_unit"); };
 export const setShowPace = async (on) => { await call("set_show_pace", { show: on }); applyPace(on); };
 /** The core's pace of `m` (never estimated here); null when the core has none or the user hid pace. */
 export const paceOf = (m) => (showPace ? m.pace ?? null : null);
@@ -1950,8 +1964,10 @@ export const cardPace = (r) => {
 /** "8 points in reserve · lasts until the reset" from the core texts; `expected` adds "Expected 47% used",
  *  `label` prefixes the metric, `short` keeps only the outlook (the stage when exhausted). */
 export function paceText(p, { expected = false, label = "", short = false } = {}) {
-  const parts = short ? [tl(p.outlook ?? p.label)]
-    : [tl(p.label), expected ? t("metric.pace.expected", { pct: Math.round(p.expected_used_fraction * 100) }) : "", p.outlook ? tl(p.outlook) : ""];
+  // PRD 0024 RF1.3/RF6.1: the stage reads from the core chip in the user's unit (the demo has no chips).
+  const stage = p.chips ? tl(p.chips[paceUnitNow].text) : tl(p.label);
+  const parts = short ? [p.outlook ? tl(p.outlook) : stage]
+    : [stage, expected ? t("metric.pace.expected", { pct: Math.round(p.expected_used_fraction * 100) }) : "", p.outlook ? tl(p.outlook) : ""];
   const text = parts.filter(Boolean).join(" · ");
   return label ? `${label}: ${text}` : text;
 }
@@ -1975,7 +1991,7 @@ export function forecastChipHtml(m) {
 }
 export function initOrderSync(onChange) {
   onPreferencesChanged((changed) => {
-    if (["sort", "group_recharging", "show_pace"].some((k) => changed.has(k))) onChange();
+    if (["sort", "group_recharging", "show_pace", "pace_unit"].some((k) => changed.has(k))) onChange();
   });
 }
 
@@ -1992,6 +2008,8 @@ async function applyPreferences(s, { boot = false } = {}) {
   if (was.motion !== (s.motion || "system")) changed.add("motion");
   applyPace(s.show_pace);
   if (was.pace !== showPace) changed.add("show_pace");
+  // PRD 0024 RF1.3: the pace unit follows desktop.json like the other preferences (RF7.2).
+  if (["points", "percent"].includes(s.pace_unit) && s.pace_unit !== paceUnitNow) { applyPaceUnit(s.pace_unit); changed.add("pace_unit"); }
   for (const [key, value] of [["theme", theme.id], ["theme_mode", theme.mode], ["sort", sortMode], ["group_recharging", groupRecharging], ["aggregators_in_all", aggMode]]) mirrorPreference(key, value);
   if (s.locale && boot) mirrorPreference("locale", s.locale); // the language loads right after: it picks the mirror up
   else if (s.locale && s.locale !== currentLocale()) { await setLocale(s.locale); changed.add("locale"); }

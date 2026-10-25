@@ -53,10 +53,10 @@ function windowSlot(r, name, w) {
       <div class="win-pct dim">—</div><div class="bar"><span style="width:0"></span></div></div>`;
   }
   const lv = level(w.pct);
-  const reset = fmtCountdown(w.m.resets_at);
+  const reset = resetsText(w.m);
   const binding = isBindingMetric(r, w.m) ? " binding" : "";
   return `<div class="win${binding}" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>
-      <span class="reset">${reset ? te("quota.resetsIn", { time: reset }) : `<em>${te("quota.na")}</em>`}</span></div>
+      <span class="reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</span></div>
     <div class="win-pct ${lv}" data-pct="${Math.round(w.pct)}">${Math.round(w.pct)}%</div>
     <div class="bar ${lv}"><span style="width:${w.pct}%"></span></div>
     <div class="sum-amount">${esc(fmtAmount(w.m))}</div></div>`;
@@ -70,19 +70,19 @@ function summaryHtml(r) {
   const s = summaryOf(r);
   if (s.kind === "bar") {
     const lv = level(s.pct);
-    const reset = fmtCountdown(s.m.resets_at);
+    const reset = resetsText(s.m);
     return `<div class="sum-bar${isBindingMetric(r, s.m) ? " binding" : ""}">
       <b class="big ${lv}" data-pct="${Math.round(s.pct)}">${Math.round(s.pct)}%<small>${te("card.available")}</small></b>
       <div class="sum-meter">
-        <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? te("quota.resetsIn", { time: reset }) : `<em>${te("quota.na")}</em>`}</span></div>
+        <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</span></div>
         <div class="bar ${lv}"><span style="width:${s.pct}%"></span></div>
         <div class="sum-amount">${esc(fmtAmount(s.m))}</div>
       </div></div>`;
   }
   if (s.kind === "text") {
-    const reset = fmtCountdown(s.m.resets_at);
+    const reset = resetsText(s.m);
     return `<div class="sum-text">
-      <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? te("quota.resetsIn", { time: reset }) : ""}</span></div>
+      <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? esc(reset) : ""}</span></div>
       <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div></div>`;
   }
   if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;

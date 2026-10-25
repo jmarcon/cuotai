@@ -935,5 +935,12 @@
   "settings.alerts.projectedLead15": "15 min",
   "settings.alerts.projectedLead30": "30 min",
   "settings.alerts.projectedLead60": "1 h",
-  "settings.error.invalid_lead": "Escolha 15 minutos, 30 minutos ou 1 hora."
+  "settings.error.invalid_lead": "Escolha 15 minutos, 30 minutos ou 1 hora.",
+  "settings.pace.unit": "Mostrar o ritmo em",
+  "settings.pace.unitHelp": "Pontos: diferença para a fatia esperada. Percentual: quanto mais rápido ou mais devagar que o esperado.",
+  "settings.pace.unitExample": "Exemplo: 50% esperado e 60% usado aparece como \"10 pts acima\" em pontos e \"20% mais rápido que o ritmo\" em percentual.",
+  "settings.kw.pace-unit": "ritmo desvio percentual pontos acima reserva",
+  "settings.pace.points": "Pontos",
+  "settings.pace.percent": "Percentual",
+  "settings.error.invalid_pace_unit": "Escolha pontos ou percentual."
 }

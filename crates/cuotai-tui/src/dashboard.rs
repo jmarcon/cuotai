@@ -287,6 +287,28 @@ fn points(recent: &[Vec<Point>], metric: usize) -> &[Point] {
     recent.get(metric).map_or(&[], Vec::as_slice)
 }
 
+/// PRD 0024 RF6.2: the narrowest card text area that also shows the pace chip.
+const CHIP_MIN_WIDTH: u16 = 60;
+
+/// PRD 0024 RF1.3: the unit every pace text of this process uses; set once
+/// from `--pace-unit` or `CUOTAI_PACE_UNIT` before anything draws.
+static PACE_UNIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn set_pace_unit(unit: pace::PaceUnit) {
+    PACE_UNIT.store(
+        unit == pace::PaceUnit::Percent,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
+pub(crate) fn pace_unit() -> pace::PaceUnit {
+    if PACE_UNIT.load(std::sync::atomic::Ordering::Relaxed) {
+        pace::PaceUnit::Percent
+    } else {
+        pace::PaceUnit::Points
+    }
+}
+
 /// PRD 0007 RF4: the core's pace texts joined as "stage · outlook", with
 /// `at` formatting the projected time and the margin as `11h 10m`.
 pub(crate) fn pace_text(
@@ -294,7 +316,12 @@ pub(crate) fn pace_text(
     locale: &str,
     at: impl FnOnce(DateTime<Utc>) -> String,
 ) -> String {
-    let stage = pace.stage_label().resolve(locale);
+    // Points keep the stage sentence; percent names the comparison with the
+    // core's chip ("20% faster than pace"), PRD 0024 RF1.3.
+    let stage = match pace_unit() {
+        pace::PaceUnit::Points => pace.stage_label().resolve(locale),
+        unit => pace.chip(unit).text.resolve(locale),
+    };
     let margin = |span: chrono::TimeDelta| format_reset_remaining(span.num_seconds().max(0));
     match pace.outlook_label(at, margin) {
         Some(outlook) => format!("{stage} · {}", outlook.resolve(locale)),
@@ -1839,6 +1866,19 @@ fn render_metric_block(
     if let Some(period) = &metric.period {
         text_spans.push(Span::styled(
             format!("  · {}", safe(period)),
+            Style::default().fg(MUTED),
+        ));
+    }
+    // PRD 0024 RF6.2: the core's pace chip beside the stage icon when the
+    // card is wide enough to keep the metric text readable.
+    if let Some(pace) = metric
+        .pace
+        .as_ref()
+        .filter(|_| text_area.width >= CHIP_MIN_WIDTH)
+    {
+        let chip = pace.chip(pace_unit()).text.resolve(tui_locale());
+        text_spans.push(Span::styled(
+            format!("  {}", safe(&chip)),
             Style::default().fg(MUTED),
         ));
     }
@@ -3943,6 +3983,11 @@ mod tests {
         // Still at a narrow width, without losing the label.
         let narrow = render_sized(&paced(), &[], &[], false, at_min(0), (45, 18)).join("\n");
         assert!(narrow.contains("↑ Semana:"), "{narrow}");
+        // PRD 0024 RF6.2: the core's chip follows the label when the card is wide
+        // enough, never at the narrow width.
+        let wide = render_sized(&paced(), &[], &[], false, at_min(0), (200, 30)).join("\n");
+        assert!(wide.contains("20 pts de reserva"), "{wide}");
+        assert!(!narrow.contains("pts de reserva"), "{narrow}");
         // A preserved reading is old: no pace for it.
         let (reports, mut good) = failed_after_success();
         good.metrics = paced()[0].clone().unwrap().metrics;

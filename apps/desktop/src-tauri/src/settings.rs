@@ -4,6 +4,7 @@
 use cuotai_core::{
     alerts::{AlertPrefs, Lead, THRESHOLD_RANGE},
     history::Retention,
+    pace::PaceUnit,
     resets::{NotifyWhen, Prefs},
     tray::{TraySelection, TrayStyle},
 };
@@ -28,6 +29,10 @@ struct Stored {
     /// Consumption pace (PRD 0007 RF3.4); absent = shown. Only `false` is stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     show_pace: Option<bool>,
+    /// Pace display (PRD 0024 RF1.3): `{"deviation_unit": "percent"}`; absent
+    /// = points. Read leniently ([`pace_unit_of`]): anything else is points.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pace: Option<serde_json::Value>,
     /// Days of measurement history kept (PRD 0006 RF4.1, 7 to 365); absent
     /// = the core default (90). A value out of range reads as the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1298,6 +1303,31 @@ pub fn save_show_pace(show: bool) -> Result<(), &'static str> {
     update(&file, |s| s.show_pace = (!show).then_some(false))
 }
 
+/// PRD 0024 RF1.3: how pace deviations read, "points" (the default) or
+/// "percent".
+fn pace_unit_of(stored: &Stored) -> &'static str {
+    match stored
+        .pace
+        .as_ref()
+        .and_then(|pace| pace["deviation_unit"].as_str())
+        .and_then(PaceUnit::parse)
+    {
+        Some(PaceUnit::Percent) => "percent",
+        _ => "points",
+    }
+}
+
+/// PRD 0024 RF1.3: choose `points` (removes the key) or `percent`.
+/// Errors: `invalid_pace_unit`, `unwritable`.
+pub fn save_pace_unit(unit: &str) -> Result<(), &'static str> {
+    let unit = PaceUnit::parse(unit).ok_or("invalid_pace_unit")?;
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        s.pace = (unit == PaceUnit::Percent)
+            .then(|| serde_json::json!({ "deviation_unit": "percent" }))
+    })
+}
+
 /// Keeps `days` of measurement history (the default, 90, removes the key).
 /// Errors: `invalid_history_days` (outside 7 to 365), `unwritable`.
 pub fn save_history_days(days: u32) -> Result<Retention, &'static str> {
@@ -1355,6 +1385,8 @@ pub struct SettingsView {
     aggregators_in_all: &'static str,
     locale: Option<String>,
     local_storage_migrated: bool,
+    /// PRD 0024 RF1.3: `points` or `percent`.
+    pace_unit: &'static str,
     /// Days of measurement history kept, and the accepted range.
     history_days: u16,
     history_days_min: u16,
@@ -1417,6 +1449,7 @@ pub fn view() -> SettingsView {
             .unwrap_or("grouped"),
         locale: stored.locale.clone().filter(|l| valid_locale(l)),
         local_storage_migrated: migrated_of(&stored),
+        pace_unit: pace_unit_of(&stored),
         history_days: retention_of(&stored).keep_days(),
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,
@@ -2142,5 +2175,23 @@ mod tests {
             let read = read_alerts(&file);
             assert!(read.enabled && read.projected().is_none(), "{bad}");
         }
+    }
+
+    /// PRD 0024 RF1.3: points unless the file says percent; anything else
+    /// reads as points and the rest of the file stays.
+    #[test]
+    fn the_pace_unit_defaults_to_points_and_reads_leniently() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(pace_unit_of(&read(&file)), "points");
+        fs::write(&file, r#"{"motion":"off","pace":{"deviation_unit":"percent"}}"#).unwrap();
+        assert_eq!(pace_unit_of(&read(&file)), "percent");
+        for bad in [r#"{"deviation_unit":"loud"}"#, r#"7"#, r#"{"deviation_unit":3}"#] {
+            fs::write(&file, format!(r#"{{"motion":"off","pace":{bad}}}"#)).unwrap();
+            assert_eq!(pace_unit_of(&read(&file)), "points", "{bad}");
+            assert_eq!(motion_of(&read(&file)), "off");
+        }
+        assert_eq!(PaceUnit::parse("percent"), Some(PaceUnit::Percent));
+        assert_eq!(PaceUnit::parse("%"), None);
     }
 }

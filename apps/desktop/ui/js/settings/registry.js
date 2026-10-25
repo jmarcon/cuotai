@@ -52,6 +52,7 @@ export const CONTROLS = [
   { section: "appearance", page: "general", selector: 'id="motion"' },
   { section: "appearance", page: "dashboard", selector: 'id="group-recharging"' },
   { section: "appearance", page: "dashboard", selector: 'id="show-pace"' },
+  { section: "appearance", page: "dashboard", selector: 'id="pace-unit"' },
   { section: "language", page: "general", selector: "data-locale" },
   { section: "order", page: "dashboard", selector: 'id="order-binding"' },
   { section: "refresh", page: "dashboard", selector: 'id="refresh-seconds"' },
