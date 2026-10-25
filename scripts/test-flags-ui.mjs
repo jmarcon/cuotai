@@ -14,6 +14,16 @@ assert.equal(flagCountry("zh-CN"), "cn");
 assert.equal(flagCountry("xx"), "");
 assert.match(flagSvg("jp"), /class="flag white-field"/);
 assert.match(flagSvg("br"), /class="flag"/);
-assert.match(flagSvg("kr"), /fill="#4a6fa5"/, "no artwork yet: the globe");
+assert.match(flagSvg("xx"), /fill="#4a6fa5"/, "an unknown country: the globe");
+assert.match(flagSvg("kr"), /class="flag white-field"/);
+assert.match(flagSvg("id"), /class="flag white-field"/);
+// PRD 0035 RF7.2: every registry language resolves to drawn artwork, never the globe.
+const { REGISTRY } = await import("../apps/desktop/ui/js/locale-registry.js");
+assert.equal(REGISTRY.length, 14);
+for (const row of REGISTRY) {
+  const country = flagCountry(row.code);
+  assert.equal(country, row.flag, `${row.code}: the registry flag and flagCountry agree`);
+  assert.doesNotMatch(flagSvg(country), /fill="#4a6fa5"/, `${row.code}: drawn, not the globe`);
+}
 assert.match(flagSvg("br"), /aria-hidden="true"/, "flags are decorative");
-console.log("PASS: flags resolve by explicit flag, region, then language; white fields get a hairline");
+console.log("PASS: every registry language has a drawn flag; flags resolve by explicit flag, region, then language; white fields get a hairline");

@@ -84,6 +84,21 @@
   --dialog-lg: 680px;
   --dialog-xl: 760px;
 }
+/* DS-TOK-TYP-7 (PRD 0035 RF8.2): the per-script system stacks, reached by per-glyph fallback after the theme's font. On
+   any element, not only :root, so an endonym with its own `lang` in the language list gets its script's glyphs. No web
+   fonts. A core test requires one rule per non-Latin, non-Cyrillic script of the registry. */
+:lang(zh) {
+  --font-script: "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+}
+:lang(ja) {
+  --font-script: "Hiragino Sans", "Yu Gothic UI", "Noto Sans CJK JP", sans-serif;
+}
+:lang(ko) {
+  --font-script: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", sans-serif;
+}
+:lang(hi) {
+  --font-script: "Kohinoor Devanagari", "Nirmala UI", "Noto Sans Devanagari", sans-serif;
+}
 /* DS-TOK-TYP-9: CJK and Devanagari never go below 11 px. */
 :root:lang(zh),
 :root:lang(ja),
@@ -393,6 +408,29 @@ svg.i {
 .lang-menu button span,
 .lang-list button span {
   flex: 1;
+}
+/* PRD 0035 RF3.3/RF7.4: fourteen languages scroll inside the menu; each endonym takes its own script's stack. */
+.lang-menu {
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+}
+.lang-menu [lang],
+.lang-list [lang] {
+  font-family: var(--font-ui), var(--font-script);
+}
+/* A language whose translation is in progress: listed, not selectable (state in text, not only color). */
+.lang-menu button.pending,
+.lang-list button.pending {
+  color: var(--fg-muted);
+  cursor: default;
+}
+.lang-menu button.pending:hover,
+.lang-list button.pending:hover {
+  background: transparent;
+}
+.lang-menu button.pending small,
+.lang-list button.pending small {
+  font-size: var(--text-micro);
 }
 svg.i.sel-tick {
   width: 14px;

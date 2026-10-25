@@ -1276,6 +1276,32 @@ mod tests {
         );
     }
 
+    /// PRD 0035 RF8.2 (DS-TOK-TYP-7): every registry script beyond Latin
+    /// and Cyrillic has its system font stack in `themes.css`, keyed by
+    /// the row's language, so a new language cannot ship without one.
+    #[test]
+    fn every_script_has_a_font_stack() {
+        let css = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../apps/desktop/ui/css/themes.css"),
+        )
+        .unwrap();
+        for row in LOCALES {
+            if matches!(row.script, "Latn" | "Cyrl") {
+                continue;
+            }
+            let selector = format!(":lang({}) {{", row.languages[0]);
+            let rule = css
+                .find(&selector)
+                .map(|at| &css[at..at + css[at..].find('}').unwrap()]);
+            assert!(
+                rule.is_some_and(|rule| rule.contains("--font-script:")),
+                "{}: no `{selector} --font-script` rule in themes.css",
+                row.code
+            );
+        }
+    }
+
     /// PRD 0035 RF2.2: the parity rules catch each kind of drift.
     #[test]
     fn parity_catches_each_kind_of_drift() {

@@ -95,7 +95,13 @@ const scenarios = [
   { stored: null, system: ["es"], expected: "es", label: "exact es detection" },
   { stored: null, system: ["it"], expected: "it", label: "exact it detection" },
   { stored: null, system: ["es-MX"], expected: "es", label: "same-language detection" },
-  { stored: null, system: ["ja"], expected: "en-US", label: "unsupported locale fallback" },
+  { stored: null, system: ["ja"], expected: "en-US", label: "translation in progress falls back" },
+  // PRD 0035 RF1.3: registry normalization, never a string prefix, never Simplified Chinese for zh-TW.
+  { stored: null, system: ["pt_PT.UTF-8"], expected: "pt-BR", label: "system form with an encoding" },
+  { stored: null, system: ["est", "it-CH"], expected: "it", label: "est is not es" },
+  { stored: null, system: ["zh-TW", "es-419"], expected: "es", label: "zh-TW skipped, numeric region" },
+  { stored: null, system: ["fr-FR"], userLocales: ["fr"], expected: "fr", label: "user pack for a language in progress" },
+  { stored: "de", system: ["it"], expected: "it", label: "stored language in progress" },
 ];
 
 for (const page of ["index.html", "tray.html", "settings.html"]) {
@@ -121,6 +127,11 @@ assert.equal(i18n.t("tray.ok"), frenchCatalog["tray.ok"], "first translated stri
 const firstRenderedMenu = langMenuHtml({ inline: true });
 assert.match(firstRenderedMenu, /data-locale="fr"[^>]*class="on"|class="on"[^>]*data-locale="fr"/, "stored user locale is not selected in the production menu");
 console.log(`production boot first render: lang=fr; tray.ok=${i18n.t("tray.ok")}`);
+// PRD 0035 RF1/RF3.3: the languages in progress are listed after the others, not selectable, with their own lang.
+assert.match(firstRenderedMenu, /data-locale-pending="ja"[^>]*>.*?<span lang="ja">日本語<\/span>/, "ja is listed as in progress");
+assert.doesNotMatch(firstRenderedMenu, /data-locale-pending="fr"/, "the user pack makes fr a regular language");
+assert.doesNotMatch(firstRenderedMenu, /data-locale="ja"/, "a language in progress cannot be chosen");
+assert.ok(firstRenderedMenu.indexOf('data-locale-pending="zh-CN"') < firstRenderedMenu.indexOf('data-locale-pending="vi"'), "registry order");
 
 await i18n.setLocale("es");
 const spanishCatalog = JSON.parse(await readFile(

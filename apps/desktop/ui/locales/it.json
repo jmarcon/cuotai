@@ -1235,5 +1235,6 @@
   "desktop.error.invalid_monogram": "Un monogramma ha uno o due caratteri, senza spazi.",
   "settings.whatsnew.auto": "Mostra le novità",
   "settings.whatsnew.auto.desc": "Apre le note di rilascio una volta dopo ogni aggiornamento",
-  "settings.kw.whats-new-auto": "novità note di rilascio changelog aggiornamento versione automaticamente aprire dopo aggiornare"
+  "settings.kw.whats-new-auto": "novità note di rilascio changelog aggiornamento versione automaticamente aprire dopo aggiornare",
+  "lang.inProgress": "Traduzione in corso"
 }

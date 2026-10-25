@@ -505,7 +505,7 @@ PROVIDERS                                Connects locally
 | tr | Türkçe | Türkiye |
 | vi | Tiếng Việt | Vietnam |
 
-Locales without a region (fr, de, ja, ko, ru, tr, vi) resolve through `flagCountry()`'s language map, which must gain ko → kr, vi → vn, tr → tr, zh → cn, hi → in, id → id, and `flags.js` must gain the missing artwork (cn, kr, vn, tr, in, id). The flag is decorative (`aria-hidden="true"`); the endonym is the accessible label, with `lang` set to that language. Flags never stand alone as the only cue.
+Locales without a region (fr, de, ja, ko, ru, tr, vi) resolve through `flagCountry()`'s language map; every row of the locale registry has drawn artwork (a test fails on the globe). The list follows the registry order; a language whose translation is still in progress is listed after the others with its flag, its endonym and a muted "Translation in progress" caption, `aria-disabled`, skipped by the arrow keys and never selected; the caption, not color alone, carries the state. Each endonym uses its own script's font stack (DS-TOK-TYP-7) and the menu scrolls inside a bounded height. The flag is decorative (`aria-hidden="true"`); the endonym is the accessible label, with `lang` set to that language. Flags never stand alone as the only cue.
 
 ### 4.16 Checks, switches and option cards (`CHK`, `SW`)
 

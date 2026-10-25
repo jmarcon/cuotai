@@ -1,5 +1,5 @@
 import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./themes.js";
-import { LOCALES, currentLocale, setLocale, t, te, tl } from "./i18n.js";
+import { LOCALES, currentLocale, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
 import { esc } from "./util.js";
 import { flagCountry, flagSvg } from "./flags.js";
 import { crossFade } from "./motion.js";
@@ -938,7 +938,9 @@ export function langMenuHtml({ inline = false, field = false } = {}) {
   // PRD 0022 RF9.6 (DS-CMP-SEL-3): flag (decorative) + the endonym in its own language; the selected one is marked
   // by a check and weight, not by color alone.
   const role = inline ? "radio" : "menuitemradio";
-  const items = LOCALES.map((l) => `<button role="${role}" aria-checked="${l.code === cur.code}" class="${l.code === cur.code ? "on" : ""}" data-locale="${esc(l.code)}"${inline ? ` tabindex="${l.code === cur.code ? 0 : -1}"` : ""}>${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span>${l.code === cur.code ? icon("tick", "sel-tick") : ""}</button>`).join("");
+  const items = LOCALES.map((l) => `<button role="${role}" aria-checked="${l.code === cur.code}" class="${l.code === cur.code ? "on" : ""}" data-locale="${esc(l.code)}"${inline ? ` tabindex="${l.code === cur.code ? 0 : -1}"` : ""}>${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span>${l.code === cur.code ? icon("tick", "sel-tick") : ""}</button>`).join("")
+    // PRD 0035 RF1/RF3.3: registry languages without catalogs yet stay visible, in the fixed order, but cannot be chosen.
+    + pendingLocales().map((l) => `<button type="button" role="${role}" aria-checked="false" aria-disabled="true" class="pending" data-locale-pending="${esc(l.code)}" tabindex="-1">${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span><small>${te("lang.inProgress")}</small></button>`).join("");
   if (inline) return `<div class="lang-list" role="radiogroup" aria-label="${te("lang.label")}">${items}</div>`;
   // DS-CMP-SEL-3 (mockup 50-settings-general-language): one field with the flag and the endonym, opening the list of
   // every language; it scales to the 14 languages of PRD 0035.
@@ -986,7 +988,7 @@ export function bindThemeSwitch(root, rerender) {
     const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
     if (!item || !step) return;
     e.preventDefault();
-    const list = [...item.parentElement.querySelectorAll("[role=radio]")];
+    const list = [...item.parentElement.querySelectorAll("[role=radio]:not([aria-disabled=true])")];
     list[(list.indexOf(item) + step + list.length) % list.length]?.focus();
   });
 }
