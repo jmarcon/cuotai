@@ -1516,6 +1516,7 @@
   "events.summary.overage_ended": "Terminó el uso extra",
   "overage.units_caveat": "Los importes están en unidades del proveedor, no en dinero.",
   "edit_notice.provider_switch_oauth": "Al guardar, la credencial OAuth de la cuenta de {provider} se borra del almacén.",
+  "detect.ask": "¿Buscar en este dispositivo herramientas de IA que ya usas? Cuotai comprueba si sus carpetas existen, si ciertas variables de entorno están definidas (solo su presencia, nunca su valor) y si 9router responde localmente en 127.0.0.1; no lee nada.",
   "detect.hint": "{tool} está instalado en este dispositivo",
   "detect.consent.cursor_import": "Cuotai leerá una vez el token de inicio de sesión de la base de datos local de Cursor para consultar tu uso. Se guarda en el almacén de credenciales del sistema.",
   "detect.consent.native_login": "Cuotai abrirá el inicio de sesión de {provider}; no se lee nada de la carpeta de {tool}.",

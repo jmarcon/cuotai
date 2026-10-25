@@ -295,6 +295,16 @@ fn exists(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok()
 }
 
+/// PRD 0027 RF6.5: the one "Check this device" consent. It names every
+/// check the scan makes: tool folders, environment variables (presence
+/// only, never values) and the local 9router health probe on 127.0.0.1.
+pub fn consent_prompt() -> Localized {
+    Localized::fixed(
+        "detect.ask",
+        "Check this device for AI tools you already use? Cuotai checks whether their folders exist, whether certain environment variables are set (presence only, never their values) and whether 9router answers locally on 127.0.0.1; it reads nothing.",
+    )
+}
+
 fn texts(entry: &DetectEntry) -> (Localized, Localized) {
     let tool = entry.kind.tool();
     let provider = entry.provider.label();
@@ -483,6 +493,32 @@ mod probe_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// RF6.5 (owner decision 2026-10-25): the consent names folders,
+    /// environment variables (presence only) and the 127.0.0.1 9router check
+    /// in every catalog.
+    #[test]
+    fn the_consent_names_every_check_in_every_catalog() {
+        let english = consent_prompt();
+        assert_eq!(english.id, "detect.ask");
+        let catalogs = [
+            ("en", english.text().to_string()),
+            ("pt-BR", include_str!("../locales/pt-BR.json").to_string()),
+            ("es", include_str!("../locales/es.json").to_string()),
+            ("it", include_str!("../locales/it.json").to_string()),
+        ];
+        for (locale, text) in catalogs {
+            let text = if locale == "en" {
+                text
+            } else {
+                let map: serde_json::Value = serde_json::from_str(&text).unwrap();
+                map["detect.ask"].as_str().unwrap().to_string()
+            };
+            assert!(text.contains("127.0.0.1"), "{locale}");
+            assert!(text.contains("9router"), "{locale}");
+            assert!(text.contains("env") || text.contains("ambient") || text.contains("entorno"), "{locale}");
+        }
+    }
 
     fn no_env(_: &str) -> Option<String> {
         None

@@ -306,6 +306,7 @@
   "detect.consent.key_step": "Cole sua chave; o Cuotai não lê nada da pasta do {tool}.",
   "detect.consent.native_login": "O Cuotai vai abrir o login de {provider}; nada é lido da pasta do {tool}.",
   "detect.consent.nine_router_local": "O endereço http://127.0.0.1:20128 já vem preenchido. Só a rota pública de saúde do 9router foi consultada; nada foi lido dele.",
+  "detect.ask": "Procurar neste dispositivo ferramentas de IA que você já usa? O Cuotai confere se as pastas delas existem, se certas variáveis de ambiente estão definidas (só a presença, nunca o valor) e se o 9router responde localmente em 127.0.0.1; não lê nada.",
   "detect.hint": "{tool} está instalado neste dispositivo",
   "detect.hint.env": "{variable} está definida neste ambiente",
   "detect.hint.nine_router_local": "Encontrado neste dispositivo: o 9router responde em 127.0.0.1:20128",
