@@ -1141,11 +1141,7 @@
 /* PRD 0025 RF4 / PRD 0022 RF9.4: Settings › Menu bar as in the approved mockup (`50-settings-menubar`). */
 .set-row[data-bare] > .set-row-text,
 .set-row[data-bare] > .set-row-ctl {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+  display: none;
 }
 .set-content .set-sec > h3:has(.sec-count) {
   right: 4px;
