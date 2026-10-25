@@ -555,7 +555,12 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return extension_check::run(&id, args.json).await;
     }
     if let Some(action) = cost_action(&mut args) {
-        return Ok(cost::run(action, args.json, ui::tui_locale())?);
+        // PRD 0029 RF2: plans are keyed by the account id when a
+        // configuration can be read; the cost commands work without one.
+        let configured = ConfigFile::load(args.config.clone(), false)
+            .ok()
+            .map(|file| file.config.accounts);
+        return Ok(cost::run(action, args.json, ui::tui_locale(), configured)?);
     }
     if let Some(account) = &args.history {
         let days = retention(Some(args.history_days.unwrap_or(HISTORY_DEFAULT_DAYS)))?.keep_days();

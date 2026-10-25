@@ -224,7 +224,11 @@ fn planned<'a>(
 ) -> impl Iterator<Item = (SourceId, &'a PlanSetting, &'a Account)> {
     accounts.iter().filter_map(move |account| {
         let source = SourceId::for_provider(account.provider)?;
-        let plan = plans.get(&account.key())?;
+        // PRD 0029 RF2: a plan follows the account id; one saved under the
+        // legacy `provider:name` key by an earlier build still applies.
+        let plan = plans
+            .get(&account.state_key())
+            .or_else(|| plans.get(&account.key()))?;
         enabled.contains(&source).then_some((source, plan, account))
     })
 }
@@ -403,6 +407,7 @@ mod tests {
 
     fn account(name: &str, provider: Provider) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             credential_env: None,
@@ -549,6 +554,19 @@ mod tests {
         assert_eq!(v[0].plans.len(), 1);
         assert_eq!(v[0].plans[0].price, 200.0);
         assert!(v[0].text.fallback.starts_with("Contas do Claude Code"));
+    }
+
+    /// PRD 0029 RF2: a plan saved under the account id applies, and so does
+    /// one an earlier build saved under the legacy `provider:name` key.
+    #[test]
+    fn a_plan_is_found_by_the_account_id_or_the_legacy_key() {
+        let accounts = [account("a", Provider::Claude)];
+        let id = accounts[0].state_key();
+        let rows = [usage(day(10, 5), 50)];
+        let by_id = values(&[(id.as_str(), usd_plan(100.0))], &accounts, &rows, None);
+        assert_eq!(by_id.len(), 1);
+        let legacy = values(&[("claude:a", usd_plan(100.0))], &accounts, &rows, None);
+        assert_eq!(legacy.len(), 1);
     }
 
     #[test]

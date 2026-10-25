@@ -371,7 +371,8 @@ impl SettingsStore {
     }
 
     /// PRD 0030 RF1.1: save (or, with `None`, remove) the plan of the
-    /// account `key` (`provider:name`).
+    /// account `key`: its stable id ([`crate::Account::state_key`]), or the
+    /// legacy `provider:name` key when no configuration names the account.
     pub fn set_plan(
         &self,
         key: &str,

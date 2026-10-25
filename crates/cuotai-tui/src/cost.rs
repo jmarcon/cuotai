@@ -155,7 +155,12 @@ fn scan_code(report: &ScanReport) -> u8 {
 
 /// Run `action`; returns the exit code (0 done, 2 a scan that found a
 /// source on without logs or access, or none on). Errors are local (1).
-pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, String> {
+pub(crate) fn run(
+    action: CostAction,
+    json: bool,
+    locale: &str,
+    configured: Option<Vec<Account>>,
+) -> Result<u8, String> {
     let (settings, index) = stores()?;
     let env = Env::system();
     let l10n = |error: cost::CostError| error.l10n().resolve(locale);
@@ -225,11 +230,17 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
                     cost::PlanSetting::new(price, &currency, day)
                 })
                 .map_err(l10n)?;
-            settings.set_plan(&account, Some(plan)).map_err(l10n)?;
+            let key = plan_key(configured.as_deref(), &account);
+            settings.set_plan(&key, Some(plan)).map_err(l10n)?;
             writeln!(stdout, "Plano de {account} salvo neste computador.").map_err(io_error)?;
             Ok(0)
         }
         CostAction::PlanClear(account) => {
+            // Both the id and the legacy key, so no older plan survives.
+            if let Some(found) = find_account(configured.as_deref(), &account) {
+                settings.set_plan(&found.key(), None).map_err(l10n)?;
+                settings.set_plan(&found.state_key(), None).map_err(l10n)?;
+            }
             settings.set_plan(&account, None).map_err(l10n)?;
             writeln!(stdout, "Plano de {account} removido.").map_err(io_error)?;
             Ok(0)
@@ -294,7 +305,9 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
                 writeln!(stdout).map_err(io_error)?;
             } else {
                 let saved = scanner.settings().load().unwrap_or_default();
-                let accounts = planned_accounts(&saved.plans);
+                let accounts = configured
+                    .clone()
+                    .unwrap_or_else(|| planned_accounts(&saved.plans));
                 let plans = scanner
                     .plan_values(&pricing, &accounts, now)
                     .unwrap_or_default();
@@ -334,7 +347,23 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
     }
 }
 
-/// The accounts the saved plans name (`provider:name`), enough for
+/// The configured account `name` designates: its id or its
+/// `provider:name` key.
+fn find_account<'a>(accounts: Option<&'a [Account]>, name: &str) -> Option<&'a Account> {
+    accounts?
+        .iter()
+        .find(|account| account.state_key() == name || account.key() == name)
+}
+
+/// PRD 0029 RF2: the settings key of the plan of `name`: the account id
+/// when the configuration names it, else `name` as typed (a legacy
+/// `provider:name` key, matched by the core's fallback).
+fn plan_key(accounts: Option<&[Account]>, name: &str) -> String {
+    find_account(accounts, name).map_or_else(|| name.to_owned(), Account::state_key)
+}
+
+/// Without a configuration: the accounts the saved plans name
+/// (`provider:name`), enough for
 /// [`cost::plan_values`]; plans of extension accounts are not matched.
 fn planned_accounts(plans: &std::collections::BTreeMap<String, cost::PlanSetting>) -> Vec<Account> {
     plans
@@ -342,6 +371,7 @@ fn planned_accounts(plans: &std::collections::BTreeMap<String, cost::PlanSetting
         .filter_map(|key| {
             let (provider, name) = key.split_once(':')?;
             Some(Account {
+                id: None,
                 name: name.to_owned(),
                 provider: Provider::from_slug(provider)?,
                 credential_env: None,
