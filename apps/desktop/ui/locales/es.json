@@ -108,6 +108,7 @@
   "settings.kw.thresholds": "porcentaje límite advertencia nivel",
   "settings.kw.overage": "uso extra excedente bajo demanda pago facturación alerta",
   "settings.kw.vault": "credenciales bóveda llavero secretos tokens guardados huérfanas limpieza",
+  "settings.kw.detect": "detectar encontrar herramientas locales cli instaladas sugerir",
   "settings.kw.exhaustion": "agotada vacía sin cuota alerta",
   "settings.kw.recovery": "recuperada disponible de nuevo alerta",
   "settings.kw.test": "probar notificación permiso enviar",
