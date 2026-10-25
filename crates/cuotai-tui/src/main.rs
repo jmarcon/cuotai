@@ -875,6 +875,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 watch,
                 local_cost,
                 args.strict_exit,
+                headless::Reload {
+                    path: file.path.clone(),
+                    interval: args.interval,
+                    hooks: args.hooks,
+                },
             )
             .await;
         }

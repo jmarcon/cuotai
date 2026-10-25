@@ -64,6 +64,42 @@ impl Driver {
         &self.cycle
     }
 
+    /// PRD 0031 RF12: switch to `new_config` (reread after `SIGHUP`) and
+    /// `monitor`, built for it. Queries in flight are abandoned; the shared
+    /// cycle (the same `Arc` the local server reads) is replaced in place by
+    /// [`RefreshCycle::reload`], so unchanged accounts keep their readings
+    /// and are not queried again, and new or changed ones are queried at
+    /// the next [`Self::step`].
+    pub fn reload(
+        &mut self,
+        prev_config: &Config,
+        new_config: &Config,
+        monitor: Arc<Monitor>,
+        now: Instant,
+    ) {
+        self.abort_all();
+        {
+            let mut cycle = lock(&self.cycle);
+            let mut next = cycle.reload(prev_config, new_config, now);
+            next.restore_last_good(monitor.restored_readings());
+            *cycle = next;
+        }
+        self.monitor = monitor;
+        self.accounts = (0..new_config.accounts.len()).map(|_| None).collect();
+    }
+
+    fn abort_all(&mut self) {
+        if let Some((job, _)) = self.full.take() {
+            job.abort();
+        }
+        for (job, _) in self.accounts.drain(..).flatten() {
+            job.abort();
+        }
+        if let Some(job) = self.status.take() {
+            job.abort();
+        }
+    }
+
     /// Hand every finished query to the cycle (a failed task as `None`, so
     /// the cycle backs it off), then start what is due at `now`: the first
     /// full sweep, pending accounts whose deadline came, periodic ones and
@@ -182,15 +218,7 @@ impl Driver {
 impl Drop for Driver {
     /// Queries still in flight are abandoned.
     fn drop(&mut self) {
-        if let Some((job, _)) = self.full.take() {
-            job.abort();
-        }
-        for (job, _) in self.accounts.drain(..).flatten() {
-            job.abort();
-        }
-        if let Some(job) = self.status.take() {
-            job.abort();
-        }
+        self.abort_all();
     }
 }
 

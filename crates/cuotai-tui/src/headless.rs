@@ -5,33 +5,54 @@
 //! event stream read the same cycle, so watching and serving never add a
 //! query.
 //!
-//! SIGINT and SIGTERM (Ctrl+C and Ctrl+Break on Windows) end the process,
-//! and so does SIGHUP while watching. Exit codes (PRD 0031 RF10): `0` when
-//! stopped by a signal, whatever the accounts' state; with `--strict-exit`,
-//! `2` when serving and no account was healthy (`ready`) until shutdown, or
-//! when watching and some account's latest reading had failed; local
-//! errors return `Err`, which `main` turns into `1`.
+//! SIGINT and SIGTERM (Ctrl+C and Ctrl+Break on Windows) end the process.
+//! On Unix, SIGHUP rereads the configuration (PRD 0031 RF12): the cycle,
+//! the server's source and the event stream switch to the reread file, an
+//! invalid one keeps the previous configuration. Windows has no SIGHUP and
+//! no equivalent: restart the process to apply an edit there. Exit codes
+//! (PRD 0031 RF10): `0` when stopped by a signal, whatever the accounts'
+//! state; with `--strict-exit`, `2` when serving and no account was
+//! healthy (`ready`) until shutdown, or when watching and some account's
+//! latest reading had failed; local errors return `Err`, which `main`
+//! turns into `1`.
 
 use std::{
     error::Error,
     io::{self, Write},
-    sync::Arc,
+    path::PathBuf,
+    sync::{Arc, PoisonError, RwLock, RwLockReadGuard},
     time::Instant,
 };
 
 use chrono::Utc;
 use cuotai_core::{
-    config_file::ConfigIdentity,
+    config_file::{ConfigFile, ConfigIdentity},
     headless::{Driver, TICK},
     Config, Monitor,
 };
 
-use crate::{cost::LocalCost, serve::ServeArgs, watch::WatchArgs};
+use crate::{
+    cost::LocalCost,
+    serve::{Live, ServeArgs},
+    watch::WatchArgs,
+};
+
+/// PRD 0031 RF12: what a `SIGHUP` reload needs to reread the file the way
+/// the process first read it.
+pub(crate) struct Reload {
+    /// The accounts' TOML that was loaded.
+    pub path: PathBuf,
+    /// `--interval`, which holds for the whole run.
+    pub interval: Option<u64>,
+    /// `--hooks`: also reread `hooks.toml`.
+    pub hooks: bool,
+}
 
 /// Run until a shutdown signal arrives (or, with `--watch`, until stdout
 /// is closed). `monitor` was built for `config`; with `--serve`, the
 /// server publishes `local_cost` from `local_cost` (PRD 0015 RF4.3).
 /// `strict_exit` keeps the failing-account exit code `2` (PRD 0031 RF10.2).
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run(
     config: Config,
     identity: ConfigIdentity,
@@ -40,6 +61,7 @@ pub(crate) async fn run(
     watch: Option<WatchArgs>,
     local_cost: Option<LocalCost>,
     strict_exit: bool,
+    reload: Reload,
 ) -> Result<u8, Box<dyn Error>> {
     let token = serve
         .as_ref()
@@ -48,18 +70,21 @@ pub(crate) async fn run(
         .flatten();
     // Registered before the port opens or a query starts, so a failure is
     // a local error and a signal sent right after the start is never lost.
-    let mut shutdown = Shutdown::listen(watch.is_some())?;
+    let mut signals = Signals::listen()?;
     let monitor = Arc::new(monitor);
     let mut driver = Driver::new(&config, Arc::clone(&monitor), Instant::now());
+    let live = Arc::new(RwLock::new(Live {
+        config,
+        identity,
+        monitor,
+    }));
     let server = match &serve {
         Some(args) => Some(
             crate::serve::start(
                 args,
                 token,
-                config.clone(),
-                identity.clone(),
+                Arc::clone(&live),
                 Arc::clone(driver.cycle()),
-                Arc::clone(&monitor),
                 local_cost,
             )
             .await?,
@@ -79,7 +104,7 @@ pub(crate) async fn run(
     }
     let mut watch = watch.map(crate::watch::Watch::new);
     if let Some(watch) = &watch {
-        eprintln!("{}", watch.started(config.accounts.len()));
+        eprintln!("{}", watch.started(read(&live).config.accounts.len()));
     }
 
     // PRD 0026 RF3.2: the event journal follows this cycle too.
@@ -96,16 +121,28 @@ pub(crate) async fn run(
             }
             if let Some(watch) = watch.as_mut() {
                 let now = Utc::now();
+                let live = read(&live);
                 let pace = |index, report: &cuotai_core::Report| {
-                    crate::ui::pace_input(&monitor, &config, index, report)
+                    crate::ui::pace_input(&live.monitor, &live.config, index, report)
                 };
-                if !watch.emit(&driver.export(&config, &identity, now), now, &pace)? {
+                let export = driver.export(&live.config, &live.identity, now);
+                if !watch.emit(&export, now, &pace)? {
                     break;
                 }
             }
         }
         tokio::select! {
-            () = shutdown.wait() => break,
+            signal = signals.wait() => match signal {
+                Signal::Stop => break,
+                Signal::Reload => {
+                    if reload_config(&reload, &live, &mut driver, watch.as_mut(), &mut signals)
+                        .await
+                        == Signal::Stop
+                    {
+                        break;
+                    }
+                }
+            },
             () = tokio::time::sleep(TICK) => {}
         }
     }
@@ -114,6 +151,7 @@ pub(crate) async fn run(
     }
     let (ready_seen, failing) = (driver.ready_seen(), driver.failing());
     drop(driver);
+    let monitor = Arc::clone(&read(&live).monitor);
     // Readings queued to the history land before the process ends.
     monitor.flush_history(crate::HISTORY_FLUSH);
     if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
@@ -139,53 +177,146 @@ pub(crate) async fn run(
     Ok(code)
 }
 
-/// SIGINT, SIGTERM and, while watching, SIGHUP.
+fn read(live: &RwLock<Live>) -> RwLockReadGuard<'_, Live> {
+    live.read().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// PRD 0031 RF12.1: reread the TOML through `ConfigFile` and apply it to
+/// the running cycle, the server's source and the event stream; with
+/// `--hooks`, reread `hooks.toml` too, whose rules stay suspended until
+/// confirmed (on a terminal) or are refused without one. An invalid file
+/// keeps the old configuration and logs why. [`Signal::Stop`] when a stop
+/// arrived while the hooks' question was waiting.
+async fn reload_config(
+    reload: &Reload,
+    live: &RwLock<Live>,
+    driver: &mut Driver,
+    watch: Option<&mut crate::watch::Watch>,
+    signals: &mut Signals,
+) -> Signal {
+    let loaded = load(reload).and_then(|(config, identity)| {
+        let monitor = read(live)
+            .monitor
+            .with_config(config.clone())
+            .map_err(|error| error.to_string())?;
+        Ok((config, identity, monitor))
+    });
+    let (config, identity, monitor) = match loaded {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            eprintln!(
+                "cuotai: configuração não recarregada; a anterior continua em uso: {}",
+                crate::ui::safe(&error)
+            );
+            return Signal::Reload;
+        }
+    };
+    {
+        // The server reads `live`, then the cycle: replacing both under
+        // this write lock keeps every answer consistent.
+        let mut live = live.write().unwrap_or_else(PoisonError::into_inner);
+        let monitor = Arc::new(monitor);
+        driver.reload(&live.config, &config, Arc::clone(&monitor), Instant::now());
+        *live = Live {
+            config,
+            identity,
+            monitor,
+        };
+        eprintln!(
+            "cuotai: configuração recarregada ({} conta(s)).",
+            live.config.accounts.len()
+        );
+    }
+    let Some(watch) = watch.filter(|_| reload.hooks) else {
+        return Signal::Reload;
+    };
+    // Changed rules never run before they are confirmed again.
+    watch.set_hooks(None);
+    let path = reload.path.clone();
+    let job = tokio::task::spawn_blocking(move || {
+        crate::watch::confirmed_hooks(&path, crate::ui::tui_locale())
+    });
+    tokio::select! {
+        result = job => match result {
+            Ok(Ok(confirmed)) => {
+                watch.set_hooks(Some(confirmed));
+                eprintln!("cuotai: hooks recarregados.");
+            }
+            Ok(Err(error)) => eprintln!("cuotai: hooks suspensos: {error}"),
+            Err(_) => eprintln!("cuotai: hooks suspensos."),
+        },
+        // A stop while the question waits ends the process as usual; the
+        // blocked read of the answer ends with it.
+        signal = signals.wait() => {
+            if signal == Signal::Stop {
+                return Signal::Stop;
+            }
+            eprintln!("cuotai: hooks suspensos.");
+        }
+    }
+    Signal::Reload
+}
+
+/// The file the process first read, reread with the run's `--interval`.
+fn load(reload: &Reload) -> Result<(Config, ConfigIdentity), String> {
+    let file = ConfigFile::load(Some(reload.path.clone()), false).map_err(|e| e.to_string())?;
+    let identity = file.identity().map_err(|e| e.to_string())?;
+    let config = match reload.interval {
+        Some(seconds) => cuotai_core::watch::with_interval(&file.config, seconds)
+            .map_err(|error| error.resolve(crate::ui::tui_locale()))?,
+        None => file.config,
+    };
+    Ok((config, identity))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Signal {
+    /// End the process.
+    Stop,
+    /// PRD 0031 RF12: reread the configuration (never sent on Windows).
+    #[cfg_attr(windows, allow(dead_code))]
+    Reload,
+}
+
+/// SIGINT and SIGTERM stop; SIGHUP reloads.
 #[cfg(unix)]
-struct Shutdown {
+struct Signals {
     interrupt: tokio::signal::unix::Signal,
     terminate: tokio::signal::unix::Signal,
-    hangup: Option<tokio::signal::unix::Signal>,
+    hangup: tokio::signal::unix::Signal,
 }
 
 #[cfg(unix)]
-impl Shutdown {
-    fn listen(hangup: bool) -> io::Result<Self> {
+impl Signals {
+    fn listen() -> io::Result<Self> {
         use tokio::signal::unix::{signal, SignalKind};
         Ok(Self {
             interrupt: signal(SignalKind::interrupt())?,
             terminate: signal(SignalKind::terminate())?,
-            hangup: hangup.then(|| signal(SignalKind::hangup())).transpose()?,
+            hangup: signal(SignalKind::hangup())?,
         })
     }
 
     /// Cancel-safe: a signal that arrives between two calls is kept.
-    async fn wait(&mut self) {
-        let hangup = async {
-            match self.hangup.as_mut() {
-                Some(hangup) => {
-                    hangup.recv().await;
-                }
-                None => std::future::pending().await,
-            }
-        };
+    async fn wait(&mut self) -> Signal {
         tokio::select! {
-            _ = self.interrupt.recv() => {}
-            _ = self.terminate.recv() => {}
-            () = hangup => {}
+            _ = self.interrupt.recv() => Signal::Stop,
+            _ = self.terminate.recv() => Signal::Stop,
+            _ = self.hangup.recv() => Signal::Reload,
         }
     }
 }
 
-/// Ctrl+C and Ctrl+Break.
+/// Ctrl+C and Ctrl+Break stop; Windows has no reload signal.
 #[cfg(windows)]
-struct Shutdown {
+struct Signals {
     ctrl_c: tokio::signal::windows::CtrlC,
     ctrl_break: tokio::signal::windows::CtrlBreak,
 }
 
 #[cfg(windows)]
-impl Shutdown {
-    fn listen(_hangup: bool) -> io::Result<Self> {
+impl Signals {
+    fn listen() -> io::Result<Self> {
         Ok(Self {
             ctrl_c: tokio::signal::windows::ctrl_c()?,
             ctrl_break: tokio::signal::windows::ctrl_break()?,
@@ -193,10 +324,10 @@ impl Shutdown {
     }
 
     /// Cancel-safe: a signal that arrives between two calls is kept.
-    async fn wait(&mut self) {
+    async fn wait(&mut self) -> Signal {
         tokio::select! {
-            _ = self.ctrl_c.recv() => {}
-            _ = self.ctrl_break.recv() => {}
+            _ = self.ctrl_c.recv() => Signal::Stop,
+            _ = self.ctrl_break.recv() => Signal::Stop,
         }
     }
 }

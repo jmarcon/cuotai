@@ -402,6 +402,65 @@ impl RefreshCycle {
         }
     }
 
+    /// PRD 0031 RF12: the cycle for `new_config` after the whole file was
+    /// reread (`SIGHUP`), where the diff from `prev_config` (the one this
+    /// cycle was built from) is arbitrary. Each new account that equals
+    /// exactly one previous account keeps that account's report, preserved
+    /// reading, deadline and failure count, so an unchanged account is not
+    /// queried again; any other account starts pending with its deadline at
+    /// `now`, so the next scheduling step queries it. The generation moves
+    /// on and nothing stays in flight: a result started before the reload
+    /// is refused. A cycle that never finished its first sweep stays so.
+    pub fn reload(&self, prev_config: &Config, new_config: &Config, now: Instant) -> Self {
+        let mut next = Self::new(new_config, now);
+        next.generation = self.generation.wrapping_add(1);
+        next.attempted_full = self.attempted_full;
+        for (index, account) in new_config.accounts.iter().enumerate() {
+            let same = |other: &Account| other == account;
+            let mut matches = prev_config
+                .accounts
+                .iter()
+                .enumerate()
+                .filter(|(_, old)| same(old));
+            let (Some((old, _)), None) = (matches.next(), matches.next()) else {
+                next.deadlines[index] = now;
+                continue;
+            };
+            if new_config.accounts.iter().filter(|a| same(a)).count() != 1 {
+                next.deadlines[index] = now;
+                continue;
+            }
+            next.slots[index] = self.slots.get(old).cloned().flatten();
+            next.last_good[index] = self.last_good.get(old).cloned().flatten();
+            next.failures[index] = self.failures.get(old).copied().unwrap_or(0);
+            match self.deadlines.get(old) {
+                // A reading in flight was abandoned: ask again now.
+                Some(_) if self.busy.contains(&old) => next.deadlines[index] = now,
+                Some(deadline) => next.deadlines[index] = *deadline,
+                None => next.deadlines[index] = now,
+            }
+            if let Some(report) = &next.slots[index] {
+                let key = report.account_key();
+                if let Some(query) = self.reset_queries.get(&key) {
+                    next.reset_queries.insert(key, query.clone());
+                }
+            }
+        }
+        if next.slots.iter().all(Option::is_some) && !next.slots.is_empty() {
+            let reports: Vec<Report> = next.slots.iter().flatten().cloned().collect();
+            let started_at = self
+                .snapshot
+                .as_ref()
+                .map_or_else(Utc::now, |s| s.started_at);
+            next.snapshot = Some(Snapshot {
+                started_at,
+                finished_at: Utc::now(),
+                reports,
+            });
+        }
+        next
+    }
+
     /// Number of slots the cycle is currently tracking. Equals the number
     /// of accounts in the configuration the cycle was built from.
     pub fn len(&self) -> usize {
@@ -1259,6 +1318,52 @@ mod tests {
     fn prime_with_snapshot(cycle: &mut RefreshCycle, snapshot: Snapshot, now: Instant) {
         let token = cycle.begin_full().expect("begin_full available");
         cycle.finish_full(Some(snapshot), token, now);
+    }
+
+    /// PRD 0031 RF12: a reload keeps unchanged accounts' readings and
+    /// deadlines, queries new or changed ones at once, and refuses results
+    /// started before it.
+    #[test]
+    fn reload_keeps_unchanged_accounts_and_queues_new_ones() {
+        let now = Instant::now();
+        let prev = config_with(vec![account("a", None), account("b", None)]);
+        let mut cycle = RefreshCycle::new(&prev, now);
+        let snapshot = Snapshot {
+            started_at: Utc.timestamp_opt(0, 0).unwrap(),
+            finished_at: Utc.timestamp_opt(0, 0).unwrap(),
+            reports: vec![report("a", 1), report("b", 2)],
+        };
+        prime_with_snapshot(&mut cycle, snapshot, now);
+        let stale = cycle.begin(1).unwrap();
+        let next_config = config_with(vec![account("c", None), account("b", None)]);
+        let later = now + Duration::from_secs(5);
+        let mut next = cycle.reload(&prev, &next_config, later);
+
+        assert_eq!(next.len(), 2);
+        assert!(next.attempted_full());
+        assert_eq!(next.pending_now_indices(later), vec![0]);
+        assert_eq!(next.account_report(1).unwrap().account, "b");
+        // `b` was in flight: its abandoned query is asked again now.
+        assert!(next.is_due(1, later));
+        assert!(!next.finish_account(1, Some(report("b", 3)), stale, later));
+        assert!(next.snapshot().is_none());
+    }
+
+    #[test]
+    fn reload_of_an_unchanged_file_keeps_everything() {
+        let now = Instant::now();
+        let config = config_with(vec![account("a", None)]);
+        let mut cycle = RefreshCycle::new(&config, now);
+        let snapshot = Snapshot {
+            started_at: Utc.timestamp_opt(0, 0).unwrap(),
+            finished_at: Utc.timestamp_opt(0, 0).unwrap(),
+            reports: vec![report("a", 1)],
+        };
+        prime_with_snapshot(&mut cycle, snapshot, now);
+        let next = cycle.reload(&config, &config, now);
+        assert!(next.pending_now_indices(now).is_empty());
+        assert!(!next.is_due(0, now));
+        assert_eq!(next.snapshot().unwrap().reports.len(), 1);
     }
 
     #[test]

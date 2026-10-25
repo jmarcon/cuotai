@@ -55,6 +55,9 @@ pub(crate) struct Watch {
     /// PRD 0032 RF5.1: the desktop's quiet hours, which a hook rule with
     /// `quiet = "skip"` honours (the stream itself is never held).
     quiet: cuotai_core::notify_prefs::Source,
+    /// Started with `--hooks`: readable lines stay off stdout even while
+    /// the rules are suspended by a reload (PRD 0031 RF12).
+    with_hooks: bool,
 }
 
 impl Watch {
@@ -70,9 +73,16 @@ impl Watch {
                 args.events,
             ),
             jsonl: args.jsonl,
+            with_hooks: args.hooks.is_some(),
             hooks: args.hooks.map(start_hooks),
             quiet: cuotai_core::notify_prefs::Source::open(),
         }
+    }
+
+    /// PRD 0031 RF12: replace the running hooks (`None` suspends them).
+    /// Only meaningful when the run started with `--hooks`.
+    pub(crate) fn set_hooks(&mut self, hooks: Option<Confirmed>) {
+        self.hooks = hooks.map(start_hooks);
     }
 
     /// The stderr line that opens the run.
@@ -110,9 +120,9 @@ impl Watch {
             if dropped > 0 {
                 eprintln!("cuotai: {}", hooks::dropped(dropped).resolve(locale));
             }
-            if !self.jsonl {
-                return Ok(true);
-            }
+        }
+        if self.with_hooks && !self.jsonl {
+            return Ok(true);
         }
         match write_events(&mut io::stdout().lock(), &events, self.jsonl, locale) {
             Ok(()) => Ok(true),

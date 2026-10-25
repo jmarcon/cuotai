@@ -11,7 +11,7 @@
 use std::{
     error::Error,
     path::PathBuf,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError, RwLock},
 };
 
 use chrono::Utc;
@@ -62,42 +62,60 @@ pub(crate) fn token(args: &ServeArgs) -> Result<Option<Token>, String> {
     Ok(resolved.token)
 }
 
-/// Open the port and serve the export of `cycle` (the one `monitor`'s
-/// queries feed), with `local_cost` from the cost index (PRD 0015 RF4.3),
-/// until the returned server is shut down.
+/// What the server reads on every request: the configuration, its
+/// identity and the monitor built for it. PRD 0031 RF12: a reload replaces
+/// it, so the server answers for the reread file without restarting.
+pub(crate) struct Live {
+    pub config: Config,
+    pub identity: ConfigIdentity,
+    pub monitor: Arc<Monitor>,
+}
+
+pub(crate) type SharedLive = Arc<RwLock<Live>>;
+
+fn read(live: &RwLock<Live>) -> std::sync::RwLockReadGuard<'_, Live> {
+    live.read().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Open the port and serve the export of `cycle` (the one `live`'s
+/// monitor queries feed), with `local_cost` from the cost index (PRD 0015
+/// RF4.3), until the returned server is shut down.
 pub(crate) async fn start(
     args: &ServeArgs,
     token: Option<Token>,
-    config: Config,
-    identity: ConfigIdentity,
+    live: SharedLive,
     cycle: Arc<Mutex<RefreshCycle>>,
-    monitor: Arc<Monitor>,
     local_cost: Option<LocalCost>,
 ) -> Result<LocalServer, Box<dyn Error>> {
     let generation = {
-        let (monitor, cycle) = (monitor.clone(), cycle.clone());
+        let (live, cycle) = (live.clone(), cycle.clone());
         move || {
-            let incidents = monitor.incident_statuses();
+            let incidents = read(&live).monitor.incident_statuses();
             let cycle = cycle.lock().unwrap_or_else(PoisonError::into_inner);
             cuotai_core::serve::generation_of(&cycle, &incidents)
         }
     };
-    let stats_monitor = monitor.clone();
-    let stats_accounts = config.accounts.clone();
+    let stats_live = live.clone();
     let source = move || {
-        let incidents = monitor.incident_statuses();
+        let live = read(&live);
+        let incidents = live.monitor.incident_statuses();
         let now = Utc::now();
         let local_cost = local_cost.as_ref().and_then(|cost| cost.export(now));
         let cycle = cycle.lock().unwrap_or_else(PoisonError::into_inner);
+        // A reload between reading `live` and the cycle could leave them
+        // apart for one request; never build an export from such a pair.
+        if cycle.len() != live.config.accounts.len() {
+            return None;
+        }
         Some(
             Export::from_cycle_with_history(
-                &config,
-                &identity,
+                &live.config,
+                &live.identity,
                 &cycle,
                 &incidents,
                 now,
                 Options::default(),
-                |index, metrics, at| monitor.recent_points(index, metrics, at),
+                |index, metrics, at| live.monitor.recent_points(index, metrics, at),
             )
             .with_local_cost(local_cost),
         )
@@ -108,7 +126,8 @@ pub(crate) async fn start(
     let server = match LocalServer::start(
         config,
         cuotai_core::serve::with_stats(source, move |range| {
-            stats(&stats_monitor, &stats_accounts, range)
+            let live = read(&stats_live);
+            stats(&live.monitor, &live.config.accounts, range)
         }),
     )
     .await

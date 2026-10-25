@@ -154,10 +154,10 @@ fn get(addr: &str, path: &str) -> (u16, String) {
 
 /// RF2.5 and RF2.4: `--watch` and `--serve` share one cycle (one query
 /// for both), the first reading is only a baseline (nothing on stdout,
-/// which belongs to the events, so the address goes to stderr) and SIGHUP
-/// ends the run with 0.
+/// which belongs to the events, so the address goes to stderr) and SIGTERM
+/// ends the run with 0 (SIGHUP reloads since PRD 0031 RF12).
 #[test]
-fn watch_with_serve_shares_the_cycle_and_exits_0_on_sighup() {
+fn watch_with_serve_shares_the_cycle_and_exits_0_on_sigterm() {
     let sandbox = Sandbox::new("serve", "0.5");
     let config = sandbox.config();
     let child = sandbox
@@ -201,7 +201,7 @@ fn watch_with_serve_shares_the_cycle_and_exits_0_on_sighup() {
     );
     assert_eq!(sandbox.calls(), 1, "one query serves both");
 
-    let (status, stdout) = stop(child, "-HUP");
+    let (status, stdout) = stop(child, "-TERM");
     assert_eq!(status.code(), Some(0), "{}", sandbox.stderr());
     assert_eq!(stdout, "", "a baseline emits no event");
     assert_eq!(sandbox.calls(), 1);

@@ -459,3 +459,83 @@ fn stats_route_needs_its_own_flag_and_a_token() {
         .unwrap();
     assert_eq!(wait(&mut child).code(), Some(1));
 }
+
+/// PRD 0031 RF12: `SIGHUP` rereads the TOML: an added account appears in
+/// the snapshot and `/v1/limits` while the unchanged one is not queried
+/// again, and an invalid file keeps serving the previous configuration.
+#[test]
+fn sighup_reloads_the_configuration_and_keeps_serving_on_errors() {
+    let sandbox = Sandbox::new("reload");
+    let config = sandbox.config("dev");
+    let token = sandbox.file("token", &format!("{TOKEN}\n"));
+    let server = Server::start(
+        &sandbox,
+        &[
+            "--config",
+            arg(&config),
+            "--serve",
+            "--port",
+            "0",
+            "--token-file",
+            arg(&token),
+        ],
+    );
+    let bearer = format!("Authorization: Bearer {TOKEN}\r\n");
+    server.first_snapshot(&bearer);
+    assert_eq!(sandbox.aws_calls(), 1);
+    let hup = |server: &Server| {
+        let sent = Command::new("kill")
+            .args(["-HUP", &server.child.id().to_string()])
+            .status()
+            .unwrap();
+        assert!(sent.success());
+    };
+    let accounts = |server: &Server| -> Vec<String> {
+        let (status, body) = server.get("/v1/snapshot", &bearer);
+        if status != 200 {
+            return Vec::new();
+        }
+        let value: serde_json::Value = serde_json::from_str(&body).unwrap();
+        value["accounts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a["key"].as_str().unwrap_or_default().to_owned())
+            .collect()
+    };
+
+    fs::write(
+        &config,
+        "[[accounts]]\nname = \"Bedrock\"\nprovider = \"aws_bedrock\"\nparams = { profile = \"dev\" }\n\n\
+         [[accounts]]\nname = \"Second\"\nprovider = \"aws_bedrock\"\nparams = { profile = \"two\" }\n",
+    )
+    .unwrap();
+    hup(&server);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while accounts(&server).len() != 2 || sandbox.aws_calls() < 2 {
+        assert!(Instant::now() < deadline, "no reload: {}", sandbox.stderr());
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let (status, limits) = server.get("/v1/limits", &bearer);
+    assert_eq!(status, 200);
+    assert!(limits.contains("Second"), "{limits}");
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(sandbox.aws_calls(), 2, "only the new account was queried");
+    assert!(sandbox.stderr().contains("configuração recarregada"));
+
+    fs::write(&config, "[[accounts]\nname = ").unwrap();
+    hup(&server);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !sandbox.stderr().contains("configuração não recarregada") {
+        assert!(Instant::now() < deadline, "{}", sandbox.stderr());
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert_eq!(
+        accounts(&server).len(),
+        2,
+        "the previous configuration stays"
+    );
+
+    let (status, _) = server.stop("-TERM");
+    assert_eq!(status.code(), Some(0), "{}", sandbox.stderr());
+}
