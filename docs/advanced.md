@@ -97,6 +97,17 @@ A model name with a date suffix (`claude-sonnet-4-5-20250929`) uses the price of
 
 Every successful reading (TUI, desktop app, `--once`, `--json`, `--json-v1`, `--serve` and `--watch`) also enters a local measurement history on this computer only: `<OS local data dir>/cuotai/history/history.sqlite3`, private to your user, holding numbers and window metadata, never credentials, account names or provider text. The history keeps 90 days by default (`--history-days 7…365` on the command line, **Settings › Data & privacy** on the desktop), keeps one sample per hour after 7 days (each window's peak stays) and stays under 64 MiB, warning when it had to delete old samples. `--history [ACCOUNT]` prints the recorded series (`--json` for scripts; `--history-days` picks the days shown, 7 by default). How the desktop app draws it is in [`gui-features.md`](gui-features.md#account-details-and-history).
 
+## Update notice
+
+The terminal never looks for a new version unless you ask it to. Set `CUOTAI_UPDATE_CHECK=1`, or add this to the accounts file:
+
+```toml
+[updates]
+check = true
+```
+
+Then the interactive TUI and `--once`, when run on a terminal, read the same signed release manifest the desktop updater reads (`latest.json` on GitHub Releases) at most once every 24 hours and print one line to standard error when a newer stable version exists, for example `Cuotai 0.81.0 is available: brew upgrade cuotai`. The command is the one of the channel you installed from (`cuotai --install-source`); a copy without a package manager gets the releases page instead. The request carries only the `User-Agent` `cuotai/<version>`; the answer is cached in `<OS local data dir>/cuotai/update-check.json`. Nothing is printed for `--json`, `--json-v1`, `--watch`, `--serve` or when standard output is not a terminal, and a failed check is silent. Cuotai never updates itself from the terminal.
+
 ## Environment variables
 
 | Variable | Effect |
@@ -107,4 +118,5 @@ Every successful reading (TUI, desktop app, `--once`, `--json`, `--json-v1`, `--
 | `CUOTAI_STATUS=1` | Show providers' public status in the terminal and `--once` / `--json` (`--no-status` always wins). |
 | `CUOTAI_NO_ANIMATIONS=1`, `CUOTAI_ANIMATIONS=1` | Turn terminal animations off or back on (see [`tui.md`](tui.md#animations)). |
 | `CUOTAI_USER_DIR` | Folder for user themes and languages (desktop). |
+| `CUOTAI_UPDATE_CHECK=1` | Turn on the terminal update notice (see [Update notice](#update-notice)); `0` turns it off even when the accounts file turns it on. |
 | `CUOTAI_UPDATER=off` | Turn the desktop in-app updater off (for example for a package-manager install). |

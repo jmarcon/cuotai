@@ -1038,6 +1038,8 @@
   "status.unsupported": "Unavailable",
   "test.nine_router.certificate_changed": "The instance's certificate changed and no longer matches the pinned one. New SHA-256 fingerprint: {fingerprint}. Check it on the server before trusting it.",
   "test.nine_router.untrusted_certificate": "This computer does not trust the instance's certificate. SHA-256 fingerprint: {fingerprint}. Check it on the server before trusting it.",
+  "update.notice": "Cuotai {version} is available: {command}",
+  "update.notice_download": "Cuotai {version} is available: {url}",
   "user_session.invalid_reference": "Invalid session reference in [accounts.session]; enter the session again in the account wizard.",
   "user_session.migrate.consent": "{label}: copy the value of {env} into the system vault and remove {env} from the TOML. The session is only sent to {hosts}; the variable stays in your environment until you remove it.",
   "user_session.migrate.done": "Session moved to the system vault; the TOML keeps only the reference. Remove the variable from your environment whenever you like.",

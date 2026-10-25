@@ -1038,6 +1038,8 @@
   "status.unsupported": "Non disponibile",
   "test.nine_router.certificate_changed": "Il certificato dell'istanza è cambiato e non corrisponde più a quello fissato. Nuova impronta SHA-256: {fingerprint}. Verificala sul server prima di fidarti.",
   "test.nine_router.untrusted_certificate": "Questo computer non si fida del certificato dell'istanza. Impronta SHA-256: {fingerprint}. Verificala sul server prima di fidarti.",
+  "update.notice": "Cuotai {version} è disponibile: {command}",
+  "update.notice_download": "Cuotai {version} è disponibile: {url}",
   "user_session.invalid_reference": "Riferimento di sessione non valido in [accounts.session]; inserisci di nuovo la sessione nella procedura guidata dell'account.",
   "user_session.migrate.consent": "{label}: copia il valore di {env} nel vault di sistema e rimuovi {env} dal TOML. La sessione viene inviata solo a {hosts}; la variabile resta nel tuo ambiente finché non la rimuovi.",
   "user_session.migrate.done": "Sessione spostata nel vault di sistema; il TOML conserva solo il riferimento. Rimuovi la variabile dal tuo ambiente quando vuoi.",

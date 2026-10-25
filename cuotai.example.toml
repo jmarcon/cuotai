@@ -23,6 +23,10 @@ timeout_seconds = 30
 # label = "Coding assistants"
 # order = 1
 
+# Opt in to the terminal update notice (off by default; CUOTAI_UPDATE_CHECK=1 does the same).
+# [updates]
+# check = true
+
 [[accounts]]
 name = "OpenAI API"
 provider = "open_ai_api"

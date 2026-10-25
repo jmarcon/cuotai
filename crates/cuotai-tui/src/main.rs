@@ -16,6 +16,7 @@ mod serve;
 mod stats_view;
 mod status_line;
 mod ui;
+mod update_notice;
 mod vault;
 mod watch;
 mod wizard;
@@ -835,6 +836,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         .map_err(|error| error.resolve(locale))?;
     let retention = retention(args.history_days)?;
     let file = ConfigFile::load(args.config, interactive)?;
+    // PRD 0028 RF8: the opt-in update notice, TUI and `--once` only.
+    let update_notice = update_notice::start(
+        &file,
+        interactive || (args.once && !args.json && !args.json_v1 && !args.serve && !args.watch),
+    );
     // PRD 0013 RF3.2: no hook runs before its exact commands were
     // confirmed, and no query starts before that is settled.
     let hooks = if args.hooks {
@@ -995,6 +1001,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
             eprintln!("cuotai: {}", warning.resolve(ui::tui_locale()));
         }
+        update_notice::print(update_notice, locale).await;
         return Ok(code);
     }
     let animations = motion::enabled(args.no_animations, |key| std::env::var(key).ok());
@@ -1012,6 +1019,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         local_cost,
     )
     .await?;
+    update_notice::print(update_notice, locale).await;
     Ok(0)
 }
 

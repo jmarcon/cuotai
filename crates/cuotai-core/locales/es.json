@@ -1038,6 +1038,8 @@
   "status.unsupported": "No disponible",
   "test.nine_router.certificate_changed": "El certificado de la instancia cambió y ya no coincide con el fijado. Nueva huella SHA-256: {fingerprint}. Compruébala en el servidor antes de confiar en ella.",
   "test.nine_router.untrusted_certificate": "Este equipo no confía en el certificado de la instancia. Huella SHA-256: {fingerprint}. Compruébala en el servidor antes de confiar en ella.",
+  "update.notice": "Cuotai {version} está disponible: {command}",
+  "update.notice_download": "Cuotai {version} está disponible: {url}",
   "user_session.invalid_reference": "Referencia de sesión inválida en [accounts.session]; vuelva a indicar la sesión en el asistente de la cuenta.",
   "user_session.migrate.consent": "{label}: copiar el valor de {env} a la bóveda del sistema y quitar {env} del TOML. La sesión solo se envía a {hosts}; la variable sigue en su entorno hasta que usted la elimine.",
   "user_session.migrate.done": "Sesión movida a la bóveda del sistema; el TOML guarda solo la referencia. Elimine la variable de su entorno cuando quiera.",

@@ -48,6 +48,7 @@ pub mod support;
 pub mod text;
 mod transport;
 pub mod tray;
+pub mod update_check;
 pub mod user_session;
 pub mod watch;
 pub mod widget_snapshot;
@@ -147,7 +148,22 @@ fn metered_refresh_floor_error(
 
 impl Config {
     pub fn from_toml(text: &str) -> Result<Self, ConfigError> {
-        let config: Self = toml::from_str(text).map_err(|_| ConfigError::Parse)?;
+        // PRD 0028 RF8.2: `[updates]` belongs to the CLI update notice
+        // (`update_check`), not to the accounts' configuration. It is
+        // validated here and left out of `Config`, so the struct keeps its
+        // shape; `ConfigFile` preserves the table on save like any other
+        // unrelated content.
+        let config: Self = match toml::from_str::<toml::Table>(text) {
+            Ok(mut table) if table.contains_key("updates") => {
+                if let Some(updates) = table.remove("updates") {
+                    updates
+                        .try_into::<update_check::UpdatesSettings>()
+                        .map_err(|_| ConfigError::Parse)?;
+                }
+                table.try_into().map_err(|_| ConfigError::Parse)?
+            }
+            _ => toml::from_str(text).map_err(|_| ConfigError::Parse)?,
+        };
         config.validate()?;
         Ok(config)
     }

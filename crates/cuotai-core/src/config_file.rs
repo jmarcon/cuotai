@@ -162,6 +162,16 @@ pub struct ConfigFile {
 }
 
 impl ConfigFile {
+    /// The `[updates]` table of the file as loaded (PRD 0028 RF8.2); the
+    /// notice stays off when the file has none.
+    pub fn updates(&self) -> crate::update_check::UpdatesSettings {
+        self.original
+            .as_deref()
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .map(crate::update_check::settings_from_toml)
+            .unwrap_or_default()
+    }
+
     /// CLI/TUI load: `explicit` is `--config` (see [`Discovery::Cli`]),
     /// reading `CUOTAI_CONFIG`, cwd and the OS dir from the process.
     pub fn load(explicit: Option<PathBuf>, interactive: bool) -> Result<Self, EditError> {
