@@ -157,6 +157,21 @@ impl QueryError {
             ..Self::schema()
         }
     }
+    /// [`QueryError::schema`] for a field an adapter reads by hand: names
+    /// `path` (see [`crate::diagnostic::field_drift`]) and the type it needed.
+    pub fn schema_at(root: &serde_json::Value, path: &[&str], expected: &str) -> Self {
+        Self::schema_drift(crate::diagnostic::field_drift(root, path, expected))
+    }
+    /// [`QueryError::schema_at`] for a field found by name anywhere in the
+    /// response (see [`crate::diagnostic::named_drift`]).
+    pub fn schema_named(
+        root: &serde_json::Value,
+        name: &str,
+        found: Option<&serde_json::Value>,
+        expected: &str,
+    ) -> Self {
+        Self::schema_drift(crate::diagnostic::named_drift(root, name, found, expected))
+    }
     pub fn transport() -> Self {
         Self {
             diagnostic: None,
@@ -411,9 +426,78 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
         });
     }
     let bytes = response.bytes().await.map_err(|_| QueryError::schema())?;
+    decode_bytes(&bytes)
+}
+
+/// Parse `bytes` as JSON and decode them as `T` with the shared decoder, so
+/// a failure carries the redacted drift (PRD 0028 RF1).
+pub(crate) fn decode_bytes<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, QueryError> {
     let value: serde_json::Value =
-        serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())?;
-    crate::diagnostic::decode(&value).map_err(QueryError::schema_drift)
+        serde_json::from_slice(bytes).map_err(|_| QueryError::schema())?;
+    decode_value(&value)
+}
+
+/// Decode a parsed value with the shared decoder.
+pub(crate) fn decode_value<T: DeserializeOwned>(
+    value: &serde_json::Value,
+) -> Result<T, QueryError> {
+    crate::diagnostic::decode(value).map_err(QueryError::schema_drift)
+}
+
+/// A field an adapter needed and did not find in the shape it expected
+/// (PRD 0028 RF1). Helpers that only see a nested object return it; the
+/// caller that owns the root turns it into a [`QueryError`].
+#[derive(Debug)]
+pub(crate) struct Miss {
+    path: Vec<String>,
+    expected: &'static str,
+}
+
+impl Miss {
+    pub(crate) fn new(key: &str, expected: &'static str) -> Self {
+        Self {
+            path: vec![key.to_string()],
+            expected,
+        }
+    }
+
+    /// The response root itself had the wrong type.
+    pub(crate) fn root(expected: &'static str) -> Self {
+        Self {
+            path: Vec::new(),
+            expected,
+        }
+    }
+
+    /// The same miss, one level down from `steps` (`"[]"` for an array).
+    pub(crate) fn under(mut self, steps: &[&str]) -> Self {
+        let mut path: Vec<String> = steps.iter().map(|s| s.to_string()).collect();
+        path.append(&mut self.path);
+        self.path = path;
+        self
+    }
+
+    pub(crate) fn into_error(self, root: &serde_json::Value) -> QueryError {
+        let path: Vec<&str> = self.path.iter().map(String::as_str).collect();
+        QueryError::schema_at(root, &path, self.expected)
+    }
+}
+
+/// A JSON object body, or a schema failure naming the root.
+pub(crate) fn object_of(
+    value: &serde_json::Value,
+) -> Result<&serde_json::Map<String, serde_json::Value>, QueryError> {
+    value
+        .as_object()
+        .ok_or_else(|| QueryError::schema_at(value, &[], "object"))
+}
+
+/// A body parsed from a response, bounded and without keeping its text.
+pub(crate) async fn body_value(
+    response: reqwest::Response,
+) -> Result<serde_json::Value, QueryError> {
+    let bytes = response.bytes().await.map_err(|_| QueryError::schema())?;
+    serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())
 }
 
 use std::future::Future;

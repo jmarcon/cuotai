@@ -443,7 +443,7 @@ fn message_means_auth_expired(message: &str) -> bool {
 }
 
 pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
-    let body = value.as_object().ok_or_else(QueryError::schema)?;
+    let body = super::object_of(value)?;
     let quotas = body.get("quotas").and_then(Value::as_object);
     if quotas.is_none() {
         if let Some(message) = body.get("message").and_then(Value::as_str) {
@@ -513,7 +513,7 @@ pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
         });
     }
     if parsed.metrics.is_empty() && !parsed.limit_reached && quotas.is_none() {
-        return Err(QueryError::schema());
+        return Err(QueryError::schema_at(value, &["quotas"], "object"));
     }
     Ok(UsageOutcome::Usage(parsed))
 }
@@ -888,7 +888,7 @@ async fn discover(
             }
             other => other?,
         };
-        let body: ConnectionsPage = response.json().await.map_err(|_| QueryError::schema())?;
+        let body: ConnectionsPage = super::decode_value(&super::body_value(response).await?)?;
         let count = body.connections.len();
         all.extend(body.connections);
         let total_pages = body
@@ -980,9 +980,9 @@ async fn read_usage(
             return failed(usage_error(error));
         }
     };
-    let value: Value = match response.json().await {
+    let value: Value = match super::body_value(response).await {
         Ok(value) => value,
-        Err(_) => return failed(QueryError::schema()),
+        Err(error) => return failed(error),
     };
     match parse_usage(&value) {
         Ok(UsageOutcome::Usage(mut usage)) => {

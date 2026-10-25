@@ -18,7 +18,7 @@
 //! A criação manual da chave está documentada em
 //! <https://docs.kimchi.dev/docs/inference-quickstart.md>.
 
-use super::{json, secret, send as secure_send, Context, Data, QueryError};
+use super::{json, secret, send as secure_send, Context, Data, Miss, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Status};
 use chrono::{DateTime, Utc};
@@ -38,7 +38,7 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
     let credits_url = format!("{base}{CREDITS_PATH}");
     let budget_url = format!("{base}{BUDGET_PATH}");
 
-    let credits: Value = json(
+    let credits_body: Value = json(
         ctx.http
             .get(&credits_url)
             .bearer_auth(key.trim())
@@ -46,7 +46,7 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
             .timeout(ctx.timeout),
     )
     .await?;
-    let credits = parse_credits(&credits)?;
+    let credits = parse_credits(&credits_body)?;
 
     if credits.serverless == Some(false) {
         return Err(QueryError::unsupported(
@@ -55,7 +55,9 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         ));
     }
 
-    let remaining = credits.remaining.ok_or_else(QueryError::schema)?;
+    let remaining = credits
+        .remaining
+        .ok_or_else(|| QueryError::schema_at(&credits_body, &["remaining"], "number"))?;
     let mut metrics = vec![Metric {
         billing: Default::default(),
         scope: None,
@@ -110,10 +112,14 @@ struct Credits {
 }
 
 fn parse_credits(value: &Value) -> Result<Credits, QueryError> {
-    let body = value.as_object().ok_or_else(QueryError::schema)?;
+    credits_fields(value).map_err(|miss| miss.into_error(value))
+}
+
+fn credits_fields(value: &Value) -> Result<Credits, Miss> {
+    let body = value.as_object().ok_or_else(|| Miss::root("object"))?;
     let remaining = match body.get("remaining") {
         None | Some(Value::Null) => None,
-        value => Some(finite(value).ok_or_else(QueryError::schema)?),
+        value => Some(finite(value).ok_or_else(|| Miss::new("remaining", "number"))?),
     };
     let serverless = optional_bool(body, "serverless")?;
     let tier = first_string(body, &["tier", "tier_name", "tierName"])?;
@@ -193,97 +199,120 @@ async fn fetch_budget(
             ),
         });
     }
-    let value = response
-        .json::<Value>()
-        .await
-        .map_err(|_| QueryError::schema())?;
-    Ok(Some(value))
+    Ok(Some(super::body_value(response).await?))
 }
 
 fn parse_budget(value: &Value) -> Result<Vec<Metric>, QueryError> {
-    let body = value.as_object().ok_or_else(QueryError::schema)?;
+    budget_fields(value).map_err(|miss| miss.into_error(value))
+}
+
+fn budget_fields(value: &Value) -> Result<Vec<Metric>, Miss> {
+    let body = value.as_object().ok_or_else(|| Miss::root("object"))?;
     let period = body
         .get("period")
         .and_then(Value::as_object)
-        .ok_or_else(QueryError::schema)?;
-    let start = required_string(period, "startTime")?;
-    let end = required_string(period, "endTime")?;
+        .ok_or_else(|| Miss::new("period", "object"))?;
+    let in_period = |miss: Miss| miss.under(&["period"]);
+    let start = required_string(period, "startTime").map_err(in_period)?;
+    let end = required_string(period, "endTime").map_err(in_period)?;
     let resets_at = DateTime::parse_from_rfc3339(end)
-        .map_err(|_| QueryError::schema())?
+        .map_err(|_| in_period(Miss::new("endTime", "string")))?
         .with_timezone(&Utc);
     // Validar também o início evita rotular como período uma resposta truncada.
-    DateTime::parse_from_rfc3339(start).map_err(|_| QueryError::schema())?;
+    DateTime::parse_from_rfc3339(start).map_err(|_| in_period(Miss::new("startTime", "string")))?;
     let period_label = format!("{start} — {end}");
 
     let budgets = match body.get("budgets") {
         None | Some(Value::Null) => return Ok(Vec::new()),
         Some(Value::Array(values)) => values,
-        Some(_) => return Err(QueryError::schema()),
+        Some(_) => return Err(Miss::new("budgets", "array")),
     };
 
     let mut metrics = Vec::new();
     for value in budgets {
-        let budget = value.as_object().ok_or_else(QueryError::schema)?;
-        let scope = required_string(budget, "scope")?;
-        let scope_label = scope_label(scope).ok_or_else(QueryError::schema)?;
-        // scopeId faz parte do contrato, mas não é exibido: pode identificar
-        // usuário, equipe ou chave e não é necessário para a métrica.
-        required_string(budget, "scopeId")?;
-        let limit = usd_string(budget, "budgetLimitUsd")?;
-        let used = usd_string(budget, "totalSpendUsd")?;
-        require_nonnegative(limit)?;
-        require_nonnegative(used)?;
-        push_budget_metric(
-            &mut metrics,
-            format!("Orçamento — {scope_label}"),
-            used,
-            limit,
-            &period_label,
-            resets_at,
-        );
-
-        let providers = match budget.get("providerBudgets") {
-            None | Some(Value::Null) => continue,
-            Some(Value::Array(values)) => values,
-            Some(_) => return Err(QueryError::schema()),
-        };
-        for value in providers {
-            let provider = value.as_object().ok_or_else(QueryError::schema)?;
-            let name = required_string(provider, "provider")?;
-            let usage = usd_string(provider, "usageUsd")?;
-            require_nonnegative(usage)?;
-            let limit_type = provider
-                .get("limitType")
-                .and_then(Value::as_str)
-                .unwrap_or("DISABLED");
-            let capped = limit_type == "CAPPED" || limit_type.ends_with("_CAPPED");
-            let uncapped = limit_type == "DISABLED"
-                || limit_type.ends_with("_DISABLED")
-                || limit_type == "UNLIMITED"
-                || limit_type.ends_with("_UNLIMITED")
-                || limit_type == "UNSPECIFIED"
-                || limit_type.ends_with("_UNSPECIFIED");
-            if !capped && !uncapped {
-                return Err(QueryError::schema());
-            }
-            let limit = if capped {
-                let value = usd_string(provider, "budgetLimitUsd")?;
-                require_nonnegative(value)?;
-                value
-            } else {
-                0.0
-            };
-            push_budget_metric(
-                &mut metrics,
-                format!("Orçamento do provedor — {name}"),
-                usage,
-                limit,
-                &period_label,
-                resets_at,
-            );
-        }
+        budget_entry(value, &period_label, resets_at, &mut metrics)
+            .map_err(|miss| miss.under(&["budgets", "[]"]))?;
     }
     Ok(metrics)
+}
+
+fn budget_entry(
+    value: &Value,
+    period_label: &str,
+    resets_at: DateTime<Utc>,
+    metrics: &mut Vec<Metric>,
+) -> Result<(), Miss> {
+    let budget = value.as_object().ok_or_else(|| Miss::root("object"))?;
+    let scope = required_string(budget, "scope")?;
+    let scope_label = scope_label(scope).ok_or_else(|| Miss::new("scope", "string"))?;
+    // scopeId faz parte do contrato, mas não é exibido: pode identificar
+    // usuário, equipe ou chave e não é necessário para a métrica.
+    required_string(budget, "scopeId")?;
+    let limit = usd_string(budget, "budgetLimitUsd")?;
+    let used = usd_string(budget, "totalSpendUsd")?;
+    require_nonnegative(limit, "budgetLimitUsd")?;
+    require_nonnegative(used, "totalSpendUsd")?;
+    push_budget_metric(
+        metrics,
+        format!("Orçamento — {scope_label}"),
+        used,
+        limit,
+        period_label,
+        resets_at,
+    );
+
+    let providers = match budget.get("providerBudgets") {
+        None | Some(Value::Null) => return Ok(()),
+        Some(Value::Array(values)) => values,
+        Some(_) => return Err(Miss::new("providerBudgets", "array")),
+    };
+    for value in providers {
+        provider_budget(value, period_label, resets_at, metrics)
+            .map_err(|miss| miss.under(&["providerBudgets", "[]"]))?;
+    }
+    Ok(())
+}
+
+fn provider_budget(
+    value: &Value,
+    period_label: &str,
+    resets_at: DateTime<Utc>,
+    metrics: &mut Vec<Metric>,
+) -> Result<(), Miss> {
+    let provider = value.as_object().ok_or_else(|| Miss::root("object"))?;
+    let name = required_string(provider, "provider")?;
+    let usage = usd_string(provider, "usageUsd")?;
+    require_nonnegative(usage, "usageUsd")?;
+    let limit_type = provider
+        .get("limitType")
+        .and_then(Value::as_str)
+        .unwrap_or("DISABLED");
+    let capped = limit_type == "CAPPED" || limit_type.ends_with("_CAPPED");
+    let uncapped = limit_type == "DISABLED"
+        || limit_type.ends_with("_DISABLED")
+        || limit_type == "UNLIMITED"
+        || limit_type.ends_with("_UNLIMITED")
+        || limit_type == "UNSPECIFIED"
+        || limit_type.ends_with("_UNSPECIFIED");
+    if !capped && !uncapped {
+        return Err(Miss::new("limitType", "string"));
+    }
+    let limit = if capped {
+        let value = usd_string(provider, "budgetLimitUsd")?;
+        require_nonnegative(value, "budgetLimitUsd")?;
+        value
+    } else {
+        0.0
+    };
+    push_budget_metric(
+        metrics,
+        format!("Orçamento do provedor — {name}"),
+        usage,
+        limit,
+        period_label,
+        resets_at,
+    );
+    Ok(())
 }
 
 fn push_budget_metric(
@@ -327,15 +356,15 @@ fn finite(value: Option<&Value>) -> Option<f64> {
     }
 }
 
-fn optional_bool(body: &Map<String, Value>, key: &str) -> Result<Option<bool>, QueryError> {
+fn optional_bool(body: &Map<String, Value>, key: &str) -> Result<Option<bool>, Miss> {
     match body.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Bool(value)) => Ok(Some(*value)),
-        Some(_) => Err(QueryError::schema()),
+        Some(_) => Err(Miss::new(key, "boolean")),
     }
 }
 
-fn first_bool(body: &Map<String, Value>, keys: &[&str]) -> Result<Option<bool>, QueryError> {
+fn first_bool(body: &Map<String, Value>, keys: &[&str]) -> Result<Option<bool>, Miss> {
     for key in keys {
         if body.contains_key(*key) {
             return optional_bool(body, key);
@@ -344,38 +373,38 @@ fn first_bool(body: &Map<String, Value>, keys: &[&str]) -> Result<Option<bool>, 
     Ok(None)
 }
 
-fn first_string(body: &Map<String, Value>, keys: &[&str]) -> Result<Option<String>, QueryError> {
+fn first_string(body: &Map<String, Value>, keys: &[&str]) -> Result<Option<String>, Miss> {
     for key in keys {
         match body.get(*key) {
             None => continue,
             Some(Value::Null) => return Ok(None),
             Some(Value::String(value)) => return Ok(Some(value.clone())),
-            Some(_) => return Err(QueryError::schema()),
+            Some(_) => return Err(Miss::new(key, "string")),
         }
     }
     Ok(None)
 }
 
-fn required_string<'a>(body: &'a Map<String, Value>, key: &str) -> Result<&'a str, QueryError> {
+fn required_string<'a>(body: &'a Map<String, Value>, key: &str) -> Result<&'a str, Miss> {
     body.get(key)
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(QueryError::schema)
+        .ok_or_else(|| Miss::new(key, "string"))
 }
 
-fn usd_string(body: &Map<String, Value>, key: &str) -> Result<f64, QueryError> {
+fn usd_string(body: &Map<String, Value>, key: &str) -> Result<f64, Miss> {
     let raw = required_string(body, key)?;
     raw.parse::<f64>()
         .ok()
         .filter(|value| value.is_finite())
-        .ok_or_else(QueryError::schema)
+        .ok_or_else(|| Miss::new(key, "string"))
 }
 
-fn require_nonnegative(value: f64) -> Result<(), QueryError> {
+fn require_nonnegative(value: f64, key: &str) -> Result<(), Miss> {
     if value >= 0.0 {
         Ok(())
     } else {
-        Err(QueryError::schema())
+        Err(Miss::new(key, "number"))
     }
 }
 
@@ -619,6 +648,33 @@ mod tests {
             .notes
             .iter()
             .any(|note| note.contains("não correspondeu")));
+    }
+
+    #[test]
+    fn a_broken_nested_budget_field_names_its_path_without_its_value() {
+        let error = parse_budget(&serde_json::json!({
+            "period": {
+                "startTime": "2026-09-01T00:00:00Z",
+                "endTime": "2026-10-01T00:00:00Z"
+            },
+            "budgets": [{
+                "scope": "USER",
+                "scopeId": "SECRET-ID",
+                "budgetLimitUsd": 7,
+                "totalSpendUsd": "1.0"
+            }]
+        }))
+        .unwrap_err();
+        let drift = error.diagnostic.as_deref().expect("drift").drift().clone();
+        assert_eq!(drift.paths[0].path, "budgets[].budgetLimitUsd");
+        assert_eq!(
+            (
+                drift.paths[0].expected.as_str(),
+                drift.paths[0].found.as_str()
+            ),
+            ("string", "number")
+        );
+        assert!(!format!("{drift:?}").contains("SECRET-ID"));
     }
 
     #[test]

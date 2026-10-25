@@ -520,7 +520,7 @@ struct CeParsed {
 }
 
 fn parse_ce(bytes: &[u8]) -> Result<CeParsed, QueryError> {
-    let out: CeOutput = serde_json::from_slice(bytes).map_err(|_| QueryError::schema())?;
+    let out: CeOutput = super::decode_bytes(bytes)?;
     if out.results_by_time.is_empty() || out.next_page_token.is_some_and(|t| !t.is_empty()) {
         return Err(QueryError::schema());
     }
@@ -678,7 +678,7 @@ pub(crate) async fn bedrock_models(
         args.extend(["--region", region]);
     }
     let stdout = run_aws(ctx, binary, &args, profile, "bedrock:ListFoundationModels").await?;
-    let list: List = serde_json::from_slice(&stdout).map_err(|_| QueryError::schema())?;
+    let list: List = super::decode_bytes(&stdout)?;
     Ok(list
         .model_summaries
         .into_iter()

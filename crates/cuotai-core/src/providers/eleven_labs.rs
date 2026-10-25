@@ -70,7 +70,7 @@ async fn eleven_labs_at(
         let detail = error_code(response).await;
         return Err(classify_http(code.as_u16(), detail.as_deref()));
     }
-    let value: Value = response.json().await.map_err(|_| QueryError::schema())?;
+    let value = super::body_value(response).await?;
     parse(&value, url)
 }
 
@@ -198,8 +198,9 @@ fn valid_tier(tier: &str) -> bool {
 }
 
 fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
-    let body = value.as_object().ok_or_else(QueryError::schema)?;
-    let used = non_negative(body.get("character_count")).ok_or_else(QueryError::schema)?;
+    let body = super::object_of(value)?;
+    let used = non_negative(body.get("character_count"))
+        .ok_or_else(|| QueryError::schema_at(value, &["character_count"], "number"))?;
     let limit = non_negative(body.get("character_limit"));
     let resets_at = number(body.get("next_character_count_reset_unix"))
         .filter(|secs| *secs > 0.0 && *secs <= i64::MAX as f64)
@@ -689,7 +690,12 @@ mod tests {
         let mut body = base(1, 10);
         body.as_object_mut().unwrap().remove("character_count");
         let (result, _) = run(ResponseTemplate::new(200).set_body_json(body)).await;
-        assert_eq!(result.unwrap_err().note.id, "query.schema");
+        let error = result.unwrap_err();
+        assert_eq!(error.note.id, "query.schema");
+        // PRD 0028 RF1: the hand-read field is named, never its value.
+        let drift = error.diagnostic.as_deref().expect("drift").drift().clone();
+        assert_eq!(drift.paths[0].path, "character_count");
+        assert_eq!(drift.paths[0].found, "missing");
 
         let mut body = base(7, 10);
         body["character_limit"] = json!(-4);

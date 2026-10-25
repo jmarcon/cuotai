@@ -253,6 +253,68 @@ pub fn digest(fingerprint: &[(String, String)]) -> String {
         .collect()
 }
 
+/// Drift of one field an adapter reads by hand (PRD 0028 RF1): `path` is the
+/// field names from `root` (`"[]"` steps into the first array element),
+/// `expected` the JSON type the adapter needed. The found type is read from
+/// `root`, `missing` when the path does not exist; no value is kept.
+pub fn field_drift(root: &Value, path: &[&str], expected: &str) -> SchemaDrift {
+    let mut shown = String::new();
+    let mut current = Some(root);
+    for step in path {
+        if *step == "[]" {
+            shown.push_str("[]");
+            current = current.and_then(Value::as_array).and_then(|a| a.first());
+        } else {
+            let key = match current.and_then(Value::as_object) {
+                Some(object) => safe_key(object, step),
+                None if is_identifier(step) => step,
+                None => COLLAPSED,
+            };
+            if !shown.is_empty() {
+                shown.push('.');
+            }
+            shown.push_str(key);
+            current = current.and_then(|v| v.get(*step));
+        }
+    }
+    let found = current.map_or("missing", type_name).to_string();
+    if shown.is_empty() {
+        shown.push('.');
+    }
+    let fingerprint = fingerprint(root);
+    let digest = digest(&fingerprint);
+    SchemaDrift {
+        paths: vec![DriftPath {
+            path: shown,
+            expected: expected.to_string(),
+            found,
+        }],
+        fingerprint,
+        digest,
+    }
+}
+
+/// Drift of a field an adapter finds by name anywhere in the response (no
+/// fixed path): `name` is reported as the path, `found` is the type of what
+/// the search returned, `missing` when nothing matched.
+pub fn named_drift(root: &Value, name: &str, found: Option<&Value>, expected: &str) -> SchemaDrift {
+    let fingerprint = fingerprint(root);
+    let digest = digest(&fingerprint);
+    SchemaDrift {
+        paths: vec![DriftPath {
+            path: if is_identifier(name) {
+                name.to_string()
+            } else {
+                COLLAPSED.to_string()
+            },
+            expected: expected.to_string(),
+            found: found.map_or("missing", type_name).to_string(),
+        }],
+        fingerprint,
+        digest,
+    }
+}
+
 /// Decode `value` as `T`; on failure, the redacted drift.
 pub fn decode<T: serde::de::DeserializeOwned>(value: &Value) -> Result<T, SchemaDrift> {
     serde_path_to_error::deserialize(value).map_err(|error| {
@@ -298,6 +360,29 @@ mod tests {
 
     fn drift(value: Value) -> SchemaDrift {
         decode::<Usage>(&value).unwrap_err()
+    }
+
+    #[test]
+    fn hand_read_fields_report_their_path_and_types() {
+        let value = json!({"a": {"n": "SECRET", "list": [{"x": 1}]}});
+        let d = field_drift(&value, &["a", "n"], "number");
+        assert_eq!(
+            d.paths[0],
+            DriftPath {
+                path: "a.n".into(),
+                expected: "number".into(),
+                found: "string".into()
+            }
+        );
+        assert_eq!(
+            field_drift(&value, &["a", "gone"], "string").paths[0].found,
+            "missing"
+        );
+        assert_eq!(
+            field_drift(&value, &["a", "list", "[]", "x"], "string").paths[0].path,
+            "a.list[].x"
+        );
+        assert!(!format!("{d:?}").contains("SECRET"));
     }
 
     #[test]

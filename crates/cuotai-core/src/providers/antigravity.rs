@@ -206,7 +206,9 @@ pub(crate) async fn models(
     let response = fetch_available_models(ctx, &token, project, fetch_available_models_url).await?;
     let mut models = Vec::new();
     for (id, info) in response.models.ok_or_else(no_catalog)? {
-        let info = info.as_object().ok_or_else(QueryError::schema)?;
+        let info = info
+            .as_object()
+            .ok_or_else(|| QueryError::schema_at(&info, &[], "object"))?;
         if info.get("isInternal").and_then(serde_json::Value::as_bool) == Some(true) {
             continue;
         }

@@ -7,7 +7,7 @@
 //! classified failure (authentication, rate limit, transport, schema), never as an invented list.
 //! Bodies, URLs and tokens never reach errors.
 
-use super::{json, param, secret, Context, QueryError};
+use super::{json, param, secret, Context, Miss, QueryError};
 use crate::models::ModelInfo;
 use crate::text::{params, ParamValue};
 use crate::Account;
@@ -44,7 +44,7 @@ fn text(item: &Value, keys: &[&str]) -> Option<String> {
 }
 
 /// One list entry: a bare string id or an object with the first present id key.
-fn entry(item: &Value) -> Result<ModelInfo, QueryError> {
+fn entry(item: &Value) -> Result<ModelInfo, Miss> {
     if let Some(id) = item.as_str().map(str::trim).filter(|s| !s.is_empty()) {
         return Ok(ModelInfo {
             id: id.to_owned(),
@@ -52,8 +52,8 @@ fn entry(item: &Value) -> Result<ModelInfo, QueryError> {
             description: None,
         });
     }
-    let id =
-        text(item, &["id", "slug", "modelId", "model", "name"]).ok_or_else(QueryError::schema)?;
+    let id = text(item, &["id", "slug", "modelId", "model", "name"])
+        .ok_or_else(|| Miss::new("id", "string"))?;
     let name =
         text(item, &["display_name", "displayName", "modelName", "name"]).filter(|n| *n != id);
     Ok(ModelInfo {
@@ -66,15 +66,22 @@ fn entry(item: &Value) -> Result<ModelInfo, QueryError> {
 /// Entries of a list body: a root array or one under `data`/`models`/`results`.
 /// Any entry without an id rejects the whole response.
 pub(crate) fn collect(body: &Value) -> Result<Vec<ModelInfo>, QueryError> {
-    let items = match body {
-        Value::Array(items) => items,
+    let (items, prefix): (&Vec<Value>, Vec<&str>) = match body {
+        Value::Array(items) => (items, vec!["[]"]),
         Value::Object(map) => ["data", "models", "results"]
             .iter()
-            .find_map(|k| map.get(*k).and_then(Value::as_array))
-            .ok_or_else(QueryError::schema)?,
-        _ => return Err(QueryError::schema()),
+            .find_map(|k| {
+                map.get(*k)
+                    .and_then(Value::as_array)
+                    .map(|items| (items, vec![*k, "[]"]))
+            })
+            .ok_or_else(|| QueryError::schema_at(body, &["data"], "array"))?,
+        _ => return Err(QueryError::schema_at(body, &[], "array")),
     };
-    items.iter().map(entry).collect()
+    items
+        .iter()
+        .map(|item| entry(item).map_err(|miss| miss.under(&prefix).into_error(body)))
+        .collect()
 }
 
 async fn list(request: RequestBuilder, ctx: &Context<'_>) -> Result<Vec<ModelInfo>, QueryError> {
@@ -529,7 +536,7 @@ pub(crate) async fn azure_models(
                 .or_else(|| item.get("name"))
                 .and_then(Value::as_str)
                 .filter(|s| !s.is_empty())
-                .ok_or_else(QueryError::schema)?;
+                .ok_or_else(|| QueryError::schema_at(item, &["name"], "string"))?;
             models.push(ModelInfo {
                 id: name.to_owned(),
                 name: None,

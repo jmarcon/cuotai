@@ -208,11 +208,11 @@ async fn opencode_go_at(
         });
     }
 
-    let body: serde_json::Value = response.json().await.map_err(|_| QueryError::schema())?;
+    let body = super::body_value(response).await?;
     let usage = body
         .get("usage")
         .and_then(|u| u.as_object())
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&body, &["usage"], "object"))?;
 
     let mut metrics = Vec::new();
     for (period_key, label, period_pt, window) in [
@@ -249,7 +249,11 @@ async fn opencode_go_at(
     }
 
     if metrics.is_empty() {
-        return Err(QueryError::schema());
+        return Err(QueryError::schema_at(
+            &body,
+            &["usage", "weekly", "percent"],
+            "number",
+        ));
     }
 
     let mut notes = Notes::new();
@@ -759,7 +763,7 @@ async fn mimo_session_at(
             ),
         });
     }
-    let body: serde_json::Value = response.json().await.map_err(|_| QueryError::schema())?;
+    let body = super::body_value(response).await?;
     let (label, source) = if is_fixed {
         (
             format!("Sessão de conta (cookie, região {region})"),
@@ -803,7 +807,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
             ),
         });
     }
-    let body: serde_json::Value = response.json().await.map_err(|_| QueryError::schema())?;
+    let body = super::body_value(response).await?;
     mimo_data_from_body(
         &body,
         "Token Bearer (params.session_env não configurado)",
@@ -819,11 +823,14 @@ fn mimo_data_from_body(
     source: &str,
 ) -> Result<Data, QueryError> {
     if body.get("code").and_then(|c| c.as_i64()) != Some(0) {
-        return Err(QueryError::schema());
+        return Err(QueryError::schema_at(body, &["code"], "number"));
     }
-    let data = body.get("data").ok_or_else(QueryError::schema)?;
+    let data = body
+        .get("data")
+        .ok_or_else(|| QueryError::schema_at(body, &["data"], "object"))?;
     // percent ausente/inválido ≠ zero.
-    let percent = finite(data.get("percent")).ok_or_else(QueryError::schema)?;
+    let percent = finite(data.get("percent"))
+        .ok_or_else(|| QueryError::schema_at(body, &["data", "percent"], "number"))?;
     let remaining = percent.round().clamp(0.0, 100.0);
     let used = 100.0 - remaining;
 

@@ -334,6 +334,7 @@ async fn kiro(
     let mut saw_auth = false;
     let mut saw_transport = false;
     let mut last_status = None;
+    let mut empty_shape = None;
     for (index, attempt) in attempts.into_iter().enumerate() {
         let response = match secure_send(attempt).await {
             Ok(response) => response,
@@ -351,12 +352,20 @@ async fn kiro(
             }
             continue;
         }
-        match response.json::<Value>().await {
+        match super::body_value(response).await {
             Ok(body) => {
+                let shape = body.clone();
                 let data = kiro_data(body)?;
                 // Native path: a 200 without any numeric quota is not an
                 // answer — fall through to the legacy attempts instead of
                 // reporting an empty, fake-ready result.
+                if data.metrics.is_empty() {
+                    empty_shape = Some(crate::diagnostic::field_drift(
+                        &shape,
+                        &["usageBreakdownList"],
+                        "array",
+                    ));
+                }
                 if index < native_attempts && data.metrics.is_empty() {
                     continue;
                 }
@@ -387,7 +396,7 @@ async fn kiro(
     } else if saw_transport {
         Err(QueryError::transport())
     } else {
-        Err(QueryError::schema())
+        Err(empty_shape.map_or_else(QueryError::schema, QueryError::schema_drift))
     }
 }
 

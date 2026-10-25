@@ -768,7 +768,12 @@ fn parse_coding_plan_payload(
         metrics.push(metric);
     }
     if metrics.is_empty() {
-        return Err(QueryError::schema());
+        return Err(QueryError::schema_named(
+            &payload,
+            "perMonthUsedQuota",
+            None,
+            "number",
+        ));
     }
 
     let plan_name = selected
@@ -1098,16 +1103,25 @@ fn token_plan_metrics(
         ),
     ] {
         if let Some(raw) = find_value(&payload, &[percentage]) {
-            let fraction = raw.as_f64().ok_or_else(QueryError::schema)?;
+            let fraction = raw.as_f64().ok_or_else(|| {
+                QueryError::schema_named(&payload, percentage, Some(raw), "number")
+            })?;
             if !fraction.is_finite() || !(0.0..=1.0).contains(&fraction) {
-                return Err(QueryError::schema());
+                return Err(QueryError::schema_named(
+                    &payload,
+                    percentage,
+                    Some(raw),
+                    "number",
+                ));
             }
             let resets_at = find_value(&payload, &[reset])
                 .map(|value| {
                     value
                         .as_i64()
                         .and_then(chrono::DateTime::from_timestamp_millis)
-                        .ok_or_else(QueryError::schema)
+                        .ok_or_else(|| {
+                            QueryError::schema_named(&payload, reset, Some(value), "number")
+                        })
                 })
                 .transpose()?;
             let used_percent = fraction * 100.0;
@@ -1144,7 +1158,12 @@ fn token_plan_metrics(
         }
     }
     if metrics.is_empty() {
-        return Err(QueryError::schema());
+        return Err(QueryError::schema_named(
+            &payload,
+            "per5HourPercentage",
+            None,
+            "number",
+        ));
     }
     Ok(metrics)
 }
@@ -1326,11 +1345,7 @@ async fn token_plan_post_value(
     data_params: Value,
 ) -> Result<Option<Value>, QueryError> {
     match token_plan_send(ctx, endpoint, session, api, data_params).await {
-        Ok(response) => response
-            .json::<Value>()
-            .await
-            .map(Some)
-            .map_err(|_| QueryError::schema()),
+        Ok(response) => super::body_value(response).await.map(Some),
         Err(err) if matches!(err.status, Status::Error | Status::RateLimited) => Ok(None),
         Err(err) => Err(err),
     }
@@ -1429,7 +1444,7 @@ async fn token_plan_with_session(
             ),
         });
     }
-    let info: Value = info.json().await.map_err(|_| QueryError::schema())?;
+    let info = super::body_value(info).await?;
     let info = expand_embedded_json(info);
     let sec_token = find_string(&info, &["secToken", "sec_token"])
         .or_else(|| cookie_value(cookie, "sec_token").map(str::to_owned))
@@ -1453,10 +1468,7 @@ async fn token_plan_with_session(
         Value::Object(serde_json::Map::new()),
     )
     .await?;
-    let usage_payload = usage_response
-        .json::<Value>()
-        .await
-        .map_err(|_| QueryError::schema())?;
+    let usage_payload = super::body_value(usage_response).await?;
     let (_plan_code, quota) = fetch_token_plan_metadata(ctx, endpoint, &session).await;
     let metrics = token_plan_metrics(usage_payload, quota)?;
     let mut notes = Notes::new();
@@ -1551,16 +1563,25 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
         ),
     ] {
         if let Some(raw) = find_value(&payload, &[percentage]) {
-            let fraction = raw.as_f64().ok_or_else(QueryError::schema)?;
+            let fraction = raw.as_f64().ok_or_else(|| {
+                QueryError::schema_named(&payload, percentage, Some(raw), "number")
+            })?;
             if !fraction.is_finite() || !(0.0..=1.0).contains(&fraction) {
-                return Err(QueryError::schema());
+                return Err(QueryError::schema_named(
+                    &payload,
+                    percentage,
+                    Some(raw),
+                    "number",
+                ));
             }
             let resets_at = find_value(&payload, &[reset])
                 .map(|value| {
                     value
                         .as_i64()
                         .and_then(chrono::DateTime::from_timestamp_millis)
-                        .ok_or_else(QueryError::schema)
+                        .ok_or_else(|| {
+                            QueryError::schema_named(&payload, reset, Some(value), "number")
+                        })
                 })
                 .transpose()?;
             metrics.push(Metric {
@@ -1664,7 +1685,7 @@ async fn run_token_plan_cli(
         .unwrap_or(&[]);
     let payload: Value = serde_json::from_slice(trimmed).map_err(|_| QueryError::schema())?;
     if !payload.is_object() {
-        return Err(QueryError::schema());
+        return Err(QueryError::schema_at(&payload, &[], "object"));
     }
     let metrics = token_plan_cli_metrics(payload)?;
     let mut notes = Notes::new();

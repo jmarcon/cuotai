@@ -133,7 +133,7 @@ async fn get(
         }
         _ => {}
     }
-    let body: serde_json::Value = response.json().await.map_err(|_| QueryError::schema())?;
+    let body = super::body_value(response).await?;
     match body.get("code").and_then(|c| c.as_i64()) {
         Some(0) => Ok(Some(body)),
         // O envelope também sinaliza sessão no corpo (CodexBar trata igual).
@@ -267,7 +267,9 @@ fn build_data(
     }
 
     // ---- Saldo pay-as-you-go (obrigatório, como no CodexBar).
-    let balance_data = balance_body.get("data").ok_or_else(QueryError::schema)?;
+    let balance_data = balance_body
+        .get("data")
+        .ok_or_else(|| QueryError::schema_at(balance_body, &["data"], "object"))?;
     let balance = balance_data
         .get("balance")
         .and_then(|v| {
@@ -276,13 +278,13 @@ fn build_data(
                 .or_else(|| v.as_f64())
         })
         .filter(|v| v.is_finite())
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(balance_body, &["data", "balance"], "number"))?;
     let currency = balance_data
         .get("currency")
         .and_then(|v| v.as_str())
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(balance_body, &["data", "currency"], "string"))?;
     metrics.push(Metric {
         billing: Default::default(),
         scope: None,
