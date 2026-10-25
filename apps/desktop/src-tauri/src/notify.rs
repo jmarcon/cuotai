@@ -9,11 +9,16 @@ use crate::settings::{self, AlertSettings, NotifyPrefs};
 use chrono::{DateTime, Utc};
 use cuotai_core::{
     account_id, aggregators,
-    alerts::{self, AlertEvent, AlertKind, AlertPrefs, Lead, PaceInput, NOTICE_SPACING},
+    alerts::{
+        self, AlertEvent, AlertKind, AlertPrefs, Lead, MissedCrossing, PaceInput, NOTICE_SPACING,
+    },
+    quiet::{self, Decision, QuietSchedule, QuietWindow, Subject},
     resets::{self, Ledger, ResetEvent},
     Account, Config, Metric, Report,
 };
-use std::path::PathBuf;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// Language of the notices until the interface reports the one chosen (the
 /// interface's own fallback).
@@ -77,6 +82,19 @@ pub struct Notices {
     pending: Vec<AlertEvent>,
     /// When the last usage alert notification went out in this process.
     last_alert: Option<DateTime<Utc>>,
+    /// PRD 0032 RF2: the quiet hours of this device.
+    quiet: QuietSchedule,
+    /// PRD 0032 RF3.3: the digest's alerts waiting for the spacing.
+    digest_pending: Vec<AlertEvent>,
+    /// PRD 0032 RF8: per account, what its metrics crossed while the app
+    /// was closed (the first reading of this process), until the window
+    /// instance ends or the details were opened.
+    missed: BTreeMap<String, Vec<MissedCrossing>>,
+    /// Modification time of `notified.json` as this process last saw it.
+    stamp: Option<SystemTime>,
+    /// The time zone of the quiet hours; `None` is the system's. Tests set
+    /// a fixed offset.
+    zone: Option<chrono::FixedOffset>,
 }
 
 /// What one pass of the timer did.
@@ -105,13 +123,92 @@ impl Notices {
         let mut notices = Self {
             prefs: settings::read_notify(&store.settings),
             alerts: settings::read_alerts(&store.settings),
+            quiet: settings::read_quiet(&store.settings),
             ledger: Ledger::load(&store.ledger),
             locale: settings::read_locale(&store.settings),
+            stamp: modified(&store.ledger),
             store: Some(store),
             ..Self::default()
         };
         notices.rebuild_evaluator();
         notices
+    }
+
+    #[cfg(test)]
+    pub fn quiet(&self) -> &QuietSchedule {
+        &self.quiet
+    }
+
+    /// PRD 0032 RF2: persist then apply the quiet hours; on a write failure
+    /// nothing changes. Error: `unwritable`.
+    pub fn set_quiet(&mut self, quiet: QuietSchedule) -> Result<(), &'static str> {
+        if let Some(store) = &self.store {
+            settings::write_quiet(&store.settings, &quiet)?;
+        }
+        self.quiet = quiet;
+        Ok(())
+    }
+
+    /// The quiet window open at `now` in the system's time zone.
+    fn window(&self, now: DateTime<Utc>) -> Option<QuietWindow> {
+        match &self.zone {
+            Some(zone) => quiet::window_at(&self.quiet, now, zone),
+            None => quiet::window_at(&self.quiet, now, &chrono::Local),
+        }
+    }
+
+    fn ledger_path(&self) -> Option<PathBuf> {
+        self.store.as_ref().map(|store| store.ledger.clone())
+    }
+
+    /// PRD 0032 RF4: another process (the TUI) may have written the ledger
+    /// since this one last looked: take its version.
+    fn sync_ledger(&mut self) {
+        let Some(path) = self.ledger_path() else {
+            return;
+        };
+        let stamp = modified(&path);
+        if stamp != self.stamp {
+            self.ledger.reload(&path);
+            self.stamp = stamp;
+        }
+    }
+
+    fn remember_stamp(&mut self) {
+        self.stamp = self.ledger_path().and_then(|path| modified(&path));
+    }
+
+    /// Apply `change` to the ledger. With a store it runs on the copy on
+    /// disk under the advisory lock and is saved (only when it changed
+    /// something); without one (tests) on the in-memory ledger.
+    fn mutate_ledger(&mut self, change: impl Fn(&mut Ledger) -> bool) {
+        let mut probe = self.ledger.clone();
+        if !change(&mut probe) {
+            return;
+        }
+        match self.ledger_path() {
+            Some(path) => {
+                self.ledger.claim(&path, |ledger| change(ledger));
+                self.remember_stamp();
+            }
+            None => self.ledger = probe,
+        }
+    }
+
+    /// PRD 0032 RF8.2: what the metrics of `account_key` crossed while the
+    /// app was closed.
+    pub fn missed(&self, account_key: &str) -> &[MissedCrossing] {
+        self.missed.get(account_key).map_or(&[], Vec::as_slice)
+    }
+
+    /// PRD 0032 RF8.2: the person opened the details of `account_key`: the
+    /// marker goes away and its crossings count as seen for good.
+    pub fn acknowledge_missed(&mut self, account_key: &str) {
+        let Some(crossings) = self.missed.remove(account_key) else {
+            return;
+        };
+        let key = account_key.to_owned();
+        self.mutate_ledger(|ledger| ledger.alerts_mut().acknowledge(&key, &crossings));
     }
 
     pub fn prefs(&self) -> &NotifyPrefs {
@@ -265,9 +362,8 @@ impl Notices {
         I: IntoIterator<Item = &'a Report>,
         I::IntoIter: Clone,
     {
-        if self.ledger.adopt_ids(reports) {
-            self.save_ledger();
-        }
+        let reports: Vec<&Report> = reports.into_iter().collect();
+        self.mutate_ledger(|ledger| ledger.adopt_ids(reports.iter().copied()));
     }
 
     /// Forget the bells, muted metrics, alert state and pending alerts of
@@ -288,9 +384,10 @@ impl Notices {
         self.pending.retain(|event| kept(&event.account_key));
         // Marks still under a legacy key of a configured account are kept
         // until a reading moves them (`adopt_reports`).
-        if self.ledger.alerts_mut().retain_config(config) {
-            self.save_ledger();
-        }
+        self.mutate_ledger(|ledger| ledger.alerts_mut().retain_config(config));
+        self.missed.retain(|key, _| keys.contains(key));
+        self.digest_pending
+            .retain(|event| keys.contains(&event.account_key));
         let mut alerts = self.alerts.clone();
         alerts.muted.retain(|key, _| kept(key));
         alerts.pool_each.retain(|key| keys.contains(key));
@@ -345,13 +442,18 @@ impl Notices {
         self.evaluator.projected.is_some()
     }
 
-    /// Remember `next`, the reading the cycle applied, with the `events`
-    /// [`Self::assess`] gave for it: the core state (saved to
-    /// `notified.json` when it changed) and the events queued for the next
-    /// pass of the timer. While alerts are off nothing is recorded: turning
-    /// them on treats the next reading as a first reading.
+    /// Remember `next`, the reading the cycle applied (`prev` is the one it
+    /// replaced), with the `events` [`Self::assess`] gave for it. Under the
+    /// ledger lock (PRD 0032 RF4) the events another process already
+    /// notified are dropped; the rest are queued for the next pass of the
+    /// timer, except what quiet hours hold (PRD 0032 RF3): those are saved
+    /// as deferred for the digest. The first reading of an account in this
+    /// process also looks for crossings that happened while the app was
+    /// closed (RF8). While alerts are off nothing is recorded: turning them
+    /// on treats the next reading as a first reading.
     pub fn record(
         &mut self,
+        prev: Option<&Report>,
         next: &Report,
         events: Vec<AlertEvent>,
         now: DateTime<Utc>,
@@ -371,14 +473,39 @@ impl Notices {
                 !(event.kind == AlertKind::ProjectedExhaustion && event.account_key == key)
             });
         }
-        if self
-            .ledger
-            .alerts_mut()
-            .update_units(next, &self.evaluator, &events, now)
-        {
-            self.save_ledger();
+        self.sync_ledger();
+        let window = self.window(now);
+        let (mut deliver, mut deferred) = (Vec::new(), Vec::new());
+        for event in events {
+            match quiet::decide(Subject::Alert(&event), window) {
+                Decision::Deliver => deliver.push(event),
+                Decision::Defer(until) => deferred.push((event, until)),
+                Decision::Drop => {}
+            }
         }
-        self.pending.extend(events);
+        let first = self.ledger.alerts().is_first(next);
+        let path = self.ledger_path();
+        let sent = self.ledger.claim_alerts(
+            path.as_deref(),
+            next,
+            &self.evaluator,
+            deliver,
+            deferred,
+            now,
+        );
+        self.remember_stamp();
+        let key = next.state_key();
+        if first {
+            let found = self.ledger.alerts().missed(prev, next, &self.evaluator);
+            if found.is_empty() {
+                self.missed.remove(&key);
+            } else {
+                self.missed.insert(key, found);
+            }
+        } else if let Some(list) = self.missed.get_mut(&key) {
+            list.retain(|crossing| crossing.is_current(next));
+        }
+        self.pending.extend(sent);
     }
 
     /// PRD 0008 RF3.4: the metrics of `report` with an active alert, while
@@ -390,13 +517,6 @@ impl Notices {
             .alerts()
             .active(report)
             .filter(move |metric| on && !self.metric_muted(&account_key, &metric.label))
-    }
-
-    fn save_ledger(&self) {
-        if let Some(store) = &self.store {
-            // A failed write only risks repeating a notice after a restart.
-            let _ = self.ledger.save(&store.ledger);
-        }
     }
 
     /// Remember the language chosen in the app for the next notices: a
@@ -460,10 +580,13 @@ impl Notices {
     }
 
     /// One pass of the timer at `now`: deliver the reset notices that are
-    /// due (at most one grouped notice per account) and the pending usage
-    /// alerts ([`Self::deliver_alerts`]), remember them in the ledger
-    /// (pruned after eight days) and say when the next one is due.
-    /// `readings` follow `config.accounts`; nothing here queries a provider.
+    /// due (at most one grouped notice per account), the digest that ends
+    /// quiet hours and the pending usage alerts ([`Self::deliver_alerts`]),
+    /// remember them in the ledger (pruned after eight days) and say when
+    /// the next one is due. `readings` follow `config.accounts`; nothing
+    /// here queries a provider. During quiet hours (PRD 0032) reset
+    /// notices wait, or are dropped when the reset happens inside the
+    /// window; the pass is due again when the window ends.
     pub fn tick(
         &mut self,
         config: &Config,
@@ -471,14 +594,18 @@ impl Notices {
         now: DateTime<Utc>,
         notifier: &dyn Notifier,
     ) -> Tick {
-        let mut changed = self.ledger.adopt_ids(readings.iter().flatten().copied());
-        changed |= self.ledger.prune(now);
+        self.sync_ledger();
+        self.mutate_ledger(|ledger| {
+            let adopted = ledger.adopt_ids(readings.iter().flatten().copied());
+            ledger.prune(now) | adopted
+        });
+        let window = self.window(now);
         // PRD 0036 RF1.4: an aggregator's connections are planned and
         // notified as accounts after the configured ones.
         let expanded = aggregators::expand(config, readings);
         let mut tick = Tick {
             delivered: 0,
-            next: None,
+            next: window.map(|window| window.ends_at),
         };
         if self.prefs.enabled {
             let prefs = self.prefs.planner();
@@ -489,38 +616,68 @@ impl Notices {
                 &prefs,
                 &self.ledger,
             );
-            for event in &plan.due {
-                let notice = event.notice(expanded.display(event.account_index), now);
+            let (mut deliver, mut skipped) = (Vec::new(), Vec::new());
+            for event in plan.due {
+                let subject = Subject::Reset {
+                    resets_at: event.resets_at,
+                };
+                match quiet::decide(subject, window) {
+                    Decision::Deliver => deliver.push(event),
+                    Decision::Drop => skipped.push(event),
+                    Decision::Defer(_) => {}
+                }
+            }
+            // Recorded even when the delivery fails: a notice is sent at
+            // most once, never retried into a burst.
+            let path = self.ledger_path();
+            let sent = if deliver.is_empty() && skipped.is_empty() {
+                Vec::new()
+            } else {
+                let sent = self
+                    .ledger
+                    .claim_resets(path.as_deref(), deliver, skipped, now);
+                self.remember_stamp();
+                sent
+            };
+            for event in &sent {
+                let notice = event.notice_with(
+                    expanded.display(event.account_index),
+                    now,
+                    self.prefs.private,
+                );
                 let locale = self.locale();
-                // Recorded even when the delivery failed: a notice is sent
-                // at most once, never retried into a burst.
                 let _ =
                     notifier.deliver(&notice.title.resolve(locale), &notice.body.resolve(locale));
-                self.ledger.record(event, now);
             }
-            changed |= !plan.due.is_empty();
-            tick.delivered = plan.due.len();
-            tick.next = plan.next.map(|event| event.notify_at);
+            tick.delivered = sent.len();
+            tick.next = min_of(tick.next, plan.next.map(|event| event.notify_at));
         }
-        let (delivered, next) = self.deliver_alerts(&expanded, now, notifier);
+        if window.is_none() {
+            let path = self.ledger_path();
+            let events = self.ledger.claim_digest(
+                path.as_deref(),
+                expanded.readings().into_iter().flatten(),
+                &self.evaluator,
+                self.quiet.digest,
+                now,
+            );
+            if !events.is_empty() {
+                self.remember_stamp();
+            }
+            self.digest_pending.extend(events);
+        }
+        let (delivered, next) = self.deliver_digest(&expanded, now, notifier);
         tick.delivered += delivered;
-        tick.next = match (tick.next, next) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        };
-        if changed {
-            self.save_ledger();
-        }
+        tick.next = min_of(tick.next, next);
+        let (delivered, next) = self.deliver_alerts(&expanded, now, window, notifier);
+        tick.delivered += delivered;
+        tick.next = min_of(tick.next, next);
         tick
     }
 
-    /// PRD 0008 RF2.2: the pending usage alerts still wanted (alerts on,
-    /// bell and metric not muted, account still configured) as one
-    /// notification: one account's alerts together, several accounts'
-    /// together once [`NOTICE_SPACING`] holds them. Returns how many went
-    /// out (0 or 1) and, while the spacing holds some back, when they may.
-    /// Like reset notices, a delivery the system refused is not retried.
-    fn deliver_alerts(
+    /// PRD 0032 RF3.3/RF3.4: the digest that closes quiet hours, one
+    /// notification subject to [`NOTICE_SPACING`] like any alert.
+    fn deliver_digest(
         &mut self,
         expanded: &aggregators::Expanded,
         now: DateTime<Utc>,
@@ -530,10 +687,10 @@ impl Notices {
         let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
         let evaluator = &self.evaluator;
         let alerts_on = self.alerts.enabled;
-        self.pending.retain(|event| {
+        self.digest_pending.retain(|event| {
             Self::judged(evaluator, alerts_on, event) && keys.contains(&event.account_key)
         });
-        if self.pending.is_empty() {
+        if self.digest_pending.is_empty() {
             return (0, None);
         }
         if let Some(due) = self.last_alert.map(|last| last + NOTICE_SPACING) {
@@ -541,7 +698,7 @@ impl Notices {
                 return (0, Some(due));
             }
         }
-        let mut pending = std::mem::take(&mut self.pending);
+        let mut pending = std::mem::take(&mut self.digest_pending);
         let mut groups = Vec::new();
         for (index, key) in keys.iter().enumerate() {
             let account = expanded.display(index);
@@ -553,7 +710,7 @@ impl Notices {
                 groups.push((account, mine));
             }
         }
-        let Some(notice) = alerts::notice(&groups, now, &chrono::Local) else {
+        let Some(notice) = quiet::digest(&groups, now, &chrono::Local, self.prefs.private) else {
             return (0, None);
         };
         let locale = self.locale();
@@ -561,6 +718,76 @@ impl Notices {
         self.last_alert = Some(now);
         (1, None)
     }
+
+    /// PRD 0008 RF2.2: the pending usage alerts still wanted (alerts on,
+    /// bell and metric not muted, account still configured) as one
+    /// notification: one account's alerts together, several accounts'
+    /// together once [`NOTICE_SPACING`] holds them. Returns how many went
+    /// out (0 or 1) and, while the spacing holds some back, when they may.
+    /// Like reset notices, a delivery the system refused is not retried.
+    /// Alerts that quiet hours would hold (all but exhaustion) wait in the
+    /// queue for the end of the window `window`.
+    fn deliver_alerts(
+        &mut self,
+        expanded: &aggregators::Expanded,
+        now: DateTime<Utc>,
+        window: Option<QuietWindow>,
+        notifier: &dyn Notifier,
+    ) -> (usize, Option<DateTime<Utc>>) {
+        let config = &expanded.config;
+        let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
+        let evaluator = &self.evaluator;
+        let alerts_on = self.alerts.enabled;
+        self.pending.retain(|event| {
+            Self::judged(evaluator, alerts_on, event) && keys.contains(&event.account_key)
+        });
+        let (mut pending, held): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
+            .into_iter()
+            .partition(|event| quiet::decide(Subject::Alert(event), window) == Decision::Deliver);
+        self.pending = held;
+        if pending.is_empty() {
+            return (0, None);
+        }
+        if let Some(due) = self.last_alert.map(|last| last + NOTICE_SPACING) {
+            if now < due {
+                self.pending.append(&mut pending);
+                return (0, Some(due));
+            }
+        }
+        let mut groups = Vec::new();
+        for (index, key) in keys.iter().enumerate() {
+            let account = expanded.display(index);
+            let (mine, rest): (Vec<_>, Vec<_>) = pending
+                .into_iter()
+                .partition(|event| event.account_key == *key);
+            pending = rest;
+            if !mine.is_empty() {
+                groups.push((account, mine));
+            }
+        }
+        let Some(notice) = alerts::notice_with(&groups, now, &chrono::Local, self.prefs.private)
+        else {
+            return (0, None);
+        };
+        let locale = self.locale();
+        let _ = notifier.deliver(&notice.title.resolve(locale), &notice.body.resolve(locale));
+        self.last_alert = Some(now);
+        (1, None)
+    }
+}
+
+fn min_of(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
+}
+
+/// The modification time of `path`, if it exists.
+fn modified(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok()
 }
 
 #[cfg(test)]
@@ -656,6 +883,7 @@ mod tests {
             .set_prefs(NotifyPrefs {
                 enabled: true,
                 lead_minutes,
+                private: false,
                 ..NotifyPrefs::default()
             })
             .unwrap();
@@ -1033,7 +1261,7 @@ mod tests {
         let c = router(t0() + mins(10), 100.0, 100.0);
         let readings = [Some(&c)];
         let events = notices.assess(Some(&b), &c, c.checked_at, None);
-        notices.record(&c, events, c.checked_at, None);
+        notices.record(None, &c, events, c.checked_at, None);
         assert_eq!(
             notices
                 .tick(&cfg, &readings, c.checked_at + NOTICE_SPACING, &fake)
@@ -1048,7 +1276,7 @@ mod tests {
         let events = notices.assess(Some(&a), &b, b.checked_at, None);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].account_key, conn);
-        notices.record(&b, events, b.checked_at, None);
+        notices.record(None, &b, events, b.checked_at, None);
         let readings = [Some(&b)];
         assert_eq!(
             notices.tick(&cfg, &readings, b.checked_at, &fake).delivered,
@@ -1101,6 +1329,11 @@ mod tests {
     fn alerting(store: Option<Store>) -> Notices {
         let mut notices = Notices::open(store);
         notices.switch_alerts("granted").unwrap();
+        let public = NotifyPrefs {
+            private: false,
+            ..notices.prefs().clone()
+        };
+        notices.set_prefs(public).unwrap();
         notices
     }
 
@@ -1115,7 +1348,7 @@ mod tests {
     ) -> Tick {
         let now = next.checked_at;
         let events = notices.assess(prev, next, now, None);
-        notices.record(next, events, now, None);
+        notices.record(prev, next, events, now, None);
         notices.tick(cfg, &[], now, notifier)
     }
 
@@ -1291,7 +1524,7 @@ mod tests {
         let judged = |notices: &mut Notices| {
             let events = notices.assess(Some(&a), &b, b.checked_at, None);
             assert_eq!(events.len(), 1);
-            notices.record(&b, events, b.checked_at, None);
+            notices.record(Some(&a), &b, events, b.checked_at, None);
         };
         // Turned off between the reading and the timer: nothing goes out,
         // and once back on the same level does not come back.
@@ -1374,7 +1607,7 @@ mod tests {
             usage("Old", t0() + mins(5), 92.0, w()),
         );
         let events = notices.assess(Some(&a), &b, b.checked_at, None);
-        notices.record(&b, events, b.checked_at, None);
+        notices.record(Some(&a), &b, events, b.checked_at, None);
         notices
             .set_metric_alert("claude:Old", "Week", false)
             .unwrap();
@@ -1419,12 +1652,13 @@ mod tests {
                 recent: &lists,
             };
             let events = notices.assess(prev.as_ref(), &next, at, Some(&input));
-            notices.record(&next, events, at, Some(&input));
+            notices.record(prev.as_ref(), &next, events, at, Some(&input));
             out.push(notices.tick(cfg, &[], at, &fake).delivered);
             prev = Some(next);
         }
         let titles = fake.titles();
-        assert!(titles.iter().all(|t| t.contains("Work")), "{titles:?}");
+        // PRD 0032 RF7: private texts (the default) name the provider only.
+        assert!(titles.iter().all(|t| t.contains("Claude")), "{titles:?}");
         out
     }
 
@@ -1471,7 +1705,7 @@ mod tests {
             };
             let events = notices.assess(prev.as_ref(), &next, at, Some(&input));
             queued |= !events.is_empty();
-            notices.record(&next, events, at, Some(&input));
+            notices.record(prev.as_ref(), &next, events, at, Some(&input));
             prev = Some(next);
         }
         assert!(queued, "the steep series queued a projection");
@@ -1484,8 +1718,12 @@ mod tests {
             interval: std::time::Duration::from_secs(300),
             recent: &lists,
         };
-        notices.record(&fresh, Vec::new(), at, Some(&input));
+        notices.record(None, &fresh, Vec::new(), at, Some(&input));
         let fake = FakeNotifier::default();
         assert_eq!(notices.tick(&cfg, &[], at, &fake).delivered, 0);
     }
 }
+
+#[cfg(test)]
+#[path = "notify_quiet_tests.rs"]
+mod quiet_tests;

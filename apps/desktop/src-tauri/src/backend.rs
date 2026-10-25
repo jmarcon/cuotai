@@ -394,6 +394,10 @@ fn forecast_view(
 pub struct MetricAlertView {
     muted: bool,
     active: bool,
+    /// PRD 0032 RF8.2: the highest level (percent) this metric crossed while
+    /// the app was closed and nobody was told; the card shows a marker.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    missed: Option<u8>,
 }
 
 /// The core's `Pace` plus its texts: `label` (stage) and `outlook` (`None`
@@ -1181,9 +1185,10 @@ fn finish_account(
     let pace = notice_pace(notices, source, index, &report);
     let input = pace.as_ref().map(NoticePace::input);
     let events = notices.assess(last_reading(cycle, index), &report, now, input.as_ref());
+    let prev = last_reading(cycle, index).cloned();
     if cycle.finish_account(index, Some(report), token, Instant::now()) {
         if let Some(next) = cycle.account_report(index) {
-            notices.record(next, events, now, input.as_ref());
+            notices.record(prev.as_ref(), next, events, now, input.as_ref());
         }
     }
 }
@@ -1198,10 +1203,10 @@ fn finish_full(
     token: cuotai_core::refresh::Generation,
     now: chrono::DateTime<chrono::Utc>,
 ) {
-    let previous: Vec<Report> = (0..snapshot.reports.len())
-        .filter_map(|index| last_reading(cycle, index).cloned())
+    let prevs: Vec<Option<Report>> = (0..snapshot.reports.len())
+        .map(|index| last_reading(cycle, index).cloned())
         .collect();
-    notices.adopt_reports(previous.iter().chain(&snapshot.reports));
+    notices.adopt_reports(prevs.iter().flatten().chain(&snapshot.reports));
     let paces: Vec<Option<NoticePace>> = snapshot
         .reports
         .iter()
@@ -1221,7 +1226,7 @@ fn finish_full(
         for (index, events) in events.into_iter().enumerate() {
             if let Some(next) = cycle.account_report(index) {
                 let input = paces[index].as_ref().map(NoticePace::input);
-                notices.record(next, events, now, input.as_ref());
+                notices.record(prevs[index].as_ref(), next, events, now, input.as_ref());
             }
         }
     }
@@ -1531,6 +1536,7 @@ impl Inner {
         if !self.notices.alerts().enabled {
             return;
         }
+        let missed = self.notices.missed(&view.account_key);
         let active: Vec<&str> = self
             .notices
             .active(report)
@@ -1542,6 +1548,10 @@ impl Inner {
                 metric.alert = Some(MetricAlertView {
                     muted: self.notices.metric_muted(&view.account_key, label),
                     active: active.contains(&label),
+                    missed: missed
+                        .iter()
+                        .find(|crossing| crossing.label == label)
+                        .map(|crossing| crossing.threshold),
                 });
             }
         }

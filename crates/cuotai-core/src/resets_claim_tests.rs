@@ -32,6 +32,9 @@ fn quota(used: f64) -> Metric {
 
 fn report(at: DateTime<Utc>, used: f64) -> Report {
     Report {
+        as_of: Default::default(),
+        overage_hint: Default::default(),
+        sub_reports: Vec::new(),
         account_id: None,
         diagnostic: None,
         account: "Work".into(),
@@ -48,6 +51,7 @@ fn report(at: DateTime<Utc>, used: f64) -> Report {
 
 fn event_of(report: &Report, kind: AlertKind, threshold: u8) -> AlertEvent {
     AlertEvent {
+        overage: Default::default(),
         account_key: report.state_key(),
         label: "Session (5h)".into(),
         window: Some(MetricWindow::Window5h),

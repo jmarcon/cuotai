@@ -252,6 +252,7 @@ fn the_codec_is_lenient_and_round_trips() {
 
 fn event(kind: AlertKind, threshold: u8) -> AlertEvent {
     AlertEvent {
+        overage: Default::default(),
         account_key: "k".into(),
         label: "Session (5h)".into(),
         window: Some(crate::MetricWindow::Window5h),
@@ -361,5 +362,33 @@ fn the_private_digest_names_no_account() {
         );
         assert!(!text.contains("Secret"), "{locale}: {text}");
         assert!(text.contains("90"), "{locale}: {text}");
+    }
+}
+
+#[test]
+fn the_strict_reading_refuses_what_the_interface_must_not_send() {
+    let good = serde_json::json!({
+        "enabled": true, "digest": false,
+        "days": {"mon": [{"from": "22:00", "to": "08:00"}]}
+    });
+    let schedule = QuietSchedule::from_value_strict(&good).unwrap();
+    assert!(schedule.enabled && !schedule.digest);
+    assert_eq!(schedule.days[0], vec![interval("22:00", "08:00")]);
+    let four = (1..=4)
+        .map(|i| serde_json::json!({"from": format!("0{i}:00"), "to": format!("0{i}:30")}))
+        .collect::<Vec<_>>();
+    for bad in [
+        serde_json::json!({"enabled": true}),
+        serde_json::json!({"enabled": 1, "digest": true}),
+        serde_json::json!({"enabled": true, "digest": true, "days": {"xyz": []}}),
+        serde_json::json!({"enabled": true, "digest": true,
+            "days": {"mon": [{"from": "7:00", "to": "08:00"}]}}),
+        serde_json::json!({"enabled": true, "digest": true, "days": {"mon": four}}),
+    ] {
+        assert_eq!(
+            QuietSchedule::from_value_strict(&bad),
+            Err("invalid_quiet"),
+            "{bad}"
+        );
     }
 }

@@ -2,15 +2,15 @@
 //! Arquivo `desktop.json` na pasta padrão de configuração: pasta de temas e idiomas e o
 //! `cuotai.toml` escolhido pelo usuário (só o caminho; nunca dentro do TOML).
 use cuotai_core::{
-    alerts::{AlertPrefs, Lead, THRESHOLD_RANGE},
+    alerts::THRESHOLD_RANGE,
     history::Retention,
     pace::PaceUnit,
-    resets::{NotifyWhen, Prefs},
+    quiet::QuietSchedule,
     tray::{TraySelection, TrayStyle},
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -58,6 +58,10 @@ struct Stored {
     /// leniently like `notify` ([`AlertSettings::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     alerts: Option<serde_json::Value>,
+    /// Quiet hours of this device (PRD 0032 RF2); absent = off. Read
+    /// leniently ([`QuietSchedule::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    quiet: Option<serde_json::Value>,
     /// Public provider status queries (PRD 0011 RF4.3); absent = off, the
     /// owner's opt-in decision. Only `true` is stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -395,104 +399,7 @@ pub fn write_updater(file: &Path, prefs: &UpdaterPrefs) -> Result<(), &'static s
     })
 }
 
-/// Lead times offered, in minutes ("at the time" is 0).
-pub const NOTIFY_LEADS: [u32; 4] = [0, 5, 15, 60];
-/// "When to notify" filters, in the order the interface shows them.
-pub const NOTIFY_WHENS: [&str; 3] = ["used", "exhausted", "always"];
-
-/// PRD 0003 RF3: reset notice preferences of this device. The global switch
-/// is off by default; `off_accounts` holds the `Account::state_key`s (ids, PRD 0029) whose bell is
-/// off (a rename changes the key and so loses the choice).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct NotifyPrefs {
-    pub enabled: bool,
-    /// One of [`NOTIFY_LEADS`].
-    pub lead_minutes: u32,
-    /// One of [`NOTIFY_WHENS`].
-    pub when: &'static str,
-    pub include_other: bool,
-    pub off_accounts: BTreeSet<String>,
-}
-
-impl Default for NotifyPrefs {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            lead_minutes: 0,
-            when: NOTIFY_WHENS[0],
-            include_other: false,
-            off_accounts: BTreeSet::new(),
-        }
-    }
-}
-
-impl NotifyPrefs {
-    /// Each field on its own: an unknown or mistyped value is its default.
-    fn from_value(value: &serde_json::Value) -> Self {
-        let default = Self::default();
-        let lead = value["lead_minutes"].as_u64();
-        let when = value["when"].as_str();
-        Self {
-            enabled: value["enabled"].as_bool().unwrap_or(default.enabled),
-            lead_minutes: NOTIFY_LEADS
-                .into_iter()
-                .find(|m| lead == Some(u64::from(*m)))
-                .unwrap_or(default.lead_minutes),
-            when: NOTIFY_WHENS
-                .into_iter()
-                .find(|w| when == Some(w))
-                .unwrap_or(default.when),
-            include_other: value["include_other"]
-                .as_bool()
-                .unwrap_or(default.include_other),
-            off_accounts: value["off_accounts"]
-                .as_array()
-                .map(|keys| {
-                    keys.iter()
-                        .filter_map(|key| key.as_str().map(str::to_owned))
-                        .collect()
-                })
-                .unwrap_or_default(),
-        }
-    }
-
-    /// The core planner's preferences.
-    pub fn planner(&self) -> Prefs {
-        Prefs {
-            lead: chrono::TimeDelta::minutes(i64::from(self.lead_minutes)),
-            when: match self.when {
-                "exhausted" => NotifyWhen::OnlyIfExhausted,
-                "always" => NotifyWhen::Always,
-                _ => NotifyWhen::OnlyIfUsed,
-            },
-            include_other: self.include_other,
-            disabled: self.off_accounts.clone(),
-        }
-    }
-
-    /// Lead time and filter from the interface. Error: `invalid_notify`.
-    pub fn with_choices(
-        &self,
-        lead_minutes: u32,
-        when: &str,
-        include_other: bool,
-    ) -> Result<Self, &'static str> {
-        let lead_minutes = NOTIFY_LEADS
-            .into_iter()
-            .find(|m| *m == lead_minutes)
-            .ok_or("invalid_notify")?;
-        let when = NOTIFY_WHENS
-            .into_iter()
-            .find(|w| *w == when)
-            .ok_or("invalid_notify")?;
-        Ok(Self {
-            lead_minutes,
-            when,
-            include_other,
-            ..self.clone()
-        })
-    }
-}
+pub use cuotai_core::notify_prefs::{AlertSettings, NotifyPrefs, NOTIFY_LEADS, NOTIFY_WHENS};
 
 fn notify_of(stored: &Stored) -> NotifyPrefs {
     stored
@@ -502,193 +409,32 @@ fn notify_of(stored: &Stored) -> NotifyPrefs {
         .unwrap_or_default()
 }
 
-/// PRD 0008 RF3: usage alert preferences of this device. Off by default;
-/// the account's bell ([`NotifyPrefs::off_accounts`]) mutes its alerts
-/// too, and `muted` holds the metrics muted in the details per
-/// `Account::key` (a rename changes the key and so loses the choice).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct AlertSettings {
-    pub enabled: bool,
-    /// Ascending, each within `alerts::THRESHOLD_RANGE`.
-    pub thresholds: Vec<u8>,
-    pub exhaustion: bool,
-    pub recovery: bool,
-    /// PRD 0023 RF4.6: notify when paid extra usage starts (`alerts.overage`
-    /// in `desktop.json`, on by default whenever usage alerts are on).
-    pub overage: bool,
-    /// Account key → muted metric labels.
-    pub muted: BTreeMap<String, BTreeSet<String>>,
-    /// PRD 0036 RF6.4: aggregator accounts whose connections alert one by
-    /// one; every other aggregator alerts only when a whole pool runs out.
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub pool_each: BTreeSet<String>,
-    /// PRD 0024 RF4.1: minutes before a projected exhaustion to warn (15,
-    /// 30 or 60); absent = off, as the core requires.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub projected_lead_minutes: Option<u16>,
-}
-
-impl Default for AlertSettings {
-    /// The core's defaults: off, 75 and 90%, exhaustion and recovery.
-    fn default() -> Self {
-        let core = AlertPrefs::default();
-        Self {
-            enabled: core.enabled,
-            thresholds: core.thresholds().collect(),
-            exhaustion: core.exhaustion,
-            recovery: core.recovery,
-            overage: core.overage,
-            muted: BTreeMap::new(),
-            pool_each: BTreeSet::new(),
-            projected_lead_minutes: None,
-        }
-    }
-}
-
-impl AlertSettings {
-    /// Each field on its own: an unknown or mistyped value is its default;
-    /// thresholds outside the range are dropped.
-    fn from_value(value: &serde_json::Value) -> Self {
-        let default = Self::default();
-        let flag = |key: &str, default: bool| value[key].as_bool().unwrap_or(default);
-        Self {
-            enabled: flag("enabled", default.enabled),
-            thresholds: value["thresholds"]
-                .as_array()
-                .map(|list| {
-                    list.iter()
-                        .filter_map(|t| u8::try_from(t.as_u64()?).ok())
-                        .filter(|t| THRESHOLD_RANGE.contains(t))
-                        .collect::<BTreeSet<u8>>()
-                        .into_iter()
-                        .collect()
-                })
-                .unwrap_or(default.thresholds),
-            exhaustion: flag("exhaustion", default.exhaustion),
-            recovery: flag("recovery", default.recovery),
-            overage: flag("overage", default.overage),
-            muted: value["muted"]
-                .as_object()
-                .map(|accounts| {
-                    accounts
-                        .iter()
-                        .filter_map(|(key, labels)| {
-                            let labels: BTreeSet<String> = labels
-                                .as_array()?
-                                .iter()
-                                .filter_map(|label| label.as_str().map(str::to_owned))
-                                .collect();
-                            (!labels.is_empty()).then(|| (key.clone(), labels))
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
-            pool_each: value["pool_each"]
-                .as_array()
-                .map(|keys| {
-                    keys.iter()
-                        .filter_map(|key| key.as_str().map(str::to_owned))
-                        .collect()
-                })
-                .unwrap_or_default(),
-            projected_lead_minutes: value["projected_lead_minutes"]
-                .as_u64()
-                .and_then(Lead::from_minutes)
-                .map(Lead::minutes),
-        }
-    }
-
-    /// PRD 0036 RF6.4: how the aggregator `account_key` alerts.
-    pub fn pool_mode(&self, account_key: &str) -> cuotai_core::alerts::PoolAlerts {
-        if self.pool_each.contains(account_key) {
-            cuotai_core::alerts::PoolAlerts::EachConnection
-        } else {
-            cuotai_core::alerts::PoolAlerts::WholePool
-        }
-    }
-
-    /// The same settings with `account_key` alerting by `mode`.
-    pub fn with_pool_mode(&self, account_key: &str, mode: cuotai_core::alerts::PoolAlerts) -> Self {
-        let mut next = self.clone();
-        match mode {
-            cuotai_core::alerts::PoolAlerts::EachConnection => {
-                next.pool_each.insert(account_key.to_owned());
-            }
-            cuotai_core::alerts::PoolAlerts::WholePool => {
-                next.pool_each.remove(account_key);
-            }
-        }
-        next
-    }
-
-    /// The projected-exhaustion lead (PRD 0024 RF2.7), if turned on.
-    pub fn projected(&self) -> Option<Lead> {
-        self.projected_lead_minutes
-            .and_then(|minutes| Lead::from_minutes(u64::from(minutes)))
-    }
-
-    /// Thresholds (each 10 to 99; repeats collapse) and the exhaustion and
-    /// recovery notices from the interface. Error: `invalid_threshold`.
-    pub fn with_choices(
-        &self,
-        thresholds: &[u8],
-        exhaustion: bool,
-        recovery: bool,
-    ) -> Result<Self, &'static str> {
-        let checked =
-            AlertPrefs::new(true, thresholds.iter().copied()).map_err(|_| "invalid_threshold")?;
-        Ok(Self {
-            thresholds: checked.thresholds().collect(),
-            exhaustion,
-            recovery,
-            ..self.clone()
-        })
-    }
-
-    /// Mute (`on = false`) or unmute the metric `label` of `account_key`.
-    pub fn with_metric(&self, account_key: &str, label: &str, on: bool) -> Self {
-        let mut next = self.clone();
-        if on {
-            if let Some(labels) = next.muted.get_mut(account_key) {
-                labels.remove(label);
-                if labels.is_empty() {
-                    next.muted.remove(account_key);
-                }
-            }
-        } else {
-            next.muted
-                .entry(account_key.to_owned())
-                .or_default()
-                .insert(label.to_owned());
-        }
-        next
-    }
-
-    /// The core evaluator's preferences; `off_accounts` are the accounts
-    /// whose bell is off.
-    pub fn evaluator(&self, off_accounts: &BTreeSet<String>) -> AlertPrefs {
-        // Always valid: read and chosen within the range.
-        let mut prefs =
-            AlertPrefs::new(self.enabled, self.thresholds.iter().copied()).unwrap_or_default();
-        prefs.exhaustion = self.exhaustion;
-        prefs.recovery = self.recovery;
-        prefs.overage = self.overage;
-        prefs.muted_accounts = off_accounts.clone();
-        prefs.muted_metrics = self.muted.clone();
-        prefs.projected = self.projected();
-        // The projected warning has its own switch: the evaluator runs for
-        // it too, and `Notices` keeps the other kinds to `enabled`.
-        prefs.enabled |= prefs.projected.is_some();
-        prefs
-    }
-}
-
 fn alerts_of(stored: &Stored) -> AlertSettings {
     stored
         .alerts
         .as_ref()
         .map(AlertSettings::from_value)
         .unwrap_or_default()
+}
+
+fn quiet_of(stored: &Stored) -> QuietSchedule {
+    stored
+        .quiet
+        .as_ref()
+        .map(QuietSchedule::from_value)
+        .unwrap_or_default()
+}
+
+/// PRD 0032 RF2: the quiet hours stored in `file`.
+pub fn read_quiet(file: &Path) -> QuietSchedule {
+    quiet_of(&read(file))
+}
+
+/// Store the quiet hours in `file`; the defaults remove the key.
+pub fn write_quiet(file: &Path, quiet: &QuietSchedule) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.quiet = (*quiet != QuietSchedule::default()).then(|| quiet.to_value())
+    })
 }
 
 /// PRD 0008 RF3: the usage alert preferences stored in `file`.
@@ -1426,6 +1172,8 @@ pub struct SettingsView {
     notify_whens: [&'static str; 3],
     /// PRD 0008 RF3: usage alerts (off by default) and the threshold range.
     alerts: AlertSettings,
+    /// PRD 0032 RF2: quiet hours (off by default).
+    quiet: serde_json::Value,
     alert_min: u8,
     alert_max: u8,
     /// PRD 0014 RF4.1: widget publishing (off by default) and the accepted
@@ -1485,6 +1233,7 @@ pub fn view() -> SettingsView {
         notify_leads: NOTIFY_LEADS,
         notify_whens: NOTIFY_WHENS,
         alerts: alerts_of(&stored),
+        quiet: quiet_of(&stored).to_value(),
         alert_min: *THRESHOLD_RANGE.start(),
         alert_max: *THRESHOLD_RANGE.end(),
         widgets: widgets_of(&stored),
@@ -1527,6 +1276,8 @@ pub fn open_user_dir() -> Result<(), &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cuotai_core::alerts::Lead;
+    use std::collections::{BTreeMap, BTreeSet};
 
     #[test]
     fn detect_prefs_read_leniently_and_keep_known_kinds() {

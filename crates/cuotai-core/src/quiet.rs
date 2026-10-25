@@ -103,6 +103,48 @@ impl QuietSchedule {
         }
     }
 
+    /// The strict reading of what the interface submits: `enabled` and
+    /// `digest` must be booleans, `days` an object of known weekday keys
+    /// with at most [`MAX_INTERVALS_PER_DAY`] `{from, to}` intervals in
+    /// `HH:MM` each. Error: `invalid_quiet`.
+    pub fn from_value_strict(value: &Value) -> Result<Self, &'static str> {
+        let flag = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_bool)
+                .ok_or("invalid_quiet")
+        };
+        let mut days: [Vec<Interval>; 7] = Default::default();
+        if let Some(object) = value.get("days") {
+            let object = object.as_object().ok_or("invalid_quiet")?;
+            for (key, list) in object {
+                let index = DAY_KEYS
+                    .iter()
+                    .position(|day| day == key)
+                    .ok_or("invalid_quiet")?;
+                let list = list.as_array().ok_or("invalid_quiet")?;
+                if list.len() > MAX_INTERVALS_PER_DAY {
+                    return Err("invalid_quiet");
+                }
+                days[index] = list
+                    .iter()
+                    .map(|item| {
+                        Interval::parse(
+                            item["from"].as_str().ok_or("invalid_quiet")?,
+                            item["to"].as_str().ok_or("invalid_quiet")?,
+                        )
+                        .ok_or("invalid_quiet")
+                    })
+                    .collect::<Result<_, _>>()?;
+            }
+        }
+        Ok(Self {
+            enabled: flag("enabled")?,
+            days,
+            digest: flag("digest")?,
+        })
+    }
+
     /// The JSON form stored in `desktop.json`: only the days that have
     /// intervals.
     pub fn to_value(&self) -> Value {

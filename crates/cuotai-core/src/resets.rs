@@ -495,7 +495,7 @@ impl Ledger {
         now: DateTime<Utc>,
     ) -> Vec<crate::alerts::AlertEvent> {
         let mut probe = self.alerts.clone();
-        let changed = probe.update_with(next, prefs, &events, &deferred, now);
+        let changed = probe.update_units_with(next, prefs, &events, &deferred, now);
         let Some(path) = path.filter(|_| changed || !events.is_empty() || !deferred.is_empty())
         else {
             self.alerts = probe;
@@ -514,7 +514,7 @@ impl Ledger {
                 .collect();
             ledger
                 .alerts
-                .update_with(next, prefs, &events, &deferred, now);
+                .update_units_with(next, prefs, &events, &deferred, now);
             events
         })
     }

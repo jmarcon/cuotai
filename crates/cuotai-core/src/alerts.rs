@@ -310,6 +310,16 @@ pub struct MissedCrossing {
     pub resets_at: Option<DateTime<Utc>>,
 }
 
+impl MissedCrossing {
+    /// Whether `report` still reads the window instance this crossing
+    /// belongs to: the marker lives until that instance ends.
+    pub fn is_current(&self, report: &Report) -> bool {
+        report.metrics.iter().any(|metric| {
+            metric.label == self.label && same_instance(metric.resets_at, self.resets_at)
+        })
+    }
+}
+
 /// One notice about one metric of one account.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AlertEvent {
@@ -886,6 +896,9 @@ impl AlertState {
                 });
                 if !has {
                     self.marks.push(Mark {
+                        acknowledged: Default::default(),
+                        deferred_until: Default::default(),
+                        lapsed: Default::default(),
                         account: account.clone(),
                         metric: digest.clone(),
                         kind,
@@ -1013,10 +1026,24 @@ impl AlertState {
         events: &[AlertEvent],
         now: DateTime<Utc>,
     ) -> bool {
-        let mut changed = self.update(next, prefs, events, now);
+        self.update_units_with(next, prefs, events, &[], now)
+    }
+
+    /// [`Self::update_units`] with PRD 0032's deferred events
+    /// ([`Self::update_with`]).
+    pub fn update_units_with(
+        &mut self,
+        next: &Report,
+        prefs: &AlertPrefs,
+        events: &[AlertEvent],
+        deferred: &[(AlertEvent, DateTime<Utc>)],
+        now: DateTime<Utc>,
+    ) -> bool {
+        let mut changed = self.update_with(next, prefs, events, deferred, now);
         if next.provider.is_aggregator() && next.status == Status::Ready {
             for sub in next.sub_reports.iter().filter(|sub| sub_is_active(sub)) {
-                changed |= self.update(&sub_as_report(next, sub), prefs, events, now);
+                changed |=
+                    self.update_with(&sub_as_report(next, sub), prefs, events, deferred, now);
             }
         }
         changed
@@ -1058,6 +1085,7 @@ impl AlertState {
                     AlertKind::Threshold
                 };
                 let wanted = prefs.wants(&AlertEvent {
+                    overage: Default::default(),
                     account_key: account_key.clone(),
                     label: metric.label.clone(),
                     window: metric.window,
@@ -1107,6 +1135,12 @@ impl AlertState {
         changed
     }
 
+    /// PRD 0032 RF8.1: `report` would be the first reading of its account
+    /// in this process (call it before [`Self::update`]).
+    pub fn is_first(&self, report: &Report) -> bool {
+        !self.seen.contains(&account_digest(&report.state_key()))
+    }
+
     /// PRD 0032 RF4.2: carry the per-process first-reading set of `other`
     /// over to this freshly loaded state.
     pub(crate) fn keep_session_of(&mut self, other: &AlertState) {
@@ -1145,6 +1179,20 @@ impl AlertState {
                     && mark.notified
                     && same_instance(mark.resets_at, event.resets_at)
             }),
+            // PRD 0023 RF4: once per billing cycle, marked on the account.
+            AlertKind::OverageStarted | AlertKind::OverageCapReached => {
+                self.marks.iter().any(|mark| {
+                    mark.metric == key_digest(&event.account_key, OVERAGE_MARK)
+                        && mark.kind == event.kind
+                        && mark.notified
+                        && event
+                            .resets_at
+                            .is_none_or(|at| same_instance(mark.resets_at, Some(at)))
+                })
+            }
+            // PRD 0036 RF6.4: a pool notice follows the pool's transition
+            // between two readings; nothing is marked for it.
+            AlertKind::PoolExhausted | AlertKind::PoolRecovered => false,
         }
     }
 
@@ -1213,6 +1261,7 @@ impl AlertState {
                     .filter(|at| Some(*at) == mark.resets_at)
                     .filter(|at| crate::user_session::expiry(*at, now).soon)
                     .map(|at| AlertEvent {
+                        overage: Default::default(),
                         account_key: account_key.clone(),
                         label: String::new(),
                         window: None,
@@ -1235,6 +1284,7 @@ impl AlertState {
                             _ => reached(consumption.percent, f64::from(mark.threshold)),
                         };
                         holds.then(|| AlertEvent {
+                            overage: Default::default(),
                             account_key: account_key.clone(),
                             label: metric.label.clone(),
                             window: metric.window,

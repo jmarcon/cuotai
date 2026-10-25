@@ -1080,6 +1080,49 @@ async fn set_account_notify(
         .await
 }
 
+/// PRD 0032 RF7.1: "Hide account names in notifications". Error:
+/// `unwritable`.
+#[tauri::command]
+async fn set_notify_private(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(), String> {
+    b.update_notices(&app, |n| {
+        let prefs = cuotai_core::notify_prefs::NotifyPrefs {
+            private: on,
+            ..n.prefs().clone()
+        };
+        n.set_prefs(prefs)
+    })
+    .await
+}
+
+/// PRD 0032 RF2: the quiet hours (`enabled`, `days` of `{from, to}` in
+/// `HH:MM`, `digest`), saved in `desktop.json`. Errors: `invalid_quiet`,
+/// `unwritable`.
+#[tauri::command]
+async fn set_quiet_hours(
+    app: AppHandle,
+    b: Shared<'_>,
+    quiet: serde_json::Value,
+) -> Result<(), String> {
+    let quiet =
+        cuotai_core::quiet::QuietSchedule::from_value_strict(&quiet).map_err(str::to_owned)?;
+    b.update_notices(&app, |n| n.set_quiet(quiet)).await
+}
+
+/// PRD 0032 RF8.2: the person opened the details of the account with the
+/// core key `account_key`: its "crossed while closed" marker is seen.
+#[tauri::command]
+async fn acknowledge_missed(
+    app: AppHandle,
+    b: Shared<'_>,
+    account_key: String,
+) -> Result<(), String> {
+    b.update_notices(&app, |n| {
+        n.acknowledge_missed(&account_key);
+        Ok(())
+    })
+    .await
+}
+
 /// PRD 0003 RF2.2: the language chosen in the app, for the notices the
 /// backend sends. Errors: `invalid_locale`, `unwritable`.
 #[tauri::command]
@@ -1872,6 +1915,9 @@ pub fn run() {
             set_pool_alerts,
             set_notify_options,
             set_account_notify,
+            set_notify_private,
+            set_quiet_hours,
+            acknowledge_missed,
             set_locale,
             set_callback_style,
             send_test_notification,

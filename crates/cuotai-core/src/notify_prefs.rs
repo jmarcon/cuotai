@@ -9,7 +9,7 @@
 //! does not exist, [`Loaded::absent`] applies the recommended defaults so a
 //! TUI-only person keeps the behaviour `--notify` always had.
 
-use crate::alerts::{AlertPrefs, THRESHOLD_RANGE};
+use crate::alerts::{AlertPrefs, Lead, THRESHOLD_RANGE};
 use crate::quiet::QuietSchedule;
 use crate::resets::{NotifyWhen, Prefs};
 use serde::Serialize;
@@ -132,8 +132,19 @@ pub struct AlertSettings {
     pub thresholds: Vec<u8>,
     pub exhaustion: bool,
     pub recovery: bool,
+    /// PRD 0023 RF4.6: notify when paid extra usage starts (`alerts.overage`
+    /// in `desktop.json`, on by default whenever usage alerts are on).
+    pub overage: bool,
     /// Account key → muted metric labels.
     pub muted: BTreeMap<String, BTreeSet<String>>,
+    /// PRD 0036 RF6.4: aggregator accounts whose connections alert one by
+    /// one; every other aggregator alerts only when a whole pool runs out.
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub pool_each: BTreeSet<String>,
+    /// PRD 0024 RF4.1: minutes before a projected exhaustion to warn (15,
+    /// 30 or 60); absent = off, as the core requires.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projected_lead_minutes: Option<u16>,
 }
 
 impl Default for AlertSettings {
@@ -145,7 +156,10 @@ impl Default for AlertSettings {
             thresholds: core.thresholds().collect(),
             exhaustion: core.exhaustion,
             recovery: core.recovery,
+            overage: core.overage,
             muted: BTreeMap::new(),
+            pool_each: BTreeSet::new(),
+            projected_lead_minutes: None,
         }
     }
 }
@@ -171,6 +185,7 @@ impl AlertSettings {
                 .unwrap_or(default.thresholds),
             exhaustion: flag("exhaustion", default.exhaustion),
             recovery: flag("recovery", default.recovery),
+            overage: flag("overage", default.overage),
             muted: value["muted"]
                 .as_object()
                 .map(|accounts| {
@@ -187,7 +202,48 @@ impl AlertSettings {
                         .collect()
                 })
                 .unwrap_or_default(),
+            pool_each: value["pool_each"]
+                .as_array()
+                .map(|keys| {
+                    keys.iter()
+                        .filter_map(|key| key.as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            projected_lead_minutes: value["projected_lead_minutes"]
+                .as_u64()
+                .and_then(Lead::from_minutes)
+                .map(Lead::minutes),
         }
+    }
+
+    /// PRD 0036 RF6.4: how the aggregator `account_key` alerts.
+    pub fn pool_mode(&self, account_key: &str) -> crate::alerts::PoolAlerts {
+        if self.pool_each.contains(account_key) {
+            crate::alerts::PoolAlerts::EachConnection
+        } else {
+            crate::alerts::PoolAlerts::WholePool
+        }
+    }
+
+    /// The same settings with `account_key` alerting by `mode`.
+    pub fn with_pool_mode(&self, account_key: &str, mode: crate::alerts::PoolAlerts) -> Self {
+        let mut next = self.clone();
+        match mode {
+            crate::alerts::PoolAlerts::EachConnection => {
+                next.pool_each.insert(account_key.to_owned());
+            }
+            crate::alerts::PoolAlerts::WholePool => {
+                next.pool_each.remove(account_key);
+            }
+        }
+        next
+    }
+
+    /// The projected-exhaustion lead (PRD 0024 RF2.7), if turned on.
+    pub fn projected(&self) -> Option<Lead> {
+        self.projected_lead_minutes
+            .and_then(|minutes| Lead::from_minutes(u64::from(minutes)))
     }
 
     /// Thresholds (each 10 to 99; repeats collapse) and the exhaustion and
@@ -235,8 +291,13 @@ impl AlertSettings {
             AlertPrefs::new(self.enabled, self.thresholds.iter().copied()).unwrap_or_default();
         prefs.exhaustion = self.exhaustion;
         prefs.recovery = self.recovery;
+        prefs.overage = self.overage;
         prefs.muted_accounts = off_accounts.clone();
         prefs.muted_metrics = self.muted.clone();
+        prefs.projected = self.projected();
+        // The projected warning has its own switch: the evaluator runs for
+        // it too, and `Notices` keeps the other kinds to `enabled`.
+        prefs.enabled |= prefs.projected.is_some();
         prefs
     }
 }
@@ -266,7 +327,10 @@ impl Loaded {
                 thresholds: recommended.thresholds().collect(),
                 exhaustion: recommended.exhaustion,
                 recovery: recommended.recovery,
+                overage: recommended.overage,
                 muted: BTreeMap::new(),
+                pool_each: BTreeSet::new(),
+                projected_lead_minutes: None,
             },
             quiet: QuietSchedule::default(),
         }

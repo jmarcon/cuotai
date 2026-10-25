@@ -39,6 +39,9 @@ fn quota(used: f64, resets_at: Option<DateTime<Utc>>) -> Metric {
 
 fn report(at: DateTime<Utc>, metric: Metric) -> Report {
     Report {
+        as_of: Default::default(),
+        overage_hint: Default::default(),
+        sub_reports: Vec::new(),
         account_id: None,
         diagnostic: None,
         account: "Work".into(),
@@ -193,6 +196,7 @@ fn acknowledging_the_marker_records_it_as_seen() {
 
 fn event_of(report: &Report, kind: AlertKind, threshold: u8) -> AlertEvent {
     AlertEvent {
+        overage: Default::default(),
         account_key: report.state_key(),
         label: "Session (5h)".into(),
         window: Some(MetricWindow::Window5h),
