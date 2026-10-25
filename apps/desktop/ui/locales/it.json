@@ -1064,5 +1064,9 @@
   "field.demo.mode.label": "Modalità",
   "field.demo.mode.option.personal": "Personale",
   "field.demo.mode.option.org": "Organizzazione",
-  "demo.login_unavailable": "L'accesso non è disponibile nella demo del browser."
+  "demo.login_unavailable": "L'accesso non è disponibile nella demo del browser.",
+  "settings.theme.desc": "Solo i colori; il layout resta uguale.",
+  "settings.motion.desc": "Sistema segue il movimento ridotto.",
+  "settings.lang.desc": "Vale anche per il vassoio.",
+  "settings.mode.label": "Modalità"
 }

@@ -961,6 +961,7 @@
 }
 .hook-quiet {
   margin-top: var(--space-2);
+}
 
 /* PRD 0022 RF8.1/RF9.3 (DS-CMP-CHK-3): option cards with a static preview on top and the label below */
 .opt-cards {
@@ -1065,4 +1066,74 @@
 }
 .notif-preview .notif img {
   flex: none;
+}
+
+/* PRD 0022 (mockup 50-settings-general): labelled mode segments, the theme field with its swatch, the language field */
+.theme-switch .segmented button {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  gap: calc(var(--space-1) + var(--space-0));
+  padding: 0 var(--space-3);
+  font-size: var(--text-md);
+}
+.theme-switch .segmented button.on {
+  font-weight: 600;
+}
+.theme-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.theme-select .swatch {
+  position: absolute;
+  left: var(--space-3);
+  display: inline-flex;
+  gap: 3px;
+  z-index: 1;
+  pointer-events: none;
+}
+.theme-select .swatch i {
+  width: 9px;
+  height: 9px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-pill);
+}
+.theme-select .swatch i:nth-child(1) { background: var(--bg); }
+.theme-select .swatch i:nth-child(2) { background: var(--surface-2); }
+.theme-select .swatch i:nth-child(3) { background: var(--accent); }
+.theme-select .swatch i:nth-child(4) { background: var(--good); }
+.theme-select select {
+  height: 32px;
+  min-width: 200px;
+  padding: 0 var(--space-3) 0 calc(var(--space-8) * 2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--fg);
+}
+.lang-field {
+  position: relative;
+}
+.lang-field-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 220px;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--fg);
+}
+.lang-field-btn span {
+  flex: 1;
+  text-align: left;
+}
+.lang-field .lang-menu {
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 100%;
 }

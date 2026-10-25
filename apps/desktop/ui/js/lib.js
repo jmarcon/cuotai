@@ -840,7 +840,7 @@ export function initTheme(onChange = () => {}) {
 }
 const groupLabel = (g) => (GROUP_ORDER.includes(g) ? t(`theme.group.${g}`) : g);
 /** Aparência rápida (auto/claro/escuro). `themeSelect` acrescenta a escolha do tema (só na tela de configurações). */
-export function themeSwitchHtml({ themeSelect = false } = {}) {
+export function themeSwitchHtml({ themeSelect = false, labels = false } = {}) {
   const th = themeById(theme.id);
   const modes = [["system", "monitor"], ["light", "sun"], ["dark", "moon"]];
   const groups = [...new Set(THEMES.map((x) => x.group))].sort((a, b) => {
@@ -854,21 +854,27 @@ export function themeSwitchHtml({ themeSelect = false } = {}) {
     <div class="segmented" role="radiogroup" aria-label="${te("theme.mode.label")}">${modes.map(([id, ic]) => {
       const off = id !== "system" && !th.modes.includes(id);
       const label = t(`theme.mode.${id}`) + (off ? ` (${t("theme.mode.unavailable")})` : "");
-      return `<button role="radio" aria-checked="${theme.mode === id}" class="${theme.mode === id ? "on" : ""}" title="${esc(label)}" data-theme-mode="${id}" ${off ? "disabled" : ""}>${icon(ic)}</button>`;
+      return `<button role="radio" aria-checked="${theme.mode === id}" class="${theme.mode === id ? "on" : ""}" title="${esc(label)}" data-theme-mode="${id}" ${off ? "disabled" : ""}>${icon(ic)}${labels ? `<span>${esc(t(`theme.mode.${id}`))}</span>` : ""}</button>`;
     }).join("")}</div>
-    ${themeSelect ? `<select aria-label="${te("theme.label")}" title="${te("theme.label")}" data-theme-id>${options}</select>` : ""}
+    ${themeSelect ? `<span class="theme-select"><span class="swatch" aria-hidden="true"><i></i><i></i><i></i><i></i></span><select aria-label="${te("theme.label")}" title="${te("theme.label")}" data-theme-id>${options}</select></span>` : ""}
   </div>`;
 }
 let langOpen = false;
 const flagOf = (l) => flagSvg(flagCountry(l.code, l.flag));
 /** Botão com a bandeira do idioma atual e menu (bandeira + nome). `inline` mostra a lista aberta (tela de configurações). */
-export function langMenuHtml({ inline = false } = {}) {
+export function langMenuHtml({ inline = false, field = false } = {}) {
   const cur = LOCALES.find((l) => l.code === currentLocale()) ?? LOCALES[0];
   // PRD 0022 RF9.6 (DS-CMP-SEL-3): flag (decorative) + the endonym in its own language; the selected one is marked
   // by a check and weight, not by color alone.
   const role = inline ? "radio" : "menuitemradio";
   const items = LOCALES.map((l) => `<button role="${role}" aria-checked="${l.code === cur.code}" class="${l.code === cur.code ? "on" : ""}" data-locale="${esc(l.code)}"${inline ? ` tabindex="${l.code === cur.code ? 0 : -1}"` : ""}>${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span>${l.code === cur.code ? icon("tick", "sel-tick") : ""}</button>`).join("");
   if (inline) return `<div class="lang-list" role="radiogroup" aria-label="${te("lang.label")}">${items}</div>`;
+  // DS-CMP-SEL-3 (mockup 50-settings-general-language): one field with the flag and the endonym, opening the list of
+  // every language; it scales to the 14 languages of PRD 0035.
+  if (field) return `<div class="lang lang-field">
+    <button type="button" class="lang-field-btn" data-lang-toggle aria-haspopup="menu" aria-expanded="${langOpen}" aria-label="${te("lang.label")}: ${esc(cur.name)}">${flagOf(cur)}<span lang="${esc(cur.code)}">${esc(cur.name)}</span>${icon("chevDown")}</button>
+    <div class="lang-menu" role="menu" ${langOpen ? "" : "hidden"}>${items}</div>
+  </div>`;
   return `<div class="lang">
     <button class="icon lang-btn" data-lang-toggle title="${te("lang.label")}: ${esc(cur.name)}" aria-label="${te("lang.label")}: ${esc(cur.name)}" aria-haspopup="menu" aria-expanded="${langOpen}">${flagOf(cur)}</button>
     <div class="lang-menu" role="menu" ${langOpen ? "" : "hidden"}>${items}</div>

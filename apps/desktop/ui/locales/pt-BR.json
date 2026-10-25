@@ -1071,5 +1071,9 @@
   "field.demo.mode.label": "Modo",
   "field.demo.mode.option.personal": "Pessoal",
   "field.demo.mode.option.org": "Organização",
-  "demo.login_unavailable": "Login indisponível na demonstração do navegador."
+  "demo.login_unavailable": "Login indisponível na demonstração do navegador.",
+  "settings.theme.desc": "Só cores; layout igual.",
+  "settings.motion.desc": "Sistema segue o movimento reduzido.",
+  "settings.lang.desc": "Vale também para a bandeja.",
+  "settings.mode.label": "Modo"
 }

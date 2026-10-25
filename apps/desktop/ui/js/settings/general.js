@@ -5,14 +5,16 @@ import { errorText, group } from "./common.js";
 import { buttons, row, rowError, seg, toast } from "./rows.js";
 
 export function html({ settings: s }) {
-  // The shared switch draws the mode choice and the theme list; each goes in its own row.
-  const themeSelect = themeSwitchHtml({ themeSelect: true }).match(/<select[\s\S]*<\/select>/)?.[0] ?? "";
+  // The shared switch draws the mode choice and the theme list; each goes in its own row (mockup 50-settings-general).
+  const themeSelect = themeSwitchHtml({ themeSelect: true }).match(/<span class="theme-select">[\s\S]*<\/select><\/span>/)?.[0] ?? "";
+  // "Always" stays accepted for a profile that chose it, but is no longer offered (DS-MOT-8, owner: reduce motion).
+  const motions = MOTIONS.filter((m) => m !== "always" || s.motion === "always");
   return group("appearance", te("settings.appearance"),
-    row({ key: "theme", label: te("theme.label"), control: () => themeSelect })
-    + row({ key: "mode", label: te("theme.mode.label"), control: () => themeSwitchHtml() })
-    + row({ key: "motion", label: te("settings.motion.label"), info: te("settings.motion.help"), msg: "motion-msg",
-      control: (a) => seg("motion", MOTIONS.map((m) => [m, te(`settings.motion.${m}`)]), s.motion, a) }))
-    + group("language", te("lang.label"), row({ key: "lang", label: "", find: te("lang.label"), body: langMenuHtml({ inline: true }) }))
+    row({ key: "mode", label: te("settings.mode.label"), control: () => themeSwitchHtml({ labels: true }) })
+    + row({ key: "theme", label: te("theme.label"), info: te("settings.theme.desc"), control: () => themeSelect })
+    + row({ key: "motion", label: te("settings.motion.label"), info: te("settings.motion.desc"), msg: "motion-msg",
+      control: (a) => seg("motion", motions.map((m) => [m, te(`settings.motion.${m}`)]), s.motion, a) }))
+    + group("language", te("lang.label"), row({ key: "lang", label: te("lang.label"), info: te("settings.lang.desc"), control: () => langMenuHtml({ field: true }) }))
     // PRD 0025 RF6.4: the first-run step shows again on the next launch of the main window.
     + group("setup", "", row({ key: "setup-again", label: te("settings.setup.again"), info: te("settings.setup.again.help"),
       control: () => buttons(`<button type="button" class="btn sm" data-setup-again>${te("settings.setup.again.button")}</button>`) }));

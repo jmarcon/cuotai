@@ -1064,5 +1064,9 @@
   "field.demo.mode.label": "Mode",
   "field.demo.mode.option.personal": "Personal",
   "field.demo.mode.option.org": "Organization",
-  "demo.login_unavailable": "Sign-in is not available in the browser demo."
+  "demo.login_unavailable": "Sign-in is not available in the browser demo.",
+  "settings.theme.desc": "Colors only; layout stays the same.",
+  "settings.motion.desc": "System follows your reduced-motion setting.",
+  "settings.lang.desc": "Also applies to the tray and the menu bar.",
+  "settings.mode.label": "Mode"
 }
