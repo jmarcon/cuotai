@@ -291,6 +291,8 @@ export const onSettingsChanged = (cb) => {
   if (isDesktop) return T.event.listen(SETTINGS_CHANGED, (e) => cb(e.payload?.key ?? ""));
   const ch = demoChannel();
   if (ch) ch.onmessage = (e) => cb(e.data?.key ?? "");
+  // Node (the UI smokes) keeps a process alive while a channel listens; `unref` lets it exit. Browsers lack it.
+  ch?.unref?.();
   return Promise.resolve(() => ch?.close());
 };
 /** Seletor nativo de pasta (plugin de diálogo do Tauri). */

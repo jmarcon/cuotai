@@ -39,9 +39,6 @@ globalThis.matchMedia = () => ({
 });
 globalThis.addEventListener = () => {};
 globalThis.setInterval = () => 0;
-// The browser demo syncs settings over a BroadcastChannel, which would keep
-// Node alive after the smoke; the tray needs no cross-window sync here.
-globalThis.BroadcastChannel = undefined;
 Object.defineProperty(globalThis, "navigator", {
   value: { languages: ["en-US"], language: "en-US" },
   configurable: true,
