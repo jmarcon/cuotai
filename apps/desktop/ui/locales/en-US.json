@@ -1037,5 +1037,6 @@
   "settings.trayView.list": "List",
   "settings.trayView.rings": "Rings",
   "settings.trayView.compact": "Compact",
-  "settings.kw.trayview": "tray popover view list rings compact donut grid layout"
+  "settings.kw.trayview": "tray popover view list rings compact donut grid layout",
+  "settings.notify.preview": "Preview"
 }

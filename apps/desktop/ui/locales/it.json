@@ -1037,5 +1037,6 @@
   "settings.trayView.list": "Elenco",
   "settings.trayView.rings": "Anelli",
   "settings.trayView.compact": "Compatta",
-  "settings.kw.trayview": "vassoio popover vista elenco anelli compatta ciambella griglia layout"
+  "settings.kw.trayview": "vassoio popover vista elenco anelli compatta ciambella griglia layout",
+  "settings.notify.preview": "Anteprima"
 }

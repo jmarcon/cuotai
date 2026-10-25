@@ -1029,3 +1029,42 @@
   border-right-color: transparent;
   border-radius: var(--radius-pill);
 }
+
+/* PRD 0022 RF9.5 (DS-CMP-PREV-1): a static preview of the OS notification */
+.notif-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.notif-preview .pv-label {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.notif-preview .notif {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-md);
+}
+.notif-preview .notif > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.notif-preview .notif b {
+  font-weight: 600;
+}
+.notif-preview .notif img {
+  flex: none;
+}

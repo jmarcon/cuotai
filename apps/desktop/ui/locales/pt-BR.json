@@ -1044,5 +1044,6 @@
   "settings.trayView.list": "Lista",
   "settings.trayView.rings": "Anéis",
   "settings.trayView.compact": "Compacta",
-  "settings.kw.trayview": "bandeja popover vista lista anéis compacta rosca grade layout"
+  "settings.kw.trayview": "bandeja popover vista lista anéis compacta rosca grade layout",
+  "settings.notify.preview": "Prévia"
 }

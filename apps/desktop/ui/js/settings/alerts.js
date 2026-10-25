@@ -13,6 +13,11 @@ export { quietDaysHtml, quietSummary } from "./quiet.js";
 /** PRD 0024 RF2.7: the leads the core accepts, in minutes; the switch turns on with 60 (RF4.1). */
 const PROJECTED_LEADS = [15, 30, 60];
 
+/** PRD 0022 RF9.5 (DS-CMP-PREV-1, DS-CMP-NOTIF-1/-2): what the test notice shows, as the OS draws it: the
+ *  app's mark, the title and one sentence. Static, not a live region; its text is its accessible name. */
+const previewHtml = () => `<div class="notif-preview" role="img" aria-label="${te("settings.notify.preview")}: ${te("notify.test.title")}. ${te("notify.test.body")}">
+  <span class="notif"><img src="img/logo.svg" alt="" width="20" height="20" /><span><b>${te("notify.test.title")}</b><span>${te("notify.test.body")}</span></span></span></div>`;
+
 export function html({ settings: s }) {
   const n = s.notify;
   const a = s.alerts;
@@ -45,7 +50,8 @@ export function html({ settings: s }) {
         control: (x) => sw("notify-private", n.private, x) }))
     + quietHtml(s.quiet)
     + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msg: "notify-msg", msgRole: "status",
-      control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled || lead != null ? "" : "disabled"}>${icon("bell")}</button>`) }), "data-notify");
+      control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled || lead != null ? "" : "disabled"}>${icon("bell")}</button>`),
+      body: disc("notify-preview", te("settings.notify.preview"), previewHtml()) }), "data-notify");
 }
 
 /** RF3.3 (PRD 0003): turning either switch on asks the system permission first; anything but `granted` keeps that

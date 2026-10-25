@@ -1037,5 +1037,6 @@
   "settings.trayView.list": "Lista",
   "settings.trayView.rings": "Anillos",
   "settings.trayView.compact": "Compacta",
-  "settings.kw.trayview": "bandeja popover vista lista anillos compacta dona cuadrícula diseño"
+  "settings.kw.trayview": "bandeja popover vista lista anillos compacta dona cuadrícula diseño",
+  "settings.notify.preview": "Previsualización"
 }

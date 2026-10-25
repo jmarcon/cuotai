@@ -864,7 +864,10 @@ const flagOf = (l) => flagSvg(flagCountry(l.code, l.flag));
 /** Botão com a bandeira do idioma atual e menu (bandeira + nome). `inline` mostra a lista aberta (tela de configurações). */
 export function langMenuHtml({ inline = false } = {}) {
   const cur = LOCALES.find((l) => l.code === currentLocale()) ?? LOCALES[0];
-  const items = LOCALES.map((l) => `<button role="menuitemradio" aria-checked="${l.code === cur.code}" class="${l.code === cur.code ? "on" : ""}" data-locale="${esc(l.code)}">${flagOf(l)}<span>${esc(l.name)}</span></button>`).join("");
+  // PRD 0022 RF9.6 (DS-CMP-SEL-3): flag (decorative) + the endonym in its own language; the selected one is marked
+  // by a check and weight, not by color alone.
+  const role = inline ? "radio" : "menuitemradio";
+  const items = LOCALES.map((l) => `<button role="${role}" aria-checked="${l.code === cur.code}" class="${l.code === cur.code ? "on" : ""}" data-locale="${esc(l.code)}"${inline ? ` tabindex="${l.code === cur.code ? 0 : -1}"` : ""}>${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span>${l.code === cur.code ? icon("tick", "sel-tick") : ""}</button>`).join("");
   if (inline) return `<div class="lang-list" role="radiogroup" aria-label="${te("lang.label")}">${items}</div>`;
   return `<div class="lang">
     <button class="icon lang-btn" data-lang-toggle title="${te("lang.label")}: ${esc(cur.name)}" aria-haspopup="menu" aria-expanded="${langOpen}">${flagOf(cur)}</button>
@@ -894,6 +897,15 @@ export function bindThemeSwitch(root, rerender) {
     if ((langOpen || sortOpen) && !e.target.closest(".lang")) { langOpen = false; sortOpen = false; rerender(); }
   });
   addEventListener("keydown", (e) => { if (e.key === "Escape" && (langOpen || sortOpen)) { langOpen = false; sortOpen = false; rerender(); } });
+  // DS-A11Y-4: the inline language list is one radio group; arrow keys move between languages.
+  root.addEventListener("keydown", (e) => {
+    const item = e.target.closest?.(".lang-list [role=radio]");
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!item || !step) return;
+    e.preventDefault();
+    const list = [...item.parentElement.querySelectorAll("[role=radio]")];
+    list[(list.indexOf(item) + step + list.length) % list.length]?.focus();
+  });
 }
 
 // ---------- conjuntos persistentes (contas desativadas, quotas ocultas) ----------
@@ -2270,7 +2282,7 @@ let sortOpen = false;
 /** Botão + menu de ordenação (personalizada, reinício, % disponível). */
 export function sortMenuHtml() {
   const label = (m) => (m === "custom" ? t("sort.custom") : t(`sort.${m}`));
-  const items = SORT_MODES.map((m) => `<button role="menuitemradio" aria-checked="${m === sortMode}" class="${m === sortMode ? "on" : ""}" data-sort="${m}">${label(m)}</button>`).join("");
+  const items = SORT_MODES.map((m) => `<button role="menuitemradio" aria-checked="${m === sortMode}" class="${m === sortMode ? "on" : ""}" data-sort="${m}"><span>${label(m)}</span>${m === sortMode ? icon("tick", "sel-tick") : ""}</button>`).join("");
   return `<div class="sortmenu lang">
     <button class="icon" data-sort-toggle title="${te("sort.label")}: ${esc(label(sortMode))}" aria-label="${te("sort.label")}" aria-haspopup="menu" aria-expanded="${sortOpen}">${icon("sort")}</button>
     <div class="lang-menu" role="menu" ${sortOpen ? "" : "hidden"}>${items}</div>
