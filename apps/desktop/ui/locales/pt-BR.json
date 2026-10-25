@@ -1234,5 +1234,13 @@
   "settings.kw.rows-separate": "linhas exibição janela principal layout separado diferente",
   "settings.display.more": "Mais opções de exibição",
   "settings.page.extensions": "Extensões",
-  "settings.kw.extensions": "extensões extensão local plugin complemento provedor personalizado executar aprovar pasta"
+  "settings.kw.extensions": "extensões extensão local plugin complemento provedor personalizado executar aprovar pasta",
+  "dialog.monogram": "Monograma",
+  "dialog.monogramPlaceholder": "opcional, ex.: WK",
+  "dialog.monogramHint": "Um ou dois caracteres mostrados no ícone desta conta quando o provedor tem várias contas. Em branco usa as primeiras letras do nome.",
+  "dialog.monogram.invalid": "Use um ou dois caracteres, sem espaços.",
+  "desktop.error.invalid_monogram": "Um monograma tem um ou dois caracteres, sem espaços.",
+  "settings.whatsnew.auto": "Mostrar as novidades",
+  "settings.whatsnew.auto.desc": "Abre as notas da versão uma vez após cada atualização",
+  "settings.kw.whats-new-auto": "novidades notas da versão changelog atualização versão automaticamente abrir após atualizar"
 }

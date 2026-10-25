@@ -2,7 +2,7 @@
 // A UI só desenha: títulos e rótulos vêm como textos do core (`tl`); as entradas ficam em inglês, como o próprio dialog diz.
 import { t, te, tl } from "./i18n.js";
 import { bindShell, shellHtml } from "./dialog-shell.js";
-import { whatsNew } from "./lib.js";
+import { getSettings, whatsNew, whatsNewSeen } from "./lib.js";
 import { esc } from "./util.js";
 import { showDialog } from "./motion.js";
 
@@ -28,6 +28,30 @@ const shell = (body, foot = `<button class="btn primary" data-shell-close>${te("
 
 const render = (view) => shell(`<p class="hint">${esc(tl(view.entries_language))}</p>
     <div class="wn-scroll">${view.releases.map(release).join("")}${view.history ? history(view.history) : ""}</div>`);
+
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let checked = false;
+
+/** PRD 0019 RF7.7: after a version change the notes open once by themselves in the main window. The shell decides
+ *  (`whats_new_due`: the version differs from the last one seen, not a first install, the Settings > About switch
+ *  on) and remembers that they were shown. Another dialog (first run, update question) is never covered: it waits
+ *  for it and, if one stays open, tries again at the next launch. Once per session. */
+export async function maybeShowWhatsNew() {
+  if (checked) return false;
+  checked = true;
+  let settings = null;
+  try { settings = await getSettings(); } catch { return false; }
+  if (!settings?.whats_new_due || settings.whats_new_auto === false) return false;
+  for (let tries = 0; tries < 8; tries++) {
+    await pause(1500);
+    if (!document.querySelector("dialog[open]")) {
+      await whatsNewSeen().catch(() => {});
+      await openWhatsNew();
+      return true;
+    }
+  }
+  return false;
+}
 
 export async function openWhatsNew() {
   if (dlg?.open) return;

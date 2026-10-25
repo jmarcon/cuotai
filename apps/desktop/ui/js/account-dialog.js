@@ -5,11 +5,11 @@ import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
-  reportKey, saveAccount, sessionNoticeHtml, testAggregator, testSession, visibleFields,
+  reportKey, saveAccount, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { entryChips, mountPicker, pickerHtml } from "./provider-picker.js";
-import { currentLocale, t, te, tl } from "./i18n.js";
+import { t, te, tl } from "./i18n.js";
 import { showDialog } from "./motion.js";
 
 function open(html) {
@@ -101,6 +101,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     </div>
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <label class="f" data-field="group"><span>${te("dialog.group")}</span><input name="group" autocomplete="off" maxlength="32" spellcheck="false" placeholder="${te("dialog.groupPlaceholder")}" value="${esc(existing?.group ?? "")}" /><small class="field-hint">${te("dialog.groupHint")}</small><small class="field-err" hidden></small></label>
+    <label class="f" data-field="monogram"><span>${te("dialog.monogram")}</span><input name="monogram" autocomplete="off" spellcheck="false" size="4" placeholder="${te("dialog.monogramPlaceholder")}" value="${esc(existing?.monogram ?? "")}" aria-describedby="monogram-hint" /><small class="field-hint" id="monogram-hint">${te("dialog.monogramHint")}</small><small class="field-err" hidden></small></label>
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
     <div id="models-host"></div>
@@ -901,6 +902,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       fields: draftFields(),
       interval: String(data.get("interval") ?? ""),
       group: String(data.get("group") ?? ""),
+      // PRD 0022 MONO-4: the display override (blank = derived from the name); the shell keeps it in desktop.json.
+      monogram: String(data.get("monogram") ?? "").trim(),
       commitLogin: loginDone(),
       loginAttempt: loginState?.attempt ?? 0,
       authMode,
@@ -923,6 +926,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     collect();
     const ok = dlg.querySelector("#ok");
     err.textContent = "";
+    clearFieldErrors();
+    if (!validMonogram(new FormData(form).get("monogram"))) {
+      setFieldError("monogram", t("dialog.monogram.invalid"));
+      form.querySelector('[name="monogram"]')?.focus();
+      return;
+    }
     const mode = selectedMode();
     if (loginState?.phase === "running") {
       err.textContent = t("dialog.save.loginRunning");

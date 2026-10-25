@@ -1227,5 +1227,13 @@
   "settings.kw.rows-separate": "righe vista finestra principale layout separato diverso",
   "settings.display.more": "Altre opzioni di vista",
   "settings.page.extensions": "Estensioni",
-  "settings.kw.extensions": "estensioni estensione locale componente aggiuntivo plugin provider personalizzato eseguire approvare cartella"
+  "settings.kw.extensions": "estensioni estensione locale componente aggiuntivo plugin provider personalizzato eseguire approvare cartella",
+  "dialog.monogram": "Monogramma",
+  "dialog.monogramPlaceholder": "facoltativo, es. WK",
+  "dialog.monogramHint": "Uno o due caratteri mostrati sull'icona di questo account quando il provider ha più account. Vuoto usa le prime lettere del nome.",
+  "dialog.monogram.invalid": "Usa uno o due caratteri, senza spazi.",
+  "desktop.error.invalid_monogram": "Un monogramma ha uno o due caratteri, senza spazi.",
+  "settings.whatsnew.auto": "Mostra le novità",
+  "settings.whatsnew.auto.desc": "Apre le note di rilascio una volta dopo ogni aggiornamento",
+  "settings.kw.whats-new-auto": "novità note di rilascio changelog aggiornamento versione automaticamente aprire dopo aggiornare"
 }

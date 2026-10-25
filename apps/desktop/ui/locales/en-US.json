@@ -1241,5 +1241,13 @@
   "settings.kw.rows-separate": "rows display main window separate layout different",
   "settings.display.more": "More display options",
   "settings.page.extensions": "Extensions",
-  "settings.kw.extensions": "extensions local extension add-on plugin provider custom run approve folder"
+  "settings.kw.extensions": "extensions local extension add-on plugin provider custom run approve folder",
+  "dialog.monogram": "Monogram",
+  "dialog.monogramPlaceholder": "optional, e.g. WK",
+  "dialog.monogramHint": "One or two characters shown on this account's tile when the provider has several accounts. Blank uses the first letters of the name.",
+  "dialog.monogram.invalid": "Use one or two characters, without spaces.",
+  "desktop.error.invalid_monogram": "A monogram has one or two characters, without spaces.",
+  "settings.whatsnew.auto": "Show what's new",
+  "settings.whatsnew.auto.desc": "Open the release notes once after each update",
+  "settings.kw.whats-new-auto": "what's new release notes changelog update version automatically open after update"
 }

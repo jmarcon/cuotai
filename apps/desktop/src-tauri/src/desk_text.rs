@@ -48,6 +48,7 @@ texts! {
     login_silent => ("login_silent", "The sign-in session did not respond.");
     auth_mode_unavailable => ("auth_mode_unavailable", "Authentication mode not offered for this provider.");
     finish_login_first => ("finish_login_first", "Finish the sign-in before saving (or go back to the manual credential).");
+    invalid_monogram => ("invalid_monogram", "A monogram has one or two characters, without spaces.");
     config_folder_unavailable => ("config_folder_unavailable", "Configuration folder unavailable.");
 }
 

@@ -134,6 +134,24 @@ struct Stored {
     /// absent = Standard everywhere. Read leniently ([`RowsPrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     rows: Option<serde_json::Value>,
+    /// PRD 0022 RF15.1: whether this device already had a profile (a
+    /// `desktop.json` or a configuration file) when this build first ran;
+    /// written once, so the theme migration survives cleared web storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    profile_existed: Option<bool>,
+    /// PRD 0019 RF7.7: the version whose "What's new" was last shown or
+    /// skipped; absent until the first launch of a build that records it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    whats_new_seen: Option<String>,
+    /// PRD 0019 RF7.7: "Show what's new after an update"; absent = on. Only
+    /// `false` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    whats_new_auto: Option<bool>,
+    /// PRD 0022 MONO-4: the monogram override per account id (1-2
+    /// characters); a display preference, never written to the TOML. Read
+    /// leniently ([`monograms_of`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    monograms: Option<serde_json::Value>,
 }
 
 /// PRD 0027 RF6.5/RF7.3: `detect.enabled` (`None` until answered) and the
@@ -1122,6 +1140,124 @@ pub fn save_preference(key: &str, value: &serde_json::Value) -> Result<(), &'sta
     })
 }
 
+/// PRD 0022 MONO-4: the characters a monogram override may have: one or two
+/// visible characters (letters, digits or symbols), no controls or spaces.
+/// `Some("")` is "no override".
+pub fn clean_monogram(text: &str) -> Option<String> {
+    let text = text.trim();
+    let ok =
+        text.chars().count() <= 2 && text.chars().all(|c| !c.is_control() && !c.is_whitespace());
+    ok.then(|| text.to_owned())
+}
+
+fn monograms_of(stored: &Stored) -> BTreeMap<String, String> {
+    stored
+        .monograms
+        .as_ref()
+        .and_then(serde_json::Value::as_object)
+        .map(|object| {
+            object
+                .iter()
+                .filter(|(id, _)| cuotai_core::AccountId::parse(id).is_some())
+                .filter_map(|(id, value)| {
+                    let text = clean_monogram(value.as_str()?)?;
+                    (!text.is_empty()).then(|| (id.clone(), text))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// PRD 0022 MONO-4: sets (or, when empty, clears) the monogram of the account
+/// with the stable id `account_id`. Errors: `invalid_account`,
+/// `invalid_monogram`, `unwritable`.
+pub fn save_monogram(account_id: &str, monogram: &str) -> Result<(), &'static str> {
+    cuotai_core::AccountId::parse(account_id).ok_or("invalid_account")?;
+    let monogram = clean_monogram(monogram).ok_or("invalid_monogram")?;
+    let file = settings_file().ok_or("unwritable")?;
+    write_monogram(&file, account_id, &monogram)
+}
+
+fn write_monogram(file: &Path, account_id: &str, monogram: &str) -> Result<(), &'static str> {
+    update(file, |s| {
+        let mut all = monograms_of(s);
+        if monogram.is_empty() {
+            all.remove(account_id);
+        } else {
+            all.insert(account_id.to_owned(), monogram.to_owned());
+        }
+        s.monograms = (!all.is_empty()).then(|| serde_json::json!(all));
+    })
+}
+
+/// PRD 0022 RF15.1: records, once, whether a profile existed before this
+/// build's first launch. Call it before anything else writes `desktop.json`.
+pub fn note_profile_origin() {
+    let Some(file) = settings_file() else {
+        return;
+    };
+    let configured = cuotai_core::config_file::ConfigFile::resolve_path(
+        cuotai_core::config_file::Discovery::Gui {
+            chosen: chosen_config(),
+        },
+        &cuotai_core::config_file::Locations::from_process(),
+    )
+    .path
+    .is_file();
+    let _ = write_profile_origin(&file, file.is_file() || configured);
+}
+
+fn write_profile_origin(file: &Path, existed: bool) -> Result<(), &'static str> {
+    if read(file).profile_existed.is_some() {
+        return Ok(());
+    }
+    update(file, |s| s.profile_existed = Some(existed))
+}
+
+/// PRD 0019 RF7.7: whether "What's new" should open by itself for `running`:
+/// the switch is on, the version differs from the last one seen and this is
+/// not a first install (a first install has no profile and nothing seen).
+fn whats_new_due_of(stored: &Stored, running: &str) -> bool {
+    stored.whats_new_auto != Some(false)
+        && stored.whats_new_seen.as_deref() != Some(running)
+        && (stored.whats_new_seen.is_some() || stored.profile_existed == Some(true))
+}
+
+/// PRD 0019 RF7.7: remembers that `running` was shown (or skipped).
+pub fn save_whats_new_seen(running: &str) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| s.whats_new_seen = Some(running.to_owned()))
+}
+
+/// PRD 0019 RF7.7: the Settings › About switch. Turning it off still records
+/// the running version, so turning it on later does not replay old notes.
+pub fn save_whats_new_auto(on: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        s.whats_new_auto = (!on).then_some(false);
+        if !on {
+            s.whats_new_seen = Some(env!("CARGO_PKG_VERSION").to_owned());
+        }
+    })
+}
+
+/// First launch of a build that records the version: a profile that existed
+/// before counts as having seen nothing yet, a new one as having seen this
+/// version (nothing to announce on a first install). Never overwrites.
+pub fn note_running_version(running: &str) {
+    let Some(file) = settings_file() else {
+        return;
+    };
+    let stored = read(&file);
+    if stored.whats_new_seen.is_none() && stored.profile_existed == Some(false) {
+        let _ = save_whats_new_seen_in(&file, running);
+    }
+}
+
+fn save_whats_new_seen_in(file: &Path, running: &str) -> Result<(), &'static str> {
+    update(file, |s| s.whats_new_seen = Some(running.to_owned()))
+}
+
 fn migrated_of(stored: &Stored) -> bool {
     stored
         .migrations
@@ -1336,6 +1472,20 @@ pub struct SettingsView {
     onboarding: u64,
     onboarding_version: u64,
     version: &'static str,
+    /// PRD 0022 RF15.1: a profile existed before this build's first launch.
+    profile_existed: bool,
+    /// PRD 0019 RF7.7: the Settings › About switch and whether the notes are due now.
+    whats_new_auto: bool,
+    whats_new_due: bool,
+    /// PRD 0022 MONO-4: account id → monogram override.
+    monograms: BTreeMap<String, String>,
+}
+
+impl SettingsView {
+    /// The monogram override of the account with this id.
+    pub fn monogram_of(&self, account_id: &str) -> Option<String> {
+        self.monograms.get(account_id).cloned()
+    }
 }
 
 pub fn view() -> SettingsView {
@@ -1408,6 +1558,10 @@ pub fn view() -> SettingsView {
             .unwrap_or(0),
         onboarding_version: ONBOARDING_VERSION,
         version: env!("CARGO_PKG_VERSION"),
+        profile_existed: stored.profile_existed == Some(true),
+        whats_new_auto: stored.whats_new_auto != Some(false),
+        whats_new_due: whats_new_due_of(&stored, env!("CARGO_PKG_VERSION")),
+        monograms: monograms_of(&stored),
     }
 }
 
@@ -2206,6 +2360,88 @@ mod tests {
             fs::write(&file, odd).unwrap();
             assert!(advice_of(&read(&file)), "{odd}");
         }
+    }
+
+    #[test]
+    fn monogram_overrides_are_validated_and_stored_per_account_id() {
+        assert_eq!(clean_monogram(" ab ").as_deref(), Some("ab"));
+        assert_eq!(clean_monogram("").as_deref(), Some(""));
+        assert_eq!(clean_monogram("\u{e9}9").as_deref(), Some("\u{e9}9"));
+        assert_eq!(clean_monogram("abc"), None);
+        assert_eq!(clean_monogram("a b"), None);
+        assert_eq!(clean_monogram("a\u{7}"), None);
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        write_monogram(&file, "acc_work0001", "WK").unwrap();
+        write_monogram(&file, "acc_home0001", "H").unwrap();
+        assert_eq!(
+            monograms_of(&read(&file))
+                .get("acc_work0001")
+                .map(String::as_str),
+            Some("WK")
+        );
+        write_monogram(&file, "acc_work0001", "").unwrap();
+        let left = monograms_of(&read(&file));
+        assert_eq!(left.len(), 1, "an empty monogram clears the override");
+        write_monogram(&file, "acc_home0001", "").unwrap();
+        assert!(
+            read(&file).monograms.is_none(),
+            "the key goes with the last override"
+        );
+        // Hand-edited garbage is ignored, never fatal.
+        let stored = Stored {
+            monograms: Some(
+                serde_json::json!({"acc_ok000001": "ok", "bad id": "x", "acc_long0001": "toolong", "acc_num00001": 5}),
+            ),
+            ..Stored::default()
+        };
+        assert_eq!(monograms_of(&stored).len(), 1);
+    }
+
+    #[test]
+    fn the_profile_origin_is_recorded_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        write_profile_origin(&file, true).unwrap();
+        write_profile_origin(&file, false).unwrap();
+        assert_eq!(
+            read(&file).profile_existed,
+            Some(true),
+            "the first answer stays"
+        );
+        let fresh = dir.path().join("new.json");
+        write_profile_origin(&fresh, false).unwrap();
+        write_profile_origin(&fresh, true).unwrap();
+        assert_eq!(read(&fresh).profile_existed, Some(false));
+    }
+
+    #[test]
+    fn whats_new_opens_after_a_version_change_but_not_on_a_first_install() {
+        let mut s = Stored::default();
+        // Nothing recorded and no profile before: a first install.
+        assert!(!whats_new_due_of(&s, "0.81.0"));
+        s.profile_existed = Some(false);
+        assert!(!whats_new_due_of(&s, "0.81.0"));
+        // An existing profile that never recorded a version: announce once.
+        s.profile_existed = Some(true);
+        assert!(whats_new_due_of(&s, "0.81.0"));
+        // Seen this version: quiet. A different one: due again.
+        s.whats_new_seen = Some("0.81.0".into());
+        assert!(!whats_new_due_of(&s, "0.81.0"));
+        assert!(whats_new_due_of(&s, "0.82.0"));
+        // The switch (default on) turns it off.
+        s.whats_new_auto = Some(false);
+        assert!(!whats_new_due_of(&s, "0.82.0"));
+        // A new install records its version on the first launch, so the next update announces itself.
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        write_profile_origin(&file, false).unwrap();
+        let mut stored = read(&file);
+        assert!(stored.whats_new_seen.is_none());
+        save_whats_new_seen_in(&file, "0.81.0").unwrap();
+        stored = read(&file);
+        assert!(!whats_new_due_of(&stored, "0.81.0"));
+        assert!(whats_new_due_of(&stored, "0.82.0"));
     }
 
     #[test]

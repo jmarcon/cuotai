@@ -172,6 +172,15 @@ export const trayAccounts = () => call("tray_accounts");
 export const setTrayPrefs = ({ style, colored, accounts = null, popover_view = null, popoverView = popover_view }) =>
   call("set_tray_prefs", { style, colored, accounts, popoverView });
 export const setAdvancedOpen = (open) => call("set_advanced_open", { open });
+/** PRD 0019 RF7.7: "Show what's new after an update" (Settings > About), and the note that this version's notes were
+ *  shown. The shell decides when they are due (`whats_new_due` in `get_settings`: a changed version, not a first
+ *  install, the switch on). */
+export const setWhatsNewAuto = (on) => call("set_whats_new_auto", { on });
+export const whatsNewSeen = () => call("whats_new_seen");
+/** PRD 0022 MONO-4: a monogram override is empty (derived from the name) or one or two visible characters. The
+ *  shell checks the same rule; `desktop.json` keeps it by account id and never the TOML. */
+export const validMonogram = (text) => { const v = String(text ?? "").trim(); return [...v].length <= 2 && !/[\s\p{C}]/u.test(v); };
+export const setAccountMonogram = (accountId, monogram) => call("set_account_monogram", { accountId, monogram });
 /** PRD 0025 RF9.5: the row display (`tray`, `window`, `separate`). */
 export const setRows = (rows) => call("set_rows", { rows });
 // "Start at login" (PRD 0022, audit #37): the system owns the state; both calls return what it reports.
@@ -203,6 +212,12 @@ export async function syncPreferences({ boot = false } = {}) {
   try {
     let s = await getSettings();
     if (s.local_storage_migrated === false) s = await call("migrate_local_storage", { values: legacyLocalValues() });
+    // PRD 0022 RF15.1: Cuotai is the default for new installs only. The shell knows the profile existed before this
+    // build ran, so a profile with no stored theme keeps Dracula even when its web storage was cleared (the
+    // pre-paint script cannot tell that from a new install). Stored once in desktop.json: never null again.
+    if (s.profile_existed === true && !s.theme) {
+      try { await call("set_preference", { key: "theme", value: "dracula" }); s = await getSettings(); } catch { /* keeps the default */ }
+    }
     return await applyPreferences(s, { boot });
   } catch { return new Set(); }
 }
@@ -1392,7 +1407,7 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
   warning: state === "vault"
     ? dl("user_session.warning", "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service.")
     : dl("user_session.warning_env", "This is a full login session. Cuotai reads it from an environment variable and uses it only to query this service; move it to the system vault in the account wizard.") };
-const demoSettings = { tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false,
+const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(location.search).has("profile-existed"), whatsNewDue: new URLSearchParams(location.search).has("whats-new"), tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false,
   // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
   custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
@@ -1809,7 +1824,7 @@ const demo = {
     const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" };
     const hosts = ["platform.xiaomimimo.com"];
     return { name: r.account, provider: r.provider, credential: "DEMO_API_KEY",
-      interval: "", group: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
+      interval: "", group: "", account_id: `acc_demo${String(index).padStart(8, "0")}`, monogram: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
       session_migration: sessionOffer ? [{ slot: "platform_session_env", env: "MIMO_COOKIE", label, hosts,
         consent: { id: "user_session.migrate.consent", params: { label, env: "MIMO_COOKIE", hosts: hosts.join(", ") },
@@ -1860,6 +1875,8 @@ const demo = {
       if (!input.peerName?.trim()) throw JSON.stringify({ id: "edit_error.name_required", field: "peer_name", params: {}, fallback: "Set a name for the account." });
       peer.account = input.peerName.trim();
     }
+    if (input.monogram != null && !validMonogram(input.monogram)) throw JSON.stringify({ id: "desktop.error.invalid_monogram", params: {}, fallback: "A monogram has one or two characters, without spaces." });
+    window.__lastSaveMonogram = input.monogram ?? null;
     const r = dr(input.name.trim(), input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
     // PRD 0016 demo: a paste goes to the vault; otherwise the account keeps where its session was.
     const prev = input.index == null ? null : demoReports[input.index];
@@ -1910,7 +1927,8 @@ const demo = {
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), quiet: structuredClone(demoSettings.quiet), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
-    tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
+    tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen,
+    profile_existed: !!demoSettings.profileExisted, whats_new_auto: demoSettings.whatsNewAuto !== false, whats_new_due: demoSettings.whatsNewDue === true, monograms: { ...demoSettings.monograms }, rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -1930,6 +1948,14 @@ const demo = {
     demoSettings.tray = { style, colored, accounts: accounts ?? null, popover_view: popover_view ?? null };
   },
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
+  set_whats_new_auto: async ({ on }) => { demoSettings.whatsNewAuto = !!on; },
+  whats_new_seen: async () => { demoSettings.whatsNewDue = false; },
+  set_account_monogram: async ({ accountId, monogram }) => {
+    if (!validMonogram(monogram)) throw "invalid_monogram";
+    const text = String(monogram).trim();
+    if (text) demoSettings.monograms[accountId] = text; else delete demoSettings.monograms[accountId];
+    await emitSettingsChanged("monograms");
+  },
   set_rows: async ({ rows }) => { demoSettings.rows = structuredClone(rows); },
   autostart_status: async () => !!demoSettings.autostart,
   autostart_set: async ({ enabled }) => { demoSettings.autostart = !!enabled; return demoSettings.autostart; },

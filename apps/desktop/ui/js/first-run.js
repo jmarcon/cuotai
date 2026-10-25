@@ -7,6 +7,7 @@ import { t, te } from "./i18n.js";
 import { errText, esc, firstRunRecord, firstRunTurnOn, getSettings, icon, updaterAnswerAutomatic } from "./lib.js";
 import { showDialog } from "./motion.js";
 import { bindShell, shellHtml } from "./dialog-shell.js";
+import { maybeShowWhatsNew } from "./whats-new-dialog.js";
 
 let shownThisSession = false;
 
@@ -42,6 +43,8 @@ export const stepHtml = ({ updatePending, managed = null }) => shellHtml({
 
 /** Shows the step when due; resolves `true` when it was shown (the caller then skips the separate update dialog). */
 export async function maybeShowFirstRun(view, update) {
+  // PRD 0019 RF7.7: the notes of a new version follow whatever else the launch asks first.
+  void maybeShowWhatsNew();
   if (shownThisSession || document.querySelector("dialog[open]")) return false;
   const settings = await getSettings().catch(() => null);
   if (!due(settings, view)) return false;

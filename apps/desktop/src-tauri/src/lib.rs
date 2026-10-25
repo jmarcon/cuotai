@@ -654,6 +654,36 @@ fn open_external(url: String) -> Result<(), String> {
     about::open_external(&url).map_err(str::to_owned)
 }
 
+/// PRD 0019 RF7.7: the Settings › About switch "Show what's new after an
+/// update". Error: `unwritable`.
+#[tauri::command]
+fn set_whats_new_auto(on: bool) -> Result<(), String> {
+    settings::save_whats_new_auto(on).map_err(str::to_owned)
+}
+
+/// PRD 0019 RF7.7: the notes of the running version were shown; they are not
+/// offered again until the version changes. Error: `unwritable`.
+#[tauri::command]
+fn whats_new_seen() -> Result<(), String> {
+    settings::save_whats_new_seen(env!("CARGO_PKG_VERSION")).map_err(str::to_owned)
+}
+
+/// PRD 0022 MONO-4: sets or (blank) clears an account's monogram override.
+/// Errors: `invalid_account`, `invalid_monogram`, `unwritable`.
+#[tauri::command]
+fn set_account_monogram(
+    app: AppHandle,
+    account_id: String,
+    monogram: String,
+) -> Result<(), String> {
+    settings::save_monogram(&account_id, &monogram).map_err(str::to_owned)?;
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({ "key": "monograms" }),
+    );
+    Ok(())
+}
+
 #[tauri::command]
 fn get_settings() -> settings::SettingsView {
     settings::view()
@@ -1939,6 +1969,9 @@ fn tray_icon() -> tauri::Result<tauri::image::Image<'static>> {
 }
 
 pub fn run() {
+    // PRD 0022 RF15.1 / PRD 0019 RF7.7: before anything else writes `desktop.json`.
+    settings::note_profile_origin();
+    settings::note_running_version(env!("CARGO_PKG_VERSION"));
     let backend = Arc::new(Backend::new(
         notify::Notices::load(),
         settings::status_queries(),
@@ -2051,6 +2084,9 @@ pub fn run() {
             load_user_content,
             core_catalog,
             get_settings,
+            set_whats_new_auto,
+            whats_new_seen,
+            set_account_monogram,
             set_tray_menu,
             set_user_dir,
             open_user_dir,

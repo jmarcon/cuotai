@@ -3082,13 +3082,49 @@ impl Backend {
         input: AccountInput,
     ) -> Result<SaveAccountResult, String> {
         self.ensure_loaded().await;
+        // PRD 0022 MONO-4: validated before anything is saved.
+        let monogram = match input.monogram.as_deref() {
+            Some(text) => Some(
+                crate::settings::clean_monogram(text)
+                    .ok_or_else(crate::desk_text::invalid_monogram)?,
+            ),
+            None => None,
+        };
+        let (provider, name) = (input.provider, input.name.trim().to_owned());
         let clearance = self.test_before_save(&input).await?;
         let (refresh_target, cleanup_warning) = self.drive_save_account(input, clearance).await?;
+        if let Some(monogram) = monogram {
+            self.store_monogram(provider, &name, &monogram).await;
+            let _ = app.emit(
+                "settings-changed",
+                serde_json::json!({ "key": "monograms" }),
+            );
+        }
         self.emit(app).await;
         if let Some(index) = refresh_target {
             self.refresh_account(app, index).await?;
         }
         Ok(SaveAccountResult { cleanup_warning })
+    }
+
+    /// PRD 0022 MONO-4: keeps the monogram of the account just saved under
+    /// its stable id. Best effort: the account is already saved, and a
+    /// failed write only leaves the monogram derived from the name.
+    async fn store_monogram(&self, provider: Provider, name: &str, monogram: &str) {
+        let id = {
+            let g = self.inner.lock().await;
+            g.loaded.as_ref().and_then(|l| {
+                l.file
+                    .config
+                    .accounts
+                    .iter()
+                    .find(|a| a.provider == provider && a.name.trim() == name)
+                    .map(|a| a.id().to_string())
+            })
+        };
+        if let Some(id) = id {
+            let _ = crate::settings::save_monogram(&id, monogram);
+        }
     }
 
     /// SES-02: the core's test before save of the dialog's pasted sessions
@@ -4142,6 +4178,10 @@ impl Backend {
                 .flat_map(|session| session.slots.iter().cloned())
                 .collect(),
             session_migration: user_session::migration_candidates(a),
+            account_id: a.id().to_string(),
+            monogram: crate::settings::view()
+                .monogram_of(a.id().as_str())
+                .unwrap_or_default(),
         })
     }
 
@@ -4829,6 +4869,11 @@ pub struct AccountInput {
     /// save could not reach the provider (never after a rejection).
     #[serde(default)]
     pub save_anyway: bool,
+    /// PRD 0022 MONO-4: the monogram override (at most two characters);
+    /// `None` keeps the stored one, blank clears it. A display preference in
+    /// `desktop.json`, never written to the TOML.
+    #[serde(default)]
+    pub monogram: Option<String>,
 }
 
 /// One pasted session of the dialog; the text is overwritten when dropped.
@@ -4885,6 +4930,10 @@ pub struct AccountForm {
     /// PRD 0016 RF1.2: sessions still read from a variable, offered for
     /// migration to the vault.
     session_migration: Vec<user_session::MigrationCandidate>,
+    /// PRD 0022 MONO-4: the account's stable id and its monogram override
+    /// (blank = derived from the name).
+    account_id: String,
+    monogram: String,
 }
 
 /// PRD 0016: what a confirmed "Web session" button changes in the vault.
@@ -7201,6 +7250,7 @@ mod tests {
             auth_params: BTreeMap::new(),
             sessions: Vec::new(),
             save_anyway: false,
+            monogram: None,
         };
         let error = backend
             .inner
@@ -7264,6 +7314,7 @@ mod tests {
             auth_params: BTreeMap::new(),
             sessions: Vec::new(),
             save_anyway: false,
+            monogram: None,
         };
         let saved = input_account(&config, &input, None).unwrap();
         assert_eq!(saved.extension_override(), Some("proxy"));
@@ -7291,6 +7342,7 @@ mod tests {
                 paste: paste.into(),
             }],
             save_anyway: false,
+            monogram: None,
         }
     }
 
