@@ -62,6 +62,10 @@ pub struct Pace {
     pub used_fraction: f64,
     /// Real minus expected consumption, in percentage points.
     pub delta_points: f64,
+    /// PRD 0024 RF1.3: the deviation relative to the expected use,
+    /// `(used − expected) / expected` (expected 50%, used 60% → `0.2`).
+    /// `None` below a 10% expected share or when not finite.
+    pub delta_ratio: Option<f64>,
     pub stage: PaceStage,
     pub tone: PaceTone,
     pub source: PaceSource,
@@ -72,6 +76,15 @@ pub struct Pace {
 }
 
 const BAND_POINTS: f64 = 5.0;
+/// Below this expected share [`Pace::delta_ratio`] is undefined.
+const MIN_RATIO_EXPECTED: f64 = 0.10;
+/// The largest percent a chip shows ("999% faster than pace").
+const MAX_CHIP_PERCENT: f64 = 999.0;
+/// PRD 0024 RF2.2.1 (FIX-12): an alert needs its recent samples to span
+/// at least this long, or [`ALERT_MIN_ELAPSED`] of the window to elapse.
+pub const ALERT_MIN_SPAN: TimeDelta = TimeDelta::minutes(30);
+/// See [`ALERT_MIN_SPAN`].
+pub const ALERT_MIN_ELAPSED: f64 = 0.20;
 const MIN_ELAPSED_SECS: f64 = 600.0;
 const MIN_LOOKBACK_SECS: f64 = 7_200.0;
 
@@ -138,6 +151,7 @@ pub fn assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> 
         expected_used_fraction: elapsed / length,
         used_fraction,
         delta_points,
+        delta_ratio: delta_ratio(used_fraction, elapsed / length),
         stage,
         tone,
         source,
@@ -246,6 +260,42 @@ fn recent_slope(
     (sxx > 0.0).then(|| sxy / sxx)
 }
 
+fn delta_ratio(used: f64, expected: f64) -> Option<f64> {
+    if !expected.is_finite() || expected < MIN_RATIO_EXPECTED || !used.is_finite() {
+        return None;
+    }
+    let ratio = (used - expected) / expected;
+    ratio.is_finite().then_some(ratio)
+}
+
+/// PRD 0024 RF2.2.1 (FIX-12): whether `pace`, assessed for `metric` at
+/// `at` with `recent`, is grounded enough to warn about: projected from the
+/// recent slope of at least 3 samples spanning [`ALERT_MIN_SPAN`], or with
+/// [`ALERT_MIN_ELAPSED`] of the window elapsed. An average-only projection
+/// never is. The displayed pace keeps the plain 3-sample rule (decision D).
+pub fn alert_grade(metric: &Metric, pace: &Pace, at: DateTime<Utc>, recent: &[Point]) -> bool {
+    if pace.source != PaceSource::Recent {
+        return false;
+    }
+    if pace.elapsed_fraction >= ALERT_MIN_ELAPSED {
+        return true;
+    }
+    let Some(start) = window_start(metric, pace.resets_at, at) else {
+        return false;
+    };
+    let lookback = (secs(pace.resets_at - start) * 0.1).max(MIN_LOOKBACK_SECS);
+    let taken: Vec<DateTime<Utc>> = recent
+        .iter()
+        .filter(|p| p.used.is_finite() && p.taken_at >= start && p.taken_at <= at)
+        .filter(|p| secs(p.taken_at - at) >= -lookback)
+        .map(|p| p.taken_at)
+        .collect();
+    match (taken.iter().min(), taken.iter().max()) {
+        (Some(first), Some(last)) if taken.len() >= 3 => *last - *first >= ALERT_MIN_SPAN,
+        _ => false,
+    }
+}
+
 fn secs(delta: TimeDelta) -> f64 {
     delta.num_milliseconds() as f64 / 1000.0
 }
@@ -300,6 +350,171 @@ impl Pace {
         let fallback = format!("acaba às {at}, {margin} antes da renovação");
         let params = params([("at", at.into()), ("margin", margin.into())]);
         Some(Localized::with_params("pace.runs_out_at", params, fallback))
+    }
+}
+
+/// PRD 0024 RF1.3 (decision M): how a chip words the deviation from the
+/// pace. The choice is the user's; [`PaceUnit::Points`] by default.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaceUnit {
+    /// Percentage points: used share minus expected share.
+    #[default]
+    Points,
+    /// Relative to the expected use: "20% faster than pace".
+    Percent,
+}
+
+impl PaceUnit {
+    /// `points` or `percent` (the CLI and `desktop.json` spelling).
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "points" => Some(Self::Points),
+            "percent" => Some(Self::Percent),
+            _ => None,
+        }
+    }
+}
+
+/// PRD 0024 RF1 (DS-CMP-TIME-1..5): one compact time or pace chip: a glyph,
+/// the full text (also the accessible name and tooltip) and, for narrow
+/// places, the short value shown after the glyph ("19:30", "≈18:53",
+/// "20%").
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Chip {
+    /// One of ↓ → ↑ ✕ ↺.
+    pub glyph: &'static str,
+    pub text: Localized,
+    /// The compact form after the glyph; `None` when the chip has none
+    /// (the full text is short already).
+    pub compact: Option<String>,
+    /// A tooltip beyond the text: why the percent form fell back to points.
+    pub hint: Option<Localized>,
+}
+
+/// ↓ below the pace, or lasting until the reset.
+pub const GLYPH_RESERVE: &str = "↓";
+/// → on pace.
+pub const GLYPH_ON_PACE: &str = "→";
+/// ↑ above the pace, or running out before the reset.
+pub const GLYPH_AHEAD: &str = "↑";
+/// ✕ exhausted.
+pub const GLYPH_EXHAUSTED: &str = "✕";
+/// ↺ when the quota returns.
+pub const GLYPH_RETURNS: &str = "↺";
+
+impl Pace {
+    /// PRD 0024 RF1.1/RF1.3: the stage chip in `unit`. Points: "{d} pts in
+    /// reserve", "On pace", "{d} pts ahead", "Exhausted", where `{d}` is the
+    /// rounded absolute `delta_points` (a rounded 0 reads "On pace").
+    /// Percent: "{p}% faster than pace"/"{p}% slower than pace" from
+    /// [`Pace::delta_ratio`] (capped at 999, a rounded 0 reads "On pace");
+    /// without a ratio (expected share below 10%) the points form, with the
+    /// hint "Too early in the window for a percentage".
+    pub fn chip(&self, unit: PaceUnit) -> Chip {
+        if self.stage == PaceStage::Exhausted {
+            return Chip {
+                glyph: GLYPH_EXHAUSTED,
+                text: Localized::fixed("pace.chip.exhausted", "Esgotado"),
+                compact: None,
+                hint: None,
+            };
+        }
+        let on_pace = || Chip {
+            glyph: GLYPH_ON_PACE,
+            text: Localized::fixed("pace.chip.on_pace", "No ritmo"),
+            compact: None,
+            hint: None,
+        };
+        let mut hint = None;
+        if unit == PaceUnit::Percent {
+            match self.delta_ratio {
+                Some(ratio) => {
+                    let percent = (ratio.abs() * 100.0).round().min(MAX_CHIP_PERCENT);
+                    if percent < 1.0 {
+                        return on_pace();
+                    }
+                    let p = format!("{percent:.0}");
+                    let (glyph, id, fallback) = if ratio > 0.0 {
+                        (
+                            GLYPH_AHEAD,
+                            "pace.chip.ahead_pct",
+                            format!("{p}% acima do ritmo"),
+                        )
+                    } else {
+                        (
+                            GLYPH_RESERVE,
+                            "pace.chip.reserve_pct",
+                            format!("{p}% abaixo do ritmo"),
+                        )
+                    };
+                    return Chip {
+                        glyph,
+                        text: Localized::with_param(id, "p", p.as_str(), fallback),
+                        compact: Some(format!("{p}%")),
+                        hint: None,
+                    };
+                }
+                None => {
+                    hint = Some(Localized::fixed(
+                        "pace.chip.too_early",
+                        "Cedo demais na janela para um percentual",
+                    ));
+                }
+            }
+        }
+        let points = self.delta_points.abs().round();
+        if !points.is_finite() || points < 1.0 {
+            return Chip { hint, ..on_pace() };
+        }
+        let d = format!("{points:.0}");
+        let (glyph, id, fallback) = if self.delta_points > 0.0 {
+            (GLYPH_AHEAD, "pace.chip.ahead", format!("{d} pts acima"))
+        } else {
+            (
+                GLYPH_RESERVE,
+                "pace.chip.reserve",
+                format!("{d} pts de reserva"),
+            )
+        };
+        Chip {
+            glyph,
+            text: Localized::with_param(id, "d", d.as_str(), fallback),
+            compact: Some(format!("{d} pts")),
+            hint,
+        }
+    }
+
+    /// PRD 0024 RF1.2 (DS-CMP-TIME-4): ↑ "Runs out ≈{at}" when the core
+    /// projects exhaustion before the reset, otherwise ↓ "Lasts to reset";
+    /// `None` for an exhausted metric. `at` formats the projected time in
+    /// the caller's locale and clock.
+    pub fn outlook_chip(&self, at: impl FnOnce(DateTime<Utc>) -> String) -> Option<Chip> {
+        if self.stage == PaceStage::Exhausted {
+            return None;
+        }
+        match self.projected_exhaustion_at {
+            Some(when) => {
+                let at = at(when);
+                Some(Chip {
+                    glyph: GLYPH_AHEAD,
+                    text: Localized::with_param(
+                        "pace.chip.runs_out",
+                        "at",
+                        at.as_str(),
+                        format!("Acaba ≈{at}"),
+                    ),
+                    compact: Some(format!("≈{at}")),
+                    hint: None,
+                })
+            }
+            None => Some(Chip {
+                glyph: GLYPH_RESERVE,
+                text: Localized::fixed("pace.chip.lasts", "Dura até renovar"),
+                compact: None,
+                hint: None,
+            }),
+        }
     }
 }
 
@@ -617,6 +832,7 @@ mod tests {
                 "expected_used_fraction": 0.25,
                 "used_fraction": 0.4,
                 "delta_points": 15.0,
+                "delta_ratio": 0.6000000000000001,
                 "stage": "ahead",
                 "tone": "warn",
                 "source": "average",
@@ -781,3 +997,7 @@ mod tests {
         assert_eq!(Some(pace), assess(&metric, checked_at, Some(&recent)));
     }
 }
+
+#[cfg(test)]
+#[path = "pace_chip_tests.rs"]
+mod chip_tests;

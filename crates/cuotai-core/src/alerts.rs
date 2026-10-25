@@ -12,7 +12,8 @@
 //! one notification.
 
 use crate::metrics::{classify_metric, window_param, MetricState};
-use crate::model::{Account, Metric, MetricWindow, Report, Status};
+use crate::model::{Account, Metric, MetricKind, MetricWindow, Report, Status};
+use crate::pace::{self, Pace, PaceSource, PaceStage, Point};
 use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
 use crate::text::{params, provider_l10n, Localized};
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
@@ -20,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::ops::RangeInclusive;
+use std::time::Duration;
 
 /// Consumption thresholds the user may choose, in percent.
 pub const THRESHOLD_RANGE: RangeInclusive<u8> = 10..=99;
@@ -37,6 +39,11 @@ pub const CROSSING_GRACE: TimeDelta = TimeDelta::minutes(10);
 /// At most one usage alert notification per this span (PRD 0008 §6): the
 /// alerts that arrive sooner wait and join the next one.
 pub const NOTICE_SPACING: TimeDelta = TimeDelta::minutes(1);
+/// PRD 0024 RF2.2.4: a projection warns only when the stop comes at least
+/// this long before the reset.
+pub const PROJECTED_MIN_MARGIN: TimeDelta = TimeDelta::minutes(5);
+/// PRD 0024 RF2.2.3: a projection warns only from this consumed share on.
+pub const PROJECTED_MIN_USED: f64 = 0.25;
 /// The exhaustion level: 100% consumed.
 const EXHAUSTED: u8 = 100;
 /// Absorbs `f64` rounding in `used × 100 / limit` (29% must reach 29).
@@ -62,6 +69,43 @@ pub struct AlertPrefs {
     pub muted_accounts: BTreeSet<String>,
     /// Muted metrics: account state key → metric labels.
     pub muted_metrics: BTreeMap<String, BTreeSet<String>>,
+    /// PRD 0024 RF2.7: warn this long before a projected exhaustion;
+    /// `None` (the default everywhere) turns the kind off. Only the user's
+    /// own choice turns it on.
+    pub projected: Option<Lead>,
+}
+
+/// PRD 0024 RF2.7: how long before the projected exhaustion the warning
+/// goes out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Lead {
+    Min15,
+    Min30,
+    Min60,
+}
+
+impl Lead {
+    /// Every lead, shortest first.
+    pub const ALL: [Self; 3] = [Self::Min15, Self::Min30, Self::Min60];
+
+    pub fn minutes(self) -> u16 {
+        match self {
+            Self::Min15 => 15,
+            Self::Min30 => 30,
+            Self::Min60 => 60,
+        }
+    }
+
+    /// The lead of `minutes` (15, 30 or 60); `None` for anything else.
+    pub fn from_minutes(minutes: u64) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|lead| u64::from(lead.minutes()) == minutes)
+    }
+
+    pub fn span(self) -> TimeDelta {
+        TimeDelta::minutes(i64::from(self.minutes()))
+    }
 }
 
 impl Default for AlertPrefs {
@@ -75,6 +119,7 @@ impl Default for AlertPrefs {
             recovery: true,
             muted_accounts: BTreeSet::new(),
             muted_metrics: BTreeMap::new(),
+            projected: None,
         }
     }
 }
@@ -103,6 +148,17 @@ impl AlertPrefs {
         })
     }
 
+    /// PRD 0024 RF2.7: the preferences the explicit **Turn on** of the first
+    /// run applies (the user's consent): [`Self::default`] switched on,
+    /// with the projected warning 60 minutes ahead.
+    pub fn recommended() -> Self {
+        Self {
+            enabled: true,
+            projected: Some(Lead::Min60),
+            ..Self::default()
+        }
+    }
+
     /// Ascending.
     pub fn thresholds(&self) -> impl DoubleEndedIterator<Item = u8> + '_ {
         self.thresholds.iter().copied()
@@ -121,6 +177,7 @@ impl AlertPrefs {
                 AlertKind::Threshold | AlertKind::SessionExpiring => true,
                 AlertKind::Exhausted => self.exhaustion,
                 AlertKind::Recovered => self.recovery,
+                AlertKind::ProjectedExhaustion => self.projected.is_some(),
             }
     }
 }
@@ -140,6 +197,52 @@ pub enum AlertKind {
     /// is empty, `threshold` the whole days left and `resets_at` the
     /// session's expiry.
     SessionExpiring,
+    /// PRD 0024 RF2: at the recent pace the quota runs out before its
+    /// reset, within the lead of [`AlertPrefs::projected`]. `threshold` is
+    /// 0; the details are in [`AlertEvent::projection`].
+    ProjectedExhaustion,
+}
+
+impl AlertKind {
+    /// A consumption level reached in a window instance (what the
+    /// hysteresis and the active alerts follow).
+    fn is_level(self) -> bool {
+        matches!(self, Self::Threshold | Self::Exhausted)
+    }
+}
+
+/// PRD 0024 RF2.1: what a [`AlertKind::ProjectedExhaustion`] projects.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct Projection {
+    /// When the quota runs out at the recent pace.
+    pub projected_at: DateTime<Utc>,
+    /// The lead the warning was given with.
+    pub lead_minutes: u16,
+    /// `resets_at − projected_at`, in whole seconds (at least 5 minutes).
+    pub margin_seconds: i64,
+    /// Always [`PaceSource::Recent`]: an average never warns.
+    pub source: PaceSource,
+}
+
+/// PRD 0024 RF2.2: what a projection needs beyond the two readings: the
+/// account's effective refresh interval (for freshness, PRD 0010) and the
+/// recorded recent points of each metric of the new reading, in its order
+/// (`crate::Monitor::recent_points`; samples after a reading are ignored
+/// for it, so one list serves the previous reading too).
+#[derive(Debug, Clone, Copy)]
+pub struct PaceInput<'a> {
+    pub interval: Duration,
+    pub recent: &'a [Vec<Point>],
+}
+
+impl PaceInput<'_> {
+    fn points(&self, next: &Report, label: &str) -> &[Point] {
+        next.metrics
+            .iter()
+            .position(|metric| metric.label == label)
+            .and_then(|index| self.recent.get(index))
+            .map_or(&[], Vec::as_slice)
+    }
 }
 
 /// One notice about one metric of one account.
@@ -156,6 +259,9 @@ pub struct AlertEvent {
     pub consumed: f64,
     /// The window instance of the reading, as the provider reported it.
     pub resets_at: Option<DateTime<Utc>>,
+    /// PRD 0024 RF2.1: set only for [`AlertKind::ProjectedExhaustion`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projection: Option<Projection>,
 }
 
 /// What earlier readings left behind: per account, metric, window instance
@@ -217,12 +323,33 @@ struct Consumption {
 /// apart by `resets_at` beyond [`DRIFT_TOLERANCE`]; an unknown `resets_at`
 /// is the same instance. Only what [`AlertPrefs::wants`] is returned (a
 /// muted account or metric, or an unwanted kind, stays silent).
+///
+/// Never a [`AlertKind::ProjectedExhaustion`], which needs the recent
+/// points: see [`evaluate_with`].
 pub fn evaluate(
     prev: Option<&Report>,
     next: &Report,
     prefs: &AlertPrefs,
     state: &AlertState,
     now: DateTime<Utc>,
+) -> Vec<AlertEvent> {
+    evaluate_with(prev, next, prefs, state, now, None)
+}
+
+/// [`evaluate`], plus PRD 0024 RF2's [`AlertKind::ProjectedExhaustion`]
+/// when `pace` is given and [`AlertPrefs::projected`] is on: once per
+/// metric and window instance, when both `next` and `prev` (two
+/// consecutive confirmations) pass [`forecast`] and the projection of
+/// `next` falls within the lead after `now` with at least
+/// [`PROJECTED_MIN_MARGIN`] before the reset. The same first-reading rule
+/// applies. A projection comes before the other events of its account.
+pub fn evaluate_with(
+    prev: Option<&Report>,
+    next: &Report,
+    prefs: &AlertPrefs,
+    state: &AlertState,
+    now: DateTime<Utc>,
+    pace: Option<&PaceInput>,
 ) -> Vec<AlertEvent> {
     if !prefs.enabled || next.status != Status::Ready || now - next.checked_at > CROSSING_GRACE {
         return Vec::new();
@@ -271,7 +398,16 @@ pub fn evaluate(
             threshold,
             consumed: consumption.percent / 100.0,
             resets_at: metric.resets_at,
+            projection: None,
         };
+        if let (Some(input), Some(lead)) = (pace, prefs.projected) {
+            if let Some(projection) = projected(prev, next, metric, input, lead, state, now) {
+                events.push(AlertEvent {
+                    projection: Some(projection),
+                    ..event(AlertKind::ProjectedExhaustion, 0)
+                });
+            }
+        }
         if consumption.exhausted {
             if highest.is_none_or(|level| level < EXHAUSTED) {
                 if prefs.exhaustion {
@@ -298,7 +434,106 @@ pub fn evaluate(
         }
     }
     events.retain(|event| prefs.wants(event));
+    // RF2.6: the projection is listed first in the account's notice.
+    events.sort_by_key(|event| event.kind != AlertKind::ProjectedExhaustion);
     events
+}
+
+/// PRD 0024 RF2.2 conditions 1–3 for `metric` as a reading taken at
+/// `checked_at` shows it at `now`: the pace of [`pace::assess_reading`]
+/// (`Fresh` for `interval`, evaluated at `checked_at`) with `recent`,
+/// projected from the recent slope ([`pace::alert_grade`]), not exhausted,
+/// at least [`PROJECTED_MIN_USED`] consumed and running out strictly before
+/// the reset. A front end shows its in-app forecast (RF4.3) from it.
+pub fn forecast(
+    metric: &Metric,
+    checked_at: DateTime<Utc>,
+    interval: Duration,
+    now: DateTime<Utc>,
+    recent: &[Point],
+) -> Option<Pace> {
+    let pace = pace::assess_reading(metric, checked_at, interval, now, Some(recent))?;
+    (pace::alert_grade(metric, &pace, checked_at, recent)
+        && pace.stage != PaceStage::Exhausted
+        && !pace.lasts_until_reset
+        && pace.used_fraction >= PROJECTED_MIN_USED
+        && pace.projected_exhaustion_at.is_some())
+    .then_some(pace)
+}
+
+/// RF2.2: the projection `next` warns about for `metric`, if any.
+fn projected(
+    prev: &Report,
+    next: &Report,
+    metric: &Metric,
+    input: &PaceInput,
+    lead: Lead,
+    state: &AlertState,
+    now: DateTime<Utc>,
+) -> Option<Projection> {
+    let digest = key_digest(&next.account_key(), &metric.label);
+    if state.has_projection(&digest, metric.resets_at) {
+        return None;
+    }
+    let points = input.points(next, &metric.label);
+    let pace = forecast(metric, next.checked_at, input.interval, now, points)?;
+    let projected_at = pace.projected_exhaustion_at?;
+    let margin = pace.resets_at - projected_at;
+    if projected_at <= now || projected_at > now + lead.span() || margin < PROJECTED_MIN_MARGIN {
+        return None;
+    }
+    // RF2.2.5: the previous reading of the same window instance confirms.
+    let before = prev
+        .metrics
+        .iter()
+        .find(|before| before.label == metric.label)
+        .filter(|before| same_instance(before.resets_at, metric.resets_at))?;
+    forecast(
+        before,
+        prev.checked_at,
+        input.interval,
+        next.checked_at,
+        points,
+    )?;
+    Some(Projection {
+        projected_at,
+        lead_minutes: lead.minutes(),
+        margin_seconds: margin.num_seconds(),
+        source: pace.source,
+    })
+}
+
+/// PRD 0024 RF2.4: whether `pending`, a projection queued and not yet
+/// delivered, is void after `next` (the account's latest reading, with
+/// its `pace` input) at `now`: the reading failed or is no longer `Fresh`,
+/// the metric is gone, its window reset, it is exhausted (the `Exhausted`
+/// alert supersedes it), or the projection reached or passed the reset
+/// (RF2.2.6: a margin that only shrank below [`PROJECTED_MIN_MARGIN`]
+/// keeps it). Any other kind, or another account's reading, never is.
+pub fn cancels(pending: &AlertEvent, next: &Report, pace: &PaceInput, now: DateTime<Utc>) -> bool {
+    if pending.kind != AlertKind::ProjectedExhaustion || next.account_key() != pending.account_key {
+        return false;
+    }
+    if next.status != Status::Ready {
+        return true;
+    }
+    let Some(metric) = next
+        .metrics
+        .iter()
+        .find(|metric| metric.label == pending.label)
+    else {
+        return true;
+    };
+    if !same_instance(metric.resets_at, pending.resets_at)
+        || consumption(metric).is_none_or(|consumption| consumption.exhausted)
+    {
+        return true;
+    }
+    let points = pace.points(next, &metric.label);
+    match pace::assess_reading(metric, next.checked_at, pace.interval, now, Some(points)) {
+        None => true,
+        Some(pace) => pace.stage == PaceStage::Exhausted || pace.lasts_until_reset,
+    }
 }
 
 /// Mark of the session expiry in [`AlertState`]: never a metric label.
@@ -329,6 +564,7 @@ fn session_expiring(next: &Report, state: &AlertState, now: DateTime<Utc>) -> Op
         threshold: u8::try_from(expiry.days.max(0)).unwrap_or(u8::MAX),
         consumed: 0.0,
         resets_at: Some(at),
+        projection: None,
     })
 }
 
@@ -394,7 +630,7 @@ impl AlertState {
             let before = self.marks.len();
             self.marks.retain(|mark| {
                 !(mark.metric == digest
-                    && mark.kind != AlertKind::Recovered
+                    && mark.kind.is_level()
                     && same_instance(mark.resets_at, at)
                     && consumption.percent
                         <= f64::from(mark.threshold) - HYSTERESIS_POINTS + EPSILON)
@@ -422,6 +658,10 @@ impl AlertState {
                 at: now,
             };
             let before = self.marks.len();
+            // PRD 0024 RF2.3: a projection delivered once per instance.
+            if notified(AlertKind::ProjectedExhaustion, 0) && !self.has_projection(&digest, at) {
+                self.marks.push(mark(AlertKind::ProjectedExhaustion, 0));
+            }
             if consumption.exhausted {
                 if !self.has_level(&digest, at, EXHAUSTED) {
                     self.marks.push(mark(AlertKind::Exhausted, EXHAUSTED));
@@ -533,9 +773,19 @@ impl AlertState {
             self.marks.iter().any(|mark| {
                 mark.notified
                     && mark.metric == digest
-                    && mark.kind != AlertKind::Recovered
+                    && mark.kind.is_level()
                     && same_instance(mark.resets_at, metric.resets_at)
             })
+        })
+    }
+
+    /// PRD 0024 RF2.3: a projection was delivered in the instance of
+    /// `resets_at`.
+    fn has_projection(&self, metric: &str, resets_at: Option<DateTime<Utc>>) -> bool {
+        self.marks.iter().any(|mark| {
+            mark.metric == metric
+                && mark.kind == AlertKind::ProjectedExhaustion
+                && same_instance(mark.resets_at, resets_at)
         })
     }
 
@@ -558,7 +808,7 @@ impl AlertState {
     ) -> impl Iterator<Item = &'s Mark> + 's {
         self.marks.iter().filter(move |mark| {
             mark.metric == metric
-                && mark.kind != AlertKind::Recovered
+                && mark.kind.is_level()
                 && same_instance(mark.resets_at, resets_at)
         })
     }
@@ -570,7 +820,10 @@ impl AlertState {
         let resets_at = resets_at?;
         self.marks
             .iter()
-            .filter(|mark| mark.metric == metric && mark.kind != AlertKind::Threshold)
+            .filter(|mark| {
+                mark.metric == metric
+                    && matches!(mark.kind, AlertKind::Exhausted | AlertKind::Recovered)
+            })
             .max_by_key(|mark| mark.at)
             .filter(|mark| {
                 mark.kind == AlertKind::Exhausted
@@ -674,7 +927,7 @@ where
         [(account, events)] if events.len() == 1 => Some(single(account, &events[0], now, tz)),
         [(account, events)] => {
             let provider_pt = account.provider.label();
-            let items = join(events.iter().map(item))?;
+            let items = join(events.iter().map(|event| item(event, now, tz)))?;
             let body = format!("{}: {}", account.name, items.fallback);
             Some(Notice {
                 title: Localized::with_params(
@@ -697,7 +950,7 @@ where
         }
         _ => {
             let body = join(groups.iter().filter_map(|(account, events)| {
-                let items = join(events.iter().map(item))?;
+                let items = join(events.iter().map(|event| item(event, now, tz)))?;
                 let fallback = format!(
                     "{} {}: {}",
                     account.provider.label(),
@@ -759,6 +1012,9 @@ where
             ),
         };
     }
+    if let (AlertKind::ProjectedExhaustion, Some(projection)) = (event.kind, event.projection) {
+        return projected_notice(account, event, projection, now, tz);
+    }
     let provider_pt = account.provider.label();
     let percent = event.threshold.to_string();
     let label = event.label.as_str();
@@ -811,8 +1067,16 @@ where
             params([("provider", provider.into()), ("metric", label.into())]),
             format!("{provider_pt}: {label} disponível de novo"),
         ),
-        // Returned above.
-        (AlertKind::SessionExpiring, _) => unreachable!("session notices return early"),
+        // Returned above (a projection always carries its `projection`).
+        (AlertKind::SessionExpiring | AlertKind::ProjectedExhaustion, _) => Localized::with_params(
+            "alerts.title.threshold_metric",
+            params([
+                ("provider", provider.into()),
+                ("percent", percent.as_str().into()),
+                ("metric", label.into()),
+            ]),
+            format!("{provider_pt}: {percent}% usado em {label}"),
+        ),
     };
     let body = match event.resets_at {
         Some(at) => {
@@ -839,8 +1103,56 @@ where
     Notice { title, body }
 }
 
-/// "Session (5h) 90%", "… at the limit", "… available again".
-fn item(event: &AlertEvent) -> Localized {
+/// PRD 0024 RF3.3 (DS-CMP-NOTIF-1): "Claude · Work: may run out before the
+/// reset" with "At this rate Session (5h) runs out ≈18:53, 37 min before
+/// the reset". Only the provider, the account, the metric label and times.
+fn projected_notice<Tz>(
+    account: &Account,
+    event: &AlertEvent,
+    projection: Projection,
+    now: DateTime<Utc>,
+    tz: &Tz,
+) -> Notice
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let label = event.label.as_str();
+    let at = local_time(projection.projected_at, now, tz);
+    let margin = crate::text::duration(TimeDelta::seconds(projection.margin_seconds));
+    let margin_pt = margin.fallback.to_string();
+    Notice {
+        title: Localized::with_params(
+            "alerts.title.projected",
+            params([
+                ("provider", provider_l10n(account.provider).into()),
+                ("account", account.name.as_str().into()),
+            ]),
+            format!(
+                "{} · {}: pode acabar antes da renovação",
+                account.provider.label(),
+                account.name
+            ),
+        ),
+        body: Localized::with_params(
+            "alerts.body.projected",
+            params([
+                ("metric", label.into()),
+                ("at", at.as_str().into()),
+                ("margin", margin.into()),
+            ]),
+            format!("Neste ritmo {label} acaba ≈{at}, {margin_pt} antes da renovação"),
+        ),
+    }
+}
+
+/// "Session (5h) 90%", "… at the limit", "… available again", "… runs
+/// out ≈18:53" (the projected time in `tz`).
+fn item<Tz>(event: &AlertEvent, now: DateTime<Utc>, tz: &Tz) -> Localized
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
     let label = event.label.as_str();
     let percent = event.threshold.to_string();
     match event.kind {
@@ -866,6 +1178,17 @@ fn item(event: &AlertEvent) -> Localized {
         ),
         AlertKind::SessionExpiring => {
             Localized::fixed("alerts.item.session_expiring", "sessão expira em breve")
+        }
+        AlertKind::ProjectedExhaustion => {
+            let at = event
+                .projection
+                .map(|projection| local_time(projection.projected_at, now, tz))
+                .unwrap_or_default();
+            Localized::with_params(
+                "alerts.item.projected",
+                params([("metric", label.into()), ("at", at.as_str().into())]),
+                format!("{label} acaba ≈{at}"),
+            )
         }
     }
 }
@@ -1274,6 +1597,7 @@ mod tests {
                 threshold: 90,
                 consumed: 0.91,
                 resets_at: Some(window()),
+                projection: None,
             }]
         );
     }
@@ -1556,6 +1880,7 @@ mod tests {
             threshold,
             consumed: 0.9,
             resets_at,
+            projection: None,
         };
         let ninety = event(
             "claude:Work",
@@ -1713,3 +2038,7 @@ mod tests {
         window() + TimeDelta::hours(5)
     }
 }
+
+#[cfg(test)]
+#[path = "alerts_projected_tests.rs"]
+mod projected_tests;

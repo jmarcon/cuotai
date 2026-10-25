@@ -22,6 +22,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use cuotai_core::{
+    alerts::Lead,
     events::{Event, EventKind, EventState},
     export::v1::Export,
     hooks::{self, Confirmed, Consent, Hooks, Run, RunLog, Runner},
@@ -39,6 +40,9 @@ pub(crate) struct WatchArgs {
     pub jsonl: bool,
     /// `--hooks`: the rules the user confirmed.
     pub hooks: Option<Confirmed>,
+    /// PRD 0024 RF5.1: `--projected-lead` of `quota_exhaustion_projected`
+    /// (the core's 60 minutes without it).
+    pub projected_lead: Option<Lead>,
 }
 
 pub(crate) struct Watch {
@@ -51,7 +55,13 @@ impl Watch {
     /// Must run inside the Tokio runtime (the hooks' runner starts here).
     pub(crate) fn new(args: WatchArgs) -> Self {
         Self {
-            watcher: Watcher::new(EventState::default(), args.events),
+            watcher: Watcher::new(
+                match args.projected_lead {
+                    Some(lead) => EventState::default().with_projected_lead(lead),
+                    None => EventState::default(),
+                },
+                args.events,
+            ),
             jsonl: args.jsonl,
             hooks: args.hooks.map(start_hooks),
         }
@@ -72,8 +82,13 @@ impl Watch {
     /// Write the events of `export` after the last one (and hand them to
     /// the hooks, which never wait); `false` when stdout was closed (the
     /// consumer went away), which ends the run.
-    pub(crate) fn emit(&mut self, export: &Export, now: DateTime<Utc>) -> io::Result<bool> {
-        let events = self.watcher.observe(export, now);
+    pub(crate) fn emit(
+        &mut self,
+        export: &Export,
+        now: DateTime<Utc>,
+        pace: &crate::notify::PaceOf,
+    ) -> io::Result<bool> {
+        let events = self.watcher.observe_with(export, now, pace);
         if events.is_empty() {
             return Ok(true);
         }

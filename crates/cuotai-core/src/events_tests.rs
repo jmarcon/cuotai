@@ -799,3 +799,74 @@ fn accounts_of_one_provider_share_one_incident_event() {
     let resolved = observe(&mut watcher, IncidentState::Operational, 3);
     assert_eq!(transitions(&resolved), [ProviderIncident]);
 }
+
+/// PRD 0024 RF5: `quota_exhaustion_projected` on the RF2 edge, only with
+/// the readings' pace input, with the projection's values and no notes.
+#[test]
+fn a_steep_recent_pace_projects_exhaustion_once() {
+    let run = |with_input: bool| {
+        let mut watch = Watch::new();
+        let mut points = Vec::new();
+        let mut out = Vec::new();
+        for (i, minute) in [140, 145, 150, 155, 160].into_iter().enumerate() {
+            let used = 40.0 + 5.0 * i as f64;
+            points.push(crate::pace::Point {
+                taken_at: at(minute),
+                used,
+            });
+            let report = Report {
+                account: "Work".into(),
+                provider: Provider::Claude,
+                checked_at: at(minute),
+                status: Status::Ready,
+                metrics: vec![quota(used, second_window())],
+                notes: Vec::new(),
+                notes_l10n: Vec::new(),
+                source: String::new(),
+                session_expires_at: None,
+            };
+            let token = watch.cycle.begin(0).unwrap();
+            watch
+                .cycle
+                .finish_account(0, Some(report), token, Instant::now());
+            let next = export(&watch.config, &watch.cycle, &[], at(minute));
+            let lists = vec![points.clone()];
+            let input = PaceInput {
+                interval: std::time::Duration::from_secs(300),
+                recent: &lists,
+            };
+            let events = diff_with(
+                &watch.prev,
+                &next,
+                &mut watch.state,
+                at(minute),
+                with_input.then_some(&input),
+            );
+            watch.prev = next;
+            out.push(
+                events
+                    .into_iter()
+                    .filter(|event| event.event == QuotaExhaustionProjected)
+                    .collect::<Vec<_>>(),
+            );
+        }
+        out
+    };
+    assert!(run(false).iter().all(Vec::is_empty));
+    let fired = run(true);
+    let counts: Vec<usize> = fired.iter().map(Vec::len).collect();
+    assert_eq!(counts, vec![0, 0, 0, 1, 0]);
+    let event = serde_json::to_value(&fired[3][0]).unwrap();
+    assert_eq!(event["event"], "quota_exhaustion_projected");
+    assert_eq!(event["current"]["lead_minutes"], 60);
+    assert_eq!(event["current"]["source"], "recent");
+    assert_eq!(event["current"]["used_ratio"], 0.55);
+    assert!(event["current"]["projected_at"].is_string());
+    assert!(event["current"]["resets_at"].is_string());
+    assert!(event["current"].get("used").is_none());
+    assert!(event["previous"].is_null());
+    assert_eq!(
+        EventKind::from_name("quota_exhaustion_projected"),
+        Some(QuotaExhaustionProjected)
+    );
+}

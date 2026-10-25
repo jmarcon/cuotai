@@ -234,6 +234,53 @@ pub fn changelog_title_l10n() -> Localized {
     Localized::fixed(crate::changelog::TITLE_ID, crate::changelog::TITLE_PT)
 }
 
+/// PRD 0024 RF1.4: a span as the core words it, so the TUI and the desktop
+/// agree: under an hour in whole minutes rounded up ("37 min", at least 1),
+/// under a day in hours and minutes ("1h 35m", "2h"), otherwise in days
+/// and hours ("3d 15h", "6d"). Abbreviations, so no plural forms are
+/// needed. Zero or negative spans read "0 min".
+pub fn duration(span: chrono::TimeDelta) -> Localized {
+    let secs = span.num_seconds().max(0);
+    if secs < 3_600 {
+        // Rounded up; 59 min 30 s still reads "59 min", never "60 min".
+        let minutes = ((secs + 59) / 60).min(59);
+        let m = minutes.to_string();
+        return Localized::with_param("text.duration.minutes", "m", m.as_str(), format!("{m} min"));
+    }
+    let minutes = secs / 60;
+    let (days, hours, mins) = (minutes / 1_440, minutes / 60 % 24, minutes % 60);
+    let (d, h, m) = (days.to_string(), hours.to_string(), mins.to_string());
+    match (days, hours, mins) {
+        (0, _, 0) => Localized::with_param("text.duration.hours", "h", h.as_str(), format!("{h}h")),
+        (0, _, _) => Localized::with_params(
+            "text.duration.hours_minutes",
+            params([("h", h.as_str().into()), ("m", m.as_str().into())]),
+            format!("{h}h {m}m"),
+        ),
+        (_, 0, _) => Localized::with_param("text.duration.days", "d", d.as_str(), format!("{d}d")),
+        _ => Localized::with_params(
+            "text.duration.days_hours",
+            params([("d", d.as_str().into()), ("h", h.as_str().into())]),
+            format!("{d}d {h}h"),
+        ),
+    }
+}
+
+/// PRD 0024 RF1.4: time until something happens, "in 1h 35m" (see
+/// [`duration`]), or "now" for a span under one second.
+pub fn countdown(span: chrono::TimeDelta) -> Localized {
+    if span.num_seconds() < 1 {
+        return Localized::fixed("text.countdown.now", "agora");
+    }
+    let duration = duration(span);
+    let fallback = format!("em {}", duration.fallback);
+    Localized::with_params(
+        "text.countdown",
+        params([("duration", duration.into())]),
+        fallback,
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Core catalogs: parsed lazily from `include_str!` so the binary only pays
 // for the JSON once and never blocks startup. The en-US/es/it maps share

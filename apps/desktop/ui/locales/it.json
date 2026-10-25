@@ -515,6 +515,7 @@
   "settings.hooks.event.quota_threshold_crossed": "una quota ha raggiunto una soglia",
   "settings.hooks.event.quota_exhausted": "una quota si è esaurita",
   "settings.hooks.event.quota_recovered": "una quota è di nuovo disponibile",
+  "settings.hooks.event.quota_exhaustion_projected": "una quota potrebbe esaurirsi prima del rinnovo",
   "settings.hooks.event.quota_reset": "una finestra di quota è ricominciata",
   "settings.hooks.event.account_blocked": "l'account è bloccato",
   "settings.hooks.event.account_unblocked": "l'account è sbloccato",

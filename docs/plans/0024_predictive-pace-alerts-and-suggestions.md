@@ -17,11 +17,11 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed (wording replaced on 2026-10-23 by the design-system time chips). |
-| RF2 | — | Proposed (criteria tightened on 2026-10-23, decision B). |
-| RF3 | — | Proposed. |
+| RF1 | vNEXT | Core delivered: `Pace::chip(PaceUnit)` and `Pace::outlook_chip`, `Pace::delta_ratio` (also in `export::v1`), `resets::returns_chip`, `resets::pair_label`, `text::countdown`/`text::duration` (abbreviated units, so no plural forms) in the four catalogs, with the 18/22-character budget test. The `--pace-unit`/`CUOTAI_PACE_UNIT` flag, the desktop setting and replacing `fmtCountdown` wait for the surfaces of RF6. The unknown return uses the core key `resets.chip.return_unknown`. |
+| RF2 | vNEXT | Delivered in the core: `AlertKind::ProjectedExhaustion`, `alerts::evaluate_with` with `PaceInput`, `alerts::forecast` (conditions 1–3, reused for the RF4.3 callout), `alerts::cancels` (RF2.4), `pace::alert_grade` (FIX-12 span rule), `Lead`, `AlertPrefs::projected` (off by default) and `AlertPrefs::recommended()`. A queued projection cancelled before delivery keeps its mark, so it does not fire again in that window instance. |
+| RF3 | vNEXT | Partial: marks persisted in `notified.json`, `alerts.projected.*` notice texts, TUI `--notify-projected [15\|30\|60]`. Desktop delivery (RF3.2) waits for the Settings rework (it needs `alerts.projected_lead_minutes` read in `settings.rs`). |
 | RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
+| RF5 | vNEXT | Delivered: `quota_exhaustion_projected` (`events::diff_with`, `Watcher::observe_with`), `cuotai --watch --projected-lead 15\|30\|60`, hooks accept it. The desktop hooks runner still observes without the pace input, so it never emits this event yet. |
 | RF6 | — | Proposed. |
 | RF7 | — | Proposed (rewritten on 2026-10-23: "best account now" with groups, decision C). |
 | RF8 | — | Proposed. |

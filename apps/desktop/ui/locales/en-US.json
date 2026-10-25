@@ -515,6 +515,7 @@
   "settings.hooks.event.quota_threshold_crossed": "a quota reached a threshold",
   "settings.hooks.event.quota_exhausted": "a quota ran out",
   "settings.hooks.event.quota_recovered": "a quota is available again",
+  "settings.hooks.event.quota_exhaustion_projected": "a quota may run out before the reset",
   "settings.hooks.event.quota_reset": "a quota window started over",
   "settings.hooks.event.account_blocked": "the account is blocked",
   "settings.hooks.event.account_unblocked": "the account is unblocked",

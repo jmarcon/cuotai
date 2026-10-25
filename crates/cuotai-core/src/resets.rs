@@ -491,6 +491,35 @@ fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Option<ResetM
     })
 }
 
+/// PRD 0024 RF1.2: ↺ "Returns {at}" for the time the quota comes back
+/// (`blocked_until` or the binding reset), already formatted by the
+/// caller; `None` (an unknown return) reads "Return unknown", never a time.
+pub fn returns_chip(at: Option<&str>) -> crate::pace::Chip {
+    let text = match at {
+        Some(at) => Localized::with_param("resets.chip.returns", "at", at, format!("Volta {at}")),
+        None => Localized::fixed("resets.chip.return_unknown", "Retorno incerto"),
+    };
+    crate::pace::Chip {
+        glyph: crate::pace::GLYPH_RETURNS,
+        text,
+        compact: at.map(str::to_owned),
+        hint: None,
+    }
+}
+
+/// PRD 0024 RF1.4: "Resets {at} · {in}" for the details, with `at` the
+/// clock time formatted by the caller (DS-MSG-8) and `in` the core
+/// [`crate::text::countdown`] of the time left.
+pub fn pair_label(at: &str, left: TimeDelta) -> Localized {
+    let countdown = crate::text::countdown(left);
+    let fallback = format!("Renova {at} · {}", countdown.fallback);
+    Localized::with_params(
+        "resets.pair",
+        params([("at", at.into()), ("in", countdown.into())]),
+        fallback,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

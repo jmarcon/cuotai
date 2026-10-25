@@ -522,6 +522,7 @@
   "settings.hooks.event.quota_threshold_crossed": "uma cota chegou a um patamar",
   "settings.hooks.event.quota_exhausted": "uma cota se esgotou",
   "settings.hooks.event.quota_recovered": "uma cota voltou a ter saldo",
+  "settings.hooks.event.quota_exhaustion_projected": "uma cota pode acabar antes da renovação",
   "settings.hooks.event.quota_reset": "a janela de uma cota recomeçou",
   "settings.hooks.event.account_blocked": "a conta ficou bloqueada",
   "settings.hooks.event.account_unblocked": "a conta foi desbloqueada",

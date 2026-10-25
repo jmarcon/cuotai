@@ -214,6 +214,17 @@ impl Rule {
                 incident(IncidentState::Operational),
             ),
             EventKind::UsageUpdated => (false, usage(42.0), usage(40.0)),
+            EventKind::QuotaExhaustionProjected => {
+                let current = Values {
+                    projected_at: Some(now + chrono::TimeDelta::minutes(40)),
+                    resets_at,
+                    lead_minutes: Some(60),
+                    used_ratio: Some(0.8),
+                    source: Some(crate::pace::PaceSource::Recent),
+                    ..Values::default()
+                };
+                (true, current, quota(70.0))
+            }
         };
         Event {
             schema: SCHEMA,

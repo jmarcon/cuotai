@@ -13,12 +13,17 @@
 use crate::ui::{local_time, safe};
 use chrono::{DateTime, TimeDelta, Utc};
 use cuotai_core::{
-    alerts::{self, AlertEvent, AlertPrefs, AlertState, NOTICE_SPACING},
+    alerts::{self, AlertEvent, AlertPrefs, AlertState, Lead, PaceInput, NOTICE_SPACING},
+    pace::Point,
     refresh::{Generation, RefreshCycle},
     resets::{self, Ledger, Prefs},
     Account, Config, Report, Snapshot,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// PRD 0024 RF2.2: one account's pace input for a reading: its effective
+/// refresh interval and the recorded recent points of each of its metrics.
+pub(crate) type PaceOf<'a> = dyn Fn(usize, &Report) -> Option<(Duration, Vec<Vec<Point>>)> + 'a;
 
 /// How long the header keeps the last notice.
 const BANNER_KEEP: TimeDelta = TimeDelta::hours(1);
@@ -62,17 +67,57 @@ impl Notices {
         }
     }
 
+    /// PRD 0024 RF3.4: `--notify-projected`: warn `lead` before a projected
+    /// exhaustion, for this session only. `--notify` alone never does.
+    pub(crate) fn with_projected(mut self, lead: Option<Lead>) -> Self {
+        self.alert_prefs.projected = lead;
+        self
+    }
+
     /// PRD 0008 RF4: the usage alerts `next` deserves after `prev`, the
-    /// account's reading it replaces; pass them to [`Self::record`] once
-    /// the cycle applied `next`.
-    fn assess(&self, prev: Option<&Report>, next: &Report, now: DateTime<Utc>) -> Vec<AlertEvent> {
-        alerts::evaluate(prev, next, &self.alert_prefs, &self.alerts, now)
+    /// account's reading it replaces (PRD 0024 RF2: with `pace`, also a
+    /// projected exhaustion); pass them to [`Self::record`] once the cycle
+    /// applied `next`.
+    fn assess(
+        &self,
+        prev: Option<&Report>,
+        next: &Report,
+        now: DateTime<Utc>,
+        pace: Option<&(Duration, Vec<Vec<Point>>)>,
+    ) -> Vec<AlertEvent> {
+        let input = pace.map(|(interval, recent)| PaceInput {
+            interval: *interval,
+            recent,
+        });
+        alerts::evaluate_with(
+            prev,
+            next,
+            &self.alert_prefs,
+            &self.alerts,
+            now,
+            input.as_ref(),
+        )
     }
 
     /// Remember `next`, the reading the cycle applied, and queue the
-    /// `events` [`Self::assess`] gave for it for the next pass.
-    fn record(&mut self, next: &Report, events: Vec<AlertEvent>, now: DateTime<Utc>) {
+    /// `events` [`Self::assess`] gave for it for the next pass. A queued
+    /// projection that `next` voids (PRD 0024 RF2.4) is dropped first.
+    fn record(
+        &mut self,
+        next: &Report,
+        events: Vec<AlertEvent>,
+        now: DateTime<Utc>,
+        pace: Option<&(Duration, Vec<Vec<Point>>)>,
+    ) {
         self.alerts.update(next, &self.alert_prefs, &events, now);
+        if let Some((interval, recent)) = pace {
+            let input = PaceInput {
+                interval: *interval,
+                recent,
+            };
+            self.pending
+                .retain(|event| !alerts::cancels(event, next, &input, now));
+        }
         self.pending.extend(events);
     }
 
@@ -185,6 +230,12 @@ impl Notices {
         }
     }
 
+    /// Whether projected exhaustion is on (`--notify-projected`), so the
+    /// recent points are read only then.
+    fn projecting(&self) -> bool {
+        self.alert_prefs.projected.is_some()
+    }
+
     /// The header line of the last notice, for [`BANNER_KEEP`].
     pub(crate) fn banner(&self, now: DateTime<Utc>) -> Option<&str> {
         self.banner
@@ -228,15 +279,17 @@ pub(crate) fn finish_account(
     report: Option<Report>,
     token: Generation,
     now: DateTime<Utc>,
+    pace: &PaceOf,
 ) {
     let (Some(notices), Some(next)) = (notices, report.as_ref()) else {
         cycle.finish_account(index, report, token, Instant::now());
         return;
     };
-    let events = notices.assess(reading(cycle, index), next, now);
+    let input = notices.projecting().then(|| pace(index, next)).flatten();
+    let events = notices.assess(reading(cycle, index), next, now, input.as_ref());
     if cycle.finish_account(index, report, token, Instant::now()) {
         if let Some(next) = cycle.account_report(index) {
-            notices.record(next, events, now);
+            notices.record(next, events, now, input.as_ref());
         }
     }
 }
@@ -249,21 +302,26 @@ pub(crate) fn finish_full(
     snapshot: Option<Snapshot>,
     token: Generation,
     now: DateTime<Utc>,
+    pace: &PaceOf,
 ) {
     let (Some(notices), Some(next)) = (notices, snapshot.as_ref()) else {
         cycle.finish_full(snapshot, token, Instant::now());
         return;
     };
-    let events: Vec<_> = next
+    let judged: Vec<_> = next
         .reports
         .iter()
         .enumerate()
-        .map(|(index, report)| notices.assess(reading(cycle, index), report, now))
+        .map(|(index, report)| {
+            let input = notices.projecting().then(|| pace(index, report)).flatten();
+            let events = notices.assess(reading(cycle, index), report, now, input.as_ref());
+            (events, input)
+        })
         .collect();
     if cycle.finish_full(snapshot, token, Instant::now()) {
-        for (index, events) in events.into_iter().enumerate() {
+        for (index, (events, input)) in judged.into_iter().enumerate() {
             if let Some(next) = cycle.account_report(index) {
-                notices.record(next, events, now);
+                notices.record(next, events, now, input.as_ref());
             }
         }
     }
@@ -284,6 +342,13 @@ pub(crate) fn osc9_supported(var: impl Fn(&str) -> Option<String>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notify_alone_never_projects() {
+        let notices = Notices::new(start(), false);
+        assert!(!notices.projecting());
+        assert!(notices.with_projected(Some(Lead::Min15)).projecting());
+    }
     use chrono::TimeZone;
     use cuotai_core::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 
@@ -464,7 +529,15 @@ mod tests {
     fn answer(cycle: &mut RefreshCycle, notices: &mut Notices, index: usize, report: Report) {
         let token = cycle.begin(index).expect("slot free");
         let now = report.checked_at;
-        finish_account(cycle, Some(notices), index, Some(report), token, now);
+        finish_account(
+            cycle,
+            Some(notices),
+            index,
+            Some(report),
+            token,
+            now,
+            &|_, _| None,
+        );
     }
 
     fn pass(
@@ -559,6 +632,7 @@ mod tests {
                 Some(sweep(used, at)),
                 token,
                 at,
+                &|_, _| None,
             );
         }
         let at = start() + mins(2);

@@ -515,6 +515,7 @@
   "settings.hooks.event.quota_threshold_crossed": "una cuota llegó a un umbral",
   "settings.hooks.event.quota_exhausted": "una cuota se agotó",
   "settings.hooks.event.quota_recovered": "una cuota vuelve a tener saldo",
+  "settings.hooks.event.quota_exhaustion_projected": "una cuota puede agotarse antes del reinicio",
   "settings.hooks.event.quota_reset": "la ventana de una cuota volvió a empezar",
   "settings.hooks.event.account_blocked": "la cuenta quedó bloqueada",
   "settings.hooks.event.account_unblocked": "la cuenta se desbloqueó",

@@ -164,6 +164,7 @@
         "expected_used_fraction": { "type": "number", "minimum": 0 },
         "used_fraction": { "type": "number", "minimum": 0 },
         "delta_points": { "type": "number" },
+        "delta_ratio": { "type": ["number", "null"] },
         "stage": { "anyOf": [{ "enum": ["reserve", "on_pace", "ahead", "exhausted"] }, { "type": "string" }] },
         "tone": { "anyOf": [{ "enum": ["good", "neutral", "warn", "bad"] }, { "type": "string" }] },
         "source": { "anyOf": [{ "enum": ["average", "recent"] }, { "type": "string" }] },

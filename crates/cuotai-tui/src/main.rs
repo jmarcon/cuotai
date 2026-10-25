@@ -168,6 +168,19 @@ struct Args {
     /// WezTerm e Ghostty.
     #[arg(long, conflicts_with_all = ["once", "json", "history"])]
     notify: bool,
+    /// Com --notify, avisa também quando, no ritmo recente, uma cota vai
+    /// acabar antes da renovação: 15, 30 ou 60 minutos antes (60 sem
+    /// valor). Estimativa linear das leituras recentes; desligado sem esta
+    /// opção. Só nesta sessão.
+    #[arg(
+        long,
+        value_name = "MINUTOS",
+        num_args = 0..=1,
+        default_missing_value = "60",
+        value_parser = ["15", "30", "60"],
+        requires = "notify"
+    )]
+    notify_projected: Option<String>,
     /// Consulta as páginas públicas de status dos provedores configurados
     /// (sem credenciais, cookies ou dados da conta; cada página no máximo a
     /// cada 5 min) e mostra incidentes nos cartões, nos detalhes e no
@@ -235,6 +248,15 @@ struct Args {
     /// encerramento por SIGINT/SIGTERM sai com 0.
     #[arg(long, requires = "headless")]
     strict_exit: bool,
+    /// Antecedência, em minutos, do evento quota_exhaustion_projected do
+    /// --watch: 15, 30 ou 60 (padrão 60).
+    #[arg(
+        long,
+        value_name = "MINUTOS",
+        value_parser = ["15", "30", "60"],
+        requires = "watch"
+    )]
+    projected_lead: Option<String>,
     /// Com --watch, um evento JSON por linha (NDJSON) no stdout;
     /// mensagens e diagnósticos vão ao stderr.
     #[arg(long, requires = "watch")]
@@ -548,6 +570,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 events,
                 jsonl: args.jsonl,
                 hooks,
+                projected_lead: lead(args.projected_lead.as_deref()),
             });
             // PRD 0015 RF4.3: the server publishes `local_cost`, kept
             // current by the background scan while it runs.
@@ -632,12 +655,18 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         session,
         animations,
         retention,
-        args.notify,
+        args.notify.then(|| lead(args.notify_projected.as_deref())),
         status,
         local_cost,
     )
     .await?;
     Ok(0)
+}
+
+/// PRD 0024: the lead of `--notify-projected`/`--projected-lead` (clap
+/// accepts only 15, 30 or 60).
+fn lead(minutes: Option<&str>) -> Option<cuotai_core::alerts::Lead> {
+    cuotai_core::alerts::Lead::from_minutes(minutes?.parse().ok()?)
 }
 
 /// PRD 0012 RF4.3: the `--json-v1` export of one run: `snapshot` applied to a
@@ -935,6 +964,28 @@ fn history_text(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0024 RF3.4/RF5.1: `--notify` alone never projects;
+    /// `--notify-projected` needs `--notify` and takes 15, 30 or 60 (60
+    /// without a value); `--projected-lead` needs `--watch`.
+    #[test]
+    fn projected_flags() {
+        use cuotai_core::alerts::Lead;
+        let parse = |argv: &[&str]| {
+            Args::try_parse_from(std::iter::once("cuotai").chain(argv.iter().copied()))
+        };
+        let notify = parse(&["--notify"]).unwrap();
+        assert_eq!(lead(notify.notify_projected.as_deref()), None);
+        let bare = parse(&["--notify", "--notify-projected"]).unwrap();
+        assert_eq!(lead(bare.notify_projected.as_deref()), Some(Lead::Min60));
+        let fifteen = parse(&["--notify", "--notify-projected", "15"]).unwrap();
+        assert_eq!(lead(fifteen.notify_projected.as_deref()), Some(Lead::Min15));
+        assert!(parse(&["--notify-projected", "30"]).is_err());
+        assert!(parse(&["--notify", "--notify-projected", "45"]).is_err());
+        let watch = parse(&["--watch", "--projected-lead", "30"]).unwrap();
+        assert_eq!(lead(watch.projected_lead.as_deref()), Some(Lead::Min30));
+        assert!(parse(&["--projected-lead", "30"]).is_err());
+    }
 
     /// The default refresh interval of the `--once` block tests.
     const FIVE_MIN: Duration = Duration::from_secs(300);

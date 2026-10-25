@@ -11,8 +11,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::{DateTime, Utc};
 
 use crate::account_edit::MAX_REFRESH_SECONDS;
+use crate::alerts::PaceInput;
 use crate::events::{self, Event, EventKind, EventState};
 use crate::export::v1::{AccountExport, Export};
+use crate::pace::Point;
 use crate::text::{params, Localized, ParamValue};
 use crate::{Config, Provider};
 
@@ -103,6 +105,20 @@ impl Watcher {
     /// `export` is forgotten. Events not selected still move the state, so
     /// selecting never changes which transitions are real.
     pub fn observe(&mut self, export: &Export, now: DateTime<Utc>) -> Vec<Event> {
+        self.observe_with(export, now, |_, _| None)
+    }
+
+    /// [`Self::observe`] with each account's pace input (PRD 0024 RF5):
+    /// `pace(index, report)` gives the account's effective refresh interval
+    /// and the recent points of each metric of `report`
+    /// ([`crate::Monitor::recent_points`]), so `quota_exhaustion_projected`
+    /// can fire; `None` never projects for that reading.
+    pub fn observe_with(
+        &mut self,
+        export: &Export,
+        now: DateTime<Utc>,
+        pace: impl Fn(usize, &crate::Report) -> Option<(std::time::Duration, Vec<Vec<Point>>)>,
+    ) -> Vec<Event> {
         let mut out = Vec::new();
         for next in &export.accounts {
             let blank;
@@ -117,19 +133,29 @@ impl Watcher {
                 }
             };
             out.extend(
-                events::diff(prev, next, &mut self.state, now)
-                    .into_iter()
-                    .map(|mut event| {
-                        if event.event == EventKind::ProviderIncident {
-                            event.accounts = incident_accounts(export, next);
-                        }
-                        event
-                    })
-                    .filter(|event| {
-                        self.selected
-                            .as_ref()
-                            .is_none_or(|selected| selected.contains(&event.event))
-                    }),
+                {
+                    let input = next
+                        .report
+                        .as_ref()
+                        .and_then(|report| pace(next.index, report));
+                    let input = input.as_ref().map(|(interval, recent)| PaceInput {
+                        interval: *interval,
+                        recent,
+                    });
+                    events::diff_with(prev, next, &mut self.state, now, input.as_ref())
+                }
+                .into_iter()
+                .map(|mut event| {
+                    if event.event == EventKind::ProviderIncident {
+                        event.accounts = incident_accounts(export, next);
+                    }
+                    event
+                })
+                .filter(|event| {
+                    self.selected
+                        .as_ref()
+                        .is_none_or(|selected| selected.contains(&event.event))
+                }),
             );
         }
         self.previous = export

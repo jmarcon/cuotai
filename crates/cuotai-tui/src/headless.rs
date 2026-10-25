@@ -88,7 +88,10 @@ pub(crate) async fn run(
         if driver.step(Instant::now()).await {
             if let Some(watch) = watch.as_mut() {
                 let now = Utc::now();
-                if !watch.emit(&driver.export(&config, &identity, now), now)? {
+                let pace = |index, report: &cuotai_core::Report| {
+                    crate::ui::pace_input(&monitor, &config, index, report)
+                };
+                if !watch.emit(&driver.export(&config, &identity, now), now, &pace)? {
                     break;
                 }
             }

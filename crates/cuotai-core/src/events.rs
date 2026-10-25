@@ -25,10 +25,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::alerts::{self, AlertEvent, AlertKind, AlertPrefs, AlertState, ThresholdError};
+use crate::alerts::{
+    self, AlertEvent, AlertKind, AlertPrefs, AlertState, Lead, PaceInput, ThresholdError,
+};
 use crate::export::v1::AccountExport;
 use crate::incidents::IncidentState;
 use crate::metrics::{self, Binding, BindingReason, MetricState};
+use crate::pace::PaceSource;
 use crate::providers::{SCHEMA_NOTE, TIMEOUT_NOTE, TRANSPORT_NOTE};
 use crate::text::{params, Localized, ParamValue};
 use crate::{resets, Metric, MetricWindow, Provider, Report, Status};
@@ -55,6 +58,9 @@ pub enum EventKind {
     /// A quota whose exhaustion was reported (or held in the baseline) has
     /// slack in a new window instance.
     QuotaRecovered,
+    /// PRD 0024 RF5: at the recent pace a quota runs out before its reset,
+    /// within the lead (60 minutes by default). Once per window instance.
+    QuotaExhaustionProjected,
     /// A quota's window instance ended and a new one started.
     QuotaReset,
     /// The binding metric is exhausted: the account is blocked.
@@ -75,10 +81,11 @@ pub enum EventKind {
 
 impl EventKind {
     /// Every event, in the documented order.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::QuotaThresholdCrossed,
         Self::QuotaExhausted,
         Self::QuotaRecovered,
+        Self::QuotaExhaustionProjected,
         Self::QuotaReset,
         Self::AccountBlocked,
         Self::AccountUnblocked,
@@ -95,6 +102,7 @@ impl EventKind {
             Self::QuotaThresholdCrossed => "quota_threshold_crossed",
             Self::QuotaExhausted => "quota_exhausted",
             Self::QuotaRecovered => "quota_recovered",
+            Self::QuotaExhaustionProjected => "quota_exhaustion_projected",
             Self::QuotaReset => "quota_reset",
             Self::AccountBlocked => "account_blocked",
             Self::AccountUnblocked => "account_unblocked",
@@ -244,6 +252,9 @@ impl Event {
             EventKind::QuotaExhausted => with_metric(format!("{metric}: cota esgotada")),
             EventKind::QuotaRecovered => with_metric(format!("{metric}: cota disponível de novo")),
             EventKind::QuotaReset => with_metric(format!("{metric}: janela renovada")),
+            EventKind::QuotaExhaustionProjected => {
+                with_metric(format!("{metric}: pode acabar antes da renovação"))
+            }
             EventKind::AccountBlocked => with_metric(format!("Conta bloqueada por {metric}")),
             EventKind::AccountUnblocked => with_metric(format!("Conta desbloqueada ({metric})")),
             EventKind::RefreshFailed => {
@@ -334,6 +345,16 @@ pub struct Values {
     /// When a blocked account is usable again, if the provider said.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocked_until: Option<DateTime<Utc>>,
+    /// PRD 0024 RF5.2: when the quota runs out at the recent pace, for
+    /// `quota_exhaustion_projected`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projected_at: Option<DateTime<Utc>>,
+    /// The lead (15, 30 or 60 minutes) of `quota_exhaustion_projected`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lead_minutes: Option<u16>,
+    /// What the projection extended (always `recent`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<PaceSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub incident: Option<IncidentState>,
     /// Every metric of the reading, for `usage_updated`.
@@ -448,7 +469,8 @@ struct Usage {
 }
 
 impl Default for EventState {
-    /// Crossings of the [`alerts::DEFAULT_THRESHOLDS`] (75% and 90%).
+    /// Crossings of the [`alerts::DEFAULT_THRESHOLDS`] (75% and 90%) and
+    /// projections 60 minutes ahead ([`EventState::with_projected_lead`]).
     fn default() -> Self {
         Self::with_prefs(
             AlertPrefs::new(true, alerts::DEFAULT_THRESHOLDS)
@@ -457,6 +479,10 @@ impl Default for EventState {
     }
 }
 
+/// PRD 0024 RF5.1: the lead of `quota_exhaustion_projected` without
+/// `--projected-lead`.
+pub const DEFAULT_PROJECTED_LEAD: Lead = Lead::Min60;
+
 impl EventState {
     /// Crossings of `thresholds` (percent, each in
     /// [`alerts::THRESHOLD_RANGE`]); exhaustion is always reported.
@@ -464,7 +490,17 @@ impl EventState {
         AlertPrefs::new(true, thresholds).map(Self::with_prefs)
     }
 
-    fn with_prefs(prefs: AlertPrefs) -> Self {
+    /// PRD 0024 RF5.1: `quota_exhaustion_projected` with `lead` instead of
+    /// [`DEFAULT_PROJECTED_LEAD`]. The event needs the readings' pace input
+    /// ([`diff_with`]); the script's selection (`--events` or a hook rule)
+    /// is its opt-in.
+    pub fn with_projected_lead(mut self, lead: Lead) -> Self {
+        self.prefs.projected = Some(lead);
+        self
+    }
+
+    fn with_prefs(mut prefs: AlertPrefs) -> Self {
+        prefs.projected = Some(DEFAULT_PROJECTED_LEAD);
         Self {
             prefs,
             alerts: AlertState::default(),
@@ -517,6 +553,19 @@ pub fn diff(
     state: &mut EventState,
     now: DateTime<Utc>,
 ) -> Vec<Event> {
+    diff_with(prev, next, state, now, None)
+}
+
+/// [`diff`], plus PRD 0024 RF5's `quota_exhaustion_projected` when `pace`
+/// (the account's refresh interval and the recent points of each metric
+/// of `next.report`) is given: the edge of [`alerts::evaluate_with`].
+pub fn diff_with(
+    prev: &AccountExport,
+    next: &AccountExport,
+    state: &mut EventState,
+    now: DateTime<Utc>,
+    pace: Option<&PaceInput>,
+) -> Vec<Event> {
     let mut out = Emit {
         next,
         now,
@@ -530,7 +579,7 @@ pub fn diff(
                 .is_none_or(|before| before.checked_at != report.checked_at)
     });
     if let Some(report) = fresh {
-        state.reading(report, &mut out);
+        state.reading(report, &mut out, pace);
     }
     state.incident(&mut out);
     out.events
@@ -568,7 +617,7 @@ impl Emit<'_> {
 }
 
 impl EventState {
-    fn reading(&mut self, report: &Report, out: &mut Emit) {
+    fn reading(&mut self, report: &Report, out: &mut Emit, pace: Option<&PaceInput>) {
         let Self {
             prefs,
             alerts,
@@ -641,7 +690,7 @@ impl EventState {
             };
             out.push(EventKind::QuotaReset, Some(metric), current, previous);
         }
-        let crossed = alerts::evaluate(Some(&last), report, prefs, alerts, now);
+        let crossed = alerts::evaluate_with(Some(&last), report, prefs, alerts, now, pace);
         for alert in &crossed {
             let mut current = find(report, &alert.label).unwrap_or_default();
             let kind = match alert.kind {
@@ -651,6 +700,31 @@ impl EventState {
                 }
                 AlertKind::Exhausted => EventKind::QuotaExhausted,
                 AlertKind::Recovered => EventKind::QuotaRecovered,
+                AlertKind::ProjectedExhaustion => {
+                    // RF5.2: only what the projection says; no notes.
+                    let Some(projection) = alert.projection else {
+                        continue;
+                    };
+                    let metric = MetricRef {
+                        label: alert.label.clone(),
+                        window: alert.window,
+                    };
+                    let current = Values {
+                        projected_at: Some(projection.projected_at),
+                        resets_at: alert.resets_at,
+                        lead_minutes: Some(projection.lead_minutes),
+                        used_ratio: Some(alert.consumed),
+                        source: Some(projection.source),
+                        ..Values::default()
+                    };
+                    out.push(
+                        EventKind::QuotaExhaustionProjected,
+                        Some(metric),
+                        current,
+                        None,
+                    );
+                    continue;
+                }
                 // PRD 0016 RF3.2: a notice of its own, not a quota event.
                 AlertKind::SessionExpiring => continue,
             };
@@ -799,6 +873,7 @@ impl Track {
                 threshold: 100,
                 consumed: 1.0,
                 resets_at: metric.resets_at,
+                projection: None,
             })
             .collect();
         alerts.update(report, prefs, &exhausted, now);

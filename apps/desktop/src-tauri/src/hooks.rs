@@ -126,7 +126,7 @@ pub struct HooksView {
     pub running: Vec<String>,
     pub runs: Vec<RunView>,
     pub warnings: Vec<Localized>,
-    pub events: [&'static str; 11],
+    pub events: [&'static str; 12],
     pub default_timeout: u64,
     pub max_timeout: u64,
 }

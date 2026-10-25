@@ -213,12 +213,29 @@ enum DeletionState {
     },
 }
 
+/// PRD 0024 RF2.2: the pace input of account `index`'s `report`: its
+/// effective refresh interval and the recorded recent points of each of
+/// its metrics (empty without history).
+pub(crate) fn pace_input(
+    monitor: &Monitor,
+    config: &Config,
+    index: usize,
+    report: &cuotai_core::Report,
+) -> Option<(std::time::Duration, Vec<Vec<Point>>)> {
+    let account = config.accounts.get(index)?;
+    let interval =
+        std::time::Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds));
+    let recent = monitor.recent_points(index, &report.metrics, report.checked_at);
+    Some((interval, recent))
+}
+
 pub async fn run(
     mut file: ConfigFile,
     session: Arc<OAuthSession>,
     animations: bool,
     retention: Retention,
-    notify: bool,
+    // `--notify`, with the lead of `--notify-projected` when given.
+    notify: Option<Option<cuotai_core::alerts::Lead>>,
     status: bool,
     local_cost: Option<LocalCost>,
 ) -> io::Result<()> {
@@ -273,11 +290,12 @@ pub async fn run(
         history: HistoryView::default(),
         history_range: HistoryRange::default(),
         anim: animations.then(|| Anim::new(motion::truecolor(|key| std::env::var(key).ok()))),
-        notices: notify.then(|| {
+        notices: notify.map(|projected| {
             Notices::new(
                 chrono::Utc::now(),
                 notify::osc9_supported(|key| std::env::var(key).ok()),
             )
+            .with_projected(projected)
         }),
         incidents: Vec::new(),
         local_cost: None,
@@ -1169,6 +1187,7 @@ pub async fn run(
                                 Some(snapshot),
                                 token,
                                 chrono::Utc::now(),
+                                &|index, report| pace_input(&monitor, &file.config, index, report),
                             );
                             state.restore_selection(
                                 selected_account,
@@ -1211,6 +1230,7 @@ pub async fn run(
                             Some(report),
                             token,
                             chrono::Utc::now(),
+                            &|index, report| pace_input(&monitor, &file.config, index, report),
                         );
                         state.error = None;
                     }
