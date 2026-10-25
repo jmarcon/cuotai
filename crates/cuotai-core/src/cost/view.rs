@@ -12,7 +12,9 @@
 
 use super::estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 use super::index::DailyUsage;
-use super::prices::{pricing_ignored, Prices, PricingError, PricingFile, CURRENCY};
+use super::prices::{
+    days_since, pricing_ignored, Prices, PricingError, PricingFile, CURRENCY, PRICE_AGE_NOTICE_DAYS,
+};
 use super::scan::{no_logs_text, off_text, ScanReport, Scanner, SourceState};
 use super::{CostError, Period, Retention, SourceId, Tokens};
 use crate::text::{params, Localized, ParamValue};
@@ -169,6 +171,18 @@ pub struct CostSummary {
     /// The user's `pricing.json` is invalid and ignored as a whole: only the
     /// embedded prices are used.
     pub pricing_error: Option<Localized>,
+    /// PRD 0030 RF3.2: the oldest `effective` date among the price tables
+    /// that priced the span; `null` when nothing was priced.
+    pub prices_effective: Option<NaiveDate>,
+    /// Days from `prices_effective` to today.
+    pub prices_age_days: Option<u32>,
+    /// RF3.1: "Prices from N days ago", only from
+    /// [`PRICE_AGE_NOTICE_DAYS`] days on.
+    pub prices_age: Option<Localized>,
+    /// PRD 0030 RF4.1: the models with tokens in the span and no price.
+    pub unpriced_models: Vec<String>,
+    /// RF4.1: "No price for: a, b"; `null` when every model has a price.
+    pub unpriced: Option<Localized>,
 }
 
 impl CostSummary {
@@ -207,6 +221,27 @@ pub struct SummaryInput<'a> {
     pub last: Option<&'a ScanReport>,
 }
 
+/// PRD 0030 RF3.1: "Prices from N days ago".
+pub fn prices_age_text(days: u32) -> Localized {
+    Localized::with_param(
+        "cost.prices.age",
+        "days",
+        u64::from(days),
+        format!("Preços de {days} dias atrás"),
+    )
+}
+
+/// PRD 0030 RF4.1: "No price for: a, b".
+pub fn unpriced_text(models: &[String]) -> Localized {
+    let list = models.join(", ");
+    Localized::with_param(
+        "cost.prices.unpriced",
+        "models",
+        list.as_str(),
+        format!("Sem preço para: {list}"),
+    )
+}
+
 /// RF4: the summary of `input`. Pure: the same input always gives the same
 /// summary.
 pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
@@ -227,6 +262,10 @@ pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
         .into_iter()
         .map(|source| source_cost(source, input, &span_rows, yesterday))
         .collect();
+    let total = estimate(&span_rows, input.prices);
+    let prices_effective = total.tables.iter().map(|table| table.effective).min();
+    let prices_age_days = prices_effective.and_then(|date| days_since(date, today));
+    let unpriced_models: Vec<String> = total.unknown_models().map(str::to_owned).collect();
     CostSummary {
         currency: CURRENCY,
         notice: estimate_notice(),
@@ -244,8 +283,15 @@ pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
             last_day: today,
         },
         sources,
-        total: estimate(&span_rows, input.prices),
+        total,
         pricing_error: input.pricing_error.map(pricing_ignored),
+        prices_effective,
+        prices_age_days,
+        prices_age: prices_age_days
+            .filter(|days| *days >= PRICE_AGE_NOTICE_DAYS)
+            .map(prices_age_text),
+        unpriced: (!unpriced_models.is_empty()).then(|| unpriced_text(&unpriced_models)),
+        unpriced_models,
     }
 }
 
@@ -648,6 +694,79 @@ mod tests {
             pricing_error: None,
             last,
         })
+    }
+
+    /// `prices()` under a table that took effect `age` days before `day(20)`.
+    fn aged_summary(age: i64, user_age: Option<i64>) -> CostSummary {
+        let table = |days: i64, model: &str| {
+            let rate = Rate::usd_per_million(1.0).unwrap();
+            PriceTable {
+                currency: CURRENCY,
+                effective: day(20) - Days::days(days),
+                source: None,
+                models: [(
+                    model.to_owned(),
+                    Rates {
+                        input: rate,
+                        output: rate,
+                        cache_read: rate,
+                        cache_write: rate,
+                        cache_write_1h: None,
+                    },
+                )]
+                .into(),
+            }
+        };
+        let prices = Prices::with_tables(table(age, "known"), user_age.map(|a| table(a, "mine")));
+        let usage = [
+            row(SourceId::ClaudeCode, 20, "known", 1_000),
+            row(SourceId::ClaudeCode, 20, "mine", 1_000),
+            row(SourceId::ClaudeCode, 20, "mystery", 1_000),
+            row(SourceId::ClaudeCode, 20, "another", 1_000),
+        ];
+        summarize(&SummaryInput {
+            today: day(20),
+            span: Span::Period(Period::Today),
+            enabled: &[SourceId::ClaudeCode],
+            usage: &usage,
+            prices: &prices,
+            pricing_error: None,
+            last: None,
+        })
+    }
+
+    #[test]
+    fn price_age_shows_from_sixty_days_on() {
+        let at = |age| aged_summary(age, None);
+        assert_eq!(at(59).prices_age_days, Some(59));
+        assert!(at(59).prices_age.is_none());
+        assert_eq!(
+            at(60).prices_age.unwrap().fallback,
+            "Preços de 60 dias atrás"
+        );
+        let old = at(400);
+        assert_eq!(old.prices_age_days, Some(400));
+        assert_eq!(old.prices_effective, Some(day(20) - Days::days(400)));
+    }
+
+    #[test]
+    fn mixed_tables_show_the_oldest_date_used() {
+        let s = aged_summary(100, Some(5));
+        assert_eq!(s.prices_age_days, Some(100));
+        let s = aged_summary(100, Some(200));
+        assert_eq!(s.prices_age_days, Some(200));
+    }
+
+    #[test]
+    fn models_without_a_price_are_listed_by_name() {
+        let s = aged_summary(1, None);
+        assert_eq!(s.unpriced_models, ["another", "mine", "mystery"]);
+        assert_eq!(
+            s.unpriced.unwrap().fallback,
+            "Sem preço para: another, mine, mystery"
+        );
+        let none = summary(Span::Period(Period::Today), &[], &[], None);
+        assert!(none.unpriced.is_none() && none.prices_age_days.is_none());
     }
 
     #[test]

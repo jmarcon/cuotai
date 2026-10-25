@@ -1986,6 +1986,8 @@ fn local_cost_lines(summary: &CostSummary, tool: &SourceCost) -> Vec<Line<'stati
         Some(_) => summary
             .pricing_error
             .iter()
+            .chain(&summary.prices_age)
+            .chain(&summary.unpriced)
             .cloned()
             .chain([summary.notice.clone()])
             .collect(),

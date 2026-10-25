@@ -321,6 +321,11 @@ struct Args {
     /// Saída 0; 1 se o pricing.json é inválido (fica ignorado). Não lê logs.
     #[arg(long, group = "cost_action")]
     cost_prices: bool,
+    /// Com --cost-prices, imprime um fragmento de pricing.json com estes
+    /// MODELOS e preços null para preencher (a data é hoje); nunca sugere
+    /// um preço.
+    #[arg(long, value_name = "MODELO", num_args = 1.., requires = "cost_prices")]
+    template: Vec<String>,
     /// Mostra o custo estimado a preços de API do uso local das fontes
     /// ligadas: hoje, ontem e o período salvo (ou os últimos --days N
     /// dias), por modelo e por dia, depois de ler em primeiro plano o que
@@ -374,7 +379,11 @@ fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
         return Some(CostAction::Scan);
     }
     if args.cost_prices {
-        return Some(CostAction::Prices);
+        return Some(if args.template.is_empty() {
+            CostAction::Prices
+        } else {
+            CostAction::PricesTemplate(std::mem::take(&mut args.template))
+        });
     }
     if args.cost {
         return Some(CostAction::Usage { days: args.days });

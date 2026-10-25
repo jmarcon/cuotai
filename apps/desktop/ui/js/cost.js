@@ -111,7 +111,8 @@ export function costDetailHtml(sc, summary) {
     ${noteHtml(sc)}${tilesHtml(sc, summary)}
     ${sc.usage.days.length ? chartHtml(sc, summary) : ""}${modelsHtml(sc, summary)}
     ${summary.pricing_error ? `<p class="lc-note warn">${esc(tl(summary.pricing_error))}</p>` : ""}
-    <p class="lc-foot">${esc(tl(summary.notice))}${tables ? `<br/>${tables}` : ""}</p></section>`;
+    ${summary.unpriced ? `<p class="lc-note warn" data-cost-unpriced>${esc(tl(summary.unpriced))}</p>` : ""}
+    <p class="lc-foot">${esc(tl(summary.notice))}${summary.prices_age ? `<br/><span data-cost-prices-age>${esc(tl(summary.prices_age))}</span>` : ""}${tables ? `<br/>${tables}` : ""}</p></section>`;
 }
 
 let dlg = null;

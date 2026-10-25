@@ -710,6 +710,19 @@
         "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
       }
     },
-    "pricing_error": null
+    "pricing_error": null,
+    "prices_effective": "2026-10-15",
+    "prices_age_days": 5,
+    "prices_age": null,
+    "unpriced_models": [
+      "claude-mystery-9"
+    ],
+    "unpriced": {
+      "id": "cost.prices.unpriced",
+      "params": {
+        "models": "claude-mystery-9"
+      },
+      "fallback": "Sem preço para: claude-mystery-9"
+    }
   }
 }

@@ -28,6 +28,8 @@ pub(crate) enum CostAction {
     Erase,
     Scan,
     Prices,
+    /// PRD 0030 RF4.2 `--cost-prices --template MODEL…`.
+    PricesTemplate(Vec<String>),
     /// RF4.2 `--cost [--days N]`.
     Usage {
         days: Option<u32>,
@@ -189,6 +191,13 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
             let (text, code) = prices(&file, json, locale)?;
             write!(stdout, "{text}").map_err(io_error)?;
             Ok(code)
+        }
+        CostAction::PricesTemplate(models) => {
+            let today = chrono::Local::now().date_naive();
+            let text = cuotai_core::cost::PriceTable::template(&models, today)
+                .map_err(|error| error.l10n().resolve(locale))?;
+            write!(stdout, "{text}").map_err(io_error)?;
+            Ok(0)
         }
         CostAction::Scan => {
             let scanner = Scanner::new(index, settings, env).with_limits(FOREGROUND);
@@ -386,12 +395,15 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
         .as_ref()
         .map(|e| cost::pricing_ignored(e).resolve(locale));
     let rows = prices.rows();
+    let today = chrono::Local::now().date_naive();
+    let ages: Vec<Option<u32>> = prices.info().iter().map(|i| i.age(today)).collect();
     if json {
         let value = serde_json::json!({
             "currency": cost::CURRENCY,
             "unit": "usd_per_million_tokens",
             "notice": notice,
             "tables": prices.info(),
+            "prices_age_days": ages.iter().flatten().max(),
             "pricing_file": {
                 "path": file.path(),
                 "used": prices.user().is_some(),
@@ -421,6 +433,14 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
                 prices.user().map_or(0, |table| table.models.len())
             ),
         };
+    }
+    if let Some(days) = ages
+        .iter()
+        .flatten()
+        .max()
+        .filter(|d| **d >= cost::PRICE_AGE_NOTICE_DAYS)
+    {
+        out += &format!("{}\n", cost::prices_age_text(*days).resolve(locale));
     }
     match &ignored {
         Some(reason) => {
@@ -528,6 +548,9 @@ fn usage_text(summary: &CostSummary, locale: &str) -> String {
     );
     if let Some(error) = &summary.pricing_error {
         out += &format!("{}\n", error.resolve(locale));
+    }
+    for note in summary.prices_age.iter().chain(&summary.unpriced) {
+        out += &format!("{}\n", crate::ui::safe(&note.resolve(locale)));
     }
     for source in &summary.sources {
         out.push('\n');

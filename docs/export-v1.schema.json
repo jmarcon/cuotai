@@ -281,7 +281,12 @@
         "span": { "$ref": "#/$defs/CostSpan" },
         "sources": { "type": "array", "items": { "$ref": "#/$defs/CostSource" }, "description": "Every local cost source, on or off." },
         "total": { "$ref": "#/$defs/CostEstimate", "description": "The span over every source that is on." },
-        "pricing_error": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The user's pricing.json is invalid and ignored as a whole; embedded prices only." }
+        "pricing_error": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The user's pricing.json is invalid and ignored as a whole; embedded prices only." },
+        "prices_effective": { "anyOf": [{ "type": "null" }, { "type": "string", "format": "date" }], "description": "The oldest effective date among the price tables that priced the span (additive)." },
+        "prices_age_days": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }], "description": "Days from prices_effective to the export day (additive)." },
+        "prices_age": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The localized 'Prices from N days ago' text, present from 60 days on (additive)." },
+        "unpriced_models": { "type": "array", "items": { "type": "string" }, "description": "Models with tokens in the span and no known price (additive)." },
+        "unpriced": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The localized 'No price for: ...' text (additive)." }
       }
     },
     "CostSpan": {

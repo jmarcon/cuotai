@@ -1130,6 +1130,8 @@
   "cost.erased": "Índice de costo local borrado: {removed} registro(s).",
   "cost.error.unknown_period": "Período desconocido: {name}. Períodos: {known}.",
   "cost.estimate.notice": "Estimación a precios de API, no es un cargo; importes en USD.",
+  "cost.prices.age": "Precios de hace {days} días",
+  "cost.prices.unpriced": "Sin precio para: {models}",
   "cost.pricing.error.currency": "pricing.json solo acepta precios en USD.",
   "cost.pricing.error.duplicate": "pricing.json repite el modelo {model}.",
   "cost.pricing.error.model": "pricing.json tiene un nombre de modelo inválido: usa de 1 a 96 letras, dígitos o .-_:/@+ (y no \"unknown\").",

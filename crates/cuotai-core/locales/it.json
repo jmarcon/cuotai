@@ -1130,6 +1130,8 @@
   "cost.erased": "Indice locale dei costi cancellato: {removed} record.",
   "cost.error.unknown_period": "Periodo sconosciuto: {name}. Periodi: {known}.",
   "cost.estimate.notice": "Stima ai prezzi API, non un addebito; importi in USD.",
+  "cost.prices.age": "Prezzi di {days} giorni fa",
+  "cost.prices.unpriced": "Nessun prezzo per: {models}",
   "cost.pricing.error.currency": "pricing.json accetta solo prezzi in USD.",
   "cost.pricing.error.duplicate": "pricing.json ripete il modello {model}.",
   "cost.pricing.error.model": "pricing.json ha un nome di modello non valido: usa da 1 a 96 lettere, cifre o .-_:/@+ (e non \"unknown\").",

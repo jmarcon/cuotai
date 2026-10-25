@@ -48,15 +48,15 @@ pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 pub use index::{CostIndex, DailyUsage, Indexed};
 pub use prices::{
     pricing_ignored, Price, PriceOrigin, PriceRow, PriceTable, Prices, PricingError, PricingFile,
-    Rate, Rates, TableInfo, CURRENCY,
+    Rate, Rates, TableInfo, CURRENCY, PRICE_AGE_NOTICE_DAYS,
 };
 pub use scan::{Limits, RootScan, RootState, ScanReport, Scanner, SourceScan, SourceState};
 pub use settings::{CostSettings, Disclosure, Env, SettingsStore, SourceSettings};
 pub use system::energy_saving;
 pub use view::{
-    by_day_heading, by_model_heading, compact_tokens, enable_hint, heading, summarize, usage_line,
-    yesterday_label, CostState, CostSummary, DayCost, SourceCost, SourceUsage, Span, SpanView,
-    SummaryInput,
+    by_day_heading, by_model_heading, compact_tokens, enable_hint, heading, prices_age_text,
+    summarize, unpriced_text, usage_line, yesterday_label, CostState, CostSummary, DayCost,
+    SourceCost, SourceUsage, Span, SpanView, SummaryInput,
 };
 pub use worker::{CostStatus, CostWorker, Schedule, WorkerState};
 

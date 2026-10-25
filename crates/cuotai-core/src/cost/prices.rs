@@ -23,6 +23,15 @@ use std::sync::LazyLock;
 /// The only currency of every table and estimate (RF3.4).
 pub const CURRENCY: &str = "USD";
 
+/// PRD 0030 RF3.1: from this many days after a table's `effective` date the
+/// cost views say how old the prices are.
+pub const PRICE_AGE_NOTICE_DAYS: u32 = 60;
+
+/// Whole days from `effective` to `today`; `None` for a date in the future.
+pub(crate) fn days_since(effective: NaiveDate, today: NaiveDate) -> Option<u32> {
+    u32::try_from((today - effective).num_days()).ok()
+}
+
 /// The highest price accepted, in USD per million tokens.
 const MAX_USD_PER_MILLION: f64 = 10_000.0;
 
@@ -202,6 +211,38 @@ fn model_key(name: &str) -> Option<String> {
 }
 
 impl PriceTable {
+    /// PRD 0030 RF3.1: days since the prices took effect; `None` when the
+    /// date is in the future.
+    pub fn age(&self, today: NaiveDate) -> Option<u32> {
+        days_since(self.effective, today)
+    }
+
+    /// PRD 0030 RF4.2: a `pricing.json` fragment naming `models` with
+    /// `null` rates to fill in, effective `today`. It never guesses a
+    /// price, and it is valid only once every `null` is replaced.
+    pub fn template(models: &[String], today: NaiveDate) -> Result<String, PricingError> {
+        let mut entries = serde_json::Map::new();
+        for name in models {
+            let model = model_key(name).ok_or(PricingError::Model)?;
+            entries.insert(
+                model,
+                serde_json::json!({
+                    "input": null,
+                    "output": null,
+                    "cache_read": null,
+                    "cache_write": null,
+                }),
+            );
+        }
+        let value = serde_json::json!({
+            "currency": CURRENCY,
+            "effective": today.to_string(),
+            "source": "",
+            "models": entries,
+        });
+        Ok(serde_json::to_string_pretty(&value).expect("a JSON value serializes") + "\n")
+    }
+
     /// The table embedded in this build.
     pub fn embedded() -> &'static PriceTable {
         &EMBEDDED
@@ -289,6 +330,13 @@ pub struct TableInfo {
     pub origin: PriceOrigin,
     pub effective: NaiveDate,
     pub source: Option<String>,
+}
+
+impl TableInfo {
+    /// PRD 0030 RF3.1: days since the prices took effect.
+    pub fn age(&self, today: NaiveDate) -> Option<u32> {
+        days_since(self.effective, today)
+    }
 }
 
 /// One row of the table in effect.
@@ -450,6 +498,32 @@ mod tests {
 
     fn table(json: &str) -> Result<PriceTable, PricingError> {
         PriceTable::parse(json.as_bytes())
+    }
+
+    #[test]
+    fn age_counts_days_and_ignores_future_dates() {
+        let t = table(r#"{"effective":"2026-10-01","models":{}}"#).unwrap();
+        let day = |d| NaiveDate::from_ymd_opt(2026, 10, d).unwrap();
+        assert_eq!(t.age(day(1)), Some(0));
+        assert_eq!(t.age(day(31)), Some(30));
+        assert_eq!(t.age(NaiveDate::from_ymd_opt(2026, 9, 30).unwrap()), None);
+    }
+
+    #[test]
+    fn the_template_has_null_rates_and_is_not_valid_until_filled() {
+        let today = NaiveDate::from_ymd_opt(2026, 10, 25).unwrap();
+        let text =
+            PriceTable::template(&["Claude-Foo-6".into(), "gpt-x-mini".into()], today).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(json["effective"], "2026-10-25");
+        assert_eq!(json["currency"], "USD");
+        assert!(json["models"]["claude-foo-6"]["input"].is_null());
+        assert!(json["models"]["gpt-x-mini"]["cache_write"].is_null());
+        assert!(table(&text).is_err(), "nulls must be filled in");
+        let filled = text.replace("null", "1");
+        let parsed = table(&filled).unwrap();
+        assert_eq!(parsed.models.len(), 2);
+        assert!(PriceTable::template(&["bad name".into()], today).is_err());
     }
 
     fn usd(rate: Rate) -> f64 {

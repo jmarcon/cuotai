@@ -1130,6 +1130,8 @@
   "cost.erased": "Local cost index erased: {removed} record(s).",
   "cost.error.unknown_period": "Unknown period: {name}. Periods: {known}.",
   "cost.estimate.notice": "Estimate at API prices, not a charge; amounts in USD.",
+  "cost.prices.age": "Prices from {days} days ago",
+  "cost.prices.unpriced": "No price for: {models}",
   "cost.pricing.error.currency": "pricing.json only accepts prices in USD.",
   "cost.pricing.error.duplicate": "pricing.json repeats the model {model}.",
   "cost.pricing.error.model": "pricing.json has an invalid model name: use 1 to 96 letters, digits or .-_:/@+ (and not \"unknown\").",
