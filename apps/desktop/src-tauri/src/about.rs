@@ -125,6 +125,7 @@ pub fn whats_new() -> WhatsNewView {
 pub fn is_listed(url: &str) -> bool {
     url == about::PROJECT_REPOSITORY
         || url == NEW_PROVIDER_ISSUE
+        || url == EXTENSIONS_GUIDE
         || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
@@ -135,6 +136,19 @@ pub fn is_listed(url: &str) -> bool {
 /// empty state ("Request a provider"); `NEW_PROVIDER_URL` in `js/lib.js`.
 pub const NEW_PROVIDER_ISSUE: &str =
     "https://github.com/jmarcon/cuotai/issues/new?template=new-provider.yml";
+
+/// PRD 0017 RF5: the guide the Extensions dialog links ("How extensions work");
+/// `EXTENSIONS_GUIDE_URL` in `js/lib.js`.
+pub const EXTENSIONS_GUIDE: &str =
+    "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
+
+/// PRD 0017 RF5: opens the folder discovery reads extensions from (created on
+/// demand) in the system file manager. The path is the core's, never the UI's.
+pub fn open_extensions_folder() -> Result<(), &'static str> {
+    let dir = cuotai_core::extensions::default_dir().ok_or("unavailable")?;
+    std::fs::create_dir_all(&dir).map_err(|_| "unavailable")?;
+    launch(&dir.to_string_lossy())
+}
 
 /// Abre `url` no navegador padrão do sistema, se estiver na lista.
 pub fn open_external(url: &str) -> Result<(), &'static str> {
@@ -175,6 +189,7 @@ mod tests {
     fn only_published_addresses_open() {
         assert!(is_listed(about::PROJECT_REPOSITORY));
         assert!(is_listed(NEW_PROVIDER_ISSUE));
+        assert!(is_listed(EXTENSIONS_GUIDE));
         for library in about::libraries() {
             assert!(is_listed(library.repository), "{}", library.name);
         }

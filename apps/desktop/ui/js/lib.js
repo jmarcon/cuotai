@@ -105,6 +105,9 @@ export const setExtensionOverride = (index, id, on) =>
   call("set_extension_override", { index, id, on });
 export const setExtensionSecret = (id, name, value) =>
   call("set_extension_secret", { id, name, value });
+export const EXTENSIONS_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
+export const openExtensionsFolder = () => (isDesktop ? call("open_extensions_folder") : Promise.resolve());
+export const forgetExtensionSecrets = (id) => call("forget_extension_secrets", { id });
 export const formSchema = (provider) => call("form_schema", { provider });
 export const visibleFields = (provider, choices, authMode, loginParams = {}) => call("visible_fields", { provider, choices, authMode, loginParams });
 export const fieldChoices = (provider, choices, authMode) => call("field_choices", { provider, choices, authMode });
@@ -1619,6 +1622,27 @@ const demoUpdateView = () => {
     manual_url: "https://github.com/jmarcon/cuotai/releases/latest",
   };
 };
+// Mockup 40: one approved and one not yet approved extension (`cuotai.demoExtras=1` adds the
+// secrets and override controls); example.com identities only.
+const demoExtensions = () => {
+  let extras = false;
+  try { extras = localStorage.getItem("cuotai.demoExtras") === "1"; } catch { /* storage may be blocked */ }
+  const label = (id, fallback) => ({ id, params: {}, fallback });
+  return [
+    { id: "acme-usage", name: "Acme usage", version: "1.2.0", description: "Reads the Acme AI usage page of the example workspace.",
+      state: "enabled", state_label: label("extensions.state.enabled", "Ativada"), approved: true,
+      actions: { enable: false, disable: true, test: true, remove: extras },
+      last_run: "2026-10-22T18:10:00Z", error: null, catalog: null,
+      account: extras ? { index: 0, name: "Acme usage", key: "extension:acme-usage" } : null,
+      overrides: extras ? "groq" : null,
+      override_targets: extras ? [{ index: 1, name: "Groq", active: true }, { index: 2, name: "Groq (work)", active: false }] : [],
+      declares_secrets: extras },
+    { id: "lab-quota", name: "Lab quota", version: "0.3.1", description: "Quota of an internal inference gateway.",
+      state: "disabled", state_label: label("extensions.state.disabled", "Precisa de aprovação"), approved: false,
+      actions: { enable: true, disable: false, test: false, remove: false },
+      last_run: null, error: null, catalog: null, account: null, overrides: null, override_targets: [], declares_secrets: false },
+  ];
+};
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -1643,7 +1667,7 @@ const demo = {
     .filter((d) => !demoSettings.detect.dismissed.includes(d.kind)) : []),
   set_detect_enabled: async ({ on }) => { demoSettings.detect.enabled = on; },
   dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },
-  list_extensions: async () => [],
+  list_extensions: async () => demoExtensions(),
   extension_disclosure: async () => ({ lines: [], candidate: { token: "demo" } }),
   enable_extension: async ({ candidate }) => ({ id: candidate?.id ?? "demo", message: dl("extensions.action.enabled", "Extensão ativada."), account: null }),
   disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extensão ${id} desativada.`), account: null }),

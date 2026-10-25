@@ -36,3 +36,4 @@
 50-settings-general-language	settings.html?page=general	860	640	dracula	dark	en-US	[data-lang-toggle]
 70-stats	index.html	1200	820	dracula	dark	en-US	[data-stats-toggle]
 01-tray-stats	tray.html	380	600	dracula	dark	en-US	[data-open-stats]
+40b-extensions-controls	index.html	1200	900	dracula	dark	en-US	[data-extensions]	cuotai.demoExtras=1

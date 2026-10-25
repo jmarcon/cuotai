@@ -304,9 +304,10 @@ const onSaved = (result) => {
 const openExtensionManager = (consentFor = null) => openExtensionsDialog({
   consentFor,
   onChanged: () => isDesktop || store.reload(),
-  onRemove: (index, label) =>
+  onRemove: (index, label, secretsOf = null) =>
     confirmDelete(index, label, {
       usesOauth: false,
+      secretsOf,
       onDone: (result) => {
         onDeleted(result);
         isDesktop || store.reload();

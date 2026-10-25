@@ -1,9 +1,9 @@
 // PRD 0017 RF5: presentation-only extension manager. All discovery,
 // integrity, consent, account and execution decisions come from core.
 import {
-  disableExtension, enableExtension, errText, extensionDisclosure,
-  extensionSecrets, listExtensions, setExtensionOverride, setExtensionSecret,
-  testExtension,
+  disableExtension, enableExtension, errText, EXTENSIONS_GUIDE_URL, extensionDisclosure,
+  extensionSecrets, listExtensions, openExtensionsFolder, openExternal, setExtensionOverride,
+  setExtensionSecret, testExtension,
 } from "./lib.js";
 import { t, te, tl } from "./i18n.js";
 import { icon } from "./lib.js";
@@ -31,7 +31,27 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
   const status = el("p", "ext-status");
   status.setAttribute("role", "status");
   const list = el("div", "extension-list");
-  dlg.append(header, intro, status, list);
+  // Mockup 40: what an extension is allowed to do, a guide link and the folder it lives in.
+  const note = el("p", "help ext-note", `${t("extensions.note")} `);
+  const guide = el("a", "text-link", t("extensions.guide"));
+  guide.href = EXTENSIONS_GUIDE_URL;
+  guide.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternal(EXTENSIONS_GUIDE_URL).catch((error) => { status.textContent = errText(error); });
+  });
+  note.append(guide);
+  const foot = el("footer", "dlg-actions ext-foot");
+  const folder = el("button", "btn ghost ext-folder");
+  folder.type = "button";
+  folder.innerHTML = `${icon("folder")}${te("extensions.openFolder")}`;
+  folder.addEventListener("click", () => {
+    openExtensionsFolder().catch((error) => { status.textContent = errText(error); });
+  });
+  const done = el("button", "btn", t("common.close"));
+  done.type = "button";
+  done.addEventListener("click", () => dlg.close());
+  foot.append(folder, done);
+  dlg.append(header, intro, status, list, note, foot);
   document.body.append(dlg);
   dlg.addEventListener("close", () => dlg.remove());
   showDialog(dlg);
@@ -50,16 +70,23 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
 
   function renderRow(row) {
     const article = el("article", "extension-row");
+    const mark = el("span", "extension-ico");
+    mark.innerHTML = icon("puzzle");
+    mark.setAttribute("aria-hidden", "true");
+    const body = el("div", "extension-body");
     const title = el("div", "extension-title");
     title.append(el("strong", "", row.name));
     // DS-CMP-BADGE-1/-2: the version as a neutral badge, the state as a chip in its role.
     if (row.version) title.append(el("span", "ver", t("extensions.version", { version: row.version })));
-    title.append(el("span", `extension-state ${row.state}`, tl(row.state_label)));
-    const version = el("code", "extension-id", row.id);
-    const description = el("p", "", row.description || t("extensions.noDescription"));
+    const chip = el("span", `extension-state ${row.state}`);
+    chip.innerHTML = icon(row.state === "enabled" ? "check" : "info");
+    chip.append(tl(row.state_label));
+    title.append(chip);
+    const description = el("p", "extension-desc", row.description || t("extensions.noDescription"));
     const runtime = el("p", "extension-runtime");
     const when = row.last_run ? new Date(row.last_run).toLocaleString() : t("extensions.neverRun");
-    runtime.append(document.createTextNode(`${t("extensions.lastRun")}: ${when}`));
+    runtime.append(el("code", "extension-id", row.id));
+    runtime.append(document.createTextNode(` · ${t("extensions.lastRun")}: ${when}`));
     if (row.error) {
       runtime.append(document.createTextNode(" · "));
       runtime.append(el("span", "extension-runtime-error", tl(row.error)));
@@ -78,16 +105,22 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
     }
     // PRD 0028 RF7.4: an approved extension's secrets are entered here and
     // kept in the system vault by core; the dialog never shows a value.
-    if (row.actions?.test) {
+    if (row.actions?.test && row.declares_secrets) {
       actions.append(actionButton(t("extensions.secrets"), () => secrets(row.id)));
     }
     if (row.actions?.remove && row.account) {
-      actions.append(actionButton(t("extensions.removeAccount"), () => {
+      actions.append(actionButton(t("extensions.removeAccount"), async () => {
+        // PRD 0028 RF7.4: when the vault holds secrets of this extension, the
+        // removal asks whether to delete them too (core lists, never the value).
+        let hasSecrets = false;
+        try { hasSecrets = (await extensionSecrets(row.id)).some((item) => item.stored); } catch { /* removal still works */ }
         dlg.close();
-        onRemove(row.account.index, row.account.name);
+        onRemove(row.account.index, row.account.name, hasSecrets ? row.id : null);
       }));
     }
-    article.append(title, version, description, runtime, actions);
+    if (actions.children.length > 2) actions.classList.add("many");
+    body.append(title, description, runtime);
+    article.append(mark, body, actions);
     // PRD 0028 RF7.1: an enabled override extension lists the accounts of
     // its provider; each checkbox is "Use extension override" for that one.
     if (row.override_targets?.length) {
@@ -190,7 +223,7 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
         status.textContent = t("extensions.secretsNone");
         return;
       }
-      const box = el("section", "extension-consent");
+      const box = el("section", "extension-consent extension-secrets");
       box.setAttribute("aria-label", te("extensions.secretsTitle"));
       box.append(el("h3", "", t("extensions.secretsTitle")));
       box.append(el("p", "help", t("extensions.secretsHelp")));

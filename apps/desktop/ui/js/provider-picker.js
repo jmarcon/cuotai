@@ -21,7 +21,11 @@ export const pickerHtml = (labelledBy) => `<div class="picker" id="picker">
     <div class="picker-list" id="picker-list" role="listbox" aria-labelledby="${labelledBy}"></div>
     <div class="picker-empty" id="picker-empty" hidden><p class="hint" id="picker-empty-text"></p>
       <button type="button" class="btn outline sm" id="picker-request">${te("dialog.picker.request")}</button></div>
+    <p class="picker-foot" id="picker-foot"></p>
   </div>`;
+
+/** The grouped catalog shows this many providers; the rest are found by searching (mockup 31). */
+export const FEATURED = 9;
 
 /** Chips of one entry: "Billed per query" (DS-CMP-BADGE-2, warning) and "Found on this device" (DS-CMP-CAT-2, info). */
 export const entryChips = (entry, found) =>
@@ -35,13 +39,15 @@ export const entryChips = (entry, found) =>
  * - `onRequest()` opens the new-provider issue template.
  * Returns `{ refresh, focus }`.
  */
-export function mountPicker(root, { onChoose, detected = () => [], onDismiss = () => {}, onRequest = () => {} }) {
+export function mountPicker(root, { onChoose, detected = () => [], onDismiss = () => {}, onRequest = () => {}, onExtensions = () => {} }) {
   const input = root.querySelector("#picker-q");
   const clear = root.querySelector("#picker-clear");
   const list = root.querySelector("#picker-list");
   const empty = root.querySelector("#picker-empty");
   const count = root.querySelector("#picker-count");
   let entries = [];
+  let total = 0;
+  const foot = root.querySelector("#picker-foot");
   let active = 0;
   const foundFor = (provider) => detected().find((d) => d.provider === provider) ?? null;
 
@@ -81,6 +87,12 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
           <div class="pick-group-label" id="pick-g-${gi}" role="presentation">${esc(g.label)}</div>
           <div class="pick-items">${g.items.map(([entry, i]) => option(entry, i)).join("")}</div></div>`).join("");
     }
+    // Mockup 31/31b: the footer counts what the grouped view hides and always offers an extension.
+    const hidden = grouped ? total - entries.length : 0;
+    const link = `<a href="#" class="text-link" data-extensions>${te("dialog.picker.addExtension")}</a>`;
+    foot.innerHTML = hidden > 0
+      ? `${esc(t("dialog.picker.more", { count: hidden }))} ${link}`
+      : (entries.length ? `${te("dialog.picker.notListed")} ${link}` : "");
     syncActive(false);
   }
 
@@ -97,7 +109,8 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     const mine = ++seq;
     const result = await searchProviders(input.value, currentLocale());
     if (mine !== seq) return; // a newer keystroke won
-    entries = result;
+    total = result.length;
+    entries = input.value.trim() ? result : result.slice(0, FEATURED);
     // Mockup 31: the empty search names how many providers it covers.
     if (!input.value.trim()) input.placeholder = t("dialog.picker.searchCount", { count: result.length });
     active = 0;
@@ -109,6 +122,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
   input.addEventListener("input", refresh);
   clear.addEventListener("click", () => { input.value = ""; refresh(); input.focus(); });
   root.querySelector("#picker-request").addEventListener("click", onRequest);
+  foot.addEventListener("click", (e) => { if (e.target.closest("[data-extensions]")) { e.preventDefault(); onExtensions(); } });
   input.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();

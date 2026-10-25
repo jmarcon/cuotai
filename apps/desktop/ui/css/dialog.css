@@ -571,8 +571,76 @@ dialog.extensions-dlg {
   padding: var(--space-3);
 }
 .extension-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
   padding: var(--space-3);
   border-top: var(--border-w) solid var(--border);
+}
+.extension-row > .extension-overrides,
+.extension-row > .extension-consent {
+  grid-column: 1 / -1;
+}
+.extension-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--fg-muted);
+}
+.extension-ico svg.i {
+  width: 20px;
+  height: 20px;
+}
+.extension-body {
+  min-width: 0;
+}
+.extension-body p {
+  margin: var(--space-0) 0;
+}
+.extension-desc {
+  color: var(--fg-muted);
+}
+.extension-id {
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+}
+.extension-overrides {
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.extension-overrides legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+.extension-overrides .help {
+  margin: 0 0 var(--space-2);
+  color: var(--fg-muted);
+}
+.extension-state svg.i {
+  width: 14px;
+  height: 14px;
+  margin-right: var(--space-1);
+}
+.extension-state.disabled {
+  color: var(--info);
+}
+.extensions-dlg .ext-note {
+  margin: var(--space-3) 0 0;
+}
+.ext-foot {
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-4);
+}
+.ext-folder svg.i {
+  width: 16px;
+  height: 16px;
+  margin-right: var(--space-2);
 }
 .extension-row:first-child {
   border-top: 0;
@@ -596,8 +664,18 @@ dialog.extensions-dlg {
 .extension-consent p {
   margin: calc(var(--space-1) + var(--space-0)) 0;
 }
+.extension-title {
+  flex-wrap: wrap;
+}
 .extension-title strong {
-  flex: 1;
+  flex: 0 1 auto;
+}
+.extension-title .ver {
+  white-space: nowrap;
+}
+.extension-actions.many {
+  grid-column: 2 / -1;
+  justify-content: flex-start;
 }
 .extension-title code {
   color: var(--fg-muted);
@@ -632,7 +710,9 @@ dialog.extensions-dlg {
 .extension-actions {
   justify-content: flex-end;
   flex-wrap: wrap;
-  margin-top: var(--space-2);
+}
+.extension-row > .extension-actions {
+  align-self: center;
 }
 .extension-consent {
   border-color: color-mix(in srgb, var(--warn) 60%, transparent);
@@ -680,7 +760,7 @@ dialog.dlg.dlg-catalog {
   display: flex;
   flex-direction: column;
   gap: var(--space-0);
-  max-height: min(56dvh, 520px);
+  max-height: min(46dvh, 480px);
   overflow-y: auto;
 }
 .pick-group-label {
@@ -784,6 +864,23 @@ dialog.dlg.dlg-catalog {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+}
+.picker-foot {
+  margin: var(--space-3) 0 0;
+  color: var(--fg-muted);
+  text-align: center;
+}
+/* Mockup 31: the header's close replaces Cancel while the catalog shows. */
+.dlg-catalog:has(#picker:not([hidden])) .dlg-body > .dlg-actions {
+  display: none;
+}
+.picker-foot:empty {
+  display: none;
+}
+.text-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .picker-empty {
   display: flex;

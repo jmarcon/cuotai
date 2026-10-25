@@ -2,7 +2,7 @@
 // RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
-  accountLabel, configChangedOnDisk, deleteAccount, detectSources, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
+  accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, sessionNoticeHtml, testAggregator, testSession, visibleFields,
@@ -60,7 +60,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   let committing = false;
 
   const dlg = open(`<form method="dialog" class="dlg-body" autocomplete="off">
-    <h2>${te(editing ? "dialog.editTitle" : "dialog.addTitle")}</h2>
+    <header class="dlg-head"><h2>${te(editing ? "dialog.editTitle" : "dialog.addTitle")}</h2>
+      <button type="button" class="icon" data-x aria-label="${te("common.close")}" title="${te("common.close")}">${icon("x")}</button></header>
     <div class="f" data-field="provider"><span id="prov-label">${te("dialog.provider")}</span>
       ${editing ? "" : pickerHtml("prov-label")}
       <div class="prov-head" id="prov-head" ${editing ? "" : "hidden"}></div>
@@ -1091,6 +1092,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     pickerApi.focus();
   }
   let catalogModes = await providerModes(provider).catch(() => []);
+  // The header's close mirrors Cancel, so both clean up the same way (mockup 31).
+  dlg.querySelector("[data-x]").addEventListener("click", () => dlg.querySelector("[data-cancel]").click());
   let picker = null;
   let pickerApi = null;
   if (!editing) {
@@ -1105,6 +1108,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         pickerApi.refresh();
       },
       onRequest: () => openExternal(NEW_PROVIDER_URL).catch(() => {}),
+      onExtensions: () => { dlg.close(); onExtension?.(null); },
     });
     await pickerApi.reload();
     // RF6.5: detection is opt-in; with no answer the question shows and nothing is checked.
@@ -1144,7 +1148,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
 
 /** Confirma a remoção. Conta com credencial no cofre pergunta se a credencial também deve ser apagada.
  *  `onDone(resultado)` recebe o que o core fez (removida, apagada do cofre, mantida, compartilhada…). */
-export function confirmDelete(index, label, { usesOauth = false, onDone = () => {} } = {}) {
+export function confirmDelete(index, label, { usesOauth = false, secretsOf = null, onDone = () => {} } = {}) {
   const buttons = usesOauth
     ? `<button type="button" class="btn" data-purge="0">${te("dialog.deleteVaultKeep")}</button>
        <button type="button" class="btn danger-btn" data-purge="1">${te("dialog.deleteVaultPurge")}</button>`
@@ -1152,6 +1156,7 @@ export function confirmDelete(index, label, { usesOauth = false, onDone = () => 
   const dlg = open(`<form method="dialog" class="dlg-body">
     <h2>${te("dialog.deleteTitle")}</h2>
     <p>${te(usesOauth ? "dialog.deleteBodyVault" : "dialog.deleteBody", { label })}</p>
+    ${secretsOf ? `<label class="extension-confirm"><input type="checkbox" id="forget-secrets" />${te("dialog.deleteExtensionSecrets")}</label>` : ""}
     <p class="err" id="err" role="alert"></p>
     <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button>${buttons}</div>
   </form>`);
@@ -1161,6 +1166,8 @@ export function confirmDelete(index, label, { usesOauth = false, onDone = () => 
       dlg.querySelectorAll("button").forEach((b) => (b.disabled = true));
       try {
         const result = await deleteAccount(index, btn.dataset.purge === "1");
+        // The account is gone; deleting the extension's vault secrets is the user's separate, opt-in choice.
+        if (secretsOf && dlg.querySelector("#forget-secrets")?.checked) await forgetExtensionSecrets(secretsOf).catch(() => {});
         dlg.close();
         onDone(result);
       } catch (x) {
