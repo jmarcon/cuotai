@@ -2487,6 +2487,8 @@ mod prd0033_rf2_tests {
                 window: Some(MetricWindow::Weekly),
                 period: None,
                 resets_at: Some(now + resets_in),
+                billing: Default::default(),
+                scope: None,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),

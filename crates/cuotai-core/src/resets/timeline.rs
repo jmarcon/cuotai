@@ -178,6 +178,8 @@ mod tests {
             window: Some(MetricWindow::Window5h),
             period: None,
             resets_at: resets,
+            billing: Default::default(),
+            scope: None,
         }
     }
 

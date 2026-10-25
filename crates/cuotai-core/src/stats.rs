@@ -283,6 +283,8 @@ credential_env = "GROQ_KEY_BETA"
             window: Some(MetricWindow::Daily),
             period: None,
             resets_at: Some(resets),
+            billing: Default::default(),
+            scope: None,
         }
     }
 
