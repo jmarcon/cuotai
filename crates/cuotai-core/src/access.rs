@@ -475,6 +475,12 @@ pub(crate) fn classify(
         Provider::Kimchi => entry(Undocumented, InferenceKey, Scope::Account,
             Evidence::Reference("https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts"),
             "kimchi", "Saldo em USD e orçamentos do Kimchi pelo contrato do cliente oficial."),
+        Provider::ElevenLabs => UsageAccess {
+            verified_on: "2026-10-23",
+            ..entry(Official, InferenceKey, Scope::Account,
+                doc("https://elevenlabs.io/docs/api-reference/user/subscription/get"),
+                "eleven_labs", "Créditos usados, limite do plano e próxima renovação pelo endpoint documentado de assinatura da ElevenLabs, mais uso extra quando habilitado.")
+        },
         Provider::Extension => entry(Extension, LocalCli, Scope::Account,
             doc("https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md"),
             "extension", "Uso informado por uma extensão local aprovada pelo usuário."),
@@ -566,7 +572,7 @@ mod tests {
     #[test]
     fn classification_table_covers_every_provider_and_mode() {
         use Provider::*;
-        let base: [(Provider, Level, Credential); 36] = [
+        let base: [(Provider, Level, Credential); 37] = [
             (OpenAiApi, Official, C::AdminKey),
             (AnthropicApi, Official, C::AdminKey),
             (ChatGpt, Undocumented, C::SubscriptionSession),
@@ -603,6 +609,7 @@ mod tests {
             (AlibabaCloud, Official, C::CloudIdentity),
             (Antigravity, Undocumented, C::SubscriptionSession),
             (Kimchi, Undocumented, C::InferenceKey),
+            (ElevenLabs, Official, C::InferenceKey),
         ];
         let mut seen: Vec<_> = base.iter().map(|row| row.0).collect();
         seen.dedup();

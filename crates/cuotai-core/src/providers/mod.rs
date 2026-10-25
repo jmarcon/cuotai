@@ -9,6 +9,7 @@ pub(crate) mod cloud;
 pub(crate) mod cloud_keys;
 pub(crate) mod coding;
 pub(crate) mod cursor_personal;
+pub(crate) mod eleven_labs;
 pub(crate) mod inference;
 pub(crate) mod kimchi;
 pub(crate) mod mimo_platform;

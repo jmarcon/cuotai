@@ -41,6 +41,7 @@ pub enum Provider {
     AlibabaCloud,
     Antigravity,
     Kimchi,
+    ElevenLabs,
     /// A locally installed script extension. Dynamic identity lives in
     /// `Account::params["extension_id"]`; this variant is intentionally not
     /// part of [`Provider::ALL`], so a blank extension is never offered or
@@ -49,7 +50,7 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub const ALL: [Self; 36] = [
+    pub const ALL: [Self; 37] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,
@@ -86,6 +87,7 @@ impl Provider {
         Self::AlibabaCloud,
         Self::Antigravity,
         Self::Kimchi,
+        Self::ElevenLabs,
     ];
 
     pub fn label(self) -> &'static str {
@@ -126,6 +128,7 @@ impl Provider {
             Self::AlibabaCloud => "Alibaba Cloud — faturamento",
             Self::Antigravity => "Antigravity",
             Self::Kimchi => "Kimchi",
+            Self::ElevenLabs => "ElevenLabs",
             Self::Extension => "Extension",
         }
     }
@@ -194,6 +197,7 @@ impl Provider {
             Self::AlibabaCloud => "alibaba_cloud",
             Self::Antigravity => "antigravity",
             Self::Kimchi => "kimchi",
+            Self::ElevenLabs => "eleven_labs",
             Self::Extension => "extension",
         }
     }
@@ -203,7 +207,7 @@ impl Provider {
     /// [`Provider::ALL`]: consumers that parse or route a provider name
     /// (hooks rules, CLI arguments, saved payloads) must accept it, while
     /// the account creation catalog keeps offering only real providers.
-    pub const VARIANTS: [Self; 37] = [
+    pub const VARIANTS: [Self; 38] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,
@@ -240,6 +244,7 @@ impl Provider {
         Self::AlibabaCloud,
         Self::Antigravity,
         Self::Kimchi,
+        Self::ElevenLabs,
         Self::Extension,
     ];
 

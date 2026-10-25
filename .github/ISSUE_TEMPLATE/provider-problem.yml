@@ -49,6 +49,7 @@ body:
         - alibaba_cloud
         - antigravity
         - kimchi
+        - eleven_labs
     validations:
       required: true
   - type: input

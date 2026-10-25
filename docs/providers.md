@@ -1,6 +1,6 @@
 # Provider Catalog, Credentials and Limitations
 
-The Cuotai catalog contains **36 providers**, combining billing admin APIs, Cloud Monitoring, coding-assistant subscriptions and integrations compatible with `9router`.
+The Cuotai catalog contains **37 providers**, combining billing admin APIs, Cloud Monitoring, coding-assistant subscriptions and integrations compatible with `9router`.
 
 ## Overview by category
 
@@ -10,7 +10,7 @@ For parameters, default variables and limitations of each provider, use the tabl
 |---|---|
 | **Assistants and subscriptions** | **Claude** (`claude`), **OpenAI Codex / ChatGPT** (`chat_gpt`), **GitHub Copilot** (`copilot`), **Cursor** (`cursor` — personal and Teams), **Windsurf** (`windsurf`), **Kiro / AWS** (`kiro`), **Antigravity** (`antigravity`), **Cline** (`cline`), **Zed** (`zed`), **CodeBuddy** (`code_buddy`), **Qoder** (`qoder`), **OpenCode Go** (`open_code_go`) |
 | **CLIs and coding plans** | **Gemini CLI** (`gemini_ai`), **Grok CLI / xAI** (`grok`), **Kimi Coding & API** (`kimi`), **MiniMax Token/Coding Plan** (`mini_max`), **Alibaba Coding Plan** (`alibaba_coding_plan`), **Alibaba Token Plan / Qwen Cloud** (`alibaba_token_plan`), **Xiaomi MiMo** (`xiaomi_mimo`), **Ollama Cloud** (`ollama_cloud`), **Qwen Code** (`qwen`) |
-| **Cloud billing and admin APIs** | **OpenAI Admin API** (`open_ai_api`), **Anthropic Admin API** (`anthropic_api`), **Google Gemini API Monitoring** (`gemini_api`), **Google Vertex AI** (`vertex_ai`), **AWS Bedrock Cost Explorer** (`aws_bedrock`), **Azure OpenAI Cost Management** (`azure_open_ai`), **Alibaba Cloud BSS** (`alibaba_cloud`), **Mistral Admin** (`mistral`), **Perplexity Computer Analytics** (`perplexity`), **Kimchi** (`kimchi`), **Groq** (`groq`) |
+| **Cloud billing and admin APIs** | **OpenAI Admin API** (`open_ai_api`), **Anthropic Admin API** (`anthropic_api`), **Google Gemini API Monitoring** (`gemini_api`), **Google Vertex AI** (`vertex_ai`), **AWS Bedrock Cost Explorer** (`aws_bedrock`), **Azure OpenAI Cost Management** (`azure_open_ai`), **Alibaba Cloud BSS** (`alibaba_cloud`), **Mistral Admin** (`mistral`), **Perplexity Computer Analytics** (`perplexity`), **Kimchi** (`kimchi`), **Groq** (`groq`), **ElevenLabs** (`eleven_labs`) |
 | **Additional catalog** | **Alibaba Model Studio** (`alibaba_model_studio`), **Cloudflare AI** (`cloudflare_ai`), **NVIDIA NIM** (`nvidia_nim`), **Poolside** (`poolside`) |
 
 ## Main integrations and credentials
@@ -108,6 +108,7 @@ The table is generated: a core test compares it with `access::describe` and fail
 | `alibaba_cloud` | default | Official | Cloud identity | — | Whole cloud | [documentation](https://www.alibabacloud.com/help/en/user-center/developer-reference/api-bssopenapi-2017-12-14-queryaccountbalance) |
 | `antigravity` | default | Undocumented | Subscription session | — | Account | reference [`antigravity-weekly.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) |
 | `kimchi` | default | Undocumented | Inference key | — | Account | reference [`status.ts`](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts) |
+| `eleven_labs` | default | Official | Inference key | — | Account | [documentation](https://elevenlabs.io/docs/api-reference/user/subscription/get) |
 
 Billed per query (`metered`): `aws_bedrock`.
 <!-- access-matrix:end -->
@@ -188,6 +189,7 @@ The names below are the defaults configured in the wizard. `credential_env` can 
 | NVIDIA NIM / `nvidia_nim` | `NVIDIA_NIM_API_KEY` | No public per-key balance query confirmed; it does not use inference to extract rate-limit headers |
 | Poolside / `poolside` | `POOLSIDE_API_KEY` | No public account balance/quota query confirmed; infrastructure metrics are not a balance |
 | Kimchi / `kimchi` | `KIMCHI_API_KEY` | GET `/v1/credits` and `/v1/budget`: USD balance, budget per scope/provider and renewal. A budget failure keeps the valid credits with a note |
+| ElevenLabs / `eleven_labs` | `ELEVENLABS_API_KEY`; optional `params.region` (`default`, `us`, `eu`, `in`, `sg`) | One `GET /v1/user/subscription` per refresh (no audio is generated): credits used of the plan limit, next reset, extra-usage cap and amount, and voice slots. Restrict the key to the permission that reads the subscription. Pay As You Go balance is not reported. Unused credits may roll over and the limit semantics are the provider's. The API still names credits "characters"; Cuotai shows "credits". The vendor documents no credit cost or rate limit for this read |
 
 For Mistral, Perplexity Computer and Grok, the variable in the Credential step must hold the **right class** of key. If you keep the admin key in another variable, set `params.admin_key_env`, `params.analytics_key_env` or `params.management_key_env`, respectively. The alternative reference takes precedence; only the key actually used is read.
 
@@ -300,6 +302,7 @@ Verification: `live` = confirmed against a real account; `fixture` = local tests
 | `alibaba_cloud` | no list | billing AccessKey, no models endpoint | — |
 | `antigravity` | live query, undocumented | the session's `fetchAvailableModels` (paid plans) | live |
 | `kimchi` | live query, undocumented | GET `llm.kimchi.dev/v1/models/metadata?include_in_cli=true` | fixture |
+| `eleven_labs` | no list | no models endpoint for quota monitoring | — |
 
 ## Public incident source registry
 
@@ -359,6 +362,7 @@ The following endpoints and public-use documentation were fetched on **2026-10-2
 | `alibaba_cloud` | None | — | Not verified (see exclusions below) | — |
 | `antigravity` | None | — | Not verified (see exclusions below) | — |
 | `kimchi` | None | — | Not verified (see exclusions below) | — |
+| `eleven_labs` | None | — | Not verified (see exclusions below) | — |
 
 ### Verification, stability and use policy
 
@@ -380,6 +384,7 @@ These checks establish use of expressly public subscription/API interfaces, not 
 | `azure_open_ai` | The [public Azure RSS](https://azure.status.microsoft/en-us/status/feed/) responded, but no machine-readable Azure OpenAI component selector was verified in it; whole-cloud incidents are not substituted. |
 | `mistral` | `status.mistral.ai` and its v2 summary returned 403 with a bot challenge, including a browser User-Agent; no bypass or unverifiable URL is registered. |
 | `poolside`, `kimchi` | Public incident.io pages and compatibility summaries responded, but their Widget APIs returned 404. Compatibility summaries have null incident lists. Atom/RSS affected components/state are embedded in HTML prose, not a verified structured component contract, so these are not registered. |
+| `eleven_labs` | ElevenLabs publishes an incident.io widget summary at `status.elevenlabs.io/api/v1/summary` with one sub-page per region. Registration needs a verified stable per-region id for the ElevenAPI "Other APIs" component, which was not checked in this change; none is guessed. |
 | `zed` | [Instatus public API](https://status.zed.dev/public-api) exists, but the summary has no component association and the documented v3 components array differed from the observed wrapped response. A Zed page-wide state could alarm for unrelated Delta/Collaboration/Extension Registry components; no scoped incident contract is registered. |
 | `gemini_api` | Checked 2026-10-23: Google Cloud's public product catalog has no standalone Gemini API selector. Its Cloud Monitoring product covers only Cuotai's measurement dependency, so a quiet Monitoring status cannot assert that the Gemini API is operational. Google AI for Developers officially links the public [AI Studio status page](https://aistudio.google.com/status), whose live UI presents separate Gemini API, Multimodal Live API and Google AI Studio tracks. The UI gets that data from an unauthenticated `google.internal` `MakerSuiteService/ListIncidentsHistory` JSON+protobuf RPC with positional fields, an embedded site `x-goog-api-key` and origin-restricted headers. Google documents neither a stable public schema nor a programmatic-use policy for that internal interface, so Cuotai does not register it, copy the site key or scrape the HTML. |
 | `gemini_ai`, `antigravity` | No verified feed for the AI Studio/CLI/Antigravity product scope. The Cloud catalog's Gemini Code Assist is not assumed to cover every Gemini AI mode or Antigravity. |
@@ -394,7 +399,7 @@ Moonshot's source is its published Open API/Kimi Code product status, not a clai
 
 `crates/cuotai-core/src/incidents/fixtures/` holds minimized, anonymized real captures from the URLs above on the verification date: the Statuspage summaries, complete OpenAI and relevant Groq/Perplexity component catalogs, an empty OpenAI widget response, Google incident/product JSON and AWS/xAI RSS. `widget-maintenance.json` preserves the public [HashiCorp Widget API](https://status.hashicorp.com/api/v1/summary)'s real maintenance shape with populated components (the mapped pages had none at capture); its names, IDs, URLs and prose were anonymized. Public component IDs and names in provider catalogs remain intact because they are matching evidence, not personal data. Incident prose is replaced and long histories are reduced; states, timestamps, structural nulls and selector fields are retained. The AWS example is an unrelated multi-service event and the xAI examples are resolved events, not simulated active outages.
 
-RF1 tests use only these local captures, covering all 36 provider decisions, positive component membership, exact-match boundaries, shared-source isolation, unrelated cloud services and the page-wide-outage/healthy-target case. RF2/RF3 tests serve the same captures and synthetic active incidents of each format from local `wiremock` servers; no live status assertion is a test expectation.
+RF1 tests use only these local captures, covering all 37 provider decisions, positive component membership, exact-match boundaries, shared-source isolation, unrelated cloud services and the page-wide-outage/healthy-target case. RF2/RF3 tests serve the same captures and synthetic active incidents of each format from local `wiremock` servers; no live status assertion is a test expectation.
 
 ## References
 
@@ -429,5 +434,6 @@ RF1 tests use only these local captures, covering all 36 provider decisions, pos
 - [NVIDIA NIM](https://docs.api.nvidia.com/nim/reference/llm-apis) and [Poolside API](https://docs.poolside.ai/api/overview.md)
 - [Kiro: billing](https://kiro.dev/docs/billing.md), [getUsageLimits contract in 9router](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kiro.js) and [credits in CodexBar](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Kiro/KiroUsageLimitsAPI.swift)
 - [CodeBuddy: usage](https://www.codebuddy.cn/docs/ide/Account/usage.md) and [Zed: plans](https://zed.dev/docs/account/plans-and-pricing.md)
+- [ElevenLabs: subscription API reference](https://elevenlabs.io/docs/api-reference/user/subscription/get)
 - [Kimchi: official credits and budgets contract](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts)
 - [9router: query dispatch](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage.js) and [authentication flows](https://github.com/decolua/9router/tree/f01fb909e37189008080632ddaf404f096345cde/src/lib/oauth/providers)

@@ -234,6 +234,10 @@ pub fn support(account: &Account) -> Result<Localized, Localized> {
         | Provider::XiaomiMimo
         | Provider::Qoder
         | Provider::AlibabaTokenPlan => builtin(),
+        Provider::ElevenLabs => reason(
+            "models.unsupported",
+            "a ElevenLabs não oferece catálogo de modelos para consulta de quota; nenhuma requisição é feita.",
+        ),
         Provider::AlibabaCloud => reason(
             "models.unsupported",
             "a credencial é uma AccessKey de faturamento e o Alibaba Cloud não tem endpoint de modelos para ela.",
@@ -1274,7 +1278,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
     async fn support_matches_published_matrix_and_unsupported_never_queries() {
         use Provider::*;
         let builtin = [CodeBuddy, Windsurf, XiaomiMimo, Qoder, AlibabaTokenPlan];
-        let unsupported = [AlibabaCloud];
+        let unsupported = [AlibabaCloud, ElevenLabs];
         let server = MockServer::start().await;
         let dir = tempfile::tempdir().unwrap();
         let config = Config::default();

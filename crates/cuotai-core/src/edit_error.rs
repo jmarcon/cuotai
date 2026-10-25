@@ -197,6 +197,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::OAuth => "edit_error.config_oauth",
         crate::ConfigError::Session => "edit_error.config_session",
         crate::ConfigError::Extension => "edit_error.config_extension",
+        crate::ConfigError::Region => "edit_error.config_region",
         crate::ConfigError::MeteredRefreshFloor { .. } => unreachable!(),
     };
     Localized::fixed(id, error.to_string())
@@ -297,6 +298,7 @@ mod tests {
             (crate::ConfigError::OAuth, "edit_error.config_oauth"),
             (crate::ConfigError::Session, "edit_error.config_session"),
             (crate::ConfigError::Extension, "edit_error.config_extension"),
+            (crate::ConfigError::Region, "edit_error.config_region"),
         ] {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);
