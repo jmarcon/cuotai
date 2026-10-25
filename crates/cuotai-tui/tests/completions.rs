@@ -18,7 +18,7 @@ fn every_shell_script_is_generated_and_knows_the_flags() {
         assert!(output.stderr.is_empty(), "{shell}: {output:?}");
         let script = String::from_utf8(output.stdout).expect("UTF-8 script");
         assert!(script.contains("cuotai"), "{shell}");
-        for flag in ["serve", "watch", "completions"] {
+        for flag in ["serve", "watch", "completions", "status-line"] {
             assert!(script.contains(flag), "{shell} should mention --{flag}");
         }
     }

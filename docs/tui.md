@@ -38,6 +38,10 @@ cuotai --completions zsh  > "${fpath[1]}/_cuotai"
 cuotai --completions fish > ~/.config/fish/completions/cuotai.fish
 ```
 
+### Status line
+
+`cuotai --status-line [--style tightest_percent|logos_percent] [--account ID]... [--color]` runs one refresh and prints one line for a status bar (`22% · Personal`), built by the same core summary as the desktop menu bar. Colour is off by default and applies only on a terminal with `NO_COLOR` unset. Exit codes follow `--once` (0 ready, 2 an account failed, 1 local error). Bar recipes are in [`integrations/`](integrations/README.md).
+
 The TUI resolves the texts delivered by the core (login labels,
 fields, help, edit errors, report notes, cost warnings) against the
 core catalog, using the locale set in `CUOTAI_LANG`

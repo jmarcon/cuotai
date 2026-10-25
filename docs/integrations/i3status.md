@@ -14,3 +14,7 @@ Output with a week at 78% (`limits-busy.json`):
 ```
 
 The colour is `#50fa7b` (ok), `#ffb86c` (warning), `#ff5555` (critical or outage) or `#888888` with `cuotai offline` when the server cannot be read.
+
+## Without a server: `--status-line`
+
+A block that runs `cuotai --status-line` and wraps the text in the i3bar JSON line needs no server, at the price of one query cycle per call (use 120 seconds or more). See the [tmux page](tmux.md#without-a-server---status-line) for the options and exit codes.

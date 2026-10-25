@@ -32,3 +32,13 @@ Output when the account is exhausted (`limits-blocked.json`):
 ```
 
 With the server unreachable the module shows `Cuotai offline` with the `offline` class.
+
+## Without a server: `--status-line`
+
+A `custom` module can run `cuotai --status-line` directly. It queries once per call, so use a long `interval`:
+
+```json
+"custom/cuotai": { "exec": "cuotai --status-line", "interval": 120 }
+```
+
+The line is plain text such as `22% · Personal`, and it prints `—` while no share is known. See the [tmux page](tmux.md#without-a-server---status-line) for the options.

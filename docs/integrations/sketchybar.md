@@ -16,3 +16,12 @@ sketchybar --set cuotai label=78% Personal label.color=0xffffb86c
 ```
 
 The colour is `0xff50fa7b` (ok), `0xffffb86c` (warning), `0xffff5555` (critical or outage) or `0xff888888` with the label `offline` when the server cannot be read.
+
+## Without a server: `--status-line`
+
+```sh
+sketchybar --add item cuotai right \
+  --set cuotai update_freq=120 script='sketchybar --set cuotai label="$(cuotai --status-line)"'
+```
+
+It queries once per call; see the [tmux page](tmux.md#without-a-server---status-line) for the options and exit codes.

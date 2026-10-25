@@ -20,6 +20,8 @@ Cuotai is **pre-release**: no GitHub release has been published yet, and every p
 
 Debian/Ubuntu (`.deb`), Fedora (`.rpm`), AppImage, macOS `.dmg`, Windows `.exe`/`.msi` and the terminal archives will all come from the GitHub release; they are not separate channels.
 
+Shell completions: the Homebrew formula installs the bash, zsh and fish scripts from `cuotai --completions SHELL`; the Scoop manifest prints the PowerShell one-liner in its notes. For the other channels, see [Shell completions](tui.md#shell-completions).
+
 ## What a release contains
 
 Names are stable so package managers can rely on them (`<version>` is for example `0.76.0`):

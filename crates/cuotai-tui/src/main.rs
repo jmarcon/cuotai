@@ -14,6 +14,7 @@ mod report_problem;
 mod report_view;
 mod serve;
 mod stats_view;
+mod status_line;
 mod ui;
 mod vault;
 mod watch;
@@ -84,6 +85,36 @@ struct Args {
     /// Consulta uma vez, sem abrir a TUI.
     #[arg(long)]
     once: bool,
+    /// PRD 0031 RF2: consulta uma vez e imprime uma linha para barras de
+    /// status (tmux, Waybar, SketchyBar) com o mesmo resumo da barra de menus.
+    /// Saída 0 se todas as contas estão prontas, 2 se alguma falhou, 1 em erro
+    /// local.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "list_providers", "changelog", "extension_check", "once", "json",
+            "json_v1", "history", "notify", "serve", "watch", "install_source",
+            "cost_action", "report_problem", "canary",
+        ]
+    )]
+    status_line: bool,
+    /// Com --status-line, o estilo da linha.
+    #[arg(
+        long,
+        value_name = "ESTILO",
+        value_parser = status_line::STYLES,
+        default_value = "tightest_percent",
+        requires = "status_line"
+    )]
+    style: String,
+    /// Com --status-line, só esta conta (id); repita para escolher várias, na
+    /// ordem dada. Sem a opção: todas, na ordem do TOML.
+    #[arg(long = "account", value_name = "ID", requires = "status_line")]
+    status_accounts: Vec<String>,
+    /// Com --status-line, pinta a linha (ANSI) quando a saída é um terminal e
+    /// NO_COLOR não está definido.
+    #[arg(long, requires = "status_line")]
+    color: bool,
     /// Consulta uma vez e emite o Snapshot em JSON (sem credenciais); com
     /// --history, emite o histórico em JSON.
     #[arg(long)]
@@ -736,6 +767,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         && !args.json_v1
         && !args.serve
         && !args.watch
+        && !args.status_line
         && args.report_problem.is_none()
         && !args.canary;
     let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
@@ -796,7 +828,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     if let Some(name) = args.report_problem.take() {
         return report_problem::run(&file.config, &name, session).await;
     }
-    if args.once || args.json || args.json_v1 || args.serve || args.watch {
+    if args.once || args.json || args.json_v1 || args.serve || args.watch || args.status_line {
         // PRD 0013 RF2.1: `--interval` holds for this run only.
         let config = match args.interval {
             Some(seconds) => cuotai_core::watch::with_interval(&file.config, seconds)
@@ -857,6 +889,28 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         } else {
             2
         };
+        if args.status_line {
+            // PRD 0031 RF2: one line from the core's `tray::summary`.
+            let style = cuotai_core::tray::TrayStyle::parse(&args.style).unwrap_or_default();
+            let color = status_line::use_color(
+                args.color,
+                io::stdout().is_terminal(),
+                std::env::var("NO_COLOR").ok().as_deref(),
+            );
+            println!(
+                "{}",
+                status_line::render(
+                    &file.config,
+                    &snapshot,
+                    style,
+                    &args.status_accounts,
+                    color,
+                    Utc::now(),
+                    ui::local_time,
+                )
+            );
+            return Ok(code);
+        }
         if args.json {
             let mut stdout = io::stdout().lock();
             serde_json::to_writer_pretty(&mut stdout, &snapshot)?;

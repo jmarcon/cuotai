@@ -382,6 +382,7 @@ fn render_homebrew(templates_dir: &Path, req: &RenderRequest) -> Res<Vec<Rendere
                 req.manifest.version
             ),
             "bin.install \"cuotai\"",
+            "generate_completions_from_executable(bin/\"cuotai\", \"--completions\")",
         ],
     )?;
 

@@ -20,6 +20,8 @@ class Cuotai < Formula
 
   def install
     bin.install "cuotai"
+    # PRD 0031 RF3: `cuotai --completions SHELL`, installed for bash, zsh and fish.
+    generate_completions_from_executable(bin/"cuotai", "--completions")
   end
 
   test do
