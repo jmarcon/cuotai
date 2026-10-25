@@ -190,10 +190,7 @@ impl CostIndex {
         db.busy_timeout(BUSY_TIMEOUT)?;
         wal(&db)?;
         db.pragma_update(None, "secure_delete", true)?;
-        migrate(&mut db, &MIGRATIONS).map_err(|e| {
-            eprintln!("MIG {e:?}");
-            CostError::Storage
-        })?;
+        migrate(&mut db, &MIGRATIONS).map_err(|_| CostError::Storage)?;
         Ok(db)
     }
 
