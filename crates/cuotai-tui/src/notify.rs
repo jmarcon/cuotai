@@ -17,9 +17,7 @@ use crate::ui::{local_time, safe};
 use chrono::{DateTime, TimeDelta, Utc};
 use cuotai_core::{
     aggregators,
-    alerts::{
-        self, AlertEvent, AlertKind, AlertPrefs, Lead, PaceInput, PoolAlerts, NOTICE_SPACING,
-    },
+    alerts::{self, AlertEvent, AlertPrefs, Lead, PaceInput, PoolAlerts, NOTICE_SPACING},
     notify_prefs::{self, Loaded},
     pace::Point,
     quiet::{self, Decision, QuietWindow, Subject},
@@ -52,9 +50,6 @@ pub(crate) struct Notices {
     ledger: SharedLedger,
     /// Alerts judged on a refresh, waiting for the next pass.
     pending: Vec<AlertEvent>,
-    /// PRD 0032 RF3.1: projections held by quiet hours (they are not saved
-    /// as marks: a restart judges them afresh).
-    held_projected: Vec<AlertEvent>,
     /// PRD 0032 RF3.3: the digest's alerts waiting for the spacing.
     digest_pending: Vec<AlertEvent>,
     /// When the last usage alert went out ([`NOTICE_SPACING`]).
@@ -80,7 +75,6 @@ impl Notices {
             projected: None,
             ledger: SharedLedger::in_memory(),
             pending: Vec::new(),
-            held_projected: Vec::new(),
             digest_pending: Vec::new(),
             last_alert: None,
             started,
@@ -181,22 +175,12 @@ impl Notices {
             };
             self.pending
                 .retain(|event| !alerts::cancels(event, next, &input, now));
-            self.held_projected
-                .retain(|event| !alerts::cancels(event, next, &input, now));
         }
         let window = self.window(now);
         let (mut deliver, mut deferred) = (Vec::new(), Vec::new());
         for event in events {
             match quiet::decide(Subject::Alert(&event), window) {
                 Decision::Deliver => deliver.push(event),
-                Decision::Defer(_) if event.kind == AlertKind::ProjectedExhaustion => {
-                    let same = |other: &AlertEvent| {
-                        other.account_key == event.account_key && other.label == event.label
-                    };
-                    if !self.held_projected.iter().any(same) {
-                        self.held_projected.push(event);
-                    }
-                }
                 Decision::Defer(until) => deferred.push((event, until)),
                 Decision::Drop => {}
             }
@@ -214,7 +198,6 @@ impl Notices {
         let keys: Vec<String> = config.accounts.iter().map(Account::state_key).collect();
         let kept = |event: &AlertEvent| keys.contains(&event.account_key);
         self.pending.retain(kept);
-        self.held_projected.retain(kept);
         self.digest_pending.retain(kept);
         self.ledger.mutate(|ledger| {
             ledger
@@ -300,7 +283,6 @@ impl Notices {
             }
         }
         if window.is_none() {
-            self.release_held(readings, now);
             let alert_prefs = self.alert_prefs();
             let events = self.ledger.claim_digest(
                 expanded.readings().into_iter().flatten(),
@@ -318,26 +300,6 @@ impl Notices {
         out.push(BEL);
         self.banner = Some((now, format!("{} · {}", local_time(now), lines.join(" · "))));
         out
-    }
-
-    /// PRD 0032 RF3.1: the projections quiet hours held are judged by the
-    /// account's latest reading and recorded as notified (so the evaluator
-    /// does not raise them again) before they join the queue.
-    fn release_held(&mut self, readings: &[Option<&Report>], now: DateTime<Utc>) {
-        let prefs = self.alert_prefs();
-        for event in std::mem::take(&mut self.held_projected) {
-            let Some(reading) = readings
-                .iter()
-                .flatten()
-                .find(|report| report.state_key() == event.account_key)
-            else {
-                continue;
-            };
-            let sent = self
-                .ledger
-                .claim_alerts(reading, &prefs, vec![event], Vec::new(), now);
-            self.pending.extend(sent);
-        }
     }
 
     /// PRD 0032 RF3.3/RF3.4: the digest of what still holds when quiet

@@ -236,7 +236,7 @@ impl AlertKind {
 }
 
 /// PRD 0024 RF2.1: what a [`AlertKind::ProjectedExhaustion`] projects.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Projection {
     /// When the quota runs out at the recent pace.
     pub projected_at: DateTime<Utc>,
@@ -384,6 +384,10 @@ struct Mark {
     /// PRD 0032 RF8.2: the person saw the "crossed while closed" marker.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     acknowledged: bool,
+    /// PRD 0032 RF3: what a `ProjectedExhaustion` held by quiet hours
+    /// projected, so a restart keeps it and the digest re-judges it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    projection: Option<Projection>,
 }
 
 /// One eligible metric's consumption.
@@ -875,6 +879,7 @@ impl AlertState {
                 lapsed: false,
                 deferred_until: deferred_until.filter(|_| !notified),
                 acknowledged: false,
+                projection: None,
             });
             changed = true;
         }
@@ -895,19 +900,28 @@ impl AlertState {
                         && same_instance(mark.resets_at, Some(cycle))
                 });
                 if !has {
+                    let notified = events
+                        .iter()
+                        .any(|event| event.account_key == account_key && event.kind == kind);
+                    // PRD 0032 RF3: an overage notice held by quiet hours
+                    // waits for the digest instead of counting as seen.
+                    let deferred_until = deferred
+                        .iter()
+                        .find(|(event, _)| event.account_key == account_key && event.kind == kind)
+                        .map(|(_, until)| *until)
+                        .filter(|_| !notified);
                     self.marks.push(Mark {
                         acknowledged: Default::default(),
-                        deferred_until: Default::default(),
+                        deferred_until,
                         lapsed: Default::default(),
                         account: account.clone(),
                         metric: digest.clone(),
                         kind,
                         threshold: 0,
                         resets_at: Some(cycle),
-                        notified: events
-                            .iter()
-                            .any(|event| event.account_key == account_key && event.kind == kind),
+                        notified,
                         at: now,
+                        projection: None,
                     });
                 }
             }
@@ -985,11 +999,28 @@ impl AlertState {
                 lapsed: false,
                 deferred_until: held(kind, threshold).filter(|_| !notified(kind, threshold)),
                 acknowledged: false,
+                projection: None,
             };
             let before = self.marks.len();
             // PRD 0024 RF2.3: a projection delivered once per instance.
-            if notified(AlertKind::ProjectedExhaustion, 0) && !self.has_projection(&digest, at) {
-                self.marks.push(mark(AlertKind::ProjectedExhaustion, 0));
+            // PRD 0032 RF3: one held by quiet hours is marked deferred with
+            // what it projected, so a restart keeps it for the digest.
+            let held_projection = deferred
+                .iter()
+                .find(|(event, _)| {
+                    event.account_key == account_key
+                        && event.label == metric.label
+                        && event.kind == AlertKind::ProjectedExhaustion
+                })
+                .and_then(|(event, _)| event.projection);
+            if (notified(AlertKind::ProjectedExhaustion, 0) || held_projection.is_some())
+                && !self.has_projection(&digest, at)
+            {
+                let mut projected = mark(AlertKind::ProjectedExhaustion, 0);
+                if projected.deferred_until.is_some() {
+                    projected.projection = held_projection;
+                }
+                self.marks.push(projected);
             }
             if consumption.exhausted {
                 if !self.has_level(&digest, at, EXHAUSTED) {
@@ -1199,9 +1230,13 @@ impl AlertState {
     /// PRD 0032 RF4.2: whether a crossing like `event` already waits for the
     /// digest (another process deferred it).
     pub fn deferred(&self, event: &AlertEvent) -> bool {
+        let label = match event.kind {
+            AlertKind::OverageStarted | AlertKind::OverageCapReached => OVERAGE_MARK,
+            _ => event.label.as_str(),
+        };
         self.marks.iter().any(|mark| {
             mark.deferred_until.is_some()
-                && mark.metric == key_digest(&event.account_key, &event.label)
+                && mark.metric == key_digest(&event.account_key, label)
                 && mark.kind == event.kind
                 && mark.threshold == event.threshold
                 && same_instance(mark.resets_at, event.resets_at)
@@ -1271,6 +1306,70 @@ impl AlertState {
                         resets_at: Some(at),
                         projection: None,
                     }),
+                // PRD 0032 RF3: the overage still bills (or is still at
+                // its cap) in the same billing cycle.
+                AlertKind::OverageStarted | AlertKind::OverageCapReached => overage::assess(report)
+                    .filter(|overage| match mark.kind {
+                        AlertKind::OverageCapReached => overage.state == OverageState::CapReached,
+                        _ => overage.state.is_billing(),
+                    })
+                    .filter(|overage| {
+                        same_instance(
+                            mark.resets_at,
+                            Some(overage_cycle(overage, report.checked_at)),
+                        )
+                    })
+                    .map(|overage| AlertEvent {
+                        projection: None,
+                        account_key: account_key.clone(),
+                        label: overage.label.clone(),
+                        window: report
+                            .metrics
+                            .iter()
+                            .find(|metric| metric.billing == crate::Billing::Overage)
+                            .and_then(|metric| metric.window),
+                        kind: mark.kind,
+                        threshold: 0,
+                        consumed: match (overage.spent, overage.cap) {
+                            (Some(spent), Some(cap)) if cap > 0.0 => (spent / cap).clamp(0.0, 1.0),
+                            _ => 0.0,
+                        },
+                        resets_at: overage.cycle_ends_at,
+                        overage: Some(OverageExport::from(&overage)),
+                    }),
+                // PRD 0032 RF3.3: a held projection still projects before
+                // the reset of the same window instance.
+                AlertKind::ProjectedExhaustion => {
+                    let projection = mark.projection;
+                    report
+                        .metrics
+                        .iter()
+                        .filter(|metric| key_digest(&account_key, &metric.label) == mark.metric)
+                        .filter(|metric| same_instance(mark.resets_at, metric.resets_at))
+                        .find_map(|metric| {
+                            let projection = projection?;
+                            let consumption = consumption(metric)?;
+                            let resets_at = metric.resets_at?;
+                            let holds = !consumption.exhausted
+                                && projection.projected_at > now
+                                && projection.projected_at < resets_at;
+                            holds.then(|| AlertEvent {
+                                overage: None,
+                                account_key: account_key.clone(),
+                                label: metric.label.clone(),
+                                window: metric.window,
+                                kind: AlertKind::ProjectedExhaustion,
+                                threshold: 0,
+                                consumed: consumption.percent / 100.0,
+                                resets_at: metric.resets_at,
+                                projection: Some(Projection {
+                                    margin_seconds: (resets_at - projection.projected_at)
+                                        .num_seconds(),
+                                    ..projection
+                                }),
+                            })
+                        })
+                }
                 kind => report
                     .metrics
                     .iter()
@@ -1309,7 +1408,11 @@ impl AlertState {
             match kept.iter_mut().find(|other| {
                 other.account_key == event.account_key
                     && other.label == event.label
-                    && other.kind.is_level() == event.kind.is_level()
+                    && if other.kind.is_level() {
+                        event.kind.is_level()
+                    } else {
+                        other.kind == event.kind
+                    }
             }) {
                 Some(other) if event.threshold > other.threshold => *other = event,
                 Some(_) => {}

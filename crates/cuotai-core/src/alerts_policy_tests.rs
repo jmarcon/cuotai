@@ -419,3 +419,115 @@ fn private_reset_notices_carry_no_account_or_metric_names() {
         );
     }
 }
+
+/// PRD 0032 RF3: a projection held by quiet hours is a deferred mark that
+/// survives a restart and leaves in the digest while it still projects
+/// before the reset.
+#[test]
+fn a_held_projection_survives_a_restart_and_is_rejudged_in_the_digest() {
+    let prefs = AlertPrefs {
+        projected: Some(Lead::Min60),
+        ..on()
+    };
+    let until = t0() + TimeDelta::hours(1);
+    let reading = report(t0(), quota(70.0, Some(window())));
+    let projection = Projection {
+        projected_at: t0() + TimeDelta::hours(2),
+        lead_minutes: 60,
+        margin_seconds: 3600,
+        source: crate::pace::PaceSource::Recent,
+    };
+    let held = AlertEvent {
+        projection: Some(projection),
+        ..event_of(&reading, AlertKind::ProjectedExhaustion, 0)
+    };
+    let mut state = AlertState::default();
+    state.update_with(&reading, &prefs, &[], &[(held.clone(), until)], t0());
+    assert!(state.has_deferred());
+    assert!(state.deferred(&held));
+    let json = serde_json::to_string(&state).unwrap();
+    let restored: AlertState = serde_json::from_str(&json).unwrap();
+    // Still projecting before the reset: one digest line with it.
+    let mut kept = restored.clone();
+    let later = report(until, quota(80.0, Some(window())));
+    let digest = kept.take_deferred([&later], &prefs, true, until);
+    assert_eq!(digest.len(), 1);
+    assert_eq!(digest[0].kind, AlertKind::ProjectedExhaustion);
+    assert_eq!(
+        digest[0].projection.map(|p| p.projected_at),
+        Some(projection.projected_at)
+    );
+    // The projected time passed, or the metric is exhausted: dropped.
+    let mut passed = restored.clone();
+    let late = report(t0() + TimeDelta::hours(2), quota(90.0, Some(window())));
+    assert!(passed
+        .take_deferred([&late], &prefs, true, t0() + TimeDelta::hours(2))
+        .is_empty());
+    let mut exhausted = restored;
+    let out = report(until, quota(100.0, Some(window())));
+    assert!(exhausted
+        .take_deferred([&out], &prefs, true, until)
+        .is_empty());
+    assert!(!exhausted.has_deferred());
+}
+
+fn overage_report(at: DateTime<Utc>, spent: f64) -> Report {
+    let cycle = t0() + TimeDelta::days(10);
+    let metric = Metric {
+        billing: crate::Billing::Overage,
+        scope: None,
+        label: "Extra usage".into(),
+        used: Some(spent),
+        limit: Some(50.0),
+        remaining: None,
+        unit: "usd".into(),
+        kind: MetricKind::Spend,
+        window: None,
+        period: None,
+        resets_at: Some(cycle),
+    };
+    report(at, metric)
+}
+
+/// PRD 0032 RF3.1: a PRD 0023 overage notice held by quiet hours is a
+/// deferred mark (not seen-without-notice) and leaves in the digest while
+/// the account still bills in the same cycle.
+#[test]
+fn a_held_overage_notice_waits_for_the_digest() {
+    let prefs = on();
+    let until = t0() + TimeDelta::hours(8);
+    let before = overage_report(t0() - mins(5), 0.0);
+    let next = overage_report(t0(), 3.0);
+    let state = AlertState::default();
+    let events = evaluate(Some(&before), &next, &prefs, &state, t0());
+    let started: Vec<_> = events
+        .into_iter()
+        .filter(|event| event.kind == AlertKind::OverageStarted)
+        .collect();
+    assert_eq!(started.len(), 1);
+    let window = crate::quiet::QuietWindow { ends_at: until };
+    assert_eq!(
+        crate::quiet::decide(crate::quiet::Subject::Alert(&started[0]), Some(window)),
+        crate::quiet::Decision::Defer(until)
+    );
+    let mut state = AlertState::default();
+    let held = vec![(started[0].clone(), until)];
+    state.update_with(&next, &prefs, &[], &held, t0());
+    assert!(state.deferred(&started[0]));
+    assert!(!state.notified(&started[0]));
+    let json = serde_json::to_string(&state).unwrap();
+    let mut state: AlertState = serde_json::from_str(&json).unwrap();
+    // Not raised again while held.
+    let again = overage_report(t0() + mins(5), 4.0);
+    assert!(
+        evaluate(Some(&next), &again, &prefs, &state, again.checked_at)
+            .iter()
+            .all(|event| event.kind != AlertKind::OverageStarted)
+    );
+    let late = overage_report(until, 6.0);
+    let digest = state.take_deferred([&late], &prefs, true, until);
+    assert_eq!(digest.len(), 1);
+    assert_eq!(digest[0].kind, AlertKind::OverageStarted);
+    assert_eq!(digest[0].overage.as_ref().and_then(|o| o.spent), Some(6.0));
+    assert!(state.notified(&digest[0]));
+}
