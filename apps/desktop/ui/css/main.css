@@ -163,7 +163,7 @@
   cursor: pointer;
 }
 .recharging > summary:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
 }
 
 .card {
@@ -706,7 +706,7 @@
   user-select: text;
 }
 .filter input:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -1px;
 }
 .filter .icon {

@@ -82,7 +82,7 @@
   color: var(--fg);
 }
 .set-nav-item:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 /* RF2.2: the selected page has an accent bar and a heavier label. */
@@ -195,7 +195,7 @@
   color: var(--fg-muted);
 }
 .set-search input:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -1px;
 }
 /* RF6.2/RF6.3: results grouped by page, one button per row; the empty state suggests clearing the field. */
@@ -219,7 +219,7 @@
   background: var(--surface-2);
 }
 .set-result:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 .set-result-desc {
@@ -385,7 +385,7 @@
 .seg [role="radio"]:focus-visible,
 .set-info:focus-visible,
 .set-disc > summary:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 /* RF3.2 membership check (DS-CMP-CHK-1). */

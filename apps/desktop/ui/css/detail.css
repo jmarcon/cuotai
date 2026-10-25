@@ -298,7 +298,7 @@
   overflow-wrap: anywhere;
 }
 .models-list li:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 .models-list code {
@@ -355,7 +355,7 @@
   font-weight: 600;
 }
 .history-ranges button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 .history-status {
@@ -501,7 +501,7 @@
   height: 12px;
 }
 .status-link:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 .status-err {

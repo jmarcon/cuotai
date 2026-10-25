@@ -62,7 +62,7 @@ dialog.dlg:popover-open {
 }
 .f input:focus,
 .f select:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -1px;
 }
 #dyn,
