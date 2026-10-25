@@ -376,7 +376,14 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
         "Pay As You Go balance: not reported by this endpoint.",
     );
 
-    Ok(Data::new(metrics, notes, source))
+    // PRD 0037 RF5.5: the enablement `overage::assess` needs when no overage
+    // metric says it (disabled, or enabled without a known plan limit).
+    let hint = match state {
+        Some(Extension::Disabled) => crate::OverageHint::Disabled,
+        Some(Extension::Enabled { .. }) if limit.is_some() => crate::OverageHint::Armed,
+        _ => crate::OverageHint::Unknown,
+    };
+    Ok(Data::new(metrics, notes, source).with_overage_hint(Some(hint)))
 }
 
 /// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
@@ -625,6 +632,64 @@ mod tests {
             (Some(2000.0), None, None)
         );
         assert!(ids(&data).contains(&"note.eleven_labs.overage_unlimited"));
+    }
+
+    /// PRD 0037 RF5.5: `overage::assess` over the adapter's fixtures.
+    #[tokio::test]
+    async fn overage_assess_maps_every_fixture_state() {
+        use crate::overage::{assess_metrics, OverageState};
+        async fn state(body: Value) -> OverageState {
+            let data = ok(body).await;
+            assess_metrics(&data.metrics, data.overage_hint)
+                .expect("ElevenLabs always states its overage")
+                .state
+        }
+        // Disabled: no overage metric, and the hint says so.
+        let disabled = base(10000, 10000);
+        let data = ok(disabled.clone()).await;
+        assert!(data
+            .metrics
+            .iter()
+            .all(|m| m.billing != crate::model::Billing::Overage));
+        assert_eq!(state(disabled).await, OverageState::Disabled);
+        // Armed: enabled, nothing spent.
+        let mut armed = base(4000, 10000);
+        armed["max_credit_limit_extension"] = json!(5000);
+        armed["can_extend_character_limit"] = json!(true);
+        assert_eq!(state(armed).await, OverageState::Armed);
+        // Active: extra credits and a cost above zero.
+        let mut active = base(10600, 10000);
+        active["max_credit_limit_extension"] = json!(5000);
+        active["can_extend_character_limit"] = json!(true);
+        active["current_overage"] = json!({"amount": "0.18", "currency": "usd"});
+        let overage = {
+            let data = ok(active.clone()).await;
+            assess_metrics(&data.metrics, data.overage_hint).unwrap()
+        };
+        assert_eq!(overage.state, OverageState::Active);
+        // The money item is the headline; the credits stay a separate item.
+        assert_eq!(
+            (overage.spent, overage.currency.as_deref()),
+            (Some(0.18), Some("USD"))
+        );
+        assert_eq!(overage.items.len(), 2);
+        // Active from the credits alone, while the cost still reads zero.
+        let mut credits_only = active.clone();
+        credits_only["current_overage"] = json!({"amount": "0.00", "currency": "usd"});
+        assert_eq!(state(credits_only).await, OverageState::Active);
+        // CapReached: the extra credits reach the positive cap.
+        let mut capped = base(15000, 10000);
+        capped["max_credit_limit_extension"] = json!(5000);
+        capped["can_extend_character_limit"] = json!(true);
+        assert_eq!(state(capped).await, OverageState::CapReached);
+        // Unknown: the enablement cannot be established.
+        let mut unknown = base(10000, 10000);
+        unknown
+            .as_object_mut()
+            .unwrap()
+            .remove("max_credit_limit_extension");
+        unknown["current_overage"] = Value::Null;
+        assert_eq!(state(unknown).await, OverageState::Unknown);
     }
 
     #[tokio::test]

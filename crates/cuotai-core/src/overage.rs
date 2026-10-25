@@ -186,6 +186,7 @@ pub fn assess(report: &Report) -> Option<Overage> {
             (false, false) => OverageState::Unknown,
         }
     };
+    let state = escalate(state, &metrics);
     Some(Overage {
         state,
         spent,
@@ -218,6 +219,31 @@ pub(crate) fn assess_metrics(metrics: &[Metric], hint: Option<OverageHint>) -> O
         session_expires_at: None,
         overage_hint: hint,
     })
+}
+
+/// PRD 0037 RF5.5: the headline group (money) cannot see a cap reached or
+/// extra usage counted in another unit (credits). Any overage item at its
+/// positive cap makes the account `CapReached`; any item above zero turns an
+/// `Armed` headline into `Active`. `Disabled` and `Unknown` stay.
+fn escalate(state: OverageState, metrics: &[&Metric]) -> OverageState {
+    if !matches!(state, OverageState::Armed | OverageState::Active) {
+        return state;
+    }
+    let finite = |v: Option<f64>| v.filter(|v| v.is_finite());
+    let capped = metrics.iter().any(|m| {
+        matches!((finite(m.used), finite(m.limit)), (Some(used), Some(cap)) if cap > 0.0 && used >= cap)
+    });
+    if capped {
+        return OverageState::CapReached;
+    }
+    if state == OverageState::Armed
+        && metrics
+            .iter()
+            .any(|m| finite(m.used).is_some_and(|v| v > 0.0))
+    {
+        return OverageState::Active;
+    }
+    state
 }
 
 fn classify(spent: Option<f64>, cap: Option<f64>, hint: Option<OverageHint>) -> OverageState {
