@@ -2,6 +2,7 @@ use super::*;
 use crate::config_file::ConfigIdentity;
 use crate::export::v1::{Export, Options};
 use crate::incidents::{Incident, ProviderStatus};
+use crate::overage::OverageState;
 use crate::refresh::RefreshCycle;
 use crate::text::{params, Localized, ParamValue};
 use crate::{Account, Config, MetricKind};
@@ -42,6 +43,27 @@ fn quota(used: f64, resets_at: DateTime<Utc>) -> Metric {
             Some(MetricWindow::Window5h),
         )
     }
+}
+
+fn cycle_end() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 11, 1, 0, 0, 0).unwrap()
+}
+
+/// The 5-hour window plus a Claude extra-usage meter in provider units
+/// (`spent` `None`: the amount is missing from the response).
+fn with_extra(spent: Option<f64>, cycle: DateTime<Utc>) -> Reading {
+    let mut extra = Metric::usage(
+        "Uso extra — utilizado",
+        0.0,
+        "unid. provedor",
+        MetricKind::Quota,
+        Some(MetricWindow::Monthly),
+    )
+    .overage();
+    extra.used = spent;
+    extra.limit = Some(50.0);
+    extra.resets_at = Some(cycle);
+    Reading::Ready(vec![quota(10.0, first_window()), extra])
 }
 
 enum Reading {
@@ -336,6 +358,57 @@ fn reading_sequences_fire_one_event_per_transition() {
     }
 }
 
+/// PRD 0023 RF5: `overage_started` on the alert edge, `overage_ended` when
+/// an active extra usage goes back to armed or a new cycle starts empty.
+#[test]
+fn extra_usage_fires_started_and_ended_on_its_edges() {
+    let mut watch = Watch::new();
+    assert!(watch.read(0, with_extra(Some(0.0), cycle_end())).is_empty());
+    let started = watch.read(5, with_extra(Some(12.5), cycle_end()));
+    assert_eq!(transitions(&started), [OverageStarted]);
+    let event = &started[0];
+    assert!(event.metric.is_none());
+    assert_eq!(event.current.overage_state, Some(OverageState::Active));
+    assert_eq!(event.current.spent, Some(12.5));
+    assert_eq!(event.current.cap, Some(50.0));
+    assert_eq!(event.current.unit.as_deref(), Some("unid. provedor"));
+    assert_eq!(event.current.currency, None);
+    assert_eq!(event.current.cycle_ends_at, Some(cycle_end()));
+    let before = event.previous.as_ref().unwrap();
+    assert_eq!(before.overage_state, Some(OverageState::Armed));
+    assert_eq!(before.spent, Some(0.0));
+    // Persisting or oscillating inside the cycle fires neither again.
+    assert!(
+        !transitions(&watch.read(8, with_extra(Some(13.0), cycle_end()))).contains(&OverageStarted)
+    );
+    // A new cycle with nothing spent ends it; the next spend starts again.
+    let next_cycle = cycle_end() + TimeDelta::days(30);
+    let ended = watch.read(40, with_extra(Some(0.0), next_cycle));
+    assert!(transitions(&ended).contains(&OverageEnded));
+    let ended = ended.iter().find(|e| e.event == OverageEnded).unwrap();
+    assert_eq!(ended.current.overage_state, Some(OverageState::Armed));
+    assert_eq!(
+        ended.previous.as_ref().unwrap().overage_state,
+        Some(OverageState::Active)
+    );
+    let again = watch.read(50, with_extra(Some(1.0), next_cycle));
+    assert!(transitions(&again).contains(&OverageStarted));
+}
+
+#[test]
+fn a_baseline_in_extra_usage_or_a_missing_amount_fires_nothing() {
+    let mut watch = Watch::new();
+    // Already active when the engine starts: only the baseline.
+    assert!(watch.read(0, with_extra(Some(9.0), cycle_end())).is_empty());
+    assert!(
+        !transitions(&watch.read(5, with_extra(Some(9.5), cycle_end()))).contains(&OverageStarted)
+    );
+    // A missing amount is unknown, neither started nor ended.
+    let unknown = watch.read(10, with_extra(None, cycle_end()));
+    assert!(!transitions(&unknown).contains(&OverageEnded));
+    assert!(unknown.iter().all(|e| e.current.spent.is_none()));
+}
+
 #[test]
 fn an_export_without_a_new_reading_fires_nothing() {
     let mut watch = Watch::new();
@@ -570,6 +643,9 @@ fn no_payload_carries_credentials_urls_or_raw_messages() {
     events.extend(watch.read(14, raw(Status::AuthenticationError)));
     watch.status(IncidentState::MajorOutage, false);
     events.extend(watch.read(25, renewed(5.0)));
+    events.extend(watch.read(30, with_extra(Some(0.0), cycle_end())));
+    events.extend(watch.read(35, with_extra(Some(3.5), cycle_end())));
+    events.extend(watch.read(40, with_extra(Some(0.0), cycle_end() + TimeDelta::days(30))));
 
     let kinds: BTreeSet<EventKind> = events.iter().map(|event| event.event).collect();
     assert_eq!(
@@ -586,6 +662,8 @@ fn no_payload_carries_credentials_urls_or_raw_messages() {
             AuthRequired,
             ProviderIncident,
             UsageUpdated,
+            OverageStarted,
+            OverageEnded,
         ]),
         "every event kind is covered"
     );

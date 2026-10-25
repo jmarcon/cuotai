@@ -225,6 +225,22 @@ impl Rule {
                 };
                 (true, current, quota(70.0))
             }
+            EventKind::OverageStarted | EventKind::OverageEnded => {
+                let state = |state, spent| Values {
+                    overage_state: Some(state),
+                    spent,
+                    unit: Some("USD".into()),
+                    currency: Some("USD".into()),
+                    ..Values::default()
+                };
+                let active = state(crate::overage::OverageState::Active, Some(0.4));
+                let armed = state(crate::overage::OverageState::Armed, Some(0.0));
+                if kind == EventKind::OverageStarted {
+                    (false, active, armed)
+                } else {
+                    (false, armed, active)
+                }
+            }
         };
         Event {
             schema: SCHEMA,

@@ -32,6 +32,7 @@ use crate::export::v1::AccountExport;
 use crate::incidents::IncidentState;
 use crate::metrics::{self, Binding, BindingReason, MetricState};
 use crate::pace::PaceSource;
+use crate::overage::{self, OverageExport, OverageState};
 use crate::providers::{SCHEMA_NOTE, TIMEOUT_NOTE, TRANSPORT_NOTE};
 use crate::text::{params, Localized, ParamValue};
 use crate::{resets, Metric, MetricWindow, Provider, Report, Status};
@@ -77,11 +78,17 @@ pub enum EventKind {
     ProviderIncident,
     /// Usage values changed since the last `usage_updated` (or the baseline).
     UsageUpdated,
+    /// PRD 0023 RF5: the account began paying for extra usage (once per
+    /// billing cycle; the edge of `AlertKind::OverageStarted`).
+    OverageStarted,
+    /// PRD 0023 RF5: an active extra usage went back to armed or disabled,
+    /// or a new billing cycle started with nothing spent.
+    OverageEnded,
 }
 
 impl EventKind {
     /// Every event, in the documented order.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 14] = [
         Self::QuotaThresholdCrossed,
         Self::QuotaExhausted,
         Self::QuotaRecovered,
@@ -94,6 +101,8 @@ impl EventKind {
         Self::AuthRequired,
         Self::ProviderIncident,
         Self::UsageUpdated,
+        Self::OverageStarted,
+        Self::OverageEnded,
     ];
 
     /// The stable name, as serialized in the payload's `event`.
@@ -111,6 +120,8 @@ impl EventKind {
             Self::AuthRequired => "auth_required",
             Self::ProviderIncident => "provider_incident",
             Self::UsageUpdated => "usage_updated",
+            Self::OverageStarted => "overage_started",
+            Self::OverageEnded => "overage_ended",
         }
     }
 
@@ -277,6 +288,31 @@ impl Event {
                 let pt = format!("Status do provedor: {}", state.text());
                 Localized::with_param(id, "state", state, pt)
             }
+            EventKind::OverageStarted => match self.current.spent.map(|spent| {
+                overage::format_amount(
+                    spent,
+                    self.current.unit.as_deref().unwrap_or(""),
+                    self.current.currency.as_deref(),
+                )
+            }) {
+                Some(amount) => {
+                    let plain = match &amount {
+                        ParamValue::Text(text) => text.clone(),
+                        ParamValue::L10n(text) => text.fallback.to_string(),
+                    };
+                    Localized::with_param(
+                        id,
+                        "amount",
+                        amount,
+                        format!("Uso extra iniciado: {plain}"),
+                    )
+                }
+                None => Localized::fixed(
+                    "events.summary.overage_started_unknown",
+                    "Uso extra iniciado",
+                ),
+            },
+            EventKind::OverageEnded => Localized::fixed(id, "Uso extra terminou"),
             EventKind::UsageUpdated => {
                 let usage = usage_text(&self.current.metrics);
                 let pt = format!("Uso atualizado: {usage}");
@@ -360,6 +396,19 @@ pub struct Values {
     /// Every metric of the reading, for `usage_updated`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metrics: Vec<MetricReading>,
+    /// Paid extra usage state, for the overage events (PRD 0023 RF5.2).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overage_state: Option<OverageState>,
+    /// Extra usage spent so far; absent when unknown, never zero.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spent: Option<f64>,
+    /// ISO 4217 code when `spent` and `cap` are money.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cap: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cycle_ends_at: Option<DateTime<Utc>>,
 }
 
 /// One metric's values in `usage_updated`.
@@ -419,6 +468,20 @@ impl Values {
             resets_at: metric.resets_at,
             ..Self::default()
         }
+    }
+
+    fn overage(report: &Report) -> Option<Self> {
+        let state = overage::assess(report)?;
+        let export = OverageExport::from(&state);
+        Some(Self {
+            overage_state: Some(export.state),
+            spent: export.spent,
+            unit: export.unit,
+            currency: export.currency,
+            cap: export.cap,
+            cycle_ends_at: export.cycle_ends_at,
+            ..Self::default()
+        })
     }
 
     fn incident(state: IncidentState) -> Self {
@@ -727,8 +790,17 @@ impl EventState {
                 }
                 // PRD 0016 RF3.2: a notice of its own, not a quota event.
                 AlertKind::SessionExpiring => continue,
-                // Handled below, with the other overage edge.
-                AlertKind::OverageStarted | AlertKind::OverageCapReached => continue,
+                AlertKind::OverageStarted => {
+                    out.push(
+                        EventKind::OverageStarted,
+                        None,
+                        Values::overage(report).unwrap_or_default(),
+                        Values::overage(&last),
+                    );
+                    continue;
+                }
+                // The cap is an alert only; the event is `overage_started`.
+                AlertKind::OverageCapReached => continue,
             };
             let metric = MetricRef {
                 label: alert.label.clone(),
@@ -737,6 +809,24 @@ impl EventState {
             out.push(kind, Some(metric), current, find(&last, &alert.label));
         }
         alerts.update(report, prefs, &crossed, now);
+        let state = |report: &Report| overage::assess(report).map(|o| o.state);
+        // Ended: it was billing and is now known to be off or empty (an
+        // unreadable amount is neither).
+        if state(&last).is_some_and(OverageState::is_billing)
+            && matches!(
+                state(report),
+                Some(OverageState::Armed | OverageState::Disabled)
+            )
+        {
+            if let Some(current) = Values::overage(report) {
+                out.push(
+                    EventKind::OverageEnded,
+                    None,
+                    current,
+                    Values::overage(&last),
+                );
+            }
+        }
         if let Some(binding) = out.next.binding.as_ref() {
             let blocked = |binding: &Binding| binding.reason == BindingReason::Exhausted;
             match track.binding.as_ref() {

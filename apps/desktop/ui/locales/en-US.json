@@ -581,6 +581,8 @@
   "settings.hooks.event.auth_required": "authentication is needed",
   "settings.hooks.event.provider_incident": "the provider's status changed",
   "settings.hooks.event.usage_updated": "usage changed (at most every 10 min)",
+  "settings.hooks.event.overage_started": "paid extra usage started (once per billing cycle)",
+  "settings.hooks.event.overage_ended": "paid extra usage ended",
   "settings.cost.title": "Local cost",
   "settings.cost.help": "Estimates, on this computer only, the tokens your command-line tools used, from their local logs. Off by default: each source first shows exactly what it will read and asks for confirmation. Conversation content is never read.",
   "settings.cost.read": "Read the {source} logs",

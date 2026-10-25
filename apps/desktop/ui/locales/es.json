@@ -581,6 +581,8 @@
   "settings.hooks.event.auth_required": "hace falta autenticarse",
   "settings.hooks.event.provider_incident": "cambió el estado del proveedor",
   "settings.hooks.event.usage_updated": "el uso cambió (como mucho cada 10 min)",
+  "settings.hooks.event.overage_started": "el uso extra de pago empezó (una vez por ciclo de facturación)",
+  "settings.hooks.event.overage_ended": "el uso extra de pago terminó",
   "settings.cost.title": "Costo local",
   "settings.cost.help": "Estima, solo en este equipo, los tokens que usaron sus herramientas de línea de comandos, a partir de sus registros locales. Desactivado por defecto: cada fuente muestra antes exactamente lo que va a leer y pide confirmación. El contenido de las conversaciones nunca se lee.",
   "settings.cost.read": "Leer registros de {source}",

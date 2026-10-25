@@ -1395,5 +1395,8 @@
   "alerts.body.overage_no_cycle": "{account}",
   "alerts.item.overage_started": "uso extra iniziato · {amount}",
   "alerts.item.overage_started_unknown": "uso extra iniziato",
-  "alerts.item.overage_cap": "budget extra esaurito"
+  "alerts.item.overage_cap": "budget extra esaurito",
+  "events.summary.overage_started": "Uso extra iniziato: {amount}",
+  "events.summary.overage_started_unknown": "Uso extra iniziato",
+  "events.summary.overage_ended": "Uso extra terminato"
 }
