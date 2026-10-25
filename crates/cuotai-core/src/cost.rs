@@ -35,6 +35,7 @@
 mod claude;
 mod codex;
 mod estimate;
+mod gemini;
 mod index;
 mod plan;
 mod prices;
@@ -78,10 +79,17 @@ pub enum SourceId {
     ClaudeCode,
     /// Codex CLI: `sessions/**/rollout-*.jsonl` rollouts.
     CodexCli,
+    /// Gemini CLI: `~/.gemini/tmp/<project>/chats/*.jsonl` recordings
+    /// (PRD 0030 RF2).
+    GeminiCli,
 }
 
 impl SourceId {
-    pub const ALL: [SourceId; 2] = [SourceId::ClaudeCode, SourceId::CodexCli];
+    pub const ALL: [SourceId; 3] = [
+        SourceId::ClaudeCode,
+        SourceId::CodexCli,
+        SourceId::GeminiCli,
+    ];
 
     /// The stable identifier (`claude_code`, `codex_cli`) of the settings,
     /// the index and the command line.
@@ -89,6 +97,7 @@ impl SourceId {
         match self {
             Self::ClaudeCode => "claude_code",
             Self::CodexCli => "codex_cli",
+            Self::GeminiCli => "gemini_cli",
         }
     }
 
@@ -97,6 +106,7 @@ impl SourceId {
         match self {
             Self::ClaudeCode => "Claude Code",
             Self::CodexCli => "Codex CLI",
+            Self::GeminiCli => "Gemini CLI",
         }
     }
 
@@ -111,6 +121,7 @@ impl SourceId {
         match self {
             Self::ClaudeCode => &[Provider::Claude],
             Self::CodexCli => &[Provider::ChatGpt],
+            Self::GeminiCli => &[Provider::GeminiAi],
         }
     }
 
@@ -125,6 +136,7 @@ impl SourceId {
         match self {
             Self::ClaudeCode => &claude::ClaudeCode,
             Self::CodexCli => &codex::CodexCli,
+            Self::GeminiCli => &gemini::GeminiCli,
         }
     }
 }

@@ -1717,7 +1717,7 @@ mod tests {
         let json = export(&config, &cycle, Options::default());
         let cost = &json["local_cost"];
         assert_eq!(cost["currency"], "USD");
-        let [claude, codex] = cost["sources"].as_array().unwrap().as_slice() else {
+        let [claude, codex, gemini] = cost["sources"].as_array().unwrap().as_slice() else {
             panic!("every source");
         };
         assert_eq!(
@@ -1725,6 +1725,7 @@ mod tests {
             (&"ready".into(), &"off".into())
         );
         assert!(codex["usage"].is_null());
+        assert_eq!(gemini["state"], "off");
         let today = &claude["usage"]["today"];
         let mystery = today["models"]
             .as_array()

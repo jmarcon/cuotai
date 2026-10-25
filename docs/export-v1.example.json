@@ -677,6 +677,22 @@
           "fallback": "Codex CLI: desligado; nada é lido."
         },
         "usage": null
+      },
+      {
+        "source": "gemini_cli",
+        "label": "Gemini CLI",
+        "providers": [
+          "gemini_ai"
+        ],
+        "state": "off",
+        "note": {
+          "id": "cost.scan.off",
+          "params": {
+            "source": "Gemini CLI"
+          },
+          "fallback": "Gemini CLI: desligado; nada é lido."
+        },
+        "usage": null
       }
     ],
     "total": {

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0030 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (`cost::*`: sources, index, prices, estimate, settings), desktop and TUI |
 | Consumers | `apps/desktop` (cost card and details, Settings → Local cost), `crates/cuotai-tui` (`--cost`, `--cost-prices`, cost panel), `export::v1` `local_cost` consumers |
 | Depends on | PRD 0015 (RF1–RF4: sources and consent, incremental index, price table, display); PRD 0029 (RF1: account `id`) for RF1 |
@@ -17,12 +17,12 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | vNEXT | Core and CLI delivered with the legacy account key (`provider:name`; PRD 0029 RF1 is not in yet): `plans` in `cost/settings.json`, `cost::plan_values` (cycle day, same-currency ratio, "at your rate", one combined line per source, no cross-currency sum), `Scanner::plan_values`, `--cost-plan`, `--cost-plan-clear` and the lines in `--cost`. Remaining: the desktop plan inputs and line, the TUI panel line, and moving the key to the account `id`. |
-| RF2 | — | Not delivered: each source needs its public format reference confirmed first (owner decision per source). |
+| RF1 | vNEXT | Delivered. Core and CLI: `plans` in `cost/settings.json`, `cost::plan_values` (cycle day, same-currency ratio, "at your rate", one combined line per source, no cross-currency sum), `Scanner::plan_values`, `--cost-plan`, `--cost-plan-clear`. Plans are keyed by the stable account id (PRD 0029 RF2); `SettingsStore::migrate_plans` moves a legacy `provider:name` key to the id once the configured accounts are known (desktop plans view, TUI panel, `--cost` with a configuration). Desktop: Settings → Local cost → Plans and second currency (one row per account: price, ISO currency, cycle day; shared `row()` with search keywords), the plan line on the cost card and details and an "Add plan price" link while none exists (`cost_plans`, `cost_set_plan`). TUI: the plan line in the account details; typing a plan stays `--cost-plan` (a TUI form is not built). |
+| RF2 | vNEXT | Gemini CLI delivered (owner decision of 2026-10-25: only sources with a confirmed public format reference, numbers only). Evidence: the Gemini CLI session management guide says sessions live in `~/.gemini/tmp/<project_hash>/chats/`, and `chatRecordingService.ts` (google-gemini/gemini-cli) writes JSON Lines with a `sessionId` header and message records carrying `id`, `timestamp`, `type`, `model` and `tokens` (`input`, `output`, `cached`, `thoughts`, `tool`, `total`); both were read on 2026-10-25 and are quoted in the module doc of `cost/gemini.rs`. Same consent disclosure, retention and erase as the other sources; `content`, `thoughts` and `toolCalls` are never deserialized; a fixture with content placeholders proves only numbers come out. Gemini prices are not in the embedded table (unverified), so its cost reads unknown until the person adds a `pricing.json` entry. OpenCode and Qwen Code stay undelivered: no stable public format reference was confirmed (OpenCode has moved between JSON files and SQLite). |
 | RF3 | vNEXT | `PriceTable::age`, `CostSummary` `prices_effective`/`prices_age_days`/`prices_age` (text from 60 days), shown in `--cost`, `--cost-prices`, the TUI details and the desktop details; additive in `export::v1`. |
 | RF4 | vNEXT | `unpriced_models`/`unpriced` in the summary, shown in `--cost`, the TUI details and the desktop details; `--cost-prices --template`. |
 | RF5 | vNEXT | RF5.1–RF5.3 delivered: the Claude parser splits `cache_creation.ephemeral_5m/1h_input_tokens` (`Tokens::cache_write_1h`), migration 2 adds `usage.cache_write_1h` and forgets Claude files so the next scan corrects history once, price tables accept an optional `cache_write_1h` (built-in Claude rows at 2x input) and a model without it has an unknown cost for 1-hour tokens. Desktop (tooltip and totals) and TUI (`--cost-prices` column) show the new field. |
-| RF6 | vNEXT | Core and CLI delivered: `display_currency` in the settings, `DisplayCurrency::text` ("at your rate", age, update after 30 days), `--cost-currency CODE RATE` / `off`, shown under the total in `--cost`; the export stays USD-only. Remaining: the desktop Settings → Local cost input and the amount lines on the desktop and TUI cards. |
+| RF6 | vNEXT | Delivered. Core and CLI: `display_currency` in the settings, `DisplayCurrency::text` ("at your rate", age, update after 30 days), `--cost-currency CODE RATE` / `off`. Desktop: the rate row in Settings → Local cost → Plans and second currency, a converted amount under each tile and the "at your rate" line on the card and details (display only; the export stays USD-only). TUI: the same line under the period in the account details. |
 | RF7 | vNEXT | RF7.1 evidence (fixture `tests/fixtures/cost/claude_streamed_numbers.jsonl`, finding in the `claude.rs` module doc): in 19,918 local assistant lines, 507 of 9,525 `message.id`+`requestId` keys repeat with differing `output_tokens` (for example 3, 3, 1880): first-wins kept partial counts. RF7.2 delivered: `seen` keeps the accepted line's counts and a later line applies only the growth. |
 | RF8 | vNEXT | README, `docs/advanced.md`, `docs/tui.md`, `docs/export-v1.md` and `docs/architecture.md` updated for what is delivered. |
 
@@ -181,3 +181,5 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 | Topic | Decision |
 |---|---|
 | Where plan prices live | In the machine-local `cost/settings.json` (RF1.1), never in the TOML. |
+| Which new log source first | Gemini CLI, because its recorder format is documented in the tool's public repository (2026-10-25, owner decision: pick only sources with a confirmed public format reference). OpenCode and Qwen Code wait for a stable reference. |
+| Typing a plan in the TUI | Kept as `--cost-plan` (and `--cost-currency`); the interactive TUI shows the lines but has no form (2026-10-25). |

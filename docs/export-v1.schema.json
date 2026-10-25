@@ -475,7 +475,7 @@
       "type": "object",
       "required": ["source", "label", "providers", "state", "note", "usage"],
       "properties": {
-        "source": { "anyOf": [{ "enum": ["claude_code", "codex_cli"] }, { "type": "string" }], "description": "New sources add values." },
+        "source": { "anyOf": [{ "enum": ["claude_code", "codex_cli", "gemini_cli"] }, { "type": "string" }], "description": "New sources add values." },
         "label": { "type": "string" },
         "providers": { "type": "array", "items": { "$ref": "#/$defs/Provider" }, "description": "The accounts of these providers show this source." },
         "state": { "anyOf": [{ "enum": ["off", "ready", "partial", "no_logs", "no_access", "not_read"] }, { "type": "string" }] },
