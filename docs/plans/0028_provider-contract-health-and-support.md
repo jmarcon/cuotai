@@ -18,11 +18,11 @@
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | vNEXT | Delivered for the shared JSON decoder (`providers::json`): `diagnostic::Diagnostic`, `Report::diagnostic`, the details note and the additive `export::v1` `failure` object. Adapters that read a `Value` field by field still report no path. |
-| RF2 | vNEXT | Core `support::issue_draft` and `cuotai --report-problem ACCOUNT` delivered. Desktop preview (RF2.3) and the TUI details key (RF2.4) are pending. |
+| RF2 | vNEXT | Delivered: core `support::issue_draft`, `cuotai --report-problem ACCOUNT`, the TUI details key `b` (RF2.4), the desktop preview dialog in a non-ready account's details and in Settings › About (RF2.3, the link opens only through the project's issue-form allow-list), and the canary's drafts with the shape diff (RF2.5). The install channel is the detected one; the incident flag stays `unknown` until PRD 0011 feeds it. |
 | RF3 | vNEXT | Delivered: generated provider dropdown with a drift test and the new form fields. |
-| RF4 | — | Proposed (rewritten on 2026-10-23: local canary instead of a CI canary with secrets). |
-| RF5 | — | Proposed. |
-| RF6 | vNEXT | Delivered: per-interface `verified_on`, `access-staleness` xtask with the CI warning and the non-required 180-day job, `access.risk.subscription_token`, and the core age text. The desktop "Verified N months ago" visual is pending. |
+| RF4 | vNEXT | Delivered in part: `cuotai --canary [--out DIR] [--dry-run] [--canary-open] [--canary-include-metered]`, the pure `cuotai_core::canary` (shape records, drift, report, drafts, evidence list, 30 private runs) with seeded-secret tests, and `docs/canary.md` (RF4.1–RF4.4, RF4.6, RF4.7). Pending: the response fingerprint of a successful answer (RF4.1), the status-component check (RF4.5, needs PRD 0011 sources), `cargo xtask access-verified --apply` for the evidence list, and the dedicated CI dry-run job (RF4.8; the unit tests of the same logic run in the normal CI jobs). |
+| RF5 | vNEXT | Delivered: `cargo xtask anonymize-fixture --provider SLUG [--perturb F] IN.json`, with a secret scan that refuses the output. The "decodes with its adapter" check is covered with a local type, since xtask does not depend on the core. |
+| RF6 | vNEXT | Delivered: per-interface `verified_on`, `access-staleness` xtask with the CI warning and the non-required 180-day job, `access.risk.subscription_token`, and the core age text. The desktop "Verified N months ago" chip (DS-CMP-VER-1) is delivered in the account details only; the add-account flow shows no integration status. |
 | RF7 | — | Proposed. |
 | RF8 | — | Proposed. |
 | RF9 | — | Proposed. |
