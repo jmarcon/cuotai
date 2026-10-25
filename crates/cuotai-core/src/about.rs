@@ -162,6 +162,34 @@ static LIBRARIES: &[Library] = &[
         &[Core],
     ),
     lib(
+        "libc",
+        "MIT OR Apache-2.0",
+        "https://github.com/rust-lang/libc",
+        Role::Runtime,
+        &[Core],
+    ),
+    lib(
+        "objc2",
+        "MIT",
+        "https://github.com/madsmtm/objc2",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
+        "objc2-app-kit",
+        "Zlib OR Apache-2.0 OR MIT",
+        "https://github.com/madsmtm/objc2",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
+        "objc2-foundation",
+        "MIT",
+        "https://github.com/madsmtm/objc2",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
         "rand",
         "MIT OR Apache-2.0",
         "https://github.com/rust-random/rand",
@@ -314,6 +342,13 @@ static LIBRARIES: &[Library] = &[
         "uuid",
         "Apache-2.0 OR MIT",
         "https://github.com/uuid-rs/uuid",
+        Role::Runtime,
+        &[Core],
+    ),
+    lib(
+        "windows-sys",
+        "MIT OR Apache-2.0",
+        "https://github.com/microsoft/windows-rs",
         Role::Runtime,
         &[Core],
     ),
@@ -473,15 +508,23 @@ mod tests {
     use std::path::Path;
 
     /// Names under `[dependencies]`, `[dev-dependencies]` and
-    /// `[build-dependencies]` (workspace-inherited ones included), excluding
+    /// `[build-dependencies]`, top-level or per target (workspace-inherited
+    /// ones included), excluding
     /// Cuotai's own crates.
     fn declared(manifest: &Path) -> Option<BTreeSet<String>> {
         let text = std::fs::read_to_string(manifest).ok()?;
         let doc: toml::Table = text.parse().ok()?;
         let mut names = BTreeSet::new();
-        for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
-            if let Some(table) = doc.get(section).and_then(|v| v.as_table()) {
-                names.extend(table.keys().filter(|k| !k.starts_with("cuotai")).cloned());
+        // Platform sections (`[target.'cfg(..)'.dependencies]`) count too.
+        let mut tables = vec![&doc];
+        if let Some(targets) = doc.get("target").and_then(|v| v.as_table()) {
+            tables.extend(targets.values().filter_map(|v| v.as_table()));
+        }
+        for table in tables {
+            for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+                if let Some(deps) = table.get(section).and_then(|v| v.as_table()) {
+                    names.extend(deps.keys().filter(|k| !k.starts_with("cuotai")).cloned());
+                }
             }
         }
         Some(names)
