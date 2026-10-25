@@ -1889,8 +1889,12 @@ impl Wizard {
             let unchanged = self
                 .editing
                 .and_then(|i| self.base.accounts.get(i))
-                .is_some_and(|before| before == account);
-            let tested = self.aggregator_ok.as_deref() == Some(account);
+                // The id an edit settles (PRD 0029) is no change of the instance.
+                .is_some_and(|before| before.same_settings(account));
+            let tested = self
+                .aggregator_ok
+                .as_deref()
+                .is_some_and(|ok| ok.same_settings(account));
             if !unchanged && !tested {
                 self.error = None;
                 self.test_then_save = true;

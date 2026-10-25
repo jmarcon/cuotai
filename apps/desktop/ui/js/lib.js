@@ -146,7 +146,7 @@ export const setMotion = async (motion) => { await call("set_motion", { motion }
  *  grouping (and pace). `localStorage` only mirrors them so the <head> script can paint before the first IPC answer;
  *  no window listens to `storage` events for them any more. */
 export const setPreference = async (key, value) => { await call("set_preference", { key, value }); mirrorPreference(key, value); };
-const MIRROR_KEYS = { theme: "cuotai.theme", theme_mode: "cuotai.themeMode", sort: "cuotai.sort", group_recharging: "cuotai.group-recharging", motion: "cuotai.motion", locale: "cuotai.locale" };
+const MIRROR_KEYS = { theme: "cuotai.theme", theme_mode: "cuotai.themeMode", sort: "cuotai.sort", group_recharging: "cuotai.group-recharging", motion: "cuotai.motion", locale: "cuotai.locale", aggregators_in_all: "cuotai.aggregators-in-all" };
 const mirrorPreference = (key, value) => { if (MIRROR_KEYS[key]) put(MIRROR_KEYS[key], key === "group_recharging" ? (value ? "on" : "off") : String(value)); };
 /** The values the pre-RF7.2 versions kept in `localStorage`, for the one-time migration. */
 const legacyLocalValues = () => {
@@ -1597,7 +1597,7 @@ const demo = {
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
-    theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), group_recharging: get(GROUP_KEY, "off") === "on", locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
+    theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), aggregators_in_all: get("cuotai.aggregators-in-all", "grouped"), group_recharging: get(GROUP_KEY, "off") === "on", locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
@@ -1606,7 +1606,7 @@ const demo = {
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
   set_preference: async ({ key, value }) => {
-    const ok = { theme: typeof value === "string" && /^[\w.-]{1,64}$/.test(value), theme_mode: THEME_MODE_IDS.includes(value), sort: SORT_MODES.includes(value), group_recharging: typeof value === "boolean" };
+    const ok = { theme: typeof value === "string" && /^[\w.-]{1,64}$/.test(value), theme_mode: THEME_MODE_IDS.includes(value), sort: SORT_MODES.includes(value), group_recharging: typeof value === "boolean", aggregators_in_all: AGG_MODES.includes(value) };
     if (!ok[key]) throw "invalid_preference";
     mirrorPreference(key, value);
     await emitSettingsChanged(key);
@@ -1904,16 +1904,28 @@ async function applyPreferences(s, { boot = false } = {}) {
   if (THEME_MODE_IDS.includes(s.theme_mode) && s.theme_mode !== theme.mode) { theme.mode = s.theme_mode; changed.add("theme_mode"); }
   if (SORT_MODES.includes(s.sort) && s.sort !== sortMode) { sortMode = s.sort; changed.add("sort"); }
   if (typeof s.group_recharging === "boolean" && s.group_recharging !== groupRecharging) { groupRecharging = s.group_recharging; changed.add("group_recharging"); }
+  if (AGG_MODES.includes(s.aggregators_in_all) && s.aggregators_in_all !== aggMode) { aggMode = s.aggregators_in_all; changed.add("aggregators_in_all"); }
   applyMotion(s.motion);
   if (was.motion !== (s.motion || "system")) changed.add("motion");
   applyPace(s.show_pace);
   if (was.pace !== showPace) changed.add("show_pace");
-  for (const [key, value] of [["theme", theme.id], ["theme_mode", theme.mode], ["sort", sortMode], ["group_recharging", groupRecharging]]) mirrorPreference(key, value);
+  for (const [key, value] of [["theme", theme.id], ["theme_mode", theme.mode], ["sort", sortMode], ["group_recharging", groupRecharging], ["aggregators_in_all", aggMode]]) mirrorPreference(key, value);
   if (s.locale && boot) mirrorPreference("locale", s.locale); // the language loads right after: it picks the mirror up
   else if (s.locale && s.locale !== currentLocale()) { await setLocale(s.locale); changed.add("locale"); }
   return changed;
 }
 const THEME_MODE_IDS = ["system", "light", "dark"];
+// PRD 0036 RF8.3 under PRD 0020 RF7.2: how the popover's "All" shows aggregators, a desktop.json preference whose
+// `localStorage` copy is only the mirror for the first paint.
+export const AGG_MODES = ["grouped", "listed", "hidden"];
+let aggMode = (() => { const v = get("cuotai.aggregators-in-all", "grouped"); return AGG_MODES.includes(v) ? v : "grouped"; })();
+export const aggregatorsInAll = () => aggMode;
+export async function setAggregatorsInAll(mode) {
+  aggMode = AGG_MODES.includes(mode) ? mode : "grouped";
+  await setPreference("aggregators_in_all", aggMode); // the shell tells every window (RF7.1)
+}
+/** Calls `cb` when another window changed the aggregator display choice. */
+export const onAggregatorModeChange = (cb) => onPreferencesChanged((changed) => { if (changed.has("aggregators_in_all")) cb(); });
 const prefListeners = new Set();
 let prefHooked = false;
 /** Calls `cb(changedKeys)` when another window (or the shell) changed a preference that differs from this one's. */

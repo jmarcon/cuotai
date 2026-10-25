@@ -90,6 +90,10 @@ struct Stored {
     /// The "Recharging" group (PRD 0020 RF7.2); absent = off. Only `true` is stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     group_recharging: Option<bool>,
+    /// How the popover's "All" shows aggregators (PRD 0036 RF8.3, a PRD
+    /// 0020 RF7.2 preference); absent = `grouped`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    aggregators_in_all: Option<String>,
     /// One-time migrations already done, e.g. `{"local_storage": 1}` (PRD 0020 RF7.2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     migrations: Option<serde_json::Value>,
@@ -1154,6 +1158,9 @@ fn valid_locale(code: &str) -> bool {
 
 /// Stores one of the interface preferences that live here since PRD 0020 RF7.2;
 /// the defaults remove the key. Error: `invalid_preference`.
+/// PRD 0036 RF8.3: how the popover's "All" shows aggregators.
+const AGGREGATOR_MODES: [&str; 3] = ["grouped", "listed", "hidden"];
+
 fn apply_preference(
     s: &mut Stored,
     key: &str,
@@ -1179,12 +1186,19 @@ fn apply_preference(
             Some(on) => s.group_recharging = on.then_some(true),
             None => return Err("invalid_preference"),
         },
+        "aggregators_in_all" => match text {
+            Some(v) if AGGREGATOR_MODES.contains(&v) => {
+                s.aggregators_in_all = (v != "grouped").then(|| v.to_owned())
+            }
+            _ => return Err("invalid_preference"),
+        },
         _ => return Err("invalid_preference"),
     }
     Ok(())
 }
 
-/// Saves one interface preference (`theme`, `theme_mode`, `sort`, `group_recharging`).
+/// Saves one interface preference (`theme`, `theme_mode`, `sort`,
+/// `group_recharging`, `aggregators_in_all`).
 pub fn save_preference(key: &str, value: &serde_json::Value) -> Result<(), &'static str> {
     let file = settings_file().ok_or("unwritable")?;
     apply_preference(&mut Stored::default(), key, value)?;
@@ -1222,6 +1236,9 @@ fn migrate_local(s: &mut Stored, old: &BTreeMap<String, String>) {
     if s.group_recharging.is_none() && old.get("group_recharging").map(String::as_str) == Some("on")
     {
         s.group_recharging = Some(true);
+    }
+    if s.aggregators_in_all.is_none() {
+        let _ = apply_preference(s, "aggregators_in_all", &text("aggregators_in_all"));
     }
     if s.motion.is_none() {
         if let Some(m) = old.get("motion").filter(|m| MOTIONS.contains(&m.as_str())) {
@@ -1315,6 +1332,8 @@ pub struct SettingsView {
     theme_mode: &'static str,
     sort: &'static str,
     group_recharging: bool,
+    /// PRD 0036 RF8.3: `grouped`, `listed` or `hidden`.
+    aggregators_in_all: &'static str,
     locale: Option<String>,
     local_storage_migrated: bool,
     /// Days of measurement history kept, and the accepted range.
@@ -1373,6 +1392,10 @@ pub fn view() -> SettingsView {
             .find(|m| stored.sort.as_deref() == Some(m))
             .unwrap_or("custom"),
         group_recharging: stored.group_recharging == Some(true),
+        aggregators_in_all: AGGREGATOR_MODES
+            .into_iter()
+            .find(|m| stored.aggregators_in_all.as_deref() == Some(m))
+            .unwrap_or("grouped"),
         locale: stored.locale.clone().filter(|l| valid_locale(l)),
         local_storage_migrated: migrated_of(&stored),
         history_days: retention_of(&stored).keep_days(),
@@ -2055,5 +2078,22 @@ mod tests {
                 "{bad:?}"
             );
         }
+    }
+
+    /// PRD 0036 RF8.3 under PRD 0020 RF7.2: the aggregator display choice
+    /// is a desktop.json preference; the default is not stored and an old
+    /// `localStorage` value migrates once.
+    #[test]
+    fn aggregators_in_all_is_a_stored_preference() {
+        let mut s = Stored::default();
+        apply_preference(&mut s, "aggregators_in_all", &"listed".into()).unwrap();
+        assert_eq!(s.aggregators_in_all.as_deref(), Some("listed"));
+        apply_preference(&mut s, "aggregators_in_all", &"grouped".into()).unwrap();
+        assert_eq!(s.aggregators_in_all, None);
+        assert!(apply_preference(&mut s, "aggregators_in_all", &"nope".into()).is_err());
+        let mut fresh = Stored::default();
+        let old = BTreeMap::from([("aggregators_in_all".to_string(), "hidden".to_string())]);
+        migrate_local(&mut fresh, &old);
+        assert_eq!(fresh.aggregators_in_all.as_deref(), Some("hidden"));
     }
 }

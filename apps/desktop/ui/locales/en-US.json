@@ -151,6 +151,7 @@
   "settings.kw.tray-style": "menu bar style meters logos percent icon tray",
   "settings.kw.tray-colored": "menu bar color colored monochrome tray",
   "settings.kw.tray-auto": "menu bar accounts automatic selection choose tray",
+  "settings.kw.agg-in-all": "9router connections aggregator all list group hide",
   "settings.kw.exhaustion": "exhausted empty out of quota alert",
   "settings.kw.recovery": "recovered back available again alert",
   "settings.kw.test": "test notification permission send",

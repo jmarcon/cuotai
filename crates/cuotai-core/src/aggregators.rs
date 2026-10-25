@@ -96,6 +96,8 @@ pub fn sub_account_name(parent: &str, sub_id: &str) -> String {
 /// The keyed account of `sub` (see [`SubUnit::account`]).
 pub fn sub_account(parent: &Account, sub: &SubReport) -> Account {
     Account {
+        // PRD 0029: the connection's state follows the aggregator's id.
+        id: Some(crate::AccountId::connection(&parent.state_key(), &sub.id)),
         name: sub_account_name(&parent.name, &sub.id),
         provider: parent.provider,
         credential_env: None,
@@ -110,6 +112,7 @@ pub fn sub_account(parent: &Account, sub: &SubReport) -> Account {
 /// metrics, notes and time; never any sub-report of its own.
 pub fn sub_as_report(parent: &Report, sub: &SubReport) -> Report {
     Report {
+        account_id: Some(crate::AccountId::connection(&parent.state_key(), &sub.id)),
         account: sub_account_name(&parent.account, &sub.id),
         provider: parent.provider,
         checked_at: sub.checked_at,
@@ -124,6 +127,9 @@ pub fn sub_as_report(parent: &Report, sub: &SubReport) -> Report {
         source: parent.source.clone(),
         session_expires_at: None,
         sub_reports: Vec::new(),
+        diagnostic: None,
+        as_of: sub.as_of,
+        overage_hint: None,
     }
 }
 
@@ -553,6 +559,7 @@ mod tests {
 
     fn router_account() -> Account {
         Account {
+            id: None,
             name: "home".into(),
             provider: Provider::NineRouter,
             credential_env: Some("NINEROUTER_PASSWORD".into()),

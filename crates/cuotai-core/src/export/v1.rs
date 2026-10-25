@@ -147,6 +147,9 @@ pub struct AccountExport {
 /// connection's own reading.
 #[derive(Debug, Clone, Serialize)]
 pub struct SubAccountExport {
+    /// `<aggregator id>/<sub id>` (PRD 0029: survives a rename of the
+    /// aggregator account).
+    pub id: String,
     /// `<aggregator key>/<sub id>`.
     pub key: String,
     /// The connection's label (masked by the aggregator, redacted here).
@@ -204,6 +207,26 @@ pub struct PoolExport {
     pub summary: Localized,
 }
 
+/// PRD 0033 RF2: the metrics of a preserved reading at `now`, each expired
+/// one collapsed and marked.
+fn last_good_metrics(metrics: &[crate::Metric], now: DateTime<Utc>) -> Vec<LastGoodMetric> {
+    metrics
+        .iter()
+        .map(|metric| {
+            let expired = metric.is_expired(now);
+            LastGoodMetric {
+                metric: if expired {
+                    metric.collapsed()
+                } else {
+                    metric.clone()
+                },
+                expired,
+                renewed_waiting: expired.then(|| metric.renewed_waiting()).flatten(),
+            }
+        })
+        .collect()
+}
+
 impl SubAccountExport {
     /// This connection as an [`AccountExport`] of the aggregator `parent`,
     /// for the engines that take one ([`crate::events::diff`]): the mapped
@@ -211,20 +234,30 @@ impl SubAccountExport {
     pub fn as_account(&self, parent: &AccountExport) -> AccountExport {
         AccountExport {
             index: parent.index,
+            id: self.id.clone(),
             key: self.key.clone(),
             name: self.name.clone(),
+            named: true,
             provider: self.provider.unwrap_or(parent.provider),
             email: None,
             class: self.class,
             report: self.report.clone(),
             age_seconds: self.age_seconds,
+            data_age_seconds: None,
             freshness: self.freshness,
             clock_adjusted: self.clock_adjusted,
             stale: self.stale,
+            showing_last_good: self.last_good.is_some(),
             last_good: self.last_good.clone(),
             binding: self.binding.clone(),
             pace: self.pace.clone(),
             access: parent.access.clone(),
+            failure: None,
+            overage: self
+                .report
+                .as_ref()
+                .and_then(crate::overage::assess)
+                .map(|state| OverageExport::from(&state)),
             incident: self.incident.clone(),
             sub_accounts: Vec::new(),
             aggregator: None,
@@ -468,6 +501,7 @@ impl SubScope<'_> {
         let (interval, now) = (self.interval, self.now);
         let age = |at| freshness::age(at, now).as_secs();
         SubAccountExport {
+            id: format!("{}/{}", self.account.state_key(), sub.id),
             key: format!("{}/{}", self.parent_key, sub.id),
             name: scrub.text(&sub.label),
             provider: sub.provider,
@@ -486,7 +520,7 @@ impl SubScope<'_> {
             last_good: last_good.map(|good| LastGood {
                 checked_at: good.checked_at,
                 age_seconds: age(good.checked_at),
-                metrics: good.metrics.clone(),
+                metrics: last_good_metrics(&good.metrics, now),
             }),
             binding: reading.and_then(metrics::binding),
             pace: reading.map_or_else(Vec::new, |report| {
@@ -654,8 +688,6 @@ impl Limits {
                     key: account.key.clone(),
                     name: account.name.clone(),
                     named: account.named,
-                    key: account.key,
-                    name: account.name,
                     provider: account.provider,
                     class: account.class,
                     binding: account.binding,
@@ -817,22 +849,7 @@ fn account_export(
         last_good: last_good.map(|reading| LastGood {
             checked_at: reading.checked_at,
             age_seconds: age(reading.checked_at),
-            metrics: reading
-                .metrics
-                .iter()
-                .map(|metric| {
-                    let expired = metric.is_expired(now);
-                    LastGoodMetric {
-                        metric: if expired {
-                            metric.collapsed()
-                        } else {
-                            metric.clone()
-                        },
-                        expired,
-                        renewed_waiting: expired.then(|| metric.renewed_waiting()).flatten(),
-                    }
-                })
-                .collect(),
+            metrics: last_good_metrics(&reading.metrics, now),
         }),
         binding: report.and_then(metrics::binding),
         pace: report.map_or_else(Vec::new, |report| {

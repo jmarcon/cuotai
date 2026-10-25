@@ -895,13 +895,14 @@ fn aggregator_views(
                 let mut view = if ready.is_some() {
                     let mut view =
                         report_view(index, &reading, &keyed, next_refresh_at_ms, None, 0, &[]);
-                    view.last_good = last_good_sub(&sub.id).map(|good| last_good_view(&good));
+                    view.last_good =
+                        last_good_sub(&sub.id).map(|good| last_good_view(&good, chrono::Utc::now()));
                     view
                 } else {
                     let mut view =
                         pending_view(index, &reading, &keyed, next_refresh_at_ms, None, 0);
                     view.last_good =
-                        (sub.status == Status::Ready).then(|| last_good_view(&reading));
+                        (sub.status == Status::Ready).then(|| last_good_view(&reading, chrono::Utc::now()));
                     view
                 };
                 view.provider = sub.provider.unwrap_or(parent.provider);
@@ -2591,8 +2592,12 @@ impl Backend {
                 let unchanged = input
                     .index
                     .and_then(|index| config.accounts.get(index))
-                    .is_some_and(|before| *before == account);
-                if !unchanged && aggregator_tested.as_ref() != Some(&account) {
+                    .is_some_and(|before| before.same_settings(&account));
+                if !unchanged
+                    && !aggregator_tested
+                        .as_ref()
+                        .is_some_and(|ok| ok.same_settings(&account))
+                {
                     return Err(l10n_to_json(&cuotai_core::text::Localized::fixed(
                         "desktop.account.aggregator_untested",
                         "Teste a conexão com sucesso antes de salvar.",
@@ -4945,12 +4950,14 @@ mod tests {
         );
         let keys: Vec<_> = views.iter().map(|v| v.account_key.as_str()).collect();
         // Grouped by upstream, in the order of first appearance.
+        // PRD 0029: each connection is keyed by the aggregator's id.
+        let id = config.accounts[0].state_key();
         assert_eq!(
             keys,
             [
-                "nine_router:home/a1",
-                "nine_router:home/b2",
-                "nine_router:home/g7"
+                format!("{id}/a1"),
+                format!("{id}/b2"),
+                format!("{id}/g7")
             ]
         );
         assert!(views.iter().all(|v| v.index == 0));
@@ -6047,6 +6054,7 @@ mod tests {
         let store = Arc::new(MemoryStore::default());
         let backend = build_backend(store, Vec::new()).await;
         let input = || AccountInput {
+            peer_name: Default::default(),
             index: None,
             provider: Provider::NineRouter,
             name: "home".into(),

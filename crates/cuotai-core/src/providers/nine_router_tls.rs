@@ -119,6 +119,7 @@ fn builder(timeout: Duration) -> reqwest::ClientBuilder {
 
 fn config_error(id: &'static str, message: &str) -> QueryError {
     QueryError {
+        diagnostic: None,
         status: Status::NeedsConfiguration,
         note: Localized::fixed(id, message),
     }
@@ -198,6 +199,7 @@ fn tls_config(verifier: Arc<dyn ServerCertVerifier>) -> Result<rustls::ClientCon
 /// certificate. Authentication-class: the user must look at it.
 pub(crate) fn changed() -> QueryError {
     QueryError {
+        diagnostic: None,
         status: Status::AuthenticationError,
         note: Localized::fixed(
             CHANGED_NOTE,

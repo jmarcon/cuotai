@@ -62,18 +62,19 @@
       "type": "object",
       "description": "One upstream connection of an aggregator account; fields mean what they mean in AccountExport, evaluated on the connection's own reading.",
       "required": [
-        "key", "name", "provider", "upstream", "class", "report", "age_seconds", "freshness", "clock_adjusted",
+        "id", "key", "name", "provider", "upstream", "class", "report", "age_seconds", "freshness", "clock_adjusted",
         "stale", "last_good", "binding", "pace", "enabled_upstream", "duplicate_of", "plan", "via", "incident"
       ],
       "properties": {
+        "id": { "type": "string", "description": "`<aggregator id>/<sub id>` (PRD 0029); survives a rename of the aggregator account." },
         "key": { "type": "string", "description": "<aggregator key>/<sub id>." },
         "name": { "type": "string", "description": "Connection label; an e-mail is redacted unless identity is included." },
         "provider": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Provider" }], "description": "The mapped Cuotai provider; null for an upstream Cuotai does not know." },
         "upstream": { "type": "string", "description": "The aggregator's provider slug, verbatim." },
-        "class": { "enum": ["available", "exhausted", "unmeasured"] },
+        "class": { "anyOf": [{ "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }] },
         "report": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Report" }], "description": "The connection's current reading; null while the instance failed." },
         "age_seconds": { "type": ["integer", "null"], "minimum": 0 },
-        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }] },
+        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }, { "type": "string" }] },
         "clock_adjusted": { "type": "boolean" },
         "stale": { "type": "boolean", "description": "true exactly when last_good is present." },
         "last_good": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/LastGood" }] },
@@ -116,7 +117,8 @@
         "schema": { "const": 1 },
         "generated_at": { "type": "string", "format": "date-time" },
         "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountLimit" }, "description": "In configuration order; each aggregator account is followed by its connections (with parent)." },
-        "best": { "type": "array", "items": { "$ref": "#/$defs/BestAccount" }, "description": "PRD 0036 RF6.5: per provider, the available account with the most room now; omitted when none is available." }
+        "best": { "type": "array", "items": { "$ref": "#/$defs/BestAccount" }, "description": "PRD 0036 RF6.5: per provider, the available account with the most room now; omitted when none is available." },
+        "summary": { "$ref": "#/$defs/LimitsSummary" }
       }
     },
     "BestAccount": {

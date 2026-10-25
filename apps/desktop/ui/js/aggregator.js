@@ -124,22 +124,7 @@ export function instanceInfoHtml(r) {
 
 // PRD 0036 RF8.3: how "All" shows aggregators — one grouped row (default), their connections listed with the other
 // accounts, or nothing. A per-device display choice, mirrored across windows like the "Recharging" group.
-export const AGG_MODES = ["grouped", "listed", "hidden"];
-const AGG_KEY = "cuotai.aggregators-in-all";
-const read = () => { try { return localStorage.getItem(AGG_KEY); } catch { return null; } };
-let aggMode = AGG_MODES.includes(read()) ? read() : "grouped";
-export const aggregatorsInAll = () => aggMode;
-export function setAggregatorsInAll(mode) {
-  aggMode = AGG_MODES.includes(mode) ? mode : "grouped";
-  try { localStorage.setItem(AGG_KEY, aggMode); } catch { /* the choice lasts for this window */ }
-}
-export function onAggregatorModeChange(cb) {
-  addEventListener("storage", (e) => {
-    if (e.key !== AGG_KEY) return;
-    aggMode = AGG_MODES.includes(e.newValue) ? e.newValue : "grouped";
-    cb();
-  });
-}
+export { AGG_MODES, aggregatorsInAll, onAggregatorModeChange, setAggregatorsInAll } from "./lib.js";
 
 /** Ring of an aggregator tile: the share of active connections with room left. */
 export const poolPct = (r) => (r.aggregator.total ? (r.aggregator.available / r.aggregator.total) * 100 : null);

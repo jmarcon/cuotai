@@ -32,7 +32,9 @@ export function bind(root, ctx) {
   root.querySelector("#order-binding").onchange = (e) => { setSort(e.target.checked ? "binding" : "custom"); toast(); };
   root.querySelector("#group-recharging").onchange = (e) => { setGroupRecharging(e.target.checked); toast(); };
   // PRD 0036 RF8.3: how the popover's "All" shows 9router connections (a per-device display choice).
-  root.querySelector("#agg-in-all").onchange = (e) => { setAggregatorsInAll(e.target.value); toast(); ctx.changed("aggregators_in_all"); };
+  root.querySelector("#agg-in-all").onchange = (e) => setAggregatorsInAll(e.target.value).then(
+    () => { rowError(e.target, ""); toast(); ctx.changed("aggregators_in_all"); },
+    (x) => { e.target.value = aggregatorsInAll(); rowError(e.target, errorText(x)); });
   // PRD 0007 RF3.4: saved in desktop.json; on failure the switch goes back to the saved value.
   root.querySelector("#show-pace").onchange = (e) => setShowPace(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("show_pace"); },

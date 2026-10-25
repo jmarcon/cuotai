@@ -294,8 +294,16 @@ impl Notices {
     ) -> Vec<AlertEvent> {
         // PRD 0036 RF6.4: an aggregator alerts per pool unless the user
         // chose each connection for it.
-        let mode = self.alerts.pool_mode(&next.account_key());
-        alerts::evaluate_units(prev, next, &self.evaluator, self.ledger.alerts(), now, mode)
+        let mode = self.alerts.pool_mode(&next.state_key());
+        alerts::evaluate_units(
+            prev,
+            next,
+            &self.evaluator,
+            self.ledger.alerts(),
+            now,
+            mode,
+            None,
+        )
     }
 
     /// Remember `next`, the reading the cycle applied, with the `events`
@@ -953,6 +961,9 @@ mod tests {
     #[test]
     fn an_aggregator_alerts_per_pool_by_default_or_per_connection_by_choice() {
         let cfg = router_config();
+        // PRD 0029: the aggregator and its connections are keyed by its id.
+        let id = cfg.accounts[0].state_key();
+        let conn = format!("{id}/a");
         let fake = FakeNotifier::default();
         let mut notices = alerting(None);
         let a = router(t0(), 50.0, 50.0);
@@ -975,10 +986,10 @@ mod tests {
 
         let fake = FakeNotifier::default();
         let mut notices = alerting(None);
-        notices.set_pool_alerts("nine_router:home", true).unwrap();
+        notices.set_pool_alerts(&id, true).unwrap();
         let events = notices.assess(Some(&a), &b, b.checked_at);
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].account_key, "nine_router:home/a");
+        assert_eq!(events[0].account_key, conn);
         notices.record(&b, events, b.checked_at);
         let readings = [Some(&b)];
         assert_eq!(
@@ -995,13 +1006,13 @@ mod tests {
 
         // A save keeps the connection's muted metric and the mode.
         notices
-            .set_metric_alert("nine_router:home/a", "5h", false)
+            .set_metric_alert(&conn, "5h", false)
             .unwrap();
         notices.keep_accounts(&cfg).unwrap();
-        assert!(notices.metric_muted("nine_router:home/a", "5h"));
-        assert!(notices.alerts().pool_each.contains("nine_router:home"));
+        assert!(notices.metric_muted(&conn, "5h"));
+        assert!(notices.alerts().pool_each.contains(&id));
         notices.keep_accounts(&config(&["Work"])).unwrap();
-        assert!(!notices.metric_muted("nine_router:home/a", "5h"));
+        assert!(!notices.metric_muted(&conn, "5h"));
         assert!(notices.alerts().pool_each.is_empty());
     }
 

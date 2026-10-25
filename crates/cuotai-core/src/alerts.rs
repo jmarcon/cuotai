@@ -1728,7 +1728,15 @@ mod tests {
         let prefs = on();
         let mut state = AlertState::default();
         let first = router(t0(), 50.0, 60.0);
-        let none = evaluate_units(None, &first, &prefs, &state, t0(), PoolAlerts::WholePool);
+        let none = evaluate_units(
+            None,
+            &first,
+            &prefs,
+            &state,
+            t0(),
+            PoolAlerts::WholePool,
+            None,
+        );
         assert!(none.is_empty(), "a first reading sets no pool notice");
         state.update_units(&first, &prefs, &none, t0());
 
@@ -1742,6 +1750,7 @@ mod tests {
             &state,
             at,
             PoolAlerts::WholePool,
+            None,
         );
         assert!(pool.is_empty(), "{pool:?}");
         let each = evaluate_units(
@@ -1751,17 +1760,27 @@ mod tests {
             &state,
             at,
             PoolAlerts::EachConnection,
+            None,
         );
         assert_eq!(fired(&each), [(AlertKind::Exhausted, 100)]);
-        assert_eq!(each[0].account_key, "nine_router:home/a");
+        // PRD 0029: a connection is keyed by the aggregator's id.
+        assert_eq!(each[0].account_key, format!("{}/a", first.state_key()));
         state.update_units(&one, &prefs, &pool, at);
 
         // Both run out: one pool notice on the aggregator's key.
         let both = router(t0() + mins(10), 100.0, 100.0);
         let at = t0() + mins(10);
-        let pool = evaluate_units(Some(&one), &both, &prefs, &state, at, PoolAlerts::WholePool);
+        let pool = evaluate_units(
+            Some(&one),
+            &both,
+            &prefs,
+            &state,
+            at,
+            PoolAlerts::WholePool,
+            None,
+        );
         assert_eq!(fired(&pool), [(AlertKind::PoolExhausted, 100)]);
-        assert_eq!(pool[0].account_key, "nine_router:home");
+        assert_eq!(pool[0].account_key, first.state_key());
         assert_eq!(pool[0].label, "Claude");
         assert_eq!(pool[0].resets_at, Some(window()));
         // Its text names the aggregator and the pool.
@@ -1786,7 +1805,8 @@ mod tests {
             &prefs,
             &state,
             at,
-            PoolAlerts::WholePool
+            PoolAlerts::WholePool,
+            None
         )
         .is_empty());
         // One returns: the pool recovers.
@@ -1799,6 +1819,7 @@ mod tests {
             &state,
             at,
             PoolAlerts::WholePool,
+            None,
         );
         assert_eq!(fired(&pool), [(AlertKind::PoolRecovered, 100)]);
 
@@ -1814,19 +1835,21 @@ mod tests {
             &prefs,
             &fresh,
             t0() + mins(5),
-            PoolAlerts::EachConnection
+            PoolAlerts::EachConnection,
+            None
         )
         .is_empty());
         // Muting the aggregator mutes its pools.
         let mut muted = on();
-        muted.muted_accounts.insert("nine_router:home".into());
+        muted.muted_accounts.insert(first.state_key());
         assert!(evaluate_units(
             Some(&one),
             &both,
             &muted,
             &AlertState::default(),
             t0() + mins(10),
-            PoolAlerts::WholePool
+            PoolAlerts::WholePool,
+            None
         )
         .is_empty());
     }

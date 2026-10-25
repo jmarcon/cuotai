@@ -444,6 +444,19 @@ impl Account {
     pub fn state_key(&self) -> String {
         self.id().as_str().to_owned()
     }
+
+    /// Whether `other` reaches the same thing the same way: every field but
+    /// the id, which a new account gets at random each time it is built and
+    /// an edit only settles (PRD 0029).
+    pub fn same_settings(&self, other: &Self) -> bool {
+        Self {
+            id: None,
+            ..self.clone()
+        } == Self {
+            id: None,
+            ..other.clone()
+        }
+    }
 }
 
 fn display_name<'a>(

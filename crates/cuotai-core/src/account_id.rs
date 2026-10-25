@@ -77,6 +77,14 @@ impl AccountId {
         Self(id)
     }
 
+    /// PRD 0036 with PRD 0029: the id of the connection `sub` of the
+    /// aggregator account whose id is `parent`: `<parent>/<sub>`. Internal
+    /// only (never read from a file, so it may contain `/`); it keeps a
+    /// connection's state when the aggregator account is renamed.
+    pub fn connection(parent: &str, sub: &str) -> Self {
+        Self(format!("{parent}/{sub}"))
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }

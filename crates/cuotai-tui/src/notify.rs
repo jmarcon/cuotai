@@ -14,7 +14,9 @@ use crate::ui::{local_time, safe};
 use chrono::{DateTime, TimeDelta, Utc};
 use cuotai_core::{
     aggregators,
-    alerts::{self, AlertEvent, AlertPrefs, AlertState, Lead, PaceInput, PoolAlerts, NOTICE_SPACING},
+    alerts::{
+        self, AlertEvent, AlertPrefs, AlertState, Lead, PaceInput, PoolAlerts, NOTICE_SPACING,
+    },
     pace::Point,
     refresh::{Generation, RefreshCycle},
     resets::{self, Ledger, Prefs},
