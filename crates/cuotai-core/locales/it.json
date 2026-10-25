@@ -1496,5 +1496,7 @@
   "quiet.digest.join": "{first}\n{rest}",
   "quiet.digest.more": "e altri {count}",
   "quiet.digest.line": "{title}: {body}",
-  "hooks.error.quiet": "Il quiet della regola \"{name}\" deve essere \"run\" o \"skip\"."
+  "hooks.error.quiet": "Il quiet della regola \"{name}\" deve essere \"run\" o \"skip\".",
+  "detect.hint.env": "{variable} è impostata in questo ambiente",
+  "detect.consent.env": "L'account conserverà solo il nome {variable}; il valore non viene mai letto né salvato."
 }

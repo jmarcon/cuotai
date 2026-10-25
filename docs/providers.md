@@ -113,6 +113,8 @@ The table is generated: a core test compares it with `access::describe` and fail
 | `kimchi` | default | Undocumented | Inference key | — | Account | reference [`status.ts`](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts) | 2026-10-20 | not reported |
 | `eleven_labs` | default | Official | Inference key | — | Account | [documentation](https://elevenlabs.io/docs/api-reference/user/subscription/get) | 2026-10-23 | not reported |
 | `nine_router` | default | Undocumented | Aggregator login | — | Instance | reference [`dashboardGuard.js`](https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js) | 2026-10-25 | not reported |
+| `open_router` | default | Official | Inference key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key) | 2026-10-23 | not reported |
+| `open_router` | `product = "account"` | Official | Admin key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/credits/get-credits) | 2026-10-23 | not reported |
 
 Billed per query (`metered`): `aws_bedrock`.
 <!-- access-matrix:end -->
@@ -407,6 +409,7 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `kimchi` | any | none: `Unsupported` | — | — |
 | `eleven_labs` | any | none: `Unsupported` | — | — |
 | `nine_router` | any | none: `Unsupported` | — | — |
+| `open_router` | any | documented | [reference](https://openrouter.ai/docs/api/api-reference/models/get-models) | 2026-10-20 |
 <!-- models-matrix:end -->
 
 ## Public incident source registry

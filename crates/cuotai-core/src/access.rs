@@ -822,7 +822,7 @@ mod tests {
     #[test]
     fn classification_table_covers_every_provider_and_mode() {
         use Provider::*;
-        let base: [(Provider, Level, Credential); 38] = [
+        let base: [(Provider, Level, Credential); 39] = [
             (OpenAiApi, Official, C::AdminKey),
             (AnthropicApi, Official, C::AdminKey),
             (ChatGpt, Undocumented, C::SubscriptionSession),

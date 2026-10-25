@@ -53,7 +53,7 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub const ALL: [Self; 38] = [
+    pub const ALL: [Self; 39] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,
@@ -226,7 +226,7 @@ impl Provider {
     /// [`Provider::ALL`]: consumers that parse or route a provider name
     /// (hooks rules, CLI arguments, saved payloads) must accept it, while
     /// the account creation catalog keeps offering only real providers.
-    pub const VARIANTS: [Self; 39] = [
+    pub const VARIANTS: [Self; 40] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,

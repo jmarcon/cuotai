@@ -972,6 +972,9 @@ mod tests {
 
     fn report(account: &Account, data: Data) -> crate::Report {
         crate::Report {
+            as_of: Default::default(),
+            overage_hint: Default::default(),
+            sub_reports: Vec::new(),
             account_id: None,
             diagnostic: None,
             account: account.name.clone(),

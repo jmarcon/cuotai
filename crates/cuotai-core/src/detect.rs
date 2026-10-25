@@ -47,6 +47,9 @@ pub enum SourceKind {
     CursorCli,
     QwenCode,
     KiroCli,
+    /// PRD 0038 Q5: `OPENROUTER_API_KEY` set in the environment (presence
+    /// only, [`crate::catalog::detect_env_keys`]).
+    OpenRouterKey,
 }
 
 impl SourceKind {
@@ -62,6 +65,7 @@ impl SourceKind {
             Self::CursorCli => "cursor_cli",
             Self::QwenCode => "qwen_code",
             Self::KiroCli => "kiro_cli",
+            Self::OpenRouterKey => "open_router_key",
         }
     }
 
@@ -69,6 +73,7 @@ impl SourceKind {
         TABLE
             .iter()
             .map(|entry| entry.kind)
+            .chain([Self::OpenRouterKey])
             .find(|kind| kind.slug() == slug)
     }
 
@@ -85,6 +90,7 @@ impl SourceKind {
             Self::CursorCli => "Cursor CLI",
             Self::QwenCode => "Qwen Code",
             Self::KiroCli => "Kiro CLI",
+            Self::OpenRouterKey => "OpenRouter",
         }
     }
 }
@@ -204,6 +210,8 @@ pub fn paths(kind: SourceKind, home: &Path, os: Os, env: &dyn Env) -> Vec<PathBu
             .unwrap_or_else(|| home.join(".config")),
     };
     match kind {
+        // An environment variable, not a file: nothing to look for on disk.
+        SourceKind::OpenRouterKey => Vec::new(),
         SourceKind::CursorApp => ["Cursor", "Cursor - Insiders"]
             .iter()
             .map(|profile| {
@@ -305,6 +313,34 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
                 consent,
             });
         }
+    }
+    // PRD 0038 Q5 with PRD 0027 RF6: the same consent covers known API-key
+    // variables, checked for presence only (the value is never read or
+    // kept); the account then names the variable.
+    let is_set = |name: &str| env.var(name).is_some_and(|value| !value.is_empty());
+    for found in crate::catalog::detect_env_keys(true, is_set) {
+        if configured.contains(&found.provider) || out.iter().any(|d| d.provider == found.provider)
+        {
+            continue;
+        }
+        let variable = found.variable;
+        out.push(Detected {
+            provider: found.provider,
+            kind: SourceKind::OpenRouterKey,
+            mode: Some("credential"),
+            hint: Localized::with_param(
+                "detect.hint.env",
+                "variable",
+                variable,
+                format!("{variable} está definida neste ambiente"),
+            ),
+            consent: Localized::with_param(
+                "detect.consent.env",
+                "variable",
+                variable,
+                format!("A conta guardará só o nome {variable}; o valor nunca é lido nem gravado."),
+            ),
+        });
     }
     out
 }
@@ -425,5 +461,35 @@ mod tests {
         for entry in TABLE {
             assert_eq!(SourceKind::from_slug(entry.kind.slug()), Some(entry.kind));
         }
+    }
+
+    /// PRD 0038 Q5: after consent, a set `OPENROUTER_API_KEY` is offered
+    /// as an OpenRouter key account (presence only), unless one exists.
+    #[test]
+    fn a_set_openrouter_variable_is_offered_once() {
+        struct Set;
+        impl Env for Set {
+            fn var(&self, name: &str) -> Option<String> {
+                (name == "OPENROUTER_API_KEY").then(|| "sk-or-v1-secret".to_string())
+            }
+        }
+        let home = tempfile::tempdir().unwrap();
+        let found = local_sources(home.path(), Os::Linux, &Set, &[]);
+        let offer = found
+            .iter()
+            .find(|d| d.provider == Provider::OpenRouter)
+            .expect("offered");
+        assert_eq!(offer.kind, SourceKind::OpenRouterKey);
+        assert_eq!(offer.mode, Some("credential"));
+        assert!(!format!("{offer:?}").contains("sk-or-v1-secret"));
+        assert_eq!(
+            SourceKind::from_slug("open_router_key"),
+            Some(SourceKind::OpenRouterKey)
+        );
+        assert!(
+            local_sources(home.path(), Os::Linux, &Set, &[Provider::OpenRouter])
+                .iter()
+                .all(|d| d.provider != Provider::OpenRouter)
+        );
     }
 }
