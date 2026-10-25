@@ -49,6 +49,8 @@ const paths = {
   plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
   coins: '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  // PRD 0026: the Stats view entry.
+  chart: '<path d="M3 3v18h18"/><path d="M8 17v-5"/><path d="M13 17V7"/><path d="M18 17v-8"/>',
 };
 export const icon = (name, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 
@@ -175,6 +177,11 @@ export const historyErase = (index, generation = null) => call("history_erase", 
 export const setHistoryRecording = (on) => call("set_history_recording", { on });
 export const historySize = () => call("history_size");
 export const accountHistory = (index, generation, range, metricKey = null) => call("account_history", { index, generation, range, metricKey });
+// PRD 0026 RF4.6/RF5: the usage statistics (`range`: days7, days30; `account` null = all) with the recent journal
+// events, and the reset timeline (`range`: hours24, days7). Both are bound to the view's `generation` like the
+// history: another generation fails with "stale" and the answer is discarded.
+export const stats = (range, account, generation) => call("stats", { range, account, generation });
+export const resetTimeline = (range, generation) => call("reset_timeline", { range, generation });
 // PRD 0003 RF3: reset notices (desktop.json; the backend schedules and sends them). `setNotifyEnabled` asks the
 // system permission when turning on and resolves to `granted`, `denied`, `prompt` or `off`.
 export const setNotifyEnabled = (on) => call("set_notify_enabled", { on });
@@ -1287,6 +1294,58 @@ const demoHistory = async ({ index, generation, range, metricKey }) => {
   return { range, from: new Date(from).toISOString(), to: new Date(to).toISOString(), recording: demoSettings.historyRecording,
     metrics: metricKey == null ? metrics : metrics.filter((m) => m.key === metricKey) };
 };
+// ponytail: demo mirror of `stats::summarize` and `resets::timeline` over the synthetic history above (the wave of
+// `demoWave`, a day missing 5 to 6 days ago) and the demo view's binding metrics. The app reads the real files.
+const demoRemoved = { id: "journal.removed_account", params: {}, fallback: "Conta removida" };
+const demoStats = async ({ range, account, generation }) => {
+  if (generation !== demoSettings.generation) throw STALE;
+  if (account != null && !demoReports[account]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Conta inexistente nesta configuração." });
+  const days = range === "days30" ? 30 : 7;
+  const erased = demoSettings.historyErased.has("all");
+  const indexes = account != null ? [account] : demoReports.map((_, i) => i).filter((i) => demoReports[i].metrics.some((m) => m.limit));
+  const today = new Date();
+  const daily = (seed) => Array.from({ length: days }, (_, k) => {
+    const back = days - 1 - k, d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - back);
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const gap = erased || back === 5 || back === 6;
+    return { day, share: gap ? null : Math.min(1, Math.max(0.05, demoWave(seed + back) * 1.2)), is_today: back === 0 };
+  });
+  const accounts = indexes.map((i, row) => {
+    const d = daily(i * 3.1), have = d.filter((x) => x.share != null);
+    return { account_index: row, name: demoReports[i].account, hits: have.filter((x) => x.share >= 1).length,
+      average_peak: have.length ? have.reduce((a, x) => a + x.share, 0) / have.length : null, days_with_data: have.length, days: d };
+  });
+  const dailyAll = accounts[0] ? accounts[0].days.map((_, k) => ({ ...accounts[0].days[k],
+    share: accounts.map((a) => a.days[k].share).filter((x) => x != null).reduce((a, x) => (a == null ? x : Math.max(a, x)), null) })) : daily(0);
+  const withData = dailyAll.filter((x) => x.share != null).length;
+  const averages = accounts.map((a) => a.average_peak).filter((x) => x != null);
+  const now = Date.now(), at = (hoursAgo) => new Date(now - hoursAgo * 36e5).toISOString();
+  const events = erased ? [] : [
+    { occurred_at: at(2), kind: "quota_threshold_crossed", account: demoReports[0].account, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "Gemini (5h)", threshold: 90 }, fallback: "Gemini (5h): 90% usado" } },
+    { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): janela renovada" } },
+    { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): cota esgotada" } },
+    { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: {}, fallback: "Falha na consulta: erro do provedor" } },
+  ].filter((e) => account == null || e.account === demoReports[account].account);
+  return { summary: { range, hits: accounts.reduce((a, x) => a + x.hits, 0), average_peak: averages.length ? averages.reduce((a, x) => a + x, 0) / averages.length : null,
+      accounts, extra_spent: account == null && !erased ? [{ unit: "USD", amount: 6.25 }] : null, daily: dailyAll, unknown_limits: 0,
+      retention_days: 90, first_sample_at: at(24 * 10), coverage: withData < 2 ? { kind: "not_enough" } : withData === days ? { kind: "full" } : { kind: "partial", days_with_data: withData } },
+    indexes, history_kept: { id: "stats.history_kept", params: { days: 90 }, fallback: "Histórico mantido por 90 dias neste dispositivo" },
+    not_enough: { id: "stats.not_enough", params: {}, fallback: "Histórico insuficiente" }, removed_account: demoRemoved, events, recording: demoSettings.historyRecording };
+};
+const demoTimeline = async ({ range, generation }) => {
+  if (generation !== demoSettings.generation) throw STALE;
+  const now = Date.now(), span = range === "days7" ? 7 * DAY_MS : DAY_MS;
+  const all = demoView().reports.filter((r) => r.binding && r.status === "ready").map((r) => {
+    const at = r.binding.blocked_until ?? r.binding.resets_at;
+    const share = Math.min(1, Math.max(0, 1 - r.binding.used_ratio));
+    return { account_index: r.index, name: r.account, provider: r.provider, label: r.binding.label ?? "", returns_at: at ?? null, remaining_share: share,
+      level: share >= 0.7 ? "good" : share >= 0.3 ? "warn" : "bad", exhausted: r.binding.reason === "exhausted", stale: r.freshness === "stale" };
+  });
+  const by = (a, b) => new Date(a.returns_at) - new Date(b.returns_at);
+  const known = all.filter((l) => l.returns_at);
+  return { range, now: new Date(now).toISOString(), ends_at: new Date(now + span).toISOString(),
+    lanes: known.filter((l) => new Date(l.returns_at) - now <= span).sort(by), later: known.filter((l) => new Date(l.returns_at) - now > span).sort(by), unknown: all.filter((l) => !l.returns_at) };
+};
 // ponytail: the browser demo has no logs; two fixed sources play the core's disclosure, the consent by digest, turning
 // off (erasing what was derived), the chosen directories, the period, the retention, the background scan's last
 // summary and the RF4 summary (synthetic days and models; one model without a price). `?cost-paused` plays a computer
@@ -1805,6 +1864,8 @@ const demo = {
   },
   history_size: async () => (demoSettings.historyErased.has("all") ? 4096 : 1887437),
   account_history: demoHistory,
+  stats: demoStats,
+  reset_timeline: demoTimeline,
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
   // Demonstração: amostra do histórico (no app, o core entrega o changelog embutido).

@@ -3258,13 +3258,17 @@ impl Backend {
         account: Option<usize>,
         generation: u64,
     ) -> Result<StatsView, String> {
-        let (monitor, accounts) = {
+        let (monitor, accounts, indexes) = {
             let g = self.inner.lock().await;
             let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
             if l.generation != generation {
                 return Err(STALE.into());
             }
             let all = &l.file.config.accounts;
+            let indexes: Vec<usize> = match account {
+                Some(index) => vec![index],
+                None => (0..all.len()).collect(),
+            };
             let accounts = match account {
                 Some(index) => vec![all
                     .get(index)
@@ -3272,7 +3276,7 @@ impl Backend {
                     .ok_or_else(|| l10n_to_json(&ModelError::InvalidIndex.l10n()))?],
                 None => all.clone(),
             };
-            (Arc::clone(&l.monitor), accounts)
+            (Arc::clone(&l.monitor), accounts, indexes)
         };
         let storage = || l10n_to_json(&HistoryError::Storage.l10n());
         let store = monitor.history().ok_or_else(storage)?;
@@ -3311,6 +3315,7 @@ impl Backend {
             })
             .collect();
         Ok(StatsView {
+            indexes,
             history_kept: serde_json::to_value(summary.history_kept()).unwrap_or_default(),
             not_enough: serde_json::to_value(StatsSummary::not_enough()).unwrap_or_default(),
             removed_account: serde_json::to_value(cuotai_core::history::removed_account())
@@ -3968,6 +3973,9 @@ const JOURNAL_LIMIT: usize = 20;
 #[derive(Serialize, Debug)]
 pub struct StatsView {
     summary: StatsSummary,
+    /// The configuration index of each row of `summary.accounts` (a scoped
+    /// answer has one row).
+    indexes: Vec<usize>,
     /// The core's `stats.history_kept` and `stats.not_enough`, localized by
     /// the UI from their ids.
     history_kept: serde_json::Value,
@@ -6782,6 +6790,7 @@ mod tests {
         assert!(all.recording);
         let only = b.stats(StatsRange::Days30, Some(0), 1).await.unwrap();
         assert_eq!(only.summary.accounts.len(), 1);
+        assert_eq!((all.indexes.as_slice(), only.indexes.as_slice()), (&[0, 1][..], &[0][..]));
         assert_eq!(only.events.len(), 1);
         assert_eq!(only.events[0].kind, "refresh_failed");
         // No credential or provider text crosses the IPC.

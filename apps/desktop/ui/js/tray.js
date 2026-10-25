@@ -2,6 +2,8 @@ import { boot } from "./boot.js";
 import { te, t, tl, currentLocale } from "./i18n.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu } from "./tray-menu.js";
+import { mountStats } from "./stats.js";
+import { mountTimeline } from "./timeline.js";
 import { easeOut, motionMs } from "./motion.js";
 import {
   accountLabel, bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
@@ -23,6 +25,19 @@ const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
 let selected = null;
+// PRD 0026: the compact Stats drill-in (DS-CMP-STATS-1) and the reset timeline under the accounts (RF5.1).
+let statsOpen = false;
+const OPEN_VIEW_KEY = "cuotai.openView";
+/** "Open full stats": the main window reads the request from localStorage (`storage` event or at boot). */
+function openFullStats() {
+  try { localStorage.setItem(OPEN_VIEW_KEY, "stats"); } catch {}
+  openMainWindow();
+}
+// Mounted on first use, when a slot exists to hold them.
+let statsMount = null, timelineMount = null;
+const statsHost = () => (statsMount ??= mountStats({ compact: true, onOpenFull: openFullStats }));
+// Selecting a lane opens that account's details in the popover.
+const timelineHost = () => (timelineMount ??= mountTimeline({ compact: true, onSelect: (key) => { selected = key; statsOpen = false; render(); } }));
 let models = null; // seção de modelos da conta aberta no popover; sobrevive aos redesenhos
 
 function row(r, { via = false } = {}) {
@@ -255,6 +270,8 @@ function render() {
     models.update(cur.index, view.generation);
   }
   const focus = models?.focused();
+  const statsFocus = statsMount?.focused(), timelineFocus = timelineMount?.focused();
+  const showStats = !cur && statsOpen;
   const { inBar, rest } = splitByMenuBar(reports, view);
   const listOf = (list) => {
     const items = allItems(list);
@@ -266,16 +283,17 @@ function render() {
     ? isAggregator(cur) ? aggregatorViewHtml(cur)
       : isConnection(cur) ? `${detailHtml(cur)}${connectionInfoHtml(cur, cur.index)}`
         : `${detailHtml(cur)}<div data-models-slot></div>`
-    : listOf(inBar) + (rest.length ? notInHtml() + listOf(rest) : "");
+    : showStats ? `<div data-stats-slot></div>`
+    : `${listOf(inBar)}${rest.length ? notInHtml() + listOf(rest) : ""}${reports.length ? `<div data-timeline-slot></div>` : ""}`;
   syncTrayMenu(view);
   const prev = rings();
   root.innerHTML = `<div class="pop">
     <header class="pop-head">
-      ${cur ? `<button class="icon back" data-back title="${te("common.back")}">${icon("back")}</button>` : ""}
-      <div class="pop-title"><h1>${cur ? esc(brand(cur.provider).label) : `<button class="brand-link wordmark" data-open-main title="${te("common.open")}" aria-label="${te("common.open")}">${wordmark()}</button>`}</h1>
+      ${cur || showStats ? `<button class="icon back" data-back title="${te("common.back")}">${icon("back")}</button>` : ""}
+      <div class="pop-title"><h1>${cur ? esc(brand(cur.provider).label) : showStats ? te("stats.title") : `<button class="brand-link wordmark" data-open-main title="${te("common.open")}" aria-label="${te("common.open")}">${wordmark()}</button>`}</h1>
         ${cur ? `<span class="sub">${esc(accountLabel(cur))}</span>` : ""}
       </div>
-      ${cur ? "" : `<button class="icon" data-view title="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}" aria-label="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}">${icon(trayView === "donut" ? "list" : "grid")}</button>`}
+      ${cur || showStats ? "" : `<button class="icon" data-view title="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}" aria-label="${te(trayView === "donut" ? "tray.view.list" : "tray.view.donut")}">${icon(trayView === "donut" ? "list" : "grid")}</button>`}
       ${sortMenuHtml()}${langMenuHtml()}
       <button class="icon" data-refresh-all title="${te("common.refresh")}" ${loading ? "disabled" : ""}>${icon("refresh", loading ? "spin" : "")}</button>
     </header>
@@ -284,12 +302,22 @@ function render() {
     ${nextNoticeText(view) ? `<p class="pop-notice" data-next-notice>${icon("bell")}<span>${esc(nextNoticeText(view))}</span></p>` : ""}
     <footer class="pop-foot">${alertsHtml(view, reports, error) || '<div class="alerts"></div>'}
       <div class="foot-actions">
+        <button class="icon" data-open-stats aria-pressed="${showStats}" title="${te("tray.stats")}" aria-label="${te("tray.stats")}">${icon("chart")}</button>
         <button class="icon" data-open-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>
         <button class="icon" data-open-main title="${te("common.open")}" aria-label="${te("common.open")}">${icon("window")}</button>
         ${isDesktop ? `<button class="icon danger" data-quit title="${te("common.quit")}" aria-label="${te("common.quit")}">${icon("power")}</button>` : ""}
       </div>
     </footer></div>`;
   models?.attach(root, focus);
+  const statsSlot = showStats && view ? root.querySelector("[data-stats-slot]") : null;
+  const timelineSlot = !cur && !showStats && reports.length && view ? root.querySelector("[data-timeline-slot]") : null;
+  if (statsSlot) {
+    statsHost().update(view);
+    statsMount.attach(statsSlot, statsFocus);
+  } else if (timelineSlot) {
+    timelineHost().update(view);
+    timelineMount.attach(timelineSlot, timelineFocus);
+  }
   animateRings(prev);
 }
 
@@ -306,7 +334,8 @@ root.addEventListener("click", (e) => {
   if (dashboard) return openAggregatorDashboard(Number(dashboard.dataset.aggDashboard)).catch(() => {});
   const open = t.closest("[data-open]");
   if (open) { selected = open.dataset.open; return render(); }
-  if (t.closest("[data-back]")) { selected = null; return render(); }
+  if (t.closest("[data-back]")) { selected = null; statsOpen = false; return render(); }
+  if (t.closest("[data-open-stats]")) { selected = null; statsOpen = !statsOpen; return render(); }
   if (t.closest("[data-view]")) { trayView = trayView === "donut" ? "list" : "donut"; saveTrayView(trayView); return render(); }
   if (t.closest("[data-refresh-all]")) return store.refresh();
   if (t.closest("[data-open-main]")) return openMainWindow();

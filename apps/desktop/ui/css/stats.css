@@ -1,0 +1,495 @@
+/* PRD 0026 RF4/RF5: the Stats view and the reset timeline (docs/design-system.md: DS-CMP-STATS, DS-CMP-KPI, DS-CMP-SEG,
+   DS-CHT-3/5/6/7/10, DS-CMP-JRNL). Colors are theme roles only; spacing falls back to the scale's values until the
+   shared tokens land. No animation: charts never animate their entrance (DS-CHT-2). */
+
+.stats,
+.timeline {
+  --sp-1: var(--space-1, 4px);
+  --sp-2: var(--space-2, 8px);
+  --sp-3: var(--space-3, 12px);
+  --sp-4: var(--space-4, 16px);
+  --hatch: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px);
+  --bar: var(--chart-neutral, color-mix(in srgb, var(--fg-muted) 70%, var(--track)));
+}
+.stats .sub,
+.timeline .sub {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.stats .micro {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Segmented control (DS-CMP-SEG-1): track surface-2, selected = surface + fg 600, no shadow. */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.seg button {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: max(0px, calc(var(--radius-sm) - 2px));
+  background: transparent;
+  color: var(--fg-muted);
+  font: 12px var(--font-mono);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+}
+.seg button:focus-visible,
+.stats select:focus-visible,
+.tl-who:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- the view ---------- */
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding-top: var(--sp-4);
+}
+.stats.compact {
+  gap: var(--sp-3);
+  padding-top: 0;
+}
+.st-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.st-head h2 {
+  margin: 0;
+  margin-right: auto;
+  font-size: 16px;
+}
+.st-scope select {
+  height: 28px;
+  max-width: 260px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+}
+.st-status:empty {
+  display: none;
+}
+.st-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.st-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.st-empty,
+.st-empty-line {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* KPI stat cards (DS-CMP-KPI-1/2): never a 0 for missing data. */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--sp-3);
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.kpi-label {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.kpi-figure {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.kpi.unknown .kpi-figure {
+  color: var(--fg-muted);
+}
+.kpi.unknown::after {
+  content: "";
+  height: 4px;
+  margin-top: var(--sp-1);
+  border-radius: 2px;
+  background: var(--hatch);
+  opacity: 0.8;
+}
+:root[data-hatch="none"] .kpi.unknown::after {
+  background: var(--track);
+  opacity: 0.4;
+}
+
+/* Daily bars (DS-CHT-5, DS-CHT-4: 0-100 axis, dashed lines at 50 and 100). */
+.bars {
+  position: relative;
+  height: 148px;
+  padding: 8px 28px 20px 0;
+}
+.bars.compact {
+  height: 112px;
+}
+.bars .grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--border);
+}
+.bars .g100 {
+  top: 8px;
+}
+.bars .g50 {
+  top: calc(8px + (100% - 28px) / 2);
+}
+.bars .grid-line em {
+  position: absolute;
+  right: 0;
+  top: -7px;
+  color: var(--fg-muted);
+  font: normal 10px var(--font-mono);
+}
+.bars ul {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: 4px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bars ul[style*="--n:30"] {
+  gap: 2px;
+}
+.bars li {
+  position: relative;
+  height: 100%;
+}
+.bars .bar {
+  position: absolute;
+  inset: auto 0 0;
+  min-height: 1px; /* a real zero is a 1 px baseline tick, never a missing bar */
+  border-radius: 3px 3px 0 0;
+  background: var(--bar);
+}
+.bars .today .bar {
+  background: var(--accent);
+}
+.bars .full .bar {
+  background: var(--bad);
+}
+.bars .bar.ghost {
+  height: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--hatch);
+  opacity: 0.55;
+}
+:root[data-hatch="none"] .bars .bar.ghost {
+  background: var(--track);
+  opacity: 0.4;
+}
+.bars .x-label {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font: 10px var(--font-mono);
+}
+.bars .today .x-label {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+/* By account rows (DS-CHT-7) and the journal share the list container (DS-CMP-LIST-1). */
+.st-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.st-list > li + li {
+  border-top: 1px solid var(--border);
+}
+.st-account {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(80px, auto);
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+}
+.st-who {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.st-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  width: 112px;
+  height: 20px;
+}
+.mini-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--bar);
+}
+.mini-bar.last {
+  background: var(--accent);
+}
+.mini-bar.last.full,
+.mini-bar.full {
+  background: var(--bad);
+}
+.mini-bar.gap {
+  height: 100%;
+  background: var(--hatch);
+  opacity: 0.5;
+}
+.st-sum {
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.st-sum.bad {
+  color: var(--bad);
+}
+.st-day-head {
+  padding: var(--sp-2) var(--sp-3) var(--sp-1);
+  background: var(--surface-2);
+}
+.st-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+}
+.st-event-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.st-event-text {
+  overflow-wrap: anywhere;
+}
+.st-time {
+  color: var(--fg-muted);
+  font: 12px var(--font-mono);
+}
+.st-foot {
+  margin: 0;
+}
+.stats .link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font: inherit;
+}
+.st-open {
+  align-self: flex-start;
+}
+
+/* ---------- reset timeline (DS-CHT-6) ---------- */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+}
+.tl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.tl-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.tl-status:empty {
+  display: none;
+}
+.tl-axis {
+  display: flex;
+  justify-content: space-between;
+  padding-left: calc(30% + var(--sp-3));
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.tl-lanes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.tl-lane {
+  display: grid;
+  grid-template-columns: 30% minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  --level: var(--good);
+}
+.tl-lane.warn {
+  --level: var(--warn);
+}
+.tl-lane.bad {
+  --level: var(--bad);
+}
+.tl-who {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  text-align: left;
+}
+.tl-who:hover {
+  background: var(--surface-2);
+}
+.tl-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.tl-track {
+  position: relative;
+  height: 28px;
+  border-left: 1px solid var(--fg-muted); /* the "Now" line */
+}
+.tl-line {
+  position: absolute;
+  left: 0;
+  top: calc(50% - 1px);
+  height: 2px;
+  background: var(--level);
+}
+.tl-dot {
+  position: absolute;
+  top: calc(50% - 4px);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: var(--level);
+}
+.tl-time {
+  position: absolute;
+  top: calc(50% - 7px);
+  margin-left: 10px;
+  color: var(--fg);
+  font: 11px/14px var(--font-mono);
+  white-space: nowrap;
+}
+.tl-time.flip {
+  margin-left: 0;
+  transform: translateX(calc(-100% - 10px));
+}
+.tl-lane.stale .tl-line {
+  background: repeating-linear-gradient(90deg, var(--level) 0 4px, transparent 4px 7px);
+  opacity: 0.7;
+}
+.tl-lane.stale .tl-dot {
+  opacity: 0.7;
+}
+.tl-text {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.tl-text h4 {
+  margin: var(--sp-2) 0 var(--sp-1);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tl-text ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tl-text li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 24px;
+}
+.tl-when {
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+.tl-empty {
+  margin: 0;
+}
+
+/* Topbar entry and the dashboard hosting the Stats view. */
+.topbar [data-stats-toggle][aria-pressed="true"] {
+  color: var(--accent);
+}
+.stats-page .timeline {
+  padding-top: 0;
+}
+
+/* The popover drill-in already names itself in its header: the heading stays for assistive technology only. */
+.stats.compact .st-head h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.stats.compact .st-head {
+  justify-content: flex-end;
+}

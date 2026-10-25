@@ -6,6 +6,8 @@ import { openExtensionsDialog } from "./extensions-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { costCardHtml, costSoloCardHtml, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
+import { mountStats } from "./stats.js";
+import { mountTimeline } from "./timeline.js";
 import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml, updateState } from "./updater.js";
 import { maybeShowFirstRun } from "./first-run.js";
 import {
@@ -314,6 +316,33 @@ function toggleBell(accountKey, on) {
 }
 onHiddenChange(() => { render(); refreshDetails(); });
 
+// PRD 0026 RF4.1/RF5: the Stats view is a view of this window (DS-CMP-STATS-1): a topbar entry, `Esc` returns. The
+// popover's "Open full stats" leaves a request in localStorage (same origin, read here at boot and on `storage`).
+let page = "grid";
+const OPEN_VIEW_KEY = "cuotai.openView";
+// Mounted on first use (the Stats view), so the dashboard costs nothing until it is opened.
+let statsMount = null, timelineMount = null;
+function setPage(next) {
+  if (page === next) return;
+  page = next;
+  render();
+  if (next === "stats") root.querySelector("[data-stats-back]")?.focus({ preventScroll: true });
+}
+/** A timeline lane selects its account: back to the grid with that card in view and focused (RF5.2). */
+function focusAccount(key) {
+  setPage("grid");
+  const card = root.querySelector(`[data-card="${CSS.escape(key)}"]`);
+  if (!card) return;
+  card.scrollIntoView({ block: "center" });
+  card.querySelector("button")?.focus({ preventScroll: true });
+}
+function consumeOpenView() {
+  let want = null;
+  try { want = localStorage.getItem(OPEN_VIEW_KEY); if (want) localStorage.removeItem(OPEN_VIEW_KEY); } catch {}
+  if (want === "stats") setPage("stats");
+}
+addEventListener("storage", (e) => { if (e.key === OPEN_VIEW_KEY && e.newValue) consumeOpenView(); });
+
 let dragKey = null;
 let renderPending = false;
 let reorderPending = false;
@@ -333,6 +362,12 @@ function render() {
   const have = new Set(reports.map((r) => r.index));
   const waiting = view && !filterText.trim() ? [...Array(view.account_count).keys()].filter((i) => !have.has(i)) : [];
   const prev = motion.before(root);
+  const statsPage = page === "stats" && !!view?.loaded;
+  const hostFocus = statsPage ? [statsMount?.focused(), timelineMount?.focused()] : [];
+  if (statsPage) {
+    statsMount ??= mountStats();
+    timelineMount ??= mountTimeline({ onSelect: (key) => focusAccount(key) });
+  }
   // PRD 0015 RF4.1: a source that is on with no configured account of its tool gets a card of its own.
   const solo = view?.loaded ? (localCost?.sources ?? []).filter((s) => s.usage && !reports.some((r) => s.providers.includes(r.provider))
     && (!filterText.trim() || norm(s.label).includes(norm(filterText.trim())))) : [];
@@ -344,6 +379,7 @@ function render() {
         <input id="filter" type="text" autocomplete="off" spellcheck="false" value="${esc(filterText)}" placeholder="${te("filter.placeholder")}" aria-label="${te("filter.placeholder")}" />
         ${filterText ? `<button class="icon" data-clear-filter title="${te("filter.clear")}" aria-label="${te("filter.clear")}">${icon("x")}</button>` : ""}</div>
       ${themeSwitchHtml()}${sortMenuHtml()}${langMenuHtml()}
+      <button class="icon" data-stats-toggle aria-pressed="${statsPage}" title="${te("stats.title")}" aria-label="${te("stats.title")}">${icon("chart")}</button>
       <button class="icon" data-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>
       <button class="icon" data-add title="${te("common.add")}" aria-label="${te("common.add")}">${icon("plus")}</button>
       <button class="icon" data-extensions title="${te("extensions.title")}" aria-label="${te("extensions.title")}">E</button>
@@ -361,9 +397,19 @@ function render() {
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !sorted.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
-    <main class="grid">${rest.map((report, position) => card(report, position, rest)).join("")}${waiting.map(skeleton).join("")}${solo.map((s) => costSoloCardHtml(s, localCost)).join("")}</main>
+    ${statsPage ? `<main class="stats-page" data-stats-page>
+      <div class="stats-back"><button type="button" class="btn" data-stats-back>${icon("back")}<span>${te("stats.back")}</span></button></div>
+      <div data-timeline-slot></div><div data-stats-slot></div></main>`
+    : `<main class="grid">${rest.map((report, position) => card(report, position, rest)).join("")}${waiting.map(skeleton).join("")}${solo.map((s) => costSoloCardHtml(s, localCost)).join("")}</main>
     ${recharging.length ? rechargingGroup(recharging) : ""}
-    ${aggregators.map(aggregatorSection).join("")}</div>`);
+    ${aggregators.map(aggregatorSection).join("")}`}</div>`);
+  if (statsPage) {
+    // The mounts survive the redraw: patch drops them from the slots, so they are put back (with their focus).
+    timelineMount.update(view);
+    statsMount.update(view);
+    timelineMount.attach(root.querySelector("[data-timeline-slot]"), hostFocus[1]);
+    statsMount.attach(root.querySelector("[data-stats-slot]"), hostFocus[0]);
+  }
   motion.after(root, prev);
 }
 
@@ -387,6 +433,8 @@ root.addEventListener("click", (e) => {
   if (one) { motion.spinOnce(one.querySelector("svg")); return store.refreshOne(Number(one.dataset.refresh)); }
   const all = t.closest("[data-refresh-all]");
   if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
+  if (t.closest("[data-stats-toggle]")) return setPage(page === "stats" ? "grid" : "stats");
+  if (t.closest("[data-stats-back]")) return setPage("grid");
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
   const paste = t.closest("[data-paste-session]");
   if (paste) return pasteSession(Number(paste.dataset.pasteSession));
@@ -484,6 +532,14 @@ root.addEventListener("keydown", (e) => {
   if (e.target.id === "filter" && e.key === "Escape" && filterText) { e.preventDefault(); filterText = ""; render(); }
 });
 root.addEventListener("toggle", (e) => { if (e.target.matches?.("[data-recharging]")) rechargingOpen = e.target.open; }, true);
+// Esc leaves the Stats view (DS-CMP-STATS-1), unless a dialog or a field has it.
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || page !== "stats" || e.defaultPrevented || document.querySelector("dialog[open]")) return;
+  const tag = e.target?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  e.preventDefault();
+  setPage("grid");
+});
 // "/" foca o filtro (como na TUI), exceto ao digitar em outro campo ou com um diálogo aberto.
 addEventListener("keydown", (e) => {
   if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -505,6 +561,7 @@ setInterval(() => {
 initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
+consumeOpenView();
 render();
 // PRD 0020 RF1.3/RF7.1: Cmd/Ctrl+, opens Settings; a change made there repaints the dashboard (and reads the local
 // cost again) as the old in-window dialog did.
