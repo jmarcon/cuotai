@@ -140,7 +140,13 @@ pub(crate) async fn start(
             return Err(taken_port_message(&error, port, &text).await.into());
         }
     };
-    eprintln!("cuotai: servidor local somente leitura; Ctrl+C encerra.");
+    eprintln!(
+        "{}",
+        crate::l10n::tr(
+            "serve.started",
+            "cuotai: read-only local server; Ctrl+C stops it."
+        )
+    );
     Ok(server)
 }
 
@@ -167,11 +173,15 @@ async fn taken_port_message(error: &ServeError, port: u16, text: &str) -> String
         return text.to_owned();
     }
     let holder = if is_cuotai_server(port).await {
-        " Outro servidor local do Cuotai já a usa."
+        crate::l10n::tr(
+            "serve.port.cuotai_holder",
+            " Another local Cuotai server uses it.",
+        )
     } else {
         ""
     };
-    format!("{text}{holder} Use --port para escolher outra porta.")
+    let hint = crate::l10n::tr("serve.port.hint", " Use --port to choose another port.");
+    format!("{text}{holder}{hint}")
 }
 
 /// Loopback on exactly the chosen port (PRD 0031 RF9.1): a taken port is an

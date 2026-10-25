@@ -3,13 +3,16 @@
 //! deletes the orphans after a confirmation typed in a terminal. Nothing
 //! read from an entry is ever printed.
 
+use crate::l10n::{tr, trf};
 use cuotai_core::oauth::vault_index::{self, AuditEntry, Kind};
 use cuotai_core::oauth::OAuthSession;
 use cuotai_core::Config;
 use std::io::{self, BufRead, IsTerminal, Write};
 
-/// The word `--vault-prune` asks for.
-const ANSWER: &str = "apagar";
+/// The word `--vault-prune` asks for, in the CLI locale.
+fn answer() -> &'static str {
+    tr("vault.prune.answer", "delete")
+}
 
 /// Exit code 0; 2 when the audit finds orphans (so a script can tell).
 pub(crate) async fn audit(
@@ -39,37 +42,62 @@ pub(crate) async fn audit(
 }
 
 fn audit_text(entries: &[AuditEntry]) -> String {
-    let mut out = String::from("CUOTAI • credenciais guardadas pelo Cuotai no cofre\n");
+    let mut out = format!(
+        "{}\n",
+        tr(
+            "vault.audit.title",
+            "CUOTAI • credentials Cuotai keeps in the vault"
+        )
+    );
     if entries.is_empty() {
-        out += "\nNenhuma credencial indexada. O índice registra o que o Cuotai grava a partir desta versão.\n";
+        out += &format!(
+            "\n{}\n",
+            tr(
+                "vault.audit.empty",
+                "No indexed credential. The index records what Cuotai stores from this version on."
+            )
+        );
         return out;
     }
     for entry in entries {
         let kind = match entry.kind {
             Some(Kind::Oauth) => "OAuth",
-            Some(Kind::Session) => "sessão web",
-            None => "sem uso",
+            Some(Kind::Session) => tr("vault.kind.session", "web session"),
+            None => tr("vault.kind.unused", "unused"),
         };
         let owner = match (&entry.account, entry.provider) {
             (Some(account), Some(provider)) => {
-                format!("{} / {}", crate::ui::safe(account), provider.label())
+                format!(
+                    "{} / {}",
+                    crate::ui::safe(account),
+                    crate::ui::provider_label(provider)
+                )
             }
-            _ => "nenhuma conta configurada a usa (órfã)".into(),
+            _ => tr("vault.owner.none", "no configured account uses it (orphan)").into(),
         };
         let gone = if entry.present {
             ""
         } else {
-            " · já não está no cofre"
+            tr("vault.entry.gone", " · no longer in the vault")
         };
-        out += &format!(
-            "\n{kind:<10}  {owner}{gone}\n            chave {} · criada {}\n",
-            entry.key,
-            crate::ui::local_time(entry.created_at)
+        let detail = trf(
+            "vault.entry.detail",
+            "key {key} · created {created}",
+            &[
+                ("key", &entry.key),
+                ("created", &crate::ui::local_time(entry.created_at)),
+            ],
         );
+        out += &format!("\n{kind:<10}  {owner}{gone}\n            {detail}\n");
     }
     let orphans = entries.iter().filter(|entry| entry.orphan).count();
     if orphans > 0 {
-        out += &format!("\n{orphans} órfã(s): cuotai --vault-prune as apaga.\n");
+        let line = trf(
+            "vault.audit.orphans",
+            "{count} orphan(s): cuotai --vault-prune deletes them.",
+            &[("count", &orphans)],
+        );
+        out += &format!("\n{line}\n");
     }
     out
 }
@@ -79,7 +107,13 @@ pub(crate) async fn prune(
     config: &Config,
 ) -> Result<u8, Box<dyn std::error::Error>> {
     let Some(path) = session.vault_index_path() else {
-        println!("Nenhuma credencial indexada; nada a apagar.");
+        println!(
+            "{}",
+            tr(
+                "vault.prune.no_index",
+                "No indexed credential; nothing to delete."
+            )
+        );
         return Ok(0);
     };
     let orphans: Vec<AuditEntry> = vault_index::audit(session, path, config)
@@ -88,31 +122,47 @@ pub(crate) async fn prune(
         .filter(|entry| entry.orphan)
         .collect();
     if orphans.is_empty() {
-        println!("Nenhuma credencial órfã; nada a apagar.");
+        println!(
+            "{}",
+            tr(
+                "vault.prune.no_orphans",
+                "No orphan credential; nothing to delete."
+            )
+        );
         return Ok(0);
     }
     let mut stderr = io::stderr().lock();
     write!(stderr, "{}", audit_text(&orphans))?;
     if !(io::stdin().is_terminal() && io::stderr().is_terminal()) {
-        return Err(
-            "--vault-prune pede confirmação em um terminal; rode-o interativamente.".into(),
-        );
+        return Err(tr(
+            "vault.prune.needs_terminal",
+            "--vault-prune asks for a confirmation in a terminal; run it interactively.",
+        )
+        .into());
     }
-    write!(
-        stderr,
-        "\nApagar do cofre as {} credenciais acima? Digite \"{ANSWER}\" para confirmar: ",
-        orphans.len()
-    )?;
+    let question = trf(
+        "vault.prune.confirm",
+        "Delete the {count} credentials above from the vault? Type \"{answer}\" to confirm: ",
+        &[("count", &orphans.len()), ("answer", &answer())],
+    );
+    write!(stderr, "\n{question}")?;
     stderr.flush()?;
     let mut typed = String::new();
     io::stdin().lock().read_line(&mut typed)?;
-    if typed.trim().to_lowercase() != ANSWER {
-        return Err("Nada foi apagado.".into());
+    if typed.trim().to_lowercase() != answer() {
+        return Err(tr("vault.prune.cancelled", "Nothing was deleted.").into());
     }
     let deleted = vault_index::prune(session, path, config)
         .await
         .map_err(|note| note.resolve(crate::ui::tui_locale()))?;
-    println!("{deleted} credencial(is) órfã(s) apagada(s) do cofre.");
+    println!(
+        "{}",
+        trf(
+            "vault.prune.done",
+            "{count} orphan credential(s) deleted from the vault.",
+            &[("count", &deleted)],
+        )
+    );
     Ok(0)
 }
 

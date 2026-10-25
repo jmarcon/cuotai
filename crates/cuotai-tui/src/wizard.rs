@@ -6,6 +6,7 @@
 //! `Save` devolve uma cópia de `Config`; quem grava no disco é o chamador e, em
 //! caso de falha, o rascunho permanece intacto para nova tentativa.
 
+use crate::l10n::{tr, trf};
 use crate::palette;
 use crossterm::event::{
     KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -543,7 +544,11 @@ impl Wizard {
         let provider = self.provider_at_sel();
         let accounts = self.provider_accounts();
         let mut lines = vec![Line::from(Span::styled(
-            format!("Modelos · {}", provider.label()),
+            trf(
+                "wizard.models.heading",
+                "Models · {provider}",
+                &[("provider", &crate::ui::provider_label(provider))],
+            ),
             Style::default().add_modifier(Modifier::BOLD),
         ))];
         if accounts.is_empty() {
@@ -554,9 +559,10 @@ impl Wizard {
                 ..Default::default()
             };
             let text = match cuotai_core::models::support(&probe) {
-                Ok(source) => format!(
-                    "Fonte: {}\nNenhuma conta deste provedor está configurada; grave a conta e abra Modelos para consultá-la.",
-                    crate::ui::resolve_l10n(&source)
+                Ok(source) => trf(
+                    "wizard.models.no_account",
+                    "Source: {source}\nNo account of this provider is configured; save the account and open Models to query it.",
+                    &[("source", &crate::ui::resolve_l10n(&source))],
                 ),
                 Err(reason) => crate::ui::resolve_l10n(&reason),
             };
@@ -564,7 +570,10 @@ impl Wizard {
             return lines;
         }
         lines.push(Line::from(Span::styled(
-            "Escolha a conta configurada a consultar (Enter abre Modelos):",
+            tr(
+                "wizard.models.pick",
+                "Choose the configured account to query (Enter opens Models):",
+            ),
             Style::default().fg(DRACULA_COMMENT),
         )));
         let pick = self.models_pick.unwrap_or(0);
@@ -1283,7 +1292,7 @@ impl Wizard {
         self.notice = Some(
             self.selected_mode()
                 .map(|mode| crate::ui::resolve_l10n(&mode.completion_notice))
-                .unwrap_or_else(|| "Login autorizado.".into()),
+                .unwrap_or_else(|| tr("wizard.login.authorized", "Login authorized.").into()),
         );
         if self.step == Step::Credential {
             self.advance();
@@ -1296,7 +1305,7 @@ impl Wizard {
         self.notice = Some(
             self.selected_mode()
                 .map(|mode| crate::ui::resolve_l10n(&mode.completion_notice))
-                .unwrap_or_else(|| "Login concluído.".into()),
+                .unwrap_or_else(|| tr("wizard.login.finished", "Login finished.").into()),
         );
         if self.step == Step::Credential {
             self.advance();
@@ -1591,17 +1600,19 @@ impl Wizard {
     fn footer_buttons(&self, inner: Rect) -> Vec<(Rect, KeyCode, &'static str)> {
         let mut entries: Vec<(&'static str, KeyCode)> = Vec::new();
         if self.step != Step::Provider {
-            entries.push(("Voltar", KeyCode::BackTab));
+            entries.push((tr("wizard.button.back", "Back"), KeyCode::BackTab));
         }
         entries.push((
             match self.step {
-                Step::Summary if self.confirm_save => "Gravar mesmo assim",
-                Step::Summary => "Gravar",
-                _ => "Próximo",
+                Step::Summary if self.confirm_save => {
+                    tr("wizard.button.save_anyway", "Save anyway")
+                }
+                Step::Summary => tr("wizard.button.save", "Save"),
+                _ => tr("wizard.button.next", "Next"),
             },
             KeyCode::Enter,
         ));
-        entries.push(("Cancelar", KeyCode::Esc));
+        entries.push((tr("wizard.button.cancel", "Cancel"), KeyCode::Esc));
         let mut buttons = Vec::new();
         let mut x = inner.x;
         for (label, code) in entries {
@@ -1833,7 +1844,11 @@ impl Wizard {
                     let value = value.trim();
                     if value.is_empty() {
                         if descriptor.map(|d| d.required).unwrap_or(false) {
-                            return Err(format!("{} é obrigatório.", field.label));
+                            return Err(trf(
+                                "wizard.field.required",
+                                "{field} is required.",
+                                &[("field", &field.label)],
+                            ));
                         }
                         return Ok(()); // opcional em branco é removido só ao salvar
                     }
@@ -1877,12 +1892,14 @@ impl Wizard {
 
     fn env_status(&self) -> (&'static str, Color) {
         if !edit::valid_env_name(self.credential.trim()) {
-            return ("NOME INVÁLIDO", DRACULA_RED);
+            return (tr("wizard.env.invalid", "INVALID NAME"), DRACULA_RED);
         }
         // Mesma regra do backend: valor presente e não vazio após trim.
         match std::env::var(self.credential.trim()) {
-            Ok(value) if !value.trim().is_empty() => ("PRESENTE", DRACULA_GREEN),
-            _ => ("AUSENTE", DRACULA_YELLOW),
+            Ok(value) if !value.trim().is_empty() => {
+                (tr("wizard.env.present", "PRESENT"), DRACULA_GREEN)
+            }
+            _ => (tr("wizard.env.missing", "MISSING"), DRACULA_YELLOW),
         }
     }
 
@@ -1948,7 +1965,14 @@ impl Wizard {
             if !unchanged && !tested {
                 self.error = None;
                 self.test_then_save = true;
-                self.aggregator_test = Some((true, "Testando a conexão antes de salvar…".into()));
+                self.aggregator_test = Some((
+                    true,
+                    tr(
+                        "wizard.aggregator.testing_before_save",
+                        "Testing the connection before saving…",
+                    )
+                    .into(),
+                ));
                 return Action::TestAggregator {
                     account: Box::new(account.clone()),
                     sessions: self.reduced_sessions(),
@@ -1982,7 +2006,13 @@ impl Wizard {
         self.error = None;
         self.test_then_save = true;
         self.session_test = None;
-        self.notice = Some("Testando a sessão antes de salvar…".into());
+        self.notice = Some(
+            tr(
+                "wizard.session.testing_before_save",
+                "Testing the session before saving…",
+            )
+            .into(),
+        );
         Action::TestSession {
             account: Box::new(config.accounts[index].clone()),
             sessions,
@@ -1996,7 +2026,10 @@ impl Wizard {
             Ok(config) => {
                 let index = self.editing.unwrap_or(config.accounts.len() - 1);
                 self.error = None;
-                self.aggregator_test = Some((true, "Testando a conexão…".into()));
+                self.aggregator_test = Some((
+                    true,
+                    tr("wizard.aggregator.testing", "Testing the connection…").into(),
+                ));
                 Action::TestAggregator {
                     account: Box::new(config.accounts[index].clone()),
                     sessions: self.reduced_sessions(),
@@ -2021,7 +2054,13 @@ impl Wizard {
         let text = crate::ui::resolve_l10n(&test.message);
         self.offered_pin = test.fingerprint().map(str::to_owned);
         let shown = if self.offered_pin.is_some() {
-            format!("{text} F6: confiar neste certificado.")
+            format!(
+                "{text}{}",
+                tr(
+                    "wizard.aggregator.trust_hint",
+                    " F6: trust this certificate."
+                )
+            )
         } else {
             text.clone()
         };
@@ -2031,7 +2070,13 @@ impl Wizard {
             return None;
         }
         if !test.is_ok() {
-            self.error = Some(format!("{text} Corrija e teste de novo antes de salvar."));
+            self.error = Some(format!(
+                "{text}{}",
+                tr(
+                    "wizard.aggregator.fix_and_retest",
+                    " Fix it and test again before saving."
+                )
+            ));
             return None;
         }
         match self.build_config() {
@@ -2062,14 +2107,23 @@ impl Wizard {
         }
         let sessions = self.reduced_sessions();
         if sessions.is_empty() {
-            self.error = Some("Cole uma sessão antes de testar.".into());
+            self.error = Some(
+                tr(
+                    "wizard.session.paste_first",
+                    "Paste a session before testing.",
+                )
+                .into(),
+            );
             return Action::Continue;
         }
         match self.build_config() {
             Ok(config) => {
                 let index = self.editing.unwrap_or(config.accounts.len() - 1);
                 self.error = None;
-                self.session_test = Some((true, "Testando a sessão…".into()));
+                self.session_test = Some((
+                    true,
+                    tr("wizard.session.testing", "Testing the session…").into(),
+                ));
                 Action::TestSession {
                     account: Box::new(config.accounts[index].clone()),
                     sessions,
@@ -2090,9 +2144,10 @@ impl Wizard {
     pub(crate) fn session_tested(&mut self, report: &Report) -> Option<Action> {
         let resolve = crate::ui::resolve_l10n;
         let text = if report.status == Status::Ready {
-            let mut text = format!(
-                "Sessão aceita: a consulta de leitura respondeu ({} métricas).",
-                report.metrics.len()
+            let mut text = trf(
+                "wizard.session.accepted",
+                "Session accepted: the read query answered ({count} metrics).",
+                &[("count", &report.metrics.len())],
             );
             if let Some(expiry) = user_session::report_expiry(report, chrono::Utc::now()) {
                 text = format!("{text} {}", resolve(&expiry.label));
@@ -2126,7 +2181,7 @@ impl Wizard {
             Err(refused) => {
                 let mut message = resolve(&refused.note);
                 if refused.save_anyway {
-                    message.push_str(" Enter: salvar mesmo assim.");
+                    message.push_str(tr("wizard.session.save_anyway", " Enter: save anyway."));
                     self.confirm_untested = Some(Box::new(report.clone()));
                 }
                 self.error = Some(message);
@@ -2202,15 +2257,22 @@ impl Wizard {
         let dim = Style::default().fg(DRACULA_COMMENT);
         let mut lines = vec![
             Line::from(vec![
-                Span::styled("Nome: ", dim),
+                Span::styled(tr("wizard.summary.name", "Name: "), dim),
                 match self.name.trim() {
-                    "" => Span::styled(format!("{} (sem nome)", self.provider.label()), dim),
+                    "" => Span::styled(
+                        trf(
+                            "wizard.summary.unnamed",
+                            "{provider} (no name)",
+                            &[("provider", &crate::ui::provider_label(self.provider))],
+                        ),
+                        dim,
+                    ),
                     name => Span::raw(crate::ui::safe(name).into_owned()),
                 },
             ]),
             Line::from(vec![
-                Span::styled("Provedor: ", dim),
-                Span::raw(self.provider.label()),
+                Span::styled(tr("wizard.summary.provider", "Provider: "), dim),
+                Span::raw(crate::ui::provider_label(self.provider)),
             ]),
         ];
         // PRD 0029 RF5.2: say what a provider switch deletes before saving.
@@ -2225,21 +2287,36 @@ impl Wizard {
         }
         if self.peer().is_some() {
             lines.push(Line::from(vec![
-                Span::styled("Conta existente renomeada para: ", dim),
+                Span::styled(
+                    tr(
+                        "wizard.summary.peer_renamed",
+                        "Existing account renamed to: ",
+                    ),
+                    dim,
+                ),
                 Span::raw(crate::ui::safe(self.peer_name.trim()).into_owned()),
             ]));
         }
         if let Some(mode) = self.selected_mode() {
             let (status, color) =
                 if self.oauth_authorized.is_some() || self.external_login_params.is_some() {
-                    ("LOGIN AUTORIZADO", DRACULA_GREEN)
+                    (
+                        tr("wizard.summary.login.authorized", "LOGIN AUTHORIZED"),
+                        DRACULA_GREEN,
+                    )
                 } else if self.oauth_existing.is_some() {
-                    ("LOGIN EXISTENTE", DRACULA_GREEN)
+                    (
+                        tr("wizard.summary.login.existing", "EXISTING LOGIN"),
+                        DRACULA_GREEN,
+                    )
                 } else {
-                    ("LOGIN PENDENTE", DRACULA_YELLOW)
+                    (
+                        tr("wizard.summary.login.pending", "LOGIN PENDING"),
+                        DRACULA_YELLOW,
+                    )
                 };
             lines.push(Line::from(vec![
-                Span::styled("Autenticação: ", dim),
+                Span::styled(tr("wizard.summary.auth", "Authentication: "), dim),
                 Span::raw(crate::ui::resolve_l10n(&mode.label)),
                 Span::raw("  "),
                 Span::styled(status, Style::default().fg(color)),
@@ -2253,26 +2330,35 @@ impl Wizard {
             }
             lines.push(Line::from(Span::styled(
                 if mode.credential_store == LoginCredentialStore::CuotaiVault {
-                    "(o token fica no armazenamento seguro; nunca é exibido nem gravado no TOML)"
+                    tr(
+                        "wizard.summary.token_vault",
+                        "(the token stays in secure storage; it is never shown or written to the TOML)",
+                    )
                 } else {
-                    "(a credencial fica no armazenamento do CLI externo, fora do cofre Cuotai)"
+                    tr(
+                        "wizard.summary.token_external",
+                        "(the credential stays in the external CLI's storage, outside the Cuotai vault)",
+                    )
                 },
                 dim,
             )));
         } else {
             lines.push(Line::from(vec![
-                Span::styled("Credencial: ", dim),
+                Span::styled(tr("wizard.summary.credential", "Credential: "), dim),
                 Span::raw(crate::ui::safe(self.credential.trim()).into_owned()),
             ]));
             if edit::credential_kind(self.provider) == edit::CredentialKind::EnvVar {
                 let (status, color) = self.env_status();
                 lines.push(Line::from(vec![
-                    Span::styled("Status no ambiente: ", dim),
+                    Span::styled(env_status_label(), dim),
                     Span::styled(status, Style::default().fg(color)),
                 ]));
             }
             lines.push(Line::from(Span::styled(
-                "(o valor da credencial nunca é exibido nem gravado)",
+                tr(
+                    "wizard.summary.credential_hidden",
+                    "(the credential's value is never shown or written)",
+                ),
                 dim,
             )));
         }
@@ -2283,42 +2369,71 @@ impl Wizard {
                     .get(self.editing.unwrap_or(config.accounts.len() - 1))
                     .expect("conta recém-construída");
                 if account.params.is_empty() {
-                    lines.push(Line::from(Span::styled("Parâmetros: nenhum", dim)));
+                    lines.push(Line::from(Span::styled(
+                        tr("wizard.summary.params.none", "Parameters: none"),
+                        dim,
+                    )));
                 } else {
-                    lines.push(Line::from(Span::styled("Parâmetros:", dim)));
+                    lines.push(Line::from(Span::styled(
+                        tr("wizard.summary.params", "Parameters:"),
+                        dim,
+                    )));
                     for (key, value) in &account.params {
                         lines.push(Line::from(format!("  {key} = {}", crate::ui::safe(value))));
                     }
                 }
                 lines.push(Line::from(vec![
-                    Span::styled("Intervalo desta conta: ", dim),
+                    Span::styled(
+                        tr("wizard.summary.interval", "This account's interval: "),
+                        dim,
+                    ),
                     Span::raw(match account.refresh_seconds {
-                        Some(seconds) => format!("{seconds}s (override individual)"),
-                        None => format!("{}s (herdando global)", config.refresh_seconds),
+                        Some(seconds) => trf(
+                            "wizard.summary.interval.own",
+                            "{seconds}s (individual override)",
+                            &[("seconds", &seconds)],
+                        ),
+                        None => trf(
+                            "wizard.summary.interval.inherited",
+                            "{seconds}s (inheriting the global one)",
+                            &[("seconds", &config.refresh_seconds)],
+                        ),
                     }),
                 ]));
                 lines.push(Line::from(Span::styled(
-                    format!("Intervalo global: {}s", config.refresh_seconds),
+                    trf(
+                        "wizard.summary.interval.global",
+                        "Global interval: {seconds}s",
+                        &[("seconds", &config.refresh_seconds)],
+                    ),
                     dim,
                 )));
                 lines.push(Line::from(vec![
-                    Span::styled("Grupo: ", dim),
+                    Span::styled(tr("wizard.summary.group", "Group: "), dim),
                     Span::raw(match &account.group {
                         Some(group) => crate::ui::safe(group).into_owned(),
-                        None => "nenhum (compara só com o mesmo provedor)".to_owned(),
+                        None => tr(
+                            "wizard.summary.group.none",
+                            "none (compares only with the same provider)",
+                        )
+                        .to_owned(),
                     }),
                 ]));
             }
             Err(message) => {
                 lines.push(Line::from(Span::styled(
-                    format!("Pendências: {message}"),
+                    trf(
+                        "wizard.summary.pending",
+                        "Pending: {message}",
+                        &[("message", &message)],
+                    ),
                     Style::default().fg(DRACULA_RED),
                 )));
             }
         }
         lines.push(Line::default());
         lines.push(Line::from(vec![
-            Span::styled("Arquivo de destino: ", dim),
+            Span::styled(tr("wizard.summary.target", "Target file: "), dim),
             Span::raw(path.display().to_string()),
         ]));
         // PRD 0016 RF1: sessions kept in the vault and, for sessions still
@@ -2327,7 +2442,13 @@ impl Wizard {
             for slot in &session.slots {
                 if let Some(descriptor) = user_session::descriptor(self.provider, slot) {
                     lines.push(Line::from(vec![
-                        Span::styled("Sessão no cofre do sistema: ", dim),
+                        Span::styled(
+                            tr(
+                                "wizard.summary.session_vault",
+                                "Session in the system vault: ",
+                            ),
+                            dim,
+                        ),
                         Span::raw(crate::ui::resolve_l10n(&descriptor.label())),
                     ]));
                 }
@@ -2335,9 +2456,15 @@ impl Wizard {
             // PRD 0016 RF4.2: forgetting deletes the vault entries.
             lines.push(Line::from(Span::styled(
                 if self.confirm_forget {
-                    "F5 de novo apaga a sessão do cofre do sistema; qualquer outra tecla cancela."
+                    tr(
+                        "wizard.summary.forget.confirm",
+                        "F5 again deletes the session from the system vault; any other key cancels.",
+                    )
                 } else {
-                    "F5 esquece esta sessão: apaga a entrada do cofre do sistema (pede confirmação)."
+                    tr(
+                        "wizard.summary.forget",
+                        "F5 forgets this session: deletes the system vault entry (asks for confirmation).",
+                    )
                 },
                 Style::default().fg(DRACULA_YELLOW),
             )));
@@ -2353,9 +2480,15 @@ impl Wizard {
             }
             lines.push(Line::from(Span::styled(
                 if self.confirm_migrate {
-                    "F3 de novo confirma a migração para o cofre; qualquer outra tecla cancela."
+                    tr(
+                        "wizard.summary.migrate.confirm",
+                        "F3 again confirms the move to the vault; any other key cancels.",
+                    )
                 } else {
-                    "F3 migra a sessão para o cofre do sistema (pede confirmação)."
+                    tr(
+                        "wizard.summary.migrate",
+                        "F3 moves the session to the system vault (asks for confirmation).",
+                    )
                 },
                 warn,
             )));
@@ -2364,7 +2497,13 @@ impl Wizard {
         for paste in &self.sessions {
             if let Some(Ok(reduced)) = paste.reduce(self.provider) {
                 lines.push(Line::from(vec![
-                    Span::styled("Sessão colada (vai para o cofre ao gravar): ", dim),
+                    Span::styled(
+                        tr(
+                            "wizard.summary.session_pasted",
+                            "Pasted session (goes to the vault on save): ",
+                        ),
+                        dim,
+                    ),
                     Span::raw(crate::ui::resolve_l10n(&paste.descriptor.label())),
                     Span::styled(" — ", dim),
                     Span::raw(crate::ui::resolve_l10n(
@@ -2398,7 +2537,10 @@ impl Wizard {
     fn aggregator_test_line(&self) -> Option<Line<'static>> {
         let (ok, text) = self.aggregator_test.as_ref()?;
         Some(Line::from(vec![
-            Span::styled("Teste da conexão: ", Style::default().fg(DRACULA_COMMENT)),
+            Span::styled(
+                tr("wizard.aggregator.test_line", "Connection test: "),
+                Style::default().fg(DRACULA_COMMENT),
+            ),
             Span::styled(
                 crate::ui::safe(text).into_owned(),
                 Style::default().fg(if *ok { DRACULA_GREEN } else { DRACULA_YELLOW }),
@@ -2416,9 +2558,10 @@ impl Wizard {
         );
         if area.width < 60 || area.height < 20 {
             frame.render_widget(
-                Paragraph::new(
-                    "Assistente: amplie o terminal para pelo menos 60 × 20. Esc cancela.",
-                )
+                Paragraph::new(tr(
+                    "wizard.too_small",
+                    "Wizard: widen the terminal to at least 60 × 20. Esc cancels.",
+                ))
                 .wrap(Wrap { trim: true })
                 .style(Style::default().bg(DRACULA_BG)),
                 area,
@@ -2430,16 +2573,30 @@ impl Wizard {
         let has_session = !self.sessions.is_empty();
         let total = if has_session { 8 } else { 7 };
         let (position, label) = match self.step {
-            Step::Provider => (1, "Provedor"),
-            Step::Name => (2, "Nome da conta"),
-            Step::Credential => (3, "Credencial"),
-            Step::Params => (4, "Parâmetros"),
-            Step::Session => (5, "Colar sessão"),
-            Step::Interval => (5 + usize::from(has_session), "Intervalo"),
-            Step::Group => (6 + usize::from(has_session), "Grupo"),
-            Step::Summary => (total, "Revisão"),
+            Step::Provider => (1, tr("wizard.step.provider", "Provider")),
+            Step::Name => (2, tr("wizard.step.name", "Account name")),
+            Step::Credential => (3, tr("wizard.step.credential", "Credential")),
+            Step::Params => (4, tr("wizard.step.params", "Parameters")),
+            Step::Session => (5, tr("wizard.step.session", "Paste session")),
+            Step::Interval => (
+                5 + usize::from(has_session),
+                tr("wizard.step.interval", "Interval"),
+            ),
+            Step::Group => (
+                6 + usize::from(has_session),
+                tr("wizard.step.group", "Group"),
+            ),
+            Step::Summary => (total, tr("wizard.step.summary", "Review")),
         };
-        let title = format!("Assistente — {position}/{total} {label}");
+        let title = trf(
+            "wizard.title",
+            "Wizard — {position}/{total} {label}",
+            &[
+                ("position", &position),
+                ("total", &total),
+                ("label", &label),
+            ],
+        );
         frame.render_widget(
             Paragraph::new(title)
                 .block(Block::default().borders(Borders::ALL))
@@ -2458,16 +2615,16 @@ impl Wizard {
             ),
             Step::Provider => self.draw_provider(frame, inner),
             Step::Name => {
-                let provider = self.provider.label();
+                let provider = crate::ui::provider_label(self.provider);
                 let peer = self.peer();
                 let marker = |focused: bool| if focused { "> " } else { "  " };
                 let name = if self.name.is_empty() && peer.is_none() {
-                    Span::styled(provider, Style::default().fg(DRACULA_COMMENT))
+                    Span::styled(provider.clone(), Style::default().fg(DRACULA_COMMENT))
                 } else {
                     Span::raw(crate::ui::safe(&self.name).into_owned())
                 };
                 let mut lines = vec![
-                    Line::from("Nome da conta (opcional):"),
+                    Line::from(tr("wizard.name.label", "Account name (optional):")),
                     Line::default(),
                     Line::from(vec![
                         Span::raw(marker(!self.peer_focus || peer.is_none())),
@@ -2475,8 +2632,10 @@ impl Wizard {
                     ]),
                     Line::default(),
                     Line::from(Span::styled(
-                        format!(
-                            "Opcional; necessário quando você adicionar outra conta {provider}. Não pode repetir outra conta."
+                        trf(
+                            "wizard.name.help",
+                            "Optional; needed when you add another {provider} account. It cannot repeat another account.",
+                            &[("provider", &provider)],
                         ),
                         Style::default().fg(DRACULA_COMMENT),
                     )),
@@ -2484,8 +2643,10 @@ impl Wizard {
                 if peer.is_some() {
                     lines.extend([
                         Line::default(),
-                        Line::from(format!(
-                            "Você já tem uma conta {provider} sem nome; dê um nome a ela também:"
+                        Line::from(trf(
+                            "wizard.name.peer",
+                            "You already have a {provider} account without a name; name it too:",
+                            &[("provider", &provider)],
                         )),
                         Line::from(format!(
                             "{}{}",
@@ -2493,7 +2654,7 @@ impl Wizard {
                             crate::ui::safe(&self.peer_name)
                         )),
                         Line::from(Span::styled(
-                            "↑↓ alterna entre os dois campos.",
+                            tr("wizard.name.toggle", "↑↓ switches between the two fields."),
                             Style::default().fg(DRACULA_COMMENT),
                         )),
                     ]);
@@ -2530,7 +2691,10 @@ impl Wizard {
             // The reason itself is already in the summary body (RF3.4).
             frame.render_widget(
                 Paragraph::new(Span::styled(
-                    "Esta conta não tem consulta de uso. Enter grava mesmo assim; outra tecla cancela.",
+                    tr(
+                        "wizard.confirm_unavailable",
+                        "This account has no usage query. Enter saves anyway; any other key cancels.",
+                    ),
                     Style::default().fg(DRACULA_YELLOW),
                 ))
                 .wrap(Wrap { trim: false }),
@@ -2548,60 +2712,86 @@ impl Wizard {
         }
 
         let hint = match self.step {
-            Step::Provider if self.models_pick.is_some() => {
-                " ↑↓ conta  Enter abrir Modelos  Esc voltar aos provedores"
-            }
-            Step::Provider if !self.filter.is_empty() => {
-                " digite para filtrar  ↑↓ navegar  Enter selecionar  Backspace editar  Esc limpar"
-            }
-            Step::Provider => " digite para filtrar  ↑↓ navegar  Enter selecionar  Tab Modelos  Esc cancelar",
+            Step::Provider if self.models_pick.is_some() => tr(
+                "wizard.hint.models_pick",
+                " ↑↓ account  Enter open Models  Esc back to the providers",
+            ),
+            Step::Provider if !self.filter.is_empty() => tr(
+                "wizard.hint.provider_filtering",
+                " type to filter  ↑↓ move  Enter select  Backspace edit  Esc clear",
+            ),
+            Step::Provider => tr(
+                "wizard.hint.provider",
+                " type to filter  ↑↓ move  Enter select  Tab Models  Esc cancel",
+            ),
             Step::Params | Step::Summary
                 if self.provider.is_aggregator() && self.offered_pin.is_some() =>
             {
-                " F6 confiar no certificado  F4 testar conexão  Shift+Tab voltar  Esc cancelar"
+                tr(
+                    "wizard.hint.trust",
+                    " F6 trust the certificate  F4 test connection  Shift+Tab back  Esc cancel",
+                )
             }
-            Step::Params if self.provider.is_aggregator() => {
-                " F4 testar conexão  Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
-            }
-            Step::Params => {
-                " Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
-            }
-            Step::Summary if self.provider.is_aggregator() => {
-                " Enter testar e GRAVAR  F4 testar conexão  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
-            }
+            Step::Params if self.provider.is_aggregator() => tr(
+                "wizard.hint.params_aggregator",
+                " F4 test connection  Enter next  Shift+Tab back  ↑↓/←→ options  Ctrl+U clear  Esc cancel",
+            ),
+            Step::Params => tr(
+                "wizard.hint.params",
+                " Enter next  Shift+Tab back  ↑↓/←→ options  Ctrl+U clear  Esc cancel",
+            ),
+            Step::Summary if self.provider.is_aggregator() => tr(
+                "wizard.hint.summary_aggregator",
+                " Enter test and SAVE  F4 test connection  ↑↓ scroll  Shift+Tab back  Esc cancel without saving",
+            ),
             Step::Summary
                 if !self.migration_candidates().is_empty() && self.has_vault_session() =>
             {
-                " Enter GRAVAR  F3 sessão → cofre  F5 esquecer sessão  ↑↓ rolar  Shift+Tab voltar  Esc cancelar"
+                tr(
+                    "wizard.hint.summary_migrate_forget",
+                    " Enter SAVE  F3 session → vault  F5 forget session  ↑↓ scroll  Shift+Tab back  Esc cancel",
+                )
             }
-            Step::Summary if !self.migration_candidates().is_empty() => {
-                " Enter GRAVAR  F3 sessão → cofre  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
-            }
-            Step::Summary if self.has_vault_session() => {
-                " Enter GRAVAR  F5 esquecer sessão  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
-            }
-            Step::Summary => {
-                " Enter GRAVAR no arquivo  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
-            }
+            Step::Summary if !self.migration_candidates().is_empty() => tr(
+                "wizard.hint.summary_migrate",
+                " Enter SAVE  F3 session → vault  ↑↓ scroll  Shift+Tab back  Esc cancel without saving",
+            ),
+            Step::Summary if self.has_vault_session() => tr(
+                "wizard.hint.summary_forget",
+                " Enter SAVE  F5 forget session  ↑↓ scroll  Shift+Tab back  Esc cancel without saving",
+            ),
+            Step::Summary => tr(
+                "wizard.hint.summary",
+                " Enter SAVE to the file  ↑↓ scroll  Shift+Tab back  Esc cancel without saving",
+            ),
             Step::Credential => {
                 if self.selected_mode().is_some() {
-                    " Enter próximo/avançar  F2 (re)login  ←→ opções  Tab alterna modo  ↑↓ campos  Shift+Tab voltar  Esc cancela"
+                    tr(
+                        "wizard.hint.credential_login",
+                        " Enter next/continue  F2 (re)login  ←→ options  Tab switches mode  ↑↓ fields  Shift+Tab back  Esc cancels",
+                    )
                 } else if self.auth_choice_count() > 1 {
-                    " Enter próximo  Tab alterna modos de login  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar"
+                    tr(
+                        "wizard.hint.credential_modes",
+                        " Enter next  Tab switches login modes  Shift+Tab back  Ctrl+U clear  Esc cancel",
+                    )
                 } else {
-                    " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar"
+                    default_hint()
                 }
             }
-            Step::Session => {
-                " ↑↓ sessão  cole com o atalho do terminal  F4 testar  Ctrl+U limpar  Enter próximo  Shift+Tab voltar  Esc cancelar"
-            }
-            Step::Interval => {
-                " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  vazio herda global  Esc cancelar"
-            }
-            Step::Group => {
-                " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  vazio = sem grupo  Esc cancelar"
-            }
-            _ => " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar",
+            Step::Session => tr(
+                "wizard.hint.session",
+                " ↑↓ session  paste with the terminal's shortcut  F4 test  Ctrl+U clear  Enter next  Shift+Tab back  Esc cancel",
+            ),
+            Step::Interval => tr(
+                "wizard.hint.interval",
+                " Enter next  Shift+Tab back  Ctrl+U clear  empty inherits the global one  Esc cancel",
+            ),
+            Step::Group => tr(
+                "wizard.hint.group",
+                " Enter next  Shift+Tab back  Ctrl+U clear  empty = no group  Esc cancel",
+            ),
+            _ => default_hint(),
         };
         let footer = Block::default().borders(Borders::ALL);
         let footer_inner = footer.inner(chunks[3]);
@@ -2658,7 +2848,7 @@ impl Wizard {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(DRACULA_YELLOW))
             .title(Span::styled(
-                " Arquivo mudou no disco ",
+                tr("wizard.conflict.title", " File changed on disk "),
                 Style::default()
                     .fg(DRACULA_YELLOW)
                     .add_modifier(Modifier::BOLD),
@@ -2672,20 +2862,32 @@ impl Wizard {
             )),
             Line::default(),
             Line::from(Span::styled(
-                "Recarregar substitui a versão em memória pelo conteúdo atual do",
+                tr(
+                    "wizard.conflict.line1",
+                    "Reload replaces the in-memory version with the current content of the",
+                ),
                 Style::default().fg(DRACULA_COMMENT),
             )),
             Line::from(Span::styled(
-                "arquivo (sem alterar o rascunho do assistente). Cancelar mantém",
+                tr(
+                    "wizard.conflict.line2",
+                    "file (without changing the wizard's draft). Cancel keeps",
+                ),
                 Style::default().fg(DRACULA_COMMENT),
             )),
             Line::from(Span::styled(
-                "a versão em memória para nova edição.",
+                tr(
+                    "wizard.conflict.line3",
+                    "the in-memory version for further editing.",
+                ),
                 Style::default().fg(DRACULA_COMMENT),
             )),
             Line::default(),
             Line::from(Span::styled(
-                "[r] recarregar do disco   [Esc] cancelar",
+                tr(
+                    "wizard.conflict.keys",
+                    "[r] reload from disk   [Esc] cancel",
+                ),
                 Style::default()
                     .fg(DRACULA_CYAN)
                     .add_modifier(Modifier::BOLD),
@@ -2717,17 +2919,23 @@ impl Wizard {
         }
         let muted = Style::default().fg(DRACULA_COMMENT);
         let mut lines = vec![Line::from(Span::styled(
-            "Digite para buscar; setas navegam; Enter seleciona o provedor da conta.",
+            tr(
+                "wizard.provider.help",
+                "Type to search; the arrows move; Enter selects the account's provider.",
+            ),
             muted,
         ))];
         if self.detect_prompt_pending() {
             lines.push(Line::from(Span::styled(
-                "[F6] Verificar  [F7] Agora não · Procurar neste dispositivo ferramentas de IA que você já usa? O Cuotai só confere se as pastas existem e não lê nada.",
+                tr(
+                    "wizard.provider.detect_prompt",
+                    "[F6] Check  [F7] Not now · Look on this device for AI tools you already use? Cuotai only checks whether the folders exist, whether the environment variables are set (never their values) and whether a local 9router answers on 127.0.0.1; it reads nothing else.",
+                ),
                 Style::default().fg(DRACULA_YELLOW),
             )));
         }
         lines.push(Line::from(vec![
-            Span::raw("Buscar: "),
+            Span::raw(tr("wizard.provider.search", "Search: ")),
             Span::styled(
                 format!("{}_", crate::ui::safe(&self.filter)),
                 Style::default().fg(DRACULA_CYAN),
@@ -2735,9 +2943,10 @@ impl Wizard {
         ]));
         if rows.is_empty() {
             lines.push(Line::from(Span::styled(
-                format!(
-                    "Nenhum provedor corresponde a \"{}\". Peça um novo provedor no GitHub (modelo de issue \"New provider\").",
-                    crate::ui::safe(&self.filter)
+                trf(
+                    "wizard.provider.no_match",
+                    "No provider matches \"{filter}\". Ask for a new provider on GitHub (issue template \"New provider\").",
+                    &[("filter", &crate::ui::safe(&self.filter))],
                 ),
                 Style::default().fg(DRACULA_YELLOW),
             )));
@@ -2770,12 +2979,12 @@ impl Wizard {
                     let label = if entry.extension.is_some() {
                         crate::ui::safe(&crate::ui::resolve_l10n(&entry.display_name)).into_owned()
                     } else {
-                        entry.provider.label().to_owned()
+                        crate::ui::provider_label(entry.provider)
                     };
                     let mut spans = vec![Span::styled(format!("{marker}{label}"), style)];
                     if self.detected_for(entry.provider).is_some() {
                         spans.push(Span::styled(
-                            "  · encontrado neste dispositivo",
+                            tr("wizard.provider.detected", "  · found on this device"),
                             Style::default().fg(DRACULA_GREEN),
                         ));
                     }
@@ -2789,9 +2998,13 @@ impl Wizard {
         if let Some(entry) = self.picker_entries.get(self.provider_sel) {
             let mut hint = crate::ui::resolve_l10n(&entry.hint);
             if let Some(found) = self.detected_for(entry.provider) {
-                hint = format!(
-                    "{hint} · {} ([F8] não sugerir de novo)",
-                    crate::ui::resolve_l10n(&found.hint)
+                hint = trf(
+                    "wizard.provider.detected_hint",
+                    "{hint} · {found} ([F8] do not suggest again)",
+                    &[
+                        ("hint", &hint),
+                        ("found", &crate::ui::resolve_l10n(&found.hint)),
+                    ],
                 );
             }
             let body = (lines.len() as u16).min(area.height.saturating_sub(1));
@@ -2821,15 +3034,20 @@ impl Wizard {
             )));
             lines.push(Line::default());
         }
-        lines.push(Line::from(
-            "Modo de autenticação (Tab alterna; Enter/F2 confirma):",
-        ));
+        lines.push(Line::from(tr(
+            "wizard.credential.mode",
+            "Authentication mode (Tab switches; Enter/F2 confirms):",
+        )));
         let has_credential = edit::credential_kind(self.provider) != edit::CredentialKind::None;
         if has_credential {
             let current = self.auth_mode == "credential";
             lines.push(Line::from(format!(
-                "{} Credencial manual (perfil/variável conforme o provedor)",
-                if current { "▶" } else { " " }
+                "{} {}",
+                if current { "▶" } else { " " },
+                tr(
+                    "wizard.credential.manual",
+                    "Manual credential (profile/variable depending on the provider)",
+                )
             )));
         }
         for mode in self
@@ -2856,7 +3074,11 @@ impl Wizard {
             .collect();
         if !others.is_empty() {
             lines.push(Line::from(Span::styled(
-                format!("Outras formas de conectar (Tab): {}", others.join(" · ")),
+                trf(
+                    "wizard.credential.others",
+                    "Other ways to connect (Tab): {others}",
+                    &[("others", &others.join(" · "))],
+                ),
                 Style::default().fg(DRACULA_COMMENT),
             )));
         }
@@ -2904,15 +3126,30 @@ impl Wizard {
             }
             let current = self.login_idx == self.login_fields.len();
             let action = if self.oauth_authorized.is_some() {
-                "Login autorizado — Enter continua; F2 refaz reutilizando a identidade"
+                tr(
+                    "wizard.credential.action.authorized",
+                    "Login authorized — Enter continues; F2 redoes it reusing the identity",
+                )
             } else if self.oauth_existing.is_some() {
-                "Login existente — Enter continua; F2 refaz reutilizando a identidade"
+                tr(
+                    "wizard.credential.action.existing",
+                    "Existing login — Enter continues; F2 redoes it reusing the identity",
+                )
             } else if self.external_login_params.is_some() {
-                "Login concluído — Enter continua; F2 refaz"
+                tr(
+                    "wizard.credential.action.finished",
+                    "Login finished — Enter continues; F2 redoes it",
+                )
             } else if mode.credential_store == LoginCredentialStore::CuotaiVault {
-                "Enter inicia o login; F2 também inicia"
+                tr(
+                    "wizard.credential.action.start",
+                    "Enter starts the login; F2 starts it too",
+                )
             } else {
-                "Enter avança sem novo login; F2 inicia o login do CLI"
+                tr(
+                    "wizard.credential.action.external",
+                    "Enter continues without a new login; F2 starts the CLI's login",
+                )
             };
             lines.push(Line::from(Span::styled(
                 format!("{}{}", if current { "▶ " } else { "  " }, action),
@@ -2927,23 +3164,25 @@ impl Wizard {
         } else {
             match edit::credential_kind(self.provider) {
                 edit::CredentialKind::EnvVar => {
-                    lines.push(Line::from(
-                        "NOME da variável de ambiente exportada com a credencial (nunca o valor):",
-                    ));
+                    lines.push(Line::from(tr(
+                        "wizard.credential.env",
+                        "NAME of the exported environment variable holding the credential (never the value):",
+                    )));
                     lines.push(Line::from(format!(
                         "> {}",
                         crate::ui::safe(&self.credential)
                     )));
                     let (status, color) = self.env_status();
                     lines.push(Line::from(vec![
-                        Span::raw("Status no ambiente: "),
+                        Span::raw(env_status_label()),
                         Span::styled(status, Style::default().fg(color)),
                     ]));
                 }
                 edit::CredentialKind::AwsProfile => {
-                    lines.push(Line::from(
-                        "Perfil do AWS CLI v2 usado para as credenciais:",
-                    ));
+                    lines.push(Line::from(tr(
+                        "wizard.credential.aws_profile",
+                        "AWS CLI v2 profile used for the credentials:",
+                    )));
                     lines.push(Line::from(format!(
                         "> {}",
                         crate::ui::safe(&self.credential)
@@ -2960,7 +3199,11 @@ impl Wizard {
             }
             if let Some(reason) = &self.login.unsupported_reason {
                 lines.push(Line::from(Span::styled(
-                    format!("Login integrado indisponível: {reason}"),
+                    trf(
+                        "wizard.credential.login_unavailable",
+                        "Built-in login unavailable: {reason}",
+                        &[("reason", &reason)],
+                    ),
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
@@ -2987,10 +3230,16 @@ impl Wizard {
         if visible.is_empty() {
             frame.render_widget(
                 Paragraph::new(vec![
-                    Line::from("Este provedor não tem parâmetros adicionais."),
+                    Line::from(tr(
+                        "wizard.params.none",
+                        "This provider has no additional parameters.",
+                    )),
                     Line::default(),
                     Line::from(Span::styled(
-                        "Enter avança; Shift+Tab volta.",
+                        tr(
+                            "wizard.params.none.keys",
+                            "Enter continues; Shift+Tab goes back.",
+                        ),
                         Style::default().fg(DRACULA_COMMENT),
                     )),
                 ]),
@@ -3004,7 +3253,7 @@ impl Wizard {
             let current = pos == self.field_idx;
             let marker = if current { "▶ " } else { "  " };
             let req = if field.required {
-                " (obrigatório)"
+                tr("wizard.params.required", " (required)")
             } else {
                 ""
             };
@@ -3052,7 +3301,10 @@ impl Wizard {
         let stored = self.stored_slots();
         let mut lines = vec![
             Line::from(Span::styled(
-                "Colar sessão (opcional): Cuotai guarda só os cookies desta sessão no cofre do sistema; o resto do texto colado é descartado.",
+                tr(
+                    "wizard.session.heading",
+                    "Paste session (optional): Cuotai keeps only this session's cookies in the system vault; the rest of the pasted text is discarded.",
+                ),
                 Style::default().fg(DRACULA_CYAN),
             )),
         ];
@@ -3086,19 +3338,28 @@ impl Wizard {
                     dim,
                 )));
                 lines.push(Line::from(Span::styled(
-                    format!("Enviada só a: {}", paste.descriptor.hosts.join(", ")),
+                    trf(
+                        "wizard.session.hosts",
+                        "Sent only to: {hosts}",
+                        &[("hosts", &paste.descriptor.hosts.join(", "))],
+                    ),
                     dim,
                 )));
             }
             let chars = paste.text.chars().count();
             let field = if chars == 0 && stored.iter().any(|s| s == paste.descriptor.slot) {
-                "> (sessão no cofre; colar outra a substitui)".to_string()
+                tr(
+                    "wizard.session.stored",
+                    "> (session in the vault; pasting another one replaces it)",
+                )
+                .to_string()
             } else if chars == 0 {
-                "> (vazio)".to_string()
+                tr("wizard.session.empty", "> (empty)").to_string()
             } else {
-                format!(
-                    "> {} ({chars} caracteres colados)",
-                    "•".repeat(chars.min(24))
+                trf(
+                    "wizard.session.pasted",
+                    "> {mask} ({chars} characters pasted)",
+                    &[("mask", &"•".repeat(chars.min(24))), ("chars", &chars)],
                 )
             };
             lines.push(Line::from(Span::styled(
@@ -3134,16 +3395,20 @@ impl Wizard {
         let dim = Style::default().fg(DRACULA_COMMENT);
         let lines = vec![
             Line::from(Span::styled(
-                "Grupo de contas comparáveis (opcional); contas com o mesmo grupo podem se substituir:",
+                tr(
+                    "wizard.group.prompt",
+                    "Group of comparable accounts (optional); accounts with the same group can replace each other:",
+                ),
                 prompt,
             )),
             Line::default(),
             Line::from(Span::styled(format!("> {}", self.group), accent)),
             Line::default(),
             Line::from(Span::styled(
-                format!(
-                    "Até {} letras minúsculas, números, - ou _; vazio = sem grupo (só contas do mesmo provedor se comparam).",
-                    cuotai_core::GROUP_MAX_LEN
+                trf(
+                    "wizard.group.help",
+                    "Up to {max} lowercase letters, digits, - or _; empty = no group (only accounts of the same provider are compared).",
+                    &[("max", &cuotai_core::GROUP_MAX_LEN)],
                 ),
                 dim,
             )),
@@ -3158,9 +3423,13 @@ impl Wizard {
         let dim = Style::default().fg(DRACULA_COMMENT);
         let mut lines = vec![
             Line::from(Span::styled(
-                format!(
-                    "Intervalo individual desta conta em segundos ({}–{MAX_INTERVAL}); vazio herda o global:",
-                    min_interval_for(self.provider),
+                trf(
+                    "wizard.interval.prompt",
+                    "This account's own interval in seconds ({min}–{max}); empty inherits the global one:",
+                    &[
+                        ("min", &min_interval_for(self.provider)),
+                        ("max", &MAX_INTERVAL),
+                    ],
                 ),
                 prompt,
             )),
@@ -3176,11 +3445,27 @@ impl Wizard {
         }
         lines.push(Line::default());
         lines.push(Line::from(Span::styled(
-            "Vale só para esta conta; vazio = global.",
+            tr(
+                "wizard.interval.help",
+                "Applies only to this account; empty = global.",
+            ),
             dim,
         )));
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
     }
+}
+
+/// The footer hint most steps share.
+fn default_hint() -> &'static str {
+    tr(
+        "wizard.hint.default",
+        " Enter next  Shift+Tab back  Ctrl+U clear  Esc cancel",
+    )
+}
+
+/// "Status in the environment: " before an env variable's state.
+fn env_status_label() -> &'static str {
+    tr("wizard.env.status", "Status in the environment: ")
 }
 
 /// One body line of the provider picker.

@@ -1,3 +1,4 @@
+use crate::l10n::{tr, trf};
 use crate::palette;
 use crate::{
     about_view::{AboutView, Reply as AboutReply},
@@ -714,8 +715,11 @@ pub async fn run(
                                 active.replace_base(&file.config);
                                 active.clear_conflict();
                                 active.set_notice(
-                                    "Arquivo recarregado do disco; revise e grave novamente."
-                                        .to_string(),
+                                    tr(
+                                        "ui.file_reloaded",
+                                        "File reloaded from disk; review and save again.",
+                                    )
+                                    .to_string(),
                                 );
                             }
                         }
@@ -761,9 +765,7 @@ pub async fn run(
                         }
                         _ => {
                             if let Some(active) = &mut wizard {
-                                active.set_error(
-                                    "Conta alterada no arquivo; reabra o assistente.".into(),
-                                );
+                                active.set_error(account_changed().into());
                             }
                         }
                     }
@@ -775,9 +777,7 @@ pub async fn run(
                     let base = wizard.as_ref().and_then(|w| w.base_account(index));
                     if base.is_none() || base != file.config.accounts.get(index) {
                         if let Some(active) = &mut wizard {
-                            active.set_error(
-                                "Conta alterada no arquivo; reabra o assistente.".into(),
-                            );
+                            active.set_error(account_changed().into());
                         }
                     } else {
                         let staged = match change {
@@ -962,9 +962,7 @@ pub async fn run(
                                     ExtensionsView::new(manager.list(&file.config)).focused(id.as_deref()),
                                 );
                             } else {
-                                state.error = Some(
-                                    "O diretório local de extensões não está disponível.".into(),
-                                );
+                                state.error = Some(no_extensions_dir().into());
                             }
                         } else {
                             if let Some((job, _token)) = refresh.0.take() {
@@ -1113,8 +1111,11 @@ pub async fn run(
                     }
                     None => {
                         state.error = Some(
-                            "O histórico local não está disponível; sem ele não há estatísticas."
-                                .into(),
+                            tr(
+                                "ui.no_history",
+                                "The local history is unavailable; without it there are no statistics.",
+                            )
+                            .into(),
                         );
                     }
                 },
@@ -1131,9 +1132,7 @@ pub async fn run(
                     if let Some(manager) = monitor.extension_manager() {
                         extensions = Some(ExtensionsView::new(manager.list(&file.config)));
                     } else {
-                        state.error = Some(
-                            "O diretório local de extensões não está disponível.".into(),
-                        );
+                        state.error = Some(no_extensions_dir().into());
                     }
                 }
             }
@@ -1301,19 +1300,31 @@ pub async fn run(
                 if let Some(view) = &mut extensions {
                     match outcome {
                         Ok(Ok(checked)) if checked.status == cuotai_core::Status::Ready => {
-                            view.set_message("Teste concluído com sucesso.".into(), false);
+                            view.set_message(
+                                tr("ui.extension_test.ok", "Test finished successfully.").into(),
+                                false,
+                            );
                         }
                         Ok(Ok(checked)) => {
                             let message =
                                 checked.notes.first().map(resolve_l10n).unwrap_or_else(|| {
-                                    "A extensão não retornou um relatório utilizável.".into()
+                                    tr(
+                                        "ui.extension_test.unusable",
+                                        "The extension returned no usable report.",
+                                    )
+                                    .into()
                                 });
                             view.set_message(message, true);
                         }
                         Ok(Err(note)) => view.set_message(resolve_l10n(&note), true),
-                        Err(_) => {
-                            view.set_message("Falha na tarefa de teste da extensão.".into(), true)
-                        }
+                        Err(_) => view.set_message(
+                            tr(
+                                "ui.extension_test.failed",
+                                "The extension's test task failed.",
+                            )
+                            .into(),
+                            true,
+                        ),
                     }
                     if let Some(manager) = monitor.extension_manager() {
                         view.replace(manager.list(&file.config));
@@ -1371,7 +1382,11 @@ pub async fn run(
                         Err(_) => {
                             refresh_cycle.finish_full(None, token, Instant::now());
                             state.error = Some(
-                                "Falha na tarefa de consulta; r para tentar novamente.".to_string(),
+                                tr(
+                                    "ui.refresh_task_failed",
+                                    "The query task failed; r to try again.",
+                                )
+                                .to_string(),
                             );
                         }
                     }
@@ -1409,8 +1424,13 @@ pub async fn run(
                     }
                     Err(_) => {
                         refresh_cycle.finish_account(index, None, token, Instant::now());
-                        state.error =
-                            Some("Falha na consulta; R para tentar novamente.".to_string());
+                        state.error = Some(
+                            tr(
+                                "ui.refresh_account_failed",
+                                "The query failed; R to try again.",
+                            )
+                            .to_string(),
+                        );
                     }
                 }
             }
@@ -1510,8 +1530,13 @@ pub async fn run(
             state.model_counts.stale = true;
             if !view.poll(&file.config.accounts).await {
                 models = None;
-                state.error =
-                    Some("A conta mudou; o resultado de modelos foi descartado.".to_string());
+                state.error = Some(
+                    tr(
+                        "ui.models_discarded",
+                        "The account changed; the models result was discarded.",
+                    )
+                    .to_string(),
+                );
                 dirty = true;
             }
         }
@@ -1784,7 +1809,11 @@ pub async fn run(
                             auth_task = None;
                             if let Some(wizard) = &mut wizard {
                                 wizard.set_error(
-                                    "Login cancelado; nenhuma nova conta foi salva.".into(),
+                                    tr(
+                                        "ui.login_cancelled",
+                                        "Login cancelled; no new account was saved.",
+                                    )
+                                    .into(),
                                 );
                             }
                         }
@@ -2002,7 +2031,14 @@ pub async fn run(
                                         }),
                                     ));
                                     if let Some(view) = &mut extensions {
-                                        view.set_message("Testando extensão…".into(), false);
+                                        view.set_message(
+                                            tr(
+                                                "ui.extension_test.running",
+                                                "Testing the extension…",
+                                            )
+                                            .into(),
+                                            false,
+                                        );
                                     }
                                 }
                             }
@@ -2141,9 +2177,9 @@ fn location(file: &ConfigFile) -> String {
     let source = match file.source {
         PathSource::Argument => "--config",
         PathSource::Env => "CUOTAI_CONFIG",
-        PathSource::Chosen => "escolhido",
-        PathSource::Local => "local",
-        PathSource::System => "padrão do SO",
+        PathSource::Chosen => tr("ui.location.chosen", "chosen"),
+        PathSource::Local => tr("ui.location.local", "local"),
+        PathSource::System => tr("ui.location.system", "OS default"),
     };
     let mut line = format!("{} ({source})", file.path.display());
     // Tests never touch the real OS data dir.
@@ -2151,12 +2187,30 @@ fn location(file: &ConfigFile) -> String {
         .then(|| cuotai_core::last_config::note(cuotai_core::last_config::Frontend::Tui, file))
         .flatten();
     if let Some(other) = other {
-        line.push_str(&format!(
-            "\nAviso: o desktop usa {}; contas e modelos separados (alinhe com --config ou CUOTAI_CONFIG).",
-            other.display()
+        line.push('\n');
+        line.push_str(&trf(
+            "ui.location.other_config",
+            "Warning: the desktop uses {path}; separate accounts and models (align them with --config or CUOTAI_CONFIG).",
+            &[("path", &other.display())],
         ));
     }
     line
+}
+
+/// "Account changed in the file; reopen the wizard."
+fn account_changed() -> &'static str {
+    tr(
+        "ui.account_changed",
+        "Account changed in the file; reopen the wizard.",
+    )
+}
+
+/// "The local extensions directory is unavailable."
+fn no_extensions_dir() -> &'static str {
+    tr(
+        "ui.no_extensions_dir",
+        "The local extensions directory is unavailable.",
+    )
 }
 
 /// Monitor for `file` with its model cache and measurement history (pruned
@@ -2494,39 +2548,68 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
         file.config
             .accounts
             .get(index)
-            .map(|a| format!("\"{}\" ({})", safe(&a.name), a.provider.label()))
-            .unwrap_or_else(|| format!("conta #{}", index))
+            .map(|a| format!("\"{}\" ({})", safe(&a.name), provider_label(a.provider)))
+            .unwrap_or_else(|| {
+                trf(
+                    "ui.delete.account_n",
+                    "account #{index}",
+                    &[("index", &index)],
+                )
+            })
     };
     match state_ {
         DeletionState::Confirm { index } => (
-            " Excluir conta ",
-            format!(
-                "Excluir a conta {}?\n\nSerá removida de {}.\n\nVariáveis de ambiente, credenciais no Keychain e acesso no provedor não serão apagados nem revogados nesta etapa.",
-                account_label(*index),
-                safe(&file.path.display().to_string()),
+            tr("ui.delete.confirm.title", " Delete account "),
+            trf(
+                "ui.delete.confirm.body",
+                "Delete the account {account}?\n\nIt will be removed from {path}.\n\nEnvironment variables, Keychain credentials and access at the provider are not deleted or revoked in this step.",
+                &[
+                    ("account", &account_label(*index)),
+                    ("path", &safe(&file.path.display().to_string())),
+                ],
             ),
-            "s confirma exclusão • n/Esc cancela • Ctrl-C sai".into(),
+            tr(
+                "ui.delete.confirm.footer",
+                "s confirms the deletion • n/Esc cancels • Ctrl-C quits",
+            )
+            .into(),
         ),
         DeletionState::AskSecrets { index, extension } => (
-            " Apagar segredos da extensão? ",
-            format!(
-                "A extensão \"{}\" guarda segredos no cofre do sistema para a conta {}.\n\nApagar também esses segredos?\n\n• s apaga a conta e os segredos\n• n mantém os segredos no cofre\n• Esc cancela a exclusão",
-                safe(extension),
-                account_label(*index),
+            tr("ui.delete.secrets.title", " Delete the extension's secrets? "),
+            trf(
+                "ui.delete.secrets.body",
+                "The extension \"{extension}\" keeps secrets in the system vault for the account {account}.\n\nDelete these secrets too?\n\n• s deletes the account and the secrets\n• n keeps the secrets in the vault\n• Esc cancels the deletion",
+                &[
+                    ("extension", &safe(extension)),
+                    ("account", &account_label(*index)),
+                ],
             ),
-            "s apaga segredos • n mantém • Esc cancela".into(),
+            tr(
+                "ui.delete.secrets.footer",
+                "s deletes the secrets • n keeps them • Esc cancels",
+            )
+            .into(),
         ),
         DeletionState::AskPurge { index } => (
-            " Apagar credencial do cofre? ",
-            format!(
-                "A conta {} tem credencial OAuth salva no cofre do sistema.\n\nApagar também a credencial no cofre?\n\n• s apaga do TOML e do cofre\n• n mantém a credencial no cofre (a conta some do TOML mesmo assim)\n• Esc cancela a exclusão",
-                account_label(*index),
+            tr("ui.delete.purge.title", " Delete the credential from the vault? "),
+            trf(
+                "ui.delete.purge.body",
+                "The account {account} has an OAuth credential saved in the system vault.\n\nDelete the credential in the vault too?\n\n• s deletes it from the TOML and the vault\n• n keeps the credential in the vault (the account leaves the TOML anyway)\n• Esc cancels the deletion",
+                &[("account", &account_label(*index))],
             ),
-            "s apaga credencial • n mantém • Esc cancela".into(),
+            tr(
+                "ui.delete.purge.footer",
+                "s deletes the credential • n keeps it • Esc cancels",
+            )
+            .into(),
         ),
         DeletionState::Executing { .. } => (
-            " Removendo conta ",
-            "Salvando a configuração e atualizando o cofre…".into(),
+            tr("ui.delete.executing.title", " Removing the account "),
+            tr(
+                "ui.delete.executing.body",
+                "Saving the configuration and updating the vault…",
+            )
+            .into(),
             "".into(),
         ),
         DeletionState::Result {
@@ -2538,7 +2621,7 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
             if let Some(note) = secrets_note {
                 body = format!("{body}\n\n{note}");
             }
-            (" Resultado ", body, footer)
+            (tr("ui.delete.result.title", " Result "), body, footer)
         }
     }
 }
@@ -2555,7 +2638,13 @@ fn render_deletion_result(index: usize, outcome: &RemoveOutcome) -> (String, Str
     let (body, footer) = deletion_result_text(index, outcome);
     if account.sessions_removed {
         (
-            format!("{body}\n\nA sessão web guardada no cofre também foi apagada."),
+            format!(
+                "{body}\n\n{}",
+                tr(
+                    "ui.delete.session_removed",
+                    "The web session kept in the vault was deleted too.",
+                )
+            ),
             footer,
         )
     } else {
@@ -2564,45 +2653,63 @@ fn render_deletion_result(index: usize, outcome: &RemoveOutcome) -> (String, Str
 }
 
 fn deletion_result_text(index: usize, outcome: &RemoveOutcome) -> (String, String) {
+    let close = || tr("ui.delete.result.close", "Enter/Esc closes").to_string();
+    let retry = || {
+        tr(
+            "ui.delete.result.retry",
+            "r tries to delete the credential now • Enter/Esc closes",
+        )
+        .to_string()
+    };
     match outcome {
         RemoveOutcome::RemovedNoCredential(_) => (
-            format!(
-                "Conta #{} removida do TOML. Esta conta não tinha credencial no cofre; nada foi apagado do cofre do sistema.",
-                index,
+            trf(
+                "ui.delete.result.no_credential",
+                "Account #{index} removed from the TOML. This account had no credential in the vault; nothing was deleted from the system vault.",
+                &[("index", &index)],
             ),
-            "Enter/Esc fecha".into(),
+            close(),
         ),
         RemoveOutcome::RemovedFromVault(_) => (
-            format!(
-                "Conta #{} removida do TOML e credencial apagada do cofre do sistema.",
-                index,
+            trf(
+                "ui.delete.result.removed",
+                "Account #{index} removed from the TOML and its credential deleted from the system vault.",
+                &[("index", &index)],
             ),
-            "Enter/Esc fecha".into(),
+            close(),
         ),
         RemoveOutcome::CredentialKept { reason, .. } => match reason {
             account_edit::KeptReason::Declined => (
-                format!(
-                    "Conta #{} removida do TOML. Você optou por manter a credencial no cofre do sistema.",
-                    index,
+                trf(
+                    "ui.delete.result.declined",
+                    "Account #{index} removed from the TOML. You chose to keep the credential in the system vault.",
+                    &[("index", &index)],
                 ),
-                "r tenta apagar a credencial agora • Enter/Esc fecha".into(),
+                retry(),
             ),
             account_edit::KeptReason::SharedWith { other_account } => (
-                format!(
-                    "Conta #{} removida do TOML. A credencial foi mantida porque a conta \"{}\" ainda a usa; apagá-la quebraria a sobrevivente.",
-                    index,
-                    safe(other_account),
+                trf(
+                    "ui.delete.result.shared",
+                    "Account #{index} removed from the TOML. The credential was kept because the account \"{other}\" still uses it; deleting it would break the survivor.",
+                    &[("index", &index), ("other", &safe(other_account))],
                 ),
-                "r tenta apagar a credencial agora (refere se a sobrevivente sumir) • Enter/Esc fecha".into(),
+                tr(
+                    "ui.delete.result.shared.footer",
+                    "r tries to delete the credential now (checks again whether the survivor is gone) • Enter/Esc closes",
+                )
+                .into(),
             ),
         },
         RemoveOutcome::PartialFailure { vault_error, .. } => (
-            format!(
-                "Conta #{} removida do TOML, mas a credencial NÃO pôde ser apagada do cofre.\n\nMotivo: {}\n\nA credencial continua no cofre. Pressione r para tentar de novo agora.",
-                index,
-                safe(&resolve_l10n(vault_error)),
+            trf(
+                "ui.delete.result.partial",
+                "Account #{index} removed from the TOML, but the credential could NOT be deleted from the vault.\n\nReason: {reason}\n\nThe credential stays in the vault. Press r to try again now.",
+                &[
+                    ("index", &index),
+                    ("reason", &safe(&resolve_l10n(vault_error))),
+                ],
             ),
-            "r tenta apagar a credencial agora • Enter/Esc fecha".into(),
+            retry(),
         ),
     }
 }
@@ -2886,7 +2993,7 @@ fn retry_purge(
     let oauth = removed.oauth.as_ref().ok_or_else(|| {
         cuotai_core::text::Localized::fixed(
             "remove_error.purge_no_oauth",
-            "Conta não tinha credencial OAuth para apagar.",
+            "The account had no OAuth credential to delete.",
         )
     })?;
     tokio::task::block_in_place(|| {
@@ -2933,7 +3040,7 @@ fn run_remove_account(
             // fails here the index was invalid by the time we got here
             // (e.g. concurrent removal). Runtime stays bound to the
             // previous configuration.
-            state.error = Some("Conta já removida.".to_string());
+            state.error = Some(already_removed().to_string());
             return true;
         }
     };
@@ -2947,13 +3054,25 @@ fn run_remove_account(
         .apply_edit(&prev, &new_config, Edit::Remove(index), Instant::now())
         .is_err()
     {
-        state.error = Some("Edição rejeitada pela agenda; nenhuma alteração aplicada.".to_string());
+        state.error = Some(
+            tr(
+                "ui.delete.cycle_rejected",
+                "Edit rejected by the schedule; no change applied.",
+            )
+            .to_string(),
+        );
         return true;
     }
     let new_monitor = match monitor.with_config(new_config.clone()) {
         Ok(m) => Arc::new(m),
         Err(_) => {
-            state.error = Some("Configuração inválida após remoção.".to_string());
+            state.error = Some(
+                tr(
+                    "ui.delete.invalid_after",
+                    "Invalid configuration after the removal.",
+                )
+                .to_string(),
+            );
             return true;
         }
     };
@@ -3000,14 +3119,20 @@ fn run_remove_account(
             false
         }
         Err(RemoveError::Index(_)) => {
-            state.error = Some("Conta já removida.".to_string());
+            state.error = Some(already_removed().to_string());
             true
         }
         Err(RemoveError::Save(_)) => {
             // Disk save failed BEFORE any vault action; runtime stays
             // bound to the previous configuration (we did not assign
             // `*refresh_cycle` or `*monitor`).
-            state.error = Some("Falha ao salvar; nenhuma alteração aplicada.".to_string());
+            state.error = Some(
+                tr(
+                    "ui.delete.save_failed",
+                    "Could not save; no change applied.",
+                )
+                .to_string(),
+            );
             true
         }
         Err(RemoveError::InvalidOAuth(message)) => {
@@ -3027,16 +3152,30 @@ fn run_remove_account(
     }
 }
 
+/// "Account already removed."
+fn already_removed() -> &'static str {
+    tr("ui.delete.already_removed", "Account already removed.")
+}
+
 /// Deletes the vault secrets of extension `id` and words the result.
 fn forget_extension_secrets_note(monitor: &Monitor, session: &OAuthSession, id: &str) -> String {
     let Some(manager) = monitor.extension_manager() else {
-        return "Os segredos da extensão não puderam ser apagados.".to_string();
+        return tr(
+            "ui.delete.secrets.unavailable",
+            "The extension's secrets could not be deleted.",
+        )
+        .to_string();
     };
     match manager.forget_secrets(id, session.token_store().as_ref()) {
-        Ok(count) => format!("{count} segredo(s) da extensão apagado(s) do cofre do sistema."),
-        Err(error) => format!(
-            "Os segredos da extensão NÃO puderam ser apagados: {}",
-            safe(&resolve_l10n(&error))
+        Ok(count) => trf(
+            "ui.delete.secrets.done",
+            "{count} extension secret(s) deleted from the system vault.",
+            &[("count", &count)],
+        ),
+        Err(error) => trf(
+            "ui.delete.secrets.failed",
+            "The extension's secrets could NOT be deleted: {error}",
+            &[("error", &safe(&resolve_l10n(&error)))],
         ),
     }
 }
@@ -3363,6 +3502,10 @@ pub(crate) fn safe(text: &str) -> Cow<'_, str> {
 /// when supported, and `en-US` as the fallback.
 pub(crate) fn tui_locale() -> &'static str {
     use std::sync::OnceLock;
+    #[cfg(test)]
+    if let Some(locale) = crate::l10n::TEST_LOCALE.with(|cell| cell.get()) {
+        return locale;
+    }
     static LOCALE: OnceLock<String> = OnceLock::new();
     LOCALE
         .get_or_init(|| {
@@ -3394,6 +3537,23 @@ pub(crate) fn status_label(status: cuotai_core::Status) -> String {
     resolve_l10n(&cuotai_core::text::status_l10n(status))
 }
 
+/// The display name of a provider in the TUI locale (`provider.<slug>`;
+/// only "Alibaba Cloud — billing" differs between languages today).
+pub(crate) fn provider_label(provider: cuotai_core::Provider) -> String {
+    resolve_l10n(&cuotai_core::text::provider_l10n(provider))
+}
+
+/// A metric label in the TUI locale (`cuotai_core::metric_text`); the raw
+/// label stays the metric's identity everywhere else.
+pub(crate) fn metric_label_text(raw: &str) -> String {
+    resolve_l10n(&cuotai_core::metric_text::metric_text(raw))
+}
+
+/// A metric unit or period in the TUI locale (same table as labels).
+pub(crate) fn unit_text(raw: &str) -> String {
+    metric_label_text(raw)
+}
+
 /// Resolve a [`cuotai_core::text::Localized`] for the TUI locale.
 pub(crate) fn resolve_l10n(note: &cuotai_core::text::Localized) -> String {
     note.resolve(tui_locale())
@@ -3409,28 +3569,29 @@ pub(crate) fn local_time(at: chrono::DateTime<chrono::Utc>) -> String {
     }
 }
 
-/// PRD 0010 RF5: measurement age from the core's `freshness::age` in the
-/// TUI's Portuguese chrome ("há 42 s", "há 3 min", "há 2 h", "há 1 d"). A
-/// reading "from the future" (clock adjusted backwards) reads "agora".
+/// PRD 0010 RF5 / PRD 0034 RF2.2: measurement age from the core's
+/// `freshness::age_label` in the TUI locale ("3 min ago", "há 3 min"). A
+/// reading "from the future" (clock adjusted backwards) reads "now".
 pub(crate) fn age_text(
     checked_at: chrono::DateTime<chrono::Utc>,
     now: chrono::DateTime<chrono::Utc>,
 ) -> String {
-    let secs = cuotai_core::freshness::age(checked_at, now).as_secs();
-    match secs {
-        0 => "agora".into(),
-        1..=59 => format!("há {secs} s"),
-        60..=3_599 => format!("há {} min", secs / 60),
-        3_600..=86_399 => format!("há {} h", secs / 3_600),
-        _ => format!("há {} d", secs / 86_400),
-    }
+    resolve_l10n(&cuotai_core::freshness::age_label(
+        cuotai_core::freshness::age(checked_at, now),
+    ))
 }
 
 /// PRD 0033 RF3.2: " · dados de 06:00" when the provider states that its
 /// data lags the query by more than 15 minutes; empty otherwise.
 pub(crate) fn data_as_of_suffix(report: &cuotai_core::Report) -> String {
     cuotai_core::freshness::lagging_as_of(report)
-        .map(|at| format!(" · dados de {}", local_time(at)))
+        .map(|at| {
+            crate::l10n::trf(
+                "ui.data_as_of",
+                " · data from {at}",
+                &[("at", &local_time(at))],
+            )
+        })
         .unwrap_or_default()
 }
 
@@ -3447,12 +3608,16 @@ pub(crate) fn metric_text(metric: &Metric) -> String {
             .map(|n| format!("{n:.2}"))
             .unwrap_or_else(|| "—".into())
     };
-    let mut text = format!("{} {}", number(metric.used), safe(&metric.unit));
+    let mut text = format!("{} {}", number(metric.used), safe(&unit_text(&metric.unit)));
     if metric.limit.is_some() {
         text.push_str(&format!(" / {}", number(metric.limit)));
     }
     if metric.remaining.is_some() {
-        text.push_str(&format!(" (restam {})", number(metric.remaining)));
+        text.push_str(&crate::l10n::trf(
+            "metric.remaining",
+            " ({value} left)",
+            &[("value", &number(metric.remaining))],
+        ));
     }
     text
 }

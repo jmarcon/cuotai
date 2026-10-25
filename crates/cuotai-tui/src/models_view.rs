@@ -2,6 +2,7 @@
 //! local search and manual sync. Opened from account details or the wizard;
 //! model tasks run in background and never touch quota refresh.
 
+use crate::l10n::{tr, trf};
 use crate::palette;
 use crate::ui::{resolve_l10n, safe};
 use chrono::{DateTime, Utc};
@@ -222,10 +223,20 @@ impl ModelsView {
         let at = |t: &DateTime<Utc>| t.format("%Y-%m-%d %H:%M UTC").to_string();
         let text = |l: &Localized| safe(&resolve_l10n(l)).into_owned();
         let (status, detail, color) = match &self.state {
-            _ if self.job.is_some() => ("Consultando modelos…".to_string(), None, YELLOW),
+            _ if self.job.is_some() => (
+                tr("models.querying", "Querying models…").to_string(),
+                None,
+                YELLOW,
+            ),
             Ok(ModelState::NotFetched) => (
-                "Ainda não consultado".to_string(),
-                Some("s Sincronizar modelos consulta a conta.".to_string()),
+                tr("models.not_fetched", "Not queried yet").to_string(),
+                Some(
+                    tr(
+                        "models.not_fetched.hint",
+                        "s Sync models queries the account.",
+                    )
+                    .to_string(),
+                ),
                 MUTED,
             ),
             Ok(ModelState::Ready(_)) => (text(&status_l10n(Status::Ready)), None, GREEN),
@@ -257,7 +268,7 @@ impl ModelsView {
             ),
         };
         let mut lines = vec![Line::from(vec![
-            Span::styled("Status: ", Style::default().fg(MUTED)),
+            Span::styled(tr("models.status", "Status: "), Style::default().fg(MUTED)),
             Span::styled(status, Style::default().fg(color)),
         ])];
         if let Some(detail) = detail {
@@ -268,26 +279,39 @@ impl ModelsView {
             .map(|c| c.source.clone())
             .or_else(|| models::support(&self.account).ok());
         if let Some(source) = source {
-            lines.push(Line::from(format!("Fonte: {}", text(&source))));
+            lines.push(Line::from(trf(
+                "models.source",
+                "Source: {source}",
+                &[("source", &text(&source))],
+            )));
         }
         if let Some(catalog) = catalog {
-            lines.push(Line::from(format!(
-                "{} de {} modelos · consultado em {}",
-                filtered(&catalog.models, &self.query).len(),
-                catalog.models.len(),
-                at(&catalog.fetched_at)
+            lines.push(Line::from(trf(
+                "models.count",
+                "{shown} of {total} models · queried at {at}",
+                &[
+                    ("shown", &filtered(&catalog.models, &self.query).len()),
+                    ("total", &catalog.models.len()),
+                    ("at", &at(&catalog.fetched_at)),
+                ],
             )));
         }
         if self.searching || !self.query.is_empty() {
             lines.push(Line::styled(
-                format!(
-                    "Busca: {}{}",
-                    safe(&self.query),
-                    if self.searching {
-                        " | Enter conclui"
-                    } else {
-                        ""
-                    }
+                trf(
+                    "models.search",
+                    "Search: {query}{done}",
+                    &[
+                        ("query", &safe(&self.query)),
+                        (
+                            "done",
+                            &if self.searching {
+                                tr("models.search.done", " | Enter finishes")
+                            } else {
+                                ""
+                            },
+                        ),
+                    ],
                 ),
                 Style::default().fg(CYAN),
             ));
@@ -298,20 +322,20 @@ impl ModelsView {
     fn list_lines(&self) -> Vec<Line<'static>> {
         let Some(catalog) = catalog(&self.state) else {
             return vec![Line::styled(
-                "Sem catálogo salvo para esta conta.",
+                tr("models.no_catalog", "No catalog saved for this account."),
                 Style::default().fg(MUTED),
             )];
         };
         if catalog.models.is_empty() {
             return vec![Line::styled(
-                "A conta não retornou nenhum modelo.",
+                tr("models.empty", "The account returned no models."),
                 Style::default().fg(MUTED),
             )];
         }
         let shown = filtered(&catalog.models, &self.query);
         if shown.is_empty() {
             return vec![Line::styled(
-                "Nenhum modelo corresponde à busca.",
+                tr("models.no_match", "No model matches the search."),
                 Style::default().fg(MUTED),
             )];
         }
@@ -346,10 +370,16 @@ impl ModelsView {
             Constraint::Length(1),
         ])
         .split(area);
-        let title = format!(
-            " MODELOS · {} · {} ",
-            safe(&self.account.display_name()),
-            self.account.provider.label()
+        let title = trf(
+            "models.title",
+            " MODELS · {account} · {provider} ",
+            &[
+                ("account", &safe(&self.account.display_name())),
+                (
+                    "provider",
+                    &crate::ui::provider_label(self.account.provider),
+                ),
+            ],
         );
         frame.render_widget(
             info.block(
@@ -373,11 +403,20 @@ impl ModelsView {
         let mut spans = Vec::new();
         let mut x = areas[2].x;
         for (label, code) in [
-            (" / buscar", Some(KeyCode::Char('/'))),
-            ("  c limpar", Some(KeyCode::Char('c'))),
-            ("  s Sincronizar modelos", Some(KeyCode::Char('s'))),
-            ("  ↑↓/PgUp/PgDn rolar", None),
-            ("  Esc voltar", Some(KeyCode::Esc)),
+            (
+                tr("models.footer.search", " / search"),
+                Some(KeyCode::Char('/')),
+            ),
+            (
+                tr("models.footer.clear", "  c clear"),
+                Some(KeyCode::Char('c')),
+            ),
+            (
+                tr("models.footer.sync", "  s Sync models"),
+                Some(KeyCode::Char('s')),
+            ),
+            (tr("models.footer.scroll", "  ↑↓/PgUp/PgDn scroll"), None),
+            (tr("about.footer.back", "  Esc back"), Some(KeyCode::Esc)),
         ] {
             let span = Span::styled(label, Style::default().fg(YELLOW));
             let width = span.width() as u16;

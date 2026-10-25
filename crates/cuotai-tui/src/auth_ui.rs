@@ -2,8 +2,9 @@
 //! core (`cuotai_core::login`, RF2); este módulo apenas renderiza os eventos
 //! tipados e encaminha o código colado pelo usuário.
 
+use crate::l10n::{tr, trf};
 use crate::palette;
-use crate::ui::safe;
+use crate::ui::{resolve_l10n, safe};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use cuotai_core::{
     login::{
@@ -70,7 +71,7 @@ impl LoginTask {
             lines: Vec::new(),
             scroll: 0,
             code: String::new(),
-            code_status: "Cole o código desta tentativa e pressione Enter.".into(),
+            code_status: paste_code_hint().into(),
         }
     }
 
@@ -83,7 +84,11 @@ impl LoginTask {
         });
         Self {
             job: Job::Commit(job),
-            lines: vec!["Gravando credenciais no cofre do sistema. Autorize o acesso ao Keychain, se solicitado.".into()],
+            lines: vec![tr(
+                "login.saving_vault",
+                "Saving the credentials in the system vault. Authorize Keychain access if asked.",
+            )
+            .into()],
             scroll: 0,
             code: String::new(),
             code_status: String::new(),
@@ -100,7 +105,11 @@ impl LoginTask {
         let job = tokio::spawn(async move { commit.confirm(&session, &saved_config).await });
         Self {
             job: Job::Confirm(job),
-            lines: vec!["Configuração salva; verificando a credencial substituída...".into()],
+            lines: vec![tr(
+                "login.checking_replaced",
+                "Configuration saved; checking the replaced credential...",
+            )
+            .into()],
             scroll: 0,
             code: String::new(),
             code_status: String::new(),
@@ -113,9 +122,11 @@ impl LoginTask {
         let job = tokio::spawn(async move { commit.rollback(&session, message).await });
         Self {
             job: Job::Rollback(job),
-            lines: vec![
-                "A configuração não pôde ser salva; desfazendo a gravação no cofre...".into(),
-            ],
+            lines: vec![tr(
+                "login.rolling_back",
+                "The configuration could not be saved; undoing the vault write...",
+            )
+            .into()],
             scroll: 0,
             code: String::new(),
             code_status: String::new(),
@@ -145,23 +156,39 @@ impl LoginTask {
                     url,
                     user_code,
                     instructions,
+                    instructions_l10n,
                 } => {
-                    self.lines = vec!["Autorize no navegador do sistema:".into(), url];
+                    self.lines = vec![
+                        tr(
+                            "login.authorize_in_browser",
+                            "Authorize in the system browser:",
+                        )
+                        .into(),
+                        url,
+                    ];
                     if let Some(code) = user_code {
-                        self.lines.push(format!("Código de autorização: {code}"));
+                        self.lines.push(trf(
+                            "login.user_code",
+                            "Authorization code: {code}",
+                            &[("code", &code)],
+                        ));
                     }
-                    self.lines.push(instructions);
+                    self.lines.push(localized(instructions, instructions_l10n));
                 }
-                LoginEvent::Progress { text } => self.lines.push(text),
-                LoginEvent::WaitingCode => {
-                    self.code_status = "Cole o código desta tentativa e pressione Enter.".into()
+                LoginEvent::Progress { text, l10n } => self.lines.push(localized(text, l10n)),
+                LoginEvent::WaitingCode => self.code_status = paste_code_hint().into(),
+                LoginEvent::CodeRejected { message, l10n } => {
+                    self.code_status = localized(message, l10n)
                 }
-                LoginEvent::CodeRejected { message } => self.code_status = message,
                 LoginEvent::BrowserUnavailable { .. } => self.lines.push(
-                    "Não foi possível abrir o navegador; abra a URL acima manualmente.".into(),
+                    tr(
+                        "login.browser_unavailable",
+                        "Could not open the browser; open the URL above manually.",
+                    )
+                    .into(),
                 ),
                 LoginEvent::Finished { .. } => {}
-                LoginEvent::Failed { message } => self.lines.push(message),
+                LoginEvent::Failed { message, l10n } => self.lines.push(localized(message, l10n)),
             }
         }
         changed
@@ -214,14 +241,22 @@ impl LoginTask {
         }
         let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
         if self.code.len() + compact.len() > 16 * 1024 {
-            self.code_status = "Código muito longo. Ctrl-U limpa o campo.".into();
+            self.code_status = tr(
+                "login.code.too_long",
+                "Code too long. Ctrl-U clears the field.",
+            )
+            .into();
             return;
         }
         if !compact
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '_' | '-' | '='))
         {
-            self.code_status = "Cole somente o código de autenticação mostrado pelo MiMo.".into();
+            self.code_status = tr(
+                "login.code.only_code",
+                "Paste only the authentication code MiMo shows.",
+            )
+            .into();
             return;
         }
         self.code.push_str(&compact);
@@ -244,13 +279,24 @@ impl LoginTask {
                     return;
                 };
                 match driver.submit_code(code) {
-                    Ok(()) => self.code_status = "Validando código na sessão pendente...".into(),
+                    Ok(()) => {
+                        self.code_status = tr(
+                            "login.code.validating",
+                            "Validating the code in the pending session...",
+                        )
+                        .into()
+                    }
                     Err(SubmitCodeError::Full(code)) => {
                         self.code = code;
-                        self.code_status = "Aguarde a validação anterior antes de reenviar.".into();
+                        self.code_status = tr(
+                            "login.code.wait",
+                            "Wait for the previous validation before sending again.",
+                        )
+                        .into();
                     }
                     Err(SubmitCodeError::Closed) => {
-                        self.code_status = "A sessão de login já terminou.".into()
+                        self.code_status =
+                            tr("login.code.closed", "The login session has already ended.").into()
                     }
                     Err(SubmitCodeError::Unsupported) => {}
                 }
@@ -283,7 +329,7 @@ impl LoginTask {
             .join("\n\n");
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Login OAuth ");
+            .title(tr("login.title", " OAuth login "));
         let inner = block.inner(areas[0]);
         let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
         let max = paragraph
@@ -293,14 +339,30 @@ impl LoginTask {
         self.scroll = self.scroll.min(max);
         frame.render_widget(paragraph.scroll((self.scroll, 0)).block(block), areas[0]);
         let footer = if self.accepts_code() {
-            format!("Código MiMo (oculto): {} [{} caracteres]\n{}\nEnter envia • Ctrl-U limpa • Esc cancela • ↑↓ rolam instruções", "*".repeat(self.code.len().min(32)), self.code.len(), self.code_status)
+            trf(
+                "login.code.footer",
+                "MiMo code (hidden): {mask} [{count} characters]\n{status}\nEnter sends • Ctrl-U clears • Esc cancels • ↑↓ scroll the instructions",
+                &[
+                    ("mask", &"*".repeat(self.code.len().min(32))),
+                    ("count", &self.code.len()),
+                    ("status", &self.code_status),
+                ],
+            )
         } else if matches!(
             self.job,
             Job::Commit(_) | Job::Confirm(_) | Job::Rollback(_)
         ) {
-            "Aguarde a gravação segura. Ctrl-C sai; não cancele durante a compensação.".into()
+            tr(
+                "login.footer.saving",
+                "Wait for the safe write. Ctrl-C quits; do not cancel during the compensation.",
+            )
+            .into()
         } else {
-            "↑↓ rolar • Esc cancela e retorna ao wizard • Ctrl-C sai".into()
+            tr(
+                "login.footer.flow",
+                "↑↓ scroll • Esc cancels and returns to the wizard • Ctrl-C quits",
+            )
+            .into()
         };
         frame.render_widget(
             Paragraph::new(footer)
@@ -315,31 +377,56 @@ impl LoginTask {
 /// reportado pelo core, sem inventar política.
 pub(crate) fn partial_failure_message(failure: &PartialFailure) -> String {
     use cuotai_core::login::{CommitStage, Compensation};
-    let base = format!("Falha ao salvar o login: {}", failure.message);
-    match (failure.stage, failure.compensation) {
-        (CommitStage::Vault, _) => format!(
-            "{base}\n\nNada foi gravado: nem a credencial no cofre, nem a configuração. Tente novamente."
+    let base = trf(
+        "login.partial.base",
+        "Could not save the login: {message}",
+        &[("message", &failure.message)],
+    );
+    let detail = match (failure.stage, failure.compensation) {
+        (CommitStage::Vault, _) => tr(
+            "login.partial.vault",
+            "Nothing was saved: neither the credential in the vault nor the configuration. Try again.",
         ),
-        (_, Compensation::PreviousRestored) => format!(
-            "{base}\n\nA configuração NÃO foi salva e o token anterior foi restaurado no cofre. A conta continua usando o login anterior; corrija o problema e salve de novo."
+        (_, Compensation::PreviousRestored) => tr(
+            "login.partial.previous_restored",
+            "The configuration was NOT saved and the previous token was restored in the vault. The account keeps using the previous login; fix the problem and save again.",
         ),
-        (_, Compensation::NewRemoved) => format!(
-            "{base}\n\nA configuração NÃO foi salva e a nova credencial foi removida do cofre. Corrija o problema e tente novamente."
+        (_, Compensation::NewRemoved) => tr(
+            "login.partial.new_removed",
+            "The configuration was NOT saved and the new credential was removed from the vault. Fix the problem and try again.",
         ),
-        (_, Compensation::Failed) => format!(
-            "{base}\n\nA configuração NÃO foi salva, mas a credencial permanece gravada no cofre e não foi possível desfazer. Salvar novamente reutiliza essa credencial (mesma chave); se preferir descartar, remova a conta e refaça o login."
+        (_, Compensation::Failed) => tr(
+            "login.partial.failed",
+            "The configuration was NOT saved, but the credential stays in the vault and could not be undone. Saving again reuses that credential (same key); to discard it, remove the account and log in again.",
         ),
-        (_, Compensation::NotNeeded) => format!(
-            "{base}\n\nA gravação do TOML foi o que falhou; o cofre não precisava de compensação."
+        (_, Compensation::NotNeeded) => tr(
+            "login.partial.not_needed",
+            "Writing the TOML is what failed; the vault needed no compensation.",
         ),
-    }
+    };
+    format!("{base}\n\n{detail}")
 }
 
 /// Truthful non-fatal outcome: both the new config and credential were saved,
 /// but the replaced token could not be removed.
 pub(crate) fn cleanup_failure_message(failure: &CleanupFailure) -> String {
-    format!(
-        "Login salvo com aviso: {}\n\nA conta já usa a nova credencial; a anterior foi mantida no cofre.",
-        failure.message
+    trf(
+        "login.cleanup_warning",
+        "Login saved with a warning: {message}\n\nThe account already uses the new credential; the previous one was kept in the vault.",
+        &[("message", &failure.message)],
     )
+}
+
+/// "Paste this attempt's code and press Enter."
+fn paste_code_hint() -> &'static str {
+    tr(
+        "login.code.paste",
+        "Paste the code of this attempt and press Enter.",
+    )
+}
+
+/// A login line in the TUI locale: its id when the core gave one, the
+/// English text otherwise (lines relayed from a provider CLI).
+fn localized(text: String, note: Option<cuotai_core::text::Localized>) -> String {
+    note.map_or(text, |note| resolve_l10n(&note))
 }

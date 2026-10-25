@@ -24,6 +24,7 @@ use std::{
     time::Instant,
 };
 
+use crate::l10n::{tr, trf};
 use chrono::Utc;
 use cuotai_core::{
     config_file::{ConfigFile, ConfigIdentity},
@@ -94,7 +95,14 @@ pub(crate) async fn run(
     if let Some(server) = &server {
         if watch.is_some() {
             // stdout carries the events.
-            eprintln!("cuotai: servidor local em {}", server.url());
+            eprintln!(
+                "{}",
+                trf(
+                    "headless.server_at",
+                    "cuotai: local server at {url}",
+                    &[("url", &server.url())],
+                )
+            );
         } else {
             // The address alone on stdout, for a script that started it.
             let mut stdout = io::stdout().lock();
@@ -168,19 +176,31 @@ pub(crate) async fn run(
     }
     let mut code = 0;
     if serve.is_some() {
-        eprintln!("cuotai: servidor local encerrado.");
+        eprintln!(
+            "{}",
+            tr("headless.server_stopped", "cuotai: local server stopped.")
+        );
         if strict_exit && !ready_seen {
             code = 2;
         }
     }
     if watch.is_some() {
         if failing {
-            eprintln!("cuotai: acompanhamento encerrado com contas em falha.");
+            eprintln!(
+                "{}",
+                tr(
+                    "headless.watch_stopped_failing",
+                    "cuotai: watching stopped with failing accounts."
+                )
+            );
             if strict_exit {
                 code = 2;
             }
         } else {
-            eprintln!("cuotai: acompanhamento encerrado.");
+            eprintln!(
+                "{}",
+                tr("headless.watch_stopped", "cuotai: watching stopped.")
+            );
         }
     }
     Ok(code)
@@ -214,8 +234,12 @@ async fn reload_config(
         Ok(loaded) => loaded,
         Err(error) => {
             eprintln!(
-                "cuotai: configuração não recarregada; a anterior continua em uso: {}",
-                crate::ui::safe(&error)
+                "{}",
+                trf(
+                    "headless.reload_failed",
+                    "cuotai: configuration not reloaded; the previous one stays in use: {error}",
+                    &[("error", &crate::ui::safe(&error))],
+                )
             );
             return Signal::Reload;
         }
@@ -232,8 +256,12 @@ async fn reload_config(
             monitor,
         };
         eprintln!(
-            "cuotai: configuração recarregada ({} conta(s)).",
-            live.config.accounts.len()
+            "{}",
+            trf(
+                "headless.reloaded",
+                "cuotai: configuration reloaded ({count} account(s)).",
+                &[("count", &live.config.accounts.len())],
+            )
         );
     }
     let Some(watch) = watch.filter(|_| reload.hooks) else {
@@ -249,10 +277,17 @@ async fn reload_config(
         result = job => match result {
             Ok(Ok(confirmed)) => {
                 watch.set_hooks(Some(confirmed));
-                eprintln!("cuotai: hooks recarregados.");
+                eprintln!("{}", tr("headless.hooks_reloaded", "cuotai: hooks reloaded."));
             }
-            Ok(Err(error)) => eprintln!("cuotai: hooks suspensos: {error}"),
-            Err(_) => eprintln!("cuotai: hooks suspensos."),
+            Ok(Err(error)) => eprintln!(
+                "{}",
+                trf(
+                    "headless.hooks_suspended_error",
+                    "cuotai: hooks suspended: {error}",
+                    &[("error", &error)],
+                )
+            ),
+            Err(_) => eprintln!("{}", hooks_suspended()),
         },
         // A stop while the question waits ends the process as usual; the
         // blocked read of the answer ends with it.
@@ -260,10 +295,14 @@ async fn reload_config(
             if signal == Signal::Stop {
                 return Signal::Stop;
             }
-            eprintln!("cuotai: hooks suspensos.");
+            eprintln!("{}", hooks_suspended());
         }
     }
     Signal::Reload
+}
+
+fn hooks_suspended() -> &'static str {
+    tr("headless.hooks_suspended", "cuotai: hooks suspended.")
 }
 
 /// The file the process first read, reread with the run's `--interval`.

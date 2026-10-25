@@ -49,7 +49,10 @@ pub async fn run(
 ) -> Result<u8, Box<dyn std::error::Error>> {
     let store = match args.out {
         Some(dir) => Store::new(dir),
-        None => Store::in_data_dir().ok_or("Sem diretório de dados local para o canary.")?,
+        None => Store::in_data_dir().ok_or(crate::l10n::tr(
+            "canary.no_data_dir",
+            "No local data directory for the canary.",
+        ))?,
     };
     let (config, skipped) = without_metered(config, args.include_metered);
     if config.accounts.is_empty() {

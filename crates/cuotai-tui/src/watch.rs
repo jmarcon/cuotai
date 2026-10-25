@@ -91,12 +91,18 @@ impl Watch {
 
     /// The stderr line that opens the run.
     pub(crate) fn started(&self, accounts: usize) -> String {
-        let mut line = format!(
-            "cuotai: acompanhando {accounts} conta(s); a primeira leitura de cada uma é a base \
-             e não gera eventos. Ctrl+C encerra."
+        let mut line = crate::l10n::trf(
+            "watch.started",
+            "cuotai: watching {count} account(s); the first reading of each one is the baseline \
+             and emits no events. Ctrl+C stops.",
+            &[("count", &accounts)],
         );
         if let Some(runner) = &self.hooks {
-            line.push_str(&format!(" {} hook(s) ativo(s).", runner.rules().len()));
+            line.push_str(&crate::l10n::trf(
+                "watch.hooks_active",
+                " {count} hook(s) active.",
+                &[("count", &runner.rules().len())],
+            ));
         }
         line
     }

@@ -1,3 +1,4 @@
+use crate::l10n::{tr, trf};
 use crate::palette;
 use chrono::Local;
 use crossterm::event::KeyCode;
@@ -92,7 +93,14 @@ impl ExtensionsView {
     pub(crate) fn ask_secrets(&mut self, id: String, items: Vec<SecretItem>) {
         self.disclosure = None;
         if items.is_empty() {
-            self.message = Some(("Esta extensão não declara segredos.".into(), false));
+            self.message = Some((
+                tr(
+                    "extensions.no_secrets",
+                    "This extension declares no secrets.",
+                )
+                .into(),
+                false,
+            ));
             return;
         }
         self.message = None;
@@ -302,10 +310,15 @@ impl ExtensionsView {
         ])
         .split(frame.area());
         frame.render_widget(
-            Paragraph::new(
-                "Extensões executáveis locais · regras e aprovação fornecidas pelo core",
+            Paragraph::new(tr(
+                "extensions.header",
+                "Local executable extensions · rules and approval provided by the core",
+            ))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(tr("extensions.title", " Extensions ")),
             )
-            .block(Block::default().borders(Borders::ALL).title(" Extensões "))
             .wrap(Wrap { trim: true }),
             areas[0],
         );
@@ -320,14 +333,18 @@ impl ExtensionsView {
         let lines = if let Some(item) = overriding {
             let mut lines = vec![
                 Line::styled(
-                    format!(
-                        "Substituição pela extensão {}: escolha as contas",
-                        safe(&item.name)
+                    trf(
+                        "extensions.override.heading",
+                        "Replacement by the extension {name}: choose the accounts",
+                        &[("name", &safe(&item.name))],
                     ),
                     Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
                 ),
                 Line::styled(
-                    "A extensão recebe só as próprias variáveis e segredos, nunca as credenciais da conta.",
+                    tr(
+                        "extensions.override.note",
+                        "The extension receives only its own variables and secrets, never the account's credentials.",
+                    ),
                     Style::default().fg(MUTED),
                 ),
                 Line::default(),
@@ -345,27 +362,37 @@ impl ExtensionsView {
             let item = &prompt.items[prompt.index];
             vec![
                 Line::styled(
-                    format!(
-                        "Segredo {} de {}: {} (variável {})",
-                        prompt.index + 1,
-                        prompt.items.len(),
-                        safe(&item.name),
-                        safe(&item.env)
+                    trf(
+                        "extensions.secret.heading",
+                        "Secret {index} of {total}: {name} (variable {env})",
+                        &[
+                            ("index", &(prompt.index + 1)),
+                            ("total", &prompt.items.len()),
+                            ("name", &safe(&item.name)),
+                            ("env", &safe(&item.env)),
+                        ],
                     ),
                     Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
                 ),
                 Line::from(safe(&item.description).into_owned()),
                 Line::default(),
-                Line::from(format!(
-                    "Valor: {}",
-                    "•".repeat(prompt.value.chars().count())
+                Line::from(trf(
+                    "extensions.secret.value",
+                    "Value: {mask}",
+                    &[("mask", &"•".repeat(prompt.value.chars().count()))],
                 )),
                 Line::default(),
                 Line::styled(
                     if item.stored {
-                        "Já há um valor no cofre; Enter o substitui."
+                        tr(
+                            "extensions.secret.stored",
+                            "There is already a value in the vault; Enter replaces it.",
+                        )
                     } else {
-                        "O valor fica só no cofre do sistema e só chega ao ambiente da extensão."
+                        tr(
+                            "extensions.secret.where",
+                            "The value stays only in the system vault and reaches only the extension's environment.",
+                        )
                     },
                     Style::default().fg(MUTED),
                 ),
@@ -373,7 +400,10 @@ impl ExtensionsView {
         } else if let Some(pending) = &self.disclosure {
             let mut lines = vec![
                 Line::styled(
-                    "Revise todos os itens antes de aprovar:",
+                    tr(
+                        "extensions.disclosure.heading",
+                        "Review every item before approving:",
+                    ),
                     Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
                 ),
                 Line::default(),
@@ -385,7 +415,7 @@ impl ExtensionsView {
             lines
         } else if self.items.is_empty() {
             vec![Line::styled(
-                "Nenhuma extensão descoberta.",
+                tr("extensions.empty", "No extension discovered."),
                 Style::default().fg(MUTED),
             )]
         } else {
@@ -451,9 +481,13 @@ impl ExtensionsView {
                                 .format("%Y-%m-%d %H:%M:%S")
                                 .to_string()
                         })
-                        .unwrap_or_else(|| "nunca".into());
+                        .unwrap_or_else(|| tr("extensions.last_run.never", "never").into());
                     detail.push(Line::styled(
-                        format!("    Última execução: {last}"),
+                        trf(
+                            "extensions.last_run",
+                            "    Last run: {last}",
+                            &[("last", &last)],
+                        ),
                         Style::default().fg(MUTED),
                     ));
                     if let Some(error) = &item.error {
@@ -498,13 +532,25 @@ impl ExtensionsView {
         paragraph = paragraph.scroll((self.scroll, 0));
         frame.render_widget(paragraph, areas[1]);
         let footer = if overriding.is_some() {
-            "1–9 liga/desliga a substituição da conta · Esc volta"
+            tr(
+                "extensions.footer.override",
+                "1–9 turns the account's replacement on/off · Esc back",
+            )
         } else if self.secret.is_some() {
-            "digite o valor (oculto) · Enter guarda no cofre · Backspace apaga · Esc cancela"
+            tr(
+                "extensions.footer.secret",
+                "type the value (hidden) · Enter stores it in the vault · Backspace deletes · Esc cancels",
+            )
         } else if self.disclosure.is_some() {
-            "↑↓/jk PgUp/PgDn rolam (sem aprovar) · s aprova e ativa · n/Esc cancela · risco residual permanece"
+            tr(
+                "extensions.footer.disclosure",
+                "↑↓/jk PgUp/PgDn scroll (without approving) · s approves and enables · n/Esc cancels · residual risk remains",
+            )
         } else {
-            "↑↓ seleciona · e ativa · d desativa · t testa · v segredos · o substitui · x/Delete remove a conta · Esc volta"
+            tr(
+                "extensions.footer.list",
+                "↑↓ selects · e enables · d disables · t tests · v secrets · o replaces · x/Delete removes the account · Esc back",
+            )
         };
         let mut footer_lines = vec![Line::styled(footer, Style::default().fg(YELLOW))];
         if let Some((message, error)) = &self.message {

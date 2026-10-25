@@ -7,6 +7,7 @@
 //! `cuotai_core::resets::timeline` and the history's journal; this module
 //! only words and lays them out.
 
+use crate::l10n::{tr, tr_in, trf_in};
 use crate::palette;
 use crate::ui::{local_time, safe};
 use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, Utc};
@@ -96,15 +97,27 @@ fn bar(share: f64) -> String {
     format!("{}{}", "█".repeat(filled), "░".repeat(BAR_CELLS - filled))
 }
 
-fn weekday(date: NaiveDate) -> &'static str {
-    ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
-        [date.weekday().num_days_from_monday() as usize]
+fn weekday(date: NaiveDate, locale: &str) -> &'static str {
+    match date.weekday().num_days_from_monday() {
+        0 => tr_in(locale, "stats.weekday.mon", "Mon"),
+        1 => tr_in(locale, "stats.weekday.tue", "Tue"),
+        2 => tr_in(locale, "stats.weekday.wed", "Wed"),
+        3 => tr_in(locale, "stats.weekday.thu", "Thu"),
+        4 => tr_in(locale, "stats.weekday.fri", "Fri"),
+        5 => tr_in(locale, "stats.weekday.sat", "Sat"),
+        _ => tr_in(locale, "stats.weekday.sun", "Sun"),
+    }
 }
 
-fn day_label(date: NaiveDate, today: bool) -> String {
-    let label = format!("{} {}", weekday(date), date.format("%d/%m"));
+fn day_label(date: NaiveDate, today: bool, locale: &str) -> String {
+    let label = format!("{} {}", weekday(date, locale), date.format("%d/%m"));
     if today {
-        format!("{label} hoje")
+        trf_in(
+            locale,
+            "stats.day.today",
+            "{label} today",
+            &[("label", &label)],
+        )
     } else {
         label
     }
@@ -126,7 +139,12 @@ fn sparkline(days: &[stats::DayPeak]) -> String {
 pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
     let mut rows = vec![(
         Tone::Heading,
-        format!("Estatísticas · últimos {} dias", summary.range.days()),
+        trf_in(
+            locale,
+            "stats.heading",
+            "Statistics · last {days} days",
+            &[("days", &summary.range.days())],
+        ),
     )];
     if summary.coverage == Coverage::NotEnough {
         rows.push((
@@ -135,50 +153,77 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
         ));
     }
     let base = match summary.coverage {
-        Coverage::Full => format!("{} dias com dados", summary.range.days()),
-        Coverage::Partial { days_with_data } => format!("{days_with_data} dias com dados"),
+        Coverage::Full => days_with_data(summary.range.days(), locale),
+        Coverage::Partial {
+            days_with_data: days,
+        } => days_with_data(days, locale),
         Coverage::NotEnough => String::new(),
     };
-    rows.push((Tone::Normal, format!("Limites atingidos: {}", summary.hits)));
+    rows.push((
+        Tone::Normal,
+        trf_in(
+            locale,
+            "stats.hits",
+            "Limits reached: {hits}",
+            &[("hits", &summary.hits)],
+        ),
+    ));
     rows.push((
         Tone::Normal,
         match (summary.average_peak, summary.coverage) {
-            (Some(average), c) if c != Coverage::NotEnough => {
-                format!(
-                    "Pico médio do limite mais apertado: {} ({base})",
-                    percent(average)
-                )
-            }
-            _ => "Pico médio do limite mais apertado: —".to_owned(),
+            (Some(average), c) if c != Coverage::NotEnough => trf_in(
+                locale,
+                "stats.average_peak",
+                "Average peak of the tightest limit: {peak} ({base})",
+                &[("peak", &percent(average)), ("base", &base)],
+            ),
+            _ => tr_in(
+                locale,
+                "stats.average_peak.none",
+                "Average peak of the tightest limit: —",
+            )
+            .to_owned(),
         },
     ));
     rows.push((
         Tone::Normal,
         match &summary.extra_spent {
-            Some(spent) => format!(
-                "Gasto extra: {}",
-                spent
-                    .iter()
-                    .map(|e| format!("{:.2} {}", e.amount, safe(&e.unit)))
-                    .collect::<Vec<_>>()
-                    .join(" · ")
+            Some(spent) => trf_in(
+                locale,
+                "stats.extra_spent",
+                "Extra spending: {amounts}",
+                &[(
+                    "amounts",
+                    &spent
+                        .iter()
+                        .map(|e| {
+                            format!("{:.2} {}", e.amount, safe(&crate::ui::unit_text(&e.unit)))
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" · "),
+                )],
             ),
-            None => "Gasto extra: —".to_owned(),
+            None => tr_in(locale, "stats.extra_spent.none", "Extra spending: —").to_owned(),
         },
     ));
     if summary.unknown_limits > 0 {
         rows.push((
             Tone::Muted,
-            format!(
-                "{} limite(s) sem teto conhecido ficaram de fora das médias.",
-                summary.unknown_limits
+            trf_in(
+                locale,
+                "stats.unknown_limits",
+                "{count} limit(s) without a known ceiling were left out of the averages.",
+                &[("count", &summary.unknown_limits)],
             ),
         ));
     }
     rows.push((Tone::Normal, String::new()));
-    rows.push((Tone::Heading, "Pico de uso por dia".to_owned()));
+    rows.push((
+        Tone::Heading,
+        tr_in(locale, "stats.daily", "Usage peak per day").to_owned(),
+    ));
     for day in &summary.daily {
-        let label = day_label(day.day, day.is_today);
+        let label = day_label(day.day, day.is_today, locale);
         let (tone, text) = match day.share {
             Some(share) => (
                 if share >= 1.0 {
@@ -188,14 +233,28 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
                 },
                 format!("{label:<16} {} {}", bar(share), percent(share)),
             ),
-            None => (Tone::Muted, format!("{label:<16} sem dados")),
+            None => (
+                Tone::Muted,
+                format!("{label:<16} {}", tr_in(locale, "stats.no_data", "no data")),
+            ),
         };
         rows.push((tone, text));
     }
     rows.push((Tone::Normal, String::new()));
-    rows.push((Tone::Heading, "Por conta".to_owned()));
+    rows.push((
+        Tone::Heading,
+        tr_in(locale, "stats.per_account", "Per account").to_owned(),
+    ));
     if summary.accounts.is_empty() {
-        rows.push((Tone::Muted, "Nenhuma conta na configuração.".to_owned()));
+        rows.push((
+            Tone::Muted,
+            tr_in(
+                locale,
+                "stats.no_accounts",
+                "No account in the configuration.",
+            )
+            .to_owned(),
+        ));
     }
     for account in &summary.accounts {
         let average = account.average_peak.map_or("—".to_owned(), percent);
@@ -206,10 +265,18 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
                 Tone::Normal
             },
             format!(
-                "{:<24} média {average:>4} · {} limite(s) atingido(s) · {}",
+                "{:<24} {}",
                 safe(&account.name),
-                account.hits,
-                sparkline(&account.days)
+                trf_in(
+                    locale,
+                    "stats.account_line",
+                    "average {average} · {hits} limit(s) reached · {spark}",
+                    &[
+                        ("average", &format!("{average:>4}")),
+                        ("hits", &account.hits),
+                        ("spark", &sparkline(&account.days)),
+                    ],
+                )
             ),
         ));
     }
@@ -220,36 +287,70 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
 
 fn lane_text(lane: &Lane, now: DateTime<Utc>, locale: &str) -> String {
     let left = if lane.exhausted {
-        "esgotada".to_owned()
+        tr_in(locale, "stats.lane.exhausted", "exhausted").to_owned()
     } else {
-        format!("{} restante", percent(lane.remaining_share))
+        trf_in(
+            locale,
+            "stats.lane.remaining",
+            "{share} left",
+            &[("share", &percent(lane.remaining_share))],
+        )
     };
-    let stale = if lane.stale { " · leitura antiga" } else { "" };
+    let stale = if lane.stale {
+        tr_in(locale, "stats.lane.stale", " · old reading")
+    } else {
+        ""
+    };
     match lane.returns_at {
         Some(at) => format!(
             "{} {} · {} · {} · {left}{stale}",
             local_time(at),
             text::countdown(at - now).resolve(locale),
             safe(&lane.name),
-            safe(&lane.label),
+            safe(&crate::ui::metric_label_text(&lane.label)),
         ),
         None => format!(
-            "Retorno desconhecido · {} · {} · {left}{stale}",
+            "{} · {} · {} · {left}{stale}",
+            unknown_return(locale),
             safe(&lane.name),
-            safe(&lane.label)
+            safe(&crate::ui::metric_label_text(&lane.label))
         ),
     }
 }
 
-/// RF2/RF6.1: "19:30 em 1h 35m · Claude Work · 0% restante", earliest first.
+fn unknown_return(locale: &str) -> &'static str {
+    tr_in(locale, "stats.unknown_return", "Unknown return")
+}
+
+fn days_with_data(days: impl std::fmt::Display, locale: &str) -> String {
+    trf_in(
+        locale,
+        "stats.days_with_data",
+        "{days} days with data",
+        &[("days", &days)],
+    )
+}
+
+/// RF2/RF6.1: "19:30 in 1h 35m · Claude Work · 0% left", earliest first.
 pub(crate) fn timeline_rows(timeline: &Timeline, locale: &str) -> Vec<Row> {
     let span = match timeline.range {
         TimelineRange::Hours24 => "24 h",
-        TimelineRange::Days7 => "7 dias",
+        TimelineRange::Days7 => tr_in(locale, "stats.span.7_days", "7 days"),
     };
-    let mut rows = vec![(Tone::Heading, format!("Limites voltam · próximas {span}"))];
+    let mut rows = vec![(
+        Tone::Heading,
+        trf_in(
+            locale,
+            "stats.timeline.heading",
+            "Limits return · next {span}",
+            &[("span", &span)],
+        ),
+    )];
     if timeline.lanes.is_empty() {
-        rows.push((Tone::Muted, "Nenhum retorno neste período.".to_owned()));
+        rows.push((
+            Tone::Muted,
+            tr_in(locale, "stats.timeline.empty", "No return in this period.").to_owned(),
+        ));
     }
     for lane in &timeline.lanes {
         let tone = match lane.level {
@@ -259,13 +360,16 @@ pub(crate) fn timeline_rows(timeline: &Timeline, locale: &str) -> Vec<Row> {
         rows.push((tone, lane_text(lane, timeline.now, locale)));
     }
     if !timeline.later.is_empty() {
-        rows.push((Tone::Heading, "Depois".to_owned()));
+        rows.push((
+            Tone::Heading,
+            tr_in(locale, "stats.timeline.later", "Later").to_owned(),
+        ));
         for lane in &timeline.later {
             rows.push((Tone::Normal, lane_text(lane, timeline.now, locale)));
         }
     }
     if !timeline.unknown.is_empty() {
-        rows.push((Tone::Heading, "Retorno desconhecido".to_owned()));
+        rows.push((Tone::Heading, unknown_return(locale).to_owned()));
         for lane in &timeline.unknown {
             rows.push((Tone::Muted, lane_text(lane, timeline.now, locale)));
         }
@@ -273,11 +377,17 @@ pub(crate) fn timeline_rows(timeline: &Timeline, locale: &str) -> Vec<Row> {
     rows
 }
 
-/// "Eventos recentes": `HH:MM` or date and time, account, summary.
+/// "Recent events": `HH:MM` or date and time, account, summary.
 pub(crate) fn event_rows(events: &[JournalEntry], locale: &str) -> Vec<Row> {
-    let mut rows = vec![(Tone::Heading, "Eventos recentes".to_owned())];
+    let mut rows = vec![(
+        Tone::Heading,
+        tr_in(locale, "stats.events.heading", "Recent events").to_owned(),
+    )];
     if events.is_empty() {
-        rows.push((Tone::Muted, "Nenhum evento registrado.".to_owned()));
+        rows.push((
+            Tone::Muted,
+            tr_in(locale, "stats.events.empty", "No event recorded.").to_owned(),
+        ));
     }
     for entry in events {
         let who = match (entry.account.as_deref(), entry.parent.as_deref()) {
@@ -345,7 +455,7 @@ pub(crate) fn stats_range(days: Option<u32>) -> Result<StatsRange, String> {
     match days {
         None | Some(7) => Ok(StatsRange::Days7),
         Some(30) => Ok(StatsRange::Days30),
-        Some(_) => Err("--days aceita 7 ou 30 com --stats.".to_owned()),
+        Some(_) => Err(tr("stats.flag.days", "--days accepts 7 or 30 with --stats.").to_owned()),
     }
 }
 
@@ -354,7 +464,7 @@ pub(crate) fn timeline_range(range: Option<&str>) -> Result<TimelineRange, Strin
     match range {
         None | Some("24h") => Ok(TimelineRange::Hours24),
         Some("7d") => Ok(TimelineRange::Days7),
-        Some(_) => Err("--range aceita 24h ou 7d.".to_owned()),
+        Some(_) => Err(tr("stats.flag.range", "--range accepts 24h or 7d.").to_owned()),
     }
 }
 
@@ -363,7 +473,11 @@ pub(crate) fn event_days(days: Option<u32>) -> Result<u32, String> {
     match days {
         None => Ok(7),
         Some(days @ 1..=365) => Ok(days),
-        Some(_) => Err("--days vai de 1 a 365 com --events-log.".to_owned()),
+        Some(_) => Err(tr(
+            "stats.flag.event_days",
+            "--days goes from 1 to 365 with --events-log.",
+        )
+        .to_owned()),
     }
 }
 
@@ -504,7 +618,7 @@ impl StatsView {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(CYAN))
-            .title(" ESTATÍSTICAS ");
+            .title(tr_in(locale, "stats.title", " STATISTICS "));
         let inner = block.inner(areas[0]);
         let body = Paragraph::new(self.lines(locale)).wrap(Wrap { trim: false });
         let total = body.line_count(inner.width);
@@ -516,18 +630,24 @@ impl StatsView {
         let mut spans = Vec::new();
         let mut x = areas[1].x;
         let days = match self.days {
-            StatsRange::Days7 => "d 30 dias",
-            StatsRange::Days30 => "d 7 dias",
+            StatsRange::Days7 => tr_in(locale, "stats.footer.30_days", "d 30 days"),
+            StatsRange::Days30 => tr_in(locale, "stats.footer.7_days", "d 7 days"),
         };
         let range = match self.range {
-            TimelineRange::Hours24 => "t 7 dias",
+            TimelineRange::Hours24 => tr_in(locale, "stats.footer.t_7_days", "t 7 days"),
             TimelineRange::Days7 => "t 24 h",
         };
         for (label, code) in [
-            (" ↑↓ rolar".to_owned(), None),
+            (
+                tr_in(locale, "stats.footer.scroll", " ↑↓ scroll").to_owned(),
+                None,
+            ),
             (format!("  {days}"), Some(KeyCode::Char('d'))),
             (format!("  {range}"), Some(KeyCode::Char('t'))),
-            ("  Esc voltar".to_owned(), Some(KeyCode::Esc)),
+            (
+                tr_in(locale, "about.footer.back", "  Esc back").to_owned(),
+                Some(KeyCode::Esc),
+            ),
         ] {
             let span = Span::styled(label, Style::default().fg(YELLOW));
             let width = span.width() as u16;

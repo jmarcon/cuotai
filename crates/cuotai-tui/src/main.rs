@@ -7,6 +7,7 @@ mod dashboard;
 mod extension_check;
 mod extensions_view;
 mod headless;
+mod l10n;
 mod models_view;
 mod motion;
 mod notify;
@@ -61,7 +62,7 @@ fn build_version() -> &'static str {
 #[derive(Parser)]
 #[command(
     version = build_version(),
-    about = "Quota e consumo de AI: APIs e assinaturas, sem gerar tokens.",
+    about = "AI quota and usage: APIs and subscriptions, without generating tokens.",
     // PRD 0015: one local cost action at a time, never with a query mode.
     group(
         clap::ArgGroup::new("cost_action")
@@ -87,17 +88,16 @@ fn build_version() -> &'static str {
     )
 )]
 struct Args {
-    /// Arquivo TOML (cria se ausente). Sem ele: CUOTAI_CONFIG, ./cuotai.toml existente,
-    /// ou <config do SO>/cuotai/config.toml (onde o wizard cria um novo).
+    /// TOML file (created if missing). Without it: CUOTAI_CONFIG, an existing ./cuotai.toml,
+    /// or <OS config dir>/cuotai/config.toml (where the wizard creates a new one).
     #[arg(short, long)]
     config: Option<PathBuf>,
-    /// Consulta uma vez, sem abrir a TUI.
+    /// Queries once, without opening the TUI.
     #[arg(long)]
     once: bool,
-    /// PRD 0031 RF2: consulta uma vez e imprime uma linha para barras de
-    /// status (tmux, Waybar, SketchyBar) com o mesmo resumo da barra de menus.
-    /// Saída 0 se todas as contas estão prontas, 2 se alguma falhou, 1 em erro
-    /// local.
+    /// PRD 0031 RF2: queries once and prints one line for status bars (tmux,
+    /// Waybar, SketchyBar) with the same summary as the menu bar. Exit 0 when
+    /// every account is ready, 2 when one failed, 1 on a local error.
     #[arg(
         long,
         conflicts_with_all = [
@@ -107,27 +107,27 @@ struct Args {
         ]
     )]
     status_line: bool,
-    /// Com --status-line, o estilo da linha.
+    /// With --status-line, the line's style.
     #[arg(
         long,
-        value_name = "ESTILO",
+        value_name = "STYLE",
         value_parser = status_line::STYLES,
         default_value = "tightest_percent",
         requires = "status_line"
     )]
     style: String,
-    /// Com --status-line, só esta conta (id); repita para escolher várias, na
-    /// ordem dada. Sem a opção: todas, na ordem do TOML.
+    /// With --status-line, only this account (id); repeat it to pick several,
+    /// in the given order. Without it: all of them, in the TOML's order.
     #[arg(long = "account", value_name = "ID", requires = "status_line")]
     status_accounts: Vec<String>,
-    /// Com --status-line, pinta a linha (ANSI) quando a saída é um terminal e
-    /// NO_COLOR não está definido.
+    /// With --status-line, colors the line (ANSI) when the output is a
+    /// terminal and NO_COLOR is not set.
     #[arg(long, requires = "status_line")]
     color: bool,
-    /// Com --status-line, lê o /v1/limits de um cuotai --serve em execução
-    /// (padrão http://127.0.0.1 na porta padrão) em vez de consultar os
-    /// provedores; só endereços de loopback. O token vem de --token-file ou
-    /// do arquivo padrão do --serve.
+    /// With --status-line, reads /v1/limits from a running cuotai --serve
+    /// (default http://127.0.0.1 on the default port) instead of querying the
+    /// providers; loopback addresses only. The token comes from --token-file
+    /// or from --serve's default file.
     #[arg(
         long,
         value_name = "URL",
@@ -136,44 +136,43 @@ struct Args {
         requires = "status_line"
     )]
     from_server: Option<String>,
-    /// Consulta uma vez e emite o Snapshot em JSON (sem credenciais); com
-    /// --history, emite o histórico em JSON.
+    /// Queries once and prints the Snapshot as JSON (no credentials); with
+    /// --history, prints the history as JSON.
     #[arg(long)]
     json: bool,
-    /// Mostra o histórico local de medições de CONTA (ou de todas) e sai,
-    /// sem consultar os provedores.
-    #[arg(long, value_name = "CONTA", num_args = 0..=1, conflicts_with = "once")]
+    /// Shows the local measurement history of ACCOUNT (or of all of them) and
+    /// exits, without querying the providers.
+    #[arg(long, value_name = "ACCOUNT", num_args = 0..=1, conflicts_with = "once")]
     history: Option<Option<String>>,
-    /// Lista os identificadores aceitos na configuração.
+    /// Lists the identifiers the configuration accepts.
     #[arg(long)]
     list_providers: bool,
-    /// Estatísticas de uso do histórico local (limites atingidos, pico médio
-    /// do limite mais apertado, gasto extra, pico por dia e por conta), sem
-    /// consultar os provedores. Com --days 7|30 (padrão 7) e --json. Saída
-    /// 0; 2 se o histórico não pôde ser lido; 1 em erro local.
+    /// Usage statistics from the local history (limits reached, average peak
+    /// of the tightest limit, extra spending, peak per day and per account),
+    /// without querying the providers. With --days 7|30 (default 7) and
+    /// --json. Exit 0; 2 when the history could not be read; 1 on a local
+    /// error.
     #[arg(long)]
     stats: bool,
-    /// Quando o limite mais apertado de cada conta volta, a partir das
-    /// últimas leituras gravadas, sem consultar os provedores. Com --range
-    /// 24h|7d (padrão 24h) e --json. Mesmas saídas de --stats.
+    /// When each account's tightest limit comes back, from the last recorded
+    /// readings, without querying the providers. With --range 24h|7d
+    /// (default 24h) and --json. Same exit codes as --stats.
     #[arg(long)]
     timeline: bool,
-    /// O diário de eventos gravado no histórico (limiar cruzado, cota
-    /// esgotada, renovada, falha de consulta...), do mais novo ao mais
-    /// antigo. Com --days N (1 a 365; padrão 7) e --json. Mesmas saídas de
-    /// --stats.
+    /// The event journal recorded in the history (threshold crossed, quota
+    /// exhausted, renewed, query failure...), newest first. With --days N
+    /// (1 to 365; default 7) and --json. Same exit codes as --stats.
     #[arg(long)]
     events_log: bool,
-    /// Período de --timeline: 24h ou 7d.
-    #[arg(long, value_name = "PERÍODO", value_parser = ["24h", "7d"], requires = "timeline")]
+    /// The --timeline range: 24h or 7d.
+    #[arg(long, value_name = "RANGE", value_parser = ["24h", "7d"], requires = "timeline")]
     range: Option<String>,
-    /// Consulta CONTA uma vez e imprime o relatório de problema (texto em
-    /// inglês, sem segredos, e a URL do GitHub já preenchida). Nada é
-    /// enviado: você abre a URL. Saída 0; 1 se a conta não existe ou em erro
-    /// local.
+    /// Queries ACCOUNT once and prints the problem report (English text, no
+    /// secrets, and the prefilled GitHub URL). Nothing is sent: you open the
+    /// URL. Exit 0; 1 when the account does not exist or on a local error.
     #[arg(
         long,
-        value_name = "CONTA",
+        value_name = "ACCOUNT",
         conflicts_with_all = [
             "list_providers", "changelog", "extension_check", "once", "json",
             "json_v1", "history", "notify", "serve", "watch", "install_source",
@@ -181,12 +180,12 @@ struct Args {
         ]
     )]
     report_problem: Option<String>,
-    /// PRD 0028 RF4: o canário de contrato local. Consulta uma vez as contas
-    /// configuradas (as cobradas por consulta ficam de fora), grava um
-    /// registro sem valores em `<dados>/cuotai/canary/`, compara com a
-    /// execução anterior e imprime o relatório em Markdown e um rascunho de
-    /// issue por desvio. Nada é aberto nem enviado sozinho. Saída 0 sem
-    /// desvio, 2 com desvio, 1 em erro local.
+    /// PRD 0028 RF4: the local contract canary. Queries the configured
+    /// accounts once (those billed per query are left out), writes a record
+    /// without values to `<data>/cuotai/canary/`, compares it with the
+    /// previous run and prints the Markdown report and one issue draft per
+    /// drift. Nothing is opened or sent on its own. Exit 0 without drift, 2
+    /// with drift, 1 on a local error.
     #[arg(
         long,
         conflicts_with_all = [
@@ -196,21 +195,21 @@ struct Args {
         ]
     )]
     canary: bool,
-    /// Com --canary, o diretório dos registros (padrão: `<dados>/cuotai/canary`).
+    /// With --canary, the records' directory (default: `<data>/cuotai/canary`).
     #[arg(long, value_name = "DIR", requires = "canary")]
     out: Option<std::path::PathBuf>,
-    /// Com --canary, calcula e imprime sem gravar nada.
+    /// With --canary, computes and prints without writing anything.
     #[arg(long, requires = "canary")]
     dry_run: bool,
-    /// Com --canary, abre no navegador o link de cada rascunho de issue.
+    /// With --canary, opens each issue draft's link in the browser.
     #[arg(long, requires = "canary")]
     canary_open: bool,
-    /// Com --canary, inclui também as contas cobradas por consulta.
+    /// With --canary, also includes the accounts billed per query.
     #[arg(long, requires = "canary")]
     canary_include_metered: bool,
-    /// PRD 0031 RF3: imprime o script de completação do shell indicado
-    /// (gerado da definição da linha de comando) e sai com 0. É local: não
-    /// lê a configuração nem consulta a rede.
+    /// PRD 0031 RF3: prints the completion script of the given shell
+    /// (generated from the command-line definition) and exits with 0. It is
+    /// local: it reads no configuration and queries no network.
     #[arg(
         long,
         value_name = "SHELL",
@@ -228,10 +227,10 @@ struct Args {
         ]
     )]
     completions: Option<clap_complete::Shell>,
-    /// Informa de onde esta cópia foi instalada, por que o atualizador
-    /// interno deve ficar desligado e o comando de atualização, quando
-    /// conhecido. É local: não lê a configuração nem consulta a rede.
-    /// Saída 0; 1 em erro local.
+    /// Says where this copy was installed from, why the built-in updater
+    /// must stay off and the update command, when known. It is local: it
+    /// reads no configuration and queries no network. Exit 0; 1 on a local
+    /// error.
     #[arg(
         long,
         conflicts_with_all = [
@@ -249,18 +248,18 @@ struct Args {
         ]
     )]
     install_source: bool,
-    /// Mostra o histórico de versões do CHANGELOG embutido (sem rede e sem
-    /// consultar provedores): tudo, ou só a seção de VERSÃO (uma versão
-    /// como 0.68.2, ou uma série como 0.68.x). Uma versão interna nunca
-    /// publicada (0.1.0 a 0.79.0) mostra o histórico de pré-lançamento
-    /// que a resume, com um aviso. Os rótulos de categoria
-    /// seguem o idioma da interface; as entradas continuam em inglês, o
-    /// idioma do changelog, como o próprio comando avisa. Não combina com
-    /// os modos de consulta, com --list-providers nem com as opções de
-    /// custo. Saída 0; 1 em erro local (versão inexistente).
+    /// Shows the version history of the embedded CHANGELOG (no network and
+    /// no provider queries): all of it, or only the section of VERSION (a
+    /// version such as 0.68.2, or a series such as 0.68.x). An internal
+    /// version that was never published (0.1.0 to 0.79.0) shows the
+    /// pre-release history that summarizes it, with a notice. The category
+    /// labels follow the interface language; the entries stay in English,
+    /// the changelog's language, as the command itself says. Does not
+    /// combine with the query modes, --list-providers or the cost options.
+    /// Exit 0; 1 on a local error (unknown version).
     #[arg(
         long,
-        value_name = "VERSÃO",
+        value_name = "VERSION",
         num_args = 0..=1,
         conflicts_with_all = [
             "list_providers",
@@ -276,16 +275,17 @@ struct Args {
         ]
     )]
     changelog: Option<Option<String>>,
-    /// Executa a extensão ID uma vez e mostra o relatório normalizado ou as
-    /// violações do contrato (PRD 0017 RF2.4), sem nunca mostrar a saída
-    /// bruta. Uma extensão nasce desativada: na primeira vez, e após
-    /// qualquer mudança no manifesto ou no programa, o comando exato, a
-    /// pasta, as variáveis de ambiente pedidas e o intervalo são listados e
-    /// pedem confirmação no terminal (sem terminal: erro). Com --json, em
-    /// JSON. Saída 0 se a leitura está pronta; 2 se a execução falhou ou a
-    /// saída violou o contrato; 1 em erro local (id desconhecido, aprovação
-    /// recusada). Não combina com --once, --json-v1, --history, --notify,
-    /// --serve, --watch, --list-providers nem as opções de custo.
+    /// Runs the extension ID once and shows the normalized report or the
+    /// contract violations (PRD 0017 RF2.4), never the raw output. An
+    /// extension starts disabled: the first time, and after any change to
+    /// the manifest or the program, the exact command, the folder, the
+    /// requested environment variables and the interval are listed and ask
+    /// for confirmation in the terminal (without a terminal: error). With
+    /// --json, as JSON. Exit 0 when the reading is ready; 2 when the run
+    /// failed or the output broke the contract; 1 on a local error (unknown
+    /// id, approval declined). Does not combine with --once, --json-v1,
+    /// --history, --notify, --serve, --watch, --list-providers or the cost
+    /// options.
     #[arg(
         long,
         value_name = "ID",
@@ -301,144 +301,147 @@ struct Args {
         ]
     )]
     extension_check: Option<String>,
-    /// SOMENTE desenvolvimento: tokens sem criptografia em SQLite (release recusa).
-    #[arg(long, value_name = "ARQUIVO")]
+    /// DEVELOPMENT ONLY: unencrypted tokens in SQLite (release builds refuse it).
+    #[arg(long, value_name = "FILE")]
     dev_credentials_sqlite: Option<PathBuf>,
-    /// Lista as credenciais que o Cuotai guardou no cofre (OAuth e sessões
-    /// web), a conta que usa cada uma e as órfãs, que nenhuma conta usa;
-    /// nunca mostra um valor. Com --json, em JSON. Saída 0; 2 com órfãs.
+    /// Lists the credentials Cuotai stored in the vault (OAuth and web
+    /// sessions), the account that uses each one and the orphans no account
+    /// uses; never shows a value. With --json, as JSON. Exit 0; 2 with
+    /// orphans.
     #[arg(long, conflicts_with_all = VAULT_CONFLICTS)]
     vault_audit: bool,
-    /// Apaga do cofre as credenciais órfãs de --vault-audit, depois de
-    /// confirmar no terminal (sem terminal: erro).
+    /// Deletes the orphan credentials of --vault-audit from the vault, after
+    /// a confirmation in the terminal (without a terminal: error).
     #[arg(long, conflicts_with_all = VAULT_CONFLICTS, conflicts_with = "vault_audit")]
     vault_prune: bool,
-    /// Desliga as animações da TUI (também: CUOTAI_NO_ANIMATIONS=1).
+    /// Turns the TUI's animations off (also: CUOTAI_NO_ANIMATIONS=1).
     #[arg(long)]
     no_animations: bool,
-    /// Dias de histórico local de medições mantidos (7 a 365; padrão 90);
-    /// com --history, os dias mostrados (padrão 7).
-    #[arg(long, value_name = "DIAS")]
+    /// Days of local measurement history kept (7 to 365; default 90); with
+    /// --history, the days shown (default 7).
+    #[arg(long, value_name = "DAYS")]
     history_days: Option<u32>,
-    /// Com a TUI aberta, avisa quando uma cota usada renova e quando uma cota
-    /// com limite atinge 75% ou 90% de uso, esgota ou volta a ter folga: faixa
-    /// no cabeçalho, sino do terminal (BEL) e notificação OSC 9 no iTerm2,
-    /// WezTerm e Ghostty.
+    /// With the TUI open, notifies when a used quota renews and when a quota
+    /// with a limit reaches 75% or 90% of use, runs out or has room again: a
+    /// header banner, the terminal bell (BEL) and an OSC 9 notification in
+    /// iTerm2, WezTerm and Ghostty.
     #[arg(long, conflicts_with_all = ["once", "json", "history"])]
     notify: bool,
-    /// Com --notify, avisa também quando, no ritmo recente, uma cota vai
-    /// acabar antes da renovação: 15, 30 ou 60 minutos antes (60 sem
-    /// valor). Estimativa linear das leituras recentes; desligado sem esta
-    /// opção. Só nesta sessão.
+    /// With --notify, also notifies when, at the recent pace, a quota will
+    /// run out before it renews: 15, 30 or 60 minutes before (60 without a
+    /// value). A linear estimate from the recent readings; off without this
+    /// option. This session only.
     #[arg(
         long,
-        value_name = "MINUTOS",
+        value_name = "MINUTES",
         num_args = 0..=1,
         default_missing_value = "60",
         value_parser = ["15", "30", "60"],
         requires = "notify"
     )]
     notify_projected: Option<String>,
-    /// Como mostrar o desvio do ritmo: `points` (pontos percentuais, o
-    /// padrão) ou `percent` (relativo ao uso esperado: "20% mais rápido que
-    /// o ritmo"). Também: CUOTAI_PACE_UNIT.
-    #[arg(long, value_name = "UNIDADE", value_parser = ["points", "percent"])]
+    /// How to show the pace deviation: `points` (percentage points, the
+    /// default) or `percent` (relative to the expected use: "20% faster than
+    /// pace"). Also: CUOTAI_PACE_UNIT.
+    #[arg(long, value_name = "UNIT", value_parser = ["points", "percent"])]
     pace_unit: Option<String>,
-    /// Consulta as páginas públicas de status dos provedores configurados
-    /// (sem credenciais, cookies ou dados da conta; cada página no máximo a
-    /// cada 5 min) e mostra incidentes nos cartões, nos detalhes e no
-    /// --once. Desligado por padrão; também: CUOTAI_STATUS=1.
+    /// Queries the public status pages of the configured providers (no
+    /// credentials, cookies or account data; each page at most every 5 min)
+    /// and shows incidents on the cards, in the details and in --once. Off
+    /// by default; also: CUOTAI_STATUS=1.
     #[arg(long)]
     status: bool,
-    /// Não consulta as páginas de status, mesmo com --status ou CUOTAI_STATUS.
+    /// Does not query the status pages, even with --status or CUOTAI_STATUS.
     #[arg(long)]
     no_status: bool,
-    /// Consulta uma vez e emite o export v1 em JSON: o contrato versionado
-    /// (docs/export-v1.md) com classe, idade, leitura preservada, limite,
-    /// ritmo e acesso por conta, sem credenciais.
+    /// Queries once and prints the v1 export as JSON: the versioned contract
+    /// (docs/export-v1.md) with class, age, preserved reading, limit, pace
+    /// and access per account, without credentials.
     #[arg(long, conflicts_with_all = ["once", "json", "history", "notify"])]
     json_v1: bool,
-    /// Servidor HTTP local somente leitura em 127.0.0.1, sem abrir a TUI e
-    /// sem exigir terminal: mantém o ciclo de atualização e serve o export
-    /// v1 (/health, /v1/snapshot, /v1/accounts/{chave}, /v1/limits) sem
-    /// consultar provedores por requisição. SIGINT/SIGTERM encerram, com
-    /// saída 0 (com --strict-exit: 2 se nenhuma conta ficou saudável até o
-    /// encerramento); 1 em erro local (porta ocupada, configuração, token).
+    /// Read-only local HTTP server on 127.0.0.1, without opening the TUI and
+    /// without needing a terminal: keeps the refresh cycle and serves the v1
+    /// export (/health, /v1/snapshot, /v1/accounts/{key}, /v1/limits)
+    /// without querying the providers per request. SIGINT/SIGTERM stop it,
+    /// with exit 0 (with --strict-exit: 2 when no account was healthy until
+    /// the shutdown); 1 on a local error (port taken, configuration, token).
     #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
     serve: bool,
-    /// Porta do --serve, e só ela (ocupada: erro, saída 1). Sem --port: 6738,
-    /// também sem recuo para outra porta.
-    #[arg(long, value_name = "PORTA", requires = "serve")]
+    /// The --serve port, and only that one (taken: error, exit 1). Without
+    /// --port: 6738, also without falling back to another port.
+    #[arg(long, value_name = "PORT", requires = "serve")]
     port: Option<u16>,
-    /// Arquivo com o token que o --serve exige em Authorization: Bearer (16
-    /// a 512 caracteres, sem espaços). Sem ele, o --serve cria (na primeira
-    /// vez) e exige o token guardado no diretório de dados, só legível pelo
-    /// seu usuário, e diz onde ele está. Com --status-line --from-server, o
-    /// token enviado ao servidor (sem ela: o do diretório de dados, se
-    /// existir).
-    #[arg(long, value_name = "ARQUIVO", conflicts_with = "no_token")]
+    /// File with the token --serve requires in Authorization: Bearer (16 to
+    /// 512 characters, no spaces). Without it, --serve creates (the first
+    /// time) and requires the token kept in the data directory, readable
+    /// only by your user, and says where it is. With --status-line
+    /// --from-server, the token sent to the server (without it: the data
+    /// directory's one, if any).
+    #[arg(long, value_name = "FILE", conflicts_with = "no_token")]
     token_file: Option<PathBuf>,
-    /// Serve sem token: qualquer usuário ou programa deste computador pode
-    /// ler o seu uso (páginas web e outros computadores seguem recusados).
+    /// Serves without a token: any user or program on this computer can read
+    /// your usage (web pages and other computers stay refused).
     #[arg(long, requires = "serve")]
     no_token: bool,
-    /// Com --serve, serve também GET /v1/stats?range=7d|30d: estatísticas de
-    /// uso do histórico local (picos, vezes que um limite foi atingido, sem
-    /// amostras brutas, e-mails nem URLs). Desligado por padrão; exige o
-    /// token (não combina com --no-token), só em loopback, 6 requisições por
-    /// minuto por origem, e responde 503 history_off sem histórico gravado.
+    /// With --serve, also serves GET /v1/stats?range=7d|30d: usage
+    /// statistics from the local history (peaks, times a limit was reached,
+    /// no raw samples, e-mails or URLs). Off by default; requires the token
+    /// (does not combine with --no-token), loopback only, 6 requests per
+    /// minute per origin, and answers 503 history_off without a recorded
+    /// history.
     #[arg(long, requires = "serve", conflicts_with = "no_token")]
     serve_stats: bool,
-    /// Acompanha as contas sem abrir a TUI e sem exigir terminal: mantém o
-    /// ciclo de atualização e emite um evento por transição real (cota
-    /// cruzou um limiar, esgotou, renovou, conta bloqueou, consulta falhou
-    /// ou voltou, autenticação necessária, status do provedor, uso
-    /// atualizado no máximo a cada 10 min). A primeira leitura de cada
-    /// conta é só a base. Combina com --serve no mesmo ciclo.
-    /// SIGINT/SIGTERM/SIGHUP encerram, com saída 0 (com --strict-exit: 2 se
-    /// alguma conta terminou em falha); 1 em erro local.
+    /// Watches the accounts without opening the TUI and without needing a
+    /// terminal: keeps the refresh cycle and emits one event per real
+    /// transition (a quota crossed a threshold, ran out, renewed, an account
+    /// blocked, a query failed or recovered, authentication needed, provider
+    /// status, usage updated at most every 10 min). The first reading of each
+    /// account is only the baseline. Combines with --serve in the same cycle.
+    /// SIGINT/SIGTERM/SIGHUP stop it, with exit 0 (with --strict-exit: 2 when
+    /// an account ended failing); 1 on a local error.
     #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
     watch: bool,
-    /// Intervalo do --watch em segundos (60 a 86400; menor é erro, nunca
-    /// ajustado): substitui o refresh_seconds global nesta execução; contas
-    /// com refresh_seconds próprio o mantêm e AWS Bedrock nunca abaixo de
-    /// 300.
-    #[arg(long, value_name = "SEGUNDOS", requires = "watch")]
+    /// The --watch interval in seconds (60 to 86400; lower is an error,
+    /// never adjusted): replaces the global refresh_seconds in this run;
+    /// accounts with their own refresh_seconds keep it and AWS Bedrock never
+    /// goes below 300.
+    #[arg(long, value_name = "SECONDS", requires = "watch")]
     interval: Option<u64>,
-    /// Só estes eventos no --watch, separados por vírgula (padrão: todos),
-    /// p. ex. quota_threshold_crossed,refresh_failed.
-    #[arg(long, value_name = "LISTA", value_delimiter = ',', requires = "watch")]
+    /// Only these events in --watch, comma-separated (default: all), e.g.
+    /// quota_threshold_crossed,refresh_failed.
+    #[arg(long, value_name = "LIST", value_delimiter = ',', requires = "watch")]
     events: Option<Vec<String>>,
-    /// Com --serve ou --watch, devolve a saída 2 ao encerrar por sinal quando
-    /// alguma conta terminou em falha (--watch) ou nenhuma ficou saudável
-    /// (--serve), para supervisores que querem isso; sem a opção, o
-    /// encerramento por SIGINT/SIGTERM sai com 0.
+    /// With --serve or --watch, returns exit 2 on a signal shutdown when an
+    /// account ended failing (--watch) or none was healthy (--serve), for
+    /// supervisors that want it; without the option, a SIGINT/SIGTERM
+    /// shutdown exits with 0.
     #[arg(long, requires = "headless")]
     strict_exit: bool,
-    /// Antecedência, em minutos, do evento quota_exhaustion_projected do
-    /// --watch: 15, 30 ou 60 (padrão 60).
+    /// How many minutes ahead the --watch event quota_exhaustion_projected
+    /// fires: 15, 30 or 60 (default 60).
     #[arg(
         long,
-        value_name = "MINUTOS",
+        value_name = "MINUTES",
         value_parser = ["15", "30", "60"],
         requires = "watch"
     )]
     projected_lead: Option<String>,
-    /// Com --watch, um evento JSON por linha (NDJSON) no stdout;
-    /// mensagens e diagnósticos vão ao stderr.
+    /// With --watch, one JSON event per line (NDJSON) on stdout; messages
+    /// and diagnostics go to stderr.
     #[arg(long, requires = "watch")]
     jsonl: bool,
-    /// Com --watch, executa as regras de hooks.toml (no diretório do
-    /// arquivo TOML) a cada evento: o comando é uma lista de argumentos,
-    /// sem shell; o evento chega em JSON no stdin e em CUOTAI_EVENT,
-    /// CUOTAI_ACCOUNT, CUOTAI_PROVIDER e CUOTAI_METRIC; o ambiente se
-    /// reduz a PATH, HOME e LANG. Na primeira vez, e após qualquer mudança
-    /// nas regras, lista os comandos e pede confirmação no terminal (sem
-    /// terminal: erro). Sem --jsonl, o stdout fica vazio.
+    /// With --watch, runs the rules of hooks.toml (in the TOML file's
+    /// directory) on every event: the command is a list of arguments, no
+    /// shell; the event arrives as JSON on stdin and in CUOTAI_EVENT,
+    /// CUOTAI_ACCOUNT, CUOTAI_PROVIDER and CUOTAI_METRIC; the environment is
+    /// reduced to PATH, HOME and LANG. The first time, and after any change
+    /// to the rules, lists the commands and asks for confirmation in the
+    /// terminal (without a terminal: error). Without --jsonl, stdout stays
+    /// empty.
     #[arg(long, requires = "watch")]
     hooks: bool,
-    /// Com --watch, quantos MINUTOS antes de a janela de uma cota renovar o
-    /// evento quota_reset_soon dispara (padrão 15; 0 desliga o evento).
+    /// With --watch, how many minutes (MIN) before a quota window renews the
+    /// quota_reset_soon event fires (default 15; 0 turns the event off).
     #[arg(long, value_name = "MIN", requires = "watch", default_value_t = 15)]
     reset_lead: u32,
     /// Renders the `fallback` texts (and the plain `notes`) of --json,
@@ -447,90 +450,93 @@ struct Args {
     /// CUOTAI_FALLBACK_LOCALE. Without it they are English.
     #[arg(long, value_name = "LOCALE")]
     fallback_locale: Option<String>,
-    /// Lista as fontes de custo local (Claude Code, Codex CLI): se estão
-    /// ligadas, os diretórios exatos que leem (ou leriam) e o que o índice
-    /// já segue; não lê logs. Com --json, em JSON. Tudo desligado por padrão.
+    /// Lists the local cost sources (Claude Code, Codex CLI): whether they
+    /// are on, the exact directories they read (or would read) and what the
+    /// index already follows; reads no logs. With --json, as JSON. All off
+    /// by default.
     #[arg(long, group = "cost_action")]
     cost_sources: bool,
-    /// Liga a leitura dos logs locais de FONTE (claude_code ou codex_cli):
-    /// mostra exatamente quais diretórios serão lidos, para quê e que só
-    /// números (horário, modelo, contagens de tokens, resumo anônimo da
-    /// sessão) são extraídos, e pede confirmação no terminal. Nunca lê o
-    /// conteúdo das conversas.
-    #[arg(long, value_name = "FONTE", group = "cost_action")]
+    /// Turns on reading the local logs of SOURCE (claude_code or codex_cli):
+    /// shows exactly which directories will be read, what for and that only
+    /// numbers (time, model, token counts, an anonymous session summary) are
+    /// extracted, and asks for confirmation in the terminal. Never reads the
+    /// conversations' content.
+    #[arg(long, value_name = "SOURCE", group = "cost_action")]
     cost_enable: Option<String>,
-    /// Com --cost-enable, lê DIR em vez dos diretórios padrão (repetível);
-    /// sem ele, volta aos padrão.
+    /// With --cost-enable, reads DIR instead of the default directories
+    /// (repeatable); without it, back to the defaults.
     #[arg(long, value_name = "DIR", requires = "cost_enable")]
     cost_path: Vec<PathBuf>,
-    /// Desliga FONTE: nenhum log dela é lido e tudo o que foi derivado
-    /// dela é apagado do índice.
-    #[arg(long, value_name = "FONTE", group = "cost_action")]
+    /// Turns SOURCE off: none of its logs is read and everything derived
+    /// from it is deleted from the index.
+    #[arg(long, value_name = "SOURCE", group = "cost_action")]
     cost_disable: Option<String>,
-    /// Apaga o índice local de custo inteiro (as fontes continuam ligadas
-    /// ou desligadas como estão).
+    /// Deletes the whole local cost index (the sources stay on or off as
+    /// they are).
     #[arg(long, group = "cost_action")]
     cost_erase: bool,
-    /// Lê agora, em primeiro plano, o que cresceu nos logs das fontes
-    /// ligadas e diz o que encontrou; com --json, em JSON. Saída 0; 2 se
-    /// nenhuma fonte está ligada ou uma ficou sem logs ou sem acesso; 1 em
-    /// erro local.
+    /// Reads now, in the foreground, what grew in the logs of the sources
+    /// that are on and says what it found; with --json, as JSON. Exit 0; 2
+    /// when no source is on or one has no logs or no access; 1 on a local
+    /// error.
     #[arg(long, group = "cost_action")]
     cost_scan: bool,
-    /// Mostra os preços (USD por milhão de tokens) que a estimativa de
-    /// custo local usa: a tabela embutida, com data e fonte, sob o seu
-    /// pricing.json (revisado à mão, nunca baixado); com --json, em JSON.
-    /// Saída 0; 1 se o pricing.json é inválido (fica ignorado). Não lê logs.
+    /// Shows the prices (USD per million tokens) the local cost estimate
+    /// uses: the built-in table, with date and source, under your
+    /// pricing.json (reviewed by hand, never downloaded); with --json, as
+    /// JSON. Exit 0; 1 when pricing.json is invalid (it is ignored). Reads
+    /// no logs.
     #[arg(long, group = "cost_action")]
     cost_prices: bool,
-    /// Com --cost-prices, imprime um fragmento de pricing.json com estes
-    /// MODELOS e preços null para preencher (a data é hoje); nunca sugere
-    /// um preço.
-    #[arg(long, value_name = "MODELO", num_args = 1.., requires = "cost_prices")]
+    /// With --cost-prices, prints a pricing.json fragment with these MODELs
+    /// and null prices to fill in (the date is today); never suggests a
+    /// price.
+    #[arg(long, value_name = "MODEL", num_args = 1.., requires = "cost_prices")]
     template: Vec<String>,
-    /// Guarda o preço do plano de uma conta (digitado por você, só neste
-    /// computador): CONTA é provedor:nome (ex.: claude:pessoal), PREÇO o
-    /// valor, MOEDA o código de três letras e DIA (1 a 28, padrão 1) o
-    /// início do ciclo. Compara a estimativa a preços de API com o plano.
+    /// Stores the plan price of an account (typed by you, on this computer
+    /// only): ACCOUNT is provider:name (e.g. claude:personal), PRICE the
+    /// amount, CURRENCY the three-letter code and DAY (1 to 28, default 1)
+    /// the start of the cycle. Compares the estimate at API prices with the
+    /// plan.
     #[arg(
         long,
-        value_names = ["CONTA", "PREÇO", "MOEDA", "DIA"],
+        value_names = ["ACCOUNT", "PRICE", "CURRENCY", "DAY"],
         num_args = 3..=4,
         group = "cost_action"
     )]
     cost_plan: Option<Vec<String>>,
-    /// Remove o preço do plano de CONTA (provedor:nome).
-    #[arg(long, value_name = "CONTA", group = "cost_action")]
+    /// Removes the plan price of ACCOUNT (provider:name).
+    #[arg(long, value_name = "ACCOUNT", group = "cost_action")]
     cost_plan_clear: Option<String>,
-    /// Segunda moeda só para exibir: `--cost-currency BRL 5.42` (1 USD =
-    /// 5,42 BRL, taxa digitada por você, nunca baixada) ou
-    /// `--cost-currency off`. Os totais continuam em USD.
+    /// A second currency for display only: `--cost-currency BRL 5.42` (1 USD
+    /// = 5.42 BRL, a rate typed by you, never downloaded) or
+    /// `--cost-currency off`. The totals stay in USD.
     #[arg(
         long,
-        value_names = ["MOEDA", "TAXA"],
+        value_names = ["CURRENCY", "RATE"],
         num_args = 1..=2,
         group = "cost_action"
     )]
     cost_currency: Option<Vec<String>>,
-    /// Mostra o custo estimado a preços de API do uso local das fontes
-    /// ligadas: hoje, ontem e o período salvo (ou os últimos --days N
-    /// dias), por modelo e por dia, depois de ler em primeiro plano o que
-    /// cresceu nos logs; com --json, em JSON. É uma estimativa, não uma
-    /// cobrança. Saída 0; 2 se nenhuma fonte está ligada ou uma ficou sem
-    /// logs ou sem acesso; 1 em erro local.
+    /// Shows the cost estimated at API prices of the local usage of the
+    /// sources that are on: today, yesterday and the saved period (or the
+    /// last --days N days), per model and per day, after reading in the
+    /// foreground what grew in the logs; with --json, as JSON. It is an
+    /// estimate, not a charge. Exit 0; 2 when no source is on or one has no
+    /// logs or no access; 1 on a local error.
     #[arg(long, group = "cost_action")]
     cost: bool,
-    /// Com --cost, os últimos DIAS dias locais, hoje incluído (1 a 730),
-    /// em vez do período salvo. Com --stats, 7 ou 30; com --events-log,
-    /// 1 a 365.
-    #[arg(long, value_name = "DIAS")]
+    /// With --cost, the last DAYS local days, today included (1 to 730),
+    /// instead of the saved period. With --stats, 7 or 30; with
+    /// --events-log, 1 to 365.
+    #[arg(long, value_name = "DAYS")]
     days: Option<u32>,
-    /// Período do custo local mostrado: today, last_7_days (padrão),
-    /// last_30_days, current_month ou all.
-    #[arg(long, value_name = "PERÍODO", conflicts_with_all = COST_OPTION_CONFLICTS)]
+    /// The local cost period shown: today, last_7_days (default),
+    /// last_30_days, current_month or all.
+    #[arg(long, value_name = "PERIOD", conflicts_with_all = COST_OPTION_CONFLICTS)]
     cost_period: Option<String>,
-    /// Dias mantidos no índice de custo local (7 a 730; padrão 120).
-    #[arg(long, value_name = "DIAS", conflicts_with_all = COST_OPTION_CONFLICTS)]
+    /// Days kept in the local cost index (7 to 730; default 120).
+    #[arg(long, value_name = "DAYS", conflicts_with_all = COST_OPTION_CONFLICTS)]
     cost_retention_days: Option<u32>,
 }
 
@@ -725,7 +731,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             println!(
                 "{:<20} {}{}",
                 serde_json::to_value(provider)?.as_str().unwrap_or_default(),
-                provider.label(),
+                ui::provider_label(provider),
                 // PRD 0036 RF9.2: an aggregator relays several upstreams.
                 if provider.is_aggregator() {
                     " (aggregator)"
@@ -755,7 +761,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return Ok(cost::run(action, args.json, ui::tui_locale(), configured)?);
     }
     if args.days.is_some() && !(args.stats || args.events_log) {
-        return Err("--days só vale com --cost, --stats ou --events-log.".into());
+        return Err(l10n::tr(
+            "cli.days_needs_mode",
+            "--days only works with --cost, --stats or --events-log.",
+        )
+        .into());
     }
     if let Some(account) = &args.history {
         let days = retention(Some(args.history_days.unwrap_or(HISTORY_DEFAULT_DAYS)))?.keep_days();
@@ -779,7 +789,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return Ok(history_exit_code(&found));
     }
     if args.token_file.is_some() && !args.serve && args.from_server.is_none() {
-        return Err("--token-file exige --serve ou --status-line --from-server.".into());
+        return Err(l10n::tr(
+            "cli.token_file_needs_mode",
+            "--token-file needs --serve or --status-line --from-server.",
+        )
+        .into());
     }
     if let Some(url) = args.from_server.take() {
         // PRD 0031 RF2.1: the running server's readings, without a query.
@@ -829,7 +843,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     }));
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err(
-            "A TUI requer terminal interativo. Use --once, --json, --json-v1, --serve ou --watch."
+            l10n::tr(
+                "cli.needs_terminal",
+                "The TUI needs an interactive terminal. Use --once, --json, --json-v1, --serve or --watch.",
+            )
                 .into(),
         );
     }
@@ -865,7 +882,13 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     let session = Arc::new(match args.dev_credentials_sqlite {
         Some(path) => {
             let session = OAuthSession::development_sqlite(&path)?;
-            eprintln!("AVISO: credenciais em SQLite SEM CRIPTOGRAFIA (desenvolvimento); Keychain não será usado. Não compartilhe o banco.");
+            eprintln!(
+                "{}",
+                l10n::tr(
+                    "cli.dev_sqlite_warning",
+                    "WARNING: credentials in SQLite WITHOUT ENCRYPTION (development); the Keychain will not be used. Do not share the database.",
+                )
+            );
             session
         }
         None => OAuthSession::system()?,
@@ -1142,24 +1165,42 @@ fn report_text(
         out += &line;
     }
     if let Some(line) = dashboard::extra_usage_text(report, locale) {
-        out += &format!("  Uso extra: {}\n", ui::safe(&line));
+        out += &l10n::trf_in(
+            locale,
+            "once.extra_usage",
+            "  Extra usage: {text}",
+            &[("text", &ui::safe(&line))],
+        );
+        out += "\n";
     }
     for (index, metric) in report.metrics.iter().enumerate() {
         out += &format!(
             "  {}: {}\n",
-            ui::safe(&metric.label),
+            ui::safe(&ui::metric_label_text(&metric.label)),
             ui::metric_text(metric)
         );
         if let Some(period) = &metric.period {
-            out += &format!("    Período: {}\n", ui::safe(period));
+            out += &l10n::trf_in(
+                locale,
+                "once.period",
+                "    Period: {period}",
+                &[("period", &ui::safe(&ui::unit_text(period)))],
+            );
+            out += "\n";
         }
         if let Some(reset) = metric.resets_at {
-            out += &format!("    Renova: {}\n", reset.to_rfc3339());
+            out += &renews_line(locale, "    ", &reset.to_rfc3339());
         }
         let points = recent.get(index).map(Vec::as_slice);
         if let Some(pace) = pace::assess_reading(metric, report.checked_at, interval, now, points) {
             let text = dashboard::pace_text(&pace, locale, &at);
-            out += &format!("    Ritmo: {text} (estimativa linear)\n");
+            out += &l10n::trf_in(
+                locale,
+                "once.pace",
+                "    Pace: {text} (linear estimate)",
+                &[("text", &text)],
+            );
+            out += "\n";
         }
     }
     out += &sub_reports_text(report, locale, &at);
@@ -1172,9 +1213,23 @@ fn report_text(
         out += &format!("  {}\n", ui::safe(&text));
     }
     if !report.source.is_empty() {
-        out += &format!("  Fonte: {}\n", ui::safe(&report.source));
+        out += &l10n::trf_in(
+            locale,
+            "once.source",
+            "  Source: {source}",
+            &[("source", &ui::safe(&report.source))],
+        );
+        out += "\n";
     }
     out
+}
+
+/// "    Renews: <time>" under a metric of `--once`.
+fn renews_line(locale: &str, indent: &str, at: &str) -> String {
+    format!(
+        "{indent}{}\n",
+        l10n::trf_in(locale, "once.renews", "Renews: {at}", &[("at", &at)])
+    )
 }
 
 /// PRD 0036 RF9.3: the block of an aggregator account, indented under its
@@ -1190,22 +1245,34 @@ fn sub_reports_text(
     }
     let mut out = String::new();
     for pool in cuotai_core::aggregators::pools(report) {
-        out += &format!("  Pool: {}\n", ui::safe(&pool.summary().resolve(locale)));
+        out += &l10n::trf_in(
+            locale,
+            "once.pool",
+            "  Pool: {summary}",
+            &[("summary", &ui::safe(&pool.summary().resolve(locale)))],
+        );
+        out += "\n";
     }
     for sub in &report.sub_reports {
-        let name = sub.provider.map_or_else(
-            || sub.upstream.clone(),
-            |provider| provider.label().to_string(),
-        );
+        let name = sub
+            .provider
+            .map_or_else(|| sub.upstream.clone(), ui::provider_label);
         let mut flags = Vec::new();
         if sub.enabled_upstream == Some(false) {
-            flags.push("desligada no 9router".to_string());
+            flags.push(l10n::tr_in(locale, "once.sub.disabled", "off in 9router").to_string());
         }
         if sub.duplicate_of.is_some() {
-            flags.push("também monitorada diretamente".to_string());
+            flags.push(
+                l10n::tr_in(locale, "once.sub.duplicate", "also monitored directly").to_string(),
+            );
         }
         if let Some(plan) = &sub.plan {
-            flags.push(format!("plano {}", ui::safe(plan)));
+            flags.push(l10n::trf_in(
+                locale,
+                "once.sub.plan",
+                "plan {plan}",
+                &[("plan", &ui::safe(plan))],
+            ));
         }
         let flags = if flags.is_empty() {
             String::new()
@@ -1222,11 +1289,11 @@ fn sub_reports_text(
         for metric in &sub.metrics {
             out += &format!(
                 "      {}: {}\n",
-                ui::safe(&metric.label),
+                ui::safe(&ui::metric_label_text(&metric.label)),
                 ui::metric_text(metric)
             );
             if let Some(reset) = metric.resets_at {
-                out += &format!("        Renova: {}\n", at(reset));
+                out += &renews_line(locale, "        ", &at(reset));
             }
         }
         if sub.status != cuotai_core::Status::Ready {
@@ -1259,10 +1326,23 @@ fn incident_line(
     let mut parts = vec![badge.label];
     parts.extend(badge.title);
     if let Some(start) = status.incident.as_ref().and_then(|i| i.started_at) {
-        parts.push(format!("desde {}", at(start)));
+        parts.push(l10n::trf_in(
+            locale,
+            "dashboard.incident.since",
+            "since {at}",
+            &[("at", &at(start))],
+        ));
     }
     parts.push(ui::safe(&badge.url).into_owned());
-    Some(format!("  Status do provedor: {}\n", parts.join(" · ")))
+    Some(format!(
+        "{}\n",
+        l10n::trf_in(
+            locale,
+            "once.provider_status",
+            "  Provider status: {parts}",
+            &[("parts", &parts.join(" · "))],
+        )
+    ))
 }
 
 /// PRD 0009 RF3.2: one line per account with the core's binding summary;
@@ -1323,13 +1403,16 @@ fn localized(mut json: serde_json::Value, locale: &Option<String>) -> serde_json
 
 /// PRD 0010 RF5.2: `--once` account heading with the measurement age.
 fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
-    format!(
-        "{} / {} — {} · consultado {}{}",
-        ui::safe(&report.display_name()),
-        report.provider.label(),
-        ui::status_label(report.status),
-        ui::age_text(report.checked_at, now),
-        ui::data_as_of_suffix(report)
+    l10n::trf(
+        "once.heading",
+        "{account} / {provider} — {status} · queried {age}{as_of}",
+        &[
+            ("account", &ui::safe(&report.display_name())),
+            ("provider", &ui::provider_label(report.provider)),
+            ("status", &ui::status_label(report.status)),
+            ("age", &ui::age_text(report.checked_at, now)),
+            ("as_of", &ui::data_as_of_suffix(report)),
+        ],
     )
 }
 
@@ -1351,9 +1434,10 @@ fn account_histories<'a>(
         })
         .collect();
     if let (Some(name), true) = (name, accounts.is_empty()) {
-        return Err(format!(
-            "Conta não encontrada na configuração: {}",
-            ui::safe(name)
+        return Err(l10n::trf(
+            "cli.account_not_found",
+            "Account not found in the configuration: {name}",
+            &[("name", &ui::safe(name))],
         ));
     }
     accounts
@@ -1473,37 +1557,56 @@ fn history_text(
     days: u16,
     at: impl Fn(DateTime<Utc>) -> String,
 ) -> String {
-    let mut out = format!(
-        "CUOTAI • histórico de {days} dias até {}\n",
-        now.to_rfc3339()
+    let mut out = l10n::trf(
+        "history.heading",
+        "CUOTAI • {days}-day history until {until}",
+        &[("days", &days), ("until", &now.to_rfc3339())],
     );
+    out += "\n";
     if found.is_empty() {
-        out += "\nNenhuma conta na configuração; sem medições para mostrar.\n";
+        out += "\n";
+        out += l10n::tr(
+            "history.no_accounts",
+            "No account in the configuration; no measurements to show.",
+        );
+        out += "\n";
     }
     for (account, metrics) in found {
         out += &format!(
             "\n{} / {}\n",
             ui::safe(&account.display_name()),
-            account.provider.label()
+            ui::provider_label(account.provider)
         );
         if metrics.is_empty() {
-            out += &format!("  Sem medições registradas nos últimos {days} dias.\n");
+            out += &l10n::trf(
+                "history.account_empty",
+                "  No measurements recorded in the last {days} days.",
+                &[("days", &days)],
+            );
+            out += "\n";
         }
         for metric in metrics {
+            let label = ui::safe(&ui::metric_label_text(&metric.label)).into_owned();
             let Some(trend) = metric.trend() else {
-                out += &format!(
-                    "  {}: sem valores medidos no período\n",
-                    ui::safe(&metric.label)
+                out += &l10n::trf(
+                    "history.metric_empty",
+                    "  {label}: no measured values in the period",
+                    &[("label", &label)],
                 );
+                out += "\n";
                 continue;
             };
-            out += &format!(
-                "  {}: {} medições · {} ({})\n",
-                ui::safe(&metric.label),
-                metric.points.len(),
-                dashboard::trend_text(&trend, &metric.unit),
-                at(trend.last.taken_at)
+            out += &l10n::trf(
+                "history.metric",
+                "  {label}: {count} measurements · {trend} ({last})",
+                &[
+                    ("label", &label),
+                    ("count", &metric.points.len()),
+                    ("trend", &dashboard::trend_text(&trend, &metric.unit)),
+                    ("last", &at(trend.last.taken_at)),
+                ],
             );
+            out += "\n";
             out += &format!(
                 "    {}\n",
                 dashboard::sparkline(metric, since, now, HISTORY_SPARK_CELLS).trim_end()
@@ -1511,17 +1614,28 @@ fn history_text(
             for window in &metric.windows {
                 let resets = window
                     .resets_at
-                    .map(|reset| format!(" · renova {}", at(reset)))
+                    .map(|reset| {
+                        l10n::trf(
+                            "history.window.renews",
+                            " · renews {at}",
+                            &[("at", &at(reset))],
+                        )
+                    })
                     .unwrap_or_default();
-                out += &format!(
-                    "    Janela {} → {}: {} → {}, pico {} em {}{resets}\n",
-                    at(window.started_at),
-                    at(window.ended_at),
-                    dashboard::compact(window.initial_used),
-                    dashboard::compact(window.final_used),
-                    dashboard::compact(window.peak_used),
-                    at(window.peak_at),
+                out += &l10n::trf(
+                    "history.window",
+                    "    Window {start} → {end}: {initial} → {final}, peak {peak} at {peak_at}{resets}",
+                    &[
+                        ("start", &at(window.started_at)),
+                        ("end", &at(window.ended_at)),
+                        ("initial", &dashboard::compact(window.initial_used)),
+                        ("final", &dashboard::compact(window.final_used)),
+                        ("peak", &dashboard::compact(window.peak_used)),
+                        ("peak_at", &at(window.peak_at)),
+                        ("resets", &resets),
+                    ],
                 );
+                out += "\n";
             }
         }
     }
@@ -1778,13 +1892,13 @@ mod tests {
             report_text(&report, &[], None, FIVE_MIN, now, "en-US", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
              \x20 Window5h: 40.00 % / 100.00\n\
-             \x20   Renova: 2026-01-01T02:00:00+00:00\n\
-             \x20   Ritmo: 20 points in reserve · lasts until the reset (estimativa linear)\n\
+             \x20   Renews: 2026-01-01T02:00:00+00:00\n\
+             \x20   Pace: 20 points in reserve · lasts until the reset (linear estimate)\n\
              \x20 Weekly: 88.00 % / 100.00\n\
-             \x20   Renova: 2026-01-02T06:00:00+00:00\n\
-             \x20   Ritmo: 6 points above the pace · runs out at 18:49, 11h 10m before the reset (estimativa linear)\n\
+             \x20   Renews: 2026-01-02T06:00:00+00:00\n\
+             \x20   Pace: 6 points above the pace · runs out at 18:49, 11h 10m before the reset (linear estimate)\n\
              \x20 Daily: 1.00 % / 100.00\n\
-             \x20   Renova: 2026-01-01T23:55:00+00:00\n\
+             \x20   Renews: 2026-01-01T23:55:00+00:00\n\
              \x20 Monthly: 10.00 % / 100.00\n"
         );
         assert!(report_text(&report, &[], None, FIVE_MIN, now, "es", at)
@@ -1799,12 +1913,12 @@ mod tests {
         let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
         assert!(
             report_text(&report, &recent, None, FIVE_MIN, now, "en-US", at).contains(
-                "Ritmo: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"
+                "Pace: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"
             )
         );
     }
 
-    /// PRD 0023 RF8.2: `--once` prints `Uso extra: <summary>` under the
+    /// PRD 0023 RF8.2: `--once` prints `Extra usage: <summary>` under the
     /// account while extra usage bills, and nothing otherwise.
     #[test]
     fn once_prints_the_extra_usage_line() {
@@ -1819,13 +1933,13 @@ mod tests {
         assert!(
             text.contains(
                 "
-  Uso extra: On extra · $6.25
+  Extra usage: On extra · $6.25
 "
             ),
             "{text}"
         );
         assert!(
-            text.find("Uso extra").unwrap() < text.find("Monthly").unwrap(),
+            text.find("Extra usage").unwrap() < text.find("Monthly").unwrap(),
             "under the account heading, before the metrics"
         );
         extra.used = Some(0.0);
@@ -1852,7 +1966,7 @@ mod tests {
         // elapsed, so 40% used is 10 points above the pace (the wall clock
         // would say 20 points in reserve).
         assert!(report_text(&report, &[], None, hour, now, "en-US", at)
-            .contains("Ritmo: 10 points above the pace"));
+            .contains("Pace: 10 points above the pace"));
         // Stale at a 5-minute interval: the age only, no pace.
         let text = report_text(&report, &[], None, FIVE_MIN, now, "en-US", at);
         assert!(text.contains("consultado há"), "{text}");
@@ -1937,7 +2051,7 @@ mod tests {
         assert_eq!(
             report_text(&failed, &[], Some(&outage), FIVE_MIN, now, "en-US", at),
             "\nWork / Claude — Erro · consultado agora\n\
-             \x20 Status do provedor: Major outage · Elevated errors on Claude Code · desde 23:30 · https://status.claude.com/incidents/abc123\n\
+             \x20 Provider status: Major outage · Elevated errors on Claude Code · since 23:30 · https://status.claude.com/incidents/abc123\n\
              \x20 Network failure or query timeout.\n\
              \x20 The provider reports an ongoing incident; the failure may not be from your account.\n"
         );

@@ -64,10 +64,15 @@ fn version_line(version: &str, date: &str) -> Line<'static> {
             Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            if current { "  (esta versão)" } else { "" },
+            if current { this_version() } else { "" },
             Style::default().fg(YELLOW),
         ),
     ])
+}
+
+/// "  (this version)", next to the running version's heading.
+fn this_version() -> &'static str {
+    crate::l10n::tr("changelog.this_version", "  (this version)")
 }
 
 /// Heading of the pre-release history, marked when this binary is one of
@@ -80,7 +85,7 @@ fn pre_release_line(history: &PreRelease) -> Line<'static> {
         ),
         Span::styled(
             if history.covers(CURRENT) {
-                "  (esta versão)"
+                this_version()
             } else {
                 ""
             },
@@ -202,8 +207,14 @@ impl ChangelogView {
         let mut spans = Vec::new();
         let mut x = areas[1].x;
         for (label, code) in [
-            (" ↑↓/PgUp/PgDn rolar", None),
-            ("  Esc voltar", Some(KeyCode::Esc)),
+            (
+                crate::l10n::tr("about.footer.scroll", " ↑↓/PgUp/PgDn scroll"),
+                None,
+            ),
+            (
+                crate::l10n::tr("about.footer.back", "  Esc back"),
+                Some(KeyCode::Esc),
+            ),
         ] {
             let span = Span::styled(label, Style::default().fg(YELLOW));
             let width = span.width() as u16;

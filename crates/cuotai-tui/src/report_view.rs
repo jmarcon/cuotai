@@ -62,7 +62,7 @@ impl ReportView {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(CYAN))
-            .title(" REPORTAR PROBLEMA ");
+            .title(crate::l10n::tr("report.title", " REPORT A PROBLEM "));
         let inner = block.inner(areas[0]);
         let body = Paragraph::new(self.text.as_str()).wrap(Wrap { trim: false });
         let total = body.line_count(inner.width);
@@ -70,8 +70,11 @@ impl ReportView {
         self.scroll = self.scroll.min(u16::try_from(max).unwrap_or(u16::MAX));
         frame.render_widget(body.block(block).scroll((self.scroll, 0)), areas[0]);
         frame.render_widget(
-            Paragraph::new("Nada é enviado pelo Cuotai · ↑↓ rolar · Esc voltar")
-                .style(Style::default().fg(MUTED)),
+            Paragraph::new(crate::l10n::tr(
+                "report.footer",
+                "Cuotai sends nothing · ↑↓ scroll · Esc back",
+            ))
+            .style(Style::default().fg(MUTED)),
             areas[1],
         );
     }

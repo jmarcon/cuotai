@@ -6,6 +6,7 @@
 //! colors, labels, layout, and the unmeasured toggle. No credentials are read
 //! or stored here.
 
+use crate::l10n::{tr, trf};
 use crate::motion::{eighth_bar, Anim};
 use crate::palette;
 use crate::ui::{
@@ -45,17 +46,7 @@ const SPARK: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'
 /// Below this many cells the history line is text only.
 const SPARK_MIN_CELLS: usize = 8;
 const SPARK_MAX_CELLS: usize = 48;
-#[cfg(test)]
-thread_local! {
-    static TEST_LOCALE: std::cell::RefCell<Option<&'static str>> =
-        const { std::cell::RefCell::new(None) };
-}
-
 fn resolve_card_l10n(value: &cuotai_core::text::Localized) -> String {
-    #[cfg(test)]
-    if let Some(locale) = TEST_LOCALE.with(|slot| *slot.borrow()) {
-        return value.resolve(locale);
-    }
     resolve_l10n(value)
 }
 
@@ -71,13 +62,13 @@ const RED: Color = palette::BAD;
 const PINK: Color = palette::PINK;
 
 /// Localized label for an account class. Behavioral classification lives in
-/// `cuotai_core::metrics`; this function only owns the Portuguese labels the
+/// `cuotai_core::metrics`; this function only owns the labels the
 /// dashboard prints.
 pub(crate) fn class_label(class: AccountClass) -> &'static str {
     match class {
-        AccountClass::Available => "Disponível",
-        AccountClass::Exhausted => "Esgotado",
-        AccountClass::Unmeasured => "Sem dados",
+        AccountClass::Available => tr("dashboard.class.available", "Available"),
+        AccountClass::Exhausted => tr("dashboard.class.exhausted", "Exhausted"),
+        AccountClass::Unmeasured => tr("dashboard.class.unmeasured", "No data"),
     }
 }
 
@@ -85,9 +76,9 @@ pub(crate) fn class_label(class: AccountClass) -> &'static str {
 /// shown as such instead of hidden.
 fn model_count_label(count: usize) -> String {
     match count {
-        0 => "nenhum modelo".to_string(),
-        1 => "1 modelo".to_string(),
-        n => format!("{n} modelos"),
+        0 => tr("dashboard.models.none", "no models").to_string(),
+        1 => tr("dashboard.models.one", "1 model").to_string(),
+        n => trf("dashboard.models.many", "{n} models", &[("n", &n)]),
     }
 }
 
@@ -173,9 +164,9 @@ fn metric_state_color(state: MetricState) -> Option<Color> {
 /// (the word after "renova") without inventing a cycle.
 fn reset_text(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> &'static str {
     if resets_at <= now {
-        return "agora";
+        return tr("dashboard.reset.now", "now");
     }
-    "em breve"
+    tr("dashboard.reset.soon", "soon")
 }
 
 fn reset_seconds(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> Option<i64> {
@@ -193,7 +184,7 @@ fn render_reset(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> Line<'static> {
         None => reset_text(resets_at, now).to_string(),
     };
     Line::from(vec![
-        Span::styled("renova ", Style::default().fg(MUTED)),
+        Span::styled(renews(), Style::default().fg(MUTED)),
         Span::styled(text, Style::default().fg(CYAN)),
     ])
 }
@@ -264,10 +255,10 @@ fn pace_clock(
 /// enough of them (PRD 0007 RF1.5).
 fn metric_row(metric: &Metric, clock: Option<PaceClock>, recent: &[Point]) -> MetricRow {
     MetricRow {
-        label: metric.label.clone(),
+        label: crate::ui::metric_label_text(&metric.label),
         text: metric_text(metric),
         state: classify_metric(metric),
-        period: metric.period.clone(),
+        period: metric.period.as_deref().map(crate::ui::unit_text),
         resets_at: metric.resets_at,
         pace: clock.and_then(|clock| {
             pace::assess_reading(
@@ -462,14 +453,22 @@ pub(crate) fn compact(value: f64) -> String {
     }
 }
 
-/// RF6.1 range summary: `mín 5 · máx 80 · último 40 %`.
+/// "renews " before a reset countdown.
+fn renews() -> &'static str {
+    tr("dashboard.reset.renews", "renews ")
+}
+
+/// RF6.1 range summary: `min 5 · max 80 · last 40 %`.
 pub(crate) fn trend_text(trend: &Trend, unit: &str) -> String {
-    format!(
-        "mín {} · máx {} · último {} {}",
-        compact(trend.min),
-        compact(trend.max),
-        compact(trend.last.used),
-        safe(unit)
+    trf(
+        "dashboard.history.trend",
+        "min {min} · max {max} · last {last} {unit}",
+        &[
+            ("min", &compact(trend.min)),
+            ("max", &compact(trend.max)),
+            ("last", &compact(trend.last.used)),
+            ("unit", &safe(&crate::ui::unit_text(unit))),
+        ],
     )
 }
 
@@ -500,7 +499,11 @@ fn history_line(
     let range = range_label(detail.range);
     let Some((metric, trend)) = metric.and_then(|m| m.trend().map(|trend| (m, trend))) else {
         return Line::styled(
-            format!("  histórico {range}: sem medições registradas"),
+            trf(
+                "dashboard.history.empty",
+                "  history {range}: no recorded measurements",
+                &[("range", &range)],
+            ),
             Style::default().fg(MUTED),
         );
     };
@@ -510,7 +513,11 @@ fn history_line(
         .min(SPARK_MAX_CELLS);
     if cells < SPARK_MIN_CELLS {
         return Line::styled(
-            format!("  histórico {range}: {summary}"),
+            trf(
+                "dashboard.history.summary",
+                "  history {range}: {summary}",
+                &[("range", &range), ("summary", &summary)],
+            ),
             Style::default().fg(MUTED),
         );
     }
@@ -527,7 +534,7 @@ fn history_line(
 /// RF6.1: the span picker of the details, the chosen one highlighted.
 fn history_heading(detail: &DetailHistory) -> Line<'static> {
     let mut spans = vec![Span::styled(
-        "  HISTÓRICO  ",
+        tr("dashboard.history.heading", "  HISTORY  "),
         Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
     )];
     for (index, range) in HistoryRange::ALL.into_iter().enumerate() {
@@ -669,7 +676,7 @@ pub(crate) fn sub_cards_of<'r>(
             let keyed = sub_account(account, sub);
             // PRD 0036 RF9.1: a duplicate says so ("also direct").
             let marker = if sub.duplicate_of.is_some() {
-                " · também direta"
+                tr("dashboard.sub.also_direct", " · also direct")
             } else {
                 ""
             };
@@ -705,7 +712,11 @@ fn aggregator_summary(report: &Report) -> Option<String> {
     let pools = pools(report);
     let available: usize = pools.iter().map(|pool| pool.available).sum();
     let total: usize = pools.iter().map(|pool| pool.total).sum();
-    let mut parts = vec![format!("{available}/{total} disponíveis")];
+    let mut parts = vec![trf(
+        "dashboard.aggregator.available",
+        "{available}/{total} available",
+        &[("available", &available), ("total", &total)],
+    )];
     if let Some(version) = instance_version(report) {
         let kind = cuotai_core::aggregators::shape(report.provider).map_or("9router", |s| s.kind());
         parts.push(format!("{kind} {version}"));
@@ -897,8 +908,11 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
     };
     if area.width < NARROW_WIDTH || area.height < NARROW_HEIGHT {
         frame.render_widget(
-            Paragraph::new("Cuotai: amplie o terminal para pelo menos 45 × 18. q sai.")
-                .wrap(Wrap { trim: true }),
+            Paragraph::new(tr(
+                "dashboard.too_small",
+                "Cuotai: widen the terminal to at least 45 × 18. q quits.",
+            ))
+            .wrap(Wrap { trim: true }),
             area,
         );
         return targets;
@@ -936,10 +950,10 @@ pub(crate) fn render_for_test(
     struct LocaleGuard(Option<&'static str>);
     impl Drop for LocaleGuard {
         fn drop(&mut self) {
-            TEST_LOCALE.with(|slot| *slot.borrow_mut() = self.0);
+            crate::l10n::TEST_LOCALE.with(|slot| slot.set(self.0));
         }
     }
-    let _locale = LocaleGuard(TEST_LOCALE.with(|slot| slot.replace(Some(locale))));
+    let _locale = LocaleGuard(crate::l10n::TEST_LOCALE.with(|slot| slot.replace(Some(locale))));
     use ratatui::{backend::TestBackend, Terminal};
     let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
     let empty_history: &[Option<&Report>] = &[];
@@ -994,8 +1008,12 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
     let any_report = view.reports.iter().any(Option::is_some);
     let all_reports = view.reports.iter().all(Option::is_some);
     let checked = match (any_report, all_reports) {
-        (false, _) => "ainda não consultado".to_string(),
-        (true, false) => "atualização parcial (algumas contas pendentes)".to_string(),
+        (false, _) => tr("dashboard.header.not_checked", "not queried yet").to_string(),
+        (true, false) => tr(
+            "dashboard.header.partial",
+            "partial update (some accounts pending)",
+        )
+        .to_string(),
         (true, true) => view
             .reports
             .iter()
@@ -1005,21 +1023,32 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
             .unwrap_or_else(|| "—".into()),
     };
     let refresh_state = if view.refreshing {
-        "Consultando (dados anteriores abaixo)".to_string()
+        tr(
+            "dashboard.header.refreshing",
+            "Querying (previous data below)",
+        )
+        .to_string()
     } else {
         match view.next_refresh {
             Some(remaining) => {
                 let seconds = remaining.as_secs();
-                format!("Atualização em {}s", seconds)
+                trf(
+                    "dashboard.header.next_refresh",
+                    "Update in {seconds}s",
+                    &[("seconds", &seconds)],
+                )
             }
-            None => "Atualização: —".to_string(),
+            None => tr("dashboard.header.no_refresh", "Update: —").to_string(),
         }
     };
-    let title = format!(
-        " CUOTAI  |  {} contas  |  {}  |  {} ",
-        view.accounts.len(),
-        checked,
-        refresh_state,
+    let title = trf(
+        "dashboard.header.title",
+        " CUOTAI  |  {count} accounts  |  {checked}  |  {refresh} ",
+        &[
+            ("count", &view.accounts.len()),
+            ("checked", &checked),
+            ("refresh", &refresh_state),
+        ],
     );
     let block = Block::default()
         .borders(Borders::ALL)
@@ -1035,14 +1064,20 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
     }
     lines.extend(view.location.lines().map(|part| Line::from(safe(part))));
     if view.filtering || !view.filter.is_empty() {
-        lines.push(Line::from(format!(
-            "Filtro: {}{}",
-            safe(view.filter),
-            if view.filtering {
-                " | Enter conclui"
-            } else {
-                ""
-            }
+        lines.push(Line::from(trf(
+            "dashboard.filter",
+            "Filter: {filter}{done}",
+            &[
+                ("filter", &safe(view.filter)),
+                (
+                    "done",
+                    &if view.filtering {
+                        tr("models.search.done", " | Enter finishes")
+                    } else {
+                        ""
+                    },
+                ),
+            ],
         )));
     }
     if let Some(error) = view.error {
@@ -1065,16 +1100,20 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         action,
     };
     let toggle = if view.show_unmeasured {
-        "u ocultar sem dados"
+        tr("dashboard.footer.hide_unmeasured", "u hide no data")
     } else {
-        "u mostrar sem dados"
+        tr("dashboard.footer.show_unmeasured", "u show no data")
     };
     let count = if view.visible.is_empty() {
-        "0 contas".to_string()
+        tr("dashboard.footer.count.zero", "0 accounts").to_string()
     } else if view.visible.len() == 1 {
-        "1 conta".to_string()
+        tr("dashboard.footer.count.one", "1 account").to_string()
     } else {
-        format!("{} contas", view.visible.len())
+        trf(
+            "dashboard.footer.count.many",
+            "{count} accounts",
+            &[("count", &view.visible.len())],
+        )
     };
     let navigation = vec![
         FooterSegment {
@@ -1082,23 +1121,47 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
             style: Style::default().fg(CYAN),
             action: None,
         },
-        plain("selecionar", None),
+        plain(tr("dashboard.footer.select", "select"), None),
         plain("  ", None),
-        plain("/ filtrar", Some(FooterAction::Filter)),
+        plain(
+            tr("dashboard.footer.filter", "/ filter"),
+            Some(FooterAction::Filter),
+        ),
         plain("  ", None),
-        plain("c limpar", Some(FooterAction::ClearFilter)),
+        plain(
+            tr("dashboard.footer.clear", "c clear"),
+            Some(FooterAction::ClearFilter),
+        ),
         plain("  ", None),
-        plain("r todas", Some(FooterAction::Refresh)),
+        plain(
+            tr("dashboard.footer.refresh_all", "r all"),
+            Some(FooterAction::Refresh),
+        ),
         plain(" · ", None),
-        plain("R selecionada", Some(FooterAction::RefreshSelected)),
+        plain(
+            tr("dashboard.footer.refresh_selected", "R selected"),
+            Some(FooterAction::RefreshSelected),
+        ),
         plain("  ", None),
-        plain("x extensões", Some(FooterAction::Extensions)),
+        plain(
+            tr("dashboard.footer.extensions", "x extensions"),
+            Some(FooterAction::Extensions),
+        ),
         plain("  ", None),
-        plain("S estatísticas", Some(FooterAction::Stats)),
+        plain(
+            tr("dashboard.footer.stats", "S statistics"),
+            Some(FooterAction::Stats),
+        ),
         plain("  ", None),
-        plain("? sobre", Some(FooterAction::About)),
+        plain(
+            tr("dashboard.footer.about", "? about"),
+            Some(FooterAction::About),
+        ),
         plain("  ", None),
-        plain("q sair", Some(FooterAction::Quit)),
+        plain(
+            tr("dashboard.footer.quit", "q quit"),
+            Some(FooterAction::Quit),
+        ),
     ];
     let separator = || FooterSegment {
         text: " • ".into(),
@@ -1107,39 +1170,60 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
     };
     let mut actions = Vec::new();
     if view.details {
-        actions.push(plain("←→ contas", None));
+        actions.push(plain(tr("dashboard.footer.accounts", "←→ accounts"), None));
         actions.push(separator());
-        actions.push(plain("↑↓/[ ] rolar", None));
+        actions.push(plain(tr("dashboard.footer.scroll", "↑↓/[ ] scroll"), None));
         actions.push(separator());
-        actions.push(plain("Enter/Esc voltar", Some(FooterAction::CloseDetails)));
+        actions.push(plain(
+            tr("dashboard.footer.back", "Enter/Esc back"),
+            Some(FooterAction::CloseDetails),
+        ));
         actions.push(separator());
-        actions.push(plain("m modelos", Some(FooterAction::Models)));
+        actions.push(plain(
+            tr("dashboard.footer.models", "m models"),
+            Some(FooterAction::Models),
+        ));
         actions.push(separator());
-        actions.push(plain("b reportar", None));
+        actions.push(plain(tr("dashboard.footer.report", "b report"), None));
         actions.push(separator());
-        actions.push(plain("1/2/3 histórico", None));
+        actions.push(plain(tr("dashboard.footer.history", "1/2/3 history"), None));
     } else {
-        actions.push(plain("Enter detalhes", Some(FooterAction::OpenDetails)));
+        actions.push(plain(details_hint(), Some(FooterAction::OpenDetails)));
     }
     actions.push(separator());
-    actions.push(plain("a adicionar", Some(FooterAction::Add)));
+    actions.push(plain(
+        tr("dashboard.footer.add", "a add"),
+        Some(FooterAction::Add),
+    ));
     actions.push(separator());
-    actions.push(plain("e editar", Some(FooterAction::Edit)));
+    actions.push(plain(
+        tr("dashboard.footer.edit", "e edit"),
+        Some(FooterAction::Edit),
+    ));
     // SES-01: the selected account's vault session was rejected; the core
     // offers pasting a new one straight away.
     if selected_offers_new_paste(view) {
         actions.push(separator());
         actions.push(plain(
-            "p colar nova sessão",
+            tr("dashboard.footer.paste_session", "p paste a new session"),
             Some(FooterAction::PasteSession),
         ));
     }
     actions.push(separator());
-    actions.push(plain("K mover ↑", Some(FooterAction::MoveUp)));
+    actions.push(plain(
+        tr("dashboard.footer.move_up", "K move ↑"),
+        Some(FooterAction::MoveUp),
+    ));
     actions.push(separator());
-    actions.push(plain("J mover ↓", Some(FooterAction::MoveDown)));
+    actions.push(plain(
+        tr("dashboard.footer.move_down", "J move ↓"),
+        Some(FooterAction::MoveDown),
+    ));
     actions.push(separator());
-    actions.push(plain("d/Del excluir", Some(FooterAction::Delete)));
+    actions.push(plain(
+        tr("dashboard.footer.delete", "d/Del delete"),
+        Some(FooterAction::Delete),
+    ));
     actions.push(separator());
     actions.push(plain(toggle, Some(FooterAction::ToggleUnmeasured)));
     if view
@@ -1150,9 +1234,9 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         actions.push(separator());
         actions.push(plain(
             if view.aggregators_collapsed {
-                "g mostrar conexões"
+                tr("dashboard.footer.show_connections", "g show connections")
             } else {
-                "g recolher conexões"
+                tr("dashboard.footer.fold_connections", "g fold connections")
             },
             Some(FooterAction::ToggleAggregators),
         ));
@@ -1212,18 +1296,29 @@ fn render_footer(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
 fn render_cards(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Targets) {
     if view.visible.is_empty() {
         let message = if view.accounts.is_empty() {
-            "Nenhuma conta. a abre o wizard; c limpa o filtro."
+            tr(
+                "dashboard.empty.no_accounts",
+                "No accounts. a opens the wizard; c clears the filter.",
+            )
         } else if !view.filter.is_empty() || view.filtering {
-            "Sem resultados para o filtro atual. c limpa o filtro."
+            tr(
+                "dashboard.empty.no_match",
+                "No results for the current filter. c clears the filter.",
+            )
         } else if !view.show_unmeasured {
-            "Todas as contas visíveis estão sem dados. u mostra contas sem dados."
+            tr(
+                "dashboard.empty.all_unmeasured",
+                "Every visible account has no data. u shows accounts without data.",
+            )
         } else {
-            "Nenhuma conta para exibir."
+            tr("dashboard.empty.nothing", "No account to show.")
         };
         frame.render_widget(
-            Paragraph::new(message)
-                .wrap(Wrap { trim: true })
-                .block(Block::default().borders(Borders::ALL).title(" Contas ")),
+            Paragraph::new(message).wrap(Wrap { trim: true }).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(tr("dashboard.cards.title", " Accounts ")),
+            ),
             area,
         );
         return;
@@ -1463,19 +1558,29 @@ fn render_card(
     let mut chunk_index = 0;
     let separator = || Span::styled(" · ", Style::default().fg(MUTED));
     let mut status_spans = vec![
-        Span::styled(account.provider.label(), Style::default().fg(MUTED)),
+        Span::styled(
+            crate::ui::provider_label(account.provider),
+            Style::default().fg(MUTED),
+        ),
         separator(),
         match report {
             Some(report) => Span::styled(
                 crate::ui::status_label(report.status),
                 Style::default().fg(status_color(report.status)),
             ),
-            None => Span::styled("Aguardando", Style::default().fg(MUTED)),
+            None => Span::styled(
+                tr("dashboard.card.waiting", "Waiting"),
+                Style::default().fg(MUTED),
+            ),
         },
     ];
     let suffix = match stale {
         Some(stale) => Some(Span::styled(
-            format!("(desatualizada) {}", age_text(stale.checked_at, view.now)),
+            trf(
+                "dashboard.card.stale",
+                "(stale) {age}",
+                &[("age", &age_text(stale.checked_at, view.now))],
+            ),
             Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
         )),
         None => {
@@ -1617,13 +1722,17 @@ fn extra_usage_lines(report: &Report, locale: &str) -> Vec<Line<'static>> {
             cuotai_core::text::ParamValue::Text(text) => text,
             cuotai_core::text::ParamValue::L10n(text) => text.resolve(locale),
         };
-        parts.push(format!("teto {cap}"));
+        parts.push(trf("dashboard.extra.cap", "cap {cap}", &[("cap", &cap)]));
     }
     if let Some(end) = state.cycle_ends_at {
-        parts.push(format!("ciclo termina {}", local_time(end)));
+        parts.push(trf(
+            "dashboard.extra.cycle_ends",
+            "cycle ends {at}",
+            &[("at", &local_time(end))],
+        ));
     }
     let mut lines = vec![Line::from(vec![
-        Span::styled("  USO EXTRA  ", heading),
+        Span::styled(tr("dashboard.extra.heading", "  EXTRA USAGE  "), heading),
         Span::styled(
             safe(&parts.join(" · ")).into_owned(),
             Style::default().fg(PINK),
@@ -1738,9 +1847,7 @@ pub(crate) fn incident_badge(
         .incident
         .as_ref()
         .map_or_else(|| status.page_url.clone(), |incident| incident.url.clone());
-    let checked = status
-        .read_at
-        .map(|read_at| format!("lido {}", age_text(read_at, now)));
+    let checked = status.read_at.map(|read_at| read_text(read_at, now));
     if status.expired {
         let mut label = status.state.label().resolve(locale);
         if let Some(checked) = checked {
@@ -1755,7 +1862,7 @@ pub(crate) fn incident_badge(
         });
     }
     if !notice {
-        let mut label = "Página de status indisponível".to_owned();
+        let mut label = tr("dashboard.incident.unavailable", "Status page unavailable").to_owned();
         if let Some(checked) = checked {
             label.push_str(&format!(" · {checked}"));
         }
@@ -1770,7 +1877,7 @@ pub(crate) fn incident_badge(
     let (glyph, color) = incident_look(status.state);
     let mut label = status.state.label().resolve(locale);
     if status.stale {
-        label.push_str(" · última leitura");
+        label.push_str(tr("dashboard.incident.last_reading", " · last reading"));
         if let Some(checked) = checked {
             label.push_str(&format!(" · {checked}"));
         }
@@ -1818,7 +1925,7 @@ fn incident_lines(status: &ProviderStatus, now: DateTime<Utc>) -> Vec<Line<'stat
     let (glyph, color) = incident_look(status.state);
     let mut heading = vec![
         Span::styled(
-            "  PROVEDOR  ",
+            tr("dashboard.incident.heading", "  PROVIDER  "),
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
@@ -1834,16 +1941,27 @@ fn incident_lines(status: &ProviderStatus, now: DateTime<Utc>) -> Vec<Line<'stat
     }
     let mut facts = Vec::new();
     if let Some(start) = status.incident.as_ref().and_then(|i| i.started_at) {
-        facts.push(format!("desde {}", local_time(start)));
+        facts.push(trf(
+            "dashboard.incident.since",
+            "since {at}",
+            &[("at", &local_time(start))],
+        ));
     }
     match (status.read_at, status.stale) {
-        (Some(read), false) => facts.push(format!("lido {}", age_text(read, now))),
-        (Some(read), true) => facts.push(format!(
-            "lido {} · a última consulta de status falhou; esta é a leitura anterior",
-            age_text(read, now)
+        (Some(read), false) => facts.push(read_text(read, now)),
+        (Some(read), true) => facts.push(trf(
+            "dashboard.incident.read_stale",
+            "read {age} · the last status query failed; this is the previous reading",
+            &[("age", &age_text(read, now))],
         )),
-        (None, false) => facts.push("ainda não lido".into()),
-        (None, true) => facts.push("a consulta de status falhou; página ainda não lida".into()),
+        (None, false) => facts.push(tr("dashboard.incident.not_read", "not read yet").into()),
+        (None, true) => facts.push(
+            tr(
+                "dashboard.incident.failed_unread",
+                "the status query failed; page not read yet",
+            )
+            .into(),
+        ),
     }
     let url = status
         .incident
@@ -1859,20 +1977,40 @@ fn incident_lines(status: &ProviderStatus, now: DateTime<Utc>) -> Vec<Line<'stat
     ]
 }
 
+/// "read 3 min ago" for a status page reading.
+fn read_text(read_at: DateTime<Utc>, now: DateTime<Utc>) -> String {
+    trf(
+        "dashboard.incident.read",
+        "read {age}",
+        &[("age", &age_text(read_at, now))],
+    )
+}
+
+/// "Enter details".
+fn details_hint() -> &'static str {
+    tr("dashboard.footer.details", "Enter details")
+}
+
 fn build_hint(hidden_metrics: usize) -> Line<'static> {
     if hidden_metrics > 0 {
-        let mut spans = vec![Span::raw(format!(
-            "+{hidden_metrics} métric{} • ",
-            if hidden_metrics == 1 { "a" } else { "as" }
-        ))];
+        let more = if hidden_metrics == 1 {
+            tr("dashboard.hint.more_one", "+1 metric • ").to_string()
+        } else {
+            trf(
+                "dashboard.hint.more_many",
+                "+{count} metrics • ",
+                &[("count", &hidden_metrics)],
+            )
+        };
+        let mut spans = vec![Span::raw(more)];
         spans.push(Span::styled(
-            "Enter detalhes",
+            details_hint(),
             Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
         ));
         Line::from(spans)
     } else {
         Line::from(Span::styled(
-            "Enter detalhes",
+            details_hint(),
             Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
         ))
     }
@@ -1985,14 +2123,17 @@ fn render_metric_block(
         MetricState::Unmeasured => {
             let line = Line::from(vec![
                 Span::styled("— ", Style::default().fg(MUTED)),
-                Span::styled("sem dados", Style::default().fg(MUTED)),
+                Span::styled(
+                    tr("dashboard.metric.no_data", "no data"),
+                    Style::default().fg(MUTED),
+                ),
             ]);
             frame.render_widget(Paragraph::new(line), gauge_area);
         }
         MetricState::Exhausted { no_cap } => {
             if no_cap {
                 let line = Line::from(Span::styled(
-                    "saldo esgotado",
+                    tr("dashboard.metric.balance_exhausted", "balance exhausted"),
                     Style::default().fg(RED).add_modifier(Modifier::BOLD),
                 ));
                 frame.render_widget(Paragraph::new(line), gauge_area);
@@ -2010,10 +2151,7 @@ fn render_metric_block(
         }
         MetricState::Available { ratio, uncapped } => {
             if uncapped {
-                let line = Line::from(Span::styled(
-                    "limite não informado",
-                    Style::default().fg(MUTED),
-                ));
+                let line = Line::from(Span::styled(no_limit(), Style::default().fg(MUTED)));
                 frame.render_widget(Paragraph::new(line), gauge_area);
             } else {
                 let ratio = fill(ratio);
@@ -2049,8 +2187,8 @@ fn render_gauge(
     };
     let label_text = match metric.state {
         MetricState::Unmeasured => "—".to_string(),
-        MetricState::Exhausted { .. } => "esgotado".to_string(),
-        MetricState::Available { uncapped: true, .. } => "limite não informado".to_string(),
+        MetricState::Exhausted { .. } => tr("dashboard.metric.exhausted", "exhausted").to_string(),
+        MetricState::Available { uncapped: true, .. } => no_limit().to_string(),
         MetricState::Available { .. } => {
             format!("{:>3.0}%", (ratio * 100.0).round())
         }
@@ -2073,11 +2211,16 @@ fn render_gauge(
     }
 }
 
+/// "limit not reported".
+fn no_limit() -> &'static str {
+    tr("dashboard.metric.no_limit", "limit not reported")
+}
+
 fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Targets) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(PURPLE))
-        .title(" Detalhes · ausente ≠ zero ");
+        .title(tr("dashboard.detail.title", " Details · missing ≠ zero "));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     if inner.height == 0 || inner.width == 0 {
@@ -2086,7 +2229,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
 
     let Some(selected_position) = view.selected else {
         frame.render_widget(
-            Paragraph::new("Nenhuma conta selecionada.")
+            Paragraph::new(tr("dashboard.detail.none", "No account selected."))
                 .wrap(Wrap { trim: true })
                 .scroll((view.detail_scroll, 0)),
             inner,
@@ -2095,7 +2238,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     };
     let Some(&account_index) = view.visible.get(selected_position) else {
         frame.render_widget(
-            Paragraph::new("Seleção inválida.")
+            Paragraph::new(tr("dashboard.detail.invalid", "Invalid selection."))
                 .wrap(Wrap { trim: true })
                 .scroll((view.detail_scroll, 0)),
             inner,
@@ -2115,7 +2258,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     let heading = vec![
         Line::from(vec![
             Span::styled(
-                " CONTA  ",
+                tr("dashboard.detail.account", " ACCOUNT  "),
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -2123,7 +2266,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 Style::default().fg(FG).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                format!("  ·  {}", account.provider.label()),
+                format!("  ·  {}", crate::ui::provider_label(account.provider)),
                 Style::default().fg(MUTED),
             ),
         ]),
@@ -2145,7 +2288,10 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     let mut lines: Vec<Line> = Vec::new();
     let Some(report) = view.reports.get(account_index).and_then(Option::as_ref) else {
         lines.push(Line::from(Span::styled(
-            "Nenhum dado atualizado. r consulta; e configura esta conta.",
+            tr(
+                "dashboard.detail.no_report",
+                "No updated data. r queries; e configures this account.",
+            ),
             Style::default().fg(MUTED),
         )));
         frame.render_widget(
@@ -2159,7 +2305,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
 
     lines.push(Line::from(vec![
         Span::styled(
-            "  STATUS  ",
+            tr("dashboard.detail.status", "  STATUS  "),
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
@@ -2169,12 +2315,18 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!(
-                "   ·   consultado {} ({} · {} local){}",
-                age_text(report.checked_at, now),
-                report.checked_at.format("%H:%M:%S UTC"),
-                report.checked_at.with_timezone(&Local).format("%H:%M:%S"),
-                data_as_of_suffix(report),
+            trf(
+                "dashboard.detail.checked",
+                "   ·   queried {age} ({utc} · {local} local){as_of}",
+                &[
+                    ("age", &age_text(report.checked_at, now)),
+                    ("utc", &report.checked_at.format("%H:%M:%S UTC")),
+                    (
+                        "local",
+                        &report.checked_at.with_timezone(&Local).format("%H:%M:%S"),
+                    ),
+                    ("as_of", &data_as_of_suffix(report)),
+                ],
             ),
             Style::default().fg(MUTED),
         ),
@@ -2186,15 +2338,21 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     if let Some(stale) = stale {
         lines.push(Line::from(vec![
             Span::styled(
-                "  LEITURA ",
+                tr("dashboard.detail.reading", "  READING "),
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                format!(
-                    "(desatualizada) última válida {} ({} · {} local)",
-                    age_text(stale.checked_at, now),
-                    stale.checked_at.format("%H:%M:%S UTC"),
-                    stale.checked_at.with_timezone(&Local).format("%H:%M:%S"),
+                trf(
+                    "dashboard.detail.stale",
+                    "(stale) last valid {age} ({utc} · {local} local)",
+                    &[
+                        ("age", &age_text(stale.checked_at, now)),
+                        ("utc", &stale.checked_at.format("%H:%M:%S UTC")),
+                        (
+                            "local",
+                            &stale.checked_at.with_timezone(&Local).format("%H:%M:%S"),
+                        ),
+                    ],
                 ),
                 Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
             ),
@@ -2204,7 +2362,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     if let Some(limit) = &limit {
         lines.push(Line::from(vec![
             Span::styled(
-                "  LIMITE  ",
+                tr("dashboard.detail.limit", "  LIMIT  "),
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -2218,7 +2376,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     for block in scope_blocks(report) {
         lines.push(Line::from(vec![
             Span::styled(
-                "  MODELO  ",
+                tr("dashboard.detail.model", "  MODEL  "),
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -2239,7 +2397,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     if let Some(notice) = cuotai_core::user_session::notice(account) {
         lines.push(Line::from(vec![
             Span::styled(
-                "  SESSÃO  ",
+                tr("dashboard.detail.session", "  SESSION  "),
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -2271,7 +2429,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         if let Some(sentence) = advice_sentence(view, account_index, &rows, exhausted) {
             lines.push(Line::from(vec![
                 Span::styled(
-                    "  GRUPO   ",
+                    tr("dashboard.detail.group", "  GROUP   "),
                     Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(safe(&sentence).into_owned(), Style::default().fg(GREEN)),
@@ -2280,7 +2438,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     }
     lines.push(Line::default());
     lines.push(Line::styled(
-        "  QUOTAS E CONSUMO",
+        tr("dashboard.detail.quotas", "  QUOTAS AND USAGE"),
         Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
     ));
     let explanation = access.explain(report);
@@ -2303,7 +2461,10 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     if shown.metrics.is_empty() {
         if explanation.is_none() {
             lines.push(Line::from(Span::styled(
-                "Provedor sem métricas expostas nesta consulta.",
+                tr(
+                    "dashboard.detail.no_metrics",
+                    "Provider without metrics exposed in this query.",
+                ),
                 Style::default().fg(MUTED),
             )));
         }
@@ -2329,7 +2490,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                     .unwrap_or_default(),
                 if limit.as_ref().is_some_and(|limit| limit.index == index) {
                     Span::styled(
-                        "   ◆ limitante",
+                        tr("dashboard.detail.binding", "   ◆ binding"),
                         Style::default().fg(PINK).add_modifier(Modifier::BOLD),
                     )
                 } else {
@@ -2357,9 +2518,13 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                         Style::default().fg(MUTED),
                     ),
                     Span::styled(
-                        format!(
-                            "   ·   esperado {:.0}% usado · estimativa linear",
-                            pace.expected_used_fraction * 100.0
+                        trf(
+                            "dashboard.detail.pace_expected",
+                            "   ·   expected {percent}% used · linear estimate",
+                            &[(
+                                "percent",
+                                &format!("{:.0}", pace.expected_used_fraction * 100.0),
+                            )],
                         ),
                         Style::default().fg(MUTED),
                     ),
@@ -2377,7 +2542,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     if !report.notes.is_empty() {
         lines.push(Line::default());
         lines.push(Line::styled(
-            "  OBSERVAÇÕES",
+            tr("dashboard.detail.notes", "  NOTES"),
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ));
     }
@@ -2420,7 +2585,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     if let Some(source) = source.as_ref().filter(|_| link.is_none()) {
         lines.push(Line::default());
         lines.push(Line::styled(
-            format!("Fonte: {source}"),
+            format!("{}{source}", source_prefix()),
             Style::default().fg(MUTED),
         ));
     }
@@ -2440,21 +2605,28 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             height: 1,
             ..body
         };
+        let prefix = source_prefix();
         frame.render_widget(
-            Paragraph::new(format!("Fonte: {source}")).style(Style::default().fg(CYAN)),
+            Paragraph::new(format!("{prefix}{source}")).style(Style::default().fg(CYAN)),
             row,
         );
-        if row.width > 7 {
+        let offset = Span::raw(prefix).width() as u16;
+        if row.width > offset {
             targets.source = Some((
                 Rect {
-                    x: row.x + 7,
-                    width: (source.len() as u16).min(row.width - 7),
+                    x: row.x + offset,
+                    width: (source.len() as u16).min(row.width - offset),
                     ..row
                 },
                 source.to_owned(),
             ));
         }
     }
+}
+
+/// "Source: " before the report's source.
+fn source_prefix() -> &'static str {
+    tr("dashboard.detail.source", "Source: ")
 }
 
 /// PRD 0015 RF4.2: the account details' local usage section: the core's
@@ -2539,7 +2711,10 @@ fn line_bar(
         }
     };
     let (bar, suffix) = match metric.state {
-        MetricState::Unmeasured => ("—".to_string(), " sem dados".to_string()),
+        MetricState::Unmeasured => (
+            "—".to_string(),
+            format!(" {}", tr("dashboard.metric.no_data", "no data")),
+        ),
         MetricState::Exhausted { no_cap } => (
             if no_cap {
                 String::new()
@@ -2547,17 +2722,24 @@ fn line_bar(
                 bar_of(fill(0.0))
             },
             if no_cap {
-                " saldo esgotado".to_string()
+                format!(
+                    " {}",
+                    tr("dashboard.metric.balance_exhausted", "balance exhausted")
+                )
             } else {
-                " esgotado".to_string()
+                format!(" {}", tr("dashboard.metric.exhausted", "exhausted"))
             },
         ),
         MetricState::Available { ratio, uncapped } => {
             if uncapped {
-                (String::new(), " limite não informado".to_string())
+                (String::new(), format!(" {}", no_limit()))
             } else {
                 let ratio = fill(ratio);
-                let suffix = format!(" {:>3.0}% restante", (ratio * 100.0).round());
+                let suffix = trf(
+                    "dashboard.metric.remaining",
+                    " {percent}% left",
+                    &[("percent", &format!("{:>3.0}", (ratio * 100.0).round()))],
+                );
                 (bar_of(ratio), suffix)
             }
         }
@@ -2585,7 +2767,7 @@ fn line_bar(
 fn format_reset_line(reset: DateTime<Utc>, now: DateTime<Utc>) -> String {
     match reset_seconds(reset, now) {
         Some(total) => format_reset_remaining(total),
-        None => format!("renova {}", reset_text(reset, now)),
+        None => format!("{}{}", renews(), reset_text(reset, now)),
     }
 }
 
@@ -2645,6 +2827,99 @@ mod tests {
     /// label and the metric text come from the core's own report, not from
     /// a fixture string.
     #[test]
+    fn screens_in_english_spanish_and_italian_carry_no_portuguese() {
+        // PRD 0034 RF2: the dashboard (cards, header, footer), an adapter's
+        // Portuguese metric texts, the age, the about screen and the
+        // vault audit, rendered outside pt-BR.
+        let account = Account {
+            id: None,
+            name: "work".into(),
+            provider: Provider::AlibabaCloud,
+            ..Account::default()
+        };
+        let report = Report {
+            account_id: None,
+            diagnostic: None,
+            account: "work".into(),
+            provider: Provider::AlibabaCloud,
+            checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            status: Status::Ready,
+            metrics: vec![Metric {
+                billing: Default::default(),
+                scope: None,
+                label: "Créditos do plano".into(),
+                used: Some(1.0),
+                limit: Some(2.0),
+                remaining: Some(1.0),
+                unit: "créditos".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Monthly),
+                period: Some("ciclo de cobrança".into()),
+                resets_at: None,
+            }],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: "x".into(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+        };
+        for locale in ["en-US", "es", "it"] {
+            let screen = crate::dashboard::render_for_test(
+                std::slice::from_ref(&account),
+                &[Some(report.clone())],
+                &[],
+                &[0],
+                Utc.with_ymd_and_hms(2026, 1, 1, 0, 3, 0).unwrap(),
+                locale,
+            );
+            let markers: Vec<_> = cuotai_core::text::portuguese_markers(&screen)
+                .into_iter()
+                .filter(|m| !(locale == "es" && *m == "está"))
+                .collect();
+            assert!(markers.is_empty(), "{locale}: {markers:?}\n{screen}");
+            let texts = crate::l10n::with_locale(locale, || {
+                let mut about = crate::about_view::AboutView::default();
+                let mut terminal =
+                    ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 40)).unwrap();
+                terminal.draw(|frame| about.draw(frame)).unwrap();
+                let about: String = terminal
+                    .backend()
+                    .buffer()
+                    .content()
+                    .iter()
+                    .map(|cell| cell.symbol())
+                    .collect();
+                format!(
+                    "{about}\n{}\n{}",
+                    crate::ui::age_text(
+                        report.checked_at,
+                        report.checked_at + chrono::TimeDelta::minutes(3)
+                    ),
+                    crate::ui::metric_text(&report.metrics[0])
+                )
+            });
+            let markers: Vec<_> = cuotai_core::text::portuguese_markers(&texts)
+                .into_iter()
+                .filter(|m| !(locale == "es" && *m == "está"))
+                .collect();
+            assert!(markers.is_empty(), "{locale}: {markers:?}\n{texts}");
+        }
+        // pt-BR keeps the adapter's own words.
+        let screen = crate::dashboard::render_for_test(
+            &[account],
+            &[Some(report)],
+            &[],
+            &[0],
+            Utc.with_ymd_and_hms(2026, 1, 1, 0, 3, 0).unwrap(),
+            "pt-BR",
+        );
+        assert!(screen.contains("Créditos do plano"), "{screen}");
+        assert!(screen.contains("Alibaba Cloud — faturamento"), "{screen}");
+    }
+
+    #[test]
     fn an_extension_account_renders_a_normal_card_in_every_locale() {
         for locale in ["pt-BR", "en-US", "es", "it"] {
             let account = Account {
@@ -2686,7 +2961,8 @@ mod tests {
                 as_of: None,
                 overage_hint: None,
             };
-            let expected_metric = metric_text(&report.metrics[0]);
+            let expected_metric =
+                crate::l10n::with_locale(locale, || metric_text(&report.metrics[0]));
             let screen = crate::dashboard::render_for_test(
                 &[account],
                 &[Some(report)],
@@ -4472,7 +4748,7 @@ mod tests {
         for locale in ["pt-BR", "en-US", "es", "it"] {
             for selected in 0..accounts.len() {
                 for details in [false, true] {
-                    let previous = TEST_LOCALE.with(|slot| slot.replace(Some(locale)));
+                    let previous = crate::l10n::TEST_LOCALE.with(|slot| slot.replace(Some(locale)));
                     let screen = render_accounts(
                         &accounts,
                         &reports,
@@ -4483,7 +4759,7 @@ mod tests {
                         (120, 40),
                     )
                     .join("\n");
-                    TEST_LOCALE.with(|slot| *slot.borrow_mut() = previous);
+                    crate::l10n::TEST_LOCALE.with(|slot| slot.set(previous));
                     for label in ACCESS_LABELS {
                         assert!(!screen.contains(label), "{locale}: `{label}`:\n{screen}");
                     }

@@ -521,12 +521,12 @@ fn sighup_reloads_the_configuration_and_keeps_serving_on_errors() {
     assert!(limits.contains("Second"), "{limits}");
     std::thread::sleep(Duration::from_millis(500));
     assert_eq!(sandbox.aws_calls(), 2, "only the new account was queried");
-    assert!(sandbox.stderr().contains("configuração recarregada"));
+    assert!(sandbox.stderr().contains("configuration reloaded"));
 
     fs::write(&config, "[[accounts]\nname = ").unwrap();
     hup(&server);
     let deadline = Instant::now() + Duration::from_secs(10);
-    while !sandbox.stderr().contains("configuração não recarregada") {
+    while !sandbox.stderr().contains("configuration not reloaded") {
         assert!(Instant::now() < deadline, "{}", sandbox.stderr());
         std::thread::sleep(Duration::from_millis(100));
     }

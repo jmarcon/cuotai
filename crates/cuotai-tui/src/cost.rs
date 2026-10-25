@@ -9,6 +9,7 @@
 //! [`CostSummary`] in the account details and the exports carry it as
 //! `local_cost`.
 
+use crate::l10n::{tr, tr_in, trf, trf_in};
 use cuotai_core::cost::{
     self, CostIndex, CostSummary, CostWorker, Env, Limits, Period, PriceOrigin, Prices,
     PricingFile, Retention, ScanReport, Scanner, SettingsStore, SourceId, SourceState, Span,
@@ -281,7 +282,16 @@ pub(crate) fn run(
                 .map_err(l10n)?;
             let key = plan_key(configured.as_deref(), &account);
             settings.set_plan(&key, Some(plan)).map_err(l10n)?;
-            writeln!(stdout, "Plano de {account} salvo neste computador.").map_err(io_error)?;
+            writeln!(
+                stdout,
+                "{}",
+                trf(
+                    "cost.plan.saved",
+                    "Plan of {account} saved on this computer.",
+                    &[("account", &account)],
+                )
+            )
+            .map_err(io_error)?;
             Ok(0)
         }
         CostAction::PlanClear(account) => {
@@ -291,13 +301,27 @@ pub(crate) fn run(
                 settings.set_plan(&found.state_key(), None).map_err(l10n)?;
             }
             settings.set_plan(&account, None).map_err(l10n)?;
-            writeln!(stdout, "Plano de {account} removido.").map_err(io_error)?;
+            writeln!(
+                stdout,
+                "{}",
+                trf(
+                    "cost.plan.removed",
+                    "Plan of {account} removed.",
+                    &[("account", &account)],
+                )
+            )
+            .map_err(io_error)?;
             Ok(0)
         }
         CostAction::Currency { code, rate } => {
             if code.eq_ignore_ascii_case("off") && rate.is_none() {
                 settings.set_display_currency(None).map_err(l10n)?;
-                writeln!(stdout, "Segunda moeda desligada; só USD.").map_err(io_error)?;
+                writeln!(
+                    stdout,
+                    "{}",
+                    tr("cost.currency.off", "Second currency turned off; USD only.")
+                )
+                .map_err(io_error)?;
                 return Ok(0);
             }
             let today = chrono::Local::now().date_naive();
@@ -315,7 +339,12 @@ pub(crate) fn run(
             settings.set_display_currency(Some(rate)).map_err(l10n)?;
             writeln!(
                 stdout,
-                "Segunda moeda salva: {line} (só exibição; os totais seguem em USD)."
+                "{}",
+                trf(
+                    "cost.currency.saved",
+                    "Second currency saved: {line} (display only; the totals stay in USD).",
+                    &[("line", &line)],
+                )
             )
             .map_err(io_error)?;
             Ok(0)
@@ -390,10 +419,17 @@ pub(crate) fn run(
             let saved = settings.load().map_err(l10n)?;
             writeln!(
                 stdout,
-                "Custo local: período {} ({}), índice mantido por {} dias.",
-                saved.period.label().resolve(locale),
-                saved.period.slug(),
-                saved.retention().keep_days()
+                "{}",
+                trf_in(
+                    locale,
+                    "cost.options.saved",
+                    "Local cost: period {period} ({slug}), index kept for {days} days.",
+                    &[
+                        ("period", &saved.period.label().resolve(locale)),
+                        ("slug", &saved.period.slug()),
+                        ("days", &saved.retention().keep_days()),
+                    ],
+                )
             )
             .map_err(io_error)?;
             Ok(0)
@@ -530,39 +566,65 @@ fn sources(
             .map(|text| text + "\n")
             .map_err(|e| e.to_string());
     }
-    let mut out =
-        String::from("Custo local (estimativa só neste computador; desligado por padrão)\n");
+    let mut out = format!(
+        "{}\n",
+        tr_in(
+            locale,
+            "cost.sources.heading",
+            "Local cost (an estimate on this computer only; off by default)",
+        )
+    );
     for (source, disclosure, indexed, consented_at) in rows {
         let state = match consented_at {
-            Some(at) => format!("ligado desde {}", crate::ui::local_time(at)),
-            None => "desligado".to_owned(),
+            Some(at) => trf_in(
+                locale,
+                "cost.sources.on_since",
+                "on since {at}",
+                &[("at", &crate::ui::local_time(at))],
+            ),
+            None => tr_in(locale, "cost.sources.off", "off").to_owned(),
         };
         out += &format!("\n{} [{}]: {state}\n", source.label(), source.slug());
         let origin = if disclosure.custom {
-            "escolhidos"
+            tr_in(locale, "cost.sources.dirs.custom", "chosen")
         } else {
-            "padrão"
+            tr_in(locale, "cost.sources.dirs.default", "default")
         };
-        out += &format!(
-            "  Diretórios ({origin}), arquivos {}:\n",
-            disclosure.pattern
+        out += &trf_in(
+            locale,
+            "cost.sources.dirs",
+            "  Directories ({origin}), files {pattern}:",
+            &[("origin", &origin), ("pattern", &disclosure.pattern)],
         );
+        out += "\n";
         for dir in &disclosure.directories {
             out += &format!("    {}\n", crate::ui::safe(&dir.display().to_string()));
         }
-        out += &format!(
-            "  No índice: {} log(s), {} linha(s) inválida(s) ignorada(s)\n",
-            indexed.files, indexed.invalid_lines
+        out += &trf_in(
+            locale,
+            "cost.sources.indexed",
+            "  In the index: {files} log(s), {invalid} invalid line(s) ignored",
+            &[
+                ("files", &indexed.files),
+                ("invalid", &indexed.invalid_lines),
+            ],
         );
+        out += "\n";
     }
-    out += &format!(
-        "\nPeríodo: {} ({}); retenção do índice: {} dias\nÍndice: {}\nPreferências: {}\n",
-        saved.period.label().resolve(locale),
-        saved.period.slug(),
-        saved.retention().keep_days(),
-        index.path().display(),
-        settings.path().display()
+    out += "\n";
+    out += &trf_in(
+        locale,
+        "cost.sources.footer",
+        "Period: {period} ({slug}); index retention: {days} days\nIndex: {index}\nPreferences: {settings}",
+        &[
+            ("period", &saved.period.label().resolve(locale)),
+            ("slug", &saved.period.slug()),
+            ("days", &saved.retention().keep_days()),
+            ("index", &index.path().display()),
+            ("settings", &settings.path().display()),
+        ],
     );
+    out += "\n";
     Ok(out)
 }
 
@@ -599,23 +661,38 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
             .map_err(|e| e.to_string());
     }
     let source = |source: &Option<String>| source.as_deref().unwrap_or("—").to_owned();
-    let mut out =
-        format!("Preços da estimativa de custo local (USD por milhão de tokens)\n{notice}\n\n");
+    let mut out = format!(
+        "{}\n{notice}\n\n",
+        tr_in(
+            locale,
+            "cost.prices.heading",
+            "Prices of the local cost estimate (USD per million tokens)",
+        )
+    );
     for info in prices.info() {
         out += &match info.origin {
-            PriceOrigin::Embedded => format!(
-                "Tabela embutida: preços de {}; fonte: {}\n",
-                info.effective,
-                source(&info.source)
+            PriceOrigin::Embedded => trf_in(
+                locale,
+                "cost.prices.embedded",
+                "Built-in table: prices of {date}; source: {source}",
+                &[
+                    ("date", &info.effective),
+                    ("source", &source(&info.source)),
+                ],
             ),
-            PriceOrigin::User => format!(
-                "Sua tabela ({}): preços de {}; fonte: {}; {} modelo(s), que valem sobre a embutida\n",
-                file.path().display(),
-                info.effective,
-                source(&info.source),
-                prices.user().map_or(0, |table| table.models.len())
+            PriceOrigin::User => trf_in(
+                locale,
+                "cost.prices.user",
+                "Your table ({path}): prices of {date}; source: {source}; {count} model(s), which take precedence over the built-in one",
+                &[
+                    ("path", &file.path().display()),
+                    ("date", &info.effective),
+                    ("source", &source(&info.source)),
+                    ("count", &prices.user().map_or(0, |table| table.models.len())),
+                ],
             ),
         };
+        out += "\n";
     }
     if let Some(days) = ages
         .iter()
@@ -627,16 +704,22 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
     }
     match &ignored {
         Some(reason) => {
-            out += &format!(
-                "Sua tabela ({}): ignorada. {reason}\n",
-                file.path().display()
-            )
+            out += &trf_in(
+                locale,
+                "cost.prices.user_ignored",
+                "Your table ({path}): ignored. {reason}",
+                &[("path", &file.path().display()), ("reason", reason)],
+            );
+            out += "\n";
         }
         None if prices.user().is_none() => {
-            out += &format!(
-            "Sua tabela ({}): não existe; crie-a no mesmo formato para revisar ou trocar preços\n",
-            file.path().display()
-        )
+            out += &trf_in(
+                locale,
+                "cost.prices.user_missing",
+                "Your table ({path}): does not exist; create it in the same format to review or change prices",
+                &[("path", &file.path().display())],
+            );
+            out += "\n";
         }
         None => {}
     }
@@ -647,13 +730,19 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
         .unwrap_or(0)
         .max(6);
     out += &format!(
-        "\n{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {:>17}  Origem\n",
-        "Modelo", "Entrada", "Saída", "Leitura cache", "Gravação cache", "Gravação cache 1h"
+        "\n{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {:>17}  {}\n",
+        tr_in(locale, "cost.prices.col.model", "Model"),
+        tr_in(locale, "cost.prices.col.input", "Input"),
+        tr_in(locale, "cost.prices.col.output", "Output"),
+        tr_in(locale, "cost.prices.col.cache_read", "Cache read"),
+        tr_in(locale, "cost.prices.col.cache_write", "Cache write"),
+        tr_in(locale, "cost.prices.col.cache_write_1h", "Cache write 1h"),
+        tr_in(locale, "cost.prices.col.origin", "Origin"),
     );
     for row in &rows {
         let origin = match row.origin {
-            PriceOrigin::Embedded => "embutida",
-            PriceOrigin::User => "sua tabela",
+            PriceOrigin::Embedded => tr_in(locale, "cost.prices.origin.embedded", "built-in"),
+            PriceOrigin::User => tr_in(locale, "cost.prices.origin.user", "your table"),
         };
         out += &format!(
             "{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {:>17}  {origin}\n",
@@ -667,9 +756,14 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
                 .map_or_else(|| "—".to_owned(), |rate| rate.to_string())
         );
     }
-    out +=
-        "\nUm modelo fora da tabela tem custo desconhecido, nunca zero. Uma data no fim do nome \
-            (-20250929) usa o preço do nome sem ela.\n";
+    out += "\n";
+    out += tr_in(
+        locale,
+        "cost.prices.footer",
+        "A model outside the table has an unknown cost, never zero. A date at the end of the name \
+         (-20250929) uses the price of the name without it.",
+    );
+    out += "\n";
     Ok((out, code))
 }
 
@@ -885,7 +979,7 @@ mod tests {
             (&"user".into(), &1.0.into())
         );
         assert_eq!(value["tables"][1]["effective"], "2026-10-15");
-        let (text, _) = prices(&file, false, "en-US").unwrap();
+        let (text, _) = prices(&file, false, "pt-BR").unwrap();
         assert!(
             text.contains("preços de 2026-10-15; fonte: contract; 1 modelo(s)"),
             "{text}"

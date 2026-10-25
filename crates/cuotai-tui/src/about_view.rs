@@ -2,6 +2,7 @@
 //! open-source libraries it relies on (list owned by `cuotai_core::about`).
 //! Read-only and local: it never touches the network or the configuration.
 
+use crate::l10n::{tr, trf};
 use crate::palette;
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use cuotai_core::about::{self, Component, Library, Role};
@@ -35,7 +36,7 @@ pub(crate) struct AboutView {
 
 fn component(component: Component) -> &'static str {
     match component {
-        Component::Core => "núcleo",
+        Component::Core => tr("about.component.core", "core"),
         Component::Tui => "terminal",
         Component::Desktop => "desktop",
     }
@@ -43,17 +44,41 @@ fn component(component: Component) -> &'static str {
 
 fn section(role: Role) -> (&'static str, &'static str) {
     match role {
-        Role::Runtime => ("Bibliotecas", "Compiladas nos aplicativos."),
-        Role::Build => (
-            "Ferramentas de compilação",
-            "Usadas só ao compilar o aplicativo.",
+        Role::Runtime => (
+            tr("about.section.runtime", "Libraries"),
+            tr("about.section.runtime.note", "Compiled into the apps."),
         ),
-        Role::Test => ("Testes", "Usadas só nos testes automatizados."),
-        Role::Asset => ("Recursos visuais", "Ícones distribuídos com o desktop."),
-        Role::Theme => ("Temas", "Paletas abertas seguidas pelos temas embutidos."),
+        Role::Build => (
+            tr("about.section.build", "Build tools"),
+            tr("about.section.build.note", "Used only to build the app."),
+        ),
+        Role::Test => (
+            tr("about.section.test", "Tests"),
+            tr(
+                "about.section.test.note",
+                "Used only in the automated tests.",
+            ),
+        ),
+        Role::Asset => (
+            tr("about.section.asset", "Visual assets"),
+            tr(
+                "about.section.asset.note",
+                "Icons shipped with the desktop.",
+            ),
+        ),
+        Role::Theme => (
+            tr("about.section.theme", "Themes"),
+            tr(
+                "about.section.theme.note",
+                "Open palettes the built-in themes follow.",
+            ),
+        ),
         Role::Reference => (
-            "Projetos de referência",
-            "Lógica e contratos adaptados para Rust; o código original não é executado.",
+            tr("about.section.reference", "Reference projects"),
+            tr(
+                "about.section.reference.note",
+                "Logic and contracts adapted to Rust; the original code is not run.",
+            ),
         ),
     }
 }
@@ -94,12 +119,20 @@ fn lines() -> Vec<Line<'static>> {
             ),
             Style::default().fg(FG).add_modifier(Modifier::BOLD),
         ),
-        Line::from(format!("Licença {}", about::PROJECT_LICENSE)),
+        Line::from(trf(
+            "about.license",
+            "License {license}",
+            &[("license", &about::PROJECT_LICENSE)],
+        )),
         Line::styled(about::PROJECT_REPOSITORY, Style::default().fg(CYAN)),
         Line::from(""),
         Line::styled(
-            "O Cuotai é construído sobre projetos de código aberto mantidos por suas comunidades. \
-             Obrigado a quem os desenvolve. Os logotipos são marcas dos respectivos titulares.",
+            tr(
+                "about.thanks",
+                "Cuotai is built on open-source projects maintained by their communities. \
+                 Thanks to everyone who develops them. The logos are trademarks of their \
+                 respective owners.",
+            ),
             Style::default().fg(MUTED),
         ),
     ];
@@ -107,7 +140,10 @@ fn lines() -> Vec<Line<'static>> {
     if !brazilian.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::styled(
-            "Agradecimento especial: projetos criados por brasileiros",
+            tr(
+                "about.brazil",
+                "Special thanks: projects created by Brazilians",
+            ),
             Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
         ));
         lines.push(Line::styled(
@@ -192,7 +228,7 @@ impl AboutView {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(CYAN))
-            .title(" SOBRE ");
+            .title(tr("about.title", " ABOUT "));
         let inner = block.inner(areas[0]);
         let body = Paragraph::new(lines()).wrap(ratatui::widgets::Wrap { trim: false });
         let total = body.line_count(inner.width);
@@ -204,9 +240,12 @@ impl AboutView {
         let mut spans = Vec::new();
         let mut x = areas[1].x;
         for (label, code) in [
-            (" ↑↓/PgUp/PgDn rolar", None),
-            ("  n novidades", Some(KeyCode::Char('n'))),
-            ("  Esc voltar", Some(KeyCode::Esc)),
+            (tr("about.footer.scroll", " ↑↓/PgUp/PgDn scroll"), None),
+            (
+                tr("about.footer.changelog", "  n what's new"),
+                Some(KeyCode::Char('n')),
+            ),
+            (tr("about.footer.back", "  Esc back"), Some(KeyCode::Esc)),
         ] {
             let span = Span::styled(label, Style::default().fg(YELLOW));
             let width = span.width() as u16;

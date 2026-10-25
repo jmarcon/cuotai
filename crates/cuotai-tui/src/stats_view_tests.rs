@@ -147,7 +147,7 @@ fn summary(fixture: &Fixture, range: StatsRange) -> StatsSummary {
 #[test]
 fn stats_text_has_the_figures_gaps_and_the_base() {
     let fixture = fixture();
-    let text = stats_text(&summary(&fixture, StatsRange::Days7), "en-US");
+    let text = stats_text(&summary(&fixture, StatsRange::Days7), "pt-BR");
     assert!(text.contains("últimos 7 dias"), "{text}");
     assert!(text.contains("Limites atingidos: 1"), "{text}");
     assert!(
@@ -164,13 +164,25 @@ fn stats_text_has_the_figures_gaps_and_the_base() {
     );
     let gap = text.lines().find(|l| l.contains("dom 18/10")).unwrap();
     assert!(gap.ends_with("sem dados"), "{gap}");
-    assert!(
-        text.contains("History kept 90 days on this device"),
-        "{text}"
-    );
+    let kept = summary(&fixture, StatsRange::Days7)
+        .history_kept()
+        .resolve("pt-BR");
+    assert!(text.contains(&kept), "{text}");
     // beta has no data: a dash, not a zero.
     let beta = text.lines().find(|l| l.starts_with("beta")).unwrap();
     assert!(beta.contains("média    —"), "{beta}");
+    // PRD 0034 RF2: the same figures in English.
+    let english = stats_text(&summary(&fixture, StatsRange::Days7), "en-US");
+    assert!(english.contains("Statistics · last 7 days"), "{english}");
+    assert!(english.contains("Limits reached: 1"), "{english}");
+    assert!(
+        english.contains("History kept 90 days on this device"),
+        "{english}"
+    );
+    assert!(
+        cuotai_core::text::portuguese_markers(&english).is_empty(),
+        "{english}"
+    );
 }
 
 #[test]

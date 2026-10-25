@@ -13,6 +13,7 @@
 
 use std::io::{self, BufRead, IsTerminal, Write};
 
+use crate::l10n::{tr, trf};
 use cuotai_core::extensions;
 use cuotai_core::extensions::consent;
 use cuotai_core::extensions::management::Manager;
@@ -111,18 +112,47 @@ fn reading_text(reading: &Reading, locale: &str) -> String {
     let mut out = String::new();
     let ms = u64::try_from(reading.run.duration.as_millis()).unwrap_or(u64::MAX);
     let outcome = match (reading.run.outcome, reading.run.exit_code) {
-        (Outcome::Exited, Some(code)) => format!("código {code}"),
-        (Outcome::Exited, None) => "sem código de saída".to_string(),
-        (Outcome::Terminated, _) => "encerrada sem código de saída".to_string(),
-        (Outcome::TimedOut, _) => "tempo esgotado".to_string(),
-        (Outcome::NotStarted, _) => "programa não iniciado".to_string(),
-        (Outcome::Changed, _) => "mudou desde a aprovação".to_string(),
-        (Outcome::Revoked, _) => "aprovação revogada".to_string(),
+        (Outcome::Exited, Some(code)) => trf(
+            "extension_check.outcome.code",
+            "code {code}",
+            &[("code", &code)],
+        ),
+        (Outcome::Exited, None) => tr("extension_check.outcome.no_code", "no exit code").into(),
+        (Outcome::Terminated, _) => tr(
+            "extension_check.outcome.terminated",
+            "terminated without an exit code",
+        )
+        .into(),
+        (Outcome::TimedOut, _) => tr("extension_check.outcome.timed_out", "timed out").into(),
+        (Outcome::NotStarted, _) => {
+            tr("extension_check.outcome.not_started", "program not started").into()
+        }
+        (Outcome::Changed, _) => tr(
+            "extension_check.outcome.changed",
+            "changed since the approval",
+        )
+        .into(),
+        (Outcome::Revoked, _) => tr("extension_check.outcome.revoked", "approval revoked").into(),
     };
-    out += &format!("Execução: {outcome} em {ms} ms\n");
-    out += &format!("Fonte: {}\n", ui::safe(&reading.checked.source));
+    out += &trf(
+        "extension_check.run",
+        "Run: {outcome} in {ms} ms",
+        &[("outcome", &outcome), ("ms", &ms)],
+    );
+    out += "\n";
+    out += &trf(
+        "extension_check.source",
+        "Source: {source}",
+        &[("source", &ui::safe(&reading.checked.source))],
+    );
+    out += "\n";
     let status = cuotai_core::text::status_l10n(reading.checked.status).resolve(locale);
-    out += &format!("Situação: {status}\n");
+    out += &trf(
+        "extension_check.status",
+        "Status: {status}",
+        &[("status", &status)],
+    );
+    out += "\n";
     for metric in &reading.checked.metrics {
         out += &format!(
             "  {}: {}\n",
@@ -134,7 +164,8 @@ fn reading_text(reading: &Reading, locale: &str) -> String {
         out += &format!("  {}\n", ui::safe(&note.resolve(locale)));
     }
     if !reading.checked.violations.is_empty() {
-        out += "Violações do contrato:\n";
+        out += tr("extension_check.violations", "Contract violations:");
+        out += "\n";
         for violation in &reading.checked.violations {
             out += &format!("  - {}\n", ui::safe(&violation.resolve(locale)));
         }
@@ -146,7 +177,7 @@ fn reading_text(reading: &Reading, locale: &str) -> String {
 fn no_dir() -> Localized {
     Localized::fixed(
         "extensions.check.no_dir",
-        "O diretório de dados local está indisponível; não é possível descobrir extensões.",
+        "The local data directory is unavailable; extensions cannot be discovered.",
     )
 }
 
