@@ -20,6 +20,7 @@ use super::{
 };
 use crate::account_edit;
 use crate::config_file::ConfigFile;
+use crate::text::Localized;
 use crate::{Config, Provider};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -42,15 +43,28 @@ pub enum LoginEvent {
     Prompt {
         url: String,
         user_code: Option<String>,
+        /// English text; `instructions_l10n` carries its id (PRD 0034).
         instructions: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        instructions_l10n: Option<Localized>,
     },
     /// Free-form progress line (sanitized; CLI output is filtered to known
-    /// device-prompt lines before it becomes a `Progress` event).
-    Progress { text: String },
+    /// device-prompt lines before it becomes a `Progress` event). `text` is
+    /// English; `l10n` is set for Cuotai's own lines (PRD 0034), absent for
+    /// lines relayed from a provider CLI.
+    Progress {
+        text: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        l10n: Option<Localized>,
+    },
     /// The flow accepts a manually pasted authorization code now (MiMo).
     WaitingCode,
     /// A submitted code was rejected; the user may paste another one.
-    CodeRejected { message: String },
+    CodeRejected {
+        message: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        l10n: Option<Localized>,
+    },
     /// RF2.9: the browser could not be opened; the frontend must display the
     /// URL (already shown in `Prompt`) for manual copy.
     BrowserUnavailable { url: String },
@@ -58,7 +72,29 @@ pub enum LoginEvent {
     /// metadata ([`CompletedLogin::params`]); the token stays in the driver.
     Finished { params: BTreeMap<String, String> },
     /// Flow failed with a sanitized message (no input echo, no secrets).
-    Failed { message: String },
+    Failed {
+        message: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        l10n: Option<Localized>,
+    },
+}
+
+impl LoginEvent {
+    /// A progress line written by Cuotai (PRD 0034).
+    pub fn progress(note: Localized) -> Self {
+        Self::Progress {
+            text: note.text().to_string(),
+            l10n: Some(note),
+        }
+    }
+
+    /// The failure of a flow, from its error.
+    pub fn failed(error: &OAuthError) -> Self {
+        Self::Failed {
+            message: error.to_string(),
+            l10n: Some(error.l10n()),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -954,13 +990,7 @@ async fn run_oauth(
             Ok(FlowDone::Authorized(login))
         }
         Err(error) => {
-            send(
-                &events,
-                LoginEvent::Failed {
-                    message: error.to_string(),
-                },
-            )
-            .await;
+            send(&events, LoginEvent::failed(&error)).await;
             Err(error)
         }
     }
@@ -979,9 +1009,10 @@ async fn run_oauth_inner(
         // database is opened read-only and no browser is involved.
         send(
             events,
-            LoginEvent::Progress {
-                text: "Lendo sessão Cursor autorizada, em modo somente leitura...".into(),
-            },
+            LoginEvent::progress(Localized::fixed(
+                "login.progress.cursor_import",
+                "Reading the authorized Cursor session, read-only...",
+            )),
         )
         .await;
         let login = session.import_cursor(config).await?;
@@ -994,20 +1025,26 @@ async fn run_oauth_inner(
     }
     send(
         events,
-        LoginEvent::Progress {
-            text: "Preparando autorização no provedor...".into(),
-        },
+        LoginEvent::progress(Localized::fixed(
+            "login.progress.preparing",
+            "Preparing the authorization with the provider...",
+        )),
     )
     .await;
     let pending = session.begin(provider, config).await?;
     let prompt = pending.prompt().clone();
     let url = prompt.url.clone();
+    let instructions = Localized::fixed(
+        "login.prompt.instructions",
+        "Authorize in the system browser. Waiting for your authorization; no password is ever typed into Cuotai.",
+    );
     send(
         events,
         LoginEvent::Prompt {
             url: prompt.url,
             user_code: prompt.user_code,
-            instructions: "Autorize no navegador do sistema. Aguardando sua autorização; nenhuma senha deve ser digitada no Cuotai.".into(),
+            instructions: instructions.text().to_string(),
+            instructions_l10n: Some(instructions),
         },
     )
     .await;
@@ -1023,8 +1060,16 @@ async fn run_oauth_inner(
             loop {
                 tokio::select! {
                     result = &mut finish => break result?,
-                    Some(message) = error_rx.recv() => {
-                        send(events, LoginEvent::CodeRejected { message }).await;
+                    Some(note) = error_rx.recv() => {
+                        let note: Localized = note;
+                        send(
+                            events,
+                            LoginEvent::CodeRejected {
+                                message: note.text().to_string(),
+                                l10n: Some(note),
+                            },
+                        )
+                        .await;
                     }
                 }
             }
@@ -1053,11 +1098,7 @@ fn start_aws_sso(profile: Option<String>) -> LoginDriver {
                 Ok(FlowDone::External(login))
             }
             Err(error) => {
-                let _ = event_tx
-                    .send(LoginEvent::Failed {
-                        message: error.to_string(),
-                    })
-                    .await;
+                let _ = event_tx.send(LoginEvent::failed(&error)).await;
                 Err(error)
             }
         }
@@ -1080,9 +1121,10 @@ async fn run_aws_sso(
         ))
     })?;
     let _ = events
-        .send(LoginEvent::Progress {
-            text: "AWS SSO: abra a URL e use o código indicados pela AWS CLI.".into(),
-        })
+        .send(LoginEvent::progress(Localized::fixed(
+            "login.progress.aws_sso",
+            "AWS SSO: open the URL and use the code the AWS CLI shows.",
+        )))
         .await;
     let (lines_tx, mut lines_rx) = mpsc::channel(16);
     let result = {
@@ -1092,7 +1134,12 @@ async fn run_aws_sso(
             tokio::select! {
                 result = &mut login => break result,
                 Some(line) = lines_rx.recv() => {
-                    let _ = events.send(LoginEvent::Progress { text: line }).await;
+                    let _ = events
+                        .send(LoginEvent::Progress {
+                            text: line,
+                            l10n: None,
+                        })
+                        .await;
                 }
             }
         }
@@ -1120,11 +1167,7 @@ fn start_bailian_console(console_site: Option<String>, profile: Option<String>) 
                 Ok(FlowDone::External(login))
             }
             Err(error) => {
-                let _ = event_tx
-                    .send(LoginEvent::Failed {
-                        message: error.to_string(),
-                    })
-                    .await;
+                let _ = event_tx.send(LoginEvent::failed(&error)).await;
                 Err(error)
             }
         }
@@ -1146,19 +1189,24 @@ async fn run_bailian_console(
         .ok_or_else(OAuthError::bailian_console_site_blank)?;
     // Mensagens estáticas e genéricas — nunca conteúdo do stdout do CLI.
     let _ = events
-        .send(LoginEvent::Progress {
-            text: "Iniciando `bl auth login --console`. O navegador pode abrir automaticamente."
-                .into(),
-        })
+        .send(LoginEvent::progress(Localized::fixed(
+            "login.progress.bailian_start",
+            "Starting `bl auth login --console`. The browser may open automatically.",
+        )))
         .await;
     bailian::console_login(&site, &profile).await?;
     let _ = events
-        .send(LoginEvent::Progress {
-            text: "Login do `bl` concluído no perfil dedicado. Cuotai NÃO guarda nada disto."
-                .into(),
-        })
+        .send(LoginEvent::progress(Localized::fixed(
+            "login.progress.bailian_done",
+            "The `bl` login finished in the dedicated profile. Cuotai stores NONE of it.",
+        )))
         .await;
-    let _ = events.send(LoginEvent::Progress { text: "A consulta Token Plan usará esse perfil via `bl --config <name>`. `params.session_env` permanece um override opcional (Cookie manual) caso você prefira a rota antiga.".into() }).await;
+    let _ = events
+        .send(LoginEvent::progress(Localized::fixed(
+            "login.progress.bailian_profile",
+            "The Token Plan query will use this profile via `bl --config <name>`. `params.session_env` stays an optional override (manual Cookie) if you prefer the old route.",
+        )))
+        .await;
     Ok(ExternalLogin {
         params: BTreeMap::from([("cli_profile".to_string(), profile)]),
     })
@@ -1692,6 +1740,7 @@ mod tests {
             url: "https://example.com/authorize".into(),
             user_code: Some("ABCD-EFGH".into()),
             instructions: "instrucoes".into(),
+            instructions_l10n: None,
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"prompt\""));

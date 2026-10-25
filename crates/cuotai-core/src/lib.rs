@@ -29,6 +29,7 @@ pub mod incidents;
 pub mod install_source;
 pub mod last_config;
 mod metered_record;
+pub mod metric_text;
 pub mod metrics;
 mod model;
 pub mod models;

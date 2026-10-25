@@ -183,7 +183,7 @@ impl PendingLogin {
     pub(crate) async fn finish_with_codes(
         self,
         mut codes: tokio::sync::mpsc::Receiver<String>,
-        errors: tokio::sync::mpsc::Sender<String>,
+        errors: tokio::sync::mpsc::Sender<crate::text::Localized>,
     ) -> Result<OAuthToken, OAuthError> {
         // Performs one manual-code attempt. Returns Some(token) on success
         // or None when the input was structurally rejected by the listener
@@ -233,9 +233,7 @@ impl PendingLogin {
                                 // Code was structurally rejected: tell the
                                 // TUI and keep listening for either a fresh
                                 // code or the loopback.
-                                let _ = errors.try_send(
-                                    "Código inválido ou de outra sessão; copie o código desta tentativa.".to_owned(),
-                                );
+                                let _ = errors.try_send(invalid_code_note());
                                 continue;
                             }
                         },
@@ -617,6 +615,14 @@ fn key_name() -> String {
 // Tests
 // ---------------------------------------------------------------------------
 
+/// PRD 0034: the message a rejected manual MiMo code shows.
+pub(crate) fn invalid_code_note() -> crate::text::Localized {
+    crate::text::Localized::fixed(
+        "oauth.xiaomi.invalid_code",
+        "Invalid code or code from another session; copy the code of this attempt.",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -952,7 +958,7 @@ mod tests {
         );
 
         let (tx, rx) = tokio::sync::mpsc::channel::<String>(4);
-        let (etx, mut erx) = tokio::sync::mpsc::channel::<String>(4);
+        let (etx, mut erx) = tokio::sync::mpsc::channel::<crate::text::Localized>(4);
         tx.send(code).await.expect("send");
         drop(tx);
 
@@ -988,7 +994,7 @@ mod tests {
         // screenshot OCR capture or terminal paste.
         let wrapped = format!("\n  \t{code}\n   \r\n");
         let (tx, rx) = tokio::sync::mpsc::channel::<String>(4);
-        let (etx, _erx) = tokio::sync::mpsc::channel::<String>(4);
+        let (etx, _erx) = tokio::sync::mpsc::channel::<crate::text::Localized>(4);
         tx.send(wrapped).await.expect("send");
         drop(tx);
 
@@ -1025,7 +1031,7 @@ mod tests {
         drop(previous);
 
         let (tx, rx) = tokio::sync::mpsc::channel::<String>(4);
-        let (etx, mut erx) = tokio::sync::mpsc::channel::<String>(8);
+        let (etx, mut erx) = tokio::sync::mpsc::channel::<crate::text::Localized>(8);
         tx.send(stale_code).await.expect("send stale");
         tx.send(valid_code).await.expect("send valid");
         drop(tx);
@@ -1037,11 +1043,11 @@ mod tests {
             token.metadata.get("user_id").map(String::as_str),
             Some("uid-ok")
         );
-        // The stale code must surface exactly one error message in the
-        // fixed Portuguese wording, no more.
+        // The stale code must surface exactly one error message, no more.
         let msg = erx.recv().await.expect("error message");
+        assert_eq!(msg, invalid_code_note());
         assert_eq!(
-            msg,
+            msg.resolve("pt-BR"),
             "Código inválido ou de outra sessão; copie o código desta tentativa."
         );
         assert!(erx.recv().await.is_none());
@@ -1076,7 +1082,7 @@ mod tests {
         // must fall back to the loopback callback without busy-looping.
         let (_tx, rx) = tokio::sync::mpsc::channel::<String>(1);
         drop(_tx);
-        let (etx, _erx) = tokio::sync::mpsc::channel::<String>(1);
+        let (etx, _erx) = tokio::sync::mpsc::channel::<crate::text::Localized>(1);
 
         let finish = tokio::spawn(pending.finish_with_codes(rx, etx));
         let token = finish.await.unwrap().expect("finish_with_codes");
@@ -1119,7 +1125,7 @@ mod tests {
         let tampered = B64.encode(raw);
 
         let (tx, rx) = tokio::sync::mpsc::channel::<String>(4);
-        let (etx, mut erx) = tokio::sync::mpsc::channel::<String>(8);
+        let (etx, mut erx) = tokio::sync::mpsc::channel::<crate::text::Localized>(8);
         for _ in 0..3 {
             tx.send(tampered.clone()).await.expect("send tampered");
         }
@@ -1138,8 +1144,9 @@ mod tests {
         // At least one rejection message is surfaced per bad code; we
         // just check the wording matches the contract.
         let msg = erx.recv().await.expect("error message");
+        assert_eq!(msg, invalid_code_note());
         assert_eq!(
-            msg,
+            msg.resolve("pt-BR"),
             "Código inválido ou de outra sessão; copie o código desta tentativa."
         );
     }
@@ -1158,7 +1165,7 @@ mod tests {
         let encrypted = encrypt_payload(&client_pub, r#"{"uid":"uid-after","sk":"sk-after"}"#);
 
         let (tx, rx) = tokio::sync::mpsc::channel::<String>(4);
-        let (etx, _erx) = tokio::sync::mpsc::channel::<String>(4);
+        let (etx, _erx) = tokio::sync::mpsc::channel::<crate::text::Localized>(4);
         // Bad code first.
         tx.send("not-base64-at-all".to_owned())
             .await
@@ -1207,7 +1214,7 @@ mod tests {
         );
 
         let (tx, rx) = tokio::sync::mpsc::channel::<String>(1);
-        let (etx, _erx) = tokio::sync::mpsc::channel::<String>(1);
+        let (etx, _erx) = tokio::sync::mpsc::channel::<crate::text::Localized>(1);
         tx.send(pasted).await.expect("send");
         drop(tx);
 

@@ -41,7 +41,7 @@ impl PendingLogin {
     pub(super) async fn finish_with_codes(
         self,
         codes: tokio::sync::mpsc::Receiver<String>,
-        errors: tokio::sync::mpsc::Sender<String>,
+        errors: tokio::sync::mpsc::Sender<crate::text::Localized>,
     ) -> Result<OAuthToken, OAuthError> {
         match self {
             Self::Xiaomi(pending) => pending.finish_with_codes(codes, errors).await,

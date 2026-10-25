@@ -62,10 +62,43 @@ pub fn lagging_as_of(report: &crate::Report) -> Option<DateTime<Utc>> {
     (report.checked_at - as_of > chrono::TimeDelta::from_std(AS_OF_LAG).ok()?).then_some(as_of)
 }
 
+/// PRD 0034 RF2.2: a measurement age as the front ends word it, in whole
+/// units with abbreviations ("42 s ago", "3 min ago", "2 h ago", "1 d ago");
+/// zero (including a reading "from the future") reads "now". Ids
+/// `freshness.age.{now,seconds,minutes,hours,days}` with the `n` param.
+pub fn age_label(age: Duration) -> crate::text::Localized {
+    use crate::text::Localized;
+    let secs = age.as_secs();
+    let (id, n, fallback) = match secs {
+        0 => return Localized::fixed("freshness.age.now", "now"),
+        1..=59 => ("freshness.age.seconds", secs, "{n} s ago"),
+        60..=3_599 => ("freshness.age.minutes", secs / 60, "{n} min ago"),
+        3_600..=86_399 => ("freshness.age.hours", secs / 3_600, "{n} h ago"),
+        _ => ("freshness.age.days", secs / 86_400, "{n} d ago"),
+    };
+    Localized::with_param(id, "n", n.to_string().as_str(), fallback)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn age_labels_round_down_to_whole_units() {
+        let label = |secs| age_label(Duration::from_secs(secs));
+        assert_eq!(label(0).text(), "now");
+        assert_eq!(label(59).text(), "59 s ago");
+        assert_eq!(label(60).text(), "1 min ago");
+        assert_eq!(label(3_599).text(), "59 min ago");
+        assert_eq!(label(3_600).text(), "1 h ago");
+        assert_eq!(label(86_399).text(), "23 h ago");
+        assert_eq!(label(86_400).text(), "1 d ago");
+        assert_eq!(label(180).resolve("pt-BR"), "há 3 min");
+        assert_eq!(label(180).resolve("es"), "hace 3 min");
+        assert_eq!(label(180).resolve("it"), "3 min fa");
+        assert_eq!(label(0).resolve("pt-BR"), "agora");
+    }
 
     fn at(second: i64) -> DateTime<Utc> {
         Utc.timestamp_opt(1_800_000_000 + second, 0).unwrap()

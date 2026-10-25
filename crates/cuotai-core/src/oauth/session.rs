@@ -372,7 +372,7 @@ impl OAuthLogin {
     pub async fn finish_with_codes(
         self,
         codes: tokio::sync::mpsc::Receiver<String>,
-        errors: tokio::sync::mpsc::Sender<String>,
+        errors: tokio::sync::mpsc::Sender<crate::text::Localized>,
     ) -> Result<AuthorizedLogin, OAuthError> {
         let token = match self.pending {
             Pending::Cloud(pending) => pending.finish().await?,
