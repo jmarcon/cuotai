@@ -424,7 +424,8 @@ struct IncidentTrack {
     /// The state consumers believe: a known one, or `Unknown` only after
     /// an incident ended with the source lost (RF8.2).
     reported: IncidentState,
-    /// The accounts that read this source, to forget it with the last one.
+    /// The ids of the accounts that read this source (the keys of
+    /// [`EventState::retain_accounts`]), to forget it with the last one.
     accounts: BTreeSet<String>,
 }
 
@@ -738,12 +739,12 @@ impl EventState {
                 source,
                 IncidentTrack {
                     reported: state,
-                    accounts: BTreeSet::from([out.next.key.clone()]),
+                    accounts: BTreeSet::from([out.next.id.clone()]),
                 },
             );
             return;
         };
-        track.accounts.insert(out.next.key.clone());
+        track.accounts.insert(out.next.id.clone());
         let before = track.reported;
         let unknown = IncidentState::Unknown;
         // `Unknown` after a quiet state changes nothing (and so the way
