@@ -9,7 +9,7 @@ import Foundation
 /// app has the entitlement (RF2.1); otherwise the same per-user location the
 /// app falls back to, which a sandboxed extension cannot reach.
 enum SnapshotLocation {
-    static let appGroup = "group.dev.cuotai.desktop"
+    static let appGroup = "WL9XSC6H36.dev.cuotai.desktop"
     static let fileName = "widget.json"
 
     static var url: URL? {

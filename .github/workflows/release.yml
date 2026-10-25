@@ -200,6 +200,11 @@ jobs:
         # it afterwards. Bundling-time signatures would cover the pre-notarized
         # app.
         run: cargo tauri build --target universal-apple-darwin --bundles app,dmg -- --locked
+      # PRD 0014 RF3.1: Tauri cannot build a Swift extension, so the WidgetKit
+      # `.appex` is built here and embedded before anything is signed. No
+      # secret: rehearsals embed the same extension and sign it ad-hoc.
+      - name: Build and embed the widget extension
+        run: scripts/release/macos-embed-widgets.sh
       - name: Sign and verify app payload and DMG container
         env:
           APPLE_SIGNING_IDENTITY: ${{ github.event_name == 'push' && secrets.APPLE_SIGNING_IDENTITY || '' }}

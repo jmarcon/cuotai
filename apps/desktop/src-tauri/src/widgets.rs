@@ -22,11 +22,15 @@ use crate::settings::{WidgetPrefs, MAX_WIDGET_ACCOUNTS};
 /// coalesced into the next write instead of lost.
 pub const MIN_INTERVAL: Duration = Duration::from_secs(15);
 
-/// PRD 0014 RF2.1: the *app group* the app and a signed widget extension
-/// share. Only a build with the entitlement (PRD 0019) has this folder;
-/// until then [`snapshot_path`] falls back to the per-user data directory.
+/// PRD 0014 RF2.1: the *app group* the app and its signed widget extension
+/// share. It carries the Team ID prefix, the macOS form that needs no
+/// provisioning profile; the release signs both with it (PRD 0019).
 #[cfg(target_os = "macos")]
-pub const APP_GROUP: &str = "group.dev.cuotai.desktop";
+pub const APP_GROUP: &str = "WL9XSC6H36.dev.cuotai.desktop";
+
+/// PRD 0014 RF3.1: the extension the release embeds in the app bundle.
+#[cfg(target_os = "macos")]
+const EXTENSION: &str = "CuotaiWidgets.appex";
 
 /// PRD 0014 RF5: the file name every consumer looks for.
 pub const FILE_NAME: &str = "widget.json";
@@ -37,7 +41,7 @@ pub const FILE_NAME: &str = "widget.json";
 /// third-party panels read but a WidgetKit extension cannot.
 pub fn snapshot_path() -> Option<PathBuf> {
     let path = app_group_dir()
-        .filter(|dir| dir.is_dir())
+        .filter(|dir| dir.is_dir() || (embeds_extension() && std::fs::create_dir_all(dir).is_ok()))
         .or_else(data_dir)?;
     Some(path.join(FILE_NAME))
 }
@@ -56,6 +60,25 @@ fn app_group_dir() -> Option<PathBuf> {
     #[cfg(not(target_os = "macos"))]
     {
         None
+    }
+}
+
+/// Whether this executable runs from a bundle that embeds the widget
+/// extension (`Cuotai.app/Contents/{MacOS/cuotai,PlugIns/…appex}`). Only
+/// then is the *app group* folder created up front, so the extension finds
+/// the file before it ever ran; a dev or third-party build keeps the
+/// per-user fallback.
+fn embeds_extension() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent()?.parent().map(Path::to_path_buf))
+            .is_some_and(|contents| contents.join("PlugIns").join(EXTENSION).is_dir())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
     }
 }
 

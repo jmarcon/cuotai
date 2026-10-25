@@ -8,7 +8,7 @@ The file is a projection of [`export::v1`](export-v1.md) with **its own** `schem
 
 | System | Path | Read by |
 |---|---|---|
-| macOS with the *app group* entitlement | `~/Library/Group Containers/group.dev.cuotai.desktop/widget.json` | the app and the signed WidgetKit extension |
+| macOS with the *app group* entitlement | `~/Library/Group Containers/WL9XSC6H36.dev.cuotai.desktop/widget.json` | the app and the signed WidgetKit extension |
 | macOS without it | `~/Library/Application Support/cuotai/widget.json` | third-party panels and scripts only |
 | Windows | `%LOCALAPPDATA%\cuotai\widget.json` | third-party panels and scripts |
 | Linux | `~/.local/share/cuotai/widget.json` | third-party panels and scripts (Waybar, GNOME, KDE) |
@@ -17,7 +17,7 @@ The app resolves the *app group* container first and falls back to this user's d
 
 With the feature off, **no file is written and an existing one is deleted** (RF2.2). Settings › Advanced › Integrations › Widgets also has a "Delete widget data" button.
 
-> macOS: reading the file from a WidgetKit extension needs an [Apple developer account](https://developer.apple.com), the *app group* entitlement `group.dev.cuotai.desktop` and a provisioning profile that includes it. Those are owner prerequisites of [PRD 0019](plans/0019_packaging-and-distribution.md) (Apple Developer account, Developer ID signing, notarization); until they exist, only third-party integrations can read the snapshot.
+> macOS: reading the file from a WidgetKit extension needs the Developer ID-signed release, whose app and extension both carry the *app group* entitlement `WL9XSC6H36.dev.cuotai.desktop` ([PRD 0019](plans/0019_packaging-and-distribution.md)). Development and ad-hoc builds lack it, so only third-party integrations read their snapshot.
 
 ## Widgets
 
@@ -33,7 +33,7 @@ Every image below is drawn from the same example `widget.json` ([`fixtures/widge
   <img src="assets/screenshots/widgets/macos-gallery-dark.png" alt="Cuotai macOS widgets, dark mode: Summary (large and small), History (medium) and Account (small)" width="100%" />
 </p>
 
-> **Rendered, not captured.** These are the shipped SwiftUI entry views (`Sources/*.swift`) drawn off-screen with `ImageRenderer`, because the signed `.appex` does not exist yet (see [Building and packaging](#building-and-packaging-owner-prerequisites)). The widget background is approximated with a solid card, and the relative age is frozen at render time ("2 min, 0 secs"); on the desktop the system advances it. The e-mail appears because the example file was written with "include identity" on. The live-widget check on a clean Mac is still pending.
+> **Rendered, not captured.** These are the shipped SwiftUI entry views (`Sources/*.swift`) drawn off-screen with `ImageRenderer`, because they were rendered before the signed `.appex` existed (see [Building and packaging](#building-and-packaging)). The widget background is approximated with a solid card, and the relative age is frozen at render time ("2 min, 0 secs"); on the desktop the system advances it. The e-mail appears because the example file was written with "include identity" on. The live-widget check on a clean Mac is still pending.
 
 | Widget | Family | Light | Dark |
 |---|---|---|---|
@@ -164,16 +164,18 @@ apps/desktop/widgets/macos/typecheck.sh x86_64-apple-macosx14.0
 
 Type-checking proves the code compiles; it does not prove the bundle is packaged or signed.
 
-### Building and packaging (owner prerequisites)
+### Building and packaging
 
-Building the `.appex`, embedding it in the Tauri bundle (`bundle.macOS.files` in `tauri.conf.json`), signing both parts with the *app group* entitlement and notarizing them need, from [PRD 0019](plans/0019_packaging-and-distribution.md):
+Tauri cannot build a Swift app extension, so the release builds it beside the bundle (`desktop-macos` job of `release.yml`):
 
-- an Apple Developer account and the Developer ID certificate;
-- the *app group* identifier registered for `dev.cuotai.desktop` (`group.dev.cuotai.desktop`);
-- a provisioning profile that includes the *app group*;
-- notarization of the app with the extension inside.
+1. `cargo tauri build` produces `Cuotai.app`.
+2. `scripts/release/macos-embed-widgets.sh` runs `apps/desktop/widgets/macos/build-appex.sh`, which compiles the sources for arm64 and x86_64 with `swiftc -application-extension`, joins them with `lipo`, writes `Info.plist` (extension point `com.apple.widgetkit-extension`, identifier `dev.cuotai.desktop.widgets`) and the App Intents metadata the Account picker needs (`appintentsmetadataprocessor`, full Xcode), into `Cuotai.app/Contents/PlugIns/CuotaiWidgets.appex`.
+3. `scripts/release/macos-sign-and-verify.sh` signs inside-out: the extension with `CuotaiWidgets.entitlements` (sandbox plus the app group), then the app with `Cuotai.entitlements` (the app group only), both with the hardened runtime, then recreates the DMG. Notarization covers the extension as part of the app.
+4. `smoke-desktop-macos.sh` checks that the extension is embedded, signed the way `signing-state.json` records, sandboxed, and (Developer ID) in the app group.
 
-Until those exist, the unsigned `.appex` is **not** wired into the release bundle: a broken bundle would fail notarization for the whole app. The app keeps publishing the snapshot, which third-party integrations read on every platform.
+The app group is `WL9XSC6H36.dev.cuotai.desktop`: on macOS a group prefixed with the Team ID needs no provisioning profile and no registration in the Apple portal, unlike the iOS-style `group.` prefix. A full rehearsal has no Developer ID, so it embeds the same extension with an ad-hoc signature and only the sandbox entitlement; such a build falls back to the per-user directory and its widgets show the empty state.
+
+A local build: `VERSION=0.0.0 scripts/release/macos-embed-widgets.sh <path/to/Cuotai.app>`, then sign as step 3.
 
 ## For third-party integrations
 

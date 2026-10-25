@@ -71,6 +71,28 @@ assert_signature_kind "$dmg" "DMG"
 assert_signature_kind "$app" "app"
 echo "ok: codesign verified ($method)"
 
+# PRD 0014 RF3.1: the WidgetKit extension ships inside the app, signed the
+# same way, sandboxed, and (Developer ID only) in the shared app group.
+plugin="$app/Contents/PlugIns/CuotaiWidgets.appex"
+[ -d "$plugin" ] || { echo "the app does not embed CuotaiWidgets.appex" >&2; exit 1; }
+codesign --verify --strict --verbose=2 "$plugin"
+assert_signature_kind "$plugin" "widget extension"
+plugin_entitlements="$(codesign -d --entitlements - --xml "$plugin" 2>/dev/null)"
+grep -q 'com.apple.security.app-sandbox' <<<"$plugin_entitlements" || {
+  echo "the widget extension is not sandboxed" >&2
+  exit 1
+}
+if [ "$method" = "developer-id" ]; then
+  app_entitlements="$(codesign -d --entitlements - --xml "$app" 2>/dev/null)"
+  for entitlements in "$plugin_entitlements" "$app_entitlements"; do
+    grep -q 'WL9XSC6H36.dev.cuotai.desktop' <<<"$entitlements" || {
+      echo "the app or its widget extension lacks the app group entitlement" >&2
+      exit 1
+    }
+  done
+fi
+echo "ok: widget extension embedded and signed ($method)"
+
 executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
 binary="$app/Contents/MacOS/$executable"
 archs="$(lipo -archs "$binary")"
