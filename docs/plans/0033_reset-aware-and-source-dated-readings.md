@@ -24,7 +24,7 @@
 | RF5 | vNEXT | RF5.1–RF5.2 delivered in 0.80.0. RF5.3: `metered_record::Store`, a `0600` per-account record under `<OS local data dir>/cuotai/metered/` read under an advisory lock before a metered query (the lock is never held across the network). RF5.4: the editors' cost advisory states the hourly default, the 15-minute floor and the shared request. The file name uses the `Account::key` digest until PRD 0029's `id` lands. |
 | FIX-10 | 0.80.0 | History rejects a reading more than five minutes ahead of the UTC wall clock before changing the series, retains legitimate older readings without a lower age bound, and excludes pre-existing out-of-bound future rows from `latest_in`. |
 | FIX-09 | 0.80.0 | Provider-status readings expire after 30 minutes (six five-minute cache windows) against the UTC wall clock: the retained cache is not erased, but its presented state becomes `unknown`, its incident is absent, and its original check time remains visible. Desktop cards and tray content and TUI/`--once` name the last-check age; the desktop outage dot ignores every stale reading. `export::v1.incident.expired` makes the transition additive and explicit. |
-| RF6 | — | Proposed. |
+| RF6 | vNEXT | Delivered: `README.md` (refresh after a reset, renewed readings, Bedrock cadence), `docs/providers.md` (Bedrock cadence and shared record, the reset query, expired metrics and the `as_of` rule with the adapters that set it), `docs/export-v1.md` (`as_of`, `data_age_seconds`, `expired`, `renewed_waiting`), `cuotai.example.toml` (Bedrock comment) and the PRD 0003 §4 note. |
 
 ## 1. Context
 
