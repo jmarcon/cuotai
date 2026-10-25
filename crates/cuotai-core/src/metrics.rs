@@ -1153,6 +1153,35 @@ mod tests {
         }
     }
 
+    /// PRD 0023 RF10.2 (PRD 0010 RF4): the desktop "Recharging" group takes
+    /// an account whose class is `Exhausted` or whose binding is exhausted.
+    /// Both follow `limits_account`: an exhausted model-scoped limit or
+    /// overage never moves an account with a free plan limit there.
+    #[test]
+    fn the_recharging_signals_follow_limits_account() {
+        let recharging = |r: &Report| {
+            classify_report(Some(r)) == AccountClass::Exhausted
+                || binding(r).is_some_and(|b| b.reason == BindingReason::Exhausted)
+        };
+        let scoped_out = report(
+            Status::Ready,
+            vec![pq("5h", 40.0, 100.0), model("Opus", 100.0)],
+        );
+        assert!(!limits_account(&scoped_out.metrics[1]));
+        assert!(!recharging(&scoped_out));
+        let overage_out = report(
+            Status::Ready,
+            vec![pq("5h", 40.0, 100.0), pq("extra", 100.0, 100.0).overage()],
+        );
+        assert!(!recharging(&overage_out));
+        let plan_out = report(
+            Status::Ready,
+            vec![pq("5h", 100.0, 100.0), model("Opus", 10.0)],
+        );
+        assert!(limits_account(&plan_out.metrics[0]));
+        assert!(recharging(&plan_out));
+    }
+
     #[test]
     fn overage_never_binds_or_classifies_the_account() {
         let r = report(
