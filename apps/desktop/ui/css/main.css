@@ -278,22 +278,6 @@
 .skeleton .sk-short {
   width: 60%;
 }
-.skeleton .sk::after {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fg) 14%, transparent), transparent);
-  transform: translateX(-100%);
-  animation: shimmer calc(var(--motion-spin) * 2) linear infinite;
-  content: "";
-}
-:root[data-hidden] .skeleton .sk::after {
-  animation: none;
-}
-@keyframes shimmer {
-  to {
-    transform: translateX(100%);
-  }
-}
 .card-head {
   display: flex;
   align-items: center;
@@ -342,7 +326,7 @@
   border: 0;
   border-radius: var(--radius-pill);
   background: var(--track);
-  transition: background var(--motion-base) var(--ease-out);
+  transition: background var(--motion-fast) var(--ease-out);
 }
 .switch span {
   position: absolute;
@@ -352,7 +336,7 @@
   height: 20px;
   border-radius: 50%;
   background: var(--switch-knob);
-  transition: transform var(--motion-base) var(--ease-spring);
+  transition: transform var(--motion-fast) var(--ease-out);
 }
 .switch.on {
   background: var(--accent);

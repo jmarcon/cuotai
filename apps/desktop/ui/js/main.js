@@ -405,7 +405,6 @@ function render() {
   const waiting = view && !filterText.trim() ? [...Array(view.account_count).keys()].filter((i) => !have.has(i)) : [];
   trackChanges(view);
   const ctx = { repeated: repeatedProviders(reports.filter((r) => !disabled.has(reportKey(r)) && !isAggregator(r))), monos: monograms(reports) };
-  const prev = motion.before(root);
   const statsPage = page === "stats" && !!view?.loaded;
   const hostFocus = statsPage ? [statsMount?.focused(), timelineMount?.focused()] : [];
   if (statsPage) {
@@ -459,7 +458,6 @@ function render() {
     timelineMount.attach(root.querySelector("[data-timeline-slot]"), hostFocus[1]);
     statsMount.attach(root.querySelector("[data-stats-slot]"), hostFocus[0]);
   }
-  motion.after(root, prev);
   const tabs = root.querySelector(".tb-tabs");
   const strip = tabs?.querySelector(".tabs");
   if (strip && strip.scrollWidth > tabs.clientWidth + 1 && tabFit > 1) { tabFit--; return render(); }
@@ -519,6 +517,8 @@ async function reorderAccounts(from, to, focusKey = null) {
   if (reorderPending || from === to || !Number.isInteger(from) || !Number.isInteger(to)) return;
   reorderPending = true;
   render();
+  // DS §7.2 item 16: only a move the user made slides the cards into place (never a refresh or a sort).
+  const before = motion.measure(root);
   try {
     await moveAccount(from, to);
     if (!isDesktop) {
@@ -530,6 +530,7 @@ async function reorderAccounts(from, to, focusKey = null) {
   } finally {
     reorderPending = false;
     render();
+    motion.flip(root, before);
     if (focusKey) root.querySelector(`[data-grip="${CSS.escape(focusKey)}"]`)?.focus();
   }
 }

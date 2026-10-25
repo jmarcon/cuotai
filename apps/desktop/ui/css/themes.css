@@ -47,13 +47,15 @@
   --hatch: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px);
   /* DS-ID-3: the glyph on provider brand tiles stays white in every theme (a named exception, not a role). */
   --tile-fg: #ffffff;
-  /* movimento (PRD 0004 RF1.1) */
-  --motion-fast: 150ms;
-  --motion-base: 250ms;
-  --motion-slow: 400ms;
+  /* motion (PRD 0004 RF1.1, PRD 0022 RF12.2, DS-MOT-3/-4): hover, focus and color at 120 ms; disclosures, view
+     switches and the dialog fade at 180 ms; nothing above 200 ms. `--motion-slow` and `--ease-spring` are
+     deprecated aliases kept for user themes. `--motion-spin` is the refresh spinner's turn (DS-MOT-7). */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: var(--motion-base);
   --motion-spin: 900ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* fallback sem linear() */
+  --ease-spring: var(--ease-out);
 }
 /* PRD 0022 RF1 (DS section 2): layout tokens. Themes never redefine these (DS-TOK-SPC-2, DS-GOV-3). */
 :root {
@@ -88,11 +90,6 @@
 :root:lang(hi) {
   --text-2xs: 11px;
 }
-@supports (transition-timing-function: linear(0, 1)) {
-  :root {
-    --ease-spring: linear(0, 0.25 7%, 0.69 17%, 1.04 29%, 1.12 37%, 1.09 46%, 1 61%, 0.98 75%, 1);
-  }
-}
 /* Movimento reduzido (RF1.2): a opção do app ("Reduzidas"/"Desligadas") ou o sistema, salvo "Sempre".
    `!important` de propósito: a acessibilidade vence qualquer tema (temas não podem usar `!important`). */
 :root[data-motion="reduced"],
@@ -110,10 +107,10 @@
     --motion-spin: 0ms !important;
   }
 }
-/* RF3.3: troca de tema/idioma (motion.js `crossFade`) dura `--motion-base`. */
+/* RF3.3, PRD 0022 RF12.1 item 21: the theme/language cross-fade lasts `--motion-fast` (0 with reduced motion). */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: var(--motion-base);
+  animation-duration: var(--motion-fast);
 }
 
 * {
@@ -206,6 +203,20 @@ p {
 }
 .spin {
   animation: spin var(--motion-spin) linear infinite;
+}
+/* DS-MOT-6/-7: a hidden window runs nothing, the spinner included (reduced motion zeroes --motion-spin). */
+:root[data-hidden] .spin,
+:root[data-motion="reduced"] .spin,
+:root[data-motion="off"] .spin,
+:root[data-hidden] .models-sync:disabled svg.i,
+:root[data-motion="reduced"] .models-sync:disabled svg.i,
+:root[data-motion="off"] .models-sync:disabled svg.i {
+  animation: none; /* RF12.4: the static icon; the control's accessible name says "Refreshing…" */
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="always"]) :is(.spin, .models-sync:disabled svg.i) {
+    animation: none;
+  }
 }
 @keyframes spin {
   to {
