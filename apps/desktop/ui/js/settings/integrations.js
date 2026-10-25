@@ -1,7 +1,7 @@
 // Settings › Advanced › Integrations (PRD 0020 RF2.5): the local server, hooks (`hooks.js`) and widgets, as the old
 // "Integration" section held them, one group each, built from the shared rows (RF3).
 import { t, te, tle } from "../i18n.js";
-import { copyServeToken, deleteWidgetData, esc, generateServeToken, hooksStatus, icon, revokeServeToken, serveStatus, setServe, setWidgets, widgetsStatus } from "../lib.js";
+import { copyServeToken, deleteWidgetData, esc, generateServeToken, hooksStatus, icon, revokeServeToken, serveStatus, setServe, setServeStats, setWidgets, widgetsStatus } from "../lib.js";
 import { copySecret, group, l10nError, serveErrorText } from "./common.js";
 import { bindHooks, hooksHtml } from "./hooks.js";
 import { buttons, commitField, disc, num, pathHtml, row, sw, toast } from "./rows.js";
@@ -55,6 +55,10 @@ export function integrationHtml(sv, message = []) {
         control: (a) => num("serve-port", { value: sv.port, min: sv.port_min, max: sv.port_max, apply: "data-serve-port" }, a) })
       + row({ key: "token", label: te("settings.serve.token.title"), msg: "serve-token-msg", control: () => token,
         info: `${te(sv.token ? "settings.serve.token.on" : "settings.serve.token.off")}${sv.token ? `<br />${te("settings.serve.token.revokeHelp")}` : ""}` })
+      // PRD 0031 RF11.2.5: /v1/stats is a separate opt-in that the server answers only with a token.
+      + row({ key: "serve-stats", label: te("settings.serve.stats"), info: te("settings.serve.statsHelp"), msg: "serve-stats-msg",
+        desc: sv.stats && !sv.token ? te("settings.serve.statsNeedsToken") : "",
+        control: (a) => sw("serve-stats", sv.stats, a, sv.token || sv.stats ? "" : "disabled") })
       + row({ key: "browsers", label: te("settings.serve.browsers"), info: te("settings.serve.browsersOff"), msg: "serve-browsers-msg",
         control: (a) => sw("serve-browsers", sv.allow_browsers, a),
         // RF5.3: the warning shows only in the state it applies to.
@@ -78,6 +82,7 @@ async function bindIntegration(sec, ctx) {
     // RF4.2: the port saves on Enter, on leaving the field or with the row's Apply; a refusal stays in its row.
     commitField(sec.querySelector("#serve-port"), (value) => setServe(sv.enabled, Number(value), sv.allow_browsers).then(
       (answer) => { paint(answer); ctx.changed("serve"); }, (e) => { throw serveErrorText(e); }));
+    sec.querySelector("#serve-stats").onchange = (e) => run(() => setServeStats(e.target.checked), "serve-stats-msg");
     sec.querySelector("[data-serve-token-new]").onclick = () => run(generateServeToken, "serve-token-msg");
     const revoke = sec.querySelector("[data-serve-token-revoke]");
     if (revoke) revoke.onclick = () => run(revokeServeToken, "serve-token-msg");

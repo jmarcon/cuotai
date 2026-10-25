@@ -16,10 +16,14 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use chrono::Utc;
 use cuotai_core::{
     config_file::ConfigIdentity,
-    export::v1::{Export, Options},
+    export::v1::{Export, Options, StatsExport},
     incidents::ProviderStatus,
     refresh::RefreshCycle,
-    serve::{self, LocalServer, ServeConfig, ServeError, SystemTokenVault, Token, TokenVault},
+    serve::{
+        self, LocalServer, ServeConfig, ServeError, StatsAnswer, SystemTokenVault, Token,
+        TokenVault,
+    },
+    stats::StatsRange,
     text::Localized,
     Config,
 };
@@ -59,15 +63,41 @@ impl FeedSlot {
 
     /// What the server reads: this slot's export, tagged with its generation.
     fn source(&self) -> impl serve::Source {
-        let (export, generation) = (self.clone(), self.clone());
-        serve::with_generation(
-            move || export.export(),
-            move || {
-                generation
-                    .generation
-                    .load(std::sync::atomic::Ordering::Relaxed)
-            },
+        let (export, generation, stats) = (self.clone(), self.clone(), self.clone());
+        serve::with_stats(
+            serve::with_generation(
+                move || export.export(),
+                move || {
+                    generation
+                        .generation
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                },
+            ),
+            move |range| stats.stats(range),
         )
+    }
+
+    /// PRD 0031 RF11.2.5: `/v1/stats` from the app's local history only
+    /// (never a provider); `history_off` while nothing is being recorded.
+    /// The route itself answers only with `ServeConfig::stats` and a token.
+    fn stats(&self, range: StatsRange) -> StatsAnswer {
+        let (monitor, accounts) = {
+            let feed = self.feed.lock().unwrap_or_else(PoisonError::into_inner);
+            match feed.as_ref() {
+                Some(feed) => (Arc::clone(&feed.monitor), feed.config.accounts.clone()),
+                None => return StatsAnswer::HistoryOff,
+            }
+        };
+        let Some(store) = monitor.history().filter(|_| monitor.history_recording()) else {
+            return StatsAnswer::HistoryOff;
+        };
+        let now = Utc::now();
+        match cuotai_core::stats::summarize(&store, &accounts, range, now, &chrono::Local) {
+            Ok(summary) => StatsAnswer::Ready(Box::new(StatsExport::from_summary(
+                &summary, &accounts, now,
+            ))),
+            Err(_) => StatsAnswer::Failed,
+        }
     }
 
     /// PRD 0015 RF4.3: export `cost`'s summary as `local_cost`.
@@ -320,6 +350,7 @@ impl Integration {
             port_fallback: false,
             token,
             allow_browsers: prefs.allow_browsers,
+            stats: prefs.stats,
             ..ServeConfig::default()
         })
     }
@@ -606,6 +637,41 @@ mod tests {
             Err(ServeError::TokenMissing)
         );
         assert_eq!(status(port, "/health", &[]).await, Some(200));
+        integration.apply(ServePrefs::default(), &slot).await;
+    }
+
+    /// PRD 0031 RF11.2.5: "Share usage statistics" turns `/v1/stats` on,
+    /// still behind the token; without the setting the route is `404`.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn share_usage_statistics_serves_v1_stats_behind_the_token() {
+        let slot = FeedSlot::default();
+        slot.publish(Some(feed()));
+        let mut integration = Integration::new(on(0), Arc::new(MemoryVault::default()));
+        integration.store_new_token().await.unwrap();
+        let token = integration.stored_token().await.unwrap();
+        let bearer = format!("Bearer {}", token.expose());
+        let auth = [("Authorization", bearer.as_str())];
+        let guarded = ServePrefs {
+            token: true,
+            ..on(0)
+        };
+        integration.apply(guarded, &slot).await;
+        let port = bound_port(&integration);
+        assert_eq!(status(port, "/v1/stats", &auth).await, Some(404));
+        integration
+            .apply(
+                ServePrefs {
+                    stats: true,
+                    ..guarded
+                },
+                &slot,
+            )
+            .await;
+        let port = bound_port(&integration);
+        assert!(integration.view().prefs.stats);
+        // The feed's monitor records no history: the honest `history_off`.
+        assert_eq!(status(port, "/v1/stats", &auth).await, Some(503));
+        assert_eq!(status(port, "/v1/stats", &[]).await, Some(401));
         integration.apply(ServePrefs::default(), &slot).await;
     }
 

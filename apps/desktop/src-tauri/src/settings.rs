@@ -465,6 +465,9 @@ pub struct ServePrefs {
     pub port: u16,
     pub allow_browsers: bool,
     pub token: bool,
+    /// PRD 0031 RF11.2.5: also serve `/v1/stats` ("Share usage statistics").
+    /// Off by default; the server answers it only with a token.
+    pub stats: bool,
 }
 
 impl Default for ServePrefs {
@@ -474,6 +477,7 @@ impl Default for ServePrefs {
             port: cuotai_core::serve::DEFAULT_PORT,
             allow_browsers: false,
             token: false,
+            stats: false,
         }
     }
 }
@@ -492,6 +496,7 @@ impl ServePrefs {
                 .unwrap_or(default.port),
             allow_browsers: flag("allow_browsers", default.allow_browsers),
             token: flag("token", default.token),
+            stats: flag("stats", default.stats),
         }
     }
 
@@ -1713,11 +1718,13 @@ mod tests {
                 port: 6738,
                 allow_browsers: false,
                 token: false,
+                stats: false,
             }
         );
         update(&file, |s| s.motion = Some("off".into())).unwrap();
         let on = ServePrefs {
             token: true,
+            stats: true,
             ..default.with_choices(true, 7001, true).unwrap()
         };
         write_serve(&file, &on).unwrap();

@@ -207,6 +207,8 @@ export const setStatusEnabled = (on) => call("set_status_enabled", { on });
 // own refresh cycle. Each call answers the server's new state; the token never comes back except to be copied.
 export const serveStatus = () => call("serve_status");
 export const setServe = (enabled, port, allowBrowsers) => call("set_serve", { enabled, port, allowBrowsers });
+// PRD 0031 RF11.2.5: "Share usage statistics" (`serve.stats`, /v1/stats), answered only with a token.
+export const setServeStats = (stats) => call("set_serve_stats", { stats });
 export const generateServeToken = () => call("generate_serve_token");
 export const revokeServeToken = () => call("revoke_serve_token");
 export const copyServeToken = () => call("copy_serve_token");
@@ -1095,7 +1097,7 @@ function demoServeView() {
   const s = demoSettings.serve;
   const taken = s.enabled && DEMO_SERVE_TAKEN && s.port === 6738;
   const state = !s.enabled ? "off" : taken ? "error" : "on";
-  return { state, enabled: s.enabled, port: s.port, allow_browsers: s.allow_browsers, token: s.secret != null,
+  return { state, enabled: s.enabled, port: s.port, allow_browsers: s.allow_browsers, token: s.secret != null, stats: !!s.stats,
     url: state === "on" ? `http://127.0.0.1:${s.port}` : null,
     error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `A porta ${s.port} está em uso; escolha outra porta para o servidor local.` } : null,
     cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
@@ -1717,6 +1719,7 @@ const demo = {
     Object.assign(demoSettings.serve, { enabled, port, allow_browsers: allowBrowsers });
     return demoServeView();
   },
+  set_serve_stats: async ({ stats }) => { demoSettings.serve.stats = stats; return demoServeView(); },
   generate_serve_token: async () => { demoSettings.serve.secret = `cuotai_demo_${crypto.randomUUID().replaceAll("-", "")}`; return demoServeView(); },
   // ponytail: demo mirror of the widget snapshot (PRD 0014 RF4.1); nothing is written in the browser. `?widgets`
   // starts with publishing on and an account limit already chosen.

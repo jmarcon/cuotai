@@ -2123,6 +2123,19 @@ impl Backend {
         Ok(self.apply_serve(app, &mut serve, prefs).await)
     }
 
+    /// PRD 0031 RF11.2.5: "Share usage statistics": also serve `/v1/stats`
+    /// (saved as `serve.stats` in `desktop.json`), which the server answers
+    /// only with a token. Error: `unwritable`.
+    pub async fn set_serve_stats(&self, app: &AppHandle, stats: bool) -> Result<ServeView, String> {
+        let mut serve = self.serve.lock().await;
+        let prefs = ServePrefs {
+            stats,
+            ..serve.prefs()
+        };
+        crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
+        Ok(self.apply_serve(app, &mut serve, prefs).await)
+    }
+
     /// PRD 0012 RF5.1: generate a token into the OS vault (replacing, and
     /// so invalidating, the previous one) and require it. Errors: the core's
     /// vault error as JSON, `unwritable`.

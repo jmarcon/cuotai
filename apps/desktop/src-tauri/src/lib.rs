@@ -839,6 +839,17 @@ async fn set_serve(
     b.set_serve(&app, enabled, port, allow_browsers).await
 }
 
+/// PRD 0031 RF11.2.5: "Share usage statistics" (`/v1/stats`, off by
+/// default, answered only with a token), saved in `desktop.json`.
+#[tauri::command]
+async fn set_serve_stats(
+    app: AppHandle,
+    b: Shared<'_>,
+    stats: bool,
+) -> Result<local_server::ServeView, String> {
+    b.set_serve_stats(&app, stats).await
+}
+
 /// PRD 0012 RF5.1: generate the server's token into the OS vault (a new
 /// one invalidates the previous) and require it.
 #[tauri::command]
@@ -1884,6 +1895,7 @@ pub fn run() {
             set_status_enabled,
             serve_status,
             set_serve,
+            set_serve_stats,
             generate_serve_token,
             revoke_serve_token,
             copy_serve_token,
