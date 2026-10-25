@@ -343,3 +343,101 @@ fn hooks_need_a_confirmation_before_any_query() {
     assert_eq!(sandbox.calls(), 0, "no query before the confirmation");
     assert!(!marker.exists(), "no hook before the confirmation");
 }
+
+/// PRD 0023 RF5: `--watch --jsonl` prints `overage_started` when an
+/// approved script extension starts billing extra usage and `overage_ended`
+/// when it stops. The extension counts its runs in a file outside its
+/// folder (a write inside would change the folder hash and revoke the
+/// approval), so each real query gets the next scripted amount. A reading
+/// is at least 60 s after the previous one: this test takes about two
+/// minutes.
+#[test]
+fn watch_jsonl_prints_overage_started_and_ended() {
+    let sandbox = Sandbox::new("overage", "0.5");
+    let home = sandbox.0.join("home");
+    // `dirs::data_local_dir` under the sandbox HOME.
+    let data = if cfg!(target_os = "macos") {
+        home.join("Library/Application Support")
+    } else {
+        home.join("data")
+    };
+    let root = data.join("cuotai/extensions");
+    let folder = root.join("ovg");
+    fs::create_dir_all(&folder).unwrap();
+    let counter = sandbox.0.join("overage-calls");
+    fs::write(
+        folder.join("manifest.toml"),
+        "schema = 1\nid = \"ovg\"\nname = \"Overage\"\nversion = \"1\"\ncommand = [\"./run.sh\"]\ninterval_seconds = 60\ntimeout_seconds = 10\nenv = []\n",
+    )
+    .unwrap();
+    let script = folder.join("run.sh");
+    fs::write(
+        &script,
+        format!(
+            r#"#!/bin/sh
+echo x >> '{counter}'
+calls=$(wc -l < '{counter}' | tr -d ' ')
+case "$calls" in
+  1) spent=0;;
+  2) spent=2.5;;
+  *) spent=0;;
+esac
+printf '{{"schema":1,"status":"ready","metrics":[{{"label":"Extra usage","used":%s,"limit":10,"remaining":null,"unit":"USD","kind":"spend","billing":"overage"}}],"notes":[]}}\n' "$spent"
+"#,
+            counter = counter.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&folder, fs::Permissions::from_mode(0o755)).unwrap();
+    // The approval a person gives with `--extension-check`, made here
+    // because that command needs a terminal.
+    let manager = cuotai_core::extensions::management::Manager::at(&root);
+    let disclosure = manager.disclosure("ovg").unwrap();
+    manager.approve(&disclosure.candidate, true).unwrap();
+    fs::write(
+        sandbox.0.join("cuotai.toml"),
+        "[[accounts]]\nname = \"Ovg\"\nprovider = \"extension\"\nparams = { extension_id = \"ovg\" }\n",
+    )
+    .unwrap();
+
+    let config = sandbox.config();
+    let child = sandbox
+        .command(&[
+            "--config",
+            &config,
+            "--watch",
+            "--jsonl",
+            "--interval",
+            "60",
+            "--events",
+            "overage_started,overage_ended",
+        ])
+        .spawn()
+        .unwrap();
+    let runs = || fs::read_to_string(&counter).map_or(0, |log| log.lines().count());
+    let deadline = Instant::now() + Duration::from_secs(240);
+    while runs() < 3 {
+        assert!(
+            Instant::now() < deadline,
+            "only {} queries: {}",
+            runs(),
+            sandbox.stderr()
+        );
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    // The third reading lands on the next tick (250 ms).
+    std::thread::sleep(Duration::from_secs(2));
+    let (status, stdout) = stop(child, "-TERM");
+    assert_eq!(status.code(), Some(0), "{}", sandbox.stderr());
+    let events: Vec<serde_json::Value> = stdout
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    let names: Vec<&str> = events
+        .iter()
+        .map(|event| event["event"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["overage_started", "overage_ended"], "{stdout}");
+    assert_eq!(events[0]["current"]["spent"], 2.5, "{stdout}");
+}
