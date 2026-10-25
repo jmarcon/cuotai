@@ -631,6 +631,34 @@ Before the first real release:
    `WINGET_SUBMIT=true` once the first `microsoft/winget-pkgs` submission has
    been reviewed by hand. Unset variables keep a channel off, and the run
    summary says so.
+#### Why channel jobs are skipped (v0.80.0 findings)
+
+The v0.80.0 run skipped `channel-winget`, `channel-aur` and `channel-cargo`
+by design, not by failure. Each channel job has an `if:` that requires a tag
+push, a stable tag **and** its enabling repository variable to equal the
+string `true` (`vars.PUBLISH_WINGET`, `vars.PUBLISH_AUR`, `vars.PUBLISH_CARGO`).
+Those variables were unset, so GitHub marks the job as skipped before it
+enters the `release` environment, and no secret check runs. Only
+`PUBLISH_HOMEBREW` was enabled, which is why the Homebrew job ran. (Its
+online audit then failed on the unauthenticated GitHub API rate limit; the
+audit step now passes the read-only job token as `HOMEBREW_GITHUB_API_TOKEN`.)
+
+What the owner must create before each skipped channel can run. Variables go
+in Settings → Secrets and variables → Actions → Variables (repository level);
+secrets go in the `release` environment. No value is ever committed.
+
+| Channel | Accounts and repositories to create | Secret (`release` environment) | Variables |
+|---|---|---|---|
+| winget | A fork of `microsoft/winget-pkgs` under the owner's account; make the **first** submission by hand (PRD 0021 RF5.2) | `WINGET_SUBMIT_TOKEN`: token scoped to that fork only | `PUBLISH_WINGET=true`; later `WINGET_SUBMIT=true` for unattended pull requests |
+| AUR | An AUR account and the `cuotai-bin` package (first push by hand), with a dedicated SSH key registered on the account | `AUR_SSH_PRIVATE_KEY`: that key's private half | `PUBLISH_AUR=true` |
+| crates.io | A crates.io account; confirm `cuotai-core` and `cuotai-tui` are free; first publication by hand is acceptable | `CARGO_REGISTRY_TOKEN`: scoped to publish these two crates | `PUBLISH_CARGO=true` |
+| Scoop | Repository `jmarcon/scoop-cuotai` | `SCOOP_BUCKET_TOKEN` | `PUBLISH_SCOOP=true` |
+| Homebrew | Repository `jmarcon/homebrew-cuotai` | `HOMEBREW_TAP_TOKEN` (contents: write on the tap only) | `PUBLISH_HOMEBREW=true` (set) |
+
+A skipped channel job is therefore the expected state of an off channel. To
+re-run one alone after fixing it, use "Re-run failed/skipped jobs" on the
+tag's run; the variable is read at run time.
+
 4. Retroactive tags `v0.1.0`… (RF1.3) were **declined** (PRD 0039 D10):
    the internal versions are summarized by one "Pre-release history
    (0.1.0–0.79.0, …)" section at the bottom of `CHANGELOG.md`, with no
