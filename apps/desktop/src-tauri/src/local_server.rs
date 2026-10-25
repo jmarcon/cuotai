@@ -34,6 +34,8 @@ pub struct Feed {
     pub identity: ConfigIdentity,
     pub cycle: RefreshCycle,
     pub incidents: Vec<ProviderStatus>,
+    /// Where the recorded points behind the pace come from (PRD 0031 RF13).
+    pub monitor: Arc<cuotai_core::Monitor>,
 }
 
 /// Where the backend publishes the [`Feed`]; empty while no configuration
@@ -61,13 +63,14 @@ impl FeedSlot {
         let local_cost = self.cost.get().and_then(|cost| cost.export());
         let feed = self.feed.lock().unwrap_or_else(PoisonError::into_inner);
         feed.as_ref().map(|feed| {
-            Export::from_cycle(
+            Export::from_cycle_with_history(
                 &feed.config,
                 &feed.identity,
                 &feed.cycle,
                 &feed.incidents,
                 Utc::now(),
                 Options::default(),
+                |index, metrics, at| feed.monitor.recent_points(index, metrics, at),
             )
             .with_local_cost(local_cost)
         })
@@ -437,6 +440,7 @@ mod tests {
         };
         cycle.finish_account(0, Some(report), token, Instant::now());
         Feed {
+            monitor: Arc::new(cuotai_core::Monitor::new(config.clone()).unwrap()),
             config,
             identity: ConfigIdentity::Explicit("desktop".into()),
             cycle,

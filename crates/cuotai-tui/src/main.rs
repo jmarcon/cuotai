@@ -776,6 +776,8 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 snapshot,
                 &monitor.incident_statuses(),
                 Utc::now(),
+                // PRD 0031 RF13: the pace reads the recent samples, as the app does.
+                |index, metrics, at| monitor.recent_points(index, metrics, at),
             )
             .with_local_cost(local_cost.and_then(|job| job.join().ok()).flatten());
             let mut stdout = io::stdout().lock();
@@ -839,13 +841,22 @@ fn single_export(
     snapshot: Snapshot,
     incidents: &[ProviderStatus],
     now: DateTime<Utc>,
+    recent: impl Fn(usize, &[cuotai_core::Metric], DateTime<Utc>) -> Vec<Vec<Point>>,
 ) -> Export {
     let mut cycle = RefreshCycle::new(config, Instant::now());
     cycle.restore_last_good_at(restored, now);
     if let Some(token) = cycle.begin_full() {
         cycle.finish_full(Some(snapshot), token, Instant::now());
     }
-    Export::from_cycle(config, identity, &cycle, incidents, now, Options::default())
+    Export::from_cycle_with_history(
+        config,
+        identity,
+        &cycle,
+        incidents,
+        now,
+        Options::default(),
+        recent,
+    )
 }
 
 fn print_snapshot(
@@ -1285,7 +1296,7 @@ mod tests {
         ];
         let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 10, 0).unwrap();
         let identity = ConfigIdentity::Explicit("test".into());
-        let export = single_export(&config, &identity, recorded, snapshot, &[], now);
+        let export = single_export(&config, &identity, recorded, snapshot, &[], now, |_, _, _| Vec::new());
         let json = serde_json::to_value(&export).unwrap();
         assert_eq!(json["schema"], 1);
         let (ready, failed) = (&json["accounts"][0], &json["accounts"][1]);

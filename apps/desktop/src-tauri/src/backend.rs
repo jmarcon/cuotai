@@ -1006,6 +1006,7 @@ impl Inner {
             identity: l.file.identity().ok()?,
             cycle: l.cycle.clone(),
             incidents: l.monitor.incident_statuses(),
+            monitor: l.monitor.clone(),
         })
     }
 
@@ -1014,13 +1015,14 @@ impl Inner {
     /// same state the app shows; no query).
     fn hooks_input(&self, now: chrono::DateTime<chrono::Utc>) -> Option<(PathBuf, Export)> {
         let l = self.loaded.as_ref()?;
-        let export = Export::from_cycle(
+        let export = Export::from_cycle_with_history(
             &l.file.config,
             &l.file.identity().ok()?,
             &l.cycle,
             &l.monitor.incident_statuses(),
             now,
             ExportOptions::default(),
+            |index, metrics, at| l.monitor.recent_points(index, metrics, at),
         );
         Some((cuotai_core::hooks::Hooks::path_beside(&l.file.path), export))
     }

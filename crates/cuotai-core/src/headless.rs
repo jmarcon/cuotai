@@ -100,13 +100,15 @@ impl Driver {
     pub fn export(&self, config: &Config, identity: &ConfigIdentity, now: DateTime<Utc>) -> Export {
         let incidents = self.monitor.incident_statuses();
         let cycle = lock(&self.cycle);
-        Export::from_cycle(
+        // PRD 0031 RF13: the same recent samples the app projects its pace from.
+        Export::from_cycle_with_history(
             config,
             identity,
             &cycle,
             &incidents,
             now,
             Options::default(),
+            |index, metrics, at| self.monitor.recent_points(index, metrics, at),
         )
     }
 

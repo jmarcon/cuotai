@@ -77,13 +77,14 @@ pub(crate) async fn start(
         let local_cost = local_cost.as_ref().and_then(|cost| cost.export(now));
         let cycle = cycle.lock().unwrap_or_else(PoisonError::into_inner);
         Some(
-            Export::from_cycle(
+            Export::from_cycle_with_history(
                 &config,
                 &identity,
                 &cycle,
                 &incidents,
                 now,
                 Options::default(),
+                |index, metrics, at| monitor.recent_points(index, metrics, at),
             )
             .with_local_cost(local_cost),
         )

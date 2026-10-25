@@ -204,6 +204,32 @@ impl Export {
         now: DateTime<Utc>,
         options: Options,
     ) -> Self {
+        Self::from_cycle_with_history(
+            config,
+            identity,
+            cycle,
+            incidents,
+            now,
+            options,
+            |_, _, _| Vec::new(),
+        )
+    }
+
+    /// [`Export::from_cycle`] with the recorded points the app reads for its
+    /// pace (PRD 0031 RF13): `recent(index, metrics, now)` returns, per
+    /// metric of the account's report, the points [`pace::assess_reading`]
+    /// takes as `recent` ([`crate::Monitor::recent_points`] is the usual
+    /// source; an empty answer, as without history, gives the average
+    /// since the window start).
+    pub fn from_cycle_with_history(
+        config: &Config,
+        identity: &ConfigIdentity,
+        cycle: &RefreshCycle,
+        incidents: &[ProviderStatus],
+        now: DateTime<Utc>,
+        options: Options,
+        recent: impl Fn(usize, &[Metric], DateTime<Utc>) -> Vec<Vec<pace::Point>>,
+    ) -> Self {
         let accounts = config
             .accounts
             .iter()
@@ -211,14 +237,19 @@ impl Export {
             .map(|(index, account)| {
                 let interval =
                     Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds));
+                let report = cycle.account_report(index);
+                let points = report
+                    .map(|report| recent(index, &report.metrics, now))
+                    .unwrap_or_default();
                 let mut export = account_export(
                     index,
                     account,
-                    cycle.account_report(index),
+                    report,
                     cycle.last_good_report(index),
                     interval,
                     now,
                     options,
+                    &points,
                 );
                 export.incident = incidents
                     .iter()
@@ -408,6 +439,7 @@ fn account_export(
     interval: Duration,
     now: DateTime<Utc>,
     options: Options,
+    recent: &[Vec<pace::Point>],
 ) -> AccountExport {
     let scrub = Scrub::new(account, options.include_identity);
     let age = |at| freshness::age(at, now).as_secs();
@@ -456,7 +488,11 @@ fn account_export(
             report
                 .metrics
                 .iter()
-                .map(|metric| pace::assess_reading(metric, report.checked_at, interval, now, None))
+                .enumerate()
+                .map(|(i, metric)| {
+                    let points = recent.get(i).map(Vec::as_slice);
+                    pace::assess_reading(metric, report.checked_at, interval, now, points)
+                })
                 .collect()
         }),
         access: access::describe(account),
@@ -1041,6 +1077,69 @@ mod tests {
             assert!(pending[field].is_null(), "{field}");
         }
         assert_eq!(pending["pace"], serde_json::json!([]));
+    }
+
+    /// PRD 0031 RF13: with recorded points the export projects the pace the
+    /// way the app does (`pace.source` says `recent`); without them it keeps
+    /// the average since the window start.
+    #[test]
+    fn pace_uses_the_recent_samples_when_history_is_given() {
+        let (config, cycle) = reference();
+        let identity = ConfigIdentity::Explicit("reference".into());
+        let checked_at = minutes_ago(2);
+        let points = |used: [f64; 3]| {
+            vec![
+                pace::Point {
+                    taken_at: checked_at - chrono::TimeDelta::minutes(40),
+                    used: used[0],
+                },
+                pace::Point {
+                    taken_at: checked_at - chrono::TimeDelta::minutes(20),
+                    used: used[1],
+                },
+                pace::Point {
+                    taken_at: checked_at,
+                    used: used[2],
+                },
+            ]
+        };
+        let recent = |index: usize, metrics: &[Metric], _: DateTime<Utc>| {
+            let mut lists = vec![Vec::new(); metrics.len()];
+            if index == 0 {
+                lists[0] = points([10.0, 20.0, 30.0]);
+            }
+            lists
+        };
+        let with = Export::from_cycle_with_history(
+            &config,
+            &identity,
+            &cycle,
+            &[],
+            now(),
+            Options::default(),
+            recent,
+        );
+        let without = Export::from_cycle(&config, &identity, &cycle, &[], now(), Options::default());
+        let source = |export: &Export| {
+            export.accounts[0].pace[0]
+                .as_ref()
+                .expect("a fresh 5h quota has a pace")
+                .source
+        };
+        assert_eq!(source(&with), pace::PaceSource::Recent);
+        assert_eq!(source(&without), pace::PaceSource::Average);
+        // The same call the app makes gives the same pace.
+        let report = cycle.account_report(0).unwrap();
+        let app = pace::assess_reading(
+            &report.metrics[0],
+            report.checked_at,
+            Duration::from_secs(config.accounts[0].effective_refresh_seconds(config.refresh_seconds)),
+            now(),
+            Some(&points([10.0, 20.0, 30.0])),
+        );
+        assert_eq!(with.accounts[0].pace[0], app);
+        // Other accounts and metrics without points are unchanged.
+        assert_eq!(with.accounts[1].pace, without.accounts[1].pace);
     }
 
     /// PRD 0024 FIX-11: the pace is evaluated at the reading's `checked_at`
