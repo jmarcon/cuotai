@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0025 |
-| Status | In progress |
+| Status | Awaiting owner verification |
 | Owner | `cuotai-core` (tray summary, recommended defaults), desktop (`apps/desktop`: tray, settings window, first run) |
 | Consumers | `apps/desktop/src-tauri` (`lib.rs` tray), `apps/desktop/ui` (settings pages, tray popover, main-window rows), PRD 0031 (`--status-line` reuses `tray::summary`) |
 | Depends on | PRD 0020 (RF1, RF2: the settings window and its sidebar registry) for RF4, RF5 and RF9; PRD 0029 (stable account ids) for RF2; PRD 0018 (RF2.6: the update question) for RF6.5 |
@@ -19,13 +19,13 @@
 |---|---|---|
 | RF1 | vNEXT | Delivered: `tray::summary` (four styles, Tightest % default, unknown "—", stale mark, exhausted return time, 24-character budget with "+N"), `TraySelection` with `pick`/`pruned`, `AccountView::from_report` for headless consumers (PRD 0031 RF2), `Localized` labels in the core catalogs. |
 | RF2 | vNEXT | Delivered: `tray.style`/`tray.accounts` (stable ids) in `desktop.json`, pruned when accounts disappear; Auto caps 4 meters / 6 figures; the popover lists the menu-bar accounts first and the rest under "Not in menu bar". |
-| RF3 | vNEXT | Partial: macOS template image, `set_title`, cut-out notch badge, monochrome meters image, colored variant; Linux `set_title`; updates only when the summary changes. Not yet: the Windows icon with the figure drawn in it (the tooltip carries it), the at-most-once-per-second throttle beyond change detection, `docs/platforms.md` per desktop environment, the macOS accessibility description beyond the tooltip, and the manual smokes. |
+| RF3 | vNEXT | Delivered: macOS template image with `set_title`, cut-out notch badge, monochrome meters image and the colored variant; Linux `set_title`; Windows draws the tightest figure (two digits, "!" for an alert, "-" unknown) into the icon with the summary in the tooltip, Meters falling back to the icon; changes only when the summary changes and at most once per second; per-platform and per-desktop behavior in `docs/platforms.md`; shell tests per platform. The light/dark, Windows 11, GNOME and KDE smokes are owner checks. |
 | RF4 | vNEXT | Delivered: Settings › Menu bar with option cards and live previews (`tray_preview`), "Use color", account checks with drag and Alt+↑/↓, Automatic; `tray.popover_view` in `desktop.json` with a one-time localStorage migration. |
-| RF5 | vNEXT | Partial: the Menu bar page in the sidebar (five everyday pages plus About), `settings.advanced_open` in `desktop.json`; rows carry search keywords. Not yet: account management on the Dashboard page (RF5.2), the "Other ways to connect" dialog change (RF5.4) and search itself (PRD 0020 RF6). |
-| RF6 | vNEXT | Partial: first-run step with Turn on (permission, then the recommended usage alerts), Not now, the Advanced features named, the update question with its own buttons, `onboarding.version` and "Show again" in General. Not yet: the predictive warning and "extra usage started" (the desktop has no preference for them until PRD 0024 RF2 and PRD 0023 RF4 reach the desktop), the managed-install replacement of the update question, and the request-counting test. |
-| RF7 | vNEXT | Delivered: the summary's accessible label as the tooltip; texts in the four languages. VoiceOver pass is an owner smoke. |
+| RF5 | vNEXT | Delivered: the Menu bar page in the sidebar (five everyday pages plus About), `settings.advanced_open`, search over every row through catalog keywords (PRD 0020 RF6); the account list with add, edit, remove and keyboard order on Settings › Dashboard (RF5.2; the dialogs stay in the main window, which Settings asks through an `account-action` event); "Other ways to connect" for a new account (RF5.4, delivered with PRD 0027 RF5.1). |
+| RF6 | vNEXT | Delivered: first-run step with Turn on (permission, then the recommended usage alerts with the extra-usage notices and the 60-minute projected warning), Not now, a refused permission leaving the alerts off with the PRD 0003 guidance, the Advanced features named, the update question with its own buttons, the package manager's update command instead of the question on a managed install, `onboarding.version` and "Show again"; a request-counting test proves the first-run record never answers the update question. Owner smoke: permission granted and denied on the packaged app. |
+| RF7 | vNEXT | Delivered: the summary's accessible label as the tooltip and, on macOS, the status item's accessibility label; texts in the four languages. VoiceOver pass is an owner smoke. |
 | RF8 | — | Moved to PRD 0031 on 2026-10-23. |
-| RF9 | — | Proposed (added 2026-10-23: custom display mode); not started in this lane. |
+| RF9 | vNEXT | Delivered: Settings › Dashboard › Row display with the Detailed / Standard / Minimal / Custom presets, the thirteen element switches in the DS-CMP-DENS-1 order, a live preview row from a real account (else an example), "Use a different layout in the main window" with a choice of which layout to edit, `rows.tray`/`rows.window`/`rows.separate` in `desktop.json` synced live; the figure and the meter are never hideable, hidden elements leave no gap and stay in the accessible name; Minimal shows one status by the DS-CMP-DENS-3 priority. Tests: `scripts/test-density-ui.mjs`, shell `rows_prefs_round_trip_and_read_leniently`. Note: the presets are a segmented control on the sub-page, as in the approved mockup `50-settings-display-custom`, rather than option cards on the page. |
 
 ## 1. Context
 
