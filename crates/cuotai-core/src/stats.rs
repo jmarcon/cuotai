@@ -6,21 +6,22 @@
 //! samples is a gap, never a zero; a limit that is unknown is excluded and
 //! counted; fewer than two days of data is reported as not enough.
 //!
-//! Only plan limits count: `MetricKind::Quota` metrics with a finite
-//! positive limit (PRD 0023's `is_plan_limit` replaces the kind test when it
-//! lands). The tightest limit of an account on a day is the plan limit with
+//! Only plan limits count: included `MetricKind::Quota` metrics with a
+//! finite positive limit (the stored form of `metrics::is_plan_limit`). The tightest limit of an account on a day is the plan limit with
 //! the highest peak share that day, so shares never exceed 1.0 here even
 //! when a provider reports use above the cap.
 //!
 //! Compaction safety: the hourly reduction of old samples keeps each
 //! window's peak, so the figures are the same before and after it.
 //!
-//! "Extra spent" (RF1.5) waits for PRD 0023's overage amounts and is not
-//! part of the summary yet.
+//! "Extra spent" (RF1.5) sums, per unit (currency), the highest recorded
+//! amount of each billing cycle of the overage metrics
+//! (`Metric.billing == Billing::Overage`) within the range. It is `None`
+//! when no overage amount was recorded, never a zero.
 
 use crate::history::{HistoryError, HistoryStore};
 use crate::text::{params, Localized};
-use crate::{Account, MetricKind};
+use crate::{Account, Billing, MetricKind};
 use chrono::{DateTime, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc};
 use serde::Serialize;
 
@@ -79,6 +80,13 @@ pub enum Coverage {
     NotEnough,
 }
 
+/// Overage amount of one unit (currency) in the range.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ExtraSpent {
+    pub unit: String,
+    pub amount: f64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct StatsSummary {
     pub range: StatsRange,
@@ -87,6 +95,9 @@ pub struct StatsSummary {
     /// Mean over the accounts that have data of their average peak.
     pub average_peak: Option<f64>,
     pub accounts: Vec<AccountStats>,
+    /// PRD 0026 RF1.5: overage spent in the range per unit, in first-seen
+    /// order; `None` when no overage amount was recorded (unknown).
+    pub extra_spent: Option<Vec<ExtraSpent>>,
     /// Highest peak across accounts per day, oldest first.
     pub daily: Vec<DayPeak>,
     /// Plan-limit metrics left out because their limit is unknown.
@@ -156,12 +167,44 @@ pub fn summarize<Tz: TimeZone>(
     };
 
     let mut unknown_limits = 0;
+    let mut extra: Vec<ExtraSpent> = Vec::new();
     let mut stats = Vec::with_capacity(accounts.len());
     for (account_index, account) in accounts.iter().enumerate() {
         let mut best: Vec<Option<f64>> = vec![None; dates.len()];
         let mut hits = 0;
         let histories = store.account_history(account, range_start - LOOKBACK..=now)?;
-        for metric in histories.iter().filter(|m| m.kind == MetricKind::Quota) {
+        for metric in histories.iter().filter(|m| m.billing == Billing::Overage) {
+            // Highest amount of each billing cycle seen within the range.
+            let spent: f64 = metric
+                .windows
+                .iter()
+                .filter_map(|window| {
+                    metric
+                        .points
+                        .iter()
+                        .filter(|p| {
+                            p.taken_at >= range_start.max(window.started_at)
+                                && p.taken_at <= now.min(window.ended_at)
+                        })
+                        .map(|p| p.used)
+                        .reduce(f64::max)
+                })
+                .sum();
+            let seen = metric.points.iter().any(|p| p.taken_at >= range_start);
+            if seen {
+                match extra.iter_mut().find(|e| e.unit == metric.unit) {
+                    Some(entry) => entry.amount += spent,
+                    None => extra.push(ExtraSpent {
+                        unit: metric.unit.clone(),
+                        amount: spent,
+                    }),
+                }
+            }
+        }
+        for metric in histories
+            .iter()
+            .filter(|m| m.kind == MetricKind::Quota && m.billing == Billing::Included)
+        {
             let Some(limit) = metric.limit.filter(|l| l.is_finite() && *l > 0.0) else {
                 unknown_limits += 1;
                 continue;
@@ -229,6 +272,7 @@ pub fn summarize<Tz: TimeZone>(
         hits: stats.iter().map(|a| a.hits).sum(),
         average_peak: mean(stats.iter().filter_map(|a| a.average_peak)),
         accounts: stats,
+        extra_spent: (!extra.is_empty()).then_some(extra),
         daily,
         unknown_limits,
         retention_days: store.retention().keep_days(),
@@ -286,6 +330,16 @@ credential_env = "GROQ_KEY_BETA"
             billing: Default::default(),
             scope: None,
         }
+    }
+
+    fn overage(label: &str, used: f64, unit: &str, resets: DateTime<Utc>) -> Metric {
+        Metric {
+            unit: unit.into(),
+            kind: MetricKind::Spend,
+            window: Some(MetricWindow::Monthly),
+            ..metric(label, used, None, resets)
+        }
+        .overage()
     }
 
     fn utc() -> FixedOffset {
@@ -606,5 +660,46 @@ credential_env = "GROQ_KEY_BETA"
             StatsSummary::not_enough().resolve("en-US"),
             "Not enough history"
         );
+    }
+
+    #[test]
+    fn extra_spent_sums_the_cycle_peaks_per_currency_and_unknown_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(dir.path());
+        let (alpha, beta) = (&accounts()[0], &accounts()[1]);
+        assert_eq!(
+            summary(&history, StatsRange::Days30, at(20, 12)).extra_spent,
+            None
+        );
+        // A plan limit alone never makes "extra spent" known.
+        record(&history, alpha, at(19, 10), 40.0);
+        record(&history, alpha, at(20, 10), 90.0);
+        let plain = summary(&history, StatsRange::Days30, at(20, 12));
+        assert_eq!(plain.extra_spent, None);
+        assert_eq!(plain.hits, 0, "overage is not a plan limit");
+
+        // Two cycles of one USD metric (the amount resets) and EUR on another.
+        let cycle = |when, used, resets| {
+            history
+                .record(alpha, when, &[overage("Extra", used, "USD", resets)])
+                .unwrap();
+        };
+        cycle(at(2, 10), 3.0, at(10, 0));
+        cycle(at(8, 10), 7.5, at(10, 0));
+        cycle(at(12, 10), 1.0, at(25, 0));
+        cycle(at(18, 10), 2.0, at(25, 0));
+        history
+            .record(beta, at(15, 10), &[overage("Extra", 4.0, "EUR", at(25, 0))])
+            .unwrap();
+        let s = summary(&history, StatsRange::Days30, at(20, 12));
+        let spent = s.extra_spent.expect("overage recorded");
+        assert_eq!(spent.len(), 2);
+        let get = |unit: &str| spent.iter().find(|e| e.unit == unit).unwrap().amount;
+        assert!((get("USD") - 9.5).abs() < 1e-9, "7.5 + 2.0");
+        assert_eq!(get("EUR"), 4.0);
+        // The 7-day range only sees the second cycle's samples.
+        let week = summary(&history, StatsRange::Days7, at(20, 12));
+        let usd = week.extra_spent.unwrap();
+        assert_eq!(usd.iter().find(|e| e.unit == "USD").unwrap().amount, 2.0);
     }
 }

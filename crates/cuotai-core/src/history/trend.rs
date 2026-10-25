@@ -8,7 +8,7 @@ use super::{finite, group_windows, instant, untag, HistoryError, HistoryStore, W
 use super::{span, WindowUsage};
 use crate::history::series_digest;
 use crate::pace::Point;
-use crate::{Account, MetricKind, MetricWindow};
+use crate::{Account, Billing, MetricKind, MetricWindow};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::Serialize;
 use std::ops::RangeBounds;
@@ -52,6 +52,8 @@ pub struct MetricHistory {
     pub unit: String,
     pub kind: MetricKind,
     pub window: Option<MetricWindow>,
+    /// Plan allowance or paid extra usage (PRD 0026 RF1.5).
+    pub billing: Billing,
     /// The last finite `limit` recorded in the span, if any.
     pub limit: Option<f64>,
     /// Samples with a finite `used`, in time order.
@@ -278,7 +280,7 @@ impl HistoryStore {
         let account_digest = series_digest(&db, &self.config_key, account)?;
         let mut query = db.prepare(
             "SELECT x.metric_key, s.label, x.unit, x.kind, x.\"window\", x.taken_at,
-                    x.used, x.\"limit\", x.resets_at
+                    x.used, x.\"limit\", x.resets_at, s.billing
              FROM samples x JOIN series s ON s.config_key = x.config_key
                AND s.account_digest = x.account_digest AND s.metric_key = x.metric_key
              WHERE x.config_key = ?1 AND x.account_digest = ?2 AND x.taken_at BETWEEN ?3 AND ?4
@@ -310,6 +312,7 @@ impl HistoryStore {
                             .get::<_, Option<String>>(4)?
                             .map(untag::<MetricWindow>)
                             .transpose()?,
+                        billing: untag(row.get(9)?)?,
                         limit: None,
                         points: Vec::new(),
                         windows: Vec::new(),
@@ -351,6 +354,7 @@ mod tests {
             unit: "%".into(),
             kind: MetricKind::Quota,
             window: Some(MetricWindow::Window5h),
+            billing: Billing::Included,
             limit,
             points: points
                 .iter()

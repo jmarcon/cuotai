@@ -4259,6 +4259,7 @@ mod tests {
                 unit: session.unit.clone(),
                 kind: session.kind,
                 window: session.window,
+                billing: cuotai_core::Billing::Included,
                 limit: Some(100.0),
                 points: vec![point(24, 0.0), point(12, 90.0), point(0, 40.0)],
                 windows: Vec::new(),

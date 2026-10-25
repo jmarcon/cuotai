@@ -91,7 +91,7 @@ const WAL_SIZE_LIMIT: i64 = 4 << 20;
 /// Times are UTC unix milliseconds. Version 2 indexes samples by age (the
 /// file-wide retention and size pruning, RF4) and adds `meta` (the
 /// resolution reduction's progress).
-const MIGRATIONS: [&str; 2] = [
+const MIGRATIONS: [&str; 3] = [
     "CREATE TABLE series (
     config_key TEXT NOT NULL,
     account_digest TEXT NOT NULL,
@@ -119,6 +119,9 @@ CREATE TABLE samples (
 CREATE INDEX samples_by_time ON samples (config_key, taken_at);",
     "CREATE INDEX samples_by_age ON samples (taken_at);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;",
+    // Version 3 (PRD 0026 RF1.5): whether a metric is part of the plan or
+    // paid extra usage, so statistics tell plan limits from overage.
+    "ALTER TABLE series ADD COLUMN billing TEXT NOT NULL DEFAULT 'included';",
 ];
 
 /// PRD 0029 RF2.2: `legacy_digest` (the pre-0029 series identity,
@@ -161,8 +164,8 @@ pub(crate) fn series_digest(
         let tx = db.unchecked_transaction()?;
         tx.execute(
             "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label,
-                position, seen_at, removed_at)
-             SELECT config_key, ?3, metric_key, label, position, seen_at, removed_at
+                position, seen_at, removed_at, billing)
+             SELECT config_key, ?3, metric_key, label, position, seen_at, removed_at, billing
              FROM series WHERE config_key = ?1 AND account_digest = ?2",
             rusqlite::params![config_key, legacy, current],
         )?;
@@ -582,10 +585,12 @@ impl HistoryStore {
         let mut added = 0;
         {
             let mut series = tx.prepare(
-                "INSERT INTO series (config_key, account_digest, metric_key, label, position, seen_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                "INSERT INTO series (config_key, account_digest, metric_key, label, position, seen_at,
+                    billing)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
                  ON CONFLICT (config_key, account_digest, metric_key) DO UPDATE SET
                     label = excluded.label,
+                    billing = excluded.billing,
                     position = CASE WHEN excluded.seen_at >= seen_at
                         THEN excluded.position ELSE position END,
                     seen_at = MAX(seen_at, excluded.seen_at),
@@ -611,7 +616,8 @@ impl HistoryStore {
                     key,
                     metric.label,
                     position,
-                    at
+                    at,
+                    tag(metric.billing)
                 ])?;
                 let values = Values::of(metric);
                 let last = previous
@@ -1068,7 +1074,15 @@ credential_env = "GROQ_KEY_BETA"
         store(&empty, "one")
             .record(alpha, t0(), &[quota("5h", Some(10.0), Some(100.0))])
             .unwrap();
-        assert_eq!(version(&empty), 2);
+        assert_eq!(version(&empty), MIGRATIONS.len() as i64);
+        let billing: i64 = raw(&empty)
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('series') WHERE name = 'billing'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(billing, 1, "v1 files gain the billing column");
         let indexed: i64 = raw(&empty)
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_by_age'",
@@ -1083,7 +1097,7 @@ credential_env = "GROQ_KEY_BETA"
         let mut next = MIGRATIONS.to_vec();
         next.push("ALTER TABLE samples ADD COLUMN note_free INTEGER");
         migrate(&mut current, &next).unwrap();
-        assert_eq!(version(&empty), 3);
+        assert_eq!(version(&empty), MIGRATIONS.len() as i64 + 1);
         assert_eq!(count(&empty, "used = 10.0"), 1);
 
         // Written by a newer Cuotai: every operation fails, nothing is guessed.
