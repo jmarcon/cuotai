@@ -830,8 +830,6 @@
   overflow: hidden;
   color: var(--fg-muted);
   font: var(--text-sm) var(--font-mono), var(--font-script);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .card .summary > .stl {
   height: auto;

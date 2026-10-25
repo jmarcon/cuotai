@@ -278,8 +278,7 @@ body {
 }
 .crow .cf {
   flex: none;
-  width: 92px;
-  overflow: hidden;
+  min-width: 92px;
   text-align: right;
   white-space: nowrap;
 }
