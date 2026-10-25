@@ -219,6 +219,48 @@ impl QueryError {
 
 /// Send a request after checking that its URL may carry credentials
 /// ([`crate::transport::is_secure`]). Never reports the URL or the body.
+/// The most a provider answer may weigh (PRD 0028 RF1 drift reports and the
+/// usage, plan and model pages are all far smaller). A longer body is a
+/// schema failure: the client never buffers it whole, so an instance a user
+/// configured, or a program squatting a local port, cannot exhaust memory.
+pub(crate) const BODY_LIMIT: usize = 8 * 1024 * 1024;
+
+/// Read the body of `response` up to `limit` bytes, failing (without
+/// reading further) as soon as it exceeds them. A `Content-Length` over the
+/// limit is refused before any byte is read.
+pub(crate) async fn read_body(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, QueryError> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
+        return Err(QueryError::schema());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| QueryError::transport())?
+    {
+        if body.len() + chunk.len() > limit {
+            return Err(QueryError::schema());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+/// [`read_body`] parsed as JSON, with [`BODY_LIMIT`]; a bad body is a
+/// schema failure and never leaves this function.
+pub(crate) async fn read_json<T: DeserializeOwned>(
+    response: reqwest::Response,
+) -> Result<T, QueryError> {
+    let bytes = read_body(response, BODY_LIMIT).await?;
+    serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())
+}
+
 pub(crate) async fn send(request: RequestBuilder) -> Result<reqwest::Response, QueryError> {
     let (client, request) = request.build_split();
     let request = request.map_err(|_| QueryError::transport())?;
@@ -426,7 +468,7 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
             ),
         });
     }
-    let bytes = response.bytes().await.map_err(|_| QueryError::schema())?;
+    let bytes = read_body(response, BODY_LIMIT).await?;
     decode_bytes(&bytes)
 }
 
@@ -498,7 +540,7 @@ pub(crate) fn object_of(
 pub(crate) async fn body_value(
     response: reqwest::Response,
 ) -> Result<serde_json::Value, QueryError> {
-    let bytes = response.bytes().await.map_err(|_| QueryError::schema())?;
+    let bytes = read_body(response, BODY_LIMIT).await?;
     let value = serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())?;
     capture::record(&value);
     Ok(value)
@@ -643,6 +685,41 @@ mod tests {
             assert_eq!(&*error.note.id, "query.insecure_transport", "{url}");
             assert_eq!(error.status, Status::Error);
         }
+    }
+
+    /// A body over [`BODY_LIMIT`] is a schema failure, announced or not by
+    /// `Content-Length`, and the client stops reading at the limit.
+    #[tokio::test]
+    async fn oversized_bodies_are_refused_at_the_limit() {
+        use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![b'['; 64]))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        // Fits: the bytes come back whole.
+        let body = read_body(client.get(server.uri()).send().await.unwrap(), 64)
+            .await
+            .unwrap();
+        assert_eq!(body.len(), 64);
+        // One byte too many: refused as a schema failure.
+        let error = read_body(client.get(server.uri()).send().await.unwrap(), 63)
+            .await
+            .unwrap_err();
+        assert_eq!(error.status, Status::Error);
+        assert_eq!(&*error.note.id, SCHEMA_NOTE);
+        // The JSON reader applies the same rule.
+        let huge = vec![b' '; BODY_LIMIT + 1];
+        let big = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(huge))
+            .mount(&big)
+            .await;
+        let error = json::<serde_json::Value>(client.get(big.uri()))
+            .await
+            .unwrap_err();
+        assert_eq!(&*error.note.id, SCHEMA_NOTE);
     }
 
     #[tokio::test]

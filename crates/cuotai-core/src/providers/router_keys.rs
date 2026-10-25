@@ -169,7 +169,7 @@ async fn opencode_go_at(
                 "OpenCode authentication failed.",
             ),
             403 => {
-                let body = response.json::<serde_json::Value>().await.ok();
+                let body = super::read_json::<serde_json::Value>(response).await.ok();
                 let entitlement = body
                     .as_ref()
                     .and_then(|b| b.get("error"))
@@ -475,7 +475,9 @@ async fn kimi_coding_at(
 
     let response = secure_send(request).await?;
     let code = response.status();
-    let body: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
+    let body: serde_json::Value = super::read_json(response)
+        .await
+        .unwrap_or(serde_json::Value::Null);
 
     if !code.is_success() {
         return Err(kimi_coding_error(code.as_u16(), &body));

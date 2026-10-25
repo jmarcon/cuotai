@@ -1306,7 +1306,7 @@ pub(crate) async fn fetch_at(
 /// never changes the reading.
 async fn best_effort_version(instance: &Instance<'_>, token: Option<&str>) -> Option<String> {
     let response = instance.get(&Route::Version, token).await.ok()?;
-    let value: Value = response.json().await.ok()?;
+    let value: Value = super::read_json(response).await.ok()?;
     let version = clean_text(value.get("currentVersion")?.as_str()?, 32);
     (!version.is_empty()
         && version
@@ -1526,7 +1526,9 @@ pub(crate) async fn test_connection_at(
     let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
     let health = match instance.request(&Route::Health, None) {
         Ok(request) => match request.send().await {
-            Ok(response) if response.status().is_success() => response.json::<Value>().await.ok(),
+            Ok(response) if response.status().is_success() => {
+                super::read_json::<Value>(response).await.ok()
+            }
             Ok(_) => return TestOutcome::Unreachable,
             Err(_) => return certificate_outcome(&instance, &trust).await,
         },
@@ -1565,7 +1567,7 @@ pub(crate) async fn test_connection_at(
         .get(&Route::Connections { page: 1 }, token.as_deref())
         .await
     {
-        Ok(response) => match response.json::<ConnectionsPage>().await {
+        Ok(response) => match super::read_json::<ConnectionsPage>(response).await {
             Ok(page) => TestOutcome::Connected {
                 version,
                 connections: page.connections.len(),

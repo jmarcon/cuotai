@@ -402,6 +402,8 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
 pub const NINE_ROUTER_LOCAL: &str = "http://127.0.0.1:20128";
 /// RF2.5: the probe's whole budget.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(200);
+/// The most of a health answer the probe reads.
+const PROBE_MAX_BYTES: usize = 4 * 1024;
 
 /// PRD 0036 RF2.5: with the device-check consent (PRD 0027 RF6.5), whether
 /// a 9router instance answers `GET http://127.0.0.1:20128/api/health` with
@@ -426,7 +428,12 @@ async fn probe_nine_router_at(base: &str, configured: &[Provider]) -> Option<Det
     if !response.status().is_success() {
         return None;
     }
-    let body: serde_json::Value = response.json().await.ok()?;
+    // A program squatting the port answers whatever it likes: read a few
+    // kilobytes at most, never the whole body.
+    let bytes = crate::providers::read_body(response, PROBE_MAX_BYTES)
+        .await
+        .ok()?;
+    let body: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
     if body.get("ok") != Some(&serde_json::Value::Bool(true)) {
         return None;
     }
@@ -487,6 +494,23 @@ mod probe_tests {
         assert!(probe_nine_router_at("http://127.0.0.1:9", &[])
             .await
             .is_none());
+    }
+
+    /// A program squatting the port cannot make the probe buffer an
+    /// unbounded body: more than a few kilobytes is no 9router.
+    #[tokio::test]
+    async fn an_oversized_health_answer_is_not_an_instance() {
+        let server = MockServer::start().await;
+        let padding = "x".repeat(PROBE_MAX_BYTES);
+        Mock::given(method("GET"))
+            .and(path("/api/health"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"ok": true, "pad": padding})),
+            )
+            .mount(&server)
+            .await;
+        assert!(probe_nine_router_at(&server.uri(), &[]).await.is_none());
     }
 }
 

@@ -644,7 +644,7 @@ async fn fetch_grpc_credits(
     if !response.status().is_success() {
         return None;
     }
-    decode_grok_credits_frame(&response.bytes().await.ok()?)
+    decode_grok_credits_frame(&super::read_body(response, super::BODY_LIMIT).await.ok()?)
 }
 
 /// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`

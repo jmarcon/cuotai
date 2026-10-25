@@ -340,10 +340,12 @@ async fn ollama(
     )
     .await
     {
-        Ok(response) if response.status().is_success() => match response.bytes().await {
-            Ok(bytes) if bytes.len() <= 1024 * 1024 => serde_json::from_slice(&bytes).ok(),
-            _ => None,
-        },
+        Ok(response) if response.status().is_success() => {
+            match super::read_body(response, 1024 * 1024).await {
+                Ok(bytes) => serde_json::from_slice(&bytes).ok(),
+                Err(_) => None,
+            }
+        }
         _ => None,
     };
     let plan = me.as_ref().and_then(|me| me.plan.as_deref()).unwrap_or("");

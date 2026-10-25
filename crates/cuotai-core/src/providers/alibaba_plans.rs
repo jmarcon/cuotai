@@ -347,7 +347,7 @@ async fn response_json(
         secure_send(request).await?
     };
     let status = response.status();
-    let payload = response.json::<Value>().await;
+    let payload = super::read_json::<Value>(response).await;
     if !status.is_success() {
         if let Ok(payload) = payload {
             let expanded = expand_embedded_json(payload);
@@ -892,7 +892,10 @@ async fn resolve_sec_token(
     .await
     {
         if response.status().is_success() {
-            if let Ok(html) = response.text().await {
+            if let Ok(html) = super::read_body(response, super::BODY_LIMIT)
+                .await
+                .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            {
                 if let Some(token) = sec_token_from_html(&html) {
                     return Ok(token);
                 }
@@ -914,7 +917,7 @@ async fn resolve_sec_token(
     .await
     {
         if response.status().is_success() {
-            if let Ok(payload) = response.json::<Value>().await {
+            if let Ok(payload) = super::read_json::<Value>(response).await {
                 let expanded = expand_embedded_json(payload);
                 if let Some(token) = find_string(&expanded, &["secToken", "sec_token"]) {
                     return Ok(token);
