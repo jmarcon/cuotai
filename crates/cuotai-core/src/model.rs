@@ -517,7 +517,33 @@ fn account_key(provider: Provider, name: &str) -> String {
     format!("{}:{name}", provider.slug())
 }
 
+/// Largest `Retry-After` the refresh engine honors for one account.
+pub const RETRY_AFTER_MAX_SECONDS: u64 = 86_400;
+
 impl Report {
+    /// Name of the note parameter that carries a provider's `Retry-After`
+    /// (whole seconds) on a `RateLimited` report. Adapters set it with
+    /// [`crate::providers::QueryError::with_retry_after`]; the refresh cycle
+    /// reads it through [`Self::retry_after`].
+    pub const RETRY_AFTER_PARAM: &'static str = "retry_after_seconds";
+
+    /// The delay the provider asked for before the next query, if this is a
+    /// `RateLimited` report that carries one (PRD 0038 RF7.1). Capped at
+    /// [`RETRY_AFTER_MAX_SECONDS`]; zero or unparsable values are ignored.
+    pub fn retry_after(&self) -> Option<std::time::Duration> {
+        if self.status != Status::RateLimited {
+            return None;
+        }
+        self.notes_l10n
+            .iter()
+            .find_map(|note| match note.params.get(Self::RETRY_AFTER_PARAM) {
+                Some(crate::text::ParamValue::Text(raw)) => raw.parse::<u64>().ok(),
+                _ => None,
+            })
+            .filter(|seconds| *seconds > 0)
+            .map(|seconds| std::time::Duration::from_secs(seconds.min(RETRY_AFTER_MAX_SECONDS)))
+    }
+
     /// PRD 0033 RF2.1: a copy for showing as a preserved or restored
     /// reading at `now`, with every expired metric collapsed.
     pub fn collapse_expired(&self, now: DateTime<Utc>) -> Self {

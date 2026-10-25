@@ -172,6 +172,18 @@ impl QueryError {
             note: Localized::fixed(TIMEOUT_NOTE, "Tempo limite da consulta esgotado."),
         }
     }
+    /// Attach a provider's `Retry-After` (whole seconds) to this error so the
+    /// refresh cycle delays only this account (PRD 0038 RF7.1).
+    pub fn with_retry_after(mut self, seconds: Option<u64>) -> Self {
+        if let Some(seconds) = seconds {
+            self.note.params.insert(
+                crate::Report::RETRY_AFTER_PARAM.to_string(),
+                ParamValue::from(seconds),
+            );
+        }
+        self
+    }
+
     /// The request would carry credentials over plain HTTP to a non-loopback
     /// host; nothing was sent.
     pub fn insecure() -> Self {
@@ -476,6 +488,22 @@ pub(crate) async fn openai_models(
         .collect())
 }
 
+/// Parse a `Retry-After` header: delta-seconds or an HTTP date (RFC 9110
+/// 10.2.3). A date in the past yields `None`.
+pub(crate) fn retry_after_seconds(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    let raw = headers
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim();
+    if let Ok(seconds) = raw.parse::<u64>() {
+        return Some(seconds);
+    }
+    let date = chrono::DateTime::parse_from_rfc2822(raw).ok()?;
+    let delta = (date.with_timezone(&chrono::Utc) - chrono::Utc::now()).num_seconds();
+    u64::try_from(delta).ok().filter(|seconds| *seconds > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,5 +688,27 @@ mod tests {
             }
         }
         assert!(lacking.note.resolve("es").contains("MIMO_SESSION"));
+    }
+}
+
+#[cfg(test)]
+mod retry_after_tests {
+    use super::retry_after_seconds;
+    use reqwest::header::{HeaderMap, HeaderValue, RETRY_AFTER};
+
+    fn parse(raw: &str) -> Option<u64> {
+        let mut headers = HeaderMap::new();
+        headers.insert(RETRY_AFTER, HeaderValue::from_str(raw).unwrap());
+        retry_after_seconds(&headers)
+    }
+
+    #[test]
+    fn seconds_dates_and_garbage() {
+        assert_eq!(parse(" 120 "), Some(120));
+        assert_eq!(parse("soon"), None);
+        assert_eq!(parse("Wed, 21 Oct 2015 07:28:00 GMT"), None);
+        let future = (chrono::Utc::now() + chrono::Duration::seconds(600)).to_rfc2822();
+        assert!(parse(&future).is_some_and(|s| (590..=600).contains(&s)));
+        assert_eq!(retry_after_seconds(&HeaderMap::new()), None);
     }
 }

@@ -281,8 +281,11 @@ async fn get(
     }
     if !status.is_success() {
         let code = status.as_u16();
+        let retry_after = (code == 429)
+            .then(|| super::retry_after_seconds(response.headers()))
+            .flatten();
         let expired = code == 401 && says_expired(response).await;
-        return Err(classify_http(code, product, expired));
+        return Err(classify_http(code, product, expired).with_retry_after(retry_after));
     }
     let body = read_limited(response, limit).await?;
     serde_json::from_slice(&body).map_err(|_| QueryError::schema())
@@ -1535,6 +1538,10 @@ mod tests {
         assert_eq!(
             (error.status, &*error.note.id),
             (Status::RateLimited, "query.open_router.rate_limited")
+        );
+        assert_eq!(
+            error.note.params.get(crate::Report::RETRY_AFTER_PARAM),
+            Some(&ParamValue::from(3600u64))
         );
     }
 

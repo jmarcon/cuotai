@@ -640,7 +640,8 @@ impl RefreshCycle {
                         0
                     }
                 };
-                let backoff = Self::backoff_for(self.intervals[index], next_failures);
+                let backoff = Self::backoff_for(self.intervals[index], next_failures)
+                    .max(report.retry_after().unwrap_or_default());
                 self.deadlines[index] = now + backoff;
                 self.remember(index, report);
                 self.arm_reset_query(index, report, Utc::now(), now);
@@ -712,7 +713,10 @@ impl RefreshCycle {
                         0
                     }
                 };
-                let backoff = Self::backoff_for(self.intervals[index], next_failures);
+                // PRD 0038 RF7.1: a `Retry-After` longer than the computed
+                // backoff delays this account only.
+                let backoff = Self::backoff_for(self.intervals[index], next_failures)
+                    .max(report.retry_after().unwrap_or_default());
                 self.remember(index, &report);
                 self.deadlines[index] = now + backoff;
                 self.arm_reset_query(index, &report, Utc::now(), now);
@@ -2323,6 +2327,71 @@ mod tests {
         // Deadline doubled (60 → 120).
         assert_eq!(cycle.deadlines[0], now + Duration::from_secs(120));
         assert_eq!(cycle.failures[0], 1);
+    }
+
+    fn rate_limited_with_retry_after(name: &str, seconds: &str) -> Report {
+        let mut report = report_with_status(name, 1, Status::RateLimited);
+        report.notes_l10n = vec![crate::text::Localized::with_params(
+            "query.test.rate_limited",
+            crate::text::params([(Report::RETRY_AFTER_PARAM, seconds.into())]),
+            "limit",
+        )];
+        report
+    }
+
+    #[test]
+    fn retry_after_longer_than_the_backoff_delays_only_that_account() {
+        let prev = config_with(vec![account("a", None), account("b", None)]);
+        let now = Instant::now();
+        let mut cycle = RefreshCycle::new(&prev, now);
+        let a = cycle.begin(0).unwrap();
+        let b = cycle.begin(1).unwrap();
+        cycle.finish_account(0, Some(rate_limited_with_retry_after("a", "1800")), a, now);
+        cycle.finish_account(
+            1,
+            Some(report_with_status("b", 1, Status::RateLimited)),
+            b,
+            now,
+        );
+        // 60 s base doubled is 120 s; the provider asked for 30 minutes.
+        assert_eq!(cycle.deadlines[0], now + Duration::from_secs(1800));
+        assert_eq!(cycle.deadlines[1], now + Duration::from_secs(120));
+    }
+
+    #[test]
+    fn retry_after_never_shortens_the_backoff_and_is_capped() {
+        let prev = config_with(vec![account("a", None)]);
+        let now = Instant::now();
+        let mut cycle = RefreshCycle::new(&prev, now);
+        let token = cycle.begin(0).unwrap();
+        cycle.finish_account(0, Some(rate_limited_with_retry_after("a", "5")), token, now);
+        assert_eq!(cycle.deadlines[0], now + Duration::from_secs(120));
+        let token = cycle.begin(0).unwrap();
+        cycle.finish_account(
+            0,
+            Some(rate_limited_with_retry_after("a", "99999999")),
+            token,
+            now,
+        );
+        assert_eq!(
+            cycle.deadlines[0],
+            now + Duration::from_secs(crate::model::RETRY_AFTER_MAX_SECONDS)
+        );
+    }
+
+    #[test]
+    fn retry_after_applies_inside_a_full_sweep() {
+        let prev = config_with(vec![account("a", None)]);
+        let now = Instant::now();
+        let mut cycle = RefreshCycle::new(&prev, now);
+        let generation = cycle.begin_full().unwrap();
+        let snapshot = Snapshot {
+            started_at: Utc::now(),
+            finished_at: Utc::now(),
+            reports: vec![rate_limited_with_retry_after("a", "1800")],
+        };
+        cycle.finish_full(Some(snapshot), generation, now);
+        assert_eq!(cycle.deadlines[0], now + Duration::from_secs(1800));
     }
 
     #[test]

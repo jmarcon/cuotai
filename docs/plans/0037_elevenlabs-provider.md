@@ -24,7 +24,7 @@
 | RF5 | vNEXT | Extra-credits and cost metrics ship as `Usage`/`Spend`; `Billing::Overage` and `overage::assess` states wait for PRD 0023. |
 | RF6 | vNEXT | Delivered. |
 | RF7 | vNEXT | Delivered. |
-| RF8 | — | Pending: the provider is registered as `None` in the incident registry until a stable per-region *Other APIs* component id is verified with a real read. |
+| RF8 | — | Still pending (checked again, no network access in this lane, so no id was guessed): the provider is registered as `None` in the incident registry until a stable per-region *Other APIs* component id is verified with a real read. |
 | RF9 | vNEXT | Adapter contract tests; the multi-sub-page incident fixtures belong to RF8. |
 | RF10 | vNEXT | Delivered. |
 | RF11 | — | Proposed (owner account available; the owner runs the procedure). |

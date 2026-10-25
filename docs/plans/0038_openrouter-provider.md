@@ -24,10 +24,10 @@
 | RF4 | vNEXT | Free-model counter (`Quota` for free-tier keys, `Usage` otherwise; `classify_report` no longer lets an exhausted `Usage` counter exhaust an account). |
 | RF5 | vNEXT | Credit balance without a gauge, in "credits" (no `$`); RF5.4 (real-account unit check) is owner-blocked. |
 | RF6 | vNEXT | Optional `/activity` breakdown by provider or model, cached per UTC day; failure keeps the balance. |
-| RF7 | vNEXT | Error classification and wrong-key-class diagnosis; `Retry-After` is not honored yet (the refresh engine has no per-account delay hook), `429` is `RateLimited`. |
+| RF7 | vNEXT | Error classification and wrong-key-class diagnosis. `429` is `RateLimited`; a `Retry-After` (seconds or HTTP date, capped at 24 h) rides on the note as the `retry_after_seconds` parameter (`QueryError::with_retry_after`, `Report::retry_after`) and `RefreshCycle` delays only that account when it exceeds the computed backoff. Generic: any adapter can opt in. |
 | RF8 | vNEXT | Access arms (key and account), texts in every core catalog and the regenerated matrices. |
 | RF9 | vNEXT | Eligibility verified by the fixtures; `overage::assess` is unchanged. |
-| RF10 | — | Not delivered: the status page could not be verified, so `incidents::source` stays `None` (owner-blocked, needs a network check). |
+| RF10 | — | Still not delivered, by decision: no machine-readable status endpoint or stable component id is documented, and this lane may not query the network, so inventing ids would break the PRD 0011 rule that nothing is guessed. `incidents::source` stays `None`; needs a one-time real read (owner-blocked). |
 | RF11 | vNEXT | Live model listing for the key view (`offset` pages, `output_modalities=all`); `Unsupported` for the account view. |
 | RF12 | vNEXT | One catalog entry (category Router, aliases `openrouter`, `open router`, `router`, `or`) with a native sign-in and a key mode; the product (key or account) is chosen in the account form instead of a second entry. |
 | RF13 | vNEXT | Fixtures F1 to F23 in `providers/open_router.rs`; RF13.1 (real-account check) is owner-blocked. |
