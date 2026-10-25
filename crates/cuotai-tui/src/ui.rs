@@ -267,7 +267,10 @@ fn journal_cycle(
         now,
         cuotai_core::export::v1::Options::default(),
     );
-    let _ = tap.observe(&store, &export, now);
+    // The pace input lets the tap journal `quota_exhaustion_projected`, like
+    // the desktop and `--serve` (PRD 0026 RF3.2).
+    let pace = |index, report: &cuotai_core::Report| pace_input(monitor, config, index, report);
+    let _ = tap.observe_with(&store, &export, now, pace);
 }
 
 pub async fn run(
