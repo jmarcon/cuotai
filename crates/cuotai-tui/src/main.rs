@@ -10,6 +10,7 @@ mod models_view;
 mod motion;
 mod notify;
 mod report_problem;
+mod report_view;
 mod serve;
 mod ui;
 mod watch;

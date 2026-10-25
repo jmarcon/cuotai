@@ -793,6 +793,8 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         actions.push(separator());
         actions.push(plain("m modelos", Some(FooterAction::Models)));
         actions.push(separator());
+        actions.push(plain("b reportar", None));
+        actions.push(separator());
         actions.push(plain("1/2/3 histórico", None));
     } else {
         actions.push(plain("Enter detalhes", Some(FooterAction::OpenDetails)));

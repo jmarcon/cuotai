@@ -8,6 +8,7 @@ use crate::{
     models_view::{ModelsView, Reply},
     motion::{self, Anim},
     notify::{self, Notices},
+    report_view::{Reply as ReportReply, ReportView},
     wizard::{Action, VaultChange, Wizard},
 };
 use crossterm::{
@@ -331,6 +332,7 @@ pub async fn run(
     let mut models: Option<ModelsView> = None;
     // "Sobre": libraries and repositories; opened from the dashboard only.
     let mut about: Option<AboutView> = None;
+    let mut report_view: Option<ReportView> = None;
     // PRD 0019 RF7.7: "Novidades", opened from "Sobre" (`n`); read-only.
     let mut changelog: Option<ChangelogView> = None;
     // PRD 0011 RF5: the status read in flight and when the next one is due.
@@ -348,6 +350,7 @@ pub async fn run(
     enum Command {
         ToggleDetails,
         CloseDetails,
+        ReportProblem,
         ToggleUnmeasured,
         ScrollDetailDown,
         ScrollDetailUp,
@@ -403,6 +406,7 @@ pub async fn run(
             KeyCode::Enter => Command::ToggleDetails,
             KeyCode::Esc if details => Command::CloseDetails,
             KeyCode::Char('m') if details => Command::Models,
+            KeyCode::Char('b') if details => Command::ReportProblem,
             KeyCode::Char('1') if details => Command::HistoryRange(HistoryRange::Day),
             KeyCode::Char('2') if details => Command::HistoryRange(HistoryRange::Week),
             KeyCode::Char('3') if details => Command::HistoryRange(HistoryRange::Month),
@@ -962,6 +966,28 @@ pub async fn run(
                     state.move_selection(-1, &cycle_slot_reports(&refresh_cycle))
                 }
                 Command::About => about = Some(AboutView::default()),
+                Command::ReportProblem => {
+                    let reports = cycle_slot_reports(&refresh_cycle);
+                    if let Some(index) = state.selected_account(&reports) {
+                        if let (Some(account), Some(Some(report))) =
+                            (file.config.accounts.get(index), reports.get(index))
+                        {
+                            let draft = cuotai_core::support::issue_draft(
+                                &cuotai_core::support::AccountView {
+                                    account,
+                                    report,
+                                    last_good_age: None,
+                                    incident_active: None,
+                                },
+                                &crate::report_problem::app_info(),
+                            );
+                            report_view = Some(ReportView::new(crate::report_problem::render(
+                                &draft,
+                                report.status == cuotai_core::Status::Ready,
+                            )));
+                        }
+                    }
+                }
                 Command::HistoryRange(range) => state.history_range = range,
                 Command::Models => {
                     if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))
@@ -1365,6 +1391,11 @@ pub async fn run(
                         anim.wipe(frame.buffer_mut());
                     }
                 })?;
+            } else if let Some(view) = &mut report_view {
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    view.draw(frame)
+                })?;
             } else if let Some(view) = &mut about {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
@@ -1468,6 +1499,12 @@ pub async fn run(
                 if let Some(view) = &mut changelog {
                     if view.mouse(mouse.kind, mouse.column, mouse.row) == ChangelogReply::Close {
                         changelog = None;
+                    }
+                    continue;
+                }
+                if let Some(view) = &mut report_view {
+                    if view.mouse(mouse.kind) == ReportReply::Close {
+                        report_view = None;
                     }
                     continue;
                 }
@@ -1599,6 +1636,12 @@ pub async fn run(
                 if let Some(view) = &mut changelog {
                     if view.key(key.code) == ChangelogReply::Close {
                         changelog = None;
+                    }
+                    continue;
+                }
+                if let Some(view) = &mut report_view {
+                    if view.key(key.code) == ReportReply::Close {
+                        report_view = None;
                     }
                     continue;
                 }

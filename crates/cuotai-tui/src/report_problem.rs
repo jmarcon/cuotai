@@ -44,7 +44,7 @@ pub fn render(draft: &IssueDraft, healthy: bool) -> String {
     out
 }
 
-fn app_info() -> AppInfo {
+pub(crate) fn app_info() -> AppInfo {
     let channel = std::env::current_exe()
         .map(|executable| {
             detect_install_source(&executable, |key| std::env::var_os(key), || false).as_str()
