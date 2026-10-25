@@ -119,13 +119,12 @@ export async function promptForUpdateConsent() {
 
 const availableHtml = (s) => {
   const releaseDate = fmtDate(s.date);
-  return `<div class="banner" role="status" data-update-banner data-update="available">
-  <b>${te("update.available", { version: s.version })}</b>
-  <details class="update-notes"><summary>${te("update.notes")}</summary>${esc(s.notes ?? "")}</details>
-  <div class="dlg-actions left">
+  return `<div class="banner info" role="status" data-update-banner data-update="available">
+  ${icon("download")}<div class="banner-main"><b>${te("update.available", { version: s.version })}</b>${releaseDate ? `<span class="hint">${te("update.date", { date: releaseDate })}</span>` : ""}
+  <details class="update-notes"><summary>${te("update.notes")}</summary>${esc(s.notes ?? "")}</details></div>
+  <div class="banner-acts">
+    <button class="btn ghost" data-update-later>${te("update.later")}</button>
     <button class="btn primary" data-update-now>${te("update.now")}</button>
-    <button class="btn" data-update-later>${te("update.later")}</button>
-    ${releaseDate ? `<span class="hint">${te("update.date", { date: releaseDate })}</span>` : ""}
   </div>
 </div>`;
 };

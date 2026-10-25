@@ -6,6 +6,7 @@ import {
   testExtension,
 } from "./lib.js";
 import { t, te, tl } from "./i18n.js";
+import { icon } from "./lib.js";
 import { showDialog } from "./motion.js";
 
 const el = (tag, cls, text) => {
@@ -19,8 +20,10 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
   const dlg = el("dialog", "dlg extensions-dlg");
   const header = el("header", "dlg-head");
   header.append(el("h2", "", t("extensions.title")));
-  const close = el("button", "icon", "×");
+  const close = el("button", "icon");
+  close.innerHTML = icon("x");
   close.type = "button";
+  close.title = te("common.close");
   close.setAttribute("aria-label", te("common.close"));
   close.addEventListener("click", () => dlg.close());
   header.append(close);
@@ -49,9 +52,10 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
     const article = el("article", "extension-row");
     const title = el("div", "extension-title");
     title.append(el("strong", "", row.name));
-    title.append(el("code", "", row.id));
+    // DS-CMP-BADGE-1/-2: the version as a neutral badge, the state as a chip in its role.
+    if (row.version) title.append(el("span", "ver", t("extensions.version", { version: row.version })));
     title.append(el("span", `extension-state ${row.state}`, tl(row.state_label)));
-    const version = el("small", "", row.version ? t("extensions.version", { version: row.version }) : "");
+    const version = el("code", "extension-id", row.id);
     const description = el("p", "", row.description || t("extensions.noDescription"));
     const runtime = el("p", "extension-runtime");
     const when = row.last_run ? new Date(row.last_run).toLocaleString() : t("extensions.neverRun");

@@ -55,18 +55,23 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
  *  the provider's public status follows, while status queries are on. */
 export function detailHtml(r, { eye = false, action = eye } = {}) {
   const notes = r.notes.map((_, index) => noteText(r, index));
-  const head = `<div class="det-age">${ageHtml(r)}</div>${accessHtml(r)}${incidentDetailHtml(r)}${adviceHtml(r, { action })}`;
+  // PRD 0022 RF10.1 (DS-CMP-DLG-1): the incident first, the best-account advice, then the limits, then the reading
+  // (age and access level).
+  const incident = `${incidentDetailHtml(r)}${adviceHtml(r, { action })}`;
+  const reading = `<div class="det-reading"><div class="det-age">${ageHtml(r)}</div>${accessHtml(r)}</div>`;
   const rest = restNotes(r).map((n) => `<p class="note">${esc(n)}</p>`).join("");
   if (isStaleReading(r)) {
     const s = staleView(r);
     const metrics = eye ? s.metrics : s.metrics.filter((m) => !isMetricHidden(s, m));
-    return `<div class="detail">${head}<p class="cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>
-      <div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye, stale: true })).join("")}</div>${rest}</div>`;
+    return `<div class="detail">${incident}<div class="call warning cause">${icon("clock")}<div>${esc(causeText(r))}</div></div>
+      <div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye, stale: true })).join("")}</div>${reading}${rest}</div>`;
   }
-  if (!r.metrics.length)
-    return `<div class="detail">${head}<div class="metric"><p class="sub">${esc(causeText(r))}</p></div>${rest}</div>`;
+  if (!r.metrics.length) {
+    const tone = r.status === "authentication_error" ? "accent" : r.status === "ready" ? "neutral" : "critical";
+    return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${reading}${rest}</div>`;
+  }
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
-  return `<div class="detail">${head}${overageDetailHtml(r)}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  return `<div class="detail">${incident}${overageDetailHtml(r)}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${reading}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
 }
 
 // ---------- modelos (PRD 0002 RF6) ----------

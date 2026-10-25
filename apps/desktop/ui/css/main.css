@@ -90,12 +90,48 @@
 .btn:hover:not(:disabled) {
   background: var(--surface-2);
 }
+/* DS-CMP-MSG-2: window-level banners take the callout fill of their tone (DS-CMP-CALL-1); text stays --fg */
 .banner {
+  --c: var(--fg-muted);
   margin: var(--space-2) 0;
   padding: var(--space-3) var(--space-4);
+  border: var(--border-w) solid color-mix(in srgb, var(--c) 60%, transparent);
   border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid currentColor;
+  background: color-mix(in srgb, var(--c) 8%, var(--surface));
+  color: var(--fg);
+}
+.banner > svg.i {
+  color: var(--c);
+}
+.banner.info { --c: var(--info); }
+.banner.bad { --c: var(--bad); }
+.banner.ok { --c: var(--good); }
+.banner[data-update-banner] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+}
+.banner[data-update-banner] > svg.i {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: var(--space-0);
+}
+.banner-main {
+  flex: 1;
+  min-width: 200px;
+}
+.banner-main .hint {
+  display: block;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.banner-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 .empty {
   padding: calc(var(--space-8) + var(--space-8)) 0;
@@ -726,9 +762,7 @@
   margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0; /* 32 px target (DS-TOK-HIT-1) without growing the banner */
   color: inherit;
 }
-.banner.ok {
-  color: var(--good);
-}
+
 .banner .link {
   margin-left: var(--space-2);
   padding: 0 var(--space-1);
