@@ -17,8 +17,8 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
+| RF1 | vNEXT | `Billing`, `metrics::is_plan_limit`, and the Claude, Grok, Kiro and Cursor overage metrics out of binding, class, pace, alerts and reset notices; extension `billing`. |
+| RF2 | vNEXT (partial) | Adapter normalization and fixtures (RF2.1 without the overage state, RF2.2 to RF2.5). Open: the USD conversion pending the RF2.6 scale check, the overage state (RF3) and the RF2.7 docs column. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
 | RF5 | — | Proposed. |
@@ -26,7 +26,7 @@
 | RF7 | — | Proposed. |
 | RF8 | — | Proposed. |
 | RF9 | — | Proposed. |
-| RF10 | — | Proposed (added 2026-10-23: `Metric::scope`, review item MET-01). |
+| RF10 | vNEXT | `Scope`, `metrics::limits_account`, scoped exhaustion in binding and class, Antigravity per-model and Claude Opus/Sonnet weekly scopes, extension `scope`, export schema. Open: the PRD 0010, 0024, 0025 and 0026 consumers that do not exist yet. (Added 2026-10-23: `Metric::scope`, review item MET-01). |
 
 ## 1. Context
 

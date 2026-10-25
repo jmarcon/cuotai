@@ -159,6 +159,8 @@ fn quota_metric(
     }
     let remaining = used.zip(limit).map(|(u, l)| l - u);
     Some(Metric {
+        billing: Default::default(),
+        scope: None,
         label,
         used,
         limit,
@@ -471,7 +473,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
             Some(MetricWindow::Other),
             reset_at,
         ) {
-            metrics.push(metric);
+            metrics.push(metric.overage());
         }
         if overage_status == Some(true) {
             if overage_cap.is_none() {
@@ -487,6 +489,24 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
                 .filter(|s| !s.trim().is_empty())
                 .unwrap_or("USD");
             if let Some(charges) = number(breakdown.get("overageCharges")) {
+                // Money charged so far, only with an explicit currency.
+                let explicit = breakdown
+                    .get("currency")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty());
+                if let (Some(code), true) = (explicit, charges.is_finite() && charges >= 0.0) {
+                    let mut spend = Metric::usage(
+                        format!("Kiro: {resource} (excedente cobrado)"),
+                        charges,
+                        code.to_ascii_uppercase(),
+                        MetricKind::Spend,
+                        Some(MetricWindow::Other),
+                    )
+                    .overage();
+                    spend.resets_at = reset_at;
+                    metrics.push(spend);
+                }
                 match number(breakdown.get("overageRate")) {
                     Some(rate) => notes.push_params(
                         "note.router_sessions.kiro.overage_charge_with_rate",
@@ -833,6 +853,8 @@ fn zed_data(user: &Value) -> Data {
         match zed_limit(bucket.get("limit")) {
             ZedLimit::Unlimited => {
                 metrics.push(Metric {
+                    billing: Default::default(),
+                    scope: None,
                     label: "Zed: Edit Predictions".into(),
                     used,
                     limit: None,
@@ -850,6 +872,8 @@ fn zed_data(user: &Value) -> Data {
             }
             ZedLimit::Limited(total) => {
                 metrics.push(Metric {
+                    billing: Default::default(),
+                    scope: None,
                     label: "Zed: Edit Predictions".into(),
                     used,
                     limit: Some(total),
@@ -892,6 +916,7 @@ fn zed_data(user: &Value) -> Data {
         match zed_limit(limit_value.as_ref()) {
             ZedLimit::Unlimited => {
                 metrics.push(Metric {
+billing: Default::default(), scope: None,
                     label: "Zed: Hosted Model Requests".into(),
                     used,
                     limit: None,
@@ -909,6 +934,7 @@ fn zed_data(user: &Value) -> Data {
             }
             ZedLimit::Limited(total) if total > 0.0 => {
                 metrics.push(Metric {
+billing: Default::default(), scope: None,
                     label: "Zed: Hosted Model Requests".into(),
                     used,
                     limit: Some(total),
@@ -1352,8 +1378,9 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(data.metrics.len(), 2);
+        assert_eq!(data.metrics.len(), 3);
         let plan = &data.metrics[0];
+        assert_eq!(plan.billing, crate::Billing::Included);
         assert_eq!(plan.label, "Kiro: credit");
         assert_eq!(plan.used, Some(470.0));
         assert_eq!(plan.limit, Some(500.0));
@@ -1368,6 +1395,14 @@ mod tests {
         assert_eq!(overage.used, Some(150.25));
         assert_eq!(overage.limit, Some(200.0));
         assert_eq!(overage.remaining, Some(49.75));
+        assert_eq!(overage.billing, crate::Billing::Overage);
+        // Money charged so far, with its explicit currency.
+        let charged = &data.metrics[2];
+        assert_eq!(charged.label, "Kiro: credit (excedente cobrado)");
+        assert_eq!(charged.kind, MetricKind::Spend);
+        assert_eq!(charged.unit, "USD");
+        assert_eq!(charged.used, Some(6.01));
+        assert_eq!(charged.billing, crate::Billing::Overage);
         assert!(data
             .notes
             .iter()

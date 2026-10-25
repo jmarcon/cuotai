@@ -610,6 +610,8 @@ async fn fetch_balance(
         // AvailableAmount e AvailableCashAmount são saldos: usamos
         // `remaining` (desconhecido → não zero).
         available_metric: Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Saldo disponível (Alibaba Cloud)".into(),
             used: None,
             limit: None,
@@ -621,6 +623,8 @@ async fn fetch_balance(
             resets_at: None,
         },
         cash_metric: Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Saldo em caixa".into(),
             used: None,
             limit: None,
@@ -634,6 +638,8 @@ async fn fetch_balance(
         // CreditAmount é **limite** de crédito (cap), não saldo gasto:
         // modelamos como `limit` para refletir o teto do benefício.
         credit_metric: Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Limite de crédito Alibaba (CreditAmount)".into(),
             used: None,
             limit: Some(credit),

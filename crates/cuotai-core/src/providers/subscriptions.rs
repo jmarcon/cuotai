@@ -46,7 +46,7 @@
 use super::{json, paginate, param, secret, Context, Data, QueryError};
 use crate::models::ModelInfo;
 use crate::text::{params, Notes, ParamValue};
-use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
+use crate::{Account, Billing, Metric, MetricKind, MetricWindow, Provider, Scope};
 use chrono::{DateTime, TimeZone, Utc};
 use serde::Deserialize;
 
@@ -408,15 +408,15 @@ fn claude_window(
     label: &str,
     window: &Option<ClaudeWindow>,
     metric_window: MetricWindow,
+    model: Option<&str>,
 ) -> Result<(), QueryError> {
     if let Some(w) = window {
         if let Some(u) = w.utilization {
-            metrics.push(percent_metric(
-                format!("{label} (%)"),
-                u,
-                iso(&w.resets_at)?,
-                metric_window,
-            )?);
+            let mut metric =
+                percent_metric(format!("{label} (%)"), u, iso(&w.resets_at)?, metric_window)?;
+            // Per-model weekly limits only bind their own model.
+            metric.scope = model.map(|name| Scope::model(name.to_lowercase(), name));
+            metrics.push(metric);
         }
     }
     Ok(())
@@ -440,24 +440,28 @@ async fn claude(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         "Sessão (5 horas)",
         &body.five_hour,
         MetricWindow::Window5h,
+        None,
     )?;
     claude_window(
         &mut metrics,
         "Semana (7 dias)",
         &body.seven_day,
         MetricWindow::Weekly,
+        None,
     )?;
     claude_window(
         &mut metrics,
         "Semana — Opus (7 dias)",
         &body.seven_day_opus,
         MetricWindow::Weekly,
+        Some("Opus"),
     )?;
     claude_window(
         &mut metrics,
         "Semana — Sonnet (7 dias)",
         &body.seven_day_sonnet,
         MetricWindow::Weekly,
+        Some("Sonnet"),
     )?;
     if let Some(extra) = body.extra_usage {
         if extra.is_enabled == Some(true) {
@@ -473,9 +477,12 @@ async fn claude(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
                 );
                 if let Some(limit) = extra.monthly_limit {
                     m.limit = Some(finite(limit)?);
-                    m.remaining = Some(finite(limit - used)?);
+                    // `used` keeps the provider's value; remaining never goes negative.
+                    m.remaining = Some(finite(limit - used)?.max(0.0));
                 }
                 m.period = Some("mês corrente".into());
+                // Paid extra usage, outside the plan limits.
+                m.billing = Billing::Overage;
                 metrics.push(m);
             }
         }
@@ -855,6 +862,8 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
         );
     }
     metrics.push(Metric {
+        billing: Default::default(),
+        scope: None,
         label: "Alocação de prompt da equipe (por assento × assentos)".into(),
         used: None,
         limit: Some(finite(per_seat * seats)?),
@@ -1075,6 +1084,103 @@ mod tests {
         assert_eq!(extra.unit, "unid. provedor");
         assert_eq!(extra.kind, MetricKind::Quota);
         assert_eq!(extra.window, Some(MetricWindow::Monthly));
+        assert_eq!(extra.billing, Billing::Overage);
+        assert_eq!(sessao.billing, Billing::Included);
+        assert!(sessao.scope.is_none());
+    }
+
+    async fn claude_extra(extra: serde_json::Value) -> Vec<Metric> {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/oauth/usage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "five_hour": { "utilization": 60.0, "resets_at": "2026-09-28T12:00:00Z" },
+                "seven_day_opus": { "utilization": 10.0, "resets_at": "2026-10-01T00:00:00Z" },
+                "extra_usage": extra
+            })))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        claude(&account(Provider::Claude), &context(&client), &server.uri())
+            .await
+            .unwrap()
+            .metrics
+    }
+
+    #[tokio::test]
+    async fn claude_extra_usage_variants_never_invent_zero() {
+        // Disabled, absent flag and a missing amount emit no extra metric.
+        for extra in [
+            serde_json::json!({ "is_enabled": false, "monthly_limit": 50.0, "used_credits": 5.0 }),
+            serde_json::json!({ "monthly_limit": 50.0, "used_credits": 5.0 }),
+            serde_json::json!({ "is_enabled": true, "monthly_limit": 50.0 }),
+            serde_json::json!({ "is_enabled": true, "monthly_limit": null, "used_credits": null }),
+            serde_json::Value::Null,
+        ] {
+            let metrics = claude_extra(extra).await;
+            assert!(
+                metrics.iter().all(|m| m.billing == Billing::Included),
+                "{metrics:?}"
+            );
+        }
+        // Enabled with nothing spent: a real zero, still overage.
+        let armed = claude_extra(
+            serde_json::json!({ "is_enabled": true, "monthly_limit": 50.0, "used_credits": 0.0 }),
+        )
+        .await;
+        let extra = armed
+            .iter()
+            .find(|m| m.billing == Billing::Overage)
+            .unwrap();
+        assert_eq!(extra.used, Some(0.0));
+        assert_eq!(extra.remaining, Some(50.0));
+        // Enabled without a cap: no limit and no remaining.
+        let uncapped =
+            claude_extra(serde_json::json!({ "is_enabled": true, "used_credits": 3.0 })).await;
+        let extra = uncapped
+            .iter()
+            .find(|m| m.billing == Billing::Overage)
+            .unwrap();
+        assert_eq!((extra.limit, extra.remaining), (None, None));
+    }
+
+    #[tokio::test]
+    async fn claude_extra_past_cap_keeps_used_and_clamps_remaining() {
+        let metrics = claude_extra(
+            serde_json::json!({ "is_enabled": true, "monthly_limit": 50.0, "used_credits": 55.0 }),
+        )
+        .await;
+        let extra = metrics
+            .iter()
+            .find(|m| m.billing == Billing::Overage)
+            .unwrap();
+        assert_eq!(extra.used, Some(55.0));
+        assert_eq!(extra.remaining, Some(0.0));
+        // The Opus weekly limit is scoped to its model.
+        let opus = metrics
+            .iter()
+            .find(|m| m.label.starts_with("Semana — Opus"))
+            .unwrap();
+        assert_eq!(opus.scope.as_ref().map(|s| s.id.as_str()), Some("opus"));
+        // Regression: the extra meter is not the binding limit, has no pace
+        // and raises no threshold alert; the 5-hour window stays binding.
+        let report = crate::Report {
+            account: "a".into(),
+            provider: Provider::Claude,
+            checked_at: Utc::now(),
+            status: crate::Status::Ready,
+            metrics,
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+        };
+        let binding = crate::metrics::binding(&report).unwrap();
+        assert_eq!(binding.label, "Sessão (5 horas) (%)");
+        assert_eq!(
+            crate::metrics::classify_report(Some(&report)),
+            crate::metrics::AccountClass::Available
+        );
     }
 
     #[tokio::test]

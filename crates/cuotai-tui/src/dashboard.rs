@@ -2091,6 +2091,8 @@ mod tests {
         remaining: Option<f64>,
     ) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used,
             limit,
@@ -2145,6 +2147,8 @@ mod tests {
                 checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
                 status: Status::Ready,
                 metrics: vec![Metric {
+                    billing: Default::default(),
+                    scope: None,
                     label: "Monthly".into(),
                     used: Some(1.0),
                     limit: Some(2.0),

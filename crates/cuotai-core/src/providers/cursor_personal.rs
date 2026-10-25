@@ -355,6 +355,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
     // stays exact.
     if let Some(total) = plan.total_percent_used {
         out.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Cursor plano (incluído)".into(),
             used: Some(total),
             limit: Some(100.0),
@@ -369,6 +371,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
         // No totalPercentUsed: fall back to raw cents, no fake synthetic
         // overall from auto/api (they understate the total).
         out.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Cursor plano (incluído)".into(),
             used: used_usd,
             limit: limit_usd,
@@ -384,6 +388,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
     // with no per-window cap documented; do not claim a synthetic limit.
     if let (Some(auto), Some(api)) = (plan.auto_percent_used, plan.api_percent_used) {
         out.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Cursor Auto (Composer)".into(),
             used: Some(auto),
             limit: None,
@@ -395,6 +401,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             resets_at,
         });
         out.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Cursor modelos nomeados".into(),
             used: Some(api),
             limit: None,
@@ -407,6 +415,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
         });
     } else if let Some(auto) = plan.auto_percent_used {
         out.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Cursor Auto (Composer)".into(),
             used: Some(auto),
             limit: None,
@@ -419,6 +429,8 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
         });
     } else if let Some(api) = plan.api_percent_used {
         out.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: "Cursor modelos nomeados".into(),
             used: Some(api),
             limit: None,
@@ -449,6 +461,8 @@ fn on_demand_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> 
     }
     let resets_at = summary.billing_cycle_end.as_deref().and_then(parse_iso8601);
     Ok(vec![Metric {
+        billing: crate::Billing::Overage,
+        scope: None,
         label: "Sob demanda (on-demand)".into(),
         used,
         limit,
@@ -479,6 +493,8 @@ fn legacy_request_metric(
         _ => None,
     };
     Ok(Some(Metric {
+        billing: Default::default(),
+        scope: None,
         label: "Cursor plano baseado em requisições".into(),
         used: percent,
         limit: limit.map(|v| v as f64),

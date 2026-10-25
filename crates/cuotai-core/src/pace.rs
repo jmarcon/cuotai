@@ -7,7 +7,7 @@
 //! not a promise, and front ends present it as such.
 
 use crate::freshness::{self, Freshness};
-use crate::model::{Metric, MetricKind, MetricWindow};
+use crate::model::{Metric, MetricWindow};
 use crate::text::{params, Localized};
 use chrono::{DateTime, Months, TimeDelta, Utc};
 use serde::Serialize;
@@ -82,7 +82,7 @@ const MIN_LOOKBACK_SECS: f64 = 7_200.0;
 /// in the last 2 hours (or 10% of the window, whichever is greater) drives
 /// the projection; otherwise the average since the window start does.
 pub fn assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> Option<Pace> {
-    if metric.kind != MetricKind::Quota {
+    if !crate::metrics::is_plan_limit(metric) {
         return None;
     }
     let limit = metric.limit.filter(|cap| cap.is_finite() && *cap > 0.0)?;
@@ -306,6 +306,7 @@ impl Pace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::MetricKind;
     use chrono::TimeZone;
 
     fn ts(y: i32, mo: u32, d: u32, h: u32) -> DateTime<Utc> {
@@ -322,6 +323,8 @@ mod tests {
 
     fn quota(window: MetricWindow, used: f64, resets_at: DateTime<Utc>) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: "plan".into(),
             used: Some(used),
             limit: Some(100.0),
@@ -337,6 +340,15 @@ mod tests {
     fn five_h(used: f64) -> Metric {
         // Half of the 5-hour window elapsed.
         quota(MetricWindow::Window5h, used, now() + mins(150))
+    }
+
+    #[test]
+    fn overage_metric_has_no_pace() {
+        let now = ts(2026, 2, 15, 0);
+        let mut m = quota(MetricWindow::Monthly, 50.0, ts(2026, 3, 1, 0));
+        assert!(assess(&m, now, None).is_some());
+        m.billing = crate::model::Billing::Overage;
+        assert!(assess(&m, now, None).is_none());
     }
 
     #[test]

@@ -214,6 +214,8 @@ fn build_data(
                 // Sem clamp: uso acima do limite é real e aparece como
                 // remaining negativo, nunca como 0 artificial.
                 metrics.push(Metric {
+                    billing: Default::default(),
+                    scope: None,
                     label: "Plano de tokens MiMo".into(),
                     used: Some(used),
                     limit: Some(limit),
@@ -229,6 +231,8 @@ fn build_data(
                 // Fração usada pode passar de 1 (estouro do plano): sem clamp.
                 let used_pct = fraction * 100.0;
                 metrics.push(Metric {
+                    billing: Default::default(),
+                    scope: None,
                     label: "Plano de tokens MiMo".into(),
                     used: Some(used_pct),
                     limit: Some(100.0),
@@ -278,6 +282,8 @@ fn build_data(
         .filter(|s| !s.is_empty())
         .ok_or_else(QueryError::schema)?;
     metrics.push(Metric {
+        billing: Default::default(),
+        scope: None,
         label: "Saldo da plataforma".into(),
         used: None,
         limit: None,

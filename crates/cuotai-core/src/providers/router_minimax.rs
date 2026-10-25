@@ -237,6 +237,8 @@ fn push_quota(
     if total <= 0.0 {
         let remaining = percent.unwrap_or(0.0);
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label,
             used: Some(100.0 - remaining),
             limit: Some(100.0),
@@ -258,6 +260,8 @@ fn push_quota(
     };
     let remaining = (total - used).max(0.0);
     metrics.push(Metric {
+        billing: Default::default(),
+        scope: None,
         label,
         used: Some(used),
         limit: Some(total),

@@ -446,6 +446,8 @@ mod tests {
 
     fn quota(label: &str, window: MetricWindow, resets_at: DateTime<Utc>) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used: Some(40.0),
             limit: Some(100.0),

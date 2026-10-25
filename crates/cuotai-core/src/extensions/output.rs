@@ -29,7 +29,9 @@ use serde_json::{Map, Value};
 use super::SCHEMA;
 use crate::incidents::plain_text;
 use crate::text::{params, Localized, Notes};
-use crate::{Metric, MetricKind, MetricWindow, Provider, Report, Status};
+use crate::{
+    Billing, Metric, MetricKind, MetricWindow, Provider, Report, Scope, ScopeKind, Status,
+};
 
 /// A larger output is refused unread.
 pub const MAX_BYTES: usize = 256 * 1024;
@@ -67,6 +69,10 @@ const KINDS: [MetricKind; 6] = [
     MetricKind::Spend,
     MetricKind::Usage,
 ];
+
+const BILLINGS: [Billing; 2] = [Billing::Included, Billing::Overage];
+
+const SCOPE_KINDS: [ScopeKind; 1] = [ScopeKind::Model];
 
 const WINDOWS: [MetricWindow; 5] = [
     MetricWindow::Window5h,
@@ -282,7 +288,35 @@ impl Violations {
                 .map(|time| Some(time.with_timezone(&Utc)))
                 .or_else(|| self.fail(field(Shape::Date, at("resets_at")))),
         };
+        let billing = match fields.get("billing") {
+            None | Some(Value::Null) => Some(Billing::Included),
+            Some(value) => self.choice(value, at("billing"), &BILLINGS),
+        };
+        let scope = match fields.get("scope") {
+            None | Some(Value::Null) => Some(None),
+            Some(Value::Object(scope)) => {
+                let kind = match scope.get("kind") {
+                    None | Some(Value::Null) => self.missing(at("scope.kind")),
+                    Some(value) => self.choice(value, at("scope.kind"), &SCOPE_KINDS),
+                };
+                let id = match scope.get("id") {
+                    None | Some(Value::Null) => self.missing(at("scope.id")),
+                    Some(value) => self.text(value, at("scope.id"), LABEL_MAX_CHARS),
+                };
+                let label = match scope.get("label") {
+                    None | Some(Value::Null) => self.missing(at("scope.label")),
+                    Some(value) => self.text(value, at("scope.label"), LABEL_MAX_CHARS),
+                };
+                match (kind, id, label) {
+                    (Some(kind), Some(id), Some(label)) => Some(Some(Scope { kind, id, label })),
+                    _ => None,
+                }
+            }
+            Some(_) => self.fail(field(Shape::Object, at("scope"))),
+        };
         Some(Metric {
+            billing: billing?,
+            scope: scope?,
             label: label?,
             used: used?,
             limit: limit?,

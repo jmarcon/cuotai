@@ -631,6 +631,8 @@ fn window_metric(
     }
     let remaining = used.zip(limit).map(|(used, limit)| (limit - used).max(0.0));
     Some(Metric {
+        billing: Default::default(),
+        scope: None,
         label: label.into(),
         used,
         limit,
@@ -1105,6 +1107,8 @@ fn token_plan_metrics(
             if let Some(total) = total.filter(|value| value.is_finite() && *value > 0.0) {
                 let used = total * fraction;
                 metrics.push(Metric {
+                    billing: Default::default(),
+                    scope: None,
                     label: label.into(),
                     used: Some(used),
                     limit: Some(total),
@@ -1117,6 +1121,8 @@ fn token_plan_metrics(
                 });
             } else {
                 metrics.push(Metric {
+                    billing: Default::default(),
+                    scope: None,
                     label: label.into(),
                     used: Some(used_percent),
                     limit: Some(100.0),
@@ -1548,6 +1554,8 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
                 })
                 .transpose()?;
             metrics.push(Metric {
+                billing: Default::default(),
+                scope: None,
                 label: label.into(),
                 used: Some(fraction * 100.0),
                 limit: Some(100.0),

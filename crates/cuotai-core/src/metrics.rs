@@ -23,7 +23,7 @@
 //! These primitives intentionally avoid colors or anything tied to terminal
 //! widgets; only [`Binding::summary`] produces presentation-neutral text.
 
-use crate::model::{Metric, MetricKind, MetricWindow, Report, Status};
+use crate::model::{Billing, Metric, MetricKind, MetricWindow, Report, Status};
 use crate::text::{params, Localized, ParamValue};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -54,6 +54,19 @@ impl AccountClass {
     }
 }
 
+/// A plan limit: a `Quota` included in the plan. Paid extra usage (overage)
+/// and every non-quota kind are not plan limits, so they never take part in
+/// binding, pace, threshold alerts or reset notices.
+pub fn is_plan_limit(metric: &Metric) -> bool {
+    metric.kind == MetricKind::Quota && metric.billing == Billing::Included
+}
+
+/// A plan limit that applies to the whole account, i.e. not scoped to one
+/// model. Only these decide the account's state (binding, class, blocking).
+pub fn limits_account(metric: &Metric) -> bool {
+    is_plan_limit(metric) && metric.scope.is_none()
+}
+
 /// Classify an account using the latest report, if any. A `None` report or a
 /// non-`Ready` status is never classified as available.
 pub fn classify_report(report: Option<&Report>) -> AccountClass {
@@ -67,13 +80,36 @@ pub fn classify_report(report: Option<&Report>) -> AccountClass {
         return AccountClass::Unmeasured;
     }
     let has_quota = report.metrics.iter().any(|metric| {
-        metric
-            .limit
-            .is_some_and(|limit| limit.is_finite() && limit > 0.0)
+        metric.billing == Billing::Included
+            && metric.scope.is_none()
+            && metric
+                .limit
+                .is_some_and(|limit| limit.is_finite() && limit > 0.0)
             && has_finite_signal(metric)
     });
     let mut measurable = false;
+    // Scoped (per-model) limits mark only their scope; they exhaust the
+    // account only when no account-wide limit exists and all of them are.
+    let mut scoped_total = 0usize;
+    let mut scoped_exhausted = 0usize;
     for metric in &report.metrics {
+        // Paid extra usage never classifies the account by itself.
+        if metric.billing == Billing::Overage {
+            continue;
+        }
+        if metric.scope.is_some() {
+            match classify_metric(metric) {
+                MetricState::Unmeasured => {}
+                state => {
+                    measurable = true;
+                    scoped_total += 1;
+                    if matches!(state, MetricState::Exhausted { no_cap: false }) {
+                        scoped_exhausted += 1;
+                    }
+                }
+            }
+            continue;
+        }
         // Limit-only metrics carry no consumption signal; they're not measurable.
         if !has_finite_signal(metric) {
             continue;
@@ -112,6 +148,9 @@ pub fn classify_report(report: Option<&Report>) -> AccountClass {
     }
     if !measurable {
         return AccountClass::Unmeasured;
+    }
+    if !has_quota && scoped_total > 0 && scoped_exhausted == scoped_total {
+        return AccountClass::Exhausted;
     }
     AccountClass::Available
 }
@@ -283,19 +322,56 @@ fn binding_candidate(report: &Report, keep: &dyn Fn(usize) -> bool) -> Option<Bi
     if report.status != Status::Ready {
         return None;
     }
-    select_kind(report, MetricKind::Quota, keep)
-        .or_else(|| select_kind(report, MetricKind::RateLimit, keep))
+    select_kind(report, MetricKind::Quota, false, keep)
+        .or_else(|| select_kind(report, MetricKind::RateLimit, false, keep))
+        .or_else(|| select_scoped_exhausted(report, keep))
+}
+
+/// When every plan limit is scoped to a model and all of them are exhausted,
+/// the account is exhausted too: bind the one that returns last. Any
+/// available scoped limit (or any account-wide one) keeps the account free.
+fn select_scoped_exhausted(
+    report: &Report,
+    keep: &dyn Fn(usize) -> bool,
+) -> Option<BindingCandidate> {
+    let mut has_wide = false;
+    let mut scoped = 0usize;
+    for metric in &report.metrics {
+        if limits_account(metric) && metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0) {
+            has_wide = true;
+        }
+        if is_plan_limit(metric)
+            && metric.scope.is_some()
+            && metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0)
+            && !matches!(
+                classify_metric(metric),
+                MetricState::Exhausted { no_cap: false }
+            )
+        {
+            return None;
+        }
+        if is_plan_limit(metric) && metric.scope.is_some() {
+            scoped += 1;
+        }
+    }
+    if has_wide || scoped == 0 {
+        return None;
+    }
+    select_kind(report, MetricKind::Quota, true, keep)
 }
 
 fn select_kind(
     report: &Report,
     kind: MetricKind,
+    scoped: bool,
     keep: &dyn Fn(usize) -> bool,
 ) -> Option<BindingCandidate> {
     let mut selected: Option<BindingCandidate> = None;
     for (index, metric) in report.metrics.iter().enumerate() {
         if !keep(index)
             || metric.kind != kind
+            || metric.billing != Billing::Included
+            || metric.scope.is_some() != scoped
             || !metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0)
         {
             continue;
@@ -426,6 +502,8 @@ mod tests {
         remaining: Option<f64>,
     ) -> Metric {
         Metric {
+            billing: Default::default(),
+            scope: None,
             label: label.into(),
             used,
             limit,
@@ -930,5 +1008,124 @@ mod tests {
             "más restrictiva: ventana semanal al 62%"
         );
         assert_eq!(texts[4].fallback, "mais restritiva: janela semanal em 62%");
+    }
+
+    fn pq(label: &str, used: f64, limit: f64) -> Metric {
+        let mut m = metric(
+            label,
+            Some(used),
+            Some(limit),
+            Some((limit - used).max(0.0)),
+        );
+        m.resets_at = Some(Utc.with_ymd_and_hms(2026, 1, 1, 5, 0, 0).unwrap());
+        m
+    }
+
+    fn model(label: &str, used: f64) -> Metric {
+        pq(label, used, 100.0).scoped(crate::Scope::model(label.to_lowercase(), label))
+    }
+
+    #[test]
+    fn plan_limit_predicates_cover_billing_scope_and_kind() {
+        let included = pq("plan", 10.0, 100.0);
+        let overage = pq("extra", 10.0, 100.0).overage();
+        let scoped = model("Opus", 10.0);
+        let mut spend = pq("spend", 1.0, 5.0);
+        spend.kind = crate::MetricKind::Spend;
+        for (name, m, plan, account) in [
+            ("included", &included, true, true),
+            ("overage", &overage, false, false),
+            ("scoped", &scoped, true, false),
+            ("spend", &spend, false, false),
+        ] {
+            assert_eq!(is_plan_limit(m), plan, "{name}");
+            assert_eq!(limits_account(m), account, "{name}");
+        }
+    }
+
+    #[test]
+    fn overage_never_binds_or_classifies_the_account() {
+        let r = report(
+            Status::Ready,
+            vec![pq("5h", 60.0, 100.0), pq("extra", 90.0, 100.0).overage()],
+        );
+        assert_eq!(binding(&r).unwrap().label, "5h");
+        assert_eq!(classify_report(Some(&r)), AccountClass::Available);
+        // An overage meter past its cap does not exhaust the account.
+        let r = report(
+            Status::Ready,
+            vec![pq("5h", 60.0, 100.0), pq("extra", 120.0, 100.0).overage()],
+        );
+        assert_eq!(binding(&r).unwrap().label, "5h");
+        assert_eq!(classify_report(Some(&r)), AccountClass::Available);
+        // Alone, it gives no binding limit and no measured signal.
+        let r = report(Status::Ready, vec![pq("extra", 120.0, 100.0).overage()]);
+        assert!(binding(&r).is_none());
+        assert_eq!(classify_report(Some(&r)), AccountClass::Unmeasured);
+    }
+
+    #[test]
+    fn exhausted_model_scope_does_not_block_the_account() {
+        let r = report(
+            Status::Ready,
+            vec![pq("5h", 20.0, 100.0), model("Opus", 100.0)],
+        );
+        let b = binding(&r).unwrap();
+        assert_eq!(
+            (b.label.as_str(), b.reason),
+            ("5h", BindingReason::Tightest)
+        );
+        assert!(b.blocked_until.is_none());
+        assert_eq!(classify_report(Some(&r)), AccountClass::Available);
+        // Only scoped limits, one exhausted and one free: not blocked.
+        let r = report(
+            Status::Ready,
+            vec![model("Opus", 100.0), model("Sonnet", 30.0)],
+        );
+        assert!(binding(&r).is_none());
+        assert_eq!(classify_report(Some(&r)), AccountClass::Available);
+    }
+
+    #[test]
+    fn every_plan_limit_scoped_and_exhausted_blocks_the_account() {
+        let r = report(
+            Status::Ready,
+            vec![model("Opus", 100.0), model("Sonnet", 100.0)],
+        );
+        assert_eq!(classify_report(Some(&r)), AccountClass::Exhausted);
+        let b = binding(&r).unwrap();
+        assert_eq!(b.reason, BindingReason::Exhausted);
+        assert!(b.blocked_until.is_some());
+        // An unscoped limit with room keeps the account usable.
+        let r = report(
+            Status::Ready,
+            vec![model("Opus", 100.0), pq("5h", 10.0, 100.0)],
+        );
+        assert_eq!(classify_report(Some(&r)), AccountClass::Available);
+    }
+
+    #[test]
+    fn missing_values_are_not_turned_into_zero() {
+        let mut unknown = metric("extra", None, Some(50.0), None).overage();
+        unknown.resets_at = None;
+        let r = report(Status::Ready, vec![unknown, pq("5h", 10.0, 100.0)]);
+        assert_eq!(binding(&r).unwrap().label, "5h");
+        let r = report(
+            Status::Ready,
+            vec![metric("Opus", None, None, None).scoped(crate::Scope::model("opus", "Opus"))],
+        );
+        assert_eq!(classify_report(Some(&r)), AccountClass::Unmeasured);
+    }
+
+    #[test]
+    fn billing_and_scope_serialize_only_when_set() {
+        let plain = serde_json::to_value(pq("plan", 1.0, 2.0)).unwrap();
+        assert!(plain.get("billing").is_none() && plain.get("scope").is_none());
+        let v = serde_json::to_value(pq("x", 1.0, 2.0).overage()).unwrap();
+        assert_eq!(v["billing"], "overage");
+        let v = serde_json::to_value(model("Opus", 1.0)).unwrap();
+        assert_eq!(v["scope"]["kind"], "model");
+        let back: Metric = serde_json::from_value(plain).unwrap();
+        assert_eq!(back.billing, Billing::Included);
     }
 }

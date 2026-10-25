@@ -107,6 +107,8 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 continue;
             }
             metrics.push(Metric {
+                billing: Default::default(),
+                scope: None,
                 label: format!("Copilot: {name}"),
                 used,
                 limit,
@@ -132,6 +134,8 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             }
             let remaining = limit.zip(used).map(|(l, u)| finite(l - u)).transpose()?;
             metrics.push(Metric {
+                billing: Default::default(),
+                scope: None,
                 label: format!("Copilot: {name}"),
                 used,
                 limit,
@@ -241,6 +245,8 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
             return Err(QueryError::schema());
         }
         metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
             label: bucket.model_id,
             used: Some((1.0 - fraction) * 100.0),
             limit: Some(100.0),
