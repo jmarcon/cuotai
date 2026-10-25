@@ -199,6 +199,7 @@ mod tests {
 
     fn report(account: &Account, status: Status) -> Report {
         Report {
+            account_id: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: chrono::Utc::now(),

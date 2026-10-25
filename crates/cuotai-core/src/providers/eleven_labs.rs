@@ -96,6 +96,7 @@ fn failure(status: Status, id: &'static str, text: &'static str) -> QueryError {
     QueryError {
         status,
         note: Localized::fixed(id, text),
+        diagnostic: None,
     }
 }
 
@@ -133,6 +134,7 @@ fn classify_http(code: u16, detail: Option<&str>) -> QueryError {
                 params([("code", ParamValue::from(code))]),
                 format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
             ),
+            diagnostic: None,
         },
     }
 }

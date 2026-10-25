@@ -817,6 +817,7 @@ fn a_steep_recent_pace_projects_exhaustion_once() {
                 used,
             });
             let report = Report {
+                diagnostic: Default::default(),
                 account_id: None,
                 account: "Work".into(),
                 provider: Provider::Claude,

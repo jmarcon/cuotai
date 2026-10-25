@@ -39,6 +39,7 @@ fn quota(used: f64, resets_at: DateTime<Utc>) -> Metric {
 
 fn report(checked_at: DateTime<Utc>, metrics: Vec<Metric>) -> Report {
     Report {
+        diagnostic: Default::default(),
         account_id: None,
         account: "Work".into(),
         provider: Provider::Claude,
