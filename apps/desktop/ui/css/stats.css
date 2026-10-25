@@ -453,6 +453,68 @@
   margin-left: 0;
   transform: translateX(calc(-100% - 10px));
 }
+/* Mockup 01b (tray): icon-only lanes on a faint full-width track, the return labelled above its dot. */
+.timeline.compact .tl-sub {
+  margin: calc(-1 * var(--sp-2)) 0 0;
+  font-size: var(--text-sm);
+}
+.timeline.compact .tl-axis {
+  padding-left: calc(20px + var(--sp-2));
+}
+.timeline.compact .tl-lane {
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+.timeline.compact .tl-who {
+  justify-content: center;
+  padding: 0;
+}
+.timeline.compact .tl-name {
+  display: none;
+}
+.timeline.compact .tl-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 0.5px);
+  height: 1px;
+  background: var(--border);
+}
+.timeline.compact .tl-time {
+  top: -4px;
+  margin-left: 0;
+  transform: translateX(-50%);
+}
+.timeline.compact .tl-time.flip {
+  transform: translateX(-100%);
+}
+.timeline.compact .tl-time.start {
+  transform: translateX(calc(-1 * var(--space-1)));
+}
+.timeline.compact .tl-who {
+  align-self: end;
+  min-height: 0;
+  margin-bottom: 5px;
+}
+.timeline.compact .tl-lanes {
+  margin-top: var(--sp-1);
+}
+.timeline.compact .tl-track {
+  height: 36px;
+}
+.timeline.compact .tl-line {
+  top: auto;
+  bottom: 12px;
+}
+.timeline.compact .tl-dot {
+  top: auto;
+  bottom: 9px;
+}
+.timeline.compact .tl-track::before {
+  top: auto;
+  bottom: 12px;
+}
 .tl-lane.stale .tl-line {
   background: repeating-linear-gradient(90deg, var(--level) 0 4px, transparent 4px 7px);
   opacity: 0.7;

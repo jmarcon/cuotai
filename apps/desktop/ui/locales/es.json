@@ -1015,6 +1015,7 @@
   "stats.loading": "Cargando…",
   "stats.openFull": "Abrir estadísticas completas",
   "timeline.title": "Los límites vuelven",
+  "timeline.subtitle": "Límite más ajustado por cuenta",
   "timeline.range.label": "Periodo de la línea de tiempo",
   "timeline.range.hours24": "24h",
   "timeline.range.days7": "7d",

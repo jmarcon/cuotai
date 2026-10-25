@@ -21,20 +21,20 @@ export function laneLabel(lane, range) {
 }
 
 /** Several accounts of one provider show the account name next to the tile; one shows only the provider. */
-const labelOf = (lane, lanes) =>
-  lanes.filter((l) => l.provider === lane.provider).length > 1 ? lane.name : brand(lane.provider).label;
+const lanes = (all, lane) => all.filter((l) => l.provider === lane.provider).length;
+const labelOf = (lane, all) => (lanes(all, lane) > 1 ? lane.name : brand(lane.provider).label);
 
 function laneHtml(lane, all, tl) {
   const span = new Date(tl.ends_at) - new Date(tl.now);
   const x = Math.min(1, Math.max(0, (new Date(lane.returns_at) - new Date(tl.now)) / span));
   const left = `${(x * 100).toFixed(2)}%`;
-  const flip = x > 0.78 ? " flip" : "";
+  const flip = x > 0.78 ? " flip" : x < 0.22 ? " start" : "";
   return `<li class="tl-lane ${lane.level}${lane.stale ? " stale" : ""}">
     <button type="button" class="tl-who" data-timeline-account="${lane.account_index}" aria-label="${esc(laneLabel(lane, tl.range))}" title="${esc(laneLabel(lane, tl.range))}">
       ${logo(lane.provider, 14)}<span class="tl-name" title="${esc(labelOf(lane, all))}">${esc(labelOf(lane, all))}</span>
     </button>
     <div class="tl-track" aria-hidden="true"><i class="tl-line" style="width:${left}"></i><i class="tl-dot" style="left:${left}"></i>
-      <span class="tl-time${flip}" style="left:${left}">${esc(timeOf(lane.returns_at, tl.range))}</span></div>
+      <span class="tl-time${flip}" style="left:${left}">${esc(tl.compact && lanes(all, lane) > 1 ? `${lane.name} · ${timeOf(lane.returns_at, tl.range)}` : timeOf(lane.returns_at, tl.range))}</span></div>
   </li>`;
 }
 
@@ -63,6 +63,7 @@ export function mountTimeline({ onSelect = () => {}, compact = false, only = () 
       <div class="seg" role="group" aria-label="${te("timeline.range.label")}">
         ${RANGES.map((r) => `<button type="button" data-timeline-range="${r}">${te(`timeline.range.${r}`)}</button>`).join("")}
       </div></div>
+    ${compact ? `<p class="tl-sub sub">${te("timeline.subtitle")}</p>` : ""}
     <p class="tl-status sub" role="status" aria-live="polite"></p>
     <div class="tl-body"></div>`;
   const status = el.querySelector(".tl-status");
@@ -76,7 +77,7 @@ export function mountTimeline({ onSelect = () => {}, compact = false, only = () 
     const keep = only();
     const pick = (lanes) => (keep ? lanes.filter((l) => keep.has(l.account_index)) : lanes);
     const shown = data && { ...data, lanes: pick(data.lanes), later: pick(data.later), unknown: pick(data.unknown) };
-    body.innerHTML = !data || error ? "" : `${chartHtml(shown)}${textGroup("timeline.later", shown.later, shown, true)}${textGroup("timeline.unknown", shown.unknown, shown, false)}`;
+    body.innerHTML = !data || error ? "" : `${chartHtml({ ...shown, compact })}${textGroup("timeline.later", shown.later, shown, true)}${textGroup("timeline.unknown", shown.unknown, shown, false)}`;
   }
   async function load() {
     const e = ++epoch;

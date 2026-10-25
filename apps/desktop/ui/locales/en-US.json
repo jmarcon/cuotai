@@ -1015,6 +1015,7 @@
   "stats.loading": "Loading…",
   "stats.openFull": "Open full stats",
   "timeline.title": "Limits come back",
+  "timeline.subtitle": "Tightest limit per account",
   "timeline.range.label": "Timeline range",
   "timeline.range.hours24": "24h",
   "timeline.range.days7": "7d",
