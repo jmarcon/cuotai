@@ -2,6 +2,9 @@
 # The NSIS installer accepts the silent switch /S and its uninstaller removes
 # only the application: the configuration, the local databases and the
 # Windows Credential Manager entries survive uninstall (PRD 0021 RF8.2).
+# /WINGET=1 makes the installer write install-source.txt beside Cuotai.exe,
+# the durable marker that reports a winget install and turns the internal
+# updater off (PRD 0018 RF3.2).
 PackageIdentifier: Cuotai.Cuotai
 PackageVersion: {{VERSION}}
 InstallerType: nullsoft
@@ -11,6 +14,7 @@ InstallModes:
 InstallerSwitches:
   Silent: /S
   SilentWithProgress: /S
+  Custom: /WINGET=1
 UpgradeBehavior: install
 Installers:
 - Architecture: x64

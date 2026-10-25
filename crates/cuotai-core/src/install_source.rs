@@ -3,10 +3,24 @@
 //! The detector is deliberately path- and environment-based. It never queries a
 //! package manager or the network, and it only identifies ownership when the
 //! executable path is durable evidence. In particular, a normal current-user
-//! winget NSIS install and a manual NSIS install share the same path, so both stay
-//! `Direct` until packaging provides a durable ownership marker.
+//! winget NSIS install and a manual NSIS install share the same path, so the
+//! winget manifest passes `/WINGET=1` and the NSIS installer then writes the
+//! durable marker [`MARKER_FILE`] (containing `winget`) beside the executable;
+//! a manual install removes it (PRD 0018 RF3.2).
 
-use std::{ffi::OsString, path::Path};
+use std::{ffi::OsString, io::Read, path::Path};
+
+/// The installer-written receipt beside the executable that names its owner
+/// (`apps/desktop/src-tauri/windows/hooks.nsh`).
+pub const MARKER_FILE: &str = "install-source.txt";
+
+/// The owner a marker beside `executable` names, read at most 64 bytes.
+fn marker(executable: &Path) -> Option<String> {
+    let file = std::fs::File::open(executable.parent()?.join(MARKER_FILE)).ok()?;
+    let mut text = String::new();
+    file.take(64).read_to_string(&mut text).ok()?;
+    Some(text.trim().to_ascii_lowercase())
+}
 
 /// The owner and update policy of the running Cuotai executable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,6 +113,17 @@ pub fn detect_install_source(
     environment: impl Fn(&str) -> Option<OsString>,
     install_dir_writable: impl FnOnce() -> bool,
 ) -> InstallSource {
+    classify(executable, environment, install_dir_writable, || {
+        marker(executable)
+    })
+}
+
+fn classify(
+    executable: &Path,
+    environment: impl Fn(&str) -> Option<OsString>,
+    install_dir_writable: impl FnOnce() -> bool,
+    marker: impl FnOnce() -> Option<String>,
+) -> InstallSource {
     if environment("APPIMAGE").is_some() {
         return InstallSource::AppImage;
     }
@@ -133,6 +158,11 @@ pub fn detect_install_source(
     }
     if cargo_home(&environment).is_some_and(|home| in_cargo_bin(&normalized, &home)) {
         return InstallSource::Cargo;
+    }
+    // PRD 0018 RF3.2: the installer's receipt for a winget install at the
+    // shared NSIS path.
+    if marker().as_deref() == Some("winget") {
+        return InstallSource::Winget;
     }
     if !install_dir_writable() {
         return InstallSource::ReadOnly;
@@ -179,6 +209,41 @@ mod tests {
             },
             || writable,
         )
+    }
+
+    /// PRD 0018 RF3.2: the installer-written receipt tells a winget NSIS
+    /// install from a manual one at the same path.
+    #[test]
+    fn the_winget_receipt_marks_the_shared_nsis_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("Cuotai.exe");
+        std::fs::write(&exe, b"").unwrap();
+        let none = |_: &str| None;
+        assert_eq!(
+            detect_install_source(&exe, none, || true),
+            InstallSource::Direct
+        );
+        std::fs::write(dir.path().join(MARKER_FILE), "winget\r\n").unwrap();
+        let source = detect_install_source(&exe, none, || true);
+        assert_eq!(source, InstallSource::Winget);
+        assert_eq!(source.as_str(), "winget");
+        assert!(source.updater_disabled_reason().is_some());
+        // Anything else in the file is no evidence.
+        std::fs::write(dir.path().join(MARKER_FILE), "manual").unwrap();
+        assert_eq!(
+            detect_install_source(&exe, none, || true),
+            InstallSource::Direct
+        );
+        // A path rule still wins over a stray receipt.
+        assert_eq!(
+            classify(
+                Path::new("C:/Users/demo/scoop/apps/cuotai/current/Cuotai.exe"),
+                none,
+                || true,
+                || Some("winget".into())
+            ),
+            InstallSource::Scoop
+        );
     }
 
     #[test]

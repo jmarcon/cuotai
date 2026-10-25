@@ -227,6 +227,8 @@ fn renders_every_channel_deterministically_from_one_manifest() {
     assert!(installer.contains(&format!("InstallerSha256: {nsis_sha}")));
     assert!(installer.contains(&url(&format!("Cuotai_{VERSION}_x64-setup.exe"))));
     assert!(installer.contains("Silent: /S"));
+    // PRD 0018 RF3.2: the switch that makes the installer write the marker.
+    assert!(installer.contains("Custom: /WINGET=1"));
 
     let scoop = content_of(&first, SCOOP);
     assert!(scoop.contains(&format!("\"hash\": \"{zip_sha}\"")));
