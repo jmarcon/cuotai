@@ -46,7 +46,12 @@ pub enum SourceKind {
     OpenCode,
     CursorCli,
     QwenCode,
+    /// Kiro's global directory, shared by the Kiro CLI and the Kiro IDE
+    /// (the slug keeps its first name).
     KiroCli,
+    KimiCli,
+    GrokCli,
+    Zed,
     /// PRD 0038 Q5: `OPENROUTER_API_KEY` set in the environment (presence
     /// only, [`crate::catalog::detect_env_keys`]).
     OpenRouterKey,
@@ -68,6 +73,9 @@ impl SourceKind {
             Self::CursorCli => "cursor_cli",
             Self::QwenCode => "qwen_code",
             Self::KiroCli => "kiro_cli",
+            Self::KimiCli => "kimi_cli",
+            Self::GrokCli => "grok_cli",
+            Self::Zed => "zed",
             Self::OpenRouterKey => "open_router_key",
             Self::NineRouterLocal => "nine_router_local",
         }
@@ -93,7 +101,10 @@ impl SourceKind {
             Self::OpenCode => "OpenCode",
             Self::CursorCli => "Cursor CLI",
             Self::QwenCode => "Qwen Code",
-            Self::KiroCli => "Kiro CLI",
+            Self::KiroCli => "Kiro",
+            Self::KimiCli => "Kimi Code CLI",
+            Self::GrokCli => "Grok CLI",
+            Self::Zed => "Zed",
             Self::OpenRouterKey => "OpenRouter",
             Self::NineRouterLocal => "9router",
         }
@@ -159,10 +170,25 @@ pub const TABLE: &[DetectEntry] = &[
         "https://opencode.ai/docs/troubleshooting", true),
     row(SourceKind::CursorCli, Provider::Cursor, Flow::NativeLogin,
         "https://docs.cursor.com/en/cli/reference/configuration", true),
+    // Verified 2026-10-25: user settings at `~/.qwen/settings.json`.
     row(SourceKind::QwenCode, Provider::Qwen, Flow::NativeLogin,
-        "Qwen Code documentation (settings.json); OAuth file name unconfirmed", false),
+        "https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/", true),
+    // Verified 2026-10-25: global scope `~/.kiro/` (IDE and CLI), moved by
+    // an absolute `KIRO_HOME`.
     row(SourceKind::KiroCli, Provider::Kiro, Flow::NativeLogin,
-        "no official statement found; third-party sources disagree", false),
+        "https://kiro.dev/docs/configuration/", true),
+    // Verified 2026-10-25: "The default configuration file is located at
+    // ~/.kimi/config.toml".
+    row(SourceKind::KimiCli, Provider::Kimi, Flow::NativeLogin,
+        "https://moonshotai.github.io/kimi-cli/en/configuration/config-files.html", true),
+    // Verified 2026-10-25: Grok Build's home is `$GROK_HOME`, default
+    // `~/.grok` (`config.toml` inside).
+    row(SourceKind::GrokCli, Provider::Grok, Flow::NativeLogin,
+        "https://docs.x.ai/build/settings/reference", true),
+    // Verified 2026-10-25 for macOS and Linux only: the docs show
+    // `~/.config/zed/settings.json`; no Windows path is documented.
+    row(SourceKind::Zed, Provider::Zed, Flow::NativeLogin,
+        "https://zed.dev/docs/configuring-zed", true),
 ];
 
 /// One detected source. Carries no path, size, time or content (RF6.3).
@@ -241,16 +267,26 @@ pub fn paths(kind: SourceKind, home: &Path, os: Os, env: &dyn Env) -> Vec<PathBu
             .unwrap_or_else(|| home.join(".local").join("share"))
             .join("opencode")],
         SourceKind::CursorCli => vec![home.join(".cursor").join("cli-config.json")],
-        SourceKind::QwenCode => vec![home.join(".qwen")],
+        SourceKind::QwenCode => vec![home.join(".qwen").join("settings.json")],
+        SourceKind::KimiCli => vec![home.join(".kimi").join("config.toml")],
+        SourceKind::GrokCli => vec![env
+            .var("GROK_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".grok"))
+            .join("config.toml")],
+        SourceKind::Zed => match os {
+            Os::Windows => Vec::new(),
+            Os::MacOs | Os::Linux => vec![home.join(".config").join("zed").join("settings.json")],
+        },
         // A network probe, never a path (`probe_nine_router`).
         SourceKind::NineRouterLocal => Vec::new(),
-        SourceKind::KiroCli => vec![
-            home.join(".aws")
-                .join("sso")
-                .join("cache")
-                .join("kiro-auth-token.json"),
-            home.join(".local").join("share").join("kiro-cli"),
-        ],
+        // Kiro ignores a relative `KIRO_HOME` (and a few others); only an
+        // absolute one is followed here.
+        SourceKind::KiroCli => vec![env
+            .var("KIRO_HOME")
+            .map(PathBuf::from)
+            .filter(|path| path.is_absolute())
+            .unwrap_or_else(|| home.join(".kiro"))],
     }
 }
 
@@ -462,11 +498,64 @@ mod tests {
         for entry in TABLE {
             assert!(!entry.evidence.trim().is_empty(), "{:?}", entry.kind);
         }
+        assert!(TABLE.iter().all(|entry| !entry.verified
+            || entry.evidence.starts_with("https://")
+            || entry.kind == SourceKind::CursorApp));
+        // Locations only third-party sources named (2026-10-23) stay
+        // unchecked: neither is a documented path.
         let home = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(home.path().join(".qwen")).unwrap();
         std::fs::create_dir_all(home.path().join(".local/share/kiro-cli")).unwrap();
+        touch(&home.path().join(".aws/sso/cache/kiro-auth-token.json"));
         let found = local_sources(home.path(), Os::Linux, &no_env, &[]);
-        assert!(found.is_empty(), "{found:?}");
+        assert!(
+            found.iter().all(|d| d.provider == Provider::AwsBedrock),
+            "{found:?}"
+        );
+    }
+
+    /// PRD 0027 RF6.4: the rows verified on 2026-10-25 against each tool's
+    /// own documentation.
+    #[test]
+    fn documented_paths_of_qwen_kiro_kimi_grok_and_zed() {
+        let home = tempfile::tempdir().unwrap();
+        touch(&home.path().join(".qwen/settings.json"));
+        std::fs::create_dir_all(home.path().join(".kiro")).unwrap();
+        touch(&home.path().join(".kimi/config.toml"));
+        touch(&home.path().join(".grok/config.toml"));
+        touch(&home.path().join(".config/zed/settings.json"));
+        let kinds: Vec<_> = local_sources(home.path(), Os::Linux, &no_env, &[])
+            .into_iter()
+            .map(|d| d.kind)
+            .collect();
+        for kind in [
+            SourceKind::QwenCode,
+            SourceKind::KiroCli,
+            SourceKind::KimiCli,
+            SourceKind::GrokCli,
+            SourceKind::Zed,
+        ] {
+            let offered = crate::access::has_usage_query(
+                TABLE.iter().find(|e| e.kind == kind).unwrap().provider,
+            );
+            assert_eq!(kinds.contains(&kind), offered, "{kind:?}");
+        }
+        let h = Path::new("/h");
+        assert!(paths(SourceKind::Zed, h, Os::Windows, &no_env).is_empty());
+        let grok = |name: &str| (name == "GROK_HOME").then(|| "/g".to_string());
+        assert_eq!(
+            paths(SourceKind::GrokCli, h, Os::Linux, &grok),
+            vec![PathBuf::from("/g/config.toml")]
+        );
+        // A relative KIRO_HOME is ignored, as Kiro itself does.
+        let relative = |name: &str| (name == "KIRO_HOME").then(|| "kiro".to_string());
+        assert_eq!(
+            paths(SourceKind::KiroCli, h, Os::Linux, &relative),
+            vec![PathBuf::from("/h/.kiro")]
+        );
+        for kind in [SourceKind::KimiCli, SourceKind::GrokCli, SourceKind::Zed] {
+            assert_eq!(SourceKind::from_slug(kind.slug()), Some(kind));
+        }
     }
 
     #[test]
