@@ -6,7 +6,10 @@
 #   * the NSIS installer installs silently (/S), registers its uninstaller,
 #     installs Cuotai.exe with the release version, the app starts and is still
 #     running after a grace period, and the silent uninstaller removes it;
-#   * the MSI installs and uninstalls silently with msiexec /qn.
+#   * the MSI installs and uninstalls silently with msiexec /qn;
+#   * both uninstallers keep the user's configuration and data (PRD 0021 RF8.2,
+#     RNF): sentinel files in %APPDATA%\cuotai (accounts file, preferences) must
+#     survive, and one in %LOCALAPPDATA%\cuotai\history is reported if it does not.
 # Usage: smoke-desktop-windows.ps1 -Version X.Y.Z -DistDir dist -SigningState path
 param(
   [Parameter(Mandatory = $true)][string]$Version,
@@ -87,6 +90,34 @@ function Wait-Removed([string]$Path) {
   throw "uninstall left $Path behind"
 }
 
+# PRD 0021 RF8.2: sentinels for the user's data. %APPDATA% (accounts file and
+# preferences) is a hard requirement; %LOCALAPPDATA%\cuotai shares its parent
+# with the default install folder (Windows paths are case-insensitive), so a
+# loss there is reported as a warning for the owner to review.
+$userConfig = Join-Path $env:APPDATA "cuotai"
+$userData = Join-Path $env:LOCALAPPDATA "cuotai\history"
+function New-UserDataSentinels {
+  New-Item -ItemType Directory -Force -Path $userConfig, $userData | Out-Null
+  Set-Content -LiteralPath (Join-Path $userConfig "config.toml") -Value "# uninstall sentinel"
+  Set-Content -LiteralPath (Join-Path $userConfig "desktop.json") -Value "{}"
+  Set-Content -LiteralPath (Join-Path $userData "sentinel.jsonl") -Value "{}"
+}
+function Assert-UserDataKept([string]$When) {
+  foreach ($name in @("config.toml", "desktop.json")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $userConfig $name))) {
+      throw "$When removed $userConfig\$name; RF8.2 requires the user's data to be kept"
+    }
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $userData "sentinel.jsonl"))) {
+    Write-Host "::warning::$When removed $userData; review PRD 0021 RF8.2"
+  }
+  Write-Host "ok: $When kept the user's configuration and data"
+}
+function Remove-UserDataSentinels {
+  Remove-Item -LiteralPath $userConfig -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $userData -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Assert-NoInstall "before the smoke"
 $nsisSignature = Get-ExpectedSignature $nsis
 $msiSignature = Get-ExpectedSignature $msi
@@ -113,11 +144,14 @@ $uninstaller = Join-Path $installDir "uninstall.exe"
 if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) { throw "missing $uninstaller" }
 # `_?=` keeps the NSIS uninstaller in place instead of re-spawning a detached
 # copy, so -Wait covers the whole uninstall.
+New-UserDataSentinels
 $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @("/S", "_?=$installDir") -Wait -PassThru
 if ($uninstall.ExitCode -ne 0) { throw "NSIS uninstaller exited with $($uninstall.ExitCode)" }
 Wait-Removed $exe
 Assert-NoInstall "after the NSIS uninstall"
 Write-Host "ok: NSIS uninstalled silently"
+Assert-UserDataKept "the NSIS uninstall"
+Remove-UserDataSentinels
 
 # MSI: silent per-machine install and uninstall.
 $log = Join-Path $env:RUNNER_TEMP "cuotai-msi.log"
@@ -132,9 +166,12 @@ if ($entries.Count -ne 1) { throw "expected one Cuotai uninstall entry after the
 $exe = Get-InstalledExe $entries[0]
 Assert-Signature $exe $msiSignature
 Write-Host "ok: MSI installed $exe"
+New-UserDataSentinels
 $msiRemove = Start-Process -FilePath "msiexec.exe" -ArgumentList @("/x", "`"$msiPath`"", "/qn", "/norestart") -Wait -PassThru
 if ($msiRemove.ExitCode -ne 0) { throw "msiexec /x exited with $($msiRemove.ExitCode)" }
 Wait-Removed $exe
 Assert-NoInstall "after the MSI uninstall"
 Write-Host "ok: MSI uninstalled silently"
+Assert-UserDataKept "the MSI uninstall"
+Remove-UserDataSentinels
 Write-Host "Windows desktop smoke passed for $(Split-Path -Leaf $nsis) and $(Split-Path -Leaf $msi)"
