@@ -4129,6 +4129,7 @@ mod tests {
                 notes_l10n: vec![],
                 source: "teste".into(),
                 session_expires_at: None,
+                diagnostic: None,
             })
             .collect();
         let snapshot = cuotai_core::Snapshot {
@@ -4186,6 +4187,7 @@ mod tests {
             notes_l10n: vec![],
             source: "teste".into(),
             session_expires_at: None,
+            diagnostic: None,
         }
     }
 

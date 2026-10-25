@@ -789,7 +789,7 @@ impl Monitor {
                 if let Some(found) = &error.diagnostic {
                     notes.push_note(found.text());
                 }
-                diagnostic = error.diagnostic;
+                diagnostic = error.diagnostic.map(|found| *found);
                 // PRD 0011 RF3: context only; the status stays as queried.
                 if let Some(state) = self.incident_state(account.provider).await {
                     notes.extend(incidents::failure_notes(error.status, state));

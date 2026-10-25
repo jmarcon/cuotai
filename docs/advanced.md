@@ -21,6 +21,11 @@ cuotai --list-providers
 # Human-readable summary in the terminal (single run)
 cuotai --config cuotai.toml --once
 
+# Query one account and print a problem report (English text and a prefilled
+# GitHub issue link). It names the failing JSON field and its types, never an
+# account name, e-mail, credential or response value; nothing is sent.
+cuotai --config cuotai.toml --report-problem ACCOUNT
+
 # Structured JSON snapshot for scripts and status bars
 cuotai --config cuotai.toml --json
 

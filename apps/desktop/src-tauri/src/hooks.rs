@@ -404,6 +404,7 @@ mod tests {
             notes_l10n: vec![],
             source: "test".into(),
             session_expires_at: None,
+            diagnostic: None,
         };
         let snapshot = Snapshot {
             started_at: at,

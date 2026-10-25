@@ -74,7 +74,7 @@ pub(crate) struct QueryError {
     pub status: Status,
     pub note: Localized,
     /// PRD 0028 RF1: what drifted, when a decode failed (value-free).
-    pub diagnostic: Option<crate::diagnostic::Diagnostic>,
+    pub diagnostic: Option<Box<crate::diagnostic::Diagnostic>>,
 }
 
 impl QueryError {
@@ -129,7 +129,7 @@ impl QueryError {
     /// [`QueryError::schema`] with the redacted description of the drift.
     pub fn schema_drift(drift: crate::diagnostic::SchemaDrift) -> Self {
         Self {
-            diagnostic: Some(crate::diagnostic::Diagnostic::SchemaDrift(drift)),
+            diagnostic: Some(Box::new(crate::diagnostic::Diagnostic::SchemaDrift(drift))),
             ..Self::schema()
         }
     }

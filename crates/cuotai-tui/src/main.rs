@@ -9,6 +9,7 @@ mod headless;
 mod models_view;
 mod motion;
 mod notify;
+mod report_problem;
 mod serve;
 mod ui;
 mod watch;
@@ -79,6 +80,20 @@ struct Args {
     /// Lista os identificadores aceitos na configuração.
     #[arg(long)]
     list_providers: bool,
+    /// Consulta CONTA uma vez e imprime o relatório de problema (texto em
+    /// inglês, sem segredos, e a URL do GitHub já preenchida). Nada é
+    /// enviado: você abre a URL. Saída 0; 1 se a conta não existe ou em erro
+    /// local.
+    #[arg(
+        long,
+        value_name = "CONTA",
+        conflicts_with_all = [
+            "list_providers", "changelog", "extension_check", "once", "json",
+            "json_v1", "history", "notify", "serve", "watch", "install_source",
+            "cost_action",
+        ]
+    )]
+    report_problem: Option<String>,
     /// Informa de onde esta cópia foi instalada, por que o atualizador
     /// interno deve ficar desligado e o comando de atualização, quando
     /// conhecido. É local: não lê a configuração nem consulta a rede.
@@ -505,7 +520,12 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         return Ok(history_exit_code(&found));
     }
-    let interactive = !args.once && !args.json && !args.json_v1 && !args.serve && !args.watch;
+    let interactive = !args.once
+        && !args.json
+        && !args.json_v1
+        && !args.serve
+        && !args.watch
+        && args.report_problem.is_none();
     let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err(
@@ -545,6 +565,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         None => OAuthSession::system()?,
     });
+    if let Some(name) = args.report_problem.take() {
+        return report_problem::run(&file.config, &name, session).await;
+    }
     if args.once || args.json || args.json_v1 || args.serve || args.watch {
         // PRD 0013 RF2.1: `--interval` holds for this run only.
         let config = match args.interval {
