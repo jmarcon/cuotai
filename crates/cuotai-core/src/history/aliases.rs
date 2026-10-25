@@ -26,8 +26,9 @@ pub(crate) fn apply(db: &Connection, aliases: &[(&str, &str)]) -> rusqlite::Resu
     for (old, new) in aliases {
         tx.execute(
             "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label,
-                position, seen_at, removed_at, billing)
-             SELECT config_key, account_digest, ?2, label, position, seen_at, removed_at, billing
+                position, seen_at, removed_at, billing, scope)
+             SELECT config_key, account_digest, ?2, label, position, seen_at, removed_at, billing,
+                scope
              FROM series WHERE metric_key = ?1",
             rusqlite::params![old, new],
         )?;
@@ -61,7 +62,8 @@ mod tests {
 
     fn put(db: &Connection, key: &str, at: i64, used: f64) {
         db.execute(
-            "INSERT OR IGNORE INTO series VALUES ('c', 'a', ?1, 'label', 0, 1, NULL, 'included')",
+            "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label, position, seen_at, removed_at)
+             VALUES ('c', 'a', ?1, 'label', 0, 1, NULL)",
             [key],
         )
         .unwrap();
