@@ -32,7 +32,6 @@ use crate::model::{Metric, MetricKind, MetricWindow, Provider, Status, SubReport
 use crate::providers::nine_router_tls as tls;
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::Account;
-use base64::Engine as _;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use reqwest::{Method, RequestBuilder, Response};
 use serde::Deserialize;
@@ -553,6 +552,12 @@ enum Slot {
 static SESSIONS: LazyLock<tokio::sync::Mutex<HashMap<String, Slot>>> =
     LazyLock::new(|| tokio::sync::Mutex::new(HashMap::new()));
 
+/// Tests: forget the in-memory login of `base` (a reused test port).
+#[cfg(test)]
+pub(crate) async fn forget_login(base: &str) {
+    SESSIONS.lock().await.remove(base);
+}
+
 fn fingerprint(password: &str) -> String {
     let digest = Sha256::digest(password.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -560,15 +565,7 @@ fn fingerprint(password: &str) -> String {
 
 /// `exp` of a JWT, read without verifying it.
 fn jwt_expiry(token: &str) -> Option<DateTime<Utc>> {
-    let payload = token.split('.').nth(1)?;
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(payload.trim_end_matches('='))
-        .ok()?;
-    let exp = serde_json::from_slice::<Value>(&bytes)
-        .ok()?
-        .get("exp")?
-        .as_i64()?;
-    DateTime::from_timestamp(exp, 0)
+    crate::user_session::jwt_expiry(token)
 }
 
 fn cookie_value(response: &Response) -> Option<String> {
@@ -856,6 +853,40 @@ fn password_of(account: &Account, ctx: &Context<'_>) -> Result<Option<String>, Q
                 format!("Credencial ausente: {name}"),
             )
         })
+}
+
+/// PRD 0036 RF2.6: the pasted SSO `auth_token` of `account` (vault or the
+/// variable `params.auth_session_env` names), if any. It is sent only as
+/// the cookie of requests built from the account's own base URL.
+fn sso_token(account: &Account, ctx: &Context<'_>) -> Result<Option<String>, QueryError> {
+    let Some(session) =
+        super::web_session(account, ctx, crate::user_session::NINE_ROUTER_SSO_SLOT)?
+    else {
+        return Ok(None);
+    };
+    Ok(session.cookie.split(';').find_map(|item| {
+        item.trim()
+            .strip_prefix("auth_token=")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    }))
+}
+
+/// The credentials of a query: an SSO session wins over the password (and
+/// is never refreshed by a login); otherwise the password, if any.
+async fn start(
+    instance: &Instance<'_>,
+    account: &Account,
+    ctx: &Context<'_>,
+    now: DateTime<Utc>,
+) -> Result<(Option<String>, Option<String>, bool), QueryError> {
+    if let Some(token) = sso_token(account, ctx)? {
+        return Ok((Some(token), None, true));
+    }
+    let password = password_of(account, ctx)?;
+    let token = instance.token(password.as_deref(), now, false).await?;
+    Ok((token, password, false))
 }
 
 /// Comma-separated list parameter, lower-cased.
@@ -1159,7 +1190,6 @@ pub(crate) async fn fetch_connection_at(
     now: DateTime<Utc>,
 ) -> Result<Option<SubReport>, QueryError> {
     let base = account_base(account).map_err(base_error)?;
-    let password = password_of(account, ctx)?;
     let trust = tls::mode(account, &base).map_err(tls_error)?;
     let own = tls::client(&trust, ctx.timeout)?;
     let (http, flag) = match &own {
@@ -1168,7 +1198,7 @@ pub(crate) async fn fetch_connection_at(
     };
     let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
     let deadline = tokio::time::Instant::now() + limits.instance;
-    let mut token = instance.token(password.as_deref(), now, false).await?;
+    let (mut token, password, _) = start(&instance, account, ctx, now).await?;
     let (connections, _) = discover(&instance, &mut token, password.as_deref(), now).await?;
     let Some((ordinal, connection)) = select(account, &connections)
         .into_iter()
@@ -1200,7 +1230,6 @@ pub(crate) async fn fetch_at(
 ) -> Result<Data, QueryError> {
     let allow_private = truthy(account.params.get("allow_private_http"));
     let base = account_base(account).map_err(base_error)?;
-    let password = password_of(account, ctx)?;
     let trust = tls::mode(account, &base).map_err(tls_error)?;
     let own = tls::client(&trust, ctx.timeout)?;
     let (http, flag) = match &own {
@@ -1210,7 +1239,7 @@ pub(crate) async fn fetch_at(
     let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
     let deadline = tokio::time::Instant::now() + limits.instance;
 
-    let mut token = instance.token(password.as_deref(), now, false).await?;
+    let (mut token, password, sso) = start(&instance, account, ctx, now).await?;
     let (connections, truncated) =
         discover(&instance, &mut token, password.as_deref(), now).await?;
 
@@ -1258,7 +1287,7 @@ pub(crate) async fn fetch_at(
             "O 9router tem mais conexões do que o limite lido (1000); as demais foram omitidas.",
         );
     }
-    if password.is_none() && !base_is_loopback(&instance.base) {
+    if password.is_none() && !sso && !base_is_loopback(&instance.base) {
         notes.push(
             "note.nine_router.exposed",
             "Esta instância do 9router responde a consultas de gerenciamento sem senha. Qualquer pessoa que a alcance pode ler e alterar as conexões dela.",
@@ -1314,6 +1343,9 @@ pub enum TestOutcome {
     LoginRefused,
     /// No password was set but the instance requires one.
     PasswordRequired,
+    /// PRD 0036 RF2.6: the pasted SSO session is missing its `auth_token`,
+    /// expired or was revoked.
+    SessionRejected,
     /// The address could not be used or reached.
     Unreachable,
     /// PRD 0036 RF2.3: the instance answers over HTTPS with a certificate
@@ -1391,6 +1423,7 @@ pub(crate) fn outcome_text(outcome: &TestOutcome) -> Localized {
             "test.nine_router.password_required",
             "Esta instância exige a senha do painel; escolha \"Senha do painel\".",
         ),
+        TestOutcome::SessionRejected => crate::user_session::rejected(),
         TestOutcome::Unreachable => Localized::fixed(
             "test.nine_router.unreachable",
             "Não foi possível alcançar o endereço informado.",
@@ -1473,8 +1506,17 @@ pub(crate) async fn test_connection_at(
     let Ok(base) = account_base(account) else {
         return TestOutcome::Unreachable;
     };
-    let Ok(password) = password_of(account, ctx) else {
-        return TestOutcome::PasswordRequired;
+    let sso = match sso_token(account, ctx) {
+        Ok(sso) => sso,
+        Err(_) => return TestOutcome::SessionRejected,
+    };
+    let password = if sso.is_some() {
+        None
+    } else {
+        let Ok(password) = password_of(account, ctx) else {
+            return TestOutcome::PasswordRequired;
+        };
+        password
     };
     let Ok(trust) = tls::mode(account, &base) else {
         return TestOutcome::Unreachable;
@@ -1505,7 +1547,11 @@ pub(crate) async fn test_connection_at(
         return TestOutcome::NotNineRouter;
     }
     let version = best_effort_version(&instance, None).await;
-    let token = match instance.token(password.as_deref(), now, false).await {
+    let login = match &sso {
+        Some(token) => Ok(Some(token.clone())),
+        None => instance.token(password.as_deref(), now, false).await,
+    };
+    let token = match login {
         Ok(token) => token,
         Err(error) => {
             return match error.note.id.as_ref() {
@@ -1533,7 +1579,9 @@ pub(crate) async fn test_connection_at(
             Err(_) => TestOutcome::NotNineRouter,
         },
         Err(error) if error.status == Status::AuthenticationError => {
-            if password.is_none() {
+            if sso.is_some() {
+                TestOutcome::SessionRejected
+            } else if password.is_none() {
                 TestOutcome::PasswordRequired
             } else {
                 TestOutcome::PasswordWrong
@@ -1604,6 +1652,7 @@ mod tests {
     }
 
     fn jwt(exp: i64) -> String {
+        use base64::Engine as _;
         let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
         format!(
             "{}.{}.sig",

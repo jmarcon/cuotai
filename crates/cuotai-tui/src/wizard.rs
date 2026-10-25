@@ -85,6 +85,9 @@ pub(crate) enum Action {
     /// version, login, connection list). Read-only; nothing is stored.
     TestAggregator {
         account: Box<Account>,
+        /// PRD 0036 RF2.1/RF2.6: a pasted password, key or SSO session not
+        /// saved yet, used by the test in place of the vault one.
+        sessions: Vec<ReducedSession>,
     },
     /// PRD 0016: the user confirmed a vault change of the saved account's
     /// web session on the summary.
@@ -1951,6 +1954,7 @@ impl Wizard {
                 self.aggregator_test = Some((true, "Testando a conexão antes de salvar…".into()));
                 return Action::TestAggregator {
                     account: Box::new(account.clone()),
+                    sessions: self.reduced_sessions(),
                 };
             }
         }
@@ -1998,6 +2002,7 @@ impl Wizard {
                 self.aggregator_test = Some((true, "Testando a conexão…".into()));
                 Action::TestAggregator {
                     account: Box::new(config.accounts[index].clone()),
+                    sessions: self.reduced_sessions(),
                 }
             }
             Err(message) => {
@@ -3673,7 +3678,7 @@ mod tests {
         wiz.name = "office".into();
         wiz.step = Step::Summary;
         let tested = match press(&mut wiz, KeyCode::Enter) {
-            Action::TestAggregator { account } => *account,
+            Action::TestAggregator { account, .. } => *account,
             _ => panic!("Enter tests before saving"),
         };
         assert_eq!(tested.name, "office");
@@ -3692,7 +3697,7 @@ mod tests {
         assert!(summary.contains("Teste da conexão"), "{summary}");
         // Enter again tests again; a connected answer saves.
         let tested = match press(&mut wiz, KeyCode::Enter) {
-            Action::TestAggregator { account } => *account,
+            Action::TestAggregator { account, .. } => *account,
             _ => panic!("still untested"),
         };
         let connected = AggregatorTest::new(TestOutcome::Connected {
@@ -3710,7 +3715,7 @@ mod tests {
         wiz.name = "office".into();
         wiz.step = Step::Params;
         let tested = match press(&mut wiz, KeyCode::F(4)) {
-            Action::TestAggregator { account } => *account,
+            Action::TestAggregator { account, .. } => *account,
             _ => panic!("F4 tests the connection"),
         };
         assert!(wiz.aggregator_tested(&tested, &connected).is_none());
@@ -3755,7 +3760,7 @@ mod tests {
             "{shown}"
         );
         let tested = match press(&mut wiz, KeyCode::F(6)) {
-            Action::TestAggregator { account } => *account,
+            Action::TestAggregator { account, .. } => *account,
             _ => panic!("F6 pins and tests"),
         };
         assert_eq!(

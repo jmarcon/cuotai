@@ -60,7 +60,21 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum Delivery {
     /// As the request's `Cookie` header (`name=value; name=value`).
     CookieHeader,
+    /// PRD 0036 RF2.1/RF10.1: a password or API key the adapter sends its
+    /// own way (a login body, a bearer header); the paste is the value
+    /// itself, not a cookie list.
+    Secret,
 }
+
+/// PRD 0036 RF2.1: the slot of a vault-stored password or key. It
+/// supersedes the account's `credential_env` (not a `params` entry).
+pub const CREDENTIAL_SLOT: &str = "credential_env";
+
+/// PRD 0036 RF2.6: the slot of a pasted 9router SSO `auth_token` session.
+pub const NINE_ROUTER_SSO_SLOT: &str = "auth_session_env";
+
+/// Longest secret value accepted from a paste.
+const MAX_SECRET_LEN: usize = 4096;
 
 /// One session a provider accepts, declared by the core.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -75,7 +89,17 @@ pub struct SessionDescriptor {
     pub optional: &'static [&'static str],
     /// The only hosts that may receive the session, all over HTTPS.
     pub hosts: &'static [&'static str],
+    /// PRD 0036 RF2.6: `hosts` is empty and the value travels only to the
+    /// account's own validated `base_url` origin (a user-defined host; HTTP
+    /// only where the base URL rules allow it: loopback, or the explicit
+    /// private-network opt-in). The adapter builds every request from that
+    /// origin, so no other host can receive it.
+    pub account_host: bool,
     pub delivery: Delivery,
+    /// The expiry is read from the JWT `exp` of the required cookie, not
+    /// verified (PRD 0036 RF2.6).
+    #[serde(skip)]
+    jwt_expiry: bool,
     /// Where the user signs in to copy the session, for [`Self::instructions`].
     pub site: &'static str,
     /// `user_session.slot.*` id and Portuguese fallback of [`Self::label`].
@@ -93,6 +117,14 @@ impl SessionDescriptor {
     /// (no capture of a real one).
     pub fn instructions(&self) -> Localized {
         let site = self.site;
+        if self.delivery == Delivery::Secret {
+            return Localized::with_param(
+                "user_session.instructions.secret",
+                "site",
+                site,
+                format!("Cole o valor de {site}. Ele fica só no cofre do sistema e só é enviado ao endereço desta conta; o TOML guarda apenas a referência."),
+            );
+        }
         Localized::with_param(
             "user_session.instructions",
             "site",
@@ -148,7 +180,9 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
         "mimo-server-ru.xiaomimimo.com",
         "mimo-server-in.xiaomimimo.com",
     ],
+    account_host: false,
     delivery: Delivery::CookieHeader,
+    jwt_expiry: false,
     site: "xiaomimimo.com",
     label: (
         "user_session.slot.xiaomi_mimo.session_env",
@@ -161,7 +195,9 @@ const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
     required: &["api-platform_serviceToken", "userId"],
     optional: &[],
     hosts: &["platform.xiaomimimo.com"],
+    account_host: false,
     delivery: Delivery::CookieHeader,
+    jwt_expiry: false,
     site: "platform.xiaomimimo.com",
     label: (
         "user_session.slot.xiaomi_mimo.platform_session_env",
@@ -179,7 +215,9 @@ const ALIBABA_CODING_PLAN: SessionDescriptor = SessionDescriptor {
         "modelstudio.console.alibabacloud.com",
         "bailian-singapore-cs.alibabacloud.com",
     ],
+    account_host: false,
     delivery: Delivery::CookieHeader,
+    jwt_expiry: false,
     site: "bailian.console.aliyun.com / modelstudio.console.alibabacloud.com",
     label: (
         "user_session.slot.alibaba_coding_plan.session_env",
@@ -192,7 +230,9 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     required: &[],
     optional: ALIBABA_COOKIES,
     hosts: &["home.qwencloud.com", "cs-data.qwencloud.com"],
+    account_host: false,
     delivery: Delivery::CookieHeader,
+    jwt_expiry: false,
     site: "home.qwencloud.com",
     label: (
         "user_session.slot.alibaba_token_plan.session_env",
@@ -200,9 +240,57 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     ),
 };
 
+const NINE_ROUTER_PASSWORD: SessionDescriptor = SessionDescriptor {
+    slot: CREDENTIAL_SLOT,
+    required: &[],
+    optional: &[],
+    hosts: &[],
+    account_host: true,
+    delivery: Delivery::Secret,
+    jwt_expiry: false,
+    site: "9router",
+    label: (
+        "user_session.slot.nine_router.credential_env",
+        "Senha do painel do 9router (guardada no cofre do sistema)",
+    ),
+};
+
+const NINE_ROUTER_SSO: SessionDescriptor = SessionDescriptor {
+    slot: NINE_ROUTER_SSO_SLOT,
+    // 9router's dashboard keeps its login in this one cookie.
+    required: &["auth_token"],
+    optional: &[],
+    hosts: &[],
+    account_host: true,
+    delivery: Delivery::CookieHeader,
+    jwt_expiry: true,
+    site: "9router",
+    label: (
+        "user_session.slot.nine_router.auth_session_env",
+        "Sessão do painel do 9router (cookie auth_token, para instâncias só com SSO)",
+    ),
+};
+
+const LITELLM_KEY: SessionDescriptor = SessionDescriptor {
+    slot: CREDENTIAL_SLOT,
+    required: &[],
+    optional: &[],
+    hosts: &[],
+    account_host: true,
+    delivery: Delivery::Secret,
+    jwt_expiry: false,
+    site: "LiteLLM",
+    label: (
+        "user_session.slot.litellm.credential_env",
+        "Chave mestra ou virtual do LiteLLM (guardada no cofre do sistema)",
+    ),
+};
+
 /// The sessions `provider` accepts; empty when it has none.
 pub fn descriptors(provider: Provider) -> &'static [SessionDescriptor] {
     match provider {
+        Provider::NineRouter => &[NINE_ROUTER_PASSWORD, NINE_ROUTER_SSO],
+        Provider::LiteLlm => &[LITELLM_KEY],
         Provider::XiaomiMimo => &[XIAOMI_ACCOUNT, XIAOMI_PLATFORM],
         Provider::AlibabaCodingPlan => &[ALIBABA_CODING_PLAN],
         Provider::AlibabaTokenPlan => &[ALIBABA_TOKEN_PLAN],
@@ -245,7 +333,8 @@ pub(crate) fn missing_required(provider: Provider, slot: &str, cookie: &str) -> 
 /// servers, which stand in for the declared hosts.
 pub(crate) fn may_receive(provider: Provider, slot: &str, url: &url::Url) -> bool {
     let declared = descriptor(provider, slot).is_some_and(|descriptor| {
-        url.scheme() == "https"
+        !descriptor.account_host
+            && url.scheme() == "https"
             && url.host_str().is_some_and(|host| {
                 descriptor
                     .hosts
@@ -255,7 +344,7 @@ pub(crate) fn may_receive(provider: Provider, slot: &str, url: &url::Url) -> boo
     });
     declared
         || (cfg!(test)
-            && descriptor(provider, slot).is_some()
+            && descriptor(provider, slot).is_some_and(|d| !d.account_host)
             && url.scheme() == "http"
             && crate::transport::is_secure(url))
 }
@@ -427,18 +516,42 @@ pub fn migrated_notice() -> Localized {
     )
 }
 
+/// The variable name `slot` of `account` reads today: `credential_env` for
+/// [`CREDENTIAL_SLOT`], `params.<slot>` otherwise.
+fn slot_env<'a>(account: &'a Account, slot: &str) -> Option<&'a str> {
+    if slot == CREDENTIAL_SLOT {
+        account.credential_env.as_deref()
+    } else {
+        account.params.get(slot).map(String::as_str)
+    }
+}
+
+/// The hosts `descriptor` may send to, for consent texts: the declared
+/// ones, or the host of the account's own base URL.
+fn hosts_text(account: &Account, descriptor: &SessionDescriptor) -> String {
+    if !descriptor.account_host {
+        return descriptor.hosts.join(", ");
+    }
+    let base = match account.provider {
+        Provider::LiteLlm => crate::providers::litellm::account_base(account).ok(),
+        _ => crate::providers::nine_router::account_base(account).ok(),
+    };
+    base.and_then(|url| url.host_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
 /// The sessions of `account` still read from an environment variable that
 /// [`stage_migration`] would move to the vault.
 pub fn migration_candidates(account: &Account) -> Vec<MigrationCandidate> {
     descriptors(account.provider)
         .iter()
         .filter_map(|descriptor| {
-            let env = account.params.get(descriptor.slot)?.trim();
+            let env = slot_env(account, descriptor.slot)?.trim();
             if env.is_empty() {
                 return None;
             }
             let label = descriptor.label();
-            let hosts = descriptor.hosts.join(", ");
+            let hosts = hosts_text(account, descriptor);
             let consent = Localized::with_params(
                 "user_session.migrate.consent",
                 params([
@@ -580,7 +693,11 @@ async fn write_sessions(
     let mut stored = account.clone();
     let mut session = stored.session.take().unwrap_or_else(SessionConfig::fresh);
     for (slot, _, _) in &values {
-        stored.params.remove(*slot);
+        if *slot == CREDENTIAL_SLOT {
+            stored.credential_env = None;
+        } else {
+            stored.params.remove(*slot);
+        }
         session.slots.insert(slot.to_string());
     }
     stored.session = Some(session);
@@ -1244,6 +1361,9 @@ pub fn reduce(
     now: DateTime<Utc>,
 ) -> Result<ReducedSession, Localized> {
     let descriptor = descriptor(provider, slot).ok_or_else(invalid_reference)?;
+    if descriptor.delivery == Delivery::Secret {
+        return reduce_secret(descriptor, paste);
+    }
     let pairs = paste_pairs(paste);
     if pairs.is_empty() {
         return Err(Localized::fixed(
@@ -1367,6 +1487,16 @@ pub fn reduce(
             format!("Nenhum cookie desta sessão no texto colado; ela usa: {names}."),
         ));
     }
+    if descriptor.jwt_expiry && reduced.expires_at.is_none() {
+        reduced.expires_at = descriptor.required.first().and_then(|name| {
+            let prefix = format!("{name}=");
+            reduced
+                .cookie
+                .split("; ")
+                .find_map(|item| item.strip_prefix(prefix.as_str()))
+                .and_then(jwt_expiry)
+        });
+    }
     if let Some(at) = reduced.expires_at.filter(|at| *at <= now) {
         let date = at.format("%Y-%m-%d").to_string();
         return Err(Localized::with_param(
@@ -1377,6 +1507,51 @@ pub fn reduce(
         ));
     }
     Ok(reduced)
+}
+
+/// The `exp` of a JWT, read without verifying the signature (it only
+/// dates the session for the expiry chip).
+pub(crate) fn jwt_expiry(token: &str) -> Option<DateTime<Utc>> {
+    use base64::Engine as _;
+    let payload = token.split('.').nth(1)?;
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload.trim_end_matches('='))
+        .ok()?;
+    let exp = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()?
+        .get("exp")?
+        .as_i64()?;
+    DateTime::from_timestamp(exp, 0)
+}
+
+/// PRD 0036 RF2.1: a pasted password or key is kept whole (trimmed); it
+/// must be non-empty, bounded and free of control characters. Errors never
+/// echo the value.
+fn reduce_secret(
+    descriptor: &'static SessionDescriptor,
+    paste: &str,
+) -> Result<ReducedSession, Localized> {
+    let mut value = paste.trim().to_string();
+    if value.is_empty() || value.len() > MAX_SECRET_LEN || value.chars().any(char::is_control) {
+        wipe(&mut value);
+        return Err(Localized::fixed(
+            "user_session.paste.secret_invalid",
+            "O valor colado está vazio, longo demais ou tem caracteres inválidos; copie-o novamente.",
+        ));
+    }
+    Ok(ReducedSession {
+        slot: descriptor.slot,
+        cookie: value,
+        kept: Vec::new(),
+        discarded: 0,
+        expires_at: None,
+    })
+}
+
+/// Whether `slot` of `provider` holds a web session (cookies), as opposed
+/// to a password or key: only a rejected session reads "session expired".
+pub(crate) fn is_cookie_slot(provider: Provider, slot: &str) -> bool {
+    descriptor(provider, slot).is_some_and(|d| d.delivery == Delivery::CookieHeader)
 }
 
 // ------------------------------------------------------------------- RF3.2

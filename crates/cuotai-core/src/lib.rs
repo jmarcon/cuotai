@@ -254,7 +254,12 @@ impl Config {
                 }
             }
             if let Some(session) = &account.session {
-                if !session.is_valid(account.provider) {
+                // A vault password or key replaces `credential_env`; both
+                // at once would be ambiguous.
+                if !session.is_valid(account.provider)
+                    || (session.slots.contains(user_session::CREDENTIAL_SLOT)
+                        && account.credential_env.is_some())
+                {
                     return Err(ConfigError::Session);
                 }
             }
@@ -927,9 +932,21 @@ impl Monitor {
     /// list. Read-only; nothing is stored. The outcome carries one sentence
     /// and never a body, URL or token.
     pub async fn test_nine_router(&self, account: &Account) -> aggregators::AggregatorTest {
+        self.test_nine_router_with(account, &[]).await
+    }
+
+    /// [`Monitor::test_nine_router`] with `pasted` values (a password, a
+    /// key or an SSO session not saved yet) in place of the vault ones of
+    /// their slots (PRD 0036 RF2.1/RF2.6). Nothing is stored.
+    pub async fn test_nine_router_with(
+        &self,
+        account: &Account,
+        pasted: &[user_session::ReducedSession],
+    ) -> aggregators::AggregatorTest {
         let outcome = self
-            .with_access(
+            .with_sessions(
                 account,
+                pasted,
                 async |account: &Account, ctx: &providers::Context<'_>| {
                     Ok(match account.provider {
                         Provider::LiteLlm => {
@@ -940,6 +957,7 @@ impl Monitor {
                 },
             )
             .await
+            .0
             .unwrap_or(aggregators::TestOutcome::Unreachable);
         aggregators::AggregatorTest::for_provider(account.provider, outcome)
     }
@@ -1207,10 +1225,17 @@ impl Monitor {
             }
             let mut effective = Cow::Borrowed(account);
             for session in &sessions {
-                effective.to_mut().params.insert(
-                    session.slot.to_string(),
-                    format!("{}{}", user_session::VAULT_NAME, session.slot),
-                );
+                let name = format!("{}{}", user_session::VAULT_NAME, session.slot);
+                // PRD 0036 RF2.1: a vault password or key stands in for the
+                // variable `credential_env` names.
+                if session.slot == user_session::CREDENTIAL_SLOT {
+                    effective.to_mut().credential_env = Some(name);
+                } else {
+                    effective
+                        .to_mut()
+                        .params
+                        .insert(session.slot.to_string(), name);
+                }
             }
             if let (Some(config), Some(token)) = (&account.oauth, &access) {
                 let effective = effective.to_mut();
@@ -1258,8 +1283,11 @@ impl Monitor {
                 .filter(|session| read.contains(session.slot))
                 .filter_map(|session| session.expires_at)
                 .min();
+            let read_cookie = read
+                .iter()
+                .any(|slot| user_session::is_cookie_slot(account.provider, slot));
             let result = match result {
-                Err(error) if error.status == Status::AuthenticationError && !read.is_empty() => {
+                Err(error) if error.status == Status::AuthenticationError && read_cookie => {
                     Err(providers::QueryError {
                         diagnostic: None,
                         status: Status::AuthenticationError,

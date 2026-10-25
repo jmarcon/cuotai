@@ -1579,6 +1579,16 @@ mod tests {
     #[test]
     fn session_providers_go_through_the_access_descriptor() {
         for provider in Provider::ALL {
+            // PRD 0036 RF2.1/RF2.6: an aggregator's vault password, key or
+            // SSO session goes only to the account's own instance
+            // (`account_host`) and keeps the aggregator's access arm.
+            if crate::user_session::descriptors(provider)
+                .iter()
+                .all(|descriptor| descriptor.account_host)
+                && provider.is_aggregator()
+            {
+                continue;
+            }
             let descriptors = crate::user_session::descriptors(provider);
             let session_modes = MODES
                 .iter()

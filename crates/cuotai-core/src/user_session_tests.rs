@@ -1624,3 +1624,236 @@ async fn the_pasted_test_reports_the_worst_slot() {
     assert_eq!(SessionCheck::of(&report), SessionCheck::Rejected);
     assert!(store.values().is_empty());
 }
+
+// ------------------------------------------- PRD 0036 RF2.1 / RF2.6 (aggregators)
+
+fn nine_router(base: &str) -> Account {
+    Account {
+        id: None,
+        name: "9router".into(),
+        provider: Provider::NineRouter,
+        params: [("base_url".to_string(), base.to_string())].into(),
+        ..Default::default()
+    }
+}
+
+fn jwt(exp: i64) -> String {
+    use base64::Engine as _;
+    let encode = |value: serde_json::Value| {
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(value.to_string())
+    };
+    format!(
+        "{}.{}.sig",
+        encode(serde_json::json!({"alg": "HS256"})),
+        encode(serde_json::json!({"exp": exp, "sub": "SECRET-SUBJECT"}))
+    )
+}
+
+fn empty_page() -> serde_json::Value {
+    serde_json::json!({
+        "connections": [], "providerOptions": [],
+        "pagination": {"page": 1, "pageSize": 100, "totalPages": 1}, "totals": {}
+    })
+}
+
+#[test]
+fn a_pasted_secret_is_kept_whole_and_a_bad_one_is_never_echoed() {
+    let kept = reduce(
+        Provider::NineRouter,
+        CREDENTIAL_SLOT,
+        "  pw-SECRET-1 \n",
+        now(),
+    )
+    .unwrap();
+    assert_eq!(kept.cookie(), "pw-SECRET-1");
+    assert_eq!(kept.expires_at(), None);
+    assert!(!format!("{kept:?}").contains("SECRET"));
+    for bad in ["", "   ", "pw\u{7}SECRET"] {
+        let error = reduce(Provider::LiteLlm, CREDENTIAL_SLOT, bad, now()).unwrap_err();
+        assert_eq!(error.id, "user_session.paste.secret_invalid");
+        assert!(!error.fallback.contains("SECRET"));
+    }
+}
+
+#[test]
+fn the_sso_session_keeps_only_auth_token_and_dates_it_from_the_jwt() {
+    let exp = now().timestamp() + 7_200;
+    let token = jwt(exp);
+    let paste = format!("Cookie: theme=dark; auth_token={token}; other=1");
+    let reduced = reduce(Provider::NineRouter, NINE_ROUTER_SSO_SLOT, &paste, now()).unwrap();
+    assert_eq!(reduced.cookie(), format!("auth_token={token}"));
+    assert_eq!(reduced.expires_at().map(|at| at.timestamp()), Some(exp));
+    let expired = format!("auth_token={}", jwt(now().timestamp() - 60));
+    assert_eq!(
+        reduce(Provider::NineRouter, NINE_ROUTER_SSO_SLOT, &expired, now())
+            .unwrap_err()
+            .id,
+        "user_session.paste.expired"
+    );
+}
+
+#[test]
+fn account_host_sessions_never_go_through_the_declared_host_check() {
+    for slot in [CREDENTIAL_SLOT, NINE_ROUTER_SSO_SLOT] {
+        let descriptor = descriptor(Provider::NineRouter, slot).unwrap();
+        assert!(descriptor.account_host && descriptor.hosts.is_empty());
+        let url = url::Url::parse("https://example.com/api").unwrap();
+        assert!(!may_receive(Provider::NineRouter, slot, &url));
+    }
+}
+
+#[test]
+fn a_password_variable_can_move_to_the_vault_and_names_the_base_host() {
+    let mut account = nine_router("http://127.0.0.1:20128");
+    account.credential_env = Some("NR_PASSWORD".into());
+    let candidates = migration_candidates(&account);
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].slot, CREDENTIAL_SLOT);
+    assert_eq!(candidates[0].env, "NR_PASSWORD");
+    assert!(candidates[0].consent.fallback.contains("127.0.0.1"));
+}
+
+#[test]
+fn config_refuses_a_vault_password_next_to_a_password_variable() {
+    let mut account = nine_router("http://127.0.0.1:20128");
+    account.session = Some(SessionConfig {
+        credential_ref: uuid::Uuid::new_v4().to_string(),
+        slots: [CREDENTIAL_SLOT.to_string()].into(),
+    });
+    assert!(config(vec![account.clone()]).validate().is_ok());
+    account.credential_env = Some("NR_PASSWORD".into());
+    assert!(matches!(
+        config(vec![account]).validate(),
+        Err(crate::ConfigError::Session)
+    ));
+}
+
+#[tokio::test]
+async fn a_vault_password_logs_in_and_never_reaches_the_toml_or_the_report() {
+    use wiremock::matchers::{body_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    let server = MockServer::start().await;
+    crate::providers::nine_router::forget_login(&format!("{}/", server.uri())).await;
+    let token = jwt(Utc::now().timestamp() + 86_400);
+    Mock::given(method("POST"))
+        .and(path("/api/auth/login"))
+        .and(body_json(
+            serde_json::json!({"password": "pw-SECRET-VAULT"}),
+        ))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("set-cookie", format!("auth_token={token}; Path=/"))
+                .set_body_json(serde_json::json!({"success": true})),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/providers/client"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(empty_page()))
+        .mount(&server)
+        .await;
+    let mut legacy = nine_router(&server.uri());
+    legacy.credential_env = Some("NR_PASSWORD".into());
+    let store = Arc::new(MemoryStore::default());
+    let oauth = Arc::new(session(&store));
+    let staged = stage_migration(
+        &oauth,
+        &Env(vec![("NR_PASSWORD", "pw-SECRET-VAULT")]),
+        &config(vec![legacy]),
+        0,
+    )
+    .await
+    .unwrap();
+    let saved = staged.config().clone();
+    assert_eq!(saved.accounts[0].credential_env, None);
+    assert_eq!(store.values(), ["pw-SECRET-VAULT"]);
+    let toml = toml::to_string(&saved).unwrap();
+    assert!(
+        !toml.contains("SECRET") && !toml.contains("NR_PASSWORD"),
+        "{toml}"
+    );
+
+    let monitor = Monitor::with_oauth(saved, Arc::new(Env(Vec::new())), oauth).unwrap();
+    let snapshot = monitor.refresh().await;
+    let report = &snapshot.reports[0];
+    assert_eq!(report.status, Status::Ready, "{:?}", report.notes);
+    let text = serde_json::to_string(report).unwrap();
+    assert!(!text.contains("SECRET"), "{text}");
+}
+
+#[tokio::test]
+async fn a_pasted_sso_session_replaces_the_login_and_a_rejected_one_says_so() {
+    use crate::aggregators::TestOutcome;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    let token = jwt(Utc::now().timestamp() + 3_600);
+    let paste = format!("auth_token={token}");
+    let reduced = || {
+        reduce(
+            Provider::NineRouter,
+            NINE_ROUTER_SSO_SLOT,
+            &paste,
+            Utc::now(),
+        )
+        .unwrap()
+    };
+    let monitor_for = |account: &Account| {
+        let store = Arc::new(MemoryStore::default());
+        Monitor::with_oauth(
+            config(vec![account.clone()]),
+            Arc::new(Env(Vec::new())),
+            Arc::new(session(&store)),
+        )
+        .unwrap()
+    };
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/health"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/auth/login"))
+        .respond_with(ResponseTemplate::new(403))
+        .expect(0)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/providers/client"))
+        .and(header("cookie", paste.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(empty_page()))
+        .mount(&server)
+        .await;
+    let account = nine_router(&server.uri());
+    let monitor = monitor_for(&account);
+    let test = monitor.test_nine_router_with(&account, &[reduced()]).await;
+    assert!(test.is_ok(), "{:?}", test.outcome);
+    let report = monitor.test_session(&account, &[reduced()]).await;
+    assert_eq!(report.status, Status::Ready, "{:?}", report.notes);
+    assert!(report.session_expires_at.is_some());
+    assert!(!serde_json::to_string(&report).unwrap().contains(&token));
+
+    let revoked = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/health"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+        .mount(&revoked)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/providers/client"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&revoked)
+        .await;
+    let account = nine_router(&revoked.uri());
+    let monitor = monitor_for(&account);
+    let test = monitor.test_nine_router_with(&account, &[reduced()]).await;
+    assert_eq!(test.outcome, TestOutcome::SessionRejected);
+    let report = monitor.test_session(&account, &[reduced()]).await;
+    assert_eq!(report.status, Status::AuthenticationError);
+    assert!(report
+        .notes_l10n
+        .iter()
+        .any(|note| note.id == "user_session.rejected"));
+}

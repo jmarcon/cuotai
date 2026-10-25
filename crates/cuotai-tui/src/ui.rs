@@ -674,13 +674,15 @@ pub async fn run(
                         }
                     }
                 }
-                Action::TestAggregator { account } => {
+                Action::TestAggregator { account, sessions } => {
                     // RF2.2: read-only (health, version, login, list).
                     let monitor = Arc::clone(&monitor);
                     let tested = (*account).clone();
                     aggregator_test = Some((
                         tested,
-                        tokio::spawn(async move { monitor.test_nine_router(&account).await }),
+                        tokio::spawn(async move {
+                            monitor.test_nine_router_with(&account, &sessions).await
+                        }),
                     ));
                 }
                 Action::TestSession { account, sessions } => {
