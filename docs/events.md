@@ -16,7 +16,7 @@ cuotai --watch --jsonl --serve                   # the local server on the same 
 - **`--events list`** keeps only the named events (comma-separated payload names; all of them by default). An unknown name is rejected with exit code `1` and the list of valid ones. Events left out still advance the engine, so selecting never changes which transitions are real.
 - **`--jsonl`** writes one payload (below) per line to stdout (NDJSON), flushed after each line; every human message and diagnostic goes to stderr, and with `--serve` the server's address goes to stderr too. Without `--jsonl` (and without `--hooks`, which leaves stdout empty unless `--jsonl` is given) each transition is one readable line in local time and the `CUOTAI_LANG` language (the metric label is the provider's, as on the cards), such as `2026-10-20 14:02:11  Work (Claude): Sessão (5h): 90% used`.
 - **Baselines.** The first reading of each account is only its baseline: a run prints nothing until something changes. `provider_incident` needs `--status`.
-- **Shutdown and exit codes.** `SIGINT`, `SIGTERM` and `SIGHUP` (Ctrl+C and Ctrl+Break on Windows) stop it cleanly, and so does a closed stdout when the next event is written (the consumer of the stream went away). `0`: normal shutdown; `2`: some account's latest reading had failed at shutdown (or, with `--serve`, no account was ever healthy); `1`: local error (invalid arguments, interval, events or configuration).
+- **Shutdown and exit codes.** `SIGINT`, `SIGTERM` and `SIGHUP` (Ctrl+C and Ctrl+Break on Windows) stop it cleanly, and so does a closed stdout when the next event is written (the consumer of the stream went away). `0`: stopped by a signal, whatever the accounts' state (PRD 0031 RF10; earlier releases exited `2` for a failing account); with **`--strict-exit`**, `2` when some account's latest reading had failed at shutdown (or, with `--serve`, no account was ever healthy), for supervisors that want that; `1`: local error (invalid arguments, interval, events or configuration).
 
 ## Hooks (`cuotai --watch --hooks`)
 
@@ -95,7 +95,7 @@ for (prev, next) in previous.accounts.iter().zip(&current.accounts) {
 
 ## Edge rules
 
-- **Baseline.** The first reading of an account in an `EventState` only records the baseline and emits nothing. The same goes for the first `Ready` reading of an account whose readings had only failed (quota events start from it) and for the first known provider status.
+- **Baseline.** The first reading of an account in an `EventState` only records the baseline and emits nothing. The same goes for the first `Ready` reading of an account whose readings had only failed (quota events start from it) and for the first status read of a provider.
 - **No repetition.** A condition that persists does not repeat its event: a failure that goes on (even if its category changes), a quota that stays exhausted, a usage level that stays above a threshold. An export whose `report` is the one already judged (same `checked_at`) yields no reading events.
 - **Thresholds** follow the usage alert rules (PRD 0008): each threshold fires once per window instance, a reading that crosses several fires only the highest, oscillating around a threshold stays silent and a threshold re-arms after consumption falls 5 points below it or in a new window instance. Only a `quota` metric with a positive cap counts.
 - **`usage_updated`** fires when the usage values (`used`, `limit`, `remaining`) changed since the last `usage_updated` (or the baseline), at most once per 600 s per account; a drifting `resets_at` alone is no change.
@@ -114,10 +114,19 @@ for (prev, next) in previous.accounts.iter().zip(&current.accounts) {
 | `refresh_failed` | A reading failed after a successful one. | `null` | `status` and `category`; `previous.status` |
 | `refresh_recovered` | A reading succeeded after a failed one. | `null` | `status`; `previous.status` and `previous.category` |
 | `auth_required` | The failure category became `auth_required` (also after another kind of failure). | `null` | `status` and `category` |
-| `provider_incident` | The provider's public status (PRD 0011, only while status queries are on) changed. An unreadable or stale status is no change. | `null` | `incident` (`operational`, `degraded`, `partial_outage`, `major_outage`, `maintenance`) |
+| `provider_incident` | The provider's public status (PRD 0011, only while status queries are on) changed. **One event per provider and status source**, not per account (PRD 0031 RF8): it names the first affected account in configuration order and lists all of them in `accounts`. A stale status is no change, and neither is a provider without a status source. A status read as `unknown` after a quiet state (and back) is silent; after an incident it is the resolution, reported once with `current.incident = unknown`. | `null` | `incident` (`operational`, `degraded`, `partial_outage`, `major_outage`, `maintenance`, `unknown`) |
 | `usage_updated` | See the edge rules. | `null` | `metrics`: every metric of the reading |
 
 One reading can fire several events; they come in this order: refresh events, `quota_reset`, threshold/exhaustion/recovery events, blocking events, `usage_updated`, `provider_incident`. A reset after an exhaustion, for example, fires `quota_reset`, `quota_recovered` and `account_unblocked` together.
+
+## Contract policy
+
+The event payload follows the same policy as [`export::v1`](export-v1.md#stability-and-deprecation-policy) (PRD 0031 RF5):
+
+- `schema` is `1`. Within a schema number the payload is **additive**: new events, new fields and new values of a known field (a `category`, an `incident` state, a `window`) may appear. A removed or redefined field, or a changed meaning, needs `schema: 2`.
+- Treat every value you do not know as "other": ignore an event name you do not handle and render an unknown `category` or state generically. Listed names and values are the known ones, not a closed set.
+- When schema 2 ships, schema 1 is still produced for **at least 90 days**; the changelog announces both dates.
+- Every event carries `schema`, so the first line of `--jsonl` needs no header.
 
 ## Payload
 
@@ -130,6 +139,7 @@ One reading can fire several events; they come in this order: refresh events, `q
 | `account_id` | string | The account's stable id (`id` in `export::v1`, PRD 0029): it survives renames, reordering and parameter edits. |
 | `account_name` | string | The account name in the configuration. |
 | `provider` | string | Provider slug. |
+| `accounts` | array of strings, or absent | `provider_incident` only: the `account_key` of every account that reads the same provider status, in configuration order, the first being `account_key` (additive; PRD 0029 will add account ids beside the keys). |
 | `metric` | object or `null` | `label` and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`). |
 | `current` | object | The values after the transition. |
 | `previous` | object or `null` | The same values before it; `null` when nothing earlier is known. |

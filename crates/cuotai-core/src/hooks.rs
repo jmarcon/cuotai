@@ -223,6 +223,7 @@ impl Rule {
             account_id: "acc_sample000000".into(),
             account_name,
             provider,
+            accounts: Vec::new(),
             metric: about_metric.then(|| MetricRef {
                 label: SAMPLE_METRIC.into(),
                 window: Some(MetricWindow::Window5h),

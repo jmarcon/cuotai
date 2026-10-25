@@ -162,7 +162,7 @@ async fn routes_serve_the_export_as_json_without_caching() {
     assert_json_no_store(&health);
     assert_eq!(
         json(health).await,
-        serde_json::json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION"), "schema": 1 })
+        serde_json::json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION"), "schema": 1, "schemas": [1] })
     );
 
     let snapshot = get(&server, "/v1/snapshot").await;
@@ -226,7 +226,6 @@ async fn only_get_is_allowed() {
         Method::PUT,
         Method::DELETE,
         Method::PATCH,
-        Method::HEAD,
         Method::OPTIONS,
     ] {
         for path in ["/health", "/v1/snapshot", "/v1/limits", "/nope"] {
@@ -241,13 +240,48 @@ async fn only_get_is_allowed() {
                 "{method} {path}"
             );
             assert_json_no_store(&response);
-            assert_eq!(response.headers()[header::ALLOW], "GET");
+            assert_eq!(response.headers()[header::ALLOW], "GET, HEAD");
             let body = response.text().await.unwrap();
-            if method == Method::HEAD {
-                assert!(body.is_empty(), "HEAD gets headers only");
-            } else {
-                assert_eq!(body, r#"{"error":"method_not_allowed"}"#);
+            assert_eq!(body, r#"{"error":"method_not_allowed"}"#);
+        }
+    }
+}
+
+/// PRD 0031 RF9.2: `HEAD` has the status and headers of `GET` on every
+/// route (data, `404`, `401`) and never a body.
+#[tokio::test]
+async fn head_answers_like_get_without_a_body() {
+    let (config, _) = fixture();
+    let paths = [
+        "/health".to_string(),
+        "/v1/snapshot".into(),
+        "/v1/limits".into(),
+        format!("/v1/accounts/{}", encoded_key(&config.accounts[0])),
+        "/nope".into(),
+    ];
+    let guarded = ServeConfig {
+        token: Some(Token::generate().unwrap()),
+        ..ServeConfig::default()
+    };
+    for (config, expect_401) in [(ServeConfig::default(), false), (guarded, true)] {
+        let server = start(config, fixture_source()).await;
+        for path in &paths {
+            let got = request(&server, Method::GET, path).send().await.unwrap();
+            let head = request(&server, Method::HEAD, path).send().await.unwrap();
+            assert_eq!(head.status(), got.status(), "{path}");
+            assert_eq!(head.status() == StatusCode::UNAUTHORIZED, expect_401);
+            for name in [
+                header::CONTENT_TYPE,
+                header::CACHE_CONTROL,
+                header::WWW_AUTHENTICATE,
+            ] {
+                assert_eq!(
+                    head.headers().get(&name),
+                    got.headers().get(&name),
+                    "{path}"
+                );
             }
+            assert!(head.text().await.unwrap().is_empty(), "{path}");
         }
     }
 }
@@ -570,7 +604,7 @@ async fn browser_requests_are_refused_unless_allowed() {
     );
     assert_eq!(
         preflight.headers()[header::ACCESS_CONTROL_ALLOW_METHODS],
-        "GET"
+        "GET, HEAD"
     );
     // Rebinding stays blocked even with browsers allowed.
     let rebound = request(&open, Method::GET, "/v1/snapshot")
@@ -713,6 +747,7 @@ async fn a_taken_port_falls_back_to_the_next_one_unless_strict() {
     let server = LocalServer::start(
         ServeConfig {
             port,
+            port_fallback: true,
             ..ServeConfig::default()
         },
         fixture_source(),

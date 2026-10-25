@@ -6,7 +6,8 @@
 //! query.
 //!
 //! SIGINT and SIGTERM (Ctrl+C and Ctrl+Break on Windows) end the process,
-//! and so does SIGHUP while watching. Exit codes: `0` on a normal shutdown;
+//! and so does SIGHUP while watching. Exit codes (PRD 0031 RF10): `0` when
+//! stopped by a signal, whatever the accounts' state; with `--strict-exit`,
 //! `2` when serving and no account was healthy (`ready`) until shutdown, or
 //! when watching and some account's latest reading had failed; local
 //! errors return `Err`, which `main` turns into `1`.
@@ -30,6 +31,7 @@ use crate::{cost::LocalCost, serve::ServeArgs, watch::WatchArgs};
 /// Run until a shutdown signal arrives (or, with `--watch`, until stdout
 /// is closed). `monitor` was built for `config`; with `--serve`, the
 /// server publishes `local_cost` from `local_cost` (PRD 0015 RF4.3).
+/// `strict_exit` keeps the failing-account exit code `2` (PRD 0031 RF10.2).
 pub(crate) async fn run(
     config: Config,
     identity: ConfigIdentity,
@@ -37,6 +39,7 @@ pub(crate) async fn run(
     serve: Option<ServeArgs>,
     watch: Option<WatchArgs>,
     local_cost: Option<LocalCost>,
+    strict_exit: bool,
 ) -> Result<u8, Box<dyn Error>> {
     let token = serve
         .as_ref()
@@ -108,14 +111,16 @@ pub(crate) async fn run(
     let mut code = 0;
     if serve.is_some() {
         eprintln!("cuotai: servidor local encerrado.");
-        if !ready_seen {
+        if strict_exit && !ready_seen {
             code = 2;
         }
     }
     if watch.is_some() {
         if failing {
             eprintln!("cuotai: acompanhamento encerrado com contas em falha.");
-            code = 2;
+            if strict_exit {
+                code = 2;
+            }
         } else {
             eprintln!("cuotai: acompanhamento encerrado.");
         }

@@ -18,6 +18,7 @@ fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
         account_id: "acc_test00000000".into(),
         account_name: account.into(),
         provider: Provider::Claude,
+        accounts: Vec::new(),
         metric: Some(MetricRef {
             label: "Sessão (5h)".into(),
             window: Some(MetricWindow::Window5h),

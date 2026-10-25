@@ -57,6 +57,7 @@
       "freshness": "fresh",
       "clock_adjusted": false,
       "stale": false,
+      "showing_last_good": false,
       "last_good": null,
       "binding": {
         "index": 1,
@@ -168,6 +169,7 @@
       "freshness": "fresh",
       "clock_adjusted": false,
       "stale": true,
+      "showing_last_good": true,
       "last_good": {
         "checked_at": "2026-10-20T11:18:00Z",
         "age_seconds": 2520,
@@ -246,6 +248,7 @@
       "freshness": "fresh",
       "clock_adjusted": false,
       "stale": false,
+      "showing_last_good": false,
       "last_good": null,
       "binding": null,
       "pace": [],
@@ -299,6 +302,7 @@
       "freshness": null,
       "clock_adjusted": false,
       "stale": false,
+      "showing_last_good": false,
       "last_good": null,
       "binding": null,
       "pace": [],

@@ -199,6 +199,11 @@ pub struct Event {
     pub account_id: String,
     pub account_name: String,
     pub provider: Provider,
+    /// `provider_incident` only (PRD 0031 RF8.1): the keys of every
+    /// account that reads the same provider status, in configuration
+    /// order, the first being `account_key`. Absent for other events.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub accounts: Vec<String>,
     /// The metric the event is about; `null` for account-wide events
     /// (refresh, authentication, incident, usage).
     pub metric: Option<MetricRef>,
@@ -409,7 +414,18 @@ pub struct EventState {
     prefs: AlertPrefs,
     alerts: AlertState,
     accounts: BTreeMap<String, Track>,
-    incidents: BTreeMap<String, IncidentState>,
+    /// PRD 0031 RF8.1: per provider status source, not per account.
+    incidents: BTreeMap<String, IncidentTrack>,
+}
+
+/// What `provider_incident` last reported for one provider status source.
+#[derive(Debug, Clone)]
+struct IncidentTrack {
+    /// The state consumers believe: a known one, or `Unknown` only after
+    /// an incident ended with the source lost (RF8.2).
+    reported: IncidentState,
+    /// The accounts that read this source, to forget it with the last one.
+    accounts: BTreeSet<String>,
 }
 
 /// One account's baseline: the last reading's status, the last `Ready`
@@ -462,7 +478,10 @@ impl EventState {
     pub fn retain_accounts<'a>(&mut self, keys: impl IntoIterator<Item = &'a str>) {
         let kept: BTreeSet<&str> = keys.into_iter().collect();
         self.accounts.retain(|key, _| kept.contains(key.as_str()));
-        self.incidents.retain(|key, _| kept.contains(key.as_str()));
+        self.incidents.retain(|_, track| {
+            track.accounts.retain(|key| kept.contains(key.as_str()));
+            !track.accounts.is_empty()
+        });
         self.alerts.retain_accounts(kept);
     }
 }
@@ -486,8 +505,11 @@ impl EventState {
 ///   binding metric becomes or stops being exhausted; `usage_updated` when
 ///   the values changed since the last one, at most once per
 ///   [`USAGE_SPACING`].
-/// - `provider_incident` when the provider's known public status (neither
-///   `unknown` nor stale) changes; the first known status is its baseline.
+/// - `provider_incident` (PRD 0031 RF8) once per change of a provider's
+///   status source, whichever account sees it first (stale readings and
+///   sources never read are ignored; the first status read is the
+///   baseline). `unknown` is tracked: it resolves an incident once and is
+///   silent after a quiet state.
 pub fn diff(
     prev: &AccountExport,
     next: &AccountExport,
@@ -535,6 +557,7 @@ impl Emit<'_> {
             account_id: self.next.id.clone(),
             account_name: self.next.name.clone(),
             provider: self.next.provider,
+            accounts: Vec::new(),
             metric,
             current,
             previous,
@@ -697,29 +720,52 @@ impl EventState {
         track.ready = Some(report.clone());
     }
 
+    /// PRD 0031 RF8: one `provider_incident` per change of a provider's
+    /// status source, whichever account sees it first; `Unknown` is
+    /// tracked so an incident that ends with the source lost still
+    /// resolves, and a stale or never-read status is no observation.
     fn incident(&mut self, out: &mut Emit) {
-        let Some(state) = out
-            .next
-            .incident
-            .as_ref()
-            .filter(|incident| !incident.stale && incident.state != IncidentState::Unknown)
-            .map(|incident| incident.state)
-        else {
+        let Some(incident) = out.next.incident.as_ref().filter(|incident| {
+            !incident.stale
+                && (incident.state != IncidentState::Unknown || incident.read_at.is_some())
+        }) else {
             return;
         };
-        match self.incidents.get_mut(&out.next.id) {
-            Some(before) if *before != state => {
-                let previous = std::mem::replace(before, state);
-                out.push(
-                    EventKind::ProviderIncident,
-                    None,
-                    Values::incident(state),
-                    Some(Values::incident(previous)),
-                );
-            }
-            Some(_) => {}
-            None => {
-                self.incidents.insert(out.next.id.clone(), state);
+        let state = incident.state;
+        let source = format!("{}|{}", out.next.provider.slug(), incident.page_url);
+        let Some(track) = self.incidents.get_mut(&source) else {
+            self.incidents.insert(
+                source,
+                IncidentTrack {
+                    reported: state,
+                    accounts: BTreeSet::from([out.next.key.clone()]),
+                },
+            );
+            return;
+        };
+        track.accounts.insert(out.next.key.clone());
+        let before = track.reported;
+        let unknown = IncidentState::Unknown;
+        // `Unknown` after a quiet state changes nothing (and so the way
+        // back changes nothing either); after an incident it resolves it.
+        let emit = match (before, state) {
+            (before, state) if before == state => false,
+            (before, state) if state == unknown => before.is_incident(),
+            (before, state) if before == unknown => state.is_incident(),
+            _ => true,
+        };
+        if state != unknown || before.is_incident() {
+            track.reported = state;
+        }
+        if emit {
+            out.push(
+                EventKind::ProviderIncident,
+                None,
+                Values::incident(state),
+                Some(Values::incident(before)),
+            );
+            if let Some(event) = out.events.last_mut() {
+                event.accounts = vec![out.next.key.clone()];
             }
         }
     }

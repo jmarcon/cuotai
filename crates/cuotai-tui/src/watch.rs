@@ -222,6 +222,7 @@ mod tests {
             account_key: format!("claude:{name}"),
             account_id: "acc_test00000000".into(),
             account_name: name.into(),
+            accounts: Vec::new(),
             provider: Provider::Claude,
             metric: Some(MetricRef {
                 label: "Semanal".into(),

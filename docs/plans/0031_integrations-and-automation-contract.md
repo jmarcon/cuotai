@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0031 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (`export::v1`, `serve`, `events`, `tray::summary` consumers), TUI/CLI (`--serve`, `--watch`, `--status-line`, `--completions`), desktop (Settings → Integration) |
 | Consumers | status bars and scripts (Waybar, SketchyBar, tmux, i3/sway status), `systemd`/`launchd` units, hook authors, shell users, PRD 0025 (status-line text), PRD 0026 (`/v1/stats`) |
 | Depends on | PRD 0012 (RF1–RF5: `export::v1`, `LocalServer`, security), PRD 0013 (RF1–RF3: events, `--watch`, hooks), PRD 0025 (RF1: `tray::summary`) for RF2, PRD 0026 (RF1: `stats::summarize`) for RF11 |
@@ -21,12 +21,12 @@
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
+| RF5 | vNEXT | Policy in `docs/export-v1.md` and `docs/events.md` (additive within a schema, 90-day window), every schema enum open (`anyOf` known values or string), `/health` `schemas: [1]`, the three "stale" fields in one table and `showing_last_good` alias. |
 | RF6 | — | Proposed. |
 | RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
-| RF10 | — | Proposed. |
+| RF8 | vNEXT | `provider_incident` per provider and status source with `accounts` (keys until PRD 0029 RF4 adds ids); `unknown` tracked. |
+| RF9 | vNEXT | `cuotai --serve` binds exactly the port (naming a Cuotai holder, suggesting `--port`); `port_fallback` defaults to false; `HEAD` on every route with `Allow: GET, HEAD`. |
+| RF10 | vNEXT | `--watch`/`--serve` exit 0 on a signal stop; `--strict-exit` keeps 2. |
 | RF11 | — | Proposed. |
 | RF12 | — | Proposed. |
 | RF13 | — | Proposed. |

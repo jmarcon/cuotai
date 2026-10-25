@@ -627,6 +627,7 @@ fn every_summary_reads_in_each_catalog() {
             account_id: "acc_test00000000".into(),
             account_name: "Work".into(),
             provider: Provider::Claude,
+            accounts: Vec::new(),
             metric: Some(MetricRef {
                 label: LABEL.into(),
                 window: Some(MetricWindow::Window5h),
@@ -658,6 +659,7 @@ fn every_summary_reads_in_each_catalog() {
             account_id: "acc_test00000000".into(),
             account_name: "Work".into(),
             provider: Provider::Claude,
+            accounts: Vec::new(),
             metric: None,
             current: Values {
                 metrics: vec![reading],
@@ -692,4 +694,108 @@ fn every_summary_reads_in_each_catalog() {
 
 fn sk(key: &str) -> String {
     crate::AccountId::derive(key, None).to_string()
+}
+
+/// PRD 0031 RF8.2: `Unknown` is tracked. A quiet state that goes unknown
+/// and back is silent; an incident whose source is lost resolves once with
+/// `unknown`, and the way back is silent again.
+#[test]
+fn an_incident_that_ends_with_the_source_lost_resolves_once() {
+    let mut watch = Watch::new();
+    watch.status(IncidentState::Operational, false);
+    assert!(watch.read(0, ready(10.0)).is_empty(), "baseline");
+    watch.status(IncidentState::Unknown, false);
+    assert!(watch.observe(1).is_empty(), "operational to unknown");
+    watch.status(IncidentState::Operational, false);
+    assert!(watch.observe(2).is_empty(), "and back");
+
+    watch.status(IncidentState::MajorOutage, false);
+    assert_eq!(transitions(&watch.observe(3)), [ProviderIncident]);
+    watch.status(IncidentState::Unknown, false);
+    let resolved = watch.observe(4);
+    assert_eq!(transitions(&resolved), [ProviderIncident]);
+    assert_eq!(resolved[0].current.incident, Some(IncidentState::Unknown));
+    assert_eq!(
+        resolved[0].previous.as_ref().unwrap().incident,
+        Some(IncidentState::MajorOutage)
+    );
+    assert!(watch.observe(5).is_empty(), "persists");
+    watch.status(IncidentState::Operational, false);
+    assert!(watch.observe(6).is_empty(), "already resolved");
+    watch.status(IncidentState::Degraded, false);
+    assert_eq!(transitions(&watch.observe(7)), [ProviderIncident]);
+}
+
+/// PRD 0031 RF8.2: a provider without a status source (an `unknown` that
+/// was never read, as AWS or xAI) emits nothing at all.
+#[test]
+fn a_provider_without_a_status_source_emits_nothing() {
+    let mut watch = Watch::new();
+    watch.status(IncidentState::Unknown, false);
+    watch.statuses[0].read_at = None;
+    assert!(watch.read(0, ready(10.0)).is_empty());
+    for minute in 1..4 {
+        assert!(watch.observe(minute).is_empty());
+    }
+    watch.status(IncidentState::Operational, false);
+    assert!(watch.observe(5).is_empty(), "the first read is a baseline");
+}
+
+/// PRD 0031 RF8.1: two accounts of one provider share one incident, so one
+/// event names the first and lists both; a second provider is separate.
+#[test]
+fn accounts_of_one_provider_share_one_incident_event() {
+    let account = |name: &str, provider| Account {
+        name: name.into(),
+        provider,
+        ..Account::default()
+    };
+    let config = Config {
+        accounts: vec![
+            account("Work", Provider::Claude),
+            account("Home", Provider::Claude),
+            account("Other", Provider::Kimi),
+        ],
+        ..Config::default()
+    };
+    let cycle = RefreshCycle::new(&config, Instant::now());
+    let identity = ConfigIdentity::Explicit("events".into());
+    let status = |state: IncidentState| {
+        [Provider::Claude, Provider::Kimi]
+            .into_iter()
+            .map(|provider| ProviderStatus {
+                provider,
+                state: if provider == Provider::Claude {
+                    state
+                } else {
+                    IncidentState::Operational
+                },
+                incident: None,
+                page_url: format!("https://status.example.com/{}", provider.slug()),
+                read_at: Some(t0()),
+                stale: false,
+                expired: false,
+            })
+            .collect::<Vec<_>>()
+    };
+    let observe = |watcher: &mut crate::watch::Watcher, state, minute| {
+        let export = Export::from_cycle(
+            &config,
+            &identity,
+            &cycle,
+            &status(state),
+            at(minute),
+            Options::default(),
+        );
+        watcher.observe(&export, at(minute))
+    };
+    let mut watcher = crate::watch::Watcher::new(EventState::default(), None);
+    assert!(observe(&mut watcher, IncidentState::Operational, 0).is_empty());
+    let events = observe(&mut watcher, IncidentState::MajorOutage, 1);
+    assert_eq!(transitions(&events), [ProviderIncident]);
+    assert_eq!(events[0].account_key, "claude:Work");
+    assert_eq!(events[0].accounts, ["claude:Work", "claude:Home"]);
+    assert!(observe(&mut watcher, IncidentState::MajorOutage, 2).is_empty());
+    let resolved = observe(&mut watcher, IncidentState::Operational, 3);
+    assert_eq!(transitions(&resolved), [ProviderIncident]);
 }
