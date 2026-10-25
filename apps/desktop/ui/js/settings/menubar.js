@@ -3,13 +3,12 @@
 // (DS-CMP-CHK-1, DS-CMP-DRAG, "Not in menu bar" per DS-CMP-LIST-3). Figures, levels, marks and the width budget come
 // from the core through `tray_preview`; this page only lays them out and saves the choice.
 import { t, te, tl } from "../i18n.js";
-import { esc, icon, setTrayPrefs, trayAccounts, trayPreview } from "../lib.js";
+import { esc, getSettings, icon, setTrayPrefs, trayAccounts, trayPreview } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { check, row, rowError, sw, toast } from "./rows.js";
 
 export const STYLES = ["tightest_percent", "logos_percent", "meters", "icon_only"];
 
-const kw = () => `data-keywords="${te("settings.menubar.keywords")}"`;
 
 export function html({ settings: s }) {
   const tray = s.tray ?? {};
@@ -20,12 +19,12 @@ export function html({ settings: s }) {
       <span class="opt-preview" data-tray-preview="${v}" aria-hidden="true"></span><span class="opt-label">${te(`settings.menubar.style.${v}`)}</span></button>`;
   }).join("")}</div>`;
   return group("menubar-style", te("settings.menubar.style"),
-    row({ key: "tray-style", label: te("settings.menubar.style"), info: te("settings.menubar.style.help"), attrs: kw(), body: cards })
+    row({ key: "tray-style", label: te("settings.menubar.style"), info: te("settings.menubar.style.help"), body: cards })
     + `<div class="prev-card" data-tray-live role="img" aria-label=""><span class="prev-label">${te("settings.menubar.preview")}</span><span class="prev-out" data-tray-live-out></span></div>`
-    + row({ key: "tray-colored", label: te("settings.menubar.colored"), info: te("settings.menubar.colored.help"), attrs: kw(),
+    + row({ key: "tray-colored", label: te("settings.menubar.colored"), info: te("settings.menubar.colored.help"),
       control: (a) => sw("tray-colored", !!tray.colored, a) }))
     + group("menubar-accounts", te("settings.menubar.accounts"),
-      row({ key: "tray-auto", label: te("settings.menubar.auto"), info: te("settings.menubar.auto.help"), attrs: kw(),
+      row({ key: "tray-auto", label: te("settings.menubar.auto"), info: te("settings.menubar.auto.help"),
         control: (a) => sw("tray-auto", tray.accounts == null, a) })
       + `<div data-tray-accounts><p class="hint">${te("common.loading")}</p></div>`);
 }
@@ -101,7 +100,8 @@ export function bind(root, ctx) {
     box.innerHTML = accountsHtml(all, selected(), state.accounts == null);
     if (focusKey) box.querySelector(`[data-key="${CSS.escape(focusKey)}"] ${focusSel}`)?.focus();
   };
-  const save = (el) => setTrayPrefs(state).then(
+  // PRD 0022 RF8.1: the tray view shares this preference (Settings › Dashboard sets it); keep the stored one.
+  const save = (el) => getSettings().then((s) => setTrayPrefs({ ...state, popover_view: s.tray?.popover_view ?? state.popover_view })).then(
     () => { rowError(el, ""); toast(); ctx.changed("tray"); paintPreviews(); },
     (x) => rowError(el, errorText(x)));
 

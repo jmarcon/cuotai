@@ -10,6 +10,7 @@
 .lbl.fg { color: var(--fg); }
 .sr-only {
   position: absolute;
+  left: 0;
   width: 1px;
   height: 1px;
   overflow: hidden;

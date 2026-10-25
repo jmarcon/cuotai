@@ -54,7 +54,9 @@ for (const { code } of i18n.LOCALES) {
   assert.match(out, /aria-checked="true"[^>]*>\s*<span class="opt-preview" data-tray-preview="tightest_percent"/, `${code}: Tightest % must be the default`);
   assert.match(out, /id="tray-colored"[^>]*role="switch"|role="switch"[^>]*id="tray-colored"|id="tray-colored" type="checkbox" role="switch"/);
   assert.ok(!/id="tray-colored"[^>]*checked/.test(out), `${code}: color is off by default`);
-  assert.ok(out.includes(`data-keywords="${lib.esc(catalogs[code]["settings.menubar.keywords"])}"`), `${code}: search keywords missing`);
+  // The rows carry the catalog's search keywords (`settings.kw.<row>`) like every other Settings row.
+  assert.ok(out.includes(`data-kw="${lib.esc(catalogs[code]["settings.kw.tray-style"])}"`), `${code}: search keywords missing`);
+  assert.ok(!out.includes("data-keywords"), `${code}: no ad-hoc keyword attribute`);
   assert.ok(!/settings\.menubar\./.test(out), `${code}: untranslated key`);
 }
 await i18n.setLocale("en-US");

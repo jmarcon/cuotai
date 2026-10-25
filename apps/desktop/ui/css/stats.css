@@ -49,7 +49,7 @@
 .seg button:focus-visible,
 .stats select:focus-visible,
 .tl-who:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
@@ -208,12 +208,7 @@
 .bars .bar.ghost {
   height: 100%;
   border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-  background: var(--hatch);
-  opacity: 0.55;
-}
-:root[data-hatch="none"] .bars .bar.ghost {
-  background: var(--track);
-  opacity: 0.4;
+  background: var(--hatch), color-mix(in srgb, var(--track) 40%, transparent); /* DS-CMP-HON-1; `--hatch: none` leaves the plain dim track */
 }
 .bars .x-label {
   position: absolute;

@@ -465,7 +465,7 @@ dialog.libs {
 
 /* PRD 0019 RF7.7: Sobre › Novidades (the changelog, newest first). */
 dialog.whats-new {
-  width: min(640px, calc(100vw - 32px));
+  width: min(var(--dialog-lg), calc(100vw - 32px));
 }
 .wn-scroll {
   display: flex;
@@ -664,7 +664,7 @@ dialog.extensions-dlg {
 }
 /* PRD 0027 RF3: Add-account catalog picker (DS-CMP-SRCH, DS-CMP-CAT, DS-CMP-LIST-6). */
 dialog.dlg.dlg-catalog {
-  width: min(720px, calc(100vw - 32px));
+  width: min(var(--dialog-lg), calc(100vw - 32px));
 }
 .picker {
   display: flex;
@@ -710,7 +710,7 @@ dialog.dlg.dlg-catalog {
   background: var(--surface-2);
 }
 .pick[aria-selected="true"] {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 .pick-text {

@@ -31,7 +31,7 @@ function laneHtml(lane, all, tl) {
   const flip = x > 0.78 ? " flip" : "";
   return `<li class="tl-lane ${lane.level}${lane.stale ? " stale" : ""}">
     <button type="button" class="tl-who" data-timeline-account="${lane.account_index}" aria-label="${esc(laneLabel(lane, tl.range))}" title="${esc(laneLabel(lane, tl.range))}">
-      ${logo(lane.provider, 14)}<span class="tl-name">${esc(labelOf(lane, all))}</span>
+      ${logo(lane.provider, 14)}<span class="tl-name" title="${esc(labelOf(lane, all))}">${esc(labelOf(lane, all))}</span>
     </button>
     <div class="tl-track" aria-hidden="true"><i class="tl-line" style="width:${left}"></i><i class="tl-dot" style="left:${left}"></i>
       <span class="tl-time${flip}" style="left:${left}">${esc(timeOf(lane.returns_at, tl.range))}</span></div>

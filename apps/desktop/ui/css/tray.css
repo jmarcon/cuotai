@@ -436,3 +436,10 @@ body {
   gap: var(--space-1);
   margin-bottom: var(--space-1);
 }
+
+/* PRD 0026: the Stats drill-in and the reset timeline sit inside the body gutter. */
+[data-stats-slot],
+[data-timeline-slot] {
+  position: relative;
+  padding: var(--space-3);
+}

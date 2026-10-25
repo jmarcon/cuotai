@@ -23,11 +23,14 @@ const PAGES = [
   ["settings-general", "settings.html?page=general", 640, 460, {}],
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
+  ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
+  ["main-stats", "index.html", 1200, 820, { "cuotai.openView": "stats" }],
+  ["tray-stats", "tray.html", 380, 600, {}, "[data-open-stats]"],
 ];
 // DS-MSG-15: what may truncate (with its full text in a tooltip or the accessible name).
 export const ALLOWED = [".r1 .nm", ".r1 .ac", ".crow .nm", ".tile-name b", ".tile-st span", ".who h2", ".who p", ".stl.truncated .lbl",
   ".xline span", ".pop-notice span", ".sum-top .lt", ".set-path", ".lc-title", ".models-meta", ".access-line", ".win .reset", ".pop-head h1",
-  ".set-nav-item span", ".sum-note", ".set-row-desc", "option", "select"].join(", ");
+  ".set-nav-item span", ".sum-note", ".tl-name", ".set-row-desc", "option", "select"].join(", ");
 
 const PAGE_JS = `(() => {
   const allowed = ${JSON.stringify(ALLOWED)};
@@ -42,6 +45,7 @@ const PAGE_JS = `(() => {
     if (e.matches("details:not([open])") || (e.closest("details:not([open])") && !e.closest("summary"))) continue;
     const cs = getComputedStyle(e);
     if (cs.display === "none" || cs.visibility === "hidden") continue;
+    if (cs.position === "absolute" && cs.clip.replace(/[^0-9]/g, "") === "0000") continue; // visually hidden
     const text = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.replace(/\\s+/g, " ").trim()).join(" ").trim();
     if (!text) continue;
     const r = e.getBoundingClientRect();
@@ -93,9 +97,10 @@ const report = {};
 let problems = 0;
 try {
   for (const locale of LOCALES) {
-    for (const [name, page, w, h, storage] of PAGES) {
+    for (const [name, page, w, h, storage, click] of PAGES) {
       const target = locale === "en-XA" ? `${page}${page.includes("?") ? "&" : "?"}pseudo` : page;
       await ui.open(target, { w, h, scale: 1, locale: locale === "en-XA" ? "en-US" : locale, storage });
+      if (click) await ui.click(click);
       if (selftest) {
         if (!page.startsWith("tray") || storage["cuotai.trayView"]) continue;
         await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);

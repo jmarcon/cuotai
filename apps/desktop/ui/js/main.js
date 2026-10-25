@@ -194,7 +194,7 @@ function aggregatorSection(r, ctx) {
   return `<section class="agg-section${disabled.has(key) ? " off" : ""}" data-card="${esc(key)}" aria-label="${esc(`${brand(r.provider).label} · ${r.account}`)}">
     <header class="agg-head">${instanceHeadHtml(r)}
       <div class="actions">
-        <button class="icon" title="${te("common.refresh")}" data-refresh="${r.index}" ${isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
+        <button class="icon" title="${te("common.refresh")}" aria-label="${te("common.refresh")}" data-refresh="${r.index}" ${isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
         ${bellHtml(store.view, r)}
         <button class="icon" title="${te("card.details")}" aria-label="${te("card.details")}" data-details="${esc(key)}">${icon("search")}</button>
         ${r.aggregator.dashboard ? `<button class="link" data-agg-dashboard="${r.index}">${icon("window")}<span>${te("agg.openDashboard")}</span></button>` : ""}
