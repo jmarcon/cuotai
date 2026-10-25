@@ -191,7 +191,7 @@ fn quiet_hours_hold_the_banner_and_the_bell_until_one_digest() {
     assert_eq!(bells(&out), 1);
     assert_eq!(text.matches("\x1b]9;").count(), 1);
     assert!(
-        text.contains("1 usage alerts held during quiet hours"),
+        text.contains("1 usage alert held during quiet hours"),
         "{text}"
     );
     let banner = notices.banner(at(3, 8, 0)).unwrap();

@@ -106,10 +106,16 @@
   "alerts.item.recovered": "{metric} di nuovo disponibile",
   "alerts.item.threshold": "{metric} {percent}%",
   "alerts.join": "{first}; {rest}",
-  "alerts.title.accounts": "Cuotai: {count} avvisi di utilizzo",
+  "alerts.title.accounts": {
+    "one": "Cuotai: {count} avviso di utilizzo",
+    "other": "Cuotai: {count} avvisi di utilizzo"
+  },
   "alerts.title.exhausted": "{provider}: quota {window} esaurita",
   "alerts.title.exhausted_metric": "{provider}: limite {metric} raggiunto",
-  "alerts.title.many": "{provider}: {count} avvisi di utilizzo",
+  "alerts.title.many": {
+    "one": "{provider}: {count} avviso di utilizzo",
+    "other": "{provider}: {count} avvisi di utilizzo"
+  },
   "alerts.title.pool_exhausted": "{provider} · {pool}: tutti gli account esauriti",
   "alerts.title.pool_recovered": "{provider} · {pool}: un account è di nuovo disponibile",
   "alerts.title.recovered": "{provider}: quota {window} di nuovo disponibile",
@@ -359,7 +365,10 @@
   "history.error.retention_bounds": "La conservazione della cronologia va da {min} a {max} giorni.",
   "history.error.storage": "Impossibile leggere o scrivere la cronologia locale delle misurazioni.",
   "history.warning.ceiling": "La cronologia ha superato {max} MiB: le {removed} misurazioni più vecchie sono state eliminate.",
-  "history.warning.dropped": "{count} letture non sono entrate nella cronologia: il disco ha risposto lentamente.",
+  "history.warning.dropped": {
+    "one": "{count} lettura non è entrata nella cronologia: il disco ha risposto lentamente.",
+    "other": "{count} letture non sono entrate nella cronologia: il disco ha risposto lentamente."
+  },
   "hooks.confirm.answer": "sì",
   "hooks.confirm.command": "comando: {command}",
   "hooks.confirm.events": "eventi: {events}",
@@ -392,7 +401,10 @@
   "hooks.run.succeeded": "{rule} ({event}): completato in {ms} ms",
   "hooks.run.terminated": "{rule} ({event}): terminato senza codice di uscita dopo {ms} ms",
   "hooks.run.timed_out": "{rule} ({event}): tempo scaduto, fermato dopo {ms} ms",
-  "hooks.warning.dropped": "Coda degli hook piena: {count} esecuzioni in sospeso più vecchie scartate.",
+  "hooks.warning.dropped": {
+    "one": "Coda degli hook piena: {count} esecuzione in sospeso più vecchia scartata.",
+    "other": "Coda degli hook piena: {count} esecuzioni in sospeso più vecchie scartate."
+  },
   "hooks.warning.log": "Impossibile scrivere il log di esecuzione degli hook in {path}.",
   "incident.state.degraded": "Prestazioni degradate",
   "incident.state.maintenance": "In manutenzione",
@@ -1002,9 +1014,15 @@
   "query.insecure_transport": "Endpoint rifiutato: le credenziali vengono inviate solo tramite HTTPS. Nulla è stato inviato.",
   "resets.body": "{account}: {metrics}. Secondo l'orario riportato dal provider; il nuovo saldo compare al prossimo aggiornamento.",
   "resets.title.reset": "{provider}: quota {window} azzerata",
-  "resets.title.reset_many": "{provider}: {count} quote azzerate",
+  "resets.title.reset_many": {
+    "one": "{provider}: {count} quota azzerata",
+    "other": "{provider}: {count} quote azzerate"
+  },
   "resets.title.soon": "{provider}: la quota {window} si azzera tra {minutes} min",
-  "resets.title.soon_many": "{provider}: {count} quote si azzerano tra {minutes} min",
+  "resets.title.soon_many": {
+    "one": "{provider}: {count} quota si azzera tra {minutes} min",
+    "other": "{provider}: {count} quote si azzerano tra {minutes} min"
+  },
   "remove.kept.declined": "Hai scelto di mantenere la credenziale nel vault di sistema.",
   "remove.kept.shared": "La credenziale è stata mantenuta perché l'account \"{name}\" la usa ancora; eliminarla danneggerebbe quell'account.",
   "remove_error.index": "Indice {index} fuori intervallo.",
@@ -1258,7 +1276,10 @@
   "extensions.output.unit": "Il campo {field} deve essere una stringa di al massimo {max} caratteri, senza caratteri di controllo.",
   "extensions.output.choice": "Il campo {field} deve essere uno tra: {values}.",
   "extensions.output.too_many": "Il campo {field} accetta al massimo {max} elementi.",
-  "extensions.output.invalid": "L'output dell'estensione non rispetta il contratto (schema {schema}): {count} problemi; nessun valore è stato usato.",
+  "extensions.output.invalid": {
+    "one": "L'output dell'estensione non rispetta il contratto (schema {schema}): {count} problema; nessun valore è stato usato.",
+    "other": "L'output dell'estensione non rispetta il contratto (schema {schema}): {count} problemi; nessun valore è stato usato."
+  },
   "extensions.output.failed": "L'estensione ha riportato lo stato {status}; nessun valore è stato usato.",
   "extensions.output.note": "{text}",
   "extensions.consent.header": "L'estensione {id} ({name}) esegue un programma locale con i poteri del tuo utente:",
@@ -1550,9 +1571,15 @@
   "alerts.title.projected.private": "{provider}: potrebbe esaurirsi prima del rinnovo",
   "alerts.body.projected.private": "A questo ritmo finisce ≈{at}, {margin} prima del rinnovo",
   "resets.body.private": "Secondo l'orario riportato dal provider; il nuovo saldo compare al prossimo aggiornamento.",
-  "quiet.digest.title": "Cuotai: {count} avvisi di utilizzo trattenuti durante le ore di silenzio",
+  "quiet.digest.title": {
+    "one": "Cuotai: {count} avviso di utilizzo trattenuto durante le ore di silenzio",
+    "other": "Cuotai: {count} avvisi di utilizzo trattenuti durante le ore di silenzio"
+  },
   "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.more": "e altri {count}",
+  "quiet.digest.more": {
+    "one": "e un altro",
+    "other": "e altri {count}"
+  },
   "quiet.digest.line": "{title}: {body}",
   "hooks.error.quiet": "Il quiet della regola \"{name}\" deve essere \"run\" o \"skip\".",
   "detect.hint.env": "{variable} è impostata in questo ambiente",

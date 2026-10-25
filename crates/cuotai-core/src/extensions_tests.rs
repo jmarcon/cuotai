@@ -647,7 +647,7 @@ fn every_rejection_and_catalog_text_is_translated() {
     );
     let ids: BTreeSet<&str> = texts.iter().map(|text| &*text.id).collect();
     assert_eq!(ids.len(), if cfg!(unix) { 23 } else { 22 }, "{ids:?}");
-    for locale in ["pt-BR", "es", "it"] {
+    for locale in crate::text::catalog_locales() {
         let catalog = crate::text::core_catalog(locale).unwrap();
         let missing: Vec<_> = ids
             .iter()

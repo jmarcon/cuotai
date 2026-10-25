@@ -1133,7 +1133,7 @@ fn errors_and_warning_are_translated() {
         ServeError::TokenFile.l10n(),
         no_token_warning(),
     ];
-    for locale in ["pt-BR", "es", "it"] {
+    for locale in crate::text::catalog_locales() {
         let catalog = core_catalog(locale).unwrap();
         for text in &texts {
             assert!(

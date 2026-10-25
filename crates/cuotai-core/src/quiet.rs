@@ -338,13 +338,19 @@ where
     if more > 0 {
         body = join(
             body,
-            Localized::with_param("quiet.digest.more", "count", more, "and {count} more"),
+            Localized::plural(
+                "quiet.digest.more",
+                params([("count", more.into())]),
+                "and {count} more",
+                "and {count} more",
+            ),
         );
     }
     Some(Notice {
-        title: Localized::with_params(
+        title: Localized::plural(
             "quiet.digest.title",
             params([("count", count.into())]),
+            "Cuotai: {count} usage alert held during quiet hours",
             "Cuotai: {count} usage alerts held during quiet hours",
         ),
         body,

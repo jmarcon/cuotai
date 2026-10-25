@@ -683,7 +683,7 @@ mod tests {
             ["aggregators.chip.exposed", "aggregators.chip.private_http"]
         );
         for chip in warnings.chips() {
-            for locale in ["pt-BR", "es", "it"] {
+            for locale in crate::text::catalog_locales() {
                 assert_ne!(chip.resolve(locale), chip.text(), "{locale}");
             }
         }

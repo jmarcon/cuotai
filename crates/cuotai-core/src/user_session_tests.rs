@@ -605,7 +605,7 @@ fn malformed_pastes_name_the_cookie_and_never_a_value() {
             assert!(!text.contains("SECRET"), "{locale}: {text}");
             assert!(!format!("{error:?}").contains("SECRET"));
         }
-        for locale in ["pt-BR", "es", "it"] {
+        for locale in crate::text::catalog_locales() {
             let catalog = crate::text::core_catalog(locale).unwrap();
             assert!(catalog.contains_key(id), "{locale} lacks {id}");
         }

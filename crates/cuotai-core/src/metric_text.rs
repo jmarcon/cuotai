@@ -565,14 +565,14 @@ mod tests {
             assert!(id.starts_with("metric."), "{id}");
             let markers = crate::text::portuguese_markers(english);
             assert!(markers.is_empty(), "{id}: {markers:?} in {english:?}");
-            for locale in ["pt-BR", "es", "it"] {
+            for locale in crate::text::catalog_locales() {
                 let catalog = crate::text::core_catalog(locale).unwrap();
-                let Some(text) = catalog.get(*id) else {
+                let Some(text) = catalog.get(*id).and_then(crate::text::Message::as_text) else {
                     panic!("{locale}: {id} missing");
                 };
                 assert_eq!(slots(text), slots(template), "{locale}: slots of {id}");
                 if locale == "pt-BR" {
-                    assert_eq!(text, template, "pt-BR of {id}");
+                    assert_eq!(text, *template, "pt-BR of {id}");
                 }
             }
             assert_eq!(slots(english), slots(template), "English slots of {id}");

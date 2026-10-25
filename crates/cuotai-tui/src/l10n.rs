@@ -1,49 +1,54 @@
 //! PRD 0034 RF2/RF3: the TUI's and the CLI's own texts (chrome, captions,
 //! dialogs, `--once` labels, prompts and stderr messages).
 //!
-//! The English text is written in code, next to a stable id; Portuguese,
-//! Spanish and Italian live in `crates/cuotai-tui/locales/{pt-BR,es,it}.json`
-//! and are resolved against the TUI locale ([`crate::ui::tui_locale`]).
-//! `{name}` placeholders are substituted from the call's parameters. Texts
-//! that come from the core are [`cuotai_core::text::Localized`] and resolve
-//! through the core catalogs instead.
+//! The English text is written in code, next to a stable id; the other
+//! languages live in `crates/cuotai-tui/locales/<code>.json`, one file per
+//! translated row of the core registry (`cuotai_core::text::LOCALES`,
+//! PRD 0035 RF1), parsed by the core's one catalog parser
+//! (`cuotai_core::text::Catalog`), and are resolved against the TUI locale
+//! ([`crate::ui::tui_locale`]). `{name}` placeholders are substituted from
+//! the call's parameters. Texts that come from the core are
+//! [`cuotai_core::text::Localized`] and resolve through the core catalogs
+//! instead.
 
-use cuotai_core::text::Locale;
+use cuotai_core::text::{Catalog, Locale, Message};
+#[cfg(test)]
 use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::sync::LazyLock;
 
-fn parse(raw: &'static str) -> BTreeMap<String, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(raw).expect("cuotai-tui locale JSON must be valid");
-    let serde_json::Value::Object(object) = value else {
-        panic!("cuotai-tui locale JSON must be an object");
+/// One lazily parsed static per TUI catalog file (PRD 0035 RF1.1); a code
+/// without a file (the source, a language in progress) is `None`.
+macro_rules! tui_catalogs {
+    ($($code:literal => $file:literal,)*) => {
+        fn embedded(code: &str) -> Option<&'static Catalog> {
+            match code {
+                $($code => {
+                    static CATALOG: LazyLock<Catalog> = LazyLock::new(|| {
+                        Catalog::parse(include_str!($file))
+                            .unwrap_or_else(|error| panic!("cuotai-tui {}: {error}", $file))
+                    });
+                    Some(&CATALOG)
+                })*
+                _ => None,
+            }
+        }
+
+        #[cfg(test)]
+        const EMBEDDED: &[&str] = &[$($code),*];
     };
-    object
-        .into_iter()
-        .filter(|(key, _)| key != "_meta")
-        .map(|(key, value)| match value {
-            serde_json::Value::String(text) => (key, text),
-            _ => panic!("cuotai-tui locale JSON: {key:?} must map to a string"),
-        })
-        .collect()
 }
 
-static PT: LazyLock<BTreeMap<String, String>> =
-    LazyLock::new(|| parse(include_str!("../locales/pt-BR.json")));
-static ES: LazyLock<BTreeMap<String, String>> =
-    LazyLock::new(|| parse(include_str!("../locales/es.json")));
-static IT: LazyLock<BTreeMap<String, String>> =
-    LazyLock::new(|| parse(include_str!("../locales/it.json")));
+tui_catalogs! {
+    "pt-BR" => "../locales/pt-BR.json",
+    "es" => "../locales/es.json",
+    "it" => "../locales/it.json",
+}
 
-/// The TUI catalog of `locale`'s language; `None` for English.
-pub(crate) fn catalog(locale: &str) -> Option<&'static BTreeMap<String, String>> {
-    match Locale::resolve(locale) {
-        Locale::Pt => Some(&PT),
-        Locale::Es => Some(&ES),
-        Locale::It => Some(&IT),
-        Locale::EnUs => None,
-    }
+/// The TUI catalog of `locale`'s language; `None` for English and for a
+/// language whose translation is still in progress.
+pub(crate) fn catalog(locale: &str) -> Option<&'static Catalog> {
+    embedded(Locale::resolve(locale).code())
 }
 
 /// The text of `id` in the TUI locale, `en` (the English source) otherwise.
@@ -55,7 +60,7 @@ pub(crate) fn tr(id: &str, en: &'static str) -> &'static str {
 pub(crate) fn tr_in(locale: &str, id: &str, en: &'static str) -> &'static str {
     catalog(locale)
         .and_then(|catalog| catalog.get(id))
-        .map(String::as_str)
+        .and_then(Message::as_text)
         .unwrap_or(en)
 }
 
@@ -230,10 +235,10 @@ mod tests {
     fn every_source_id_is_in_every_catalog_with_the_same_placeholders() {
         let ids = source_ids();
         assert!(ids.len() > 100, "the scanner found only {} ids", ids.len());
-        for locale in ["pt-BR", "es", "it"] {
+        for locale in EMBEDDED {
             let catalog = catalog(locale).expect("catalog");
             for (id, english) in &ids {
-                let Some(text) = catalog.get(id) else {
+                let Some(text) = catalog.get(id).and_then(Message::as_text) else {
                     panic!("{locale}: id {id:?} ({english:?}) is missing");
                 };
                 assert_eq!(
@@ -255,7 +260,8 @@ mod tests {
             assert!(markers.is_empty(), "{id}: {markers:?} in {english:?}");
         }
         for locale in ["es", "it"] {
-            for (id, text) in catalog(locale).unwrap() {
+            for (id, text) in catalog(locale).unwrap().iter() {
+                let text = text.as_text().expect("TUI texts are strings");
                 // "está" is Spanish too.
                 let markers: Vec<_> = cuotai_core::text::portuguese_markers(text)
                     .into_iter()
@@ -264,6 +270,46 @@ mod tests {
                 assert!(markers.is_empty(), "{locale} {id}: {markers:?} in {text:?}");
             }
         }
+    }
+
+    /// PRD 0035 RF1.1 and RF5.3: the registry, the `include_str!` table
+    /// and the files on disk list the same languages, and the catalogs are
+    /// in parity with each other (ids, placeholders, `_meta.name`).
+    #[test]
+    fn the_registry_matches_the_tui_catalogs() {
+        use cuotai_core::text::{locale_row, parity, LocaleStatus, LOCALES};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("locales");
+        let on_disk: BTreeSet<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|entry| {
+                let name = entry.ok()?.file_name().into_string().ok()?;
+                name.strip_suffix(".json").map(str::to_owned)
+            })
+            .collect();
+        let embedded: BTreeSet<String> = EMBEDDED.iter().map(|c| c.to_string()).collect();
+        let shipped: BTreeSet<String> = LOCALES
+            .iter()
+            .filter(|row| row.status == LocaleStatus::Shipped)
+            .map(|row| row.code.to_string())
+            .collect();
+        assert_eq!(on_disk, embedded, "a TUI catalog file without include_str!");
+        assert_eq!(embedded, shipped, "TUI catalogs and the registry");
+        let reference = catalog(EMBEDDED[0]).unwrap();
+        let problems: Vec<String> = EMBEDDED
+            .iter()
+            .flat_map(|code| {
+                parity::problems(
+                    locale_row(code).unwrap(),
+                    catalog(code).unwrap(),
+                    reference,
+                    Default::default(),
+                )
+            })
+            .collect();
+        assert!(problems.is_empty(), "{problems:#?}");
+        // A language in progress renders the English source.
+        assert_eq!(with_locale("ja", || tr("x.missing", "Hello")), "Hello");
+        assert!(catalog("ja").is_none());
     }
 
     #[test]

@@ -1724,12 +1724,13 @@ where
                 )
             };
             Some(Notice {
-                title: Localized::with_params(
+                title: Localized::plural(
                     "alerts.title.many",
                     params([
                         ("provider", provider_l10n(account.provider).into()),
                         ("count", count.into()),
                     ]),
+                    "{provider}: {count} usage alert",
                     "{provider}: {count} usage alerts",
                 ),
                 body: body_l10n,
@@ -1753,9 +1754,10 @@ where
                 }))
             }?;
             Some(Notice {
-                title: Localized::with_params(
+                title: Localized::plural(
                     "alerts.title.accounts",
                     params([("count", count.into())]),
+                    "Cuotai: {count} usage alert",
                     "Cuotai: {count} usage alerts",
                 ),
                 body,

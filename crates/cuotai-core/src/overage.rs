@@ -593,7 +593,7 @@ mod tests {
             let o = assess(&report(vec![metric], None)).unwrap();
             let text = o.text();
             assert_eq!(text.id, id);
-            for locale in ["pt-BR", "es", "it"] {
+            for locale in crate::text::catalog_locales() {
                 assert_ne!(text.resolve(locale), text.fallback, "{id} in {locale}");
             }
         }

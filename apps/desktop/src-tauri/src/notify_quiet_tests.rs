@@ -152,7 +152,7 @@ fn a_crossing_at_23_is_one_digest_at_08_across_both_processes() {
     assert_eq!(fake.count(), 1);
     let text = fake.text(0);
     assert!(
-        text.contains("1 usage alerts held during quiet hours"),
+        text.contains("1 usage alert held during quiet hours"),
         "{text}"
     );
     assert!(text.contains("90%") && text.contains("Work"), "{text}");

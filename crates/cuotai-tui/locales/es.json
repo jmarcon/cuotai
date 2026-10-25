@@ -199,6 +199,7 @@
   "history.no_accounts": "Ninguna cuenta en la configuración; no hay mediciones que mostrar.",
   "history.window": "    Ventana {start} → {end}: {initial} → {final}, pico {peak} el {peak_at}{resets}",
   "history.window.renews": " · renueva {at}",
+  "lang.unknown": "CUOTAI_LANG={value} no es un idioma conocido; se usa el inglés (en-US).",
   "login.authorize_in_browser": "Autoriza en el navegador del sistema:",
   "login.browser_unavailable": "No se pudo abrir el navegador; abre la URL de arriba manualmente.",
   "login.checking_replaced": "Configuración guardada; verificando la credencial sustituida...",

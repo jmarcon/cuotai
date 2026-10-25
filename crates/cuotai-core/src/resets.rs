@@ -167,18 +167,20 @@ impl ResetEvent {
                 ]),
                 "{provider}: {window} quota resets in {minutes} min",
             ),
-            (_, false) => Localized::with_params(
+            (_, false) => Localized::plural(
                 "resets.title.reset_many",
                 params([("provider", provider.into()), ("count", count.into())]),
+                "{provider}: {count} quota reset",
                 "{provider}: {count} quotas reset",
             ),
-            (_, true) => Localized::with_params(
+            (_, true) => Localized::plural(
                 "resets.title.soon_many",
                 params([
                     ("provider", provider.into()),
                     ("count", count.into()),
                     ("minutes", minutes.into()),
                 ]),
+                "{provider}: {count} quota resets in {minutes} min",
                 "{provider}: {count} quotas reset in {minutes} min",
             ),
         };

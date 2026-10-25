@@ -708,6 +708,9 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run() -> Result<u8, Box<dyn std::error::Error>> {
+    if let Some(warning) = ui::unknown_lang_warning() {
+        eprintln!("cuotai: {warning}");
+    }
     let mut args = match Args::try_parse() {
         Ok(args) => args,
         // `--help`/`--version` succeed; an invalid argument is a local error
@@ -1382,8 +1385,8 @@ fn fallback_locale_of(flag: Option<&str>, machine: bool) -> Result<Option<String
     }
     match cuotai_core::text::fallback_locale(Some(flag)) {
         Some(locale) => Ok(Some(locale)),
-        None if cuotai_core::text::Locale::resolve(flag) == cuotai_core::text::Locale::EnUs
-            && flag.to_ascii_lowercase().starts_with("en") =>
+        None if cuotai_core::text::normalize(flag)
+            .is_some_and(|row| row.status == cuotai_core::text::LocaleStatus::Source) =>
         {
             Ok(None)
         }

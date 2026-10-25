@@ -478,19 +478,23 @@ fn initial_tray_words() -> (&'static str, &'static str, &'static str) {
 /// RF8: ship the core-owned locale catalog (`crates/cuotai-core/locales/*.json`)
 /// to the desktop frontend so it can resolve every id the core emits without
 /// shipping those strings itself. `locale` follows the same precedence as
-/// `cuotai_core::text::Locale::resolve`; en-US returns an empty catalog so
-/// the frontend falls back to the English `fallback` text embedded in
-/// each `Localized`.
+/// `cuotai_core::text::Locale::resolve`; en-US and languages still in
+/// progress return an empty catalog so the frontend falls back to the
+/// English `fallback` text embedded in each `Localized`. Values are strings
+/// or plural objects (PRD 0035 RF4).
 #[tauri::command]
-fn core_catalog(locale: String) -> std::collections::BTreeMap<String, String> {
+fn core_catalog(locale: String) -> cuotai_core::text::Catalog {
     cuotai_core::text::core_catalog(&locale)
-        .map(|catalog| {
-            catalog
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
-        })
+        .cloned()
         .unwrap_or_default()
+}
+
+/// PRD 0035 RF1.5: the core's locale registry (code, endonym, flag, script,
+/// aliases, plural rule, status), so the language list, detection and the
+/// "translation in progress" state come from one table.
+#[tauri::command]
+fn locale_registry() -> &'static [cuotai_core::text::LocaleRow] {
+    cuotai_core::text::LOCALES
 }
 
 /// Linhas do menu do ícone da bandeja (clique direito), já traduzidas pela interface: o shell não conhece idioma.
@@ -2083,6 +2087,7 @@ pub fn run() {
             model_support,
             load_user_content,
             core_catalog,
+            locale_registry,
             get_settings,
             set_whats_new_auto,
             whats_new_seen,

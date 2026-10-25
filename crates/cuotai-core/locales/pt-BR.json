@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "name": "Português (Brasil)"
+    "name": "Português"
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
   "access.cost_advisory": "Provedor cobrado por consulta: cerca de uma requisição ao Cost Explorer por consulta. Sem intervalo, o Cuotai consulta uma vez por hora; o mínimo efetivo é de 15 minutos (intervalos de 5 a 14 minutos sobem para 15 e valores menores são rejeitados). Várias janelas ou comandos compartilham uma requisição por intervalo. Atualizações manuais continuam explícitas.",
@@ -136,10 +136,16 @@
   "alerts.item.session_expiring": "sessão expira em breve",
   "alerts.item.threshold": "{metric} {percent}%",
   "alerts.join": "{first}; {rest}",
-  "alerts.title.accounts": "Cuotai: {count} alertas de uso",
+  "alerts.title.accounts": {
+    "one": "Cuotai: {count} alerta de uso",
+    "other": "Cuotai: {count} alertas de uso"
+  },
   "alerts.title.exhausted": "{provider}: cota {window} esgotada",
   "alerts.title.exhausted_metric": "{provider}: limite de {metric} atingido",
-  "alerts.title.many": "{provider}: {count} alertas de uso",
+  "alerts.title.many": {
+    "one": "{provider}: {count} alerta de uso",
+    "other": "{provider}: {count} alertas de uso"
+  },
   "alerts.title.overage_cap": "{provider}: orçamento extra esgotado",
   "alerts.title.overage_started": "{provider}: uso extra iniciado · {amount} até agora",
   "alerts.title.overage_started_unknown": "{provider}: uso extra iniciado",
@@ -465,7 +471,10 @@
   "extensions.output.empty": "A extensão não imprimiu nada na saída padrão.",
   "extensions.output.empty_text": "O campo {field} fica vazio sem a marcação.",
   "extensions.output.failed": "A extensão informou o status {status}; nenhum valor foi usado.",
-  "extensions.output.invalid": "A saída da extensão não segue o contrato (schema {schema}): {count} problema(s); nenhum valor foi usado.",
+  "extensions.output.invalid": {
+    "one": "A saída da extensão não segue o contrato (schema {schema}): {count} problema; nenhum valor foi usado.",
+    "other": "A saída da extensão não segue o contrato (schema {schema}): {count} problemas; nenhum valor foi usado."
+  },
   "extensions.output.json": "A saída da extensão não é um JSON válido (linha {line}, coluna {column}); NaN e Infinity não são números JSON.",
   "extensions.output.list": "O campo {field} deve ser uma lista.",
   "extensions.output.missing": "Falta o campo {field}.",
@@ -687,7 +696,10 @@
   "history.error.retention_bounds": "A retenção do histórico vai de {min} a {max} dias.",
   "history.error.storage": "Falha ao ler ou gravar o histórico local de medições.",
   "history.warning.ceiling": "O histórico passou de {max} MiB: as {removed} medições mais antigas foram apagadas.",
-  "history.warning.dropped": "{count} leituras não entraram no histórico: o disco demorou a responder.",
+  "history.warning.dropped": {
+    "one": "{count} leitura não entrou no histórico: o disco demorou a responder.",
+    "other": "{count} leituras não entraram no histórico: o disco demorou a responder."
+  },
   "hooks.confirm.answer": "sim",
   "hooks.confirm.command": "comando: {command}",
   "hooks.confirm.events": "eventos: {events}",
@@ -721,7 +733,10 @@
   "hooks.run.succeeded": "{rule} ({event}): concluído em {ms} ms",
   "hooks.run.terminated": "{rule} ({event}): encerrado sem código de saída após {ms} ms",
   "hooks.run.timed_out": "{rule} ({event}): excedeu o limite de tempo e foi encerrado após {ms} ms",
-  "hooks.warning.dropped": "Fila de hooks cheia: {count} execução(ões) pendente(s) mais antiga(s) descartada(s).",
+  "hooks.warning.dropped": {
+    "one": "Fila de hooks cheia: {count} execução pendente mais antiga descartada.",
+    "other": "Fila de hooks cheia: {count} execuções pendentes mais antigas descartadas."
+  },
   "hooks.warning.log": "Não foi possível gravar o registro de execuções dos hooks em {path}.",
   "identity.profile_arn": "ARN do perfil",
   "identity.session_active": "sessão ativa",
@@ -1446,8 +1461,14 @@
   "query.transport": "Falha de rede ou tempo limite na consulta.",
   "quiet.digest.join": "{first}\n{rest}",
   "quiet.digest.line": "{title}: {body}",
-  "quiet.digest.more": "e mais {count}",
-  "quiet.digest.title": "Cuotai: {count} alertas de uso retidos no horário de silêncio",
+  "quiet.digest.more": {
+    "one": "e mais {count}",
+    "other": "e mais {count}"
+  },
+  "quiet.digest.title": {
+    "one": "Cuotai: {count} alerta de uso retido no horário de silêncio",
+    "other": "Cuotai: {count} alertas de uso retidos no horário de silêncio"
+  },
   "remove.kept.declined": "Você optou por manter a credencial no cofre do sistema.",
   "remove.kept.shared": "A credencial foi mantida porque a conta \"{name}\" ainda a usa; apagá-la quebraria a sobrevivente.",
   "remove_error.index": "Índice {index} fora de alcance.",
@@ -1470,9 +1491,15 @@
   "resets.chip.returns": "Volta {at}",
   "resets.pair": "Renova {at} · {in}",
   "resets.title.reset": "{provider}: cota {window} renovada",
-  "resets.title.reset_many": "{provider}: {count} cotas renovadas",
+  "resets.title.reset_many": {
+    "one": "{provider}: {count} cota renovada",
+    "other": "{provider}: {count} cotas renovadas"
+  },
   "resets.title.soon": "{provider}: cota {window} renova em {minutes} min",
-  "resets.title.soon_many": "{provider}: {count} cotas renovam em {minutes} min",
+  "resets.title.soon_many": {
+    "one": "{provider}: {count} cota renova em {minutes} min",
+    "other": "{provider}: {count} cotas renovam em {minutes} min"
+  },
   "serve.allow_browsers.warning": "Com navegadores permitidos, qualquer página aberta no navegador pode ler seu uso no servidor local (com token, qualquer página que o conheça). Ative só se uma página sua precisa desses dados.",
   "serve.client.incompatible": "A resposta do servidor local não é um /v1/limits compatível.",
   "serve.client.invalid_url": "Endereço do servidor local inválido: use http://127.0.0.1:PORTA.",

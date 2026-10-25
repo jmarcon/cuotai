@@ -244,7 +244,7 @@ fn labels_render_in_the_four_languages() {
         s.accessible_label.resolve("en-US"),
         format!("Work 22% left, resets {at}; Home 64% left")
     );
-    for locale in ["pt-BR", "es", "it"] {
+    for locale in crate::text::catalog_locales() {
         let text = s.accessible_label.resolve(locale);
         assert!(
             text.contains("22%") && text.contains("Home"),

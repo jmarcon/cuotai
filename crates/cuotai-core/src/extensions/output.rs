@@ -495,13 +495,14 @@ fn too_many(path: &'static str, max: usize) -> Localized {
 }
 
 fn invalid(count: usize) -> Localized {
-    Localized::with_params(
+    Localized::plural(
         INVALID_NOTE,
         params([
             ("schema", SCHEMA.to_string().into()),
             ("count", count.into()),
         ]),
-        "The extension's output does not follow the contract (schema {schema}): {count} problem(s); no value was used.",
+        "The extension's output does not follow the contract (schema {schema}): {count} problem; no value was used.",
+        "The extension's output does not follow the contract (schema {schema}): {count} problems; no value was used.",
     )
 }
 

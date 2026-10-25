@@ -16,14 +16,19 @@
 // UI apenas permanecem no JSON local. Pacotes de idioma do usuário podem
 // sobrescrever ambos (e acrescentar ids novos do core para um idioma novo).
 import { esc } from "./util.js";
+import { REGISTRY, normalizeLocale } from "./locale-registry.js";
 
-/** Idiomas que acompanham o app. Idiomas do usuário são acrescentados em tempo de execução. */
-export const LOCALES = [
-  { code: "pt-BR", name: "Português" },
-  { code: "en-US", name: "English" },
-  { code: "es", name: "Español" },
-  { code: "it", name: "Italiano" },
-];
+// PRD 0035 RF1.5: the built-in languages come from the core registry (`locale_registry`, or the static copy in the
+// browser demo), in its fixed order. A row whose catalogs are not written yet is "translation in progress": it is not
+// in LOCALES (never selectable, never detected) but `pendingLocales()` lists it for the language selector; a user pack
+// with its code makes it a regular language.
+let registry = REGISTRY;
+const fromRow = (row) => ({ code: row.code, name: row.endonym, flag: row.flag, script: row.script });
+const translatedRows = (rows) => rows.filter((row) => row.status !== "in_progress").map(fromRow);
+/** Idiomas selecionáveis: os do registro com catálogos, mais os do usuário (acrescentados em tempo de execução). */
+export const LOCALES = translatedRows(registry);
+/** Registry languages whose translation is in progress (and no user pack covers), in registry order. */
+export const pendingLocales = () => registry.filter((row) => row.status === "in_progress" && !LOCALES.some((l) => l.code === row.code)).map(fromRow);
 export const FALLBACK = "en-US";
 const KEY = "cuotai.locale";
 
@@ -45,7 +50,10 @@ function pluralRules() {
   if (!plural || plural.locale !== current) plural = { locale: current, rules: new Intl.PluralRules(current) };
   return plural.rules;
 }
+/** Whether `code` can be chosen: a built-in language with catalogs, or a user pack. */
 export const hasLocale = (code) => LOCALES.some((l) => l.code === code);
+/** The registry row of the current language (script, plural rule), null for a user pack's own code. */
+export const currentRow = () => registry.find((r) => r.code === current) ?? null;
 
 /** Registra um idioma do usuário (já validado). */
 export function registerLocale(code, name, messages, flag) {
@@ -53,8 +61,10 @@ export function registerLocale(code, name, messages, flag) {
   uiCatalogs.set(code, messages);
   merged.clear();
   const i = LOCALES.findIndex((l) => l.code === code);
-  if (i >= 0) LOCALES[i] = { code, name, flag, user: true };
-  else LOCALES.push({ code, name, flag, user: true });
+  const row = registry.find((r) => r.code === code);
+  const entry = { ...(row ? fromRow(row) : {}), code, name, flag: flag ?? row?.flag, user: true };
+  if (i >= 0) LOCALES[i] = entry;
+  else LOCALES.push(entry);
 }
 
 async function loadUi(code) {
@@ -118,15 +128,21 @@ function mergedCatalog(code) {
   return out;
 }
 
-/** Escolhe o idioma: preferência salva → idioma do sistema (exato ou mesma língua) → en-US. */
+/**
+ * Escolhe o idioma: preferência salva → cada idioma do sistema (código exato; a linha do registro pela língua, PRD 0035
+ * RF1.3, sem nunca dar chinês simplificado a zh-TW; um pacote do usuário da mesma língua) → en-US. A language in
+ * progress is never picked. The pre-paint copy in the HTML pages follows the same order.
+ */
 export function pickLocale(preferred, systemLangs = navigator.languages ?? [navigator.language]) {
   if (preferred && hasLocale(preferred)) return preferred;
   for (const lang of systemLangs) {
     if (!lang) continue;
     const exact = LOCALES.find((l) => l.code.toLowerCase() === lang.toLowerCase());
     if (exact) return exact.code;
-    const base = lang.split("-")[0].toLowerCase();
-    const same = LOCALES.find((l) => l.code.split("-")[0].toLowerCase() === base);
+    const row = normalizeLocale(lang, registry);
+    if (row && hasLocale(row.code)) return row.code;
+    const base = lang.split(/[-_]/)[0].toLowerCase();
+    const same = LOCALES.find((l) => l.user && l.code.split("-")[0].toLowerCase() === base);
     if (same) return same.code;
   }
   return FALLBACK;
@@ -151,7 +167,26 @@ const pseudoCatalog = (catalog) => Object.fromEntries(Object.entries(catalog).fi
   [k, v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([r, x]) => [r, pseudoText(x)])) : pseudoText(v)]));
 const pseudoWanted = () => !globalThis.window?.__TAURI__ && /[?&]pseudo(=|&|$)/.test(globalThis.location?.search ?? "");
 
+/** PRD 0035 RF1.5: take the registry from the backend; the static copy stays where the command is unavailable. */
+async function loadRegistry() {
+  const invoke = window.__TAURI__?.core?.invoke;
+  if (!invoke) return;
+  try {
+    const rows = await invoke("locale_registry");
+    if (!Array.isArray(rows) || !rows.length) return;
+    registry = rows;
+    const users = LOCALES.filter((l) => l.user);
+    LOCALES.splice(0, LOCALES.length, ...translatedRows(rows));
+    for (const u of users) {
+      const i = LOCALES.findIndex((l) => l.code === u.code);
+      if (i >= 0) LOCALES[i] = u;
+      else LOCALES.push(u);
+    }
+  } catch {}
+}
+
 export async function initI18n() {
+  await loadRegistry();
   await loadUi(FALLBACK);
   await loadCore(FALLBACK);
   if (pseudoWanted() && !hasLocale(PSEUDO)) {
@@ -190,12 +225,15 @@ function lookup(key) {
   return currentCatalog[key] ?? fallbackCatalog[key];
 }
 
+/** A plural object's form for `count` (Intl.PluralRules of the current language), else `other`, else the first. */
+function pluralForm(v, count) {
+  if (!v || typeof v !== "object") return v;
+  const rule = pluralRules().select(Number(count ?? 0));
+  return v[rule] ?? v.other ?? Object.values(v)[0];
+}
+
 function resolve(key, vars) {
-  let v = lookup(key);
-  if (v && typeof v === "object") {
-    const rule = pluralRules().select(Number(vars.count ?? 0));
-    v = v[rule] ?? v.other ?? Object.values(v)[0];
-  }
+  const v = pluralForm(lookup(key), vars.count);
   return typeof v === "string" ? v : null;
 }
 
@@ -234,12 +272,11 @@ function substitute(template, vars, escape) {
 /**
  * Resolve an RF8 core text (`{ id, params, fallback }`) against the merged
  * catalog (UI + core) for the current locale, falling back to `en-US` then
- * to the English `fallback` embedded in the value. Plain strings
- * (pre-RF8 callers) are returned unchanged. `vars` is merged with
- * `note.params` so callers can override individual placeholders.
- *
- * pt-* never falls back to the en-US catalog for a missing key: the
- * `fallback` of the value is used.
+ * to the English `fallback` embedded in the value (PRD 0035 RF1.6: the
+ * same chain for every language). Plain strings (pre-RF8 callers) are
+ * returned unchanged. `vars` is merged with `note.params` so callers can
+ * override individual placeholders. A core plural object (PRD 0035 RF4)
+ * picks its form from the `count` parameter.
  */
 export function tl(value, vars = {}, escape = false) {
   if (value == null) return "";
@@ -249,9 +286,7 @@ export function tl(value, vars = {}, escape = false) {
   const allVars = { ...(value.params ?? {}), ...vars };
   const currentCatalog = mergedCatalog(current);
   const fallbackCatalog = mergedCatalog(FALLBACK);
-  const own = currentCatalog[value.id];
-  // pt-* não consulta o catálogo en-US: o fallback do próprio valor é usado.
-  const template = own ?? (current.toLowerCase().startsWith("pt") ? undefined : fallbackCatalog[value.id]);
+  const template = pluralForm(currentCatalog[value.id] ?? fallbackCatalog[value.id], allVars.count);
   // PRD 0034 RF7: the core's English fallbacks are the source of its en-US texts (there is no en-US core catalog), so the
   // pseudo-locale derives its core texts from them, as it does from the UI catalog.
   const text = template ?? (current === PSEUDO && typeof value.fallback === "string" ? pseudoText(value.fallback) : value.fallback);

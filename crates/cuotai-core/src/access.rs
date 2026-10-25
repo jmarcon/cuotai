@@ -1200,7 +1200,7 @@ mod tests {
             ]);
             texts.extend(access.plan_requirement);
         }
-        for locale in ["pt-BR", "es", "it"] {
+        for locale in crate::text::catalog_locales() {
             let catalog = crate::text::core_catalog(locale).expect("shipped catalog");
             let missing: BTreeSet<_> = texts
                 .iter()

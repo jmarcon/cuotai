@@ -61,10 +61,10 @@ impl HistoryStatus {
             ));
         }
         (self.dropped > 0).then(|| {
-            Localized::with_param(
+            Localized::plural(
                 "history.warning.dropped",
-                "count",
-                self.dropped,
+                crate::text::params([("count", self.dropped.into())]),
+                "{count} reading did not enter the history: the disk was slow to answer.",
                 "{count} readings did not enter the history: the disk was slow to answer.",
             )
         })
@@ -438,7 +438,7 @@ mod tests {
         );
         for warning in [ceiling.warning(), dropped.warning(), status.warning()] {
             let warning = warning.unwrap();
-            for locale in ["pt-BR", "es", "it"] {
+            for locale in crate::text::catalog_locales() {
                 let catalog = crate::text::core_catalog(locale).unwrap();
                 assert!(
                     catalog.contains_key(&*warning.id),

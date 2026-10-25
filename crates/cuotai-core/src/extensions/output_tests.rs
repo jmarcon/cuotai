@@ -532,7 +532,7 @@ fn every_output_text_is_translated() {
     texts.push(FailureCategory::InvalidOutput.label());
     let ids: BTreeSet<&str> = texts.iter().map(|text| &*text.id).collect();
     assert_eq!(ids.len(), 20, "{ids:?}");
-    for locale in ["pt-BR", "es", "it"] {
+    for locale in crate::text::catalog_locales() {
         let catalog = crate::text::core_catalog(locale).unwrap();
         let missing: Vec<_> = ids
             .iter()

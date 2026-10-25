@@ -893,7 +893,7 @@ mod tests {
             .collect::<Vec<_>>();
         let ids: std::collections::BTreeSet<&str> = texts.iter().map(|t| &*t.id).collect();
         assert_eq!(ids.len(), 6, "{ids:?}");
-        for locale in ["pt-BR", "es", "it"] {
+        for locale in crate::text::catalog_locales() {
             let catalog = crate::text::core_catalog(locale).unwrap();
             for text in &texts {
                 assert!(

@@ -905,7 +905,7 @@ mod tests {
         ] {
             ids.push(category.label().id.to_string());
         }
-        for locale in ["pt-BR", "es", "it"] {
+        for locale in crate::text::catalog_locales() {
             let map = core_catalog(locale).unwrap();
             for id in &ids {
                 assert!(map.contains_key(id), "{locale}: missing {id}");

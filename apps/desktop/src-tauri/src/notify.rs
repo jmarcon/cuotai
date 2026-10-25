@@ -486,6 +486,11 @@ impl Notices {
         if !valid {
             return Err("invalid_locale");
         }
+        // PRD 0035 RF1.7: a built-in language is stored by its canonical
+        // code. Another valid code is a user language pack's and is kept
+        // as chosen (desktop.json is the source of the UI language); its
+        // notices read English, the core having no catalog for it.
+        let locale = cuotai_core::text::locale_row(locale).map_or(locale, |row| row.code);
         if self.locale.as_deref() == Some(locale) {
             return Ok(());
         }
@@ -898,6 +903,10 @@ mod tests {
         // The reset itself is the same reset: no second notice.
         assert_eq!(tick(&mut notices, &cfg, &reports, t0(), &fake).delivered, 0);
         assert_eq!(notices.set_locale("pt BR; rm"), Err("invalid_locale"));
+        notices.set_locale("PT-br").unwrap();
+        assert_eq!(notices.locale(), "pt-BR", "a built-in code is canonical");
+        notices.set_locale("nl").unwrap();
+        assert_eq!(notices.locale(), "nl", "a user pack's code is kept");
     }
 
     #[test]

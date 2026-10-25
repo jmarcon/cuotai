@@ -954,11 +954,11 @@ pub fn declined() -> Localized {
 
 /// [`Runner::submit`] dropped `count` queued runs.
 pub fn dropped(count: usize) -> Localized {
-    Localized::with_param(
+    Localized::plural(
         "hooks.warning.dropped",
-        "count",
-        count,
-        "Hooks queue full: {count} oldest pending run(s) dropped.",
+        params([("count", count.into())]),
+        "Hooks queue full: {count} oldest pending run dropped.",
+        "Hooks queue full: {count} oldest pending runs dropped.",
     )
 }
 

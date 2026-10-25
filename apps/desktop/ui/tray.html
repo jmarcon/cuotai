@@ -6,7 +6,13 @@
     <script>
       /* Applies language and theme before the first paint; runtime logic lives in
          js/i18n.js and js/lib.js. Motion mirrors desktop.json. */
-      var supportedLocales = ["pt-BR", "en-US", "es", "it"];
+      // PRD 0035 RF1.3/RF1.5: the languages with catalogs, from the core registry (generated between the markers by
+      // `CUOTAI_REGENERATE_LOCALES=1 cargo test -p cuotai-core locale_registry_copies`), resolved like js/i18n.js.
+      /* registry:begin */
+      var localeRows = [{"code":"pt-BR","excluded_regions":[],"excluded_scripts":[],"languages":["pt"]},{"code":"en-US","excluded_regions":[],"excluded_scripts":[],"languages":["en"]},{"code":"es","excluded_regions":[],"excluded_scripts":[],"languages":["es"]},{"code":"it","excluded_regions":[],"excluded_scripts":[],"languages":["it"]}];
+      /* registry:end */
+      var supportedLocales = localeRows.map(function (row) { return row.code; });
+      var userLocaleCodes = [];
       try {
         var userLocales = JSON.parse(localStorage.getItem("cuotai.userLocales") || "[]");
         if (Array.isArray(userLocales)) {
@@ -14,10 +20,30 @@
             var userLocale = userLocales[j];
             if (typeof userLocale === "string" &&
                 /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(userLocale) &&
-                !supportedLocales.includes(userLocale)) supportedLocales.push(userLocale);
+                !supportedLocales.includes(userLocale)) {
+              supportedLocales.push(userLocale);
+              userLocaleCodes.push(userLocale);
+            }
           }
         }
       } catch (e) {}
+      var normalizeLocale = function (raw) {
+        var tags = String(raw).trim().split(/[.@]/)[0].split(/[-_]/);
+        var lang = (tags.shift() || "").toLowerCase();
+        if (!/^[a-z]{2,3}$/.test(lang)) return null;
+        var script = null, region = null;
+        for (var k = 0; k < tags.length; k++) {
+          var tag = tags[k];
+          if (/^[A-Za-z]{4}$/.test(tag) && !script && !region) script = tag.toLowerCase();
+          else if (/^[A-Za-z]{2}$/.test(tag) && !region) region = tag.toLowerCase();
+          else if (/^[0-9]{3}$/.test(tag) && !region) region = tag;
+          else if (!/^[A-Za-z0-9]{1,8}$/.test(tag)) return null;
+        }
+        var row = localeRows.find(function (r) { return r.languages.includes(lang); });
+        if (!row) return null;
+        if (script ? row.excluded_scripts.includes(script) : region && row.excluded_regions.includes(region)) return null;
+        return row.code;
+      };
       var storedLocale = "";
       try { storedLocale = localStorage.getItem("cuotai.locale") || ""; } catch (e) {}
       var locale = supportedLocales.includes(storedLocale) ? storedLocale : "";
@@ -32,12 +58,12 @@
           var exact = supportedLocales.find(function (candidate) {
             return candidate.toLowerCase() === requestedLower;
           });
-          var base = requestedLower.split("-")[0];
-          var sameLanguage = supportedLocales.find(function (candidate) {
+          var base = requestedLower.split(/[-_]/)[0];
+          var found = exact || normalizeLocale(requested) || userLocaleCodes.find(function (candidate) {
             return candidate.split("-")[0].toLowerCase() === base;
           });
-          if (exact || sameLanguage) {
-            locale = exact || sameLanguage;
+          if (found) {
+            locale = found;
             break;
           }
         }

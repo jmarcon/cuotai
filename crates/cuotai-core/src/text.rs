@@ -13,12 +13,16 @@
 //! on the wording.
 //!
 //! The core **owns the catalogs** for every id it emits
-//! (`locales/{pt-BR,es,it}.json`): [`core_catalog`] returns the static
-//! `BTreeMap` for a given locale and [`Localized::resolve`] substitutes
+//! (`locales/<code>.json`): [`core_catalog`] returns the static
+//! [`Catalog`] for a given locale and [`Localized::resolve`] substitutes
 //! `{name}` placeholders, recursing into nested [`Localized`] values.
-//! Resolution is exact locale → same language (`pt-PT` → pt-BR, `es-AR` →
-//! es) → the English `fallback`; en-US and unknown locales render the
-//! fallback. New texts are written in English first and added to every
+//! Every language is a row of the registry ([`LOCALES`], PRD 0035 RF1);
+//! [`normalize`] resolves a raw code to its row by language subtag
+//! (`pt-PT` → pt-BR, `es-AR` → es, `zh_CN.UTF-8` → zh-CN, never `zh-TW` →
+//! zh-CN), then the row's catalog → the English `fallback`; en-US, unknown
+//! locales and languages still in progress render the fallback. A catalog
+//! value may be a plural object, selected by the `count` parameter
+//! ([`plural_category`]). New texts are written in English first and added to every
 //! catalog; the core tests fail on a missing id, a renamed placeholder or
 //! a Portuguese marker in an English fallback ([`portuguese_markers`]).
 //!
@@ -139,7 +143,7 @@ impl Localized {
         let fallback = if params.is_empty() {
             fallback
         } else {
-            substitute(&fallback, &params, Locale::EnUs)
+            substitute(&fallback, &params, Locale(source_locale()))
         };
         Self {
             id: id.into(),
@@ -163,6 +167,28 @@ impl Localized {
         )
     }
 
+    /// PRD 0035 RF4: a text that embeds a count. `params` must carry
+    /// `count`; the English fallback is `one` or `other` by the English
+    /// rule, and catalogs give the id a plural object with the categories
+    /// of their language.
+    #[track_caller]
+    pub fn plural(
+        id: impl Into<Cow<'static, str>>,
+        params: BTreeMap<String, ParamValue>,
+        one: &'static str,
+        other: &'static str,
+    ) -> Self {
+        let count = match params.get("count") {
+            Some(ParamValue::Text(count)) => count.as_str(),
+            _ => "",
+        };
+        let english = match plural_category(source_locale().plural_rule, count) {
+            "one" => one,
+            _ => other,
+        };
+        Self::with_params(id, params, english)
+    }
+
     /// The English default text (`fallback`).
     pub fn text(&self) -> &str {
         &self.fallback
@@ -179,7 +205,15 @@ impl Localized {
     /// locale.
     pub fn resolve(&self, locale: &str) -> String {
         let resolved = Locale::resolve(locale);
-        match catalog_for(resolved).and_then(|catalog| catalog.get(&*self.id)) {
+        let count = match self.params.get("count") {
+            Some(ParamValue::Text(count)) => Some(count.as_str()),
+            _ => None,
+        };
+        match resolved
+            .core_catalog()
+            .and_then(|catalog| catalog.get(&*self.id))
+            .and_then(|message| message.template(resolved.row().plural_rule, count))
+        {
             Some(template) => substitute(template, &self.params, resolved),
             None => self.fallback.to_string(),
         }
@@ -309,103 +343,235 @@ pub fn countdown(span: chrono::TimeDelta) -> Localized {
 
 // ---------------------------------------------------------------------------
 // Core catalogs: parsed lazily from `include_str!` so the binary only pays
-// for the JSON once and never blocks startup. The pt-BR/es/it maps share
-// the same key set; equality of key sets is asserted by a unit test.
+// for the JSON of the language in use and never blocks startup. The
+// registry ([`LOCALES`]) lists every language; [`embedded_core_catalog`]
+// carries one `include_str!` per catalog file, and a test proves the two
+// agree with the files on disk (PRD 0035 RF1.1).
 // ---------------------------------------------------------------------------
 
-/// Available core locale buckets. en-US has no catalog: the embedded
-/// English `fallback` is the source text (PRD 0034 RF1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Locale {
-    Pt,
-    EnUs,
-    Es,
-    It,
+pub mod parity;
+mod registry;
+pub use registry::{
+    locale_row, normalize, plural_category, source_locale, Direction, LocaleRow, LocaleStatus,
+    PluralRule, LOCALES,
+};
+
+/// One catalog value: a template, or a plural object of CLDR categories
+/// (`{ "one": "…", "other": "…" }`, PRD 0035 RF4.1) selected by the
+/// parameter named `count`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum Message {
+    Text(String),
+    Plural(BTreeMap<String, String>),
 }
+
+impl Message {
+    /// The template for `count` under `rule`: the category's form, else
+    /// `other`. A plain text ignores `count`.
+    pub fn template(&self, rule: PluralRule, count: Option<&str>) -> Option<&str> {
+        match self {
+            Message::Text(text) => Some(text),
+            Message::Plural(forms) => {
+                let category = count.map_or("other", |count| plural_category(rule, count));
+                forms
+                    .get(category)
+                    .or_else(|| forms.get("other"))
+                    .map(String::as_str)
+            }
+        }
+    }
+
+    /// The plain text, `None` for a plural object.
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Message::Text(text) => Some(text),
+            Message::Plural(_) => None,
+        }
+    }
+
+    /// Every template of this message (one, or each plural form).
+    pub fn templates(&self) -> Vec<&str> {
+        match self {
+            Message::Text(text) => vec![text.as_str()],
+            Message::Plural(forms) => forms.values().map(String::as_str).collect(),
+        }
+    }
+}
+
+/// A parsed catalog (core, TUI or desktop UI): `id -> message`, plus the
+/// `_meta` object. One parser for every layer (PRD 0035 RF5.2). Serializes
+/// as the bare map of messages (the `core_catalog` Tauri command).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Catalog {
+    messages: BTreeMap<String, Message>,
+    meta: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Why a catalog file was rejected.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogError(pub String);
+
+impl fmt::Display for CatalogError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for CatalogError {}
+
+impl Catalog {
+    /// Parse a catalog JSON: an object whose values are strings or plural
+    /// objects of strings (with at least `other`), and an optional `_meta`
+    /// object.
+    pub fn parse(raw: &str) -> Result<Catalog, CatalogError> {
+        let value: serde_json::Value =
+            serde_json::from_str(raw).map_err(|error| CatalogError(error.to_string()))?;
+        let serde_json::Value::Object(object) = value else {
+            return Err(CatalogError("a catalog must be a JSON object".into()));
+        };
+        let mut catalog = Catalog::default();
+        for (key, value) in object {
+            match value {
+                serde_json::Value::Object(meta) if key == "_meta" => catalog.meta = meta,
+                serde_json::Value::String(text) => {
+                    catalog.messages.insert(key, Message::Text(text));
+                }
+                serde_json::Value::Object(forms) => {
+                    let mut plural = BTreeMap::new();
+                    for (category, form) in forms {
+                        if !["zero", "one", "two", "few", "many", "other"]
+                            .contains(&category.as_str())
+                        {
+                            return Err(CatalogError(format!(
+                                "{key:?}: {category:?} is not a plural category"
+                            )));
+                        }
+                        let serde_json::Value::String(form) = form else {
+                            return Err(CatalogError(format!(
+                                "{key:?}.{category}: a plural form must be a string"
+                            )));
+                        };
+                        plural.insert(category, form);
+                    }
+                    if !plural.contains_key("other") {
+                        return Err(CatalogError(format!("{key:?}: a plural needs `other`")));
+                    }
+                    catalog.messages.insert(key, Message::Plural(plural));
+                }
+                _ => {
+                    return Err(CatalogError(format!(
+                        "{key:?} must map to a string or a plural object"
+                    )))
+                }
+            }
+        }
+        Ok(catalog)
+    }
+
+    /// The `_meta` object (`name`, provenance).
+    pub fn meta(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.meta
+    }
+
+    /// The messages, by id.
+    pub fn messages(&self) -> &BTreeMap<String, Message> {
+        &self.messages
+    }
+}
+
+impl std::ops::Deref for Catalog {
+    type Target = BTreeMap<String, Message>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.messages
+    }
+}
+
+impl Serialize for Catalog {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.messages.serialize(serializer)
+    }
+}
+
+/// One lazily parsed static per catalog file; a code without a file is
+/// `None` (the source language and languages in progress).
+macro_rules! embedded_catalogs {
+    ($($code:literal => $file:literal,)*) => {
+        fn embedded_core_catalog(code: &str) -> Option<&'static Catalog> {
+            match code {
+                $($code => {
+                    static CATALOG: LazyLock<Catalog> = LazyLock::new(|| {
+                        Catalog::parse(include_str!($file))
+                            .unwrap_or_else(|error| panic!("cuotai-core {}: {error}", $file))
+                    });
+                    Some(&CATALOG)
+                })*
+                _ => None,
+            }
+        }
+
+        /// The codes with an embedded core catalog, for the registry test.
+        #[cfg(test)]
+        const EMBEDDED_CORE_CATALOGS: &[&str] = &[$($code),*];
+    };
+}
+
+embedded_catalogs! {
+    "pt-BR" => "../locales/pt-BR.json",
+    "es" => "../locales/es.json",
+    "it" => "../locales/it.json",
+}
+
+/// A resolved language: a handle on its registry row. Unknown codes
+/// resolve to the source (en-US).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Locale(&'static LocaleRow);
 
 impl Locale {
-    /// Mirror the desktop `i18n.js#pickLocale` precedence:
-    /// exact match → language base (`es-AR` → `es`, `it-IT` → `it`, `pt-*` → pt-BR)
-    /// → `en-US`, the English fallback, for any other locale.
+    /// PRD 0035 RF1.3: [`normalize`], else en-US.
     pub fn resolve(locale: &str) -> Locale {
-        let lower = locale.to_ascii_lowercase();
-        if lower == "en-us" || lower == "en" {
-            Locale::EnUs
-        } else if lower == "es" {
-            Locale::Es
-        } else if lower == "it" {
-            Locale::It
-        } else if lower.starts_with("pt") {
-            Locale::Pt
-        } else if lower.starts_with("es") {
-            // es-AR, es-MX, es-ES, …
-            Locale::Es
-        } else if lower.starts_with("it") {
-            // it-IT, it-CH, …
-            Locale::It
-        } else {
-            Locale::EnUs
-        }
+        Locale(normalize(locale).unwrap_or_else(source_locale))
     }
-}
 
-fn parse_catalog(raw: &'static str) -> BTreeMap<String, String> {
-    // Locale JSONs carry a small `_meta` object alongside the flat
-    // `id → template` map; serde_json can't decode both shapes with the
-    // same target type, so we ignore `_meta` after a structural check.
-    let value: serde_json::Value = serde_json::from_str(raw)
-        .expect("cuotai-core locale JSON must be valid; check locales/{pt-BR,es,it}.json");
-    let mut map = BTreeMap::new();
-    if let serde_json::Value::Object(object) = value {
-        for (key, val) in object {
-            if key == "_meta" {
-                continue;
-            }
-            match val {
-                serde_json::Value::String(s) => {
-                    map.insert(key, s);
-                }
-                _ => panic!("cuotai-core locale JSON: id {key:?} must map to a string template"),
-            }
-        }
-    } else {
-        panic!("cuotai-core locale JSON must be an object at the top level");
+    /// The canonical registry code (`zh-CN`, `es`).
+    pub fn code(self) -> &'static str {
+        self.0.code
     }
-    map
-}
 
-fn core_catalog_pt_br() -> &'static BTreeMap<String, String> {
-    static PT: LazyLock<BTreeMap<String, String>> =
-        LazyLock::new(|| parse_catalog(include_str!("../locales/pt-BR.json")));
-    &PT
-}
+    /// The registry row.
+    pub fn row(self) -> &'static LocaleRow {
+        self.0
+    }
 
-fn core_catalog_es() -> &'static BTreeMap<String, String> {
-    static ES: LazyLock<BTreeMap<String, String>> =
-        LazyLock::new(|| parse_catalog(include_str!("../locales/es.json")));
-    &ES
-}
+    /// Whether this is the source language, whose text is the fallback.
+    pub fn is_source(self) -> bool {
+        self.0.status == LocaleStatus::Source
+    }
 
-fn core_catalog_it() -> &'static BTreeMap<String, String> {
-    static IT: LazyLock<BTreeMap<String, String>> =
-        LazyLock::new(|| parse_catalog(include_str!("../locales/it.json")));
-    &IT
-}
-
-fn catalog_for(locale: Locale) -> Option<&'static BTreeMap<String, String>> {
-    match locale {
-        Locale::Pt => Some(core_catalog_pt_br()),
-        Locale::EnUs => None,
-        Locale::Es => Some(core_catalog_es()),
-        Locale::It => Some(core_catalog_it()),
+    /// The core catalog of this language, if it has one.
+    pub fn core_catalog(self) -> Option<&'static Catalog> {
+        embedded_core_catalog(self.0.code)
     }
 }
 
 /// Lookup the core catalog for `locale`: the static map of the resolved
-/// language (`pt-*` → pt-BR, `es-*` → es, `it-*` → it). Returns `None` for
-/// en-US and unknown locales, whose text is `Localized::fallback` itself.
-pub fn core_catalog(locale: &str) -> Option<&'static BTreeMap<String, String>> {
-    catalog_for(Locale::resolve(locale))
+/// language (`pt-*` → pt-BR, `es-*` → es, `zh-Hans` → zh-CN). Returns
+/// `None` for en-US, unknown locales and languages still in progress,
+/// whose text is `Localized::fallback` itself.
+pub fn core_catalog(locale: &str) -> Option<&'static Catalog> {
+    Locale::resolve(locale).core_catalog()
+}
+
+/// The codes of the languages that have a core catalog, in registry order
+/// (every shipped language but the source). Tests loop over this instead
+/// of a list of literals (PRD 0035 RF2.2).
+pub fn catalog_locales() -> Vec<&'static str> {
+    LOCALES
+        .iter()
+        .filter(|row| embedded_core_catalog(row.code).is_some())
+        .map(|row| row.code)
+        .collect()
 }
 
 /// Substitute every `{name}` placeholder in `template` against `params`.
@@ -468,13 +634,7 @@ fn substitute(template: &str, params: &BTreeMap<String, ParamValue>, locale: Loc
 
 impl Localized {
     fn resolve_as_locale(&self, locale: Locale) -> String {
-        let locale_str = match locale {
-            Locale::Pt => "pt-BR",
-            Locale::EnUs => "en-US",
-            Locale::Es => "es",
-            Locale::It => "it",
-        };
-        self.resolve(locale_str)
+        self.resolve(locale.code())
     }
 }
 
@@ -779,7 +939,7 @@ mod tests {
                 }
             }
         }
-        for locale in ["pt-BR", "es", "it"] {
+        for locale in crate::text::catalog_locales() {
             let catalog = core_catalog(locale).expect("shipped catalog");
             let missing: BTreeSet<_> = ids
                 .iter()
@@ -837,17 +997,24 @@ mod tests {
 
     #[test]
     fn locale_resolve_precedence() {
-        assert_eq!(Locale::resolve("en-US"), Locale::EnUs);
-        assert_eq!(Locale::resolve("EN"), Locale::EnUs);
-        assert_eq!(Locale::resolve("es"), Locale::Es);
-        assert_eq!(Locale::resolve("es-AR"), Locale::Es);
-        assert_eq!(Locale::resolve("it"), Locale::It);
-        assert_eq!(Locale::resolve("it-IT"), Locale::It);
-        assert_eq!(Locale::resolve("it-CH"), Locale::It);
-        assert_eq!(Locale::resolve("pt-BR"), Locale::Pt);
-        assert_eq!(Locale::resolve("pt-PT"), Locale::Pt);
-        assert_eq!(Locale::resolve("fr-FR"), Locale::EnUs); // unknown -> en-US
-        assert_eq!(Locale::resolve(""), Locale::EnUs);
+        for (raw, code) in [
+            ("en-US", "en-US"),
+            ("EN", "en-US"),
+            ("es", "es"),
+            ("es-AR", "es"),
+            ("it", "it"),
+            ("it-IT", "it"),
+            ("it-CH", "it"),
+            ("pt-BR", "pt-BR"),
+            ("pt-PT", "pt-BR"),
+            ("fr-FR", "fr"),
+            ("zh-TW", "en-US"),
+            ("est", "en-US"),
+            ("", "en-US"),
+        ] {
+            assert_eq!(Locale::resolve(raw).code(), code, "{raw:?}");
+        }
+        assert!(Locale::resolve("xx").is_source());
     }
 
     #[test]
@@ -905,63 +1072,317 @@ mod tests {
         assert!(pt.contains("Anthropic API"), "got: {pt}");
     }
 
+    /// Ids whose braces are literal text (a path or an example), not
+    /// parameters.
+    const LITERAL_BRACES: [&str; 4] = [
+        "edit_error.param.resource_id",
+        "field.azure_open_ai.resource_id.help",
+        "note.coding.personal_balance_only",
+        "query.cloud.invalid_azure_resource_id",
+    ];
+
+    /// PRD 0035 RF2.2 (and PRD 0034 RF4.1): every core catalog carries the
+    /// same ids, placeholders and plural shapes. The English source lives
+    /// in the code, so the first translated catalog is the reference.
     #[test]
-    fn catalog_keys_match_between_pt_es_and_it() {
-        // PRD 0034 RF4.1: every shipped catalog carries the same ids.
-        let pt = core_catalog("pt-BR").expect("pt-BR catalog");
-        let pt_keys: BTreeSet<&str> = pt.keys().map(String::as_str).collect();
-        for locale in ["es", "it"] {
-            let catalog = core_catalog(locale).expect("shipped catalog");
-            let keys: BTreeSet<&str> = catalog.keys().map(String::as_str).collect();
-            let missing: Vec<&&str> = pt_keys.difference(&keys).collect();
-            let extra: Vec<&&str> = keys.difference(&pt_keys).collect();
-            assert!(missing.is_empty(), "{locale} lacks {missing:?}");
-            assert!(extra.is_empty(), "{locale} has ids pt-BR lacks: {extra:?}");
+    fn core_catalogs_are_in_parity() {
+        let codes = catalog_locales();
+        let reference = core_catalog(codes[0]).expect("a reference catalog");
+        let mut problems = Vec::new();
+        for code in &codes {
+            let row = locale_row(code).unwrap();
+            let catalog = core_catalog(code).unwrap();
+            problems.extend(parity::problems(
+                row,
+                catalog,
+                reference,
+                parity::Allowances {
+                    literal_braces: &LITERAL_BRACES,
+                    ..Default::default()
+                },
+            ));
         }
+        assert!(problems.is_empty(), "{problems:#?}");
         assert!(core_catalog("en-US").is_none(), "English is the fallback");
     }
 
-    /// PRD 0034 RF4.1: a translation keeps every placeholder of the others,
-    /// so renaming one in a single catalog fails here.
+    /// PRD 0035 RF1.1: the registry, the `include_str!` table and the files
+    /// on disk list the same languages. A language in progress has no
+    /// file; the source has none either.
     #[test]
-    fn catalog_placeholders_match_between_catalogs() {
-        fn names(template: &str) -> BTreeSet<&str> {
-            let mut out = BTreeSet::new();
-            let mut rest = template;
-            while let Some(start) = rest.find('{') {
-                rest = &rest[start + 1..];
-                let Some(end) = rest.find('}') else { break };
-                let name = &rest[..end];
-                if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-                    out.insert(name);
-                }
-                rest = &rest[end + 1..];
-            }
-            out
+    fn the_registry_matches_the_core_catalog_files() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("locales");
+        let on_disk: BTreeSet<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|entry| {
+                let name = entry.ok()?.file_name().into_string().ok()?;
+                name.strip_suffix(".json").map(str::to_owned)
+            })
+            .collect();
+        let embedded: BTreeSet<String> = EMBEDDED_CORE_CATALOGS
+            .iter()
+            .map(|code| code.to_string())
+            .collect();
+        assert_eq!(on_disk, embedded, "a catalog file without include_str!");
+        let shipped: BTreeSet<String> = LOCALES
+            .iter()
+            .filter(|row| row.status == LocaleStatus::Shipped)
+            .map(|row| row.code.to_string())
+            .collect();
+        assert_eq!(
+            embedded, shipped,
+            "a shipped row needs a catalog and a catalog needs a shipped row"
+        );
+        for code in &embedded {
+            assert!(core_catalog(code).is_some_and(|c| !c.is_empty()), "{code}");
         }
-        // Literal braces that are not parameters (a path or an example).
-        const LITERAL: [&str; 4] = [
-            "edit_error.param.resource_id",
-            "field.azure_open_ai.resource_id.help",
-            "note.coding.personal_balance_only",
-            "query.cloud.invalid_azure_resource_id",
+    }
+
+    /// PRD 0035 RF3.2: the desktop UI catalogs, against `en-US.json` (the
+    /// UI source). en-US also carries core ids the core cannot give it
+    /// (there is no en-US core catalog); the others take those from their
+    /// core catalog. pt-BR keeps two leftovers of its time as the source.
+    /// Both lists only shrink.
+    #[test]
+    fn desktop_ui_catalogs_are_in_parity() {
+        const EN_US_ONLY: &[&str] = &[
+            "pace.chip.ahead",
+            "pace.chip.ahead_pct",
+            "pace.chip.exhausted",
+            "pace.chip.lasts",
+            "pace.chip.on_pace",
+            "pace.chip.reserve",
+            "pace.chip.reserve_pct",
+            "pace.chip.runs_out",
+            "pace.chip.too_early",
+            "status.authentication_error",
+            "status.error",
+            "status.needs_configuration",
+            "status.rate_limited",
+            "status.unsupported",
         ];
-        let pt = core_catalog("pt-BR").expect("pt-BR catalog");
-        let mut mismatched = Vec::new();
-        for locale in ["es", "it"] {
-            let catalog = core_catalog(locale).expect("shipped catalog");
-            for (id, template) in pt {
-                if LITERAL.contains(&id.as_str()) {
-                    continue;
-                }
-                if let Some(other) = catalog.get(id) {
-                    if names(template) != names(other) {
-                        mismatched.push(format!("{locale} {id}"));
-                    }
+        const PT_BR_EXTRA: &[&str] = &["status.ready", "edit_error.login_cleanup_failed"];
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/desktop/ui/locales");
+        let read = |code: &str| {
+            let raw = std::fs::read_to_string(dir.join(format!("{code}.json")))
+                .unwrap_or_else(|error| panic!("{code}.json: {error}"));
+            Catalog::parse(&raw).unwrap_or_else(|error| panic!("{code}.json: {error}"))
+        };
+        let on_disk: BTreeSet<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|entry| {
+                let name = entry.ok()?.file_name().into_string().ok()?;
+                name.strip_suffix(".json").map(str::to_owned)
+            })
+            .collect();
+        let translated: BTreeSet<String> = LOCALES
+            .iter()
+            .filter(|row| row.is_translated())
+            .map(|row| row.code.to_string())
+            .collect();
+        assert_eq!(on_disk, translated, "UI catalog files and the registry");
+        let source = source_locale();
+        let reference = read(source.code);
+        let mut problems = parity::problems(source, &reference, &reference, Default::default());
+        for row in LOCALES.iter().filter(|row| row.is_translated()) {
+            if row.code == source.code {
+                continue;
+            }
+            let catalog = read(row.code);
+            let extra = if row.code == "pt-BR" {
+                PT_BR_EXTRA
+            } else {
+                &[]
+            };
+            problems.extend(parity::problems(
+                row,
+                &catalog,
+                &reference,
+                parity::Allowances {
+                    missing: EN_US_ONLY,
+                    extra,
+                    literal_braces: &[],
+                },
+            ));
+        }
+        assert!(problems.is_empty(), "{problems:#?}");
+    }
+
+    /// PRD 0035 RF1.5: the desktop's static registry copy (browser demo)
+    /// and the pre-paint copies of the HTML pages equal the registry.
+    /// `CUOTAI_REGENERATE_LOCALES=1` rewrites them.
+    #[test]
+    fn locale_registry_copies() {
+        fn replace_between(text: &str, begin: &str, end: &str, body: &str) -> String {
+            let start = text.find(begin).expect("begin marker") + begin.len();
+            let stop = start + text[start..].find(end).expect("end marker");
+            let line_start = text[..stop].rfind('\n').map_or(stop, |i| i + 1);
+            let indent = &text[line_start..stop];
+            format!("{}\n{body}\n{indent}{}", &text[..start], &text[stop..])
+        }
+        let regenerate = std::env::var_os("CUOTAI_REGENERATE_LOCALES").is_some();
+        let ui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/desktop/ui");
+        let rows: Vec<String> = LOCALES
+            .iter()
+            .map(|row| format!("  {},", serde_json::to_string(row).unwrap()))
+            .collect();
+        let js_body = format!("export const REGISTRY = [\n{}\n];", rows.join("\n"));
+        let mut targets = vec![(
+            ui.join("js/locale-registry.js"),
+            "// registry:begin",
+            "// registry:end",
+            js_body,
+        )];
+        let translated: Vec<serde_json::Value> = LOCALES
+            .iter()
+            .filter(|row| row.is_translated())
+            .map(|row| {
+                serde_json::json!({
+                    "code": row.code,
+                    "languages": row.languages,
+                    "excluded_scripts": row.excluded_scripts,
+                    "excluded_regions": row.excluded_regions,
+                })
+            })
+            .collect();
+        let html_body = format!(
+            "      var localeRows = {};",
+            serde_json::to_string(&translated).unwrap()
+        );
+        for page in ["index.html", "tray.html", "settings.html"] {
+            targets.push((
+                ui.join(page),
+                "/* registry:begin */",
+                "/* registry:end */",
+                html_body.clone(),
+            ));
+        }
+        let mut stale = Vec::new();
+        for (path, begin, end, body) in targets {
+            let text = std::fs::read_to_string(&path).unwrap();
+            let want = replace_between(&text, begin, end, &body);
+            if want != text {
+                if regenerate {
+                    std::fs::write(&path, want).unwrap();
+                } else {
+                    stale.push(path.display().to_string());
                 }
             }
         }
-        assert!(mismatched.is_empty(), "placeholders differ: {mismatched:?}");
+        assert!(
+            stale.is_empty(),
+            "stale registry copies {stale:?}: run CUOTAI_REGENERATE_LOCALES=1 cargo test -p cuotai-core locale_registry_copies"
+        );
+    }
+
+    /// PRD 0035 RF2.2: the parity rules catch each kind of drift.
+    #[test]
+    fn parity_catches_each_kind_of_drift() {
+        let row = locale_row("ru").unwrap();
+        let reference = Catalog::parse(
+            r#"{"_meta":{"name":"English"},"a":"Hi {name}","n":{"one":"{count} item","other":"{count} items"}}"#,
+        )
+        .unwrap();
+        let check = |raw: &str| {
+            let catalog = Catalog::parse(raw).unwrap();
+            parity::problems(row, &catalog, &reference, Default::default())
+        };
+        let good = r#"{"_meta":{"name":"Русский"},"a":"Привет, {name}","n":{"one":"{count} элемент","few":"{count} элемента","many":"{count} элементов","other":"{count} элемента"}}"#;
+        assert!(check(good).is_empty(), "{:?}", check(good));
+        for (bad, why) in [
+            (
+                r#"{"_meta":{"name":"Русский"},"n":{"one":"a","few":"b","many":"c","other":"{count}"}}"#,
+                "lacks a",
+            ),
+            (
+                r#"{"_meta":{"name":"Русский"},"a":"Привет, {nom}","n":{"one":"{count}","few":"{count}","many":"{count}","other":"{count}"}}"#,
+                "placeholders",
+            ),
+            (
+                r#"{"_meta":{"name":"Русский"},"a":"{name}","n":{"one":"{count}","other":"{count}"}}"#,
+                "plural",
+            ),
+            (
+                r#"{"_meta":{"name":"Russian"},"a":"{name}","n":{"one":"{count}","few":"{count}","many":"{count}","other":"{count}"}}"#,
+                "endonym",
+            ),
+            (
+                r#"{"_meta":{"name":"Русский"},"a":"<b>{name}</b>","n":{"one":"{count}","few":"{count}","many":"{count}","other":"{count}"}}"#,
+                "markup",
+            ),
+            (
+                r#"{"_meta":{"name":"Русский"},"a":"{name}","n":"{count}"}"#,
+                "plural in one",
+            ),
+            (
+                r#"{"_meta":{"name":"Русский"},"a":"{name}","b":"x","n":{"one":"{count}","few":"{count}","many":"{count}","other":"{count}"}}"#,
+                "has b",
+            ),
+            (
+                r#"{"_meta":{"name":"Русский"},"a":" ","n":{"one":"{count}","few":"{count}","many":"{count}","other":"{count}"}}"#,
+                "empty",
+            ),
+        ] {
+            let found = check(bad);
+            assert!(found.iter().any(|p| p.contains(why)), "{why}: {found:?}");
+        }
+        let vi = locale_row("vi").unwrap();
+        let reference = Catalog::parse(r#"{"a":"x"}"#).unwrap();
+        let decomposed =
+            Catalog::parse("{\"_meta\":{\"name\":\"Tiếng Việt\"},\"a\":\"Vie\u{0302}\u{0323}t\"}")
+                .unwrap();
+        let found = parity::problems(vi, &decomposed, &reference, Default::default());
+        assert!(found.iter().any(|p| p.contains("NFC")), "{found:?}");
+        assert!(
+            Catalog::parse(r#"{"n":{"one":"x"}}"#).is_err(),
+            "a plural needs other"
+        );
+        assert!(Catalog::parse(r#"{"n":{"lots":"x","other":"y"}}"#).is_err());
+        assert!(Catalog::parse(r#"{"n":3}"#).is_err());
+    }
+
+    /// PRD 0035 RF4.1: a plural object picks its form from `count`, by the
+    /// rule of the locale, and falls to `other`.
+    #[test]
+    fn plural_messages_pick_the_form_of_the_count() {
+        let message = Message::Plural(
+            [
+                ("one", "{count} alert"),
+                ("few", "{count} few"),
+                ("many", "{count} many"),
+                ("other", "{count} alerts"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        );
+        let ru = PluralRule::EastSlavic;
+        assert_eq!(message.template(ru, Some("21")), Some("{count} alert"));
+        assert_eq!(message.template(ru, Some("22")), Some("{count} few"));
+        assert_eq!(message.template(ru, Some("11")), Some("{count} many"));
+        assert_eq!(message.template(ru, Some("1.5")), Some("{count} alerts"));
+        assert_eq!(message.template(ru, None), Some("{count} alerts"));
+        let only_other = Message::Plural([("other".to_string(), "{count} 件".to_string())].into());
+        assert_eq!(
+            only_other.template(PluralRule::One, Some("1")),
+            Some("{count} 件")
+        );
+        let note = Localized::plural(
+            "test.plural",
+            params([("count", 1usize.into())]),
+            "{count} problem",
+            "{count} problems",
+        );
+        assert_eq!(note.fallback, "1 problem");
+        let note = Localized::plural(
+            "test.plural",
+            params([("count", 3usize.into())]),
+            "{count} problem",
+            "{count} problems",
+        );
+        assert_eq!(note.fallback, "3 problems");
+        assert_eq!(note.resolve("ja"), "3 problems", "in progress: English");
     }
 
     /// PRD 0034 RF5.2: the fallback locale renders every `fallback`, nested

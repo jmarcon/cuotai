@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "name": "Português (Brasil)"
+    "name": "Português"
   },
   "about.brazil": "Agradecimento especial: projetos criados por brasileiros",
   "about.component.core": "núcleo",
@@ -199,6 +199,7 @@
   "history.no_accounts": "Nenhuma conta na configuração; sem medições para mostrar.",
   "history.window": "    Janela {start} → {end}: {initial} → {final}, pico {peak} em {peak_at}{resets}",
   "history.window.renews": " · renova {at}",
+  "lang.unknown": "CUOTAI_LANG={value} não é um idioma conhecido; usando inglês (en-US).",
   "login.authorize_in_browser": "Autorize no navegador do sistema:",
   "login.browser_unavailable": "Não foi possível abrir o navegador; abra a URL acima manualmente.",
   "login.checking_replaced": "Configuração salva; verificando a credencial substituída...",

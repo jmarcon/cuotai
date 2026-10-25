@@ -106,10 +106,16 @@
   "alerts.item.recovered": "{metric} disponible de nuevo",
   "alerts.item.threshold": "{metric} {percent}%",
   "alerts.join": "{first}; {rest}",
-  "alerts.title.accounts": "Cuotai: {count} alertas de uso",
+  "alerts.title.accounts": {
+    "one": "Cuotai: {count} alerta de uso",
+    "other": "Cuotai: {count} alertas de uso"
+  },
   "alerts.title.exhausted": "{provider}: cuota {window} agotada",
   "alerts.title.exhausted_metric": "{provider}: límite de {metric} alcanzado",
-  "alerts.title.many": "{provider}: {count} alertas de uso",
+  "alerts.title.many": {
+    "one": "{provider}: {count} alerta de uso",
+    "other": "{provider}: {count} alertas de uso"
+  },
   "alerts.title.pool_exhausted": "{provider} · {pool}: todas las cuentas agotadas",
   "alerts.title.pool_recovered": "{provider} · {pool}: una cuenta vuelve a estar disponible",
   "alerts.title.recovered": "{provider}: cuota {window} disponible de nuevo",
@@ -359,7 +365,10 @@
   "history.error.retention_bounds": "La retención del historial va de {min} a {max} días.",
   "history.error.storage": "No se pudo leer ni escribir el historial local de mediciones.",
   "history.warning.ceiling": "El historial superó {max} MiB: se borraron sus {removed} mediciones más antiguas.",
-  "history.warning.dropped": "{count} lecturas no entraron en el historial: el disco tardó en responder.",
+  "history.warning.dropped": {
+    "one": "{count} lectura no entró en el historial: el disco tardó en responder.",
+    "other": "{count} lecturas no entraron en el historial: el disco tardó en responder."
+  },
   "hooks.confirm.answer": "si",
   "hooks.confirm.command": "comando: {command}",
   "hooks.confirm.events": "eventos: {events}",
@@ -392,7 +401,10 @@
   "hooks.run.succeeded": "{rule} ({event}): terminado en {ms} ms",
   "hooks.run.terminated": "{rule} ({event}): terminó sin código de salida después de {ms} ms",
   "hooks.run.timed_out": "{rule} ({event}): agotó el límite de tiempo y se detuvo después de {ms} ms",
-  "hooks.warning.dropped": "Cola de hooks llena: se descartaron {count} ejecución(es) pendiente(s) más antigua(s).",
+  "hooks.warning.dropped": {
+    "one": "Cola de hooks llena: se descartó {count} ejecución pendiente más antigua.",
+    "other": "Cola de hooks llena: se descartaron {count} ejecuciones pendientes más antiguas."
+  },
   "hooks.warning.log": "No se pudo escribir el registro de ejecuciones de hooks en {path}.",
   "incident.state.degraded": "Rendimiento degradado",
   "incident.state.maintenance": "En mantenimiento",
@@ -1002,9 +1014,15 @@
   "query.insecure_transport": "Endpoint rechazado: las credenciales solo viajan por HTTPS. No se envió nada.",
   "resets.body": "{account}: {metrics}. Según la hora informada por el proveedor; el nuevo saldo aparece en la próxima actualización.",
   "resets.title.reset": "{provider}: cuota {window} renovada",
-  "resets.title.reset_many": "{provider}: {count} cuotas renovadas",
+  "resets.title.reset_many": {
+    "one": "{provider}: {count} cuota renovada",
+    "other": "{provider}: {count} cuotas renovadas"
+  },
   "resets.title.soon": "{provider}: la cuota {window} se renueva en {minutes} min",
-  "resets.title.soon_many": "{provider}: {count} cuotas se renuevan en {minutes} min",
+  "resets.title.soon_many": {
+    "one": "{provider}: {count} cuota se renueva en {minutes} min",
+    "other": "{provider}: {count} cuotas se renuevan en {minutes} min"
+  },
   "remove.kept.declined": "Usted optó por mantener la credencial en el cofre del sistema.",
   "remove.kept.shared": "La credencial se mantuvo porque la cuenta \"{name}\" aún la usa; eliminarla rompería a la cuenta superviviente.",
   "remove_error.index": "Índice {index} fuera de alcance.",
@@ -1258,7 +1276,10 @@
   "extensions.output.unit": "El campo {field} debe ser un texto de hasta {max} caracteres, sin caracteres de control.",
   "extensions.output.choice": "El campo {field} debe ser uno de estos: {values}.",
   "extensions.output.too_many": "El campo {field} acepta como máximo {max} elementos.",
-  "extensions.output.invalid": "La salida de la extensión no sigue el contrato (schema {schema}): {count} problema(s); no se usó ningún valor.",
+  "extensions.output.invalid": {
+    "one": "La salida de la extensión no sigue el contrato (schema {schema}): {count} problema; no se usó ningún valor.",
+    "other": "La salida de la extensión no sigue el contrato (schema {schema}): {count} problemas; no se usó ningún valor."
+  },
   "extensions.output.failed": "La extensión informó el estado {status}; no se usó ningún valor.",
   "extensions.output.note": "{text}",
   "extensions.consent.header": "La extensión {id} ({name}) ejecuta un programa local con los permisos de su usuario:",
@@ -1550,9 +1571,15 @@
   "alerts.title.projected.private": "{provider}: puede agotarse antes del reinicio",
   "alerts.body.projected.private": "A este ritmo se agota ≈{at}, {margin} antes del reinicio",
   "resets.body.private": "Según la hora informada por el proveedor; el nuevo saldo aparece en la próxima actualización.",
-  "quiet.digest.title": "Cuotai: {count} alertas de uso retenidas durante las horas de silencio",
+  "quiet.digest.title": {
+    "one": "Cuotai: {count} alerta de uso retenida durante las horas de silencio",
+    "other": "Cuotai: {count} alertas de uso retenidas durante las horas de silencio"
+  },
   "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.more": "y {count} más",
+  "quiet.digest.more": {
+    "one": "y {count} más",
+    "other": "y {count} más"
+  },
   "quiet.digest.line": "{title}: {body}",
   "hooks.error.quiet": "El quiet de la regla \"{name}\" debe ser \"run\" o \"skip\".",
   "detect.hint.env": "{variable} está definida en este entorno",

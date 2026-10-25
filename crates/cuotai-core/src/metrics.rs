@@ -1090,7 +1090,7 @@ mod tests {
             .iter()
             .map(|b| b.summary(|t| t.format("%H:%M").to_string()))
             .collect();
-        for locale in ["pt-BR", "es", "it"] {
+        for locale in crate::text::catalog_locales() {
             let catalog = crate::text::core_catalog(locale).unwrap();
             for text in &texts {
                 let nested = text.params.values().filter_map(|v| match v {

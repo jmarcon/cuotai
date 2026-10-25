@@ -3624,8 +3624,11 @@ pub(crate) fn safe(text: &str) -> Cow<'_, str> {
 
 /// Locale for resolving RF8 core messages in the TUI.
 ///
-/// Uses `CUOTAI_LANG` when set, otherwise the operating-system language
-/// when supported, and `en-US` as the fallback.
+/// PRD 0035 RF1.5: `CUOTAI_LANG` when set, otherwise the operating-system
+/// language, both normalized through the core registry
+/// (`cuotai_core::text::normalize`) to a canonical code; `en-US` when
+/// neither is a known language. A registered language whose translation is
+/// still in progress keeps its code and renders the English source.
 pub(crate) fn tui_locale() -> &'static str {
     use std::sync::OnceLock;
     #[cfg(test)]
@@ -3646,16 +3649,40 @@ pub(crate) fn tui_locale() -> &'static str {
 }
 
 fn tui_locale_for(preferred: Option<&str>, system: Option<&str>) -> String {
-    if let Some(preferred) = preferred.filter(|locale| !locale.trim().is_empty()) {
-        return preferred.to_string();
+    use cuotai_core::text::{normalize, source_locale};
+    let chosen = match preferred.filter(|locale| !locale.trim().is_empty()) {
+        // An unknown CUOTAI_LANG is English, not the system language
+        // (`unknown_lang_warning` says so once).
+        Some(preferred) => normalize(preferred),
+        None => system.and_then(normalize),
+    };
+    chosen.unwrap_or_else(source_locale).code.to_string()
+}
+
+/// PRD 0035 RF1.5: the one stderr warning for a `CUOTAI_LANG` that names no
+/// known language (it then reads English), `None` otherwise.
+pub(crate) fn unknown_lang_warning() -> Option<String> {
+    let value = std::env::var("CUOTAI_LANG").ok()?;
+    unknown_lang_warning_for(&value)
+}
+
+fn unknown_lang_warning_for(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() || cuotai_core::text::normalize(value).is_some() {
+        return None;
     }
-    match system.map(cuotai_core::text::Locale::resolve) {
-        Some(cuotai_core::text::Locale::Pt) => "pt-BR",
-        Some(cuotai_core::text::Locale::Es) => "es",
-        Some(cuotai_core::text::Locale::It) => "it",
-        Some(cuotai_core::text::Locale::EnUs) | None => "en-US",
-    }
-    .to_string()
+    // Printable ASCII only: the value is echoed to the terminal.
+    let shown: String = value
+        .chars()
+        .filter(|c| c.is_ascii_graphic())
+        .take(35)
+        .collect();
+    Some(crate::l10n::trf_in(
+        "en-US",
+        "lang.unknown",
+        "CUOTAI_LANG={value} is not a known language; using English (en-US).",
+        &[("value", &shown)],
+    ))
 }
 
 /// The label of a report status in the TUI locale (`status.<slug>`).
@@ -3910,14 +3937,33 @@ mod tests {
         assert_eq!(tui_locale_for(None, Some("it-IT")), "it");
         assert_eq!(tui_locale_for(None, Some("pt_BR.UTF-8")), "pt-BR");
         assert_eq!(tui_locale_for(None, Some("en-GB")), "en-US");
-        assert_eq!(tui_locale_for(None, Some("fr-FR")), "en-US");
+        assert_eq!(tui_locale_for(None, Some("fr-FR")), "fr");
+        assert_eq!(tui_locale_for(None, Some("zh_CN.UTF-8")), "zh-CN");
+        assert_eq!(tui_locale_for(None, Some("zh_TW.UTF-8")), "en-US");
+        assert_eq!(tui_locale_for(None, Some("in_ID")), "id-ID");
+        assert_eq!(tui_locale_for(None, Some("C")), "en-US");
         assert_eq!(tui_locale_for(None, None), "en-US");
+        // PRD 0035 RF1.5: every registry row, by code and by system form.
+        for row in cuotai_core::text::LOCALES {
+            assert_eq!(tui_locale_for(None, Some(row.code)), row.code);
+            let system = format!("{}.UTF-8", row.code.replace('-', "_"));
+            assert_eq!(tui_locale_for(None, Some(&system)), row.code);
+            assert_eq!(tui_locale_for(Some(row.code), Some("pt-BR")), row.code);
+        }
     }
 
     #[test]
     fn locale_environment_override_takes_precedence() {
-        assert_eq!(tui_locale_for(Some("es-AR"), Some("pt-BR")), "es-AR");
+        assert_eq!(tui_locale_for(Some("es-AR"), Some("pt-BR")), "es");
         assert_eq!(tui_locale_for(Some("  "), Some("es-ES")), "es");
+        // PRD 0035 RF1.5: an unknown value is English, with one warning.
+        assert_eq!(tui_locale_for(Some("xx"), Some("pt-BR")), "en-US");
+        let warning = unknown_lang_warning_for("xx").expect("a warning");
+        assert!(warning.contains("CUOTAI_LANG=xx"), "{warning}");
+        assert!(unknown_lang_warning_for("ja").is_none());
+        assert!(unknown_lang_warning_for("").is_none());
+        let escaped = unknown_lang_warning_for("x\u{1b}[2Jy").unwrap();
+        assert!(!escaped.contains('\u{1b}'), "{escaped:?}");
     }
 
     fn account(name: &str, provider: Provider) -> Account {
