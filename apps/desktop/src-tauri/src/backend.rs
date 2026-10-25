@@ -465,6 +465,38 @@ pub struct ReportView {
     /// lags `checked_at` by more than 15 minutes ("data as of 06:00").
     #[serde(skip_serializing_if = "Option::is_none")]
     data_as_of: Option<chrono::DateTime<chrono::Utc>>,
+    /// PRD 0023 RF3: paid extra usage of this reading; `None` when the
+    /// provider exposes no overage data.
+    overage: Option<OverageView>,
+}
+
+/// The core's overage reading plus its texts, so no surface composes them.
+#[derive(Serialize, Clone)]
+pub struct OverageView {
+    #[serde(flatten)]
+    state: cuotai_core::overage::OverageExport,
+    /// "On extra · $6.25", "Extra usage on · nothing spent", …
+    text: cuotai_core::text::Localized,
+    /// The card chip: `text`, or "Limit hit · on extra $6.25" while the
+    /// account is also at its limit.
+    summary: cuotai_core::text::Localized,
+    /// The amount is in provider units, not money (Claude).
+    caveat: Option<cuotai_core::text::Localized>,
+}
+
+fn overage_view(report: &Report) -> Option<OverageView> {
+    let state = cuotai_core::overage::assess(report)?;
+    let exhausted = classify_report(Some(report)) == AccountClass::Exhausted;
+    Some(OverageView {
+        summary: if exhausted {
+            state.summary_with_limit_hit()
+        } else {
+            state.text()
+        },
+        text: state.text(),
+        caveat: state.units_caveat(),
+        state: cuotai_core::overage::OverageExport::from(&state),
+    })
 }
 
 /// The core's provider status plus its state's text.
@@ -694,6 +726,7 @@ fn report_view(
         session_expiry: user_session::report_expiry(report, now),
         paste_session: user_session::offers_new_paste(report),
         data_as_of: cuotai_core::freshness::lagging_as_of(report),
+        overage: overage_view(report),
     }
 }
 
@@ -4325,6 +4358,50 @@ mod tests {
             as_of: None,
             overage_hint: None,
         }
+    }
+
+    /// PRD 0023 RF7: the view carries the core's overage reading and texts,
+    /// and an account without overage data carries none.
+    #[test]
+    fn view_carries_the_overage_state_and_its_texts() {
+        use cuotai_core::MetricWindow::{Monthly, Weekly, Window5h};
+        let config = Config {
+            accounts: vec![plain_account("work"), plain_account("plain")],
+            ..Config::default()
+        };
+        let mut blocked = ready(
+            "work",
+            vec![
+                quota("5h", 0.0, Window5h, 2),
+                quota("week", 100.0, Weekly, 30),
+            ],
+        );
+        let mut extra = Metric::usage(
+            "Extra",
+            6.25,
+            "USD",
+            cuotai_core::MetricKind::Spend,
+            Some(Monthly),
+        )
+        .overage();
+        extra.limit = Some(50.0);
+        blocked.metrics.push(extra);
+        let view = serde_json::to_value(report_view(0, &blocked, &config, None, None, 0, &[])).unwrap();
+        let overage = &view["overage"];
+        assert_eq!(overage["state"], "active");
+        assert_eq!(overage["spent"], 6.25);
+        assert_eq!(overage["currency"], "USD");
+        assert_eq!(overage["cap"], 50.0);
+        // The account is also at its limit: the chip reads the combined text.
+        assert_eq!(overage["summary"]["id"], "overage.limit_hit_on_extra");
+        assert_eq!(overage["text"]["id"], "overage.on_extra");
+        assert!(overage["caveat"].is_null());
+        // The overage meter never binds: the exhausted week does.
+        assert_eq!(view["binding"]["window"], "weekly");
+
+        let plain = ready("plain", vec![quota("5h", 40.0, Window5h, 2)]);
+        let view = serde_json::to_value(report_view(1, &plain, &config, None, None, 0, &[])).unwrap();
+        assert!(view["overage"].is_null());
     }
 
     #[test]

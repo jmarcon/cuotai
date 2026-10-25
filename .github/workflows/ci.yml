@@ -301,6 +301,9 @@ jobs:
       # The provider picker, cards and details show no integration-status
       # label in any built-in locale (that lives in docs/providers.md).
       - run: node scripts/test-provider-picker-ui.mjs
+      # PRD 0023 RF7: the extra usage chip, row and details in every
+      # built-in locale; overage is a textual figure, never a meter.
+      - run: node scripts/test-extra-usage-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified

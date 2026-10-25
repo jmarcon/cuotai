@@ -3,14 +3,16 @@
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  fmtMetricExtra, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
 /** `eye`: the quota's hide/show button and, PRD 0008 RF3.2, its usage alert mute (dialog only). */
 export function metricCardHtml(r, m, { eye = false } = {}) {
   const pct = remainingPct(m);
   const lv = level(pct);
-  const text = textualMetric(m);
+  // PRD 0023: paid extra usage is a textual figure, never a meter that implies "left".
+  const extra = isOverage(m);
+  const text = extra ? fmtMetricExtra(m) : textualMetric(m);
   const reset = fmtReset(m.resets_at);
   const hid = isMetricHidden(r, m);
   const pace = paceOf(m);
@@ -20,7 +22,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
   const gauge = renewed
     ? `<p class="sub" data-renewed-waiting>${icon("clock")} ${esc(renewedText(m))}</p>`
     : text != null
-    ? `<div class="balance ${m.state === "exhausted" ? "bad" : ""}">${esc(text)}</div>`
+    ? `<div class="balance ${m.state === "exhausted" && !extra ? "bad" : ""}">${esc(text)}</div>`
     : `<div class="gauge"><div class="bar ${lv}"><span style="width:${pct ?? 0}%"></span></div>${mark}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets a highlight and a chip; every other metric stays listed.
   const binding = isBindingMetric(r, m);
@@ -57,7 +59,7 @@ export function detailHtml(r, { eye = false } = {}) {
   if (!r.metrics.length)
     return `<div class="detail">${head}<div class="metric"><p class="sub">${esc(causeText(r))}</p></div>${rest}</div>`;
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
-  return `<div class="detail">${head}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  return `<div class="detail">${head}${overageDetailHtml(r)}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
 }
 
 // ---------- modelos (PRD 0002 RF6) ----------

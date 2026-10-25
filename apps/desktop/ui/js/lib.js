@@ -445,7 +445,76 @@ export const renewedText = (m) => t("metric.renewedWaiting", { time: fmtClock(m.
 export const statusLabel = (status) => t(`status.${status}`);
 /** Quotas que definem o resumo e a ordenação da conta: sem a janela curta de rate limit (não é a cota do
  *  plano) e sem as que o usuário ocultou. */
-export const planMetrics = (r) => r.metrics.filter((m) => m.kind !== "rate_limit" && !isMetricHidden(r, m));
+export const planMetrics = (r) => r.metrics.filter((m) => m.kind !== "rate_limit" && !isOverage(m) && !isMetricHidden(r, m));
+
+// ---------- PRD 0023: paid extra usage (overage) ----------
+/** Billed on top of the plan: never a plan meter, never the summary, always a textual figure. */
+export const isOverage = (m) => m.billing === "overage";
+/** The core's overage reading of a current report; null for a failed, pending or preserved one. */
+export const overageOf = (r) => (r.status === "ready" && !r.pending ? r.overage ?? null : null);
+/** The overage while money is being billed (`active`) or the extra budget is used up (`cap_reached`). */
+export const billingOverage = (r) => {
+  const o = overageOf(r);
+  return o && (o.state === "active" || o.state === "cap_reached") ? o : null;
+};
+/** One amount: money with the locale's currency format, provider units as the core words them, anything else with
+ *  its unit. A missing amount is "—", never zero (DS-MSG-5). */
+function fmtExtra(value, unit, currency) {
+  if (value == null) return "—";
+  if (currency) {
+    try { return new Intl.NumberFormat(currentLocale(), { style: "currency", currency }).format(value); } catch { /* unknown code */ }
+  }
+  if (unit === "unid. provedor") {
+    const n = fmtNumber(value);
+    return tl({ id: "overage.amount.provider_units", params: { value: n }, fallback: `${n} unid. provedor` });
+  }
+  return `${fmtNumber(value)}${unit ? ` ${unit}` : ""}`;
+}
+/** Figure first (DS-MSG-4): "$6.25 extra of $50" for one overage metric. */
+export function fmtMetricExtra(m) {
+  if (m.used == null) return "—";
+  const amount = fmtExtra(m.used, m.unit, m.kind === "spend" ? m.unit : null);
+  return m.limit > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(m.limit, m.unit, m.kind === "spend" ? m.unit : null) })
+    : t("metric.overage", { amount });
+}
+/** The account-level line: the figure while billing, the core's words for the other states. */
+export function overageLineText(o) {
+  if (o.state === "disabled") return "";
+  if (o.state === "active" || o.state === "cap_reached") {
+    if (o.spent == null) return tl(o.text);
+    const amount = fmtExtra(o.spent, o.unit, o.currency);
+    return o.cap > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(o.cap, o.unit, o.currency) }) : t("metric.overage", { amount });
+  }
+  return tl(o.text);
+}
+/** Card chip: the core's summary ("Limit hit · on extra $6.25"), icon plus text, warning role (money is charged). */
+export function overageChipHtml(r) {
+  const o = billingOverage(r);
+  if (!o) return "";
+  const text = tl(o.summary);
+  return `<span class="mini warn" data-overage-chip title="${esc(text)}" aria-label="${esc(`${t("card.extra.title")}: ${text}`)}">${icon("coins")}<span class="mini-t">${esc(text)}</span></span>`;
+}
+/** Card row under the plan meters: textual, never a meter that implies "left" (DS-CMP-MTR-5). */
+export function overageLineHtml(r) {
+  const o = overageOf(r);
+  if (!o || !["active", "cap_reached", "unknown"].includes(o.state)) return "";
+  const text = overageLineText(o);
+  return text ? `<p class="extra-line" data-overage-row title="${esc(tl(o.text))}">${icon("coins")}<span>${esc(text)}</span></p>` : "";
+}
+/** Details section: state, amount, cap, cycle end and the provider-units caveat. */
+export function overageDetailHtml(r) {
+  const o = overageOf(r);
+  if (!o) return "";
+  const cycle = fmtReset(o.cycle_ends_at);
+  const cap = o.cap > 0 ? fmtExtra(o.cap, o.unit, o.currency) : null;
+  return `<div class="metric extra-detail" data-overage-detail>
+    <div class="metric-top"><div><h3>${te("card.extra.title")}</h3><span class="sub">${esc(tl(o.text))}</span></div></div>
+    ${o.state === "active" || o.state === "cap_reached" ? `<div class="balance">${esc(overageLineText(o))}</div>` : ""}
+    ${cap && !(o.state === "active" || o.state === "cap_reached") ? `<div class="resets">${te("detail.extra.cap", { cap })}</div>` : ""}
+    ${cycle ? `<div class="resets">${te("detail.extra.cycle", { when: cycle })}</div>` : ""}
+    ${o.caveat ? `<p class="note">${esc(tl(o.caveat))}</p>` : ""}
+  </div>`;
+}
 export const worstRemaining = (r) => {
   const v = planMetrics(r).map(remainingPct).filter((x) => x != null);
   return v.length ? Math.min(...v) : null;
@@ -793,7 +862,14 @@ const dr = (account, provider, metrics, notes = [], status = "ready") => ({
   class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null }, model_count: null });
 const demoReports = [
   dr("alex@example.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 120, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
-  { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 24.6, "quota", "weekly", "%")]), class: "exhausted", model_count: 1 },
+  // PRD 0023: the exhausted week is also paying for extra usage ("Limit hit · on extra $6.25").
+  { ...dr("Account 2", "claude", [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 24.6, "quota", "weekly", "%"),
+      { label: "Extra usage", used: 6.25, limit: 50, remaining: null, unit: "USD", kind: "spend", window: "monthly", period: null, resets_at: h(300), billing: "overage",
+        state: "available", ratio: null, uncapped: true, no_cap: false }]),
+    class: "exhausted", model_count: 1,
+    overage: { state: "active", spent: 6.25, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300),
+      text: { id: "overage.on_extra", params: { amount: "$6.25" }, fallback: "No extra · $6.25" },
+      summary: { id: "overage.limit_hit_on_extra", params: { amount: "$6.25" }, fallback: "Limite atingido · no extra $6.25" }, caveat: null } },
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
   { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging" },
   { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("premium_interactions", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
@@ -1715,7 +1791,7 @@ export function summaryOf(r) {
   if (text) return { kind: "text", m: text.m, text: text.text };
   const renewed = quotas.filter(isRenewedWaiting).sort((a, b) => when(a) - when(b))[0];
   if (renewed) return { kind: "renewed", m: renewed };
-  const planAll = r.metrics.filter((m) => m.kind !== "rate_limit");
+  const planAll = r.metrics.filter((m) => m.kind !== "rate_limit" && !isOverage(m));
   return { kind: planAll.length && !quotas.length ? "hidden" : "none" };
 }
 /** Janelas de 5h e semanal da conta (a classificação vem do core: `metric.window`). Em cada janela vale a quota mais

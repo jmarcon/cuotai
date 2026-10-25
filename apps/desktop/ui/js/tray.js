@@ -1,5 +1,5 @@
 import { boot } from "./boot.js";
-import { te, t, currentLocale } from "./i18n.js";
+import { te, t, tl, currentLocale } from "./i18n.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import { easeOut, motionMs } from "./motion.js";
@@ -7,7 +7,7 @@ import {
   bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
   bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, paceLabelOf, nextNoticeText,
-  incidentBadge, incidentHtml, bindStatusLinks, wordmark,
+  incidentBadge, incidentHtml, bindStatusLinks, wordmark, overageChipHtml, billingOverage,
 } from "./lib.js";
 import { initUpdates, onUpdateState } from "./updater.js";
 import { trayUpdateLine } from "./tray-menu.js";
@@ -34,6 +34,7 @@ function row(r) {
       <div class="row-sub">${esc(r.account)}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
       ${r.usage_alerts?.length ? `<div class="row-alert">${icon("bell")}<span>${esc(ALERTS.find((c) => c.id === "usage").label(r))}</span></div>` : ""}
       <div class="row-age">${ageHtml(r)}</div>
+      ${overageChipHtml(r)}
       ${incidentHtml(r, { link: false })}
       ${trayPace(r, (p, label) => paceHtml(p, { label, short: true }))}
       <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
@@ -79,6 +80,7 @@ function tile(r) {
   const tip = [`${brand(r.provider).label} (${r.account})`,
     alert ? alert.label(r) : pct != null ? te2("metric.level." + lv, { pct: Math.round(pct) }) : "",
     blockedText(r) ?? "",
+    billingOverage(r) ? tl(billingOverage(r).summary) : "",
     r.binding ? bindingChipText(r) : "",
     ageText(r),
     trayPace(r, (p, label) => paceText(p, { label, short: true })),

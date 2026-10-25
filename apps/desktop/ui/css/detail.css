@@ -163,6 +163,27 @@
   color: var(--fg-muted);
   overflow-wrap: anywhere;
 }
+/* PRD 0023: paid extra usage, a textual row under the plan meters (the warning role: money is charged). */
+.extra-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warn);
+  overflow-wrap: anywhere;
+}
+.extra-line svg.i {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+}
+.extra-detail .balance {
+  color: var(--warn);
+  font-weight: 600;
+}
 .pace-line svg.i {
   flex: none;
   width: 13px;
