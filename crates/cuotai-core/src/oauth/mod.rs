@@ -5,6 +5,7 @@ mod flows;
 pub mod login;
 pub(crate) mod session;
 mod store;
+pub mod vault_index;
 pub use session::{AuthorizedLogin, OAuthLogin, OAuthSession};
 pub mod aws;
 pub mod cursor_import;

@@ -19,7 +19,7 @@ export const PAGES = [
   { id: "data", icon: "shield", label: "settings.page.data", load: () => import("./data.js"), sections: ["history", "privacy"] },
   { id: "integrations", group: ADVANCED, icon: "plug", label: "settings.page.integrations", load: () => import("./integrations.js"), sections: ["serve", "hooks", "widgets"] },
   { id: "cost", group: ADVANCED, icon: "coins", label: "settings.page.cost", load: () => import("./cost.js"), sections: ["cost"] },
-  { id: "files", group: ADVANCED, icon: "folder", label: "settings.page.files", load: () => import("./files.js"), sections: ["config", "folder"] },
+  { id: "files", group: ADVANCED, icon: "folder", label: "settings.page.files", load: () => import("./files.js"), sections: ["config", "folder", "credentials"] },
   { id: "about", bottom: true, icon: "info", label: "settings.page.about", load: () => import("./about.js"), sections: ["about", "updates"] },
 ];
 
@@ -104,6 +104,7 @@ export const CONTROLS = [
   { section: "folder", page: "files", selector: "data-pick" },
   { section: "folder", page: "files", selector: "data-reset" },
   { section: "folder", page: "files", selector: "data-open-dir" },
+  { section: "credentials", page: "files", selector: "data-vault" },
   { section: "about", page: "about", selector: "data-libraries" },
   { section: "updates", page: "about", selector: 'id="update-automatic"' },
   { section: "updates", page: "about", selector: "data-update-check" },

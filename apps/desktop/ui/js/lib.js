@@ -87,6 +87,9 @@ export const getAccount = (index) => call("get_account", { index });
 export const migrateSession = (index) => call("migrate_session", { index });
 /** PRD 0016 RF4.2: forget the account's web session, deleting its vault entry (after an explicit confirmation). */
 export const forgetSession = (index) => call("forget_session", { index });
+/** PRD 0029 RF6.2: the vault entries Cuotai created (orphans marked), and the removal of the orphans. */
+export const vaultAudit = () => call("vault_audit");
+export const vaultPrune = () => call("vault_prune");
 /** PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), never the value. */
 export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
@@ -1404,6 +1407,11 @@ const demo = {
     demoSettings.sessionMigrated.add(demoReports[index]);
     return demo.get_account({ index });
   },
+  vault_audit: async () => [
+    { key: "00000000-0000-4000-8000-000000000001", created_at: "2026-10-01T12:00:00Z", kind: "oauth", provider: "claude", account_id: "acc_demo00000001", account: "Claude", orphan: false, present: true },
+    ...(demoSettings.vaultPruned ? [] : [{ key: "00000000-0000-4000-8000-000000000002", created_at: "2026-09-01T12:00:00Z", kind: null, provider: null, account_id: null, account: null, orphan: true, present: true }]),
+  ],
+  vault_prune: async () => { const n = demoSettings.vaultPruned ? 0 : 1; demoSettings.vaultPruned = true; return n; },
   forget_session: async ({ index }) => {
     demoSettings.sessionForgotten.add(demoReports[index]);
     return demo.get_account({ index });

@@ -3,12 +3,12 @@
 import { te } from "../i18n.js";
 import { THEMES } from "../themes.js";
 import { LOCALES, skippedMessage, userContent } from "../usercontent.js";
-import { configLabel, esc, icon, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setUserDir } from "../lib.js";
+import { brand, configLabel, esc, icon, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
 import { configErrorText, errorText, group } from "./common.js";
 import { buttons, disc, pathHtml, row } from "./rows.js";
 
 // The last failure of each group, shown once by the next paint.
-const flash = { config: "", folder: "" };
+const flash = { config: "", folder: "", credentials: "" };
 const take = (key) => { const text = flash[key]; flash[key] = ""; return text; };
 
 export function html({ settings: s, view }) {
@@ -28,7 +28,35 @@ export function html({ settings: s, view }) {
       `<button class="btn sm" data-open-dir>${te("settings.folder.open")}</button>`),
     body: `${s.env_locked ? warn(te("settings.folder.env")) : ""}${userContent.errors.map((e) => warn(esc(skippedMessage(e)))).join("")}
       ${disc("folder-path", te("settings.config.path"), pathHtml(s.user_dir))}` });
-  return group("config", "", configRow + folderRow);
+  return group("config", "", configRow + folderRow)
+    // PRD 0029 RF6.2: what Cuotai stored in the system vault, filled in by `bind` (never a value).
+    + group("credentials", te("settings.vault.title"), `
+      <p class="hint">${te("settings.vault.help")}</p>
+      <div data-vault aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>
+      <p class="err" role="alert">${esc(take("credentials"))}</p>`);
+}
+
+
+/** One indexed entry: what uses it (or that nothing does) and since when. */
+function vaultRow(e) {
+  const owner = e.orphan
+    ? te("settings.vault.orphan")
+    : `${esc(e.account ?? "")} · ${esc(brand(e.provider).label)}`;
+  const kind = e.kind ? te(`settings.vault.kind.${e.kind}`) : te("settings.vault.kind.unused");
+  const date = new Date(e.created_at).toLocaleDateString(document.documentElement.lang || undefined);
+  return `<li><strong>${kind}</strong> — ${owner}${e.present ? "" : ` · ${te("settings.vault.gone")}`} <small>${esc(te("settings.vault.created", { date }))}</small></li>`;
+}
+
+export function vaultHtml(entries) {
+  if (!entries.length) return `<p class="hint">${te("settings.vault.empty")}</p>`;
+  const orphans = entries.filter((e) => e.orphan).length;
+  return `<ul class="hook-runs">${entries.map(vaultRow).join("")}</ul>
+    ${orphans ? `<div class="dlg-actions left"><button class="btn danger-btn" data-vault-prune>${icon("trash")} ${te("settings.vault.prune", { count: orphans })}</button></div>
+    <div class="confirm" data-vault-confirm role="alertdialog" aria-labelledby="vault-confirm-text" hidden>
+      <p id="vault-confirm-text">${te("settings.vault.confirm")}</p>
+      <div class="dlg-actions left"><button class="btn danger-btn" data-vault-prune-confirm>${te("settings.vault.pruneConfirm")}</button>
+        <button class="btn" data-vault-prune-cancel>${te("common.cancel")}</button></div>
+    </div>` : ""}`;
 }
 
 export function bind(root, ctx) {
@@ -56,4 +84,18 @@ export function bind(root, ctx) {
     if (typeof picked === "string" && picked) applyConfig(picked);
   };
   root.querySelector("[data-reset-config]").onclick = () => applyConfig(null);
+  const vault = root.querySelector("[data-vault]");
+  const showVault = () => vaultAudit().then((entries) => {
+    vault.innerHTML = vaultHtml(entries);
+    const prune = vault.querySelector("[data-vault-prune]");
+    if (!prune) return;
+    const box = vault.querySelector("[data-vault-confirm]");
+    prune.onclick = () => { box.hidden = false; box.querySelector("[data-vault-prune-cancel]").focus(); };
+    box.querySelector("[data-vault-prune-cancel]").onclick = () => { box.hidden = true; prune.focus(); };
+    box.querySelector("[data-vault-prune-confirm]").onclick = async () => {
+      try { await vaultPrune(); await showVault(); }
+      catch (e) { fail("credentials", errorText(e)); }
+    };
+  }).catch((e) => { vault.innerHTML = `<p class="hint warn-txt">${esc(errorText(e))}</p>`; });
+  showVault();
 }

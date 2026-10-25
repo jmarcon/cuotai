@@ -28,7 +28,7 @@ use cuotai_core::{
         Binding, MetricState,
     },
     models::{self, ModelError, ModelState},
-    oauth::OAuthSession,
+    oauth::{vault_index, OAuthSession},
     pace::{self, Pace, Point},
     refresh::{Edit, RefreshCycle},
     user_session, Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor,
@@ -3070,6 +3070,43 @@ impl Backend {
     /// the saved account's `session_env`-style variables into the system
     /// vault, or forget its vault session. Returns the account's refreshed
     /// form.
+    /// PRD 0029 RF6.2: the vault entries Cuotai created, matched against the
+    /// configuration (orphans marked); never a value.
+    pub async fn vault_audit(&self) -> Result<Vec<vault_index::AuditEntry>, String> {
+        self.ensure_loaded().await;
+        let (session, config) = self.vault_inputs().await?;
+        Ok(match session.vault_index_path() {
+            Some(path) => vault_index::audit(&session, path, &config).await,
+            None => Vec::new(),
+        })
+    }
+
+    /// PRD 0029 RF6.2: delete the orphans of [`Self::vault_audit`]; the
+    /// dialog confirmed first. Returns how many were deleted.
+    pub async fn vault_prune(&self) -> Result<usize, String> {
+        self.ensure_loaded().await;
+        let (session, config) = self.vault_inputs().await?;
+        match session.vault_index_path() {
+            Some(path) => vault_index::prune(&session, path, &config)
+                .await
+                .map_err(|note| l10n_to_json(&note)),
+            None => Ok(0),
+        }
+    }
+
+    async fn vault_inputs(&self) -> Result<(Arc<OAuthSession>, Config), String> {
+        let g = self.inner.lock().await;
+        let session = g.session.clone().ok_or("Sessão OAuth não inicializada.")?;
+        let config = g
+            .loaded
+            .as_ref()
+            .ok_or("Configuração não carregada.")?
+            .file
+            .config
+            .clone();
+        Ok((session, config))
+    }
+
     pub async fn change_session(
         &self,
         app: &AppHandle,

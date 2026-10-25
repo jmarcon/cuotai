@@ -14,20 +14,48 @@ pub struct OAuthSession {
     store: Arc<dyn TokenStore>,
     secrets: Arc<dyn Credentials>,
     refresh_lock: Arc<Mutex<()>>,
+    /// PRD 0029 RF6: the index of the entries this session's store creates.
+    vault_index: Option<std::path::PathBuf>,
 }
 
 impl OAuthSession {
+    /// The OS vault, with the index of the entries Cuotai creates
+    /// ([`super::vault_index`], PRD 0029 RF6).
     pub fn system() -> Result<Self, OAuthError> {
-        Self::new(Arc::new(SystemTokenStore), Arc::new(EnvironmentCredentials))
+        let index = super::vault_index::default_path();
+        let store: Arc<dyn TokenStore> = Arc::new(SystemTokenStore);
+        let mut session = Self::new(
+            match &index {
+                Some(path) => Arc::new(super::vault_index::IndexedStore::new(store, path.clone())),
+                None => store,
+            },
+            Arc::new(EnvironmentCredentials),
+        )?;
+        session.vault_index = index;
+        Ok(session)
     }
 
     /// Opt-in plaintext credentials for local development, never a fallback.
     /// Release builds reject this operation before touching the filesystem.
     pub fn development_sqlite(path: &std::path::Path) -> Result<Self, OAuthError> {
-        Self::new(
-            super::store::development_store(path)?,
+        // Its own index, next to the database, so the development and the
+        // OS vault indexes never mix.
+        let index = super::vault_index::development_path(path);
+        let mut session = Self::new(
+            Arc::new(super::vault_index::IndexedStore::new(
+                super::store::development_store(path)?,
+                index.clone(),
+            )),
             Arc::new(EnvironmentCredentials),
-        )
+        )?;
+        session.vault_index = Some(index);
+        Ok(session)
+    }
+
+    /// PRD 0029 RF6: where this session indexes the vault entries it
+    /// creates (`None` for a store without the index, as in tests).
+    pub fn vault_index_path(&self) -> Option<&std::path::Path> {
+        self.vault_index.as_deref()
     }
 
     pub fn new(
@@ -45,6 +73,7 @@ impl OAuthSession {
             store,
             secrets,
             refresh_lock: Arc::new(Mutex::new(())),
+            vault_index: None,
         })
     }
 

@@ -14,6 +14,7 @@ mod report_problem;
 mod report_view;
 mod serve;
 mod ui;
+mod vault;
 mod watch;
 mod wizard;
 
@@ -219,6 +220,15 @@ struct Args {
     /// SOMENTE desenvolvimento: tokens sem criptografia em SQLite (release recusa).
     #[arg(long, value_name = "ARQUIVO")]
     dev_credentials_sqlite: Option<PathBuf>,
+    /// Lista as credenciais que o Cuotai guardou no cofre (OAuth e sessões
+    /// web), a conta que usa cada uma e as órfãs, que nenhuma conta usa;
+    /// nunca mostra um valor. Com --json, em JSON. Saída 0; 2 com órfãs.
+    #[arg(long, conflicts_with_all = VAULT_CONFLICTS)]
+    vault_audit: bool,
+    /// Apaga do cofre as credenciais órfãs de --vault-audit, depois de
+    /// confirmar no terminal (sem terminal: erro).
+    #[arg(long, conflicts_with_all = VAULT_CONFLICTS, conflicts_with = "vault_audit")]
+    vault_prune: bool,
     /// Desliga as animações da TUI (também: CUOTAI_NO_ANIMATIONS=1).
     #[arg(long)]
     no_animations: bool,
@@ -423,6 +433,17 @@ struct Args {
     #[arg(long, value_name = "DIAS", conflicts_with_all = COST_OPTION_CONFLICTS)]
     cost_retention_days: Option<u32>,
 }
+
+/// PRD 0029 RF6.2: the vault audit runs alone.
+const VAULT_CONFLICTS: [&str; 7] = [
+    "cost_action",
+    "once",
+    "json_v1",
+    "history",
+    "notify",
+    "serve",
+    "watch",
+];
 
 /// `--cost-period`/`--cost-retention-days` only save preferences.
 const COST_OPTION_CONFLICTS: [&str; 8] = [
@@ -640,6 +661,18 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             )?;
         }
         return Ok(history_exit_code(&found));
+    }
+    if args.vault_audit || args.vault_prune {
+        let file = ConfigFile::load(args.config, false)?;
+        let session = match &args.dev_credentials_sqlite {
+            Some(path) => OAuthSession::development_sqlite(path)?,
+            None => OAuthSession::system()?,
+        };
+        return if args.vault_prune {
+            vault::prune(&session, &file.config).await
+        } else {
+            vault::audit(&session, &file.config, args.json).await
+        };
     }
     let interactive = !args.once
         && !args.json

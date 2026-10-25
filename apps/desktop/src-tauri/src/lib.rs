@@ -181,6 +181,20 @@ async fn forget_session(
         .await
 }
 
+/// PRD 0029 RF6.2: the vault entries Cuotai created; never a value.
+#[tauri::command]
+async fn vault_audit(
+    b: Shared<'_>,
+) -> Result<Vec<cuotai_core::oauth::vault_index::AuditEntry>, String> {
+    b.vault_audit().await
+}
+
+/// PRD 0029 RF6.2: delete the vault entries no account uses.
+#[tauri::command]
+async fn vault_prune(b: Shared<'_>) -> Result<usize, String> {
+    b.vault_prune().await
+}
+
 /// PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), before it is
 /// saved; never the value.
 #[tauri::command]
@@ -1550,6 +1564,8 @@ pub fn run() {
             get_account,
             migrate_session,
             forget_session,
+            vault_audit,
+            vault_prune,
             preview_session,
             test_session,
             save_account,

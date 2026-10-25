@@ -292,6 +292,17 @@ impl SessionConfig {
 }
 
 /// Vault key of one slot: bound to the reference, the provider and the slot.
+/// PRD 0029 RF6: the vault keys `account`'s web sessions are stored under.
+pub(crate) fn account_session_keys(account: &crate::Account) -> Vec<String> {
+    account.session.as_ref().map_or_else(Vec::new, |session| {
+        session
+            .slots
+            .iter()
+            .filter_map(|slot| storage_key(account.provider, session, slot))
+            .collect()
+    })
+}
+
 fn storage_key(provider: Provider, config: &SessionConfig, slot: &str) -> Option<String> {
     let namespace = uuid::Uuid::parse_str(&config.credential_ref).ok()?;
     let identity = serde_json::to_vec(&("user_session", provider, slot)).ok()?;
