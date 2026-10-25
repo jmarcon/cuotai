@@ -8,6 +8,7 @@
 //! name, an e-mail, an organization, a URL, a header or a body, and nothing
 //! is filed or written outside the canary directory.
 
+use crate::diagnostic::{ResponseShape, MAX_ENTRIES};
 use crate::events::FailureCategory;
 use crate::support::{self, auth_mode, AccountView, AppInfo, IssueDraft};
 use crate::{access, Account, Report, Status};
@@ -43,6 +44,13 @@ pub struct Shape {
     pub paths: Vec<String>,
     pub digest: Option<String>,
     pub metrics: Vec<MetricShape>,
+    /// RF4.1: the structural fingerprint of the answer (`path`, JSON type),
+    /// when the query decoded a JSON response. Keys and types only.
+    #[serde(default)]
+    pub response: Vec<(String, String)>,
+    /// SHA-256 of `response`.
+    #[serde(default)]
+    pub response_digest: Option<String>,
 }
 
 impl Shape {
@@ -116,6 +124,17 @@ fn status_name(status: Status) -> String {
 /// The shapes of `reports` (one per provider and mode, in first-seen order)
 /// and, aligned with them, the index of the first account of each group.
 pub fn observe(accounts: &[Account], reports: &[Report], date: &str) -> (Run, Vec<usize>) {
+    observe_with(accounts, reports, &[], date)
+}
+
+/// [`observe`] with the response fingerprints of
+/// `Monitor::refresh_with_shapes` (RF4.1), aligned with the accounts.
+pub fn observe_with(
+    accounts: &[Account],
+    reports: &[Report],
+    responses: &[Option<ResponseShape>],
+    date: &str,
+) -> (Run, Vec<usize>) {
     let mut shapes: Vec<Shape> = Vec::new();
     let mut firsts = Vec::new();
     for (index, (account, report)) in accounts.iter().zip(reports).enumerate() {
@@ -144,6 +163,7 @@ pub fn observe(accounts: &[Account], reports: &[Report], date: &str) -> (Run, Ve
             })
             .unwrap_or_default();
         let digest = drift.map(|d| d.digest.clone());
+        let response = responses.get(index).and_then(Option::as_ref);
         if let Some(existing) = shapes
             .iter_mut()
             .find(|s| s.provider == provider && s.mode == mode)
@@ -152,6 +172,15 @@ pub fn observe(accounts: &[Account], reports: &[Report], date: &str) -> (Run, Ve
             // wins, the metrics are the union.
             metrics.extend(existing.metrics.drain(..));
             existing.metrics = metrics.into_iter().collect();
+            if let Some(response) = response {
+                let mut merged = ResponseShape {
+                    fingerprint: std::mem::take(&mut existing.response),
+                    digest: String::new(),
+                };
+                merged.merge(response);
+                existing.response = merged.fingerprint;
+                existing.response_digest = Some(merged.digest);
+            }
             if failure.is_some() && existing.failure.is_none() {
                 existing.status = status_name(report.status);
                 existing.failure = failure;
@@ -173,6 +202,8 @@ pub fn observe(accounts: &[Account], reports: &[Report], date: &str) -> (Run, Ve
             paths,
             digest,
             metrics: metrics.into_iter().collect(),
+            response: response.map(|r| r.fingerprint.clone()).unwrap_or_default(),
+            response_digest: response.map(|r| r.digest.clone()),
         });
         firsts.push(index);
     }
@@ -191,6 +222,66 @@ fn metric_text(metric: &MetricShape) -> String {
         "{} ({}, {}, {})",
         metric.label, metric.kind, metric.window, metric.unit
     )
+}
+
+/// RF4.2: a field present before and gone now, or a type that changed.
+/// A field that turned `null` (or came back from `null`) is an optional
+/// value, not drift. A fingerprint cut at [`MAX_ENTRIES`] only vouches for
+/// the paths up to its last entry.
+fn response_changes(before: &[(String, String)], now: &[(String, String)]) -> Vec<String> {
+    if before.is_empty() || now.is_empty() {
+        return Vec::new();
+    }
+    let horizon = (now.len() >= MAX_ENTRIES).then(|| now.last().map(|(p, _)| p.as_str()));
+    let mut changes = Vec::new();
+    for (path, kind) in before {
+        if horizon.flatten().is_some_and(|last| path.as_str() > last) {
+            continue;
+        }
+        let found: Vec<&str> = now
+            .iter()
+            .filter(|(p, _)| p == path)
+            .map(|(_, k)| k.as_str())
+            .collect();
+        if found.is_empty() {
+            changes.push(format!("field missing: {path}"));
+        } else if !found.contains(&kind.as_str())
+            && kind != "null"
+            && found.iter().all(|k| *k != "null")
+        {
+            changes.push(format!(
+                "type changed: {path} ({kind} -> {})",
+                found.join("|")
+            ));
+        }
+    }
+    changes
+}
+
+/// RF4.5: a fixed status component that the public page no longer lists is a
+/// drift entry ("status component renamed"), instead of the silent `Unknown`
+/// the app shows. Mode `status`, shown with an account of that provider.
+fn status_drifts(
+    accounts: &[Account],
+    missing: &[(crate::Provider, Vec<&'static str>)],
+) -> Vec<Drift> {
+    missing
+        .iter()
+        .filter_map(|(provider, names)| {
+            let account = accounts.iter().position(|a| a.provider == *provider)?;
+            Some(Drift {
+                provider: provider.slug().to_string(),
+                mode: "status".into(),
+                category: "status_component",
+                priority: false,
+                changes: names
+                    .iter()
+                    .map(|name| format!("status component renamed or removed: {name}"))
+                    .collect(),
+                account,
+            })
+        })
+        .collect()
 }
 
 /// What changed from `previous` to `current` (RF4.2), priority interfaces
@@ -235,6 +326,10 @@ pub fn detect(previous: &Run, current: &Run, firsts: &[usize]) -> Vec<Drift> {
             }
         }
         if before.status == "ready" && now.status == "ready" {
+            let changes = response_changes(&before.response, &now.response);
+            if !changes.is_empty() {
+                push("schema_changed", changes);
+            }
             let mut changes: Vec<String> = before
                 .metrics
                 .iter()
@@ -381,8 +476,26 @@ pub fn analyze(
     skipped: &[String],
     app: &AppInfo,
 ) -> Outcome {
-    let (run, firsts) = observe(accounts, reports, date);
-    let drifts = previous.map_or_else(Vec::new, |previous| detect(previous, &run, &firsts));
+    analyze_with(previous, accounts, reports, &[], &[], date, skipped, app)
+}
+
+/// [`analyze`] with the response fingerprints of `Monitor::refresh_with_shapes`
+/// (RF4.1) and the status components `Monitor::missing_status_components`
+/// found gone (RF4.5).
+#[allow(clippy::too_many_arguments)]
+pub fn analyze_with(
+    previous: Option<&Run>,
+    accounts: &[Account],
+    reports: &[Report],
+    responses: &[Option<ResponseShape>],
+    status_missing: &[(crate::Provider, Vec<&'static str>)],
+    date: &str,
+    skipped: &[String],
+    app: &AppInfo,
+) -> Outcome {
+    let (run, firsts) = observe_with(accounts, reports, responses, date);
+    let mut drifts = previous.map_or_else(Vec::new, |previous| detect(previous, &run, &firsts));
+    drifts.extend(status_drifts(accounts, status_missing));
     let evidence = evidence(&run, &drifts);
     let drafts = drafts(&drifts, accounts, reports, app);
     let markdown = markdown(&run, &drifts, &evidence, skipped, previous.is_none());
@@ -532,6 +645,75 @@ mod tests {
         let ev = evidence(&now, &drifts);
         assert_eq!(ev.len(), 1);
         assert_eq!(ev[0].verified_on, "2026-10-25");
+    }
+
+    #[test]
+    fn a_successful_answer_that_lost_a_field_or_changed_a_type_is_drift() {
+        let accounts = [account(Provider::Claude)];
+        let reports = [report(&accounts[0], Status::Ready, &["5h"])];
+        let shape = |value: serde_json::Value| vec![Some(ResponseShape::of(&value))];
+        let day = |value: serde_json::Value| observe_with(&accounts, &reports, &shape(value), "d");
+        let (before, _) = day(json!({"a": {"x": 1, "y": "SEEDED-VALUE"}, "opt": 1, "z": 2}));
+        // Identical shape (different values) and an optional field turning
+        // null are not drift.
+        let (same, firsts) = day(json!({"a": {"x": 9, "y": "other"}, "opt": null, "z": 3}));
+        assert!(detect(&before, &same, &firsts).is_empty());
+        // `y` renamed and `z` retyped.
+        let (now, firsts) = day(json!({"a": {"x": 1, "w": "v"}, "opt": 1, "z": "2"}));
+        let drifts = detect(&before, &now, &firsts);
+        assert_eq!(drifts.len(), 1);
+        assert_eq!(drifts[0].category, "schema_changed");
+        assert_eq!(
+            drifts[0].changes,
+            ["field missing: a.y", "type changed: z (number -> string)"]
+        );
+        assert!(evidence(&now, &drifts).is_empty());
+        // The record holds keys and types only.
+        let text = serde_json::to_string(&before).unwrap();
+        assert!(text.contains("\"response\"") && !text.contains("SEEDED-VALUE"));
+    }
+
+    #[test]
+    fn a_renamed_status_component_is_a_drift_with_its_own_draft() {
+        let accounts = [account(Provider::Claude), account(Provider::OpenAiApi)];
+        let reports = [
+            report(&accounts[0], Status::Ready, &["5h"]),
+            report(&accounts[1], Status::Ready, &["month"]),
+        ];
+        let outcome = analyze_with(
+            None,
+            &accounts,
+            &reports,
+            &[],
+            &[(Provider::OpenAiApi, vec!["Responses"])],
+            "2026-10-25",
+            &[],
+            &app(),
+        );
+        assert_eq!(outcome.drifts.len(), 1);
+        assert_eq!(outcome.drifts[0].category, "status_component");
+        assert_eq!(outcome.drifts[0].mode, "status");
+        assert_eq!(
+            outcome.drifts[0].changes,
+            ["status component renamed or removed: Responses"]
+        );
+        assert_eq!(outcome.drafts.len(), 1);
+        assert!(outcome.markdown.contains("status_component"));
+        // It does not take the interface's own evidence away.
+        assert_eq!(outcome.evidence.len(), 2);
+    }
+
+    #[test]
+    fn a_fingerprint_cut_at_the_cap_only_vouches_for_its_own_paths() {
+        let wide = |from: usize| -> Vec<(String, String)> {
+            (from..from + MAX_ENTRIES)
+                .map(|i| (format!("k{i:03}"), "number".to_string()))
+                .collect()
+        };
+        // Everything the new, truncated fingerprint cannot see is ignored.
+        assert!(response_changes(&wide(0), &wide(0)).is_empty());
+        let shifted = response_changes(&wide(0), &wide(1));
+        assert_eq!(shifted, ["field missing: k000"]);
     }
 
     #[test]

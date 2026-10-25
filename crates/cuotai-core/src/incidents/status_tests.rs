@@ -990,3 +990,57 @@ async fn eleven_labs_maintenance_and_missing_subpage() {
     let status = status_of(&statuses, Provider::ElevenLabs);
     assert_eq!((status.state, status.stale), (IncidentState::Unknown, true));
 }
+
+#[tokio::test]
+async fn a_scoped_component_the_page_no_longer_lists_is_reported_by_name() {
+    // PRD 0028 RF4.5.
+    use crate::incidents::{Component, FeedFormat};
+    const SCOPE: &[Component] = &[
+        Component {
+            id: "still-there",
+            name: "Still there",
+        },
+        Component {
+            id: "renamed-id",
+            name: "Renamed",
+        },
+    ];
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/summary.json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "components": [
+                {"id": "still-there", "status": "operational"},
+                {"id": "other", "status": "operational"}
+            ],
+            "incidents": [],
+            "scheduled_maintenances": []
+        })))
+        .mount(&server)
+        .await;
+    let url: &'static str = Box::leak(format!("{}/summary.json", server.uri()).into_boxed_str());
+    let source = StatusSource {
+        format: Format::StatuspageV2,
+        url,
+        scope: SCOPE,
+        verified_on: "2026-10-25",
+    };
+    let slots = Semaphore::new(1);
+    let http = reqwest::Client::new();
+    assert_eq!(
+        missing_components(&http, &slots, source).await,
+        Some(vec!["Renamed"])
+    );
+    // Formats that do not list components cannot be checked.
+    let rss = StatusSource {
+        format: Format::AtomRss(FeedFormat::Xai),
+        ..source
+    };
+    assert_eq!(missing_components(&http, &slots, rss).await, None);
+    // An unreadable page is not a finding.
+    let down = StatusSource {
+        url: "http://127.0.0.1:1/summary.json",
+        ..source
+    };
+    assert_eq!(missing_components(&http, &slots, down).await, None);
+}

@@ -663,6 +663,29 @@ impl Monitor {
         merged
     }
 
+    /// PRD 0028 RF4.5: for each configured provider with a Statuspage source,
+    /// the display names of the fixed components its public page no longer
+    /// lists (only providers with something missing appear). One request per
+    /// distinct page, independent of the status preference: the caller (the
+    /// local canary) decides whether status pages may be contacted.
+    pub async fn missing_status_components(&self) -> Vec<(Provider, Vec<&'static str>)> {
+        let mut urls = HashSet::new();
+        let sources: Vec<_> = self
+            .status_sources()
+            .into_iter()
+            .filter(|(_, source)| urls.insert(source.url))
+            .collect();
+        let checked =
+            futures_util::future::join_all(sources.iter().map(|(provider, source)| async move {
+                incidents::missing_components(&self.http, &self.query_slots, *source)
+                    .await
+                    .filter(|missing| !missing.is_empty())
+                    .map(|missing| (*provider, missing))
+            }))
+            .await;
+        checked.into_iter().flatten().collect()
+    }
+
     /// PRD 0011 RF4.3: the domains status queries reach for the configured
     /// providers, in configuration order, once each. No network and
     /// independent of the preference, so a frontend can list them before
@@ -763,6 +786,36 @@ impl Monitor {
             finished_at: self.now(),
             reports: indexed.into_iter().map(|(_, report)| report).collect(),
         }
+    }
+
+    /// One refresh like [`Monitor::refresh`], plus, per account in
+    /// configuration order, the structural fingerprint of the responses it
+    /// decoded (keys and JSON types only; `None` when the query made no JSON
+    /// request, such as an extension or a failure before any answer). For
+    /// the local canary (PRD 0028 RF4.1); statuses are not queried.
+    pub async fn refresh_with_shapes(&self) -> (Snapshot, Vec<Option<diagnostic::ResponseShape>>) {
+        let started_at = self.now();
+        let mut indexed = stream::iter(0..self.config.accounts.len())
+            .map(|index| async move {
+                let (report, shape) = providers::capture::scoped(self.refresh_account(index)).await;
+                (index, report, shape)
+            })
+            .buffer_unordered(self.config.concurrency)
+            .collect::<Vec<_>>()
+            .await;
+        indexed.sort_unstable_by_key(|(index, _, _)| *index);
+        let (reports, shapes) = indexed
+            .into_iter()
+            .map(|(_, report, shape)| (report, shape))
+            .unzip();
+        (
+            Snapshot {
+                started_at,
+                finished_at: self.now(),
+                reports,
+            },
+            shapes,
+        )
     }
 
     /// Refresh one account by its configuration index. All full and targeted

@@ -3,6 +3,7 @@ pub(crate) mod alibaba_plans;
 pub(crate) mod antigravity;
 pub(crate) mod api;
 pub(crate) mod asia;
+pub(crate) mod capture;
 pub(crate) mod catalog;
 pub(crate) mod cloud;
 pub(crate) mod cloud_keys;
@@ -436,6 +437,7 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
 pub(crate) fn decode_bytes<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, QueryError> {
     let value: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|_| QueryError::schema())?;
+    capture::record(&value);
     decode_value(&value)
 }
 
@@ -499,7 +501,9 @@ pub(crate) async fn body_value(
     response: reqwest::Response,
 ) -> Result<serde_json::Value, QueryError> {
     let bytes = response.bytes().await.map_err(|_| QueryError::schema())?;
-    serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())
+    let value = serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())?;
+    capture::record(&value);
+    Ok(value)
 }
 
 use std::future::Future;

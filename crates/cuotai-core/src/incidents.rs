@@ -12,7 +12,7 @@ mod parse;
 mod status;
 
 pub(crate) use parse::plain_text;
-pub(crate) use status::failure_notes;
+pub(crate) use status::{failure_notes, missing_components};
 pub use status::{
     Incident, IncidentMonitor, IncidentState, ProviderStatus, CACHE_TTL, MAX_BODY_BYTES,
     REQUEST_TIMEOUT,

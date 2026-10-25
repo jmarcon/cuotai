@@ -17,6 +17,8 @@ pub struct CanaryArgs {
     pub dry_run: bool,
     pub open: bool,
     pub include_metered: bool,
+    /// Also check the status components (RF4.5).
+    pub status: bool,
 }
 
 /// The configuration without the accounts that are billed per query, and
@@ -55,15 +57,24 @@ pub async fn run(
         return Ok(1);
     }
     let monitor = Monitor::with_oauth(config.clone(), Arc::new(EnvironmentCredentials), session)?;
-    let snapshot = monitor.refresh().await;
+    let (snapshot, responses) = monitor.refresh_with_shapes().await;
     let now = Utc::now();
     let date = now.format("%Y-%m-%d").to_string();
     let previous = store.latest();
     let app = crate::report_problem::app_info();
-    let outcome = canary::analyze(
+    // RF4.5: public status pages are contacted only when status queries are
+    // on (`--status` / CUOTAI_STATUS), like everywhere else (PRD 0011 RF5).
+    let status_missing = if args.status {
+        monitor.missing_status_components().await
+    } else {
+        Vec::new()
+    };
+    let outcome = canary::analyze_with(
         previous.as_ref(),
         &config.accounts,
         &snapshot.reports,
+        &responses,
+        &status_missing,
         &date,
         &skipped,
         &app,

@@ -864,6 +864,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 dry_run: args.dry_run,
                 open: args.canary_open,
                 include_metered: args.canary_include_metered,
+                status,
             },
             session,
         )

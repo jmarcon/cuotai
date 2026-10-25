@@ -374,6 +374,41 @@ async fn fetch(
         .unwrap_or(Err(parse::Invalid))
 }
 
+/// PRD 0028 RF4.5: the names of the components of `source`'s fixed scope
+/// that the live page no longer lists (renamed or removed ids), or `None`
+/// when the format does not list its components (only Statuspage does) or
+/// the page could not be read. Used by the local canary; one request.
+pub(crate) async fn missing_components(
+    http: &reqwest::Client,
+    slots: &Semaphore,
+    source: StatusSource,
+) -> Option<Vec<&'static str>> {
+    if source.format != Format::StatuspageV2 {
+        return None;
+    }
+    let reading = fetch(
+        http,
+        slots,
+        source.url,
+        source.format,
+        source.host(),
+        REQUEST_TIMEOUT,
+    )
+    .await
+    .ok()?;
+    if reading.baseline != Baseline::Components {
+        return None;
+    }
+    Some(
+        source
+            .scope
+            .iter()
+            .filter(|component| !reading.components.iter().any(|(id, _)| *id == component.id))
+            .map(|component| component.name)
+            .collect(),
+    )
+}
+
 fn page_url(source: StatusSource) -> String {
     format!("https://{}/", source.host())
 }

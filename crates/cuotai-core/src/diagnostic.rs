@@ -43,6 +43,40 @@ pub struct SchemaDrift {
     pub digest: String,
 }
 
+/// The redacted structural fingerprint of a response that decoded, kept by
+/// the local canary (PRD 0028 RF4.1): keys and JSON types, never a value.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct ResponseShape {
+    /// Sorted `(path, type)` pairs, at most [`MAX_ENTRIES`].
+    pub fingerprint: Vec<(String, String)>,
+    /// SHA-256 (hex) of the fingerprint.
+    pub digest: String,
+}
+
+impl ResponseShape {
+    /// The shape of one parsed response.
+    pub fn of(value: &Value) -> Self {
+        let fingerprint = fingerprint(value);
+        let digest = digest(&fingerprint);
+        Self {
+            fingerprint,
+            digest,
+        }
+    }
+
+    /// The union with another response of the same query (adapters that
+    /// make several requests), re-sorted and capped.
+    pub fn merge(&mut self, other: &Self) {
+        let all: BTreeSet<(String, String)> = self
+            .fingerprint
+            .drain(..)
+            .chain(other.fingerprint.iter().cloned())
+            .collect();
+        self.fingerprint = all.into_iter().take(MAX_ENTRIES).collect();
+        self.digest = digest(&self.fingerprint);
+    }
+}
+
 /// The diagnostic a [`crate::Report`] may carry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
