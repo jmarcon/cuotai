@@ -939,5 +939,8 @@
   "advice.show": "Mostrar {name}",
   "settings.advice.show": "Mostrar la mejor cuenta",
   "settings.advice.help": "Donde las cuentas comparten un grupo (o un proveedor), la que tiene más margen ahora aparece como \"Mejor ahora\". Solo un consejo: Cuotai nunca cambia de cuenta ni modifica tu configuración.",
-  "settings.advice.keywords": "mejor cuenta grupo comparar cambiar margen"
+  "settings.advice.keywords": "mejor cuenta grupo comparar cambiar margen",
+  "dialog.group": "Grupo",
+  "dialog.groupPlaceholder": "opcional, p. ej. coding",
+  "dialog.groupHint": "Las cuentas con el mismo grupo pueden sustituirse; la mejor se destaca. Sin grupo, solo se comparan cuentas del mismo proveedor."
 }

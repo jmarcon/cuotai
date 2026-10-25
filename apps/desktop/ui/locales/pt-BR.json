@@ -946,5 +946,8 @@
   "advice.show": "Mostrar {name}",
   "settings.advice.show": "Mostrar a melhor conta",
   "settings.advice.help": "Onde as contas compartilham um grupo (ou um provedor), a que tem mais folga agora aparece como \"Melhor agora\". Só uma sugestão: o Cuotai nunca troca de conta nem altera sua configuração.",
-  "settings.advice.keywords": "melhor conta grupo comparar trocar folga"
+  "settings.advice.keywords": "melhor conta grupo comparar trocar folga",
+  "dialog.group": "Grupo",
+  "dialog.groupPlaceholder": "opcional, ex.: coding",
+  "dialog.groupHint": "Contas com o mesmo grupo podem se substituir; a melhor é destacada. Sem grupo, só contas do mesmo provedor se comparam."
 }

@@ -1569,7 +1569,7 @@ const demo = {
     const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" };
     const hosts = ["platform.xiaomimimo.com"];
     return { name: r.account, provider: r.provider, credential: "DEMO_API_KEY",
-      interval: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
+      interval: "", group: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
       session_migration: sessionOffer ? [{ slot: "platform_session_env", env: "MIMO_COOKIE", label, hosts,
         consent: { id: "user_session.migrate.consent", params: { label, env: "MIMO_COOKIE", hosts: hosts.join(", ") },

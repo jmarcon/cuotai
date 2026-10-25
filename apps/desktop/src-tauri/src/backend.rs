@@ -3697,6 +3697,7 @@ impl Backend {
             provider: a.provider,
             credential,
             interval: a.refresh_seconds.map(|s| s.to_string()).unwrap_or_default(),
+            group: a.group.clone().unwrap_or_default(),
             uses_oauth: a.oauth.is_some(),
             native_login,
             auth_mode,
@@ -4353,6 +4354,10 @@ pub struct AccountInput {
     pub credential: String,
     pub fields: Vec<FieldValue>,
     pub interval: String,
+    /// PRD 0024 RF7.1: the optional group of comparable accounts; absent
+    /// keeps the edited account's group, blank clears it.
+    #[serde(default)]
+    pub group: Option<String>,
     #[serde(default)]
     pub commit_login: bool,
     #[serde(default)]
@@ -4414,6 +4419,8 @@ pub struct AccountForm {
     provider: Provider,
     credential: String,
     interval: String,
+    /// PRD 0024 RF7.1: the account's group, blank when it has none.
+    group: String,
     uses_oauth: bool,
     native_login: bool,
     auth_mode: &'static str,
@@ -4617,7 +4624,7 @@ fn input_account(
         credential_params,
         fields: &fields,
         interval_text: &input.interval,
-        group_text: None,
+        group_text: input.group.as_deref(),
     };
     build_account(&draft, config, input.index).map_err(|e| l10n_to_json(&e.l10n()))
 }
@@ -6651,6 +6658,7 @@ mod tests {
             credential: "XIAOMI_MIMO_API_KEY".into(),
             fields: Vec::new(),
             interval: String::new(),
+            group: None,
             commit_login: false,
             login_attempt: 0,
             auth_mode: "credential".into(),

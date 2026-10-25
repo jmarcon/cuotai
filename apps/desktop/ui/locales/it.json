@@ -939,5 +939,8 @@
   "advice.show": "Mostra {name}",
   "settings.advice.show": "Mostra l'account migliore",
   "settings.advice.help": "Dove gli account condividono un gruppo (o un provider), quello con più margine ora è indicato come \"Migliore ora\". Solo un consiglio: Cuotai non cambia mai account né modifica la configurazione.",
-  "settings.advice.keywords": "account migliore gruppo confrontare cambiare margine"
+  "settings.advice.keywords": "account migliore gruppo confrontare cambiare margine",
+  "dialog.group": "Gruppo",
+  "dialog.groupPlaceholder": "facoltativo, es. coding",
+  "dialog.groupHint": "Gli account con lo stesso gruppo possono sostituirsi; il migliore è evidenziato. Senza gruppo si confrontano solo gli account dello stesso provider."
 }

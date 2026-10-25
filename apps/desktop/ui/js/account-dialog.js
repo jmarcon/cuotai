@@ -98,6 +98,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       <p class="hint" id="aggregator-status" role="status" aria-live="polite"></p>
     </div>
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
+    <label class="f" data-field="group"><span>${te("dialog.group")}</span><input name="group" autocomplete="off" maxlength="32" spellcheck="false" placeholder="${te("dialog.groupPlaceholder")}" value="${esc(existing?.group ?? "")}" /><small class="field-hint">${te("dialog.groupHint")}</small><small class="field-err" hidden></small></label>
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
     <div id="models-host"></div>
@@ -893,6 +894,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       credential: mode ? "" : String(data.get("credential") ?? ""),
       fields: draftFields(),
       interval: String(data.get("interval") ?? ""),
+      group: String(data.get("group") ?? ""),
       commitLogin: loginDone(),
       loginAttempt: loginState?.attempt ?? 0,
       authMode,

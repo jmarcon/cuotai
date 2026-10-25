@@ -139,6 +139,8 @@ enum Step {
     /// PRD 0016 RF2.1: only for providers whose core declares a session.
     Session,
     Interval,
+    /// PRD 0024 RF7.1: the optional group of comparable accounts.
+    Group,
     Summary,
 }
 
@@ -313,6 +315,8 @@ pub(crate) struct Wizard {
     fields: Vec<Field>,
     field_idx: usize,
     interval: String,
+    /// PRD 0024 RF7.1: the optional group of comparable accounts.
+    group: String,
     summary_scroll: u16,
     error: Option<String>,
     conflict: Option<String>,
@@ -421,6 +425,7 @@ impl Wizard {
                 .and_then(|a| a.refresh_seconds)
                 .map(|seconds| seconds.to_string())
                 .unwrap_or_default(),
+            group: existing.and_then(|a| a.group.clone()).unwrap_or_default(),
             summary_scroll: 0,
             error: None,
             conflict: None,
@@ -821,6 +826,7 @@ impl Wizard {
                 }
             }
             Step::Interval => Some(&mut self.interval),
+            Step::Group => Some(&mut self.group),
             Step::Session => self
                 .sessions
                 .get_mut(self.session_idx)
@@ -899,7 +905,8 @@ impl Wizard {
                 }
             }
             Step::Session => self.step = Step::Interval,
-            Step::Interval => self.step = Step::Summary,
+            Step::Interval => self.step = Step::Group,
+            Step::Group => self.step = Step::Summary,
             Step::Summary => {}
         }
     }
@@ -927,7 +934,8 @@ impl Wizard {
                 self.field_idx = visible.saturating_sub(1);
                 self.step = Step::Params;
             }
-            Step::Summary => self.step = Step::Interval,
+            Step::Group => self.step = Step::Interval,
+            Step::Summary => self.step = Step::Group,
         }
     }
 
@@ -1512,6 +1520,14 @@ impl Wizard {
                             buf.push(c);
                         }
                     }
+                } else if self.step == Step::Group {
+                    // Group ids are lowercase slugs: capitals are folded.
+                    let c = c.to_ascii_lowercase();
+                    if (c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+                        && self.group.len() < cuotai_core::GROUP_MAX_LEN
+                    {
+                        self.group.push(c);
+                    }
                 } else if matches!(
                     self.step,
                     Step::Name | Step::Credential | Step::Params | Step::Session
@@ -1799,6 +1815,7 @@ impl Wizard {
                 Ok(())
             }
             Step::Interval => self.parse_interval().map(|_| ()),
+            Step::Group => edit::parse_group(&self.group).map(|_| ()),
             // PRD 0016 RF2.2: a paste the core cannot reduce stops here,
             // with the cookie it is about and never a value.
             Step::Session => {
@@ -2129,7 +2146,7 @@ impl Wizard {
             credential_params,
             fields: &draft_fields,
             interval_text: &self.interval,
-            group_text: None,
+            group_text: Some(&self.group),
         };
         // PRD 0029 RF3.3: name the existing account first, so the pair is
         // saved in one go.
@@ -2249,6 +2266,13 @@ impl Wizard {
                     format!("Intervalo global: {}s", config.refresh_seconds),
                     dim,
                 )));
+                lines.push(Line::from(vec![
+                    Span::styled("Grupo: ", dim),
+                    Span::raw(match &account.group {
+                        Some(group) => crate::ui::safe(group).into_owned(),
+                        None => "nenhum (compara só com o mesmo provedor)".to_owned(),
+                    }),
+                ]));
             }
             Err(message) => {
                 lines.push(Line::from(Span::styled(
@@ -2369,7 +2393,7 @@ impl Wizard {
         let chunks = wizard_chunks(area);
 
         let has_session = !self.sessions.is_empty();
-        let total = if has_session { 7 } else { 6 };
+        let total = if has_session { 8 } else { 7 };
         let (position, label) = match self.step {
             Step::Provider => (1, "Provedor"),
             Step::Name => (2, "Nome da conta"),
@@ -2377,6 +2401,7 @@ impl Wizard {
             Step::Params => (4, "Parâmetros"),
             Step::Session => (5, "Colar sessão"),
             Step::Interval => (5 + usize::from(has_session), "Intervalo"),
+            Step::Group => (6 + usize::from(has_session), "Grupo"),
             Step::Summary => (total, "Revisão"),
         };
         let title = format!("Assistente — {position}/{total} {label}");
@@ -2444,6 +2469,7 @@ impl Wizard {
             Step::Params => self.draw_params(frame, inner),
             Step::Session => self.draw_session(frame, inner),
             Step::Interval => self.draw_interval(frame, inner),
+            Step::Group => self.draw_group(frame, inner),
             Step::Summary => {
                 let lines = self.summary_lines(path);
                 let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
@@ -2536,6 +2562,9 @@ impl Wizard {
             }
             Step::Interval => {
                 " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  vazio herda global  Esc cancelar"
+            }
+            Step::Group => {
+                " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  vazio = sem grupo  Esc cancelar"
             }
             _ => " Enter próximo  Shift+Tab voltar  Ctrl+U limpar  Esc cancelar",
         };
@@ -3054,6 +3083,30 @@ impl Wizard {
                 Style::default().fg(if *ok { DRACULA_GREEN } else { DRACULA_YELLOW }),
             )));
         }
+        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+    }
+
+    /// PRD 0024 RF7.1: the optional group; only advice reads it.
+    fn draw_group(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let prompt = Style::default().fg(DRACULA_CYAN);
+        let accent = Style::default().fg(DRACULA_GREEN);
+        let dim = Style::default().fg(DRACULA_COMMENT);
+        let lines = vec![
+            Line::from(Span::styled(
+                "Grupo de contas comparáveis (opcional); contas com o mesmo grupo podem se substituir:",
+                prompt,
+            )),
+            Line::default(),
+            Line::from(Span::styled(format!("> {}", self.group), accent)),
+            Line::default(),
+            Line::from(Span::styled(
+                format!(
+                    "Até {} letras minúsculas, números, - ou _; vazio = sem grupo (só contas do mesmo provedor se comparam).",
+                    cuotai_core::GROUP_MAX_LEN
+                ),
+                dim,
+            )),
+        ];
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
     }
 
@@ -4086,6 +4139,46 @@ mod tests {
         assert_eq!(built.refresh_seconds, 300);
         assert_eq!(built.accounts[0].refresh_seconds, None);
     }
+    /// PRD 0024 RF7.1: the wizard offers the optional group after the
+    /// interval, folds capitals, keeps the existing one on an edit and a
+    /// blank clears it.
+    #[test]
+    fn the_group_step_sets_keeps_and_clears_the_group() {
+        let mut acc = account("OpenAI", "OPENAI_ADMIN_KEY");
+        acc.group = Some("coding".into());
+        let config = Config {
+            accounts: vec![acc],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        assert_eq!(wiz.group, "coding", "an edit starts from the current group");
+        assert_eq!(
+            wiz.build_config().unwrap().accounts[0].group.as_deref(),
+            Some("coding")
+        );
+        wiz.step = Step::Interval;
+        wiz.advance();
+        assert_eq!(wiz.step, Step::Group);
+        wiz.group.clear();
+        for c in "Work_2 x!".chars() {
+            wiz.handle(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        assert_eq!(
+            wiz.group, "work_2x",
+            "folded to lowercase, slug characters only"
+        );
+        assert_eq!(
+            wiz.build_config().unwrap().accounts[0].group.as_deref(),
+            Some("work_2x")
+        );
+        wiz.group.clear();
+        assert_eq!(wiz.build_config().unwrap().accounts[0].group, None);
+        wiz.back();
+        assert_eq!(wiz.step, Step::Interval);
+        // A fresh account starts without a group.
+        assert_eq!(Wizard::new(&Config::default(), None).group, "");
+    }
+
     #[test]
     fn bailian_login_uses_and_persists_account_profile() {
         let config = Config {

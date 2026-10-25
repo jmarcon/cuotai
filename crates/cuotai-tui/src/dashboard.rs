@@ -309,6 +309,83 @@ pub(crate) fn pace_unit() -> pace::PaceUnit {
     }
 }
 
+/// PRD 0024 RF7: the best account of each group of comparable accounts at
+/// the drawing clock, over the current readings (advisory only).
+fn advice_groups(view: &View<'_>) -> Vec<cuotai_core::advice::GroupBest> {
+    let views: Vec<cuotai_core::advice::AccountView<'_>> = view
+        .accounts
+        .iter()
+        .enumerate()
+        .map(|(index, account)| {
+            let report = view.reports.get(index).and_then(Option::as_ref);
+            let interval = std::time::Duration::from_secs(
+                account.effective_refresh_seconds(view.refresh_seconds),
+            );
+            cuotai_core::advice::AccountView {
+                index,
+                provider: account.provider,
+                group: account.group.as_deref(),
+                enabled: true,
+                report,
+                freshness: report.map(|report| {
+                    cuotai_core::freshness::assess(report.checked_at, interval, view.now)
+                }),
+            }
+        })
+        .collect();
+    cuotai_core::advice::best(&views, view.now)
+}
+
+/// PRD 0024 RF7.5: the "Best now" chip text when `account_index` is the
+/// best of its group.
+fn best_chip_of(view: &View<'_>, account_index: usize) -> Option<String> {
+    advice_groups(view)
+        .iter()
+        .any(|group| group.best == account_index)
+        .then(|| cuotai_core::advice::best_chip().resolve(tui_locale()))
+}
+
+/// PRD 0024 RF7.5: the details sentence: "Best now" for the best account,
+/// and for an exhausted one or one projected to run out, what the best
+/// account of its group has left ("Work runs out 18:53 · Personal has 64%
+/// left").
+fn advice_sentence(
+    view: &View<'_>,
+    account_index: usize,
+    rows: &[MetricRow],
+    exhausted: bool,
+) -> Option<String> {
+    let groups = advice_groups(view);
+    let group = groups
+        .iter()
+        .find(|group| group.candidate(account_index).is_some())?;
+    if group.best == account_index {
+        return Some(cuotai_core::advice::best_chip().resolve(tui_locale()));
+    }
+    let runs_out = rows
+        .iter()
+        .filter_map(|row| row.pace.as_ref())
+        .filter(|pace| !pace.lasts_until_reset)
+        .filter_map(|pace| pace.projected_exhaustion_at)
+        .min()
+        .map(local_time);
+    if !exhausted && runs_out.is_none() {
+        return None;
+    }
+    let best = view.accounts.get(group.best)?;
+    let left = group.candidate(group.best)?.remaining;
+    let from = view.accounts.get(account_index)?;
+    Some(
+        cuotai_core::advice::switch_text(
+            &from.name,
+            &best.name,
+            left,
+            runs_out.as_deref().filter(|_| !exhausted),
+        )
+        .resolve(tui_locale()),
+    )
+}
+
 /// PRD 0007 RF4: the core's pace texts joined as "stage · outlook", with
 /// `at` formatting the projected time and the margin as `11h 10m`.
 pub(crate) fn pace_text(
@@ -1294,6 +1371,16 @@ fn render_card(
         Some(spinner) => format!(" {spinner} {} ", safe(&account.display_name())),
         None => format!(" {} ", safe(&account.display_name())),
     };
+    // PRD 0024 RF7.5: the best account of a group says so on its border,
+    // while the title still fits.
+    let title = match best_chip_of(view, account_index) {
+        Some(chip)
+            if title.chars().count() + chip.chars().count() + 4 <= usize::from(area.width) =>
+        {
+            format!("{title}· {} ", safe(&chip))
+        }
+        _ => title,
+    };
     // PRD 0011 RF5: the provider's incident badge on the top border, to the
     // right of the name and never over it.
     let badge = incident_of(view, account.provider)
@@ -2146,6 +2233,29 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     }
     if let Some(status) = incident_of(view, account.provider) {
         lines.extend(incident_lines(status, now));
+    }
+    // PRD 0024 RF7.5: the best account of the group, or what it has left.
+    {
+        let rows: Vec<MetricRow> = stale
+            .unwrap_or(report)
+            .metrics
+            .iter()
+            .enumerate()
+            .map(|(index, metric)| {
+                let clock = pace_clock(view, account_index, report, stale.is_some(), now);
+                metric_row(metric, clock, points(recent_of(view, account_index), index))
+            })
+            .collect();
+        let exhausted = classification(Some(report)) == AccountClass::Exhausted;
+        if let Some(sentence) = advice_sentence(view, account_index, &rows, exhausted) {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    "  GRUPO   ",
+                    Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(safe(&sentence).into_owned(), Style::default().fg(GREEN)),
+            ]));
+        }
     }
     lines.push(Line::default());
     lines.push(Line::styled(
@@ -3988,6 +4098,78 @@ mod tests {
             ],
         ));
         reports
+    }
+
+    /// PRD 0024 RF7.5: the card of the best account in a group says so on
+    /// its border and the details of an exhausted member say what the best
+    /// one has left; ungrouped accounts of different providers get nothing.
+    #[test]
+    fn the_best_account_of_a_group_is_marked_and_advised() {
+        let mut accounts = three_accounts();
+        for account in &mut accounts[..2] {
+            account.group = Some("coding".into());
+        }
+        let mut reports = reports_of(&ready_snapshot());
+        let used = |label: &str, used: f64| {
+            report(
+                Status::Ready,
+                vec![metric(label, Some(used), Some(100.0), None)],
+            )
+        };
+        reports[0] = Some(used("Sessao", 100.0));
+        reports[1] = Some(used("Sessao", 40.0));
+        let cards = render_accounts(
+            &accounts,
+            &reports,
+            &[],
+            &[],
+            (false, 0),
+            at_min(0),
+            (200, 30),
+        )
+        .join("\n");
+        assert_eq!(cards.matches("Melhor agora").count(), 1, "{cards}");
+        let details = render_accounts(
+            &accounts,
+            &reports,
+            &[],
+            &[],
+            (true, 0),
+            at_min(0),
+            (200, 40),
+        )
+        .join("\n");
+        assert!(
+            details.contains("alpha esgotou · beta tem 60% sobrando"),
+            "{details}"
+        );
+        let best = render_accounts(
+            &accounts,
+            &reports,
+            &[],
+            &[],
+            (true, 1),
+            at_min(0),
+            (200, 40),
+        )
+        .join("\n");
+        assert!(
+            best.contains("GRUPO") && best.contains("Melhor agora"),
+            "{best}"
+        );
+        // Without a shared group the two providers are never compared.
+        let ungrouped = three_accounts();
+        let plain = render_accounts(
+            &ungrouped,
+            &reports,
+            &[],
+            &[],
+            (false, 0),
+            at_min(0),
+            (200, 30),
+        )
+        .join("\n");
+        assert!(!plain.contains("Melhor agora"), "{plain}");
     }
 
     #[test]

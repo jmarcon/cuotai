@@ -939,5 +939,8 @@
   "advice.show": "Show {name}",
   "settings.advice.show": "Show the best account",
   "settings.advice.help": "Where accounts share a group (or a provider), the one with the most room right now is marked \"Best now\". Advice only: Cuotai never switches accounts or changes your configuration.",
-  "settings.advice.keywords": "best account group compare switch headroom"
+  "settings.advice.keywords": "best account group compare switch headroom",
+  "dialog.group": "Group",
+  "dialog.groupPlaceholder": "optional, e.g. coding",
+  "dialog.groupHint": "Accounts with the same group can replace one another; the best one is marked. Without a group, only accounts of the same provider are compared."
 }
