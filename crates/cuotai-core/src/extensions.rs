@@ -72,7 +72,7 @@ const ENV_MAX_NAMES: usize = 32;
 const ENV_NAME_MAX_CHARS: usize = 128;
 
 /// The keys a schema-1 manifest accepts, as the errors list them.
-const KEYS: [&str; 10] = [
+const KEYS: [&str; 11] = [
     "id",
     "name",
     "version",
@@ -83,7 +83,16 @@ const KEYS: [&str; 10] = [
     "description",
     "homepage",
     "env",
+    "min_cuotai",
 ];
+
+/// PRD 0028 RF7.5: the prefix of the top-level tables a manifest may carry
+/// for its author or for future fields; they are ignored, while any other
+/// unknown key is still refused.
+pub const RESERVED_TABLE_PREFIX: &str = "x-";
+
+/// The Cuotai version this build is, compared with `min_cuotai`.
+const CUOTAI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `<OS local data dir>/cuotai/extensions`; `None` without a data directory.
 pub fn default_dir() -> Option<PathBuf> {
@@ -240,12 +249,28 @@ fn load(dir: &Path) -> Result<Manifest, (Option<String>, Localized)> {
         .and_then(toml::Value::as_str)
         .map(str::to_owned);
     let fail = |reason| (id.clone(), reason);
+    // PRD 0028 RF7.5: a manifest written for a newer Cuotai says so before
+    // any other validation error, so its author's other fields (which this
+    // version may not know) never hide the real reason.
+    if let Some(value) = table.get("min_cuotai") {
+        match value.as_str().and_then(parse_version) {
+            None => return Err(fail(min_cuotai_format())),
+            Some(required) if parse_version(CUOTAI_VERSION).is_some_and(|own| required > own) => {
+                return Err(fail(newer_cuotai(value.as_str().unwrap_or_default())))
+            }
+            Some(_) => {}
+        }
+    }
     match table.get("schema") {
         Some(toml::Value::Integer(schema)) if *schema == i64::from(SCHEMA) => {}
         Some(toml::Value::Integer(schema)) => return Err(fail(unsupported_schema(*schema))),
         _ => return Err(fail(missing_schema())),
     }
-    if let Some(key) = table.keys().find(|key| !KEYS.contains(&key.as_str())) {
+    if let Some(key) = table
+        .iter()
+        .find(|(key, value)| !KEYS.contains(&key.as_str()) && !reserved_table(key, value))
+        .map(|(key, _)| key)
+    {
         return Err(fail(unknown_field(key)));
     }
     let raw: RawManifest =
@@ -284,8 +309,31 @@ fn read_manifest(path: &Path) -> Result<String, Localized> {
     String::from_utf8(bytes).map_err(|_| manifest_unreadable())
 }
 
+/// Whether `key = value` is a top-level `x-*` table ([`RESERVED_TABLE_PREFIX`]).
+fn reserved_table(key: &str, value: &toml::Value) -> bool {
+    key.starts_with(RESERVED_TABLE_PREFIX) && value.is_table()
+}
+
+/// `X.Y.Z` with decimal parts (a pre-release suffix such as `-rc.1` is
+/// compared by its numbers only).
+pub(crate) fn parse_version(text: &str) -> Option<(u64, u64, u64)> {
+    let core = text.trim().split(['-', '+']).next()?;
+    let mut parts = core.split('.');
+    let mut next = || -> Option<u64> {
+        let part = parts.next()?;
+        if part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        part.parse().ok()
+    };
+    let version = (next()?, next()?, next()?);
+    parts.next().is_none().then_some(version)
+}
+
+/// Unknown keys are refused on the table before this runs (`x-*` tables
+/// aside, PRD 0028 RF7.5), so `deny_unknown_fields` is enforced there: the
+/// attribute itself would refuse the reserved tables.
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct RawManifest {
     id: String,
     name: String,
@@ -299,6 +347,8 @@ struct RawManifest {
     homepage: Option<String>,
     #[serde(default)]
     env: Vec<String>,
+    #[allow(dead_code)] // checked before, on the table
+    min_cuotai: Option<String>,
 }
 
 fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Localized> {
@@ -569,6 +619,27 @@ fn toml_error(text: &str, error: &toml::de::Error) -> Localized {
         format!(
             "manifest.toml inválido na linha {line}: ele aceita {keys}, com command e env como \
              listas de textos e os números como inteiros."
+        ),
+    )
+}
+
+fn min_cuotai_format() -> Localized {
+    Localized::fixed(
+        "extensions.error.min_cuotai",
+        "O min_cuotai deve ser uma versão X.Y.Z, como \"0.81.0\".",
+    )
+}
+
+fn newer_cuotai(required: &str) -> Localized {
+    Localized::with_params(
+        "extensions.error.newer_cuotai",
+        params([
+            ("required", required.into()),
+            ("current", CUOTAI_VERSION.into()),
+        ]),
+        format!(
+            "Esta extensão precisa do Cuotai {required} ou mais recente; esta é a versão \
+             {CUOTAI_VERSION}."
         ),
     )
 }

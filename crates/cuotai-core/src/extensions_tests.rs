@@ -358,6 +358,64 @@ fn the_schema_is_checked_before_the_fields_of_a_newer_contract() {
     assert_eq!(rejection(root.path()), "extensions.error.schema_missing");
 }
 
+/// PRD 0028 RF7.5: a manifest that needs a newer Cuotai is refused with the
+/// required version, before any other validation error (here a newer
+/// `schema` and an unknown field); an older or equal one loads.
+#[test]
+fn min_cuotai_is_checked_before_any_other_error() {
+    let root = tempfile::tempdir().unwrap();
+    let newer =
+        with("p", "schema", Some("2")) + "\nsandbox = \"strict\"\nmin_cuotai = \"999.0.0\"\n";
+    extension(root.path(), "p", &newer);
+    let discovery = discover(root.path());
+    let reason = &discovery.rejected[0].reason;
+    assert_eq!(reason.id, "extensions.error.newer_cuotai");
+    assert_eq!(reason.params["required"], "999.0.0".into());
+    assert_eq!(reason.params["current"], env!("CARGO_PKG_VERSION").into());
+
+    let own = format!("\"{}\"", env!("CARGO_PKG_VERSION"));
+    for (value, accepted) in [
+        ("\"0.1.0\"", true),
+        (own.as_str(), true),
+        ("\"0.1\"", false),
+        ("\"latest\"", false),
+        ("81", false),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        extension(root.path(), "p", &with("p", "min_cuotai", Some(value)));
+        if accepted {
+            let discovery = discover(root.path());
+            assert_eq!(discovery.extensions.len(), 1, "{value}: {discovery:?}");
+        } else {
+            assert_eq!(
+                rejection(root.path()),
+                "extensions.error.min_cuotai",
+                "{value}"
+            );
+        }
+    }
+}
+
+/// PRD 0028 RF7.5: top-level `x-*` tables are ignored; an `x-*` key that is
+/// not a table and any other unknown key are still refused.
+#[test]
+fn x_tables_are_ignored_and_other_unknown_keys_are_not() {
+    let root = tempfile::tempdir().unwrap();
+    let text = with("p", "min_cuotai", None) + "\n[x-vendor]\nchannel = \"beta\"\nlevel = 2\n";
+    extension(root.path(), "p", &text);
+    let discovery = discover(root.path());
+    assert_eq!(discovery.extensions.len(), 1, "{discovery:?}");
+
+    let root = tempfile::tempdir().unwrap();
+    extension(root.path(), "p", &with("p", "x-flag", Some("true")));
+    assert_eq!(rejection(root.path()), "extensions.error.unknown_field");
+
+    let root = tempfile::tempdir().unwrap();
+    let text = with("p", "min_cuotai", None) + "\n[vendor]\nchannel = \"beta\"\n";
+    extension(root.path(), "p", &text);
+    assert_eq!(rejection(root.path()), "extensions.error.unknown_field");
+}
+
 #[test]
 fn each_field_is_validated() {
     for (key, value, reason) in [

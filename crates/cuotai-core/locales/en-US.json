@@ -1217,6 +1217,8 @@
   "extensions.error.toml": "Invalid manifest.toml on line {line}: it accepts {keys}, with command and env as lists of strings and the numbers as integers.",
   "extensions.error.schema_missing": "The manifest.toml needs schema = {schema}.",
   "extensions.error.schema": "The manifest.toml uses schema {schema}; this version of Cuotai reads only schema {supported}.",
+  "extensions.error.min_cuotai": "The min_cuotai must be an X.Y.Z version, such as \"0.81.0\".",
+  "extensions.error.newer_cuotai": "This extension needs Cuotai {required} or newer; this is version {current}.",
   "extensions.error.unknown_field": "The manifest.toml has the unknown field {field}; the accepted fields are {keys}.",
   "extensions.error.id": "The id must be a slug of 1 to {max} characters: lowercase letters, digits, \"-\" and \"_\", starting with a letter or a digit.",
   "extensions.error.text": "The {field} must have 1 to {max} characters, without control characters.",

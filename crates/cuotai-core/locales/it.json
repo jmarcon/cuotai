@@ -1217,6 +1217,8 @@
   "extensions.error.toml": "manifest.toml non valido alla riga {line}: accetta {keys}, con command ed env come elenchi di stringhe e i numeri come interi.",
   "extensions.error.schema_missing": "Il manifest.toml richiede schema = {schema}.",
   "extensions.error.schema": "Il manifest.toml usa lo schema {schema}; questa versione di Cuotai legge solo lo schema {supported}.",
+  "extensions.error.min_cuotai": "Il min_cuotai deve essere una versione X.Y.Z, come \"0.81.0\".",
+  "extensions.error.newer_cuotai": "Questa estensione richiede Cuotai {required} o più recente; questa è la versione {current}.",
   "extensions.error.unknown_field": "Il manifest.toml ha il campo sconosciuto {field}; i campi accettati sono {keys}.",
   "extensions.error.id": "L'id deve essere uno slug da 1 a {max} caratteri: lettere minuscole, cifre, \"-\" e \"_\", che inizia con una lettera o una cifra.",
   "extensions.error.text": "Il campo {field} deve avere da 1 a {max} caratteri, senza caratteri di controllo.",
