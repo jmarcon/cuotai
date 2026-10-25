@@ -296,3 +296,6 @@ params = { base_url = "http://127.0.0.1:20128" }
 # Optional keys of params: include = "claude,codex,github" (only these 9router
 # providers) and exclude = "glm" (hide these). Outside this machine use
 # https://; plain http on a private network also needs allow_private_http = "true".
+# A self-signed HTTPS instance: tls_ca_file = "/path/to/ca.pem" (the CA that
+# signed it) or tls_pin_sha256 = "AB:CD:…" (its certificate's SHA-256, offered
+# by Test connection for you to confirm); never both.

@@ -251,6 +251,15 @@ fn preview_session(
     backend::preview_session(provider, &slot, paste)
 }
 
+/// PRD 0036 RF2.2: the account dialog's Test connection of an aggregator.
+#[tauri::command]
+async fn test_aggregator(
+    b: Shared<'_>,
+    input: AccountInput,
+) -> Result<backend::AggregatorTestView, String> {
+    b.test_aggregator(input).await
+}
+
 /// PRD 0016 RF2.1: one read-only query of the dialog's draft with its pasted
 /// sessions; nothing is stored.
 #[tauri::command]
@@ -1705,6 +1714,7 @@ pub fn run() {
             vault_prune,
             preview_session,
             test_session,
+            test_aggregator,
             save_account,
             delete_account,
             retry_purge,

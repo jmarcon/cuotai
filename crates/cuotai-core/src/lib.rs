@@ -116,6 +116,8 @@ pub enum ConfigError {
     Region,
     #[error("params.base_url da conta 9router deve ser http(s)://host[:porta][/prefixo], sem usuário, consulta ou fragmento; HTTP só vale em loopback ou, com allow_private_http, em rede privada.")]
     BaseUrl,
+    #[error("Conta 9router com TLS inválido: tls_pin_sha256 deve ter 64 dígitos hexadecimais, e tls_ca_file e tls_pin_sha256 não podem ser usados juntos nem sem HTTPS.")]
+    Tls,
 }
 
 fn metered_refresh_floor_error(
@@ -225,6 +227,13 @@ impl Config {
                 && providers::nine_router::account_base(account).is_err()
             {
                 return Err(ConfigError::BaseUrl);
+            }
+            if account.provider == Provider::NineRouter {
+                let base = providers::nine_router::account_base(account)
+                    .map_err(|_| ConfigError::BaseUrl)?;
+                if providers::nine_router_tls::mode(account, &base).is_err() {
+                    return Err(ConfigError::Tls);
+                }
             }
             if account.provider == Provider::Extension
                 && (account

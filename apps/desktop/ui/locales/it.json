@@ -19,6 +19,16 @@
   "common.showHidden": "Mostra nascosti",
   "common.copyLabel": "Copia {label}",
   "common.unexpected": "Errore imprevisto.",
+  "desktop.account.aggregator_untested": "Prova la connessione con successo prima di salvare.",
+  "dialog.aggregator.fixFirst": "Correggi la connessione e provala di nuovo prima di salvare.",
+  "dialog.aggregator.hint": "Cuotai verifica l'indirizzo, la versione, la password della dashboard e l'elenco delle connessioni prima di salvare. In 9router non cambia nulla.",
+  "dialog.aggregator.test": "Prova connessione",
+  "dialog.aggregator.testing": "Prova della connessione…",
+  "dialog.aggregator.testingSave": "Prova della connessione prima di salvare…",
+  "dialog.aggregator.title": "Prova connessione",
+  "dialog.aggregator.trust": "Fidati e prova",
+  "dialog.aggregator.trustBody": "L'istanza ha presentato un certificato di cui questo computer non si fida. Confronta l'impronta SHA-256 qui sotto con quella del server prima di fidarti. Cuotai accetterà solo questo certificato; se cambia, l'account si ferma e chiede di nuovo.",
+  "dialog.aggregator.trustTitle": "Fidarsi di questo certificato?",
   "quota.count": {
     "one": "{count} quota",
     "other": "{count} quote"

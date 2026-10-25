@@ -210,6 +210,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
             unreachable!()
         }
         crate::ConfigError::BaseUrl => "edit_error.config_base_url",
+        crate::ConfigError::Tls => "edit_error.config_tls",
     };
     Localized::fixed(id, error.to_string())
 }
@@ -311,6 +312,7 @@ mod tests {
             (crate::ConfigError::Extension, "edit_error.config_extension"),
             (crate::ConfigError::Region, "edit_error.config_region"),
             (crate::ConfigError::BaseUrl, "edit_error.config_base_url"),
+            (crate::ConfigError::Tls, "edit_error.config_tls"),
         ] {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);

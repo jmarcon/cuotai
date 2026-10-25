@@ -102,6 +102,7 @@ export const vaultPrune = () => call("vault_prune");
 export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
 export const testSession = (input) => call("test_session", { input });
+export const testAggregator = (input) => call("test_aggregator", { input });
 export const saveAccount = (input) => call("save_account", { input });
 export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
 /// RF4: re-read the configuration from disk and rebuild the live
@@ -1485,6 +1486,14 @@ const demo = {
     const discarded = names.length - kept.length;
     const expiry = { id: "user_session.expiry.unknown", params: {}, fallback: "Validade desconhecida." };
     return { kept, discarded, expiry: null, summary: { id: "user_session.paste.summary", params: { kept: kept.join(", "), discarded, expiry }, fallback: `Guardados: ${kept.join(", ")}. Descartados: ${discarded}. Validade desconhecida.` } };
+  },
+  // PRD 0036 RF2.2: the demo instance answers like a local 9router with three connections.
+  test_aggregator: async ({ input }) => {
+    const base = (input.fields ?? []).find((f) => f.key === "base_url")?.text ?? "";
+    if (base && !/^https?:\/\//.test(base)) {
+      return { ok: false, message: { id: "test.nine_router.unreachable", params: {}, fallback: "Não foi possível acessar o endereço informado." } };
+    }
+    return { ok: true, message: { id: "test.nine_router.connected", params: { connections: 3, version: "0.5.109" }, fallback: "9router 0.5.109: 3 conexões com uso encontradas." } };
   },
   test_session: async ({ input }) => {
     await demo.preview_session({ paste: input.sessions?.[0]?.paste ?? "" });

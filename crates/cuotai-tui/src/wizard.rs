@@ -77,6 +77,11 @@ pub(crate) enum Action {
     Models {
         index: usize,
     },
+    /// PRD 0036 RF2.2: test the aggregator connection of the draft (health,
+    /// version, login, connection list). Read-only; nothing is stored.
+    TestAggregator {
+        account: Box<Account>,
+    },
     /// PRD 0016: the user confirmed a vault change of the saved account's
     /// web session on the summary.
     SessionVault {
@@ -350,6 +355,14 @@ pub(crate) struct Wizard {
     /// SES-02: the test before save could not reach the provider; the next
     /// Enter saves anyway with this report, any other key withdraws it.
     confirm_untested: Option<Box<Report>>,
+    /// PRD 0036 RF2.2: the last Test connection of an aggregator draft
+    /// (`true` when connected) and the account it was run on: a save needs
+    /// a successful test of exactly the account being saved.
+    aggregator_test: Option<(bool, String)>,
+    aggregator_ok: Option<Box<Account>>,
+    /// PRD 0036 RF2.3: the fingerprint the last test offered for trust on
+    /// first use; F6 pins it (after the user checked it) and tests again.
+    offered_pin: Option<String>,
 }
 
 impl Wizard {
@@ -429,6 +442,9 @@ impl Wizard {
             session_test: None,
             test_then_save: false,
             confirm_untested: None,
+            aggregator_test: None,
+            aggregator_ok: None,
+            offered_pin: None,
         };
         // RF6.2: detection runs only when the Add-account wizard starts,
         // and only after the session's consent (RF6.5).
@@ -1317,6 +1333,26 @@ impl Wizard {
             self.confirm_forget = true;
             return Action::Continue;
         }
+        // PRD 0036 RF2.2: F4 tests the aggregator connection of the draft.
+        if self.provider.is_aggregator()
+            && matches!(self.step, Step::Params | Step::Summary)
+            && key.code == KeyCode::F(4)
+        {
+            return self.test_aggregator();
+        }
+        // PRD 0036 RF2.3: F6 trusts the certificate the test showed (its
+        // fingerprint becomes the pin, replacing a CA file) and tests again.
+        if self.provider.is_aggregator()
+            && matches!(self.step, Step::Params | Step::Summary)
+            && key.code == KeyCode::F(6)
+        {
+            let Some(pin) = self.offered_pin.take() else {
+                return Action::Continue;
+            };
+            self.set_text_field("tls_pin_sha256", &pin);
+            self.set_text_field("tls_ca_file", "");
+            return self.test_aggregator();
+        }
         // PRD 0016 RF2.1: F4 tests the pasted sessions with one read-only
         // query; ↑↓ pick the slot.
         if self.step == Step::Session {
@@ -1844,6 +1880,26 @@ impl Wizard {
     /// test before save first; `untested` is the unreachable test the user
     /// now confirmed to save anyway.
     fn save(&mut self, config: Config, untested: Option<Box<Report>>) -> Action {
+        // PRD 0036 RF2.2: an aggregator is saved only after a successful
+        // Test connection of exactly this account (a new account, or an
+        // edit that changed how the instance is reached).
+        if self.provider.is_aggregator() {
+            let index = self.editing.unwrap_or(config.accounts.len() - 1);
+            let account = &config.accounts[index];
+            let unchanged = self
+                .editing
+                .and_then(|i| self.base.accounts.get(i))
+                .is_some_and(|before| before == account);
+            let tested = self.aggregator_ok.as_deref() == Some(account);
+            if !unchanged && !tested {
+                self.error = None;
+                self.test_then_save = true;
+                self.aggregator_test = Some((true, "Testando a conexão antes de salvar…".into()));
+                return Action::TestAggregator {
+                    account: Box::new(account.clone()),
+                };
+            }
+        }
         let sessions = self.reduced_sessions();
         if sessions.is_empty() {
             return Action::Save {
@@ -1875,6 +1931,68 @@ impl Wizard {
         Action::TestSession {
             account: Box::new(config.accounts[index].clone()),
             sessions,
+        }
+    }
+
+    /// PRD 0036 RF2.2: F4 on the parameters or the summary of an aggregator
+    /// draft. The draft must build; the query itself runs in `ui.rs`.
+    fn test_aggregator(&mut self) -> Action {
+        match self.build_config() {
+            Ok(config) => {
+                let index = self.editing.unwrap_or(config.accounts.len() - 1);
+                self.error = None;
+                self.aggregator_test = Some((true, "Testando a conexão…".into()));
+                Action::TestAggregator {
+                    account: Box::new(config.accounts[index].clone()),
+                }
+            }
+            Err(message) => {
+                self.error = Some(message);
+                Action::Continue
+            }
+        }
+    }
+
+    /// The outcome of [`Action::TestAggregator`] run on `account`: the
+    /// core's sentence, green when connected. After a test started by the
+    /// save, a successful one saves (returned action) and a failed one
+    /// blocks it.
+    pub(crate) fn aggregator_tested(
+        &mut self,
+        account: &Account,
+        test: &cuotai_core::aggregators::AggregatorTest,
+    ) -> Option<Action> {
+        let text = crate::ui::resolve_l10n(&test.message);
+        self.offered_pin = test.fingerprint().map(str::to_owned);
+        let shown = if self.offered_pin.is_some() {
+            format!("{text} F6: confiar neste certificado.")
+        } else {
+            text.clone()
+        };
+        self.aggregator_test = Some((test.is_ok(), shown));
+        self.aggregator_ok = test.is_ok().then(|| Box::new(account.clone()));
+        if !std::mem::take(&mut self.test_then_save) {
+            return None;
+        }
+        if !test.is_ok() {
+            self.error = Some(format!("{text} Corrija e teste de novo antes de salvar."));
+            return None;
+        }
+        match self.build_config() {
+            Ok(config) => Some(self.save(config, None)),
+            Err(message) => {
+                self.error = Some(message);
+                None
+            }
+        }
+    }
+
+    /// Set the text field `key` of the form, when the provider has it.
+    fn set_text_field(&mut self, key: &str, value: &str) {
+        if let Some(field) = self.fields.iter_mut().find(|field| field.key == key) {
+            if let FieldKind::Text(text) = &mut field.kind {
+                *text = value.to_owned();
+            }
         }
     }
 
@@ -2205,7 +2323,23 @@ impl Wizard {
                 Style::default().fg(DRACULA_YELLOW),
             )));
         }
+        if let Some(line) = self.aggregator_test_line() {
+            lines.push(line);
+        }
         lines
+    }
+
+    /// PRD 0036 RF2.2: the last Test connection, for the parameters step
+    /// and the summary.
+    fn aggregator_test_line(&self) -> Option<Line<'static>> {
+        let (ok, text) = self.aggregator_test.as_ref()?;
+        Some(Line::from(vec![
+            Span::styled("Teste da conexão: ", Style::default().fg(DRACULA_COMMENT)),
+            Span::styled(
+                crate::ui::safe(text).into_owned(),
+                Style::default().fg(if *ok { DRACULA_GREEN } else { DRACULA_YELLOW }),
+            ),
+        ]))
     }
 
     pub(crate) fn draw(&mut self, frame: &mut Frame, path: &Path) {
@@ -2355,8 +2489,19 @@ impl Wizard {
                 " digite para filtrar  ↑↓ navegar  Enter selecionar  Backspace editar  Esc limpar"
             }
             Step::Provider => " digite para filtrar  ↑↓ navegar  Enter selecionar  Tab Modelos  Esc cancelar",
+            Step::Params | Step::Summary
+                if self.provider.is_aggregator() && self.offered_pin.is_some() =>
+            {
+                " F6 confiar no certificado  F4 testar conexão  Shift+Tab voltar  Esc cancelar"
+            }
+            Step::Params if self.provider.is_aggregator() => {
+                " F4 testar conexão  Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
+            }
             Step::Params => {
                 " Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
+            }
+            Step::Summary if self.provider.is_aggregator() => {
+                " Enter testar e GRAVAR  F4 testar conexão  ↑↓ rolar  Shift+Tab voltar  Esc cancelar sem gravar"
             }
             Step::Summary
                 if !self.migration_candidates().is_empty() && self.has_vault_session() =>
@@ -2814,6 +2959,10 @@ impl Wizard {
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
+        }
+        if let Some(line) = self.aggregator_test_line() {
+            lines.push(Line::default());
+            lines.push(line);
         }
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
     }
@@ -3366,6 +3515,129 @@ mod tests {
         ] {
             assert!(!screen.contains(label), "`{label}`: {screen}");
         }
+    }
+
+    /// PRD 0036 RF2.2: an aggregator is saved only after a successful
+    /// Test connection of exactly the account being saved; F4 tests it on
+    /// the parameters; an untouched edit saves without a test.
+    #[test]
+    fn an_aggregator_saves_only_after_a_successful_connection_test() {
+        use cuotai_core::aggregators::{AggregatorTest, TestOutcome};
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut router = account("home", "NINEROUTER_PASSWORD");
+        router.provider = Provider::NineRouter;
+        router
+            .params
+            .insert("base_url".into(), "http://127.0.0.1:20128".into());
+        let config = Config {
+            accounts: vec![router],
+            ..Config::default()
+        };
+        // Nothing changed: Enter saves at once.
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Summary;
+        assert!(matches!(
+            press(&mut wiz, KeyCode::Enter),
+            Action::Save { .. }
+        ));
+
+        // A rename is a change: Enter tests first.
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.name = "office".into();
+        wiz.step = Step::Summary;
+        let tested = match press(&mut wiz, KeyCode::Enter) {
+            Action::TestAggregator { account } => *account,
+            _ => panic!("Enter tests before saving"),
+        };
+        assert_eq!(tested.name, "office");
+        // A refused password blocks the save and says so.
+        let refused = AggregatorTest::new(TestOutcome::PasswordWrong);
+        assert!(wiz.aggregator_tested(&tested, &refused).is_none());
+        assert!(wiz
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("teste de novo")));
+        let summary: String = wiz
+            .summary_lines(Path::new("cuotai.toml"))
+            .iter()
+            .map(|line| line.to_string())
+            .collect();
+        assert!(summary.contains("Teste da conexão"), "{summary}");
+        // Enter again tests again; a connected answer saves.
+        let tested = match press(&mut wiz, KeyCode::Enter) {
+            Action::TestAggregator { account } => *account,
+            _ => panic!("still untested"),
+        };
+        let connected = AggregatorTest::new(TestOutcome::Connected {
+            version: Some("0.5.109".into()),
+            connections: 3,
+        });
+        assert!(matches!(
+            wiz.aggregator_tested(&tested, &connected),
+            Some(Action::Save { .. })
+        ));
+
+        // F4 on the parameters tests without saving; once connected, the
+        // same account saves without another test.
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.name = "office".into();
+        wiz.step = Step::Params;
+        let tested = match press(&mut wiz, KeyCode::F(4)) {
+            Action::TestAggregator { account } => *account,
+            _ => panic!("F4 tests the connection"),
+        };
+        assert!(wiz.aggregator_tested(&tested, &connected).is_none());
+        wiz.step = Step::Summary;
+        assert!(matches!(
+            press(&mut wiz, KeyCode::Enter),
+            Action::Save { .. }
+        ));
+    }
+
+    /// PRD 0036 RF2.3: an untrusted certificate's fingerprint is shown;
+    /// only F6 pins it (replacing a CA file) and tests again.
+    #[test]
+    fn f6_pins_the_offered_certificate_and_tests_again() {
+        use cuotai_core::aggregators::{AggregatorTest, TestOutcome};
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut router = account("home", "");
+        router.provider = Provider::NineRouter;
+        router.credential_env = None;
+        router
+            .params
+            .insert("base_url".into(), "https://router.example.com".into());
+        router
+            .params
+            .insert("tls_ca_file".into(), "/etc/other-ca.pem".into());
+        let config = Config {
+            accounts: vec![router.clone()],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Params;
+        // Nothing offered yet: F6 does nothing.
+        assert!(matches!(press(&mut wiz, KeyCode::F(6)), Action::Continue));
+        let fingerprint = "AB:".repeat(31) + "AB";
+        let untrusted = AggregatorTest::new(TestOutcome::UntrustedCertificate {
+            fingerprint: fingerprint.clone(),
+        });
+        assert!(wiz.aggregator_tested(&router, &untrusted).is_none());
+        let shown = wiz.aggregator_test.clone().unwrap().1;
+        assert!(
+            shown.contains(&fingerprint) || shown.contains("F6"),
+            "{shown}"
+        );
+        let tested = match press(&mut wiz, KeyCode::F(6)) {
+            Action::TestAggregator { account } => *account,
+            _ => panic!("F6 pins and tests"),
+        };
+        assert_eq!(
+            tested.params.get("tls_pin_sha256").map(String::as_str),
+            Some(fingerprint.as_str())
+        );
+        assert!(!tested.params.contains_key("tls_ca_file"));
+        // The offer is used once.
+        assert!(matches!(press(&mut wiz, KeyCode::F(6)), Action::Continue));
     }
 
     fn wizard_with(name: &str, env: &str, interval: &str) -> Wizard {

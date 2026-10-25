@@ -810,3 +810,10 @@ dialog.dlg.dlg-catalog {
   margin: 0 0 4px;
   font-size: var(--text-base, 13px);
 }
+/* PRD 0036 RF2.3: the certificate fingerprint to check before trusting it. */
+.dlg-body code.fingerprint {
+  display: block;
+  font: 12px var(--font-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}

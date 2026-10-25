@@ -19,6 +19,16 @@
   "common.showHidden": "Show hidden",
   "common.copyLabel": "Copy {label}",
   "common.unexpected": "Unexpected failure.",
+  "desktop.account.aggregator_untested": "Test the connection successfully before saving.",
+  "dialog.aggregator.fixFirst": "Fix the connection and test it again before saving.",
+  "dialog.aggregator.hint": "Cuotai checks the address, the version, the dashboard password and the connection list before saving. Nothing changes in 9router.",
+  "dialog.aggregator.test": "Test connection",
+  "dialog.aggregator.testing": "Testing the connection…",
+  "dialog.aggregator.testingSave": "Testing the connection before saving…",
+  "dialog.aggregator.title": "Test connection",
+  "dialog.aggregator.trust": "Trust and test",
+  "dialog.aggregator.trustBody": "The instance presented a certificate this computer does not trust. Compare the SHA-256 fingerprint below with the server's before trusting it. Cuotai will accept only this certificate; if it changes, the account stops and asks again.",
+  "dialog.aggregator.trustTitle": "Trust this certificate?",
   "quota.count": {
     "one": "{count} quota",
     "other": "{count} quotas"

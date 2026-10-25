@@ -34,6 +34,9 @@ hmac.workspace = true
 sha1.workspace = true
 rand = "0.8"
 url = "2"
+# PRD 0036 RF2.3: the pinned and trust-on-first-use certificate verifiers of
+# the 9router client (the same rustls and ring reqwest already uses).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rsa = "0.9"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 aes-gcm = "0.10"
@@ -67,3 +70,6 @@ serve = ["dep:httparse"]
 cuotai-core = { path = ".", features = ["serve"] }
 wiremock = "0.6"
 parking_lot = "0.12"
+# PRD 0036 RF2.3: the HTTPS test instance of the 9router TLS tests (the same
+# tokio-rustls reqwest already uses).
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }

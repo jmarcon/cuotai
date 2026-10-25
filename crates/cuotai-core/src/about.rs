@@ -201,7 +201,7 @@ static LIBRARIES: &[Library] = &[
         "Apache-2.0 OR ISC OR MIT",
         "https://github.com/rustls/rustls",
         Role::Runtime,
-        &[Desktop],
+        &[Core, Desktop],
     ),
     lib(
         "serde",
@@ -358,6 +358,13 @@ static LIBRARIES: &[Library] = &[
         "https://github.com/Stebalien/tempfile",
         Role::Test,
         &[Core, Desktop],
+    ),
+    lib(
+        "tokio-rustls",
+        "MIT OR Apache-2.0",
+        "https://github.com/rustls/tokio-rustls",
+        Role::Test,
+        &[Core],
     ),
     lib(
         "wiremock",

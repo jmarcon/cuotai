@@ -295,6 +295,9 @@ struct Inner {
     serve: ServeView,
     /// PRD 0013 RF4: the hooks' state, for every view.
     hooks: HooksBadge,
+    /// PRD 0036 RF2.2: the aggregator account whose Test connection last
+    /// succeeded; saving an aggregator needs exactly this account.
+    aggregator_tested: Option<cuotai_core::Account>,
 }
 
 #[derive(Default)]
@@ -2353,6 +2356,7 @@ impl Backend {
                 session,
                 generation,
                 notices,
+                aggregator_tested,
                 ..
             } = &mut *g;
             let l = loaded.as_mut().ok_or("Configuração não carregada.")?;
@@ -2385,6 +2389,21 @@ impl Backend {
             let config = &l.file.config;
             let base = with_named_peer(config, &input)?;
             let account = input_account(&base, &input, completed)?;
+            // PRD 0036 RF2.2: an aggregator that is new or reached in
+            // another way is saved only after a successful Test connection
+            // of exactly this account.
+            if account.provider.is_aggregator() {
+                let unchanged = input
+                    .index
+                    .and_then(|index| config.accounts.get(index))
+                    .is_some_and(|before| *before == account);
+                if !unchanged && aggregator_tested.as_ref() != Some(&account) {
+                    return Err(l10n_to_json(&cuotai_core::text::Localized::fixed(
+                        "desktop.account.aggregator_untested",
+                        "Teste a conexão com sucesso antes de salvar.",
+                    )));
+                }
+            }
             let updated = base
                 .upsert_account(account, input.index)
                 .map_err(|e| l10n_to_json(&e.l10n()))?;
@@ -3128,6 +3147,30 @@ impl Backend {
         };
         let report = user_session::test_pasted(&monitor, &account, &pasted).await;
         Ok(SessionTestView::from_report(&report))
+    }
+
+    /// PRD 0036 RF2.2: the dialog's Test connection of an aggregator draft
+    /// (health, version, login, connection list). Read-only; the account
+    /// is remembered only so the save can tell it was tested.
+    pub async fn test_aggregator(&self, input: AccountInput) -> Result<AggregatorTestView, String> {
+        self.ensure_loaded().await;
+        let (account, monitor) = {
+            let g = self.inner.lock().await;
+            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let account = input_account(&l.file.config, &input, None)?;
+            if !account.provider.is_aggregator() {
+                return Err("Esta conta não é de um agregador.".into());
+            }
+            (account, Arc::clone(&l.monitor))
+        };
+        let test = monitor.test_nine_router(&account).await;
+        let mut g = self.inner.lock().await;
+        g.aggregator_tested = test.is_ok().then(|| account.clone());
+        Ok(AggregatorTestView {
+            ok: test.is_ok(),
+            fingerprint: test.fingerprint().map(str::to_owned),
+            message: test.message,
+        })
     }
 
     /// PRD 0016 RF1.2/RF4.2: after the dialog's explicit confirmation, move
@@ -3997,6 +4040,17 @@ type SessionProbe = (
     Vec<user_session::ReducedSession>,
 );
 
+/// PRD 0036 RF2.2: the outcome of the dialog's Test connection: one core
+/// sentence, never a body, URL or token.
+#[derive(Serialize)]
+pub struct AggregatorTestView {
+    pub ok: bool,
+    pub message: cuotai_core::text::Localized,
+    /// PRD 0036 RF2.3: the certificate fingerprint offered for trust on
+    /// first use (untrusted or changed); the dialog asks before pinning it.
+    pub fingerprint: Option<String>,
+}
+
 /// PRD 0016 RF2.1: the outcome of the dialog's read-only session test.
 #[derive(Serialize)]
 pub struct SessionTestView {
@@ -4148,6 +4202,9 @@ pub struct FormSchema {
     /// PRD 0016 RF4.1: the `UserSession` level and risk warning of the
     /// paste box; `None` without sessions.
     session_notice: Option<user_session::SessionNotice>,
+    /// PRD 0036 RF2.2: an aggregator account, saved only after a
+    /// successful Test connection.
+    aggregator: bool,
 }
 
 fn login_option_schema(
@@ -4210,6 +4267,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
             })
             .collect(),
         session_notice: user_session::paste_notice(provider),
+        aggregator: provider.is_aggregator(),
         login: ProviderLoginSchema {
             modes: login
                 .modes
@@ -5657,6 +5715,64 @@ mod tests {
                 .map(String::as_str),
             Some(env)
         );
+    }
+
+    /// PRD 0036 RF2.2: a new 9router account is saved only after a
+    /// successful Test connection of exactly that account.
+    #[tokio::test(flavor = "current_thread")]
+    async fn an_aggregator_is_saved_only_after_its_connection_test() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store, Vec::new()).await;
+        let input = || AccountInput {
+            index: None,
+            provider: Provider::NineRouter,
+            name: "home".into(),
+            credential: String::new(),
+            fields: vec![FieldValue {
+                key: "base_url".into(),
+                text: Some("http://127.0.0.1:20128".into()),
+                choice: None,
+            }],
+            interval: String::new(),
+            commit_login: false,
+            login_attempt: 0,
+            auth_mode: "credential".into(),
+            auth_options: BTreeMap::new(),
+            auth_params: BTreeMap::new(),
+            sessions: Vec::new(),
+            save_anyway: false,
+        };
+        let error = backend
+            .inner
+            .drive_save_account(input(), None)
+            .await
+            .unwrap_err();
+        assert!(
+            error.contains("desktop.account.aggregator_untested"),
+            "{error}"
+        );
+        assert!(backend.loaded_config().await.accounts.is_empty());
+        // The test of another account does not count.
+        let tested = {
+            let mut g = backend.inner.inner.lock().await;
+            let config = g.loaded.as_ref().unwrap().file.config.clone();
+            let mut other = input();
+            other.name = "office".into();
+            g.aggregator_tested = Some(input_account(&config, &other, None).unwrap());
+            input_account(&config, &input(), None).unwrap()
+        };
+        assert!(backend
+            .inner
+            .drive_save_account(input(), None)
+            .await
+            .is_err());
+        backend.inner.inner.lock().await.aggregator_tested = Some(tested);
+        backend
+            .inner
+            .drive_save_account(input(), None)
+            .await
+            .expect("a tested account saves");
+        assert_eq!(backend.loaded_config().await.accounts[0].name, "home");
     }
 
     /// The dialog's save of the MiMo account at 0 with `paste` in its

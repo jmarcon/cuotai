@@ -398,7 +398,8 @@ pub struct AggregatorTest {
 }
 
 impl AggregatorTest {
-    pub(crate) fn new(outcome: TestOutcome) -> Self {
+    /// The test result of `outcome`, with its core sentence.
+    pub fn new(outcome: TestOutcome) -> Self {
         let message = crate::providers::nine_router::outcome_text(&outcome);
         Self { outcome, message }
     }
@@ -406,6 +407,18 @@ impl AggregatorTest {
     /// True when the instance is reachable and authorized.
     pub fn is_ok(&self) -> bool {
         matches!(self.outcome, TestOutcome::Connected { .. })
+    }
+
+    /// PRD 0036 RF2.3: the SHA-256 fingerprint ("AB:CD:…") of a
+    /// certificate the user may choose to trust (pin) after checking it on
+    /// the server: an untrusted or a changed one. Saving it is the front
+    /// end's explicit, confirmed step; the core never pins by itself.
+    pub fn fingerprint(&self) -> Option<&str> {
+        match &self.outcome {
+            TestOutcome::UntrustedCertificate { fingerprint }
+            | TestOutcome::CertificateChanged { fingerprint } => Some(fingerprint),
+            _ => None,
+        }
     }
 }
 

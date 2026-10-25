@@ -5,7 +5,7 @@ import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
-  reportKey, saveAccount, sessionNoticeHtml, testSession, visibleFields,
+  reportKey, saveAccount, sessionNoticeHtml, testAggregator, testSession, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { entryChips, mountPicker, pickerHtml } from "./provider-picker.js";
@@ -91,6 +91,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     </div>
     <div id="dyn-fields"></div></div>
     <div class="session-box" id="session-box" hidden></div>
+    <div class="session-box" id="aggregator-box" hidden>
+      <h3>${te("dialog.aggregator.title")}</h3>
+      <p class="hint">${te("dialog.aggregator.hint")}</p>
+      <div class="dlg-actions"><button type="button" class="btn" id="aggregator-test">${te("dialog.aggregator.test")}</button></div>
+      <p class="hint" id="aggregator-status" role="status" aria-live="polite"></p>
+    </div>
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
@@ -479,6 +485,39 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     });
   }
   renderSession();
+  // PRD 0036 RF2.2: an aggregator (9router) is tested before its first save: health, version, sign-in and the
+  // connection list, with one core sentence as the outcome (never a body or URL).
+  const aggregatorBox = dlg.querySelector("#aggregator-box");
+  const aggregatorStatus = dlg.querySelector("#aggregator-status");
+  function renderAggregator() {
+    aggregatorBox.hidden = !schema.aggregator;
+    aggregatorStatus.textContent = "";
+  }
+  async function runAggregatorTest(pending) {
+    aggregatorStatus.textContent = t(pending);
+    const result = await testAggregator(draftInput());
+    aggregatorStatus.textContent = tl(result.message);
+    // PRD 0036 RF2.3: trust on first use — the fingerprint is pinned only after the user confirms it.
+    if (!result.ok && result.fingerprint && (await confirmFingerprint(result.fingerprint)) === "trust") {
+      setFieldText("tls_pin_sha256", result.fingerprint);
+      setFieldText("tls_ca_file", "");
+      return runAggregatorTest(pending);
+    }
+    return result.ok;
+  }
+  function setFieldText(key, text) {
+    values.set(key, { key, text, choice: null });
+    const el = dyn.querySelector(`[name="f:${key}"]`);
+    if (el) el.value = text;
+  }
+  dlg.querySelector("#aggregator-test").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    collect();
+    btn.disabled = true;
+    try { await runAggregatorTest("dialog.aggregator.testing"); } catch (x) { aggregatorStatus.textContent = errText(x); }
+    finally { btn.disabled = false; }
+  });
+  renderAggregator();
   // PRD 0016 RF4.2: as with the TUI's F5, any other key or click withdraws a pending "Forget this session".
   const disarmForget = (e) => {
     const forgetBtn = sessionBox.querySelector("#session-forget");
@@ -904,6 +943,14 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const testStatus = sessionBox.querySelector("#session-test-status");
     if (sessions.length && testStatus) testStatus.textContent = t("dialog.session.testingSave");
     try {
+      // PRD 0036 RF2.2: the save of an aggregator runs its Test connection first; a failed test blocks it.
+      if (schema.aggregator && !(await runAggregatorTest("dialog.aggregator.testingSave"))) {
+        err.textContent = t("dialog.aggregator.fixFirst");
+        ok.disabled = false;
+        committing = false;
+        dlg.querySelector("[data-cancel]").disabled = false;
+        return;
+      }
       const result = await saveAccount({ ...draftInput(), sessions, saveAnyway: confirmUntested });
       committing = false;
       dlg.close();
@@ -1022,6 +1069,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     dlg.querySelector("#ok").hidden = false;
     await renderDynamic();
     renderSession();
+    renderAggregator();
     renderModels();
     nameInput.focus();
   }
@@ -1119,6 +1167,34 @@ export function confirmDelete(index, label, { usesOauth = false, onDone = () => 
  *  account editor and when the main window regains focus. Resolves
  *  `"reload"` when the user chose to refresh the snapshot, or `"keep"` when
  *  they accept editing against a stale snapshot. */
+// PRD 0036 RF2.3: the certificate a 9router instance presented, for the user to check on the server before
+// trusting it (DS-CMP-DLG). Resolves "trust" or "cancel"; nothing is pinned without "trust".
+function confirmFingerprint(fingerprint) {
+  return new Promise((resolve) => {
+    const dlg = document.createElement("dialog");
+    dlg.className = "dlg";
+    dlg.innerHTML = `<form method="dialog" class="dlg-body">
+      <h2>${te("dialog.aggregator.trustTitle")}</h2>
+      <p>${te("dialog.aggregator.trustBody")}</p>
+      <p><code class="fingerprint">${esc(fingerprint)}</code></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" data-choice="cancel">${te("common.cancel")}</button>
+        <button type="button" class="btn primary" data-choice="trust">${te("dialog.aggregator.trust")}</button>
+      </div>
+    </form>`;
+    document.body.append(dlg);
+    showDialog(dlg);
+    let choice = "cancel";
+    for (const btn of dlg.querySelectorAll("[data-choice]")) {
+      btn.addEventListener("click", () => {
+        choice = btn.dataset.choice;
+        dlg.close();
+      });
+    }
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(choice); });
+  });
+}
+
 export function offerExternalReload() {
   return new Promise((resolve) => {
     const dlg = document.createElement("dialog");

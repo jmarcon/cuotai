@@ -252,6 +252,12 @@ pub async fn run(
     let mut saving_paste: Option<user_session::StagedSession> = None;
     // PRD 0016 RF2.1: the wizard's read-only session test, at most one.
     let mut session_test: Option<JoinHandle<cuotai_core::Report>> = None;
+    // PRD 0036 RF2.2: the wizard's running Test connection of an aggregator.
+    #[allow(clippy::type_complexity)]
+    let mut aggregator_test: Option<(
+        cuotai_core::Account,
+        JoinHandle<cuotai_core::aggregators::AggregatorTest>,
+    )> = None;
     // Whether the terminal currently sends pastes as one event.
     let mut bracketed_paste = false;
     // PRD 0017 RF5.11: onboarding is for a first run with no accounts at all.
@@ -611,6 +617,15 @@ pub async fn run(
                             }
                         }
                     }
+                }
+                Action::TestAggregator { account } => {
+                    // RF2.2: read-only (health, version, login, list).
+                    let monitor = Arc::clone(&monitor);
+                    let tested = (*account).clone();
+                    aggregator_test = Some((
+                        tested,
+                        tokio::spawn(async move { monitor.test_nine_router(&account).await }),
+                    ));
                 }
                 Action::TestSession { account, sessions } => {
                     // RF2.1: read-only, never stored or recorded.
@@ -1144,6 +1159,22 @@ pub async fn run(
                             active.set_error(message);
                         }
                     }
+                }
+            }
+        }
+        if aggregator_test
+            .as_ref()
+            .is_some_and(|(_, job)| job.is_finished())
+        {
+            if let Some((account, job)) = aggregator_test.take() {
+                dirty = true;
+                let then = match (job.await, &mut wizard) {
+                    (Ok(test), Some(active)) => active.aggregator_tested(&account, &test),
+                    _ => None,
+                };
+                // A test started by the save saves once connected.
+                if let Some(action) = then {
+                    dispatch_wizard_action!(action);
                 }
             }
         }

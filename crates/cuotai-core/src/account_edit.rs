@@ -244,7 +244,14 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::Qoder => &["region", "credential_type"],
         Provider::Kiro => &["auth_method", "profile_arn", "region"],
         Provider::CodeBuddy | Provider::ElevenLabs => &["region"],
-        Provider::NineRouter => &["base_url", "allow_private_http", "include", "exclude"],
+        Provider::NineRouter => &[
+            "base_url",
+            "allow_private_http",
+            "include",
+            "exclude",
+            "tls_ca_file",
+            "tls_pin_sha256",
+        ],
         Provider::Zed => &["user_id", "system_id"],
         Provider::Antigravity => &["project_id"],
         Provider::AlibabaModelStudio => &["region"],
@@ -1373,7 +1380,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         ],
         true,
     )];
-    const NINE_ROUTER: [FieldDescriptor; 4] = [
+    const NINE_ROUTER: [FieldDescriptor; 6] = [
         FieldDescriptor::text(
             "base_url",
             "Endereço do 9router",
@@ -1400,6 +1407,18 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "exclude",
             "Ocultar provedores (opcional)",
             "Lista separada por vírgula de provedores do 9router a ocultar.",
+            false,
+        ),
+        FieldDescriptor::text(
+            "tls_ca_file",
+            "Arquivo de CA (opcional, HTTPS)",
+            "Caminho de um PEM com a CA que assinou o certificado da instância. Os certificados do sistema continuam valendo.",
+            false,
+        ),
+        FieldDescriptor::text(
+            "tls_pin_sha256",
+            "Certificado fixado (opcional, HTTPS)",
+            "Impressão digital SHA-256 do certificado da instância, para um certificado autoassinado. O teste de conexão a mostra para você confirmar; não use com arquivo de CA.",
             false,
         ),
     ];

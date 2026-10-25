@@ -29,6 +29,7 @@
 
 use super::{Context, Data, QueryError};
 use crate::model::{Metric, MetricKind, MetricWindow, Provider, Status, SubReport};
+use crate::providers::nine_router_tls as tls;
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::Account;
 use base64::Engine as _;
@@ -39,6 +40,8 @@ use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
 use url::{Host, Url};
@@ -574,6 +577,9 @@ pub(crate) struct Instance<'a> {
     base: Url,
     limits: Limits,
     timeout: Duration,
+    /// PRD 0036 RF2.3: raised by the pinned verifier when the instance
+    /// presented another certificate.
+    pin_mismatch: Option<Arc<AtomicBool>>,
 }
 
 impl<'a> Instance<'a> {
@@ -583,7 +589,19 @@ impl<'a> Instance<'a> {
             base,
             limits,
             timeout,
+            pin_mismatch: None,
         }
+    }
+
+    fn with_pin_flag(mut self, flag: Option<Arc<AtomicBool>>) -> Self {
+        self.pin_mismatch = flag;
+        self
+    }
+
+    fn pin_changed(&self) -> bool {
+        self.pin_mismatch
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Relaxed))
     }
 
     fn request_timeout(&self) -> Duration {
@@ -619,7 +637,9 @@ impl<'a> Instance<'a> {
 
     async fn send(&self, request: RequestBuilder) -> Result<Response, QueryError> {
         request.send().await.map_err(|error| {
-            if error.is_timeout() {
+            if self.pin_changed() {
+                tls::changed()
+            } else if error.is_timeout() {
                 QueryError::timeout()
             } else {
                 QueryError::transport()
@@ -1100,7 +1120,13 @@ pub(crate) async fn fetch_at(
     let allow_private = truthy(account.params.get("allow_private_http"));
     let base = account_base(account).map_err(base_error)?;
     let password = password_of(account, ctx)?;
-    let instance = Instance::new(ctx.http, base, limits, ctx.timeout);
+    let trust = tls::mode(account, &base).map_err(tls_error)?;
+    let own = tls::client(&trust, ctx.timeout)?;
+    let (http, flag) = match &own {
+        Some((client, flag)) => (client, flag.clone()),
+        None => (ctx.http, None),
+    };
+    let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
     let deadline = tokio::time::Instant::now() + limits.instance;
 
     let mut token = instance.token(password.as_deref(), now, false).await?;
@@ -1222,6 +1248,16 @@ pub enum TestOutcome {
     PasswordRequired,
     /// The address could not be used or reached.
     Unreachable,
+    /// PRD 0036 RF2.3: the instance answers over HTTPS with a certificate
+    /// the platform (or the chosen CA file) does not trust. Its SHA-256
+    /// fingerprint is offered for trust on first use; nothing else was
+    /// sent.
+    UntrustedCertificate { fingerprint: String },
+    /// PRD 0036 RF2.3: the pinned certificate no longer matches; the
+    /// instance now presents `fingerprint`. Never re-pinned silently.
+    CertificateChanged { fingerprint: String },
+    /// PRD 0036 RF2.3: the chosen CA file is missing or not PEM.
+    CaFileUnreadable,
 }
 
 /// The localized sentence of an outcome (no URL, no body).
@@ -1266,6 +1302,65 @@ pub(crate) fn outcome_text(outcome: &TestOutcome) -> Localized {
             "test.nine_router.unreachable",
             "Não foi possível alcançar o endereço informado.",
         ),
+        TestOutcome::UntrustedCertificate { fingerprint } => Localized::with_param(
+            "test.nine_router.untrusted_certificate",
+            "fingerprint",
+            fingerprint.as_str(),
+            format!("O certificado da instância não é confiável para este computador. Impressão digital SHA-256: {fingerprint}. Confira-a no servidor antes de confiar nela."),
+        ),
+        TestOutcome::CertificateChanged { fingerprint } => Localized::with_param(
+            "test.nine_router.certificate_changed",
+            "fingerprint",
+            fingerprint.as_str(),
+            format!("O certificado da instância mudou e não corresponde ao fixado. Nova impressão digital SHA-256: {fingerprint}. Confira-a no servidor antes de confiar nela."),
+        ),
+        TestOutcome::CaFileUnreadable => Localized::fixed(
+            "query.nine_router.ca_file",
+            "O arquivo de CA do 9router não pôde ser lido como PEM.",
+        ),
+    }
+}
+
+/// PRD 0036 RF2.3: after a transport failure of the health check over
+/// HTTPS, tell a certificate problem from an unreachable address: the
+/// capture verifier completes a handshake (and reads the certificate's
+/// fingerprint) where the real one failed. Nothing but the public health
+/// route is requested.
+async fn certificate_outcome(instance: &Instance<'_>, trust: &tls::TlsMode) -> TestOutcome {
+    if instance.base.scheme() != "https" {
+        return TestOutcome::Unreachable;
+    }
+    let Ok(health) = instance.base.join(&Route::Health.path()) else {
+        return TestOutcome::Unreachable;
+    };
+    let seen = tls::capture_fingerprint(health, instance.request_timeout()).await;
+    match (seen, trust) {
+        (Some(digest), tls::TlsMode::Pin(_)) if instance.pin_changed() => {
+            TestOutcome::CertificateChanged {
+                fingerprint: tls::format_fingerprint(&digest),
+            }
+        }
+        (Some(digest), tls::TlsMode::Platform | tls::TlsMode::CaFile(_)) => {
+            TestOutcome::UntrustedCertificate {
+                fingerprint: tls::format_fingerprint(&digest),
+            }
+        }
+        _ => TestOutcome::Unreachable,
+    }
+}
+
+/// The note of unusable TLS parameters (`Config::validate` refuses them
+/// first; this covers a configuration built without it).
+fn tls_error(error: tls::TlsError) -> QueryError {
+    match error {
+        tls::TlsError::PinFormat => QueryError::config(
+            "query.nine_router.pin_format",
+            "A impressão digital do certificado do 9router deve ter 64 dígitos hexadecimais (SHA-256).",
+        ),
+        tls::TlsError::Conflict => QueryError::config(
+            "query.nine_router.tls_conflict",
+            "Use um arquivo de CA ou uma impressão digital fixada, não os dois, e só com HTTPS.",
+        ),
     }
 }
 
@@ -1288,9 +1383,24 @@ pub(crate) async fn test_connection_at(
     let Ok(password) = password_of(account, ctx) else {
         return TestOutcome::PasswordRequired;
     };
-    let instance = Instance::new(ctx.http, base, limits, ctx.timeout);
-    let health = match instance.get(&Route::Health, None).await {
-        Ok(response) => response.json::<Value>().await.ok(),
+    let Ok(trust) = tls::mode(account, &base) else {
+        return TestOutcome::Unreachable;
+    };
+    let own = match tls::client(&trust, ctx.timeout) {
+        Ok(own) => own,
+        Err(_) => return TestOutcome::CaFileUnreadable,
+    };
+    let (http, flag) = match &own {
+        Some((client, flag)) => (client, flag.clone()),
+        None => (ctx.http, None),
+    };
+    let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
+    let health = match instance.request(&Route::Health, None) {
+        Ok(request) => match request.send().await {
+            Ok(response) if response.status().is_success() => response.json::<Value>().await.ok(),
+            Ok(_) => return TestOutcome::Unreachable,
+            Err(_) => return certificate_outcome(&instance, &trust).await,
+        },
         Err(_) => return TestOutcome::Unreachable,
     };
     if health

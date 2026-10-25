@@ -19,6 +19,16 @@
   "common.showHidden": "Mostrar ocultas",
   "common.copyLabel": "Copiar {label}",
   "common.unexpected": "Error inesperado.",
+  "desktop.account.aggregator_untested": "Prueba la conexión con éxito antes de guardar.",
+  "dialog.aggregator.fixFirst": "Corrige la conexión y pruébala de nuevo antes de guardar.",
+  "dialog.aggregator.hint": "Cuotai comprueba la dirección, la versión, la contraseña del panel y la lista de conexiones antes de guardar. No se cambia nada en 9router.",
+  "dialog.aggregator.test": "Probar conexión",
+  "dialog.aggregator.testing": "Probando la conexión…",
+  "dialog.aggregator.testingSave": "Probando la conexión antes de guardar…",
+  "dialog.aggregator.title": "Probar conexión",
+  "dialog.aggregator.trust": "Confiar y probar",
+  "dialog.aggregator.trustBody": "La instancia presentó un certificado en el que este equipo no confía. Compara la huella SHA-256 de abajo con la del servidor antes de confiar en ella. Cuotai solo aceptará este certificado; si cambia, la cuenta se detiene y vuelve a preguntar.",
+  "dialog.aggregator.trustTitle": "¿Confiar en este certificado?",
   "quota.count": {
     "one": "{count} cuota",
     "other": "{count} cuotas"
