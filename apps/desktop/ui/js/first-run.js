@@ -4,7 +4,7 @@
 // 0018 RF2.6 as a separate question with its own buttons. Closing records nothing: the step returns next launch.
 // What **Turn on** writes is decided by the shell and the core (`first_run_turn_on`, `AlertPrefs::recommended`).
 import { t, te } from "./i18n.js";
-import { errText, firstRunRecord, firstRunTurnOn, getSettings, icon, updaterAnswerAutomatic } from "./lib.js";
+import { errText, esc, firstRunRecord, firstRunTurnOn, getSettings, icon, updaterAnswerAutomatic } from "./lib.js";
 import { showDialog } from "./motion.js";
 
 let shownThisSession = false;
@@ -12,7 +12,13 @@ let shownThisSession = false;
 /** The step is due: accounts exist and this profile has not answered this version of it. */
 export const due = (settings, view) => (view?.account_count ?? 0) > 0 && (settings?.onboarding ?? 0) < (settings?.onboarding_version ?? 1);
 
-export const stepHtml = ({ updatePending }) => `<div class="dlg-body">
+/** RF6.5: a copy managed by a package manager (PRD 0028 RF8.1) gets the manager's own update command instead of the
+ *  question; nothing is asked and no check is ever made by the app. */
+const managedHtml = (managed) => `<section class="first-run-update" aria-labelledby="first-run-update-title">
+    <h3 id="first-run-update-title">${te("update.title")}</h3>
+    <p class="hint">${te(`update.off.${managed.reason}`)}</p><code class="update-cmd">${esc(managed.command)}</code></section>`;
+
+export const stepHtml = ({ updatePending, managed = null }) => `<div class="dlg-body">
   <header class="dlg-head">
     <h2 id="first-run-title">${te("firstrun.title")}</h2>
     <button class="icon" data-first-close title="${te("common.close")}" aria-label="${te("common.close")}">${icon("x")}</button>
@@ -32,7 +38,7 @@ export const stepHtml = ({ updatePending }) => `<div class="dlg-body">
     <div class="dlg-actions">
       <button class="btn" data-first-update-no>${te("update.consent.no")}</button>
       <button class="btn" data-first-update-yes>${te("update.consent.yes")}</button>
-    </div></section>` : ""}
+    </div></section>` : managed?.command ? managedHtml(managed) : ""}
 </div>`;
 
 /** Shows the step when due; resolves `true` when it was shown (the caller then skips the separate update dialog). */
@@ -44,7 +50,7 @@ export async function maybeShowFirstRun(view, update) {
   const dlg = document.createElement("dialog");
   dlg.className = "dlg first-run";
   dlg.setAttribute("aria-labelledby", "first-run-title");
-  dlg.innerHTML = stepHtml({ updatePending: !!update?.consent_pending });
+  dlg.innerHTML = stepHtml({ updatePending: !!update?.consent_pending, managed: update?.upgrade_command ? { reason: update.disabled_reason, command: update.upgrade_command } : null });
   document.body.append(dlg);
   const error = dlg.querySelector("[data-first-error]");
   const on = dlg.querySelector("[data-first-on]");

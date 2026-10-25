@@ -1590,6 +1590,25 @@ mod contract {
         }
     }
 
+    /// PRD 0025 RF6.5 acceptance: the first-run step's **Turn on** and
+    /// **Not now** record only the step; the update question stays
+    /// unanswered and a request-counting server sees zero requests.
+    #[test]
+    fn the_first_run_record_never_answers_the_update_question() {
+        let key = keypair();
+        let server = Local::http(r#"{"version":"0.2.0","platforms":{}}"#.to_string());
+        let app = app(&key.pubkey, &server.url);
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("desktop.json");
+        crate::settings::write_onboarding(&file, Some(crate::settings::ONBOARDING_VERSION))
+            .expect("record");
+        let service = Service::build(InstallSource::Direct, Some(file), false, false);
+        assert!(service.view().consent_pending);
+        tauri::async_runtime::block_on(service.tick(app.handle()));
+        assert!(tauri::async_runtime::block_on(service.check_now(app.handle())).is_err());
+        assert_eq!(server.count(), 0);
+    }
+
     #[test]
     fn answering_no_persists_the_choice_and_keeps_every_request_off() {
         let key = keypair();
