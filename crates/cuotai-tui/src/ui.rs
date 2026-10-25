@@ -291,6 +291,7 @@ pub async fn run(
         error: None,
         detail_scroll: 0,
         show_unmeasured: true,
+        aggregators_collapsed: false,
         details: false,
         targets: dashboard::Targets::default(),
         model_counts: ModelCounts::default(),
@@ -358,6 +359,8 @@ pub async fn run(
         CloseDetails,
         ReportProblem,
         ToggleUnmeasured,
+        /// PRD 0036 RF9.1: fold or unfold the aggregators' connections.
+        ToggleAggregators,
         ScrollDetailDown,
         ScrollDetailUp,
         Quit,
@@ -419,6 +422,7 @@ pub async fn run(
             KeyCode::Char('?') => Command::About,
             KeyCode::Char('x') => Command::Extensions,
             KeyCode::Char('u') => Command::ToggleUnmeasured,
+            KeyCode::Char('g') => Command::ToggleAggregators,
             KeyCode::Down if details => Command::ScrollDetailDown,
             KeyCode::Up if details => Command::ScrollDetailUp,
             KeyCode::Char('q') | KeyCode::Esc => Command::Quit,
@@ -805,6 +809,9 @@ pub async fn run(
                     state.show_unmeasured = !state.show_unmeasured;
                     state.restore_selection(selected, &cycle_slot_reports(&refresh_cycle));
                     state.detail_scroll = 0;
+                }
+                Command::ToggleAggregators => {
+                    state.aggregators_collapsed = !state.aggregators_collapsed;
                 }
                 Command::ScrollDetailDown => {
                     state.detail_scroll = state.detail_scroll.saturating_add(1);
@@ -1625,6 +1632,7 @@ pub async fn run(
                                 FooterAction::MoveDown => Command::MoveDown,
                                 FooterAction::Delete => Command::Delete,
                                 FooterAction::ToggleUnmeasured => Command::ToggleUnmeasured,
+                                FooterAction::ToggleAggregators => Command::ToggleAggregators,
                                 FooterAction::Filter => Command::Filter,
                                 FooterAction::Models => Command::Models,
                                 FooterAction::Extensions => Command::Extensions,
@@ -2722,6 +2730,8 @@ struct State {
     error: Option<String>,
     detail_scroll: u16,
     show_unmeasured: bool,
+    /// PRD 0036 RF9.1: the aggregators' connections are folded (`g`).
+    aggregators_collapsed: bool,
     details: bool,
     targets: dashboard::Targets,
     model_counts: ModelCounts,
@@ -2929,6 +2939,20 @@ impl State {
             .collect();
         let last_good: Vec<Option<&cuotai_core::Report>> =
             collapsed.iter().map(Option::as_ref).collect();
+        // PRD 0036 RF9.1: the connection cards of each aggregator.
+        let sub_cards: Vec<Vec<dashboard::SubCard>> = self
+            .accounts
+            .iter()
+            .enumerate()
+            .map(|(index, account)| {
+                dashboard::sub_cards_of(
+                    account,
+                    slot_reports.get(index).and_then(Option::as_ref),
+                    last_good.get(index).copied().flatten(),
+                    |id| cycle.last_good_sub(index, id),
+                )
+            })
+            .collect();
         let visible = self.visible(&slot_reports);
         if visible.is_empty() {
             self.selection.select(None);
@@ -2978,6 +3002,9 @@ impl State {
                     incidents: &self.incidents,
                     local_cost: self.local_cost.as_ref(),
                     now,
+                    sub_cards: &sub_cards,
+                    aggregators_collapsed: self.aggregators_collapsed,
+                    access_account: None,
                 },
             );
             if let Some(anim) = &self.anim {
@@ -3329,6 +3356,7 @@ mod tests {
             error: None,
             detail_scroll: 0,
             show_unmeasured: true,
+            aggregators_collapsed: false,
             details: true,
             targets: dashboard::Targets::default(),
             model_counts: ModelCounts::default(),

@@ -73,8 +73,12 @@ pub fn classify_report(report: Option<&Report>) -> AccountClass {
     let Some(report) = report else {
         return AccountClass::Unmeasured;
     };
-    // PRD 0036 RF1.5: an aggregator is classified by its pool.
-    if report.provider.is_aggregator() {
+    // PRD 0036 RF1.5: an aggregator is classified by its pool. A reading
+    // with metrics and no connections (one connection presented as an
+    // account, `aggregators::sub_as_report`) follows the direct rules.
+    if report.provider.is_aggregator()
+        && (!report.sub_reports.is_empty() || report.metrics.is_empty())
+    {
         return crate::aggregators::pool_class(report);
     }
     classify_parts(report.status, &report.metrics)

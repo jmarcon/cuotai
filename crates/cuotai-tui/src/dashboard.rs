@@ -116,13 +116,27 @@ pub(crate) fn visible_indices(
     show_unmeasured: bool,
 ) -> Vec<usize> {
     let needle = filter.to_lowercase();
+    // PRD 0036 RF9.1: an aggregator stays visible when one of its
+    // connections matches (label or upstream).
+    let connection_matches = |index: usize| {
+        reports
+            .get(index)
+            .and_then(Option::as_ref)
+            .is_some_and(|report| {
+                report.sub_reports.iter().any(|sub| {
+                    sub.label.to_lowercase().contains(&needle)
+                        || sub.upstream.to_lowercase().contains(&needle)
+                })
+            })
+    };
     accounts
         .iter()
         .enumerate()
-        .filter(|(_, account)| {
+        .filter(|(index, account)| {
             needle.is_empty()
                 || account.display_name().to_lowercase().contains(&needle)
                 || account.provider.label().to_lowercase().contains(&needle)
+                || (account.provider.is_aggregator() && connection_matches(*index))
         })
         .filter(|(index, _)| {
             show_unmeasured
@@ -486,6 +500,190 @@ pub(crate) struct View<'a> {
     pub(crate) local_cost: Option<&'a CostSummary>,
     /// Clock for ages and countdowns, injected so rendering is testable.
     pub(crate) now: DateTime<Utc>,
+    /// PRD 0036 RF9.1: per account (same length as `accounts`, or empty),
+    /// the connection cards of an aggregator account, grouped by upstream.
+    pub(crate) sub_cards: &'a [Vec<SubCard>],
+    /// PRD 0036 RF9.1: `g` folds every aggregator's connections away.
+    pub(crate) aggregators_collapsed: bool,
+    /// The account whose usage access the cards name instead of their own
+    /// (a connection card reads through its aggregator).
+    pub(crate) access_account: Option<&'a Account>,
+}
+
+/// PRD 0036 RF9.1: one connection of an aggregator, drawn as a card of its
+/// own after the aggregator's (never selectable on its own: actions act on
+/// the aggregator account).
+#[derive(Debug, Clone)]
+pub(crate) struct SubCard {
+    /// "<aggregator> · <label>" with the mapped provider (the aggregator's
+    /// for an upstream Cuotai does not know).
+    pub(crate) account: Account,
+    /// The connection's current reading, as a report.
+    pub(crate) report: Option<Report>,
+    /// Its last `Ready` reading while the current one failed.
+    pub(crate) last_good: Option<Report>,
+    /// The aggregator's upstream slug.
+    pub(crate) upstream: String,
+    /// Off in the aggregator, or also monitored as a direct account.
+    pub(crate) muted: bool,
+}
+
+/// The connection cards of the aggregator `account` from its current
+/// report (or, while it failed, from its last good one), grouped by
+/// upstream in order of first appearance. `last_good_sub` gives a
+/// connection's preserved reading (`RefreshCycle::last_good_sub`).
+pub(crate) fn sub_cards_of<'r>(
+    account: &Account,
+    report: Option<&'r Report>,
+    last_good: Option<&'r Report>,
+    last_good_sub: impl Fn(&str) -> Option<&'r cuotai_core::SubReport>,
+) -> Vec<SubCard> {
+    use cuotai_core::aggregators::{sub_account, sub_as_report};
+    if !account.provider.is_aggregator() {
+        return Vec::new();
+    }
+    let current = report.filter(|report| report.status == Status::Ready);
+    let Some(source) = current.or(last_good) else {
+        return Vec::new();
+    };
+    let mut upstreams: Vec<&str> = Vec::new();
+    for sub in &source.sub_reports {
+        if !upstreams.contains(&sub.upstream.as_str()) {
+            upstreams.push(&sub.upstream);
+        }
+    }
+    let mut cards = Vec::with_capacity(source.sub_reports.len());
+    for upstream in upstreams {
+        for sub in source
+            .sub_reports
+            .iter()
+            .filter(|sub| sub.upstream == upstream)
+        {
+            let keyed = sub_account(account, sub);
+            let display = Account {
+                name: format!("{} · {}", account.name, sub.label),
+                provider: sub.provider.unwrap_or(account.provider),
+                ..keyed
+            };
+            let preserved = if current.is_some() {
+                last_good_sub(&sub.id)
+            } else {
+                (sub.status == Status::Ready).then_some(sub)
+            };
+            cards.push(SubCard {
+                report: current.map(|report| sub_as_report(report, sub)),
+                last_good: preserved.map(|good| sub_as_report(source, good)),
+                upstream: sub.upstream.clone(),
+                muted: sub.enabled_upstream == Some(false) || sub.duplicate_of.is_some(),
+                account: display,
+            });
+        }
+    }
+    cards
+}
+
+/// PRD 0036 RF9.1: the line an aggregator card shows instead of metrics:
+/// "5/7 available · 9router 0.5.109 · Claude · 2 of 3 available; …".
+fn aggregator_summary(report: &Report) -> Option<String> {
+    use cuotai_core::aggregators::{instance_version, pools};
+    if report.status != Status::Ready {
+        return None;
+    }
+    let pools = pools(report);
+    let available: usize = pools.iter().map(|pool| pool.available).sum();
+    let total: usize = pools.iter().map(|pool| pool.total).sum();
+    let mut parts = vec![format!("{available}/{total} disponíveis")];
+    if let Some(version) = instance_version(report) {
+        parts.push(format!("9router {version}"));
+    }
+    parts.extend(pools.iter().map(|pool| resolve_l10n(&pool.summary())));
+    Some(parts.join(" · "))
+}
+
+/// One cell of the card grid: an account (its position in `visible`) or
+/// one connection of the aggregator at that position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Slot {
+    Account(usize),
+    Sub(usize, usize),
+}
+
+/// PRD 0036 RF9.1: direct accounts first, in configuration order; then each
+/// aggregator followed by its connections (unless folded). A filter that
+/// does not match the aggregator itself keeps only the matching
+/// connections.
+fn card_slots(view: &View<'_>) -> Vec<Slot> {
+    let aggregator = |index: usize| {
+        view.accounts
+            .get(index)
+            .is_some_and(|account| account.provider.is_aggregator())
+    };
+    let mut slots: Vec<Slot> = view
+        .visible
+        .iter()
+        .enumerate()
+        .filter(|(_, index)| !aggregator(**index))
+        .map(|(position, _)| Slot::Account(position))
+        .collect();
+    let needle = view.filter.to_lowercase();
+    for (position, &index) in view.visible.iter().enumerate() {
+        if !aggregator(index) {
+            continue;
+        }
+        slots.push(Slot::Account(position));
+        if view.aggregators_collapsed {
+            continue;
+        }
+        let account = &view.accounts[index];
+        let parent_matches = needle.is_empty()
+            || account.name.to_lowercase().contains(&needle)
+            || account.provider.label().to_lowercase().contains(&needle);
+        for (sub, card) in view.sub_cards.get(index).into_iter().flatten().enumerate() {
+            if parent_matches
+                || card.account.name.to_lowercase().contains(&needle)
+                || card.upstream.to_lowercase().contains(&needle)
+            {
+                slots.push(Slot::Sub(index, sub));
+            }
+        }
+    }
+    slots
+}
+
+/// A connection card: the account card of its reading, naming its
+/// aggregator's usage access.
+fn render_sub_card(
+    frame: &mut Frame,
+    area: Rect,
+    view: &View<'_>,
+    parent: &Account,
+    card: &SubCard,
+    now: DateTime<Utc>,
+) {
+    let accounts = std::slice::from_ref(&card.account);
+    let reports = [card.report.clone()];
+    let last_good = [card.last_good.as_ref()];
+    let mini = View {
+        accounts,
+        reports: &reports,
+        model_counts: &[],
+        visible: &[],
+        selected: None,
+        last_good: &last_good,
+        recent: &[],
+        anim: None,
+        history: None,
+        sub_cards: &[],
+        access_account: Some(parent),
+        ..*view
+    };
+    render_card(frame, area, &mini, 0, false, now);
+    if card.muted {
+        // "Off in 9router" or "also direct": dimmed, never counted.
+        frame
+            .buffer_mut()
+            .set_style(area, Style::default().add_modifier(Modifier::DIM));
+    }
 }
 
 /// PRD 0011 RF5: the status shown on the accounts of `provider`, if any.
@@ -511,6 +709,8 @@ pub(crate) enum FooterAction {
     MoveDown,
     Delete,
     ToggleUnmeasured,
+    /// PRD 0036 RF9.1: fold or unfold the aggregators' connections.
+    ToggleAggregators,
     Filter,
     Models,
     Extensions,
@@ -651,6 +851,9 @@ pub(crate) fn render_for_test(
         banner: None,
         incidents: &[],
         local_cost: None,
+        sub_cards: &[],
+        aggregators_collapsed: false,
+        access_account: None,
         now,
     };
     terminal
@@ -821,6 +1024,21 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
     actions.push(plain("d/Del excluir", Some(FooterAction::Delete)));
     actions.push(separator());
     actions.push(plain(toggle, Some(FooterAction::ToggleUnmeasured)));
+    if view
+        .accounts
+        .iter()
+        .any(|account| account.provider.is_aggregator())
+    {
+        actions.push(separator());
+        actions.push(plain(
+            if view.aggregators_collapsed {
+                "g mostrar conexões"
+            } else {
+                "g recolher conexões"
+            },
+            Some(FooterAction::ToggleAggregators),
+        ));
+    }
     actions.push(separator());
     actions.push(plain(&count, None));
     [navigation, actions]
@@ -902,13 +1120,19 @@ fn render_cards(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Ta
     let card_height = MIN_CARD_HEIGHT;
     let rows_per_page = (area.height / card_height).max(1);
     let page_capacity = (columns as u16 * rows_per_page).max(1) as usize;
-    let selected_page = view
+    let slots = card_slots(view);
+    let selected_slot = view
         .selected
-        .map(|position| position / page_capacity)
+        .and_then(|position| {
+            slots
+                .iter()
+                .position(|slot| *slot == Slot::Account(position))
+        })
         .unwrap_or(0);
+    let selected_page = selected_slot / page_capacity;
     let page_start = selected_page * page_capacity;
-    let page_end = (page_start + page_capacity).min(view.visible.len());
-    let page = &view.visible[page_start..page_end];
+    let page_end = (page_start + page_capacity).min(slots.len());
+    let page = &slots[page_start..page_end];
 
     if page.is_empty() {
         return;
@@ -928,13 +1152,32 @@ fn render_cards(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Ta
         let cell_chunks = Layout::horizontal(column_constraints.as_slice()).split(*row_area);
         for (column_index, cell_area) in cell_chunks.iter().enumerate() {
             let global_index = row_index * columns + column_index;
-            let Some(&account_index) = page.get(global_index) else {
+            let Some(&slot) = page.get(global_index) else {
                 continue;
             };
-            let visible_position = page_start + global_index;
-            let is_selected = view.selected == Some(visible_position);
-            render_card(frame, *cell_area, view, account_index, is_selected, now);
-            targets.cards.push((*cell_area, visible_position));
+            match slot {
+                Slot::Account(visible_position) => {
+                    let account_index = view.visible[visible_position];
+                    let is_selected = view.selected == Some(visible_position);
+                    render_card(frame, *cell_area, view, account_index, is_selected, now);
+                    targets.cards.push((*cell_area, visible_position));
+                }
+                Slot::Sub(account_index, sub) => {
+                    let card = &view.sub_cards[account_index][sub];
+                    render_sub_card(
+                        frame,
+                        *cell_area,
+                        view,
+                        &view.accounts[account_index],
+                        card,
+                        now,
+                    );
+                    // A click selects its aggregator.
+                    if let Some(position) = view.visible.iter().position(|i| *i == account_index) {
+                        targets.cards.push((*cell_area, position));
+                    }
+                }
+            }
         }
     }
 }
@@ -977,7 +1220,7 @@ fn render_card(
     // PRD 0005 RF4.2: with nothing to draw, the core's explanation (the
     // reason of an Unavailable account, a changed undocumented interface)
     // takes the place of the generic failure and may use every free row.
-    let access = access::describe(account);
+    let access = access::describe(view.access_account.unwrap_or(account));
     let explanation = report
         .and_then(|report| access.explain(report))
         .map(|note| resolve_l10n(&note));
@@ -988,6 +1231,7 @@ fn render_card(
     let first_note = if rows.is_empty() {
         explanation
             .clone()
+            .or_else(|| report.and_then(aggregator_summary))
             .or_else(|| report.and_then(|report| report.notes.first().cloned()))
     } else {
         None
@@ -2726,6 +2970,9 @@ mod tests {
                         banner: None,
                         incidents: &[],
                         local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now: Utc::now(),
                     },
                 );
@@ -2752,6 +2999,154 @@ mod tests {
         assert_eq!(targets.card_at(third.x + 1, third.y + 1), Some(2));
         // Header cells are not cards.
         assert_eq!(targets.card_at(0, 0), None);
+    }
+
+    /// A direct OpenAI account and a 9router instance with a Claude
+    /// connection (`work`) and an unmapped `glm` one that failed.
+    fn aggregator_fixture() -> (Vec<Account>, Vec<Option<Report>>) {
+        let direct = Account {
+            name: "OpenAI".into(),
+            provider: Provider::OpenAiApi,
+            ..Account::default()
+        };
+        let router = Account {
+            name: "home".into(),
+            provider: Provider::NineRouter,
+            ..Account::default()
+        };
+        let checked_at = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let sub = |id: &str, upstream: &str, provider, status, metrics| cuotai_core::SubReport {
+            id: id.into(),
+            upstream: upstream.into(),
+            provider,
+            label: id.into(),
+            status,
+            metrics,
+            notes_l10n: Vec::new(),
+            checked_at,
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+        };
+        let instance = Report {
+            account: "home".into(),
+            provider: Provider::NineRouter,
+            sub_reports: vec![
+                sub(
+                    "work",
+                    "claude",
+                    Some(Provider::Claude),
+                    Status::Ready,
+                    vec![metric("weekly (7d)", Some(40.0), Some(100.0), None)],
+                ),
+                sub("zhipu", "glm", None, Status::Error, Vec::new()),
+            ],
+            ..report(Status::Ready, Vec::new())
+        };
+        let mut plain = report(
+            Status::Ready,
+            vec![metric("x", Some(1.0), Some(10.0), None)],
+        );
+        plain.account = "OpenAI".into();
+        (vec![router, direct], vec![Some(instance), Some(plain)])
+    }
+
+    fn draw_aggregators(collapsed: bool, filter: &str, width: u16) -> (String, Targets) {
+        let (accounts, reports) = aggregator_fixture();
+        let visible = visible_indices(&accounts, &reports, filter, true);
+        let sub_cards: Vec<Vec<SubCard>> = accounts
+            .iter()
+            .enumerate()
+            .map(|(i, account)| sub_cards_of(account, reports[i].as_ref(), None, |_| None))
+            .collect();
+        let mut terminal = Terminal::new(TestBackend::new(width, 60)).unwrap();
+        let mut targets = Targets::default();
+        terminal
+            .draw(|frame| {
+                targets = draw(
+                    frame,
+                    View {
+                        accounts: &accounts,
+                        reports: &reports,
+                        model_counts: &[],
+                        visible: &visible,
+                        selected: Some(0),
+                        details: false,
+                        detail_scroll: 0,
+                        show_unmeasured: true,
+                        refreshing: false,
+                        location: "/tmp/config.toml",
+                        filter,
+                        filtering: false,
+                        next_refresh: None,
+                        error: None,
+                        anim: None,
+                        last_good: &[],
+                        recent: &[],
+                        refresh_seconds: 300,
+                        history: None,
+                        banner: None,
+                        incidents: &[],
+                        local_cost: None,
+                        sub_cards: &sub_cards,
+                        aggregators_collapsed: collapsed,
+                        access_account: None,
+                        now: Utc.with_ymd_and_hms(2026, 1, 1, 0, 5, 0).unwrap(),
+                    },
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let text: String = (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        (text, targets)
+    }
+
+    /// PRD 0036 RF9.1: the aggregator comes after the direct accounts with
+    /// its pool summary, then one card per connection grouped by upstream;
+    /// `g` folds them; a filter on a connection keeps its aggregator.
+    #[test]
+    fn aggregators_render_as_a_section_after_direct_accounts() {
+        let (text, targets) = draw_aggregators(false, "", 120);
+        let direct = text.find("OpenAI").expect("direct card");
+        let header = text.find(" home ").expect("aggregator card");
+        let work = text.find("home · work").expect("connection card");
+        let zhipu = text.find("home · zhipu").expect("failed connection card");
+        assert!(direct < header && header < work && work < zhipu, "{text}");
+        assert!(text.contains("1/2 disponíveis"), "{text}");
+        assert!(text.contains("Claude"), "{text}");
+        // Connection cards are click targets of their aggregator (position 0
+        // in `visible`, since the aggregator is first in the configuration).
+        assert_eq!(targets.cards.len(), 4);
+        assert_eq!(
+            targets
+                .cards
+                .iter()
+                .filter(|(_, position)| *position == 0)
+                .count(),
+            3
+        );
+        // Folded: only the two accounts.
+        let (folded, targets) = draw_aggregators(true, "", 120);
+        assert!(!folded.contains("home · work"), "{folded}");
+        assert_eq!(targets.cards.len(), 2);
+        // A filter on a connection keeps the aggregator and that connection.
+        let (filtered, _) = draw_aggregators(false, "zhipu", 120);
+        assert!(filtered.contains("home · zhipu"), "{filtered}");
+        assert!(!filtered.contains("home · work"), "{filtered}");
+        assert!(!filtered.contains("OpenAI"), "{filtered}");
+        // Narrow terminal: one column, still in order.
+        let (narrow, targets) = draw_aggregators(false, "", 60);
+        assert_eq!(targets.columns, 1);
+        assert!(narrow.find("OpenAI").unwrap() < narrow.find(" home ").unwrap());
     }
 
     #[test]
@@ -2789,6 +3184,9 @@ mod tests {
                         banner: None,
                         incidents: &[],
                         local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now: Utc::now(),
                     },
                 );
@@ -2844,6 +3242,9 @@ mod tests {
                             banner: None,
                             incidents: &[],
                             local_cost: None,
+                            sub_cards: &[],
+                            aggregators_collapsed: false,
+                            access_account: None,
                             now: Utc::now(),
                         },
                     );
@@ -2892,6 +3293,9 @@ mod tests {
                         banner: None,
                         incidents: &[],
                         local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now: Utc::now(),
                     },
                 );
@@ -2939,6 +3343,9 @@ mod tests {
                         banner: None,
                         incidents: &[],
                         local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now: Utc::now(),
                     },
                 );
@@ -2993,6 +3400,9 @@ mod tests {
                         banner: None,
                         incidents: &[],
                         local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now: Utc::now(),
                     },
                 );
@@ -3038,6 +3448,9 @@ mod tests {
                         banner: None,
                         incidents: &[],
                         local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now: Utc::now(),
                     },
                 );
@@ -3082,6 +3495,9 @@ mod tests {
                         banner: None,
                         incidents: &[],
                         local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now: Utc::now(),
                     },
                 );
@@ -3133,6 +3549,9 @@ mod tests {
                             banner,
                             incidents: &[],
                             local_cost: None,
+                            sub_cards: &[],
+                            aggregators_collapsed: false,
+                            access_account: None,
                             now: Utc::now(),
                         },
                     );
@@ -3199,6 +3618,9 @@ mod tests {
                             banner: None,
                             incidents: &[],
                             local_cost: None,
+                            sub_cards: &[],
+                            aggregators_collapsed: false,
+                            access_account: None,
                             now: Utc::now(),
                         },
                     );
@@ -3358,6 +3780,9 @@ mod tests {
                         banner: None,
                         incidents,
                         local_cost,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        access_account: None,
                         now,
                     },
                 );
