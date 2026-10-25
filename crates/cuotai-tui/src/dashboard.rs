@@ -715,6 +715,8 @@ pub(crate) enum FooterAction {
     Models,
     Extensions,
     About,
+    /// PRD 0026 RF6.1: the statistics screen.
+    Stats,
     ClearFilter,
     RefreshSelected,
     Refresh,
@@ -977,6 +979,8 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         plain("R selecionada", Some(FooterAction::RefreshSelected)),
         plain("  ", None),
         plain("x extensões", Some(FooterAction::Extensions)),
+        plain("  ", None),
+        plain("S estatísticas", Some(FooterAction::Stats)),
         plain("  ", None),
         plain("? sobre", Some(FooterAction::About)),
         plain("  ", None),

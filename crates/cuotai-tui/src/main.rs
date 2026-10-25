@@ -13,6 +13,7 @@ mod notify;
 mod report_problem;
 mod report_view;
 mod serve;
+mod stats_view;
 mod ui;
 mod vault;
 mod watch;
@@ -57,6 +58,17 @@ const HISTORY_SPARK_CELLS: usize = 60;
             .multiple(false)
             .conflicts_with_all(["once", "json_v1", "history", "notify", "serve", "watch"])
     ),
+    // PRD 0026 RF6.2: one stored view at a time, never with a query mode.
+    group(
+        clap::ArgGroup::new("stored_view")
+            .args(["stats", "timeline", "events_log"])
+            .multiple(false)
+            .conflicts_with_all([
+                "once", "json_v1", "history", "notify", "serve", "watch", "changelog",
+                "extension_check", "report_problem", "install_source", "list_providers",
+                "cost_action",
+            ])
+    ),
     // PRD 0031 RF10.2: `--strict-exit` belongs to the foreground modes.
     group(
         clap::ArgGroup::new("headless")
@@ -83,6 +95,26 @@ struct Args {
     /// Lista os identificadores aceitos na configuração.
     #[arg(long)]
     list_providers: bool,
+    /// Estatísticas de uso do histórico local (limites atingidos, pico médio
+    /// do limite mais apertado, gasto extra, pico por dia e por conta), sem
+    /// consultar os provedores. Com --days 7|30 (padrão 7) e --json. Saída
+    /// 0; 2 se o histórico não pôde ser lido; 1 em erro local.
+    #[arg(long)]
+    stats: bool,
+    /// Quando o limite mais apertado de cada conta volta, a partir das
+    /// últimas leituras gravadas, sem consultar os provedores. Com --range
+    /// 24h|7d (padrão 24h) e --json. Mesmas saídas de --stats.
+    #[arg(long)]
+    timeline: bool,
+    /// O diário de eventos gravado no histórico (limiar cruzado, cota
+    /// esgotada, renovada, falha de consulta...), do mais novo ao mais
+    /// antigo. Com --days N (1 a 365; padrão 7) e --json. Mesmas saídas de
+    /// --stats.
+    #[arg(long)]
+    events_log: bool,
+    /// Período de --timeline: 24h ou 7d.
+    #[arg(long, value_name = "PERÍODO", value_parser = ["24h", "7d"], requires = "timeline")]
+    range: Option<String>,
     /// Consulta CONTA uma vez e imprime o relatório de problema (texto em
     /// inglês, sem segredos, e a URL do GitHub já preenchida). Nada é
     /// enviado: você abre a URL. Saída 0; 1 se a conta não existe ou em erro
@@ -422,8 +454,9 @@ struct Args {
     #[arg(long, group = "cost_action")]
     cost: bool,
     /// Com --cost, os últimos DIAS dias locais, hoje incluído (1 a 730),
-    /// em vez do período salvo.
-    #[arg(long, value_name = "DIAS", requires = "cost")]
+    /// em vez do período salvo. Com --stats, 7 ou 30; com --events-log,
+    /// 1 a 365.
+    #[arg(long, value_name = "DIAS")]
     days: Option<u32>,
     /// Período do custo local mostrado: today, last_7_days (padrão),
     /// last_30_days, current_month ou all.
@@ -641,6 +674,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             .map(|file| file.config.accounts);
         return Ok(cost::run(action, args.json, ui::tui_locale(), configured)?);
     }
+    if args.days.is_some() && !(args.stats || args.events_log) {
+        return Err("--days só vale com --cost, --stats ou --events-log.".into());
+    }
     if let Some(account) = &args.history {
         let days = retention(Some(args.history_days.unwrap_or(HISTORY_DEFAULT_DAYS)))?.keep_days();
         let file = ConfigFile::load(args.config, false)?;
@@ -673,6 +709,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         } else {
             vault::audit(&session, &file.config, args.json).await
         };
+    }
+    if args.stats || args.timeline || args.events_log {
+        return stored_view(&args);
     }
     let interactive = !args.once
         && !args.json
@@ -1145,6 +1184,69 @@ fn account_histories<'a>(
 
 /// `0` when every listed account has recorded data in the span, `2` when
 /// one (or the configuration) has none, like the other single-run outputs.
+/// PRD 0026 RF6.2: `--stats`, `--timeline` and `--events-log` read the
+/// history store and the last recorded readings; no provider is queried.
+/// 0 on success, 2 when the store cannot be read, an `Err` (exit 1) for
+/// invalid arguments and local errors.
+fn stored_view(args: &Args) -> Result<u8, Box<dyn std::error::Error>> {
+    use stats_view as view;
+    let locale = ui::tui_locale();
+    // Arguments are checked before the configuration is touched.
+    let stats_range = view::stats_range(if args.stats { args.days } else { None });
+    let timeline_range = view::timeline_range(args.range.as_deref());
+    let events_days = view::event_days(if args.events_log { args.days } else { None });
+    let file = ConfigFile::load(args.config.clone(), false)?;
+    let store = HistoryStore::in_data_dir(&file).map_err(|error| error.l10n().resolve(locale))?;
+    let now = Utc::now();
+    let mut stdout = io::stdout().lock();
+    let unreadable = |error: cuotai_core::history::HistoryError| {
+        eprintln!("cuotai: {}", error.l10n().resolve(locale));
+        2u8
+    };
+    if args.stats {
+        let summary = match cuotai_core::stats::summarize(
+            &store,
+            &file.config.accounts,
+            stats_range?,
+            now,
+            &chrono::Local,
+        ) {
+            Ok(summary) => summary,
+            Err(error) => return Ok(unreadable(error)),
+        };
+        if args.json {
+            serde_json::to_writer_pretty(&mut stdout, &summary)?;
+            writeln!(stdout)?;
+        } else {
+            write!(stdout, "{}", view::stats_text(&summary, locale))?;
+        }
+    } else if args.timeline {
+        let reports = match store.latest_reports(&file.config) {
+            Ok(reports) => reports,
+            Err(error) => return Ok(unreadable(error)),
+        };
+        let timeline = view::timeline_of(&file.config, &reports, timeline_range?, now);
+        if args.json {
+            serde_json::to_writer_pretty(&mut stdout, &timeline)?;
+            writeln!(stdout)?;
+        } else {
+            write!(stdout, "{}", view::timeline_text(&timeline, locale))?;
+        }
+    } else {
+        let events = match view::read_events(&store, &file.config, events_days?, now) {
+            Ok(events) => events,
+            Err(error) => return Ok(unreadable(error)),
+        };
+        if args.json {
+            serde_json::to_writer_pretty(&mut stdout, &view::events_json(&events, locale))?;
+            writeln!(stdout)?;
+        } else {
+            write!(stdout, "{}", view::events_text(&events, locale))?;
+        }
+    }
+    Ok(0)
+}
+
 fn history_exit_code(found: &[(&Account, Vec<MetricHistory>)]) -> u8 {
     if !found.is_empty() && found.iter().all(|(_, metrics)| !metrics.is_empty()) {
         0

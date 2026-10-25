@@ -9,6 +9,7 @@ use crate::{
     motion::{self, Anim},
     notify::{self, Notices},
     report_view::{Reply as ReportReply, ReportView},
+    stats_view::{Reply as StatsReply, StatsView},
     wizard::{Action, VaultChange, Wizard},
 };
 use crossterm::{
@@ -369,6 +370,8 @@ pub async fn run(
     // "Sobre": libraries and repositories; opened from the dashboard only.
     let mut about: Option<AboutView> = None;
     let mut report_view: Option<ReportView> = None;
+    // PRD 0026 RF6.1: the statistics screen (`S`).
+    let mut stats: Option<StatsView> = None;
     // PRD 0019 RF7.7: "Novidades", opened from "Sobre" (`n`); read-only.
     let mut changelog: Option<ChangelogView> = None;
     // PRD 0011 RF5: the status read in flight and when the next one is due.
@@ -420,6 +423,8 @@ pub async fn run(
         Extensions,
         /// Abre a tela Sobre (bibliotecas de código aberto e repositórios).
         About,
+        /// PRD 0026 RF6.1: abre as estatísticas de uso.
+        Stats,
         /// PRD 0006 RF6.1: span of the details' history (1, 2, 3).
         HistoryRange(HistoryRange),
         /// SES-01: "Paste a new session" for the selected account whose
@@ -449,6 +454,7 @@ pub async fn run(
             KeyCode::Char('2') if details => Command::HistoryRange(HistoryRange::Week),
             KeyCode::Char('3') if details => Command::HistoryRange(HistoryRange::Month),
             KeyCode::Char('?') => Command::About,
+            KeyCode::Char('S') => Command::Stats,
             KeyCode::Char('x') => Command::Extensions,
             KeyCode::Char('u') => Command::ToggleUnmeasured,
             KeyCode::Char('g') => Command::ToggleAggregators,
@@ -1055,6 +1061,21 @@ pub async fn run(
                         }
                     }
                 }
+                Command::Stats => match monitor.history() {
+                    Some(store) => {
+                        stats = Some(StatsView::open(
+                            store,
+                            &file.config,
+                            cycle_slot_reports(&refresh_cycle),
+                        ));
+                    }
+                    None => {
+                        state.error = Some(
+                            "O histórico local não está disponível; sem ele não há estatísticas."
+                                .into(),
+                        );
+                    }
+                },
                 Command::HistoryRange(range) => state.history_range = range,
                 Command::Models => {
                     if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))
@@ -1480,6 +1501,12 @@ pub async fn run(
                     frame_area = frame.area();
                     view.draw(frame)
                 })?;
+            } else if let Some(view) = &mut stats {
+                let locale = tui_locale();
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    view.draw(frame, locale);
+                })?;
             } else if let Some(view) = &mut about {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
@@ -1592,6 +1619,12 @@ pub async fn run(
                     }
                     continue;
                 }
+                if let Some(view) = &mut stats {
+                    if view.mouse(mouse.kind, mouse.column, mouse.row) == StatsReply::Close {
+                        stats = None;
+                    }
+                    continue;
+                }
                 if let Some(view) = &mut about {
                     match view.mouse(mouse.kind, mouse.column, mouse.row) {
                         AboutReply::Close => about = None,
@@ -1667,6 +1700,7 @@ pub async fn run(
                                 FooterAction::Models => Command::Models,
                                 FooterAction::Extensions => Command::Extensions,
                                 FooterAction::About => Command::About,
+                                FooterAction::Stats => Command::Stats,
                                 FooterAction::ClearFilter => Command::ClearFilter,
                                 FooterAction::Refresh => Command::Refresh,
                                 FooterAction::RefreshSelected => Command::RefreshSelected,
@@ -1727,6 +1761,12 @@ pub async fn run(
                 if let Some(view) = &mut report_view {
                     if view.key(key.code) == ReportReply::Close {
                         report_view = None;
+                    }
+                    continue;
+                }
+                if let Some(view) = &mut stats {
+                    if view.key(key.code) == StatsReply::Close {
+                        stats = None;
                     }
                     continue;
                 }
