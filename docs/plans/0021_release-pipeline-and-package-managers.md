@@ -38,7 +38,7 @@ The review proposed splitting this plan into two phases (DIST-01 to DIST-12). Th
 | Tap and bucket repositories, the first manual winget submission, the crates.io token and first publication, the AUR key and account | RF5.1–RF5.5, RF9.1 | Owner actions |
 | Hosted APT/RPM repository | RF5.5 (optional) | Owner decision (§8) |
 
-The review's DIST-12 (the core detects the install origin and the updater hands over to the manager) was delivered with RF8.1 in 0.77.0; only the opt-in CLI update notice that reuses it remains, in **PRD 0028 RF8.2 and RF8.3**.
+The review's DIST-12 (the core detects the install origin and the updater hands over to the manager) was delivered with RF8.1 in 0.77.0; the opt-in CLI update notice that reuses it is **PRD 0028 RF8.2 and RF8.3**, delivered in vNEXT. RF9.3 (the monthly external-rules workflow) was already delivered, as the status table says.
 
 ## 1. Context
 

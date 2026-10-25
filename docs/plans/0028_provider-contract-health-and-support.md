@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0028 |
-| Status | In progress |
+| Status | In progress (RF7 pending) |
 | Owner | `cuotai-core` (diagnostics, report drafts, local canary, update detector), repository and CI (`.github/`, `xtask`), desktop and TUI |
 | Consumers | users reporting problems, maintainers (the owner's local canary), `export::v1` consumers, extension authors |
 | Depends on | PRD 0005 (RF1: `access::describe` and `verified_on`) for RF1–RF3 and RF6; PRD 0017 (RF1–RF5: extensions) for RF7; PRD 0021 (RF8.1: install-source detector) for RF8 |
@@ -17,17 +17,17 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | vNEXT | Delivered for the shared JSON decoder (`providers::json`): `diagnostic::Diagnostic`, `Report::diagnostic`, the details note and the additive `export::v1` `failure` object. Adapters that read a `Value` field by field still report no path. |
+| RF1 | vNEXT | Delivered for the shared JSON decoder (`providers::json`): `diagnostic::Diagnostic`, `Report::diagnostic`, the details note and the additive `export::v1` `failure` object. Adapters that read a `Value` field by field still report no path. Delivered also for the adapters that read a `Value` field by field (ElevenLabs, Kimchi, MiMo, 9router, Alibaba plans, Kiro, model catalogs, router keys) and the AWS CLI output: they use `providers::decode_bytes`/`body_value` or the hand-read helpers `field_drift`, `named_drift` and `Miss`, so they report the failing path and both JSON types. Remaining bare `QueryError::schema()` sites are value validations (a non-finite number, a pagination loop, a local parameter), not shape drift. |
 | RF2 | vNEXT | Delivered: core `support::issue_draft`, `cuotai --report-problem ACCOUNT`, the TUI details key `b` (RF2.4), the desktop preview dialog in a non-ready account's details and in Settings › About (RF2.3, the link opens only through the project's issue-form allow-list), and the canary's drafts with the shape diff (RF2.5). The install channel is the detected one; the incident flag stays `unknown` until PRD 0011 feeds it. |
 | RF3 | vNEXT | Delivered: generated provider dropdown with a drift test and the new form fields. |
-| RF4 | vNEXT | Delivered in part: `cuotai --canary [--out DIR] [--dry-run] [--canary-open] [--canary-include-metered]`, the pure `cuotai_core::canary` (shape records, drift, report, drafts, evidence list, 30 private runs) with seeded-secret tests, and `docs/canary.md` (RF4.1–RF4.4, RF4.6, RF4.7). Pending: the response fingerprint of a successful answer (RF4.1), the status-component check (RF4.5, needs PRD 0011 sources), `cargo xtask access-verified --apply` for the evidence list, and the dedicated CI dry-run job (RF4.8; the unit tests of the same logic run in the normal CI jobs). |
+| RF4 | vNEXT | Delivered: `cuotai --canary [--out DIR] [--dry-run] [--canary-open] [--canary-include-metered] [--status]`, the pure `cuotai_core::canary` (shape records with the response fingerprint of RF4.1, drift including a vanished field or changed type, report, drafts, evidence list, 30 private runs) with seeded-secret tests, `docs/canary.md`, the status-component check (RF4.5, Statuspage sources, only with `--status`), `cargo xtask access-verified --apply FILE` (RF4.4) and the `canary-dry-run` CI job (RF4.8: the detector, report, draft and evidence list end to end against a fake AWS CLI mutated between runs, no secret). Owner action: install the scheduled task. |
 | RF5 | vNEXT | Delivered: `cargo xtask anonymize-fixture --provider SLUG [--perturb F] IN.json`, with a secret scan that refuses the output. The "decodes with its adapter" check is covered with a local type, since xtask does not depend on the core. |
 | RF6 | vNEXT | Delivered: per-interface `verified_on`, `access-staleness` xtask with the CI warning and the non-required 180-day job, `access.risk.subscription_token`, and the core age text. The core still exposes the verification text (`UsageAccess::verification`), but by the owner decision of 2026-10-25 no app surface shows integration status, so the desktop "Verified N months ago" chip (DS-CMP-VER-1) is not rendered; the age lives in the `docs/providers.md` matrix. |
 | RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
+| RF8 | vNEXT | Delivered: the opt-in terminal update notice (`CUOTAI_UPDATE_CHECK=1` or `[updates] check = true`) in `cuotai_core::update_check` and `cuotai-tui/src/update_notice.rs`: the manifest of PRD 0018, at most once per 24 hours, cached, named upgrade command from the install-source detector, stderr only for the TUI and `--once` on a terminal. RF8.1 was already delivered (`cuotai --install-source`). |
+| RF9 | vNEXT | Delivered: `SUPPORT.md` (GitHub only, response targets, what is not supported), linked from the README, `CONTRIBUTING.md`, the issue chooser and `docs/release-policy.md`, and added to the documentation allow-list of CI and CodeQL. RF9.3 (enable GitHub Discussions) is an owner action. |
 | RF10 | vNEXT | Delivered: evidence-gated listings with a generated matrix, static lists and the Copilot token exchange removed. |
-| RF11 | — | Proposed (added 2026-10-23). |
+| RF11 | vNEXT | Delivered: the `providers::label_snapshot` test records the metric identities of seven adapter fixtures and fails on a change; `history::aliases::METRIC_ALIASES` moves stored series to a renamed identity. |
 
 ## 1. Context
 
