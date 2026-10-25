@@ -311,10 +311,8 @@ const onSaved = (result) => {
   // PRD 0025 RF6.1: after the first account is saved (once its dialog has closed), the first-run step.
   setTimeout(() => getView().then((v) => maybeShowFirstRun(v, updateState())).catch(() => {}), 400);
 };
-const openExtensionManager = (consentFor = null) => openExtensionsDialog({
-  consentFor,
-  onChanged: () => isDesktop || store.reload(),
-  onRemove: (index, label, secretsOf = null) =>
+/** PRD 0028 RF7.4: removing an extension's account offers to delete the extension's stored secrets too. */
+const removeExtensionAccount = (index, label, secretsOf = null) =>
     confirmDelete(index, label, {
       usesOauth: false,
       secretsOf,
@@ -322,7 +320,11 @@ const openExtensionManager = (consentFor = null) => openExtensionsDialog({
         onDeleted(result);
         isDesktop || store.reload();
       },
-    }),
+    });
+const openExtensionManager = (consentFor = null) => openExtensionsDialog({
+  consentFor,
+  onChanged: () => isDesktop || store.reload(),
+  onRemove: removeExtensionAccount,
 });
 
 /** PRD 0017 RF5.12: an extension account has no built-in form (the provider
@@ -687,11 +689,12 @@ onSettingsChanged((key) => {
   render();
 });
 // PRD 0025 RF5.2: Settings › Dashboard manages the accounts through this window, which owns their dialogs.
-onAccountAction(({ action, index }) => {
+onAccountAction(({ action, index, secretsOf = null }) => {
   const r = store.view?.reports.find((x) => x.index === index);
   if (action === "add") return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id) });
   if (!r) return;
   if (action === "edit") return editAccount(index);
+  if (action === "remove" && secretsOf) return removeExtensionAccount(index, accountLabel(r), String(secretsOf));
   if (action === "remove") return detailsContext.onRemove(index, accountLabel(r));
 });
 // PRD 0018 RF2.2/RF2.6: the backend state repaints update notices, while the main

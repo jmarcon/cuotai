@@ -16,6 +16,7 @@ export function html() {
 export function bind(root, ctx) {
   const host = root.querySelector("[data-ext-body]");
   host.replaceChildren();
-  // Removing the account of an extension is the main window's job (it owns the confirmation and the vault choice).
-  return mountExtensions(host, { intro: false, onChanged: () => ctx.changed("extensions"), onRemove: (index) => requestAccountAction("remove", index) });
+  // Removing the account of an extension is the main window's job (it owns the confirmation and the vault choice);
+  // the extension id goes along so the confirmation still offers to delete its stored secrets (PRD 0028 RF7.4).
+  return mountExtensions(host, { intro: false, onChanged: () => ctx.changed("extensions"), onRemove: (index, _name, secretsOf = null) => requestAccountAction("remove", index, secretsOf ? { secretsOf } : {}) });
 }

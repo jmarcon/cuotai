@@ -42,4 +42,11 @@ for (const code of ["en-US", "pt-BR", "es", "it"]) {
   const catalog = JSON.parse(await read(`apps/desktop/ui/locales/${code}.json`));
   for (const key of ["settings.page.extensions", "settings.kw.extensions"]) assert.ok(catalog[key], `${code}: ${key}`);
 }
+// PRD 0028 RF7.4: removing an extension's account from the Settings page keeps the "also delete its secrets" offer:
+// the page forwards the extension id, and the main window passes it to the confirmation.
+assert.match(page, /onRemove: \(index, _name, secretsOf = null\) => requestAccountAction\("remove", index, secretsOf \? \{ secretsOf \} : \{\}\)/,
+  "the page forwards the extension whose secrets the removal may delete");
+assert.match(main, /onAccountAction\(\(\{ action, index, secretsOf = null \}\)/, "the main window reads it");
+assert.match(main, /action === "remove" && secretsOf\) return removeExtensionAccount\(index, accountLabel\(r\), String\(secretsOf\)\)/);
+assert.match(main, /const removeExtensionAccount = \(index, label, secretsOf = null\) =>\s*confirmDelete\(index, label, \{\s*usesOauth: false,\s*secretsOf,/);
 console.log("extensions wiring ok");

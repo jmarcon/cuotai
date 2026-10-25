@@ -392,12 +392,13 @@ export const emitSettingsChanged = (key = "") => {
  *  remove an account (`action`: "add" | "edit" | "remove"; `index`: the account). */
 export const ACCOUNT_ACTION = "account-action";
 const actionChannel = () => { try { return new BroadcastChannel("cuotai-account-action"); } catch { return null; } };
-export const requestAccountAction = async (action, index = null) => {
+/** `extra` carries plain ids only, e.g. `{ secretsOf }`: the extension whose stored secrets the removal offers to delete. */
+export const requestAccountAction = async (action, index = null, extra = {}) => {
   if (isDesktop) {
     await T.core.invoke("show_main_window").catch(() => {});
-    return T.event.emit(ACCOUNT_ACTION, { action, index }).catch(() => {});
+    return T.event.emit(ACCOUNT_ACTION, { action, index, ...extra }).catch(() => {});
   }
-  const ch = actionChannel(); ch?.postMessage({ action, index }); ch?.close();
+  const ch = actionChannel(); ch?.postMessage({ action, index, ...extra }); ch?.close();
 };
 export const onAccountAction = (cb) => {
   if (isDesktop) return T.event.listen(ACCOUNT_ACTION, (e) => cb(e.payload ?? {}));
