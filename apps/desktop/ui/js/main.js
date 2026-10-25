@@ -15,7 +15,7 @@ import {
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
-  openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
+  openSettingsWindow, bindSettingsShortcut, onSettingsChanged, listExtensions, extensionSecrets,
 } from "./lib.js";
 import { patch } from "./util.js";
 import { connectionChips, groupsOf, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
@@ -342,8 +342,17 @@ const detailsContext = {
   historyEpoch: () => store.view?.history_epoch ?? 0,
   onEdit: editAccount,
   onPasteSession: pasteSession,
-  onRemove: (index, label) =>
-    confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, onDone: onDeleted }),
+  onRemove: async (index, label) => {
+    // PRD 0028 RF7.4: an extension account whose vault holds secrets offers to delete them too.
+    let secretsOf = null;
+    if (isExtensionAccount(index)) {
+      try {
+        const row = (await listExtensions()).find((x) => x.account?.index === index);
+        if (row && (await extensionSecrets(row.id)).some((item) => item.stored)) secretsOf = row.id;
+      } catch { /* the removal still works without the offer */ }
+    }
+    confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, secretsOf, onDone: onDeleted });
+  },
   onChange: () => render(),
   view: () => store.view,
   onBell: (accountKey, on) => toggleBell(accountKey, on),

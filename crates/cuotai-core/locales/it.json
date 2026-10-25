@@ -1300,7 +1300,7 @@
   "extensions.action.changed": "L'estensione {id} è cambiata dopo l'approvazione; nessun programma è stato eseguito.",
   "extensions.action.enabled": "Estensione {id} abilitata e account creato.",
   "extensions.action.disabled": "Estensione {id} disabilitata; l'approvazione è stata revocata.",
-  "extensions.state.disabled": "Disabilitata",
+  "extensions.state.disabled": "Richiede approvazione",
   "extensions.state.enabled": "Abilitata",
   "extensions.state.changed": "Modificata — approvazione richiesta",
   "extensions.state.missing": "File mancanti",

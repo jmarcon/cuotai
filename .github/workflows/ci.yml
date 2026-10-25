@@ -286,6 +286,9 @@ jobs:
       # PRD 0022 RF17.7: render the remaining-share unit in every built-in
       # locale and keep the UI-owned catalog key sets in parity.
       - run: node scripts/test-card-wording-ui.mjs
+      # PRD 0022 RF10: the Extensions dialog's shell commands are registered
+      # and its guide link is the allow-listed address.
+      - run: node scripts/test-extensions-wiring-ui.mjs
       # PRD 0020 RF1/RF2: the Settings window's page registry, sidebar
       # navigation and the page of every control of the old dialog.
       - run: node scripts/test-settings-window-ui.mjs

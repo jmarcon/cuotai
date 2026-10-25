@@ -511,6 +511,14 @@ export function fmtDate(iso) {
     ? null
     : d.toLocaleDateString(currentLocale(), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
+/** Day and clock time of `iso` in the viewer's zone, always with the day ("22 Oct, 18:10"). */
+export function fmtDateTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const time = d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+  return `${d.toLocaleDateString(currentLocale(), { day: "numeric", month: "short" })}, ${time}`;
+}
 export function fmtReset(iso) {
   if (!iso) return null;
   const d = new Date(iso);

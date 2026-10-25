@@ -138,7 +138,7 @@ pub enum ExtensionState {
 impl ExtensionState {
     pub fn label(self) -> Localized {
         match self {
-            Self::Disabled => Localized::fixed("extensions.state.disabled", "Desativada"),
+            Self::Disabled => Localized::fixed("extensions.state.disabled", "Precisa de aprovação"),
             Self::Enabled => Localized::fixed("extensions.state.enabled", "Ativada"),
             Self::Changed => Localized::fixed(
                 "extensions.state.changed",

@@ -1300,7 +1300,7 @@
   "extensions.action.changed": "The extension {id} changed since approval; no program was run.",
   "extensions.action.enabled": "Extension {id} enabled and account created.",
   "extensions.action.disabled": "Extension {id} disabled; approval was revoked.",
-  "extensions.state.disabled": "Disabled",
+  "extensions.state.disabled": "Needs approval",
   "extensions.state.enabled": "Enabled",
   "extensions.state.changed": "Changed — approval required",
   "extensions.state.missing": "Files missing",

@@ -6,7 +6,7 @@ import {
   setExtensionSecret, testExtension,
 } from "./lib.js";
 import { t, te, tl } from "./i18n.js";
-import { icon } from "./lib.js";
+import { fmtDateTime, icon } from "./lib.js";
 import { showDialog } from "./motion.js";
 
 const el = (tag, cls, text) => {
@@ -84,9 +84,9 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
     title.append(chip);
     const description = el("p", "extension-desc", row.description || t("extensions.noDescription"));
     const runtime = el("p", "extension-runtime");
-    const when = row.last_run ? new Date(row.last_run).toLocaleString() : t("extensions.neverRun");
+    const when = fmtDateTime(row.last_run) ?? t("extensions.neverRun");
     runtime.append(el("code", "extension-id", row.id));
-    runtime.append(document.createTextNode(` · ${t("extensions.lastRun")}: ${when}`));
+    runtime.append(document.createTextNode(` · ${row.last_run ? t("extensions.lastRunAt", { when }) : when}`));
     if (row.error) {
       runtime.append(document.createTextNode(" · "));
       runtime.append(el("span", "extension-runtime-error", tl(row.error)));

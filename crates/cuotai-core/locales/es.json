@@ -1300,7 +1300,7 @@
   "extensions.action.changed": "La extensión {id} cambió desde la aprobación; no se ejecutó ningún programa.",
   "extensions.action.enabled": "Extensión {id} activada y cuenta creada.",
   "extensions.action.disabled": "Extensión {id} desactivada; se revocó la aprobación.",
-  "extensions.state.disabled": "Desactivada",
+  "extensions.state.disabled": "Requiere aprobación",
   "extensions.state.enabled": "Activada",
   "extensions.state.changed": "Cambió — requiere aprobación",
   "extensions.state.missing": "Faltan archivos",
