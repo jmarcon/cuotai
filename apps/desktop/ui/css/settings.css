@@ -1139,9 +1139,21 @@
 }
 
 /* PRD 0025 RF4 / PRD 0022 RF9.4: Settings › Menu bar as in the approved mockup (`50-settings-menubar`). */
-.set-row[data-bare] > .set-row-text,
-.set-row[data-bare] > .set-row-ctl {
+.set-row[data-bare] > .set-row-ctl,
+.set-row[data-bare] .set-row-label {
   display: none;
+}
+/* The bare row keeps its ⓘ help reachable: the text column shrinks to the
+   button, which sits at the top-right corner above the cards. */
+.set-row[data-bare] {
+  position: relative;
+}
+.set-row[data-bare] > .set-row-text {
+  position: absolute;
+  top: calc(-1 * var(--space-6, 24px));
+  right: 0;
+  margin: 0;
+  width: auto;
 }
 .set-content .set-sec > h3:has(.sec-count) {
   right: 4px;
