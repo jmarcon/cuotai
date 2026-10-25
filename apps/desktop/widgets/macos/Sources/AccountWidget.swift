@@ -4,7 +4,9 @@ import WidgetKit
 
 // PRD 0014 RF3.2: the Account widget — one account pinned by the user's
 // choice (an App Intent), which never falls back to another account when it
-// disappears: the key that is gone reads as unavailable.
+// disappears: the account that is gone reads as unavailable. It is pinned
+// by its stable id (PRD 0029), so a rename keeps it; a widget pinned by the
+// legacy key before ids still resolves through the key.
 
 /// The accounts of the snapshot, so the picker offers exactly what the app
 /// published (RF1: the most restrictive first).
@@ -12,7 +14,8 @@ struct AccountEntity: AppEntity, Identifiable {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Account")
     static let defaultQuery = AccountQuery()
 
-    var id: String { key }
+    /// The stable account id (the key in a file written before ids).
+    let id: String
     let key: String
     let name: String
     let provider: String
@@ -26,7 +29,7 @@ struct AccountEntity: AppEntity, Identifiable {
 struct AccountQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [AccountEntity] {
         let accounts = AccountEntity.all
-        return accounts.filter { identifiers.contains($0.key) }
+        return accounts.filter { identifiers.contains($0.id) || identifiers.contains($0.key) }
     }
 
     func suggestedEntities() async throws -> [AccountEntity] {
@@ -41,12 +44,12 @@ struct AccountQuery: EntityQuery {
 extension AccountEntity {
     static var all: [AccountEntity] {
         (WidgetSnapshot.load()?.accounts ?? [])
-            .map { AccountEntity(key: $0.key, name: $0.name, provider: $0.provider) }
+            .map { AccountEntity(id: $0.id, key: $0.key, name: $0.name, provider: $0.provider) }
     }
 }
 
-/// The pinned account's key. The picker lists the accounts the file has;
-/// a key that vanishes leaves the widget empty (never another account).
+/// The pinned account. The picker lists the accounts the file has; an
+/// account that vanishes leaves the widget empty (never another account).
 struct AccountIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Account"
     static var description = IntentDescription("Which account this widget shows.")
@@ -57,7 +60,7 @@ struct AccountIntent: WidgetConfigurationIntent {
 
 struct AccountProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> SummaryEntry {
-        SummaryEntry(date: Date(), snapshot: nil, pinnedKey: AccountEntity.all.first?.key)
+        SummaryEntry(date: Date(), snapshot: nil, pinnedKey: AccountEntity.all.first?.id)
     }
 
     func snapshot(for configuration: AccountIntent, in context: Context) async -> SummaryEntry {
@@ -73,7 +76,7 @@ struct AccountProvider: AppIntentTimelineProvider {
     private func entry(for configuration: AccountIntent) -> SummaryEntry {
         SummaryEntry(date: Date(),
                      snapshot: WidgetSnapshot.load(),
-                     pinnedKey: configuration.account?.key)
+                     pinnedKey: configuration.account?.id)
     }
 }
 

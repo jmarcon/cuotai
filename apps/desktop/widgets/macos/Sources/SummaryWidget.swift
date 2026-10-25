@@ -8,15 +8,15 @@ import WidgetKit
 struct SummaryEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot?
-    /// The pinned account key, when the user narrowed the widget down; the
-    /// App Intent widget passes its own.
+    /// The pinned account (its id, or a legacy key), when the user narrowed
+    /// the widget down; the App Intent widget passes its own.
     let pinnedKey: String?
 
     var accounts: [WidgetAccount] {
         let all = snapshot?.accounts ?? []
         guard let pinnedKey else { return all }
         // A pinned account that disappeared is not replaced by another one.
-        return all.filter { $0.key == pinnedKey }
+        return all.filter { $0.isPinned(pinnedKey) }
     }
 }
 

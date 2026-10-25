@@ -35,6 +35,9 @@ enum SnapshotLocation {
 /// One account of the file. Fields the widgets do not read are absent here
 /// too: the extension has no use for them.
 struct WidgetAccount: Codable, Identifiable {
+    /// PRD 0029: the stable account id, which a rename keeps; absent in a
+    /// file written by an older app.
+    let accountId: String?
     let key: String
     let name: String
     let provider: String
@@ -51,11 +54,16 @@ struct WidgetAccount: Codable, Identifiable {
     /// The core writes `snake_case`; Swift's synthesized keys would expect
     /// `checkedAt`, so every key is declared here.
     enum CodingKeys: String, CodingKey {
-        case key, name, provider, email, state, checkedAt = "checked_at"
+        case accountId = "id", key, name, provider, email, state, checkedAt = "checked_at"
         case freshness, binding, metrics, history
     }
 
-    var id: String { key }
+    /// What a pinned widget stores: the stable id, else the legacy key.
+    var id: String { accountId ?? key }
+
+    /// Whether `pinned` (an id, or the key a widget pinned before ids)
+    /// names this account.
+    func isPinned(_ pinned: String) -> Bool { pinned == id || pinned == key }
 
     enum State {
         static let ready = "ready"

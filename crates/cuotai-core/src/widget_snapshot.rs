@@ -78,11 +78,12 @@ pub struct WidgetSnapshot {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WidgetAccount {
-    /// PRD 0029: [`crate::Account::state_key`], stable across renames.
+    /// PRD 0029: [`crate::Account::state_key`], stable across renames; a
+    /// pinned widget matches on it and shows the account as unavailable
+    /// when it is gone, never another account.
     pub id: String,
-    /// [`crate::Account::key`]: `<provider slug>:<name>`, stable across
-    /// reordering; a pinned widget matches on it and shows the account as
-    /// unavailable when the key is gone, never another account.
+    /// [`crate::Account::key`]: `<provider slug>:<name>`, changed by a
+    /// rename; widgets pinned before ids still match on it.
     pub key: String,
     pub name: String,
     pub provider: Provider,

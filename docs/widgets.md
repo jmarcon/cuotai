@@ -110,8 +110,9 @@ write(&export, std::path::Path::new("widget.json"), 6)?;
 
 | Field | Type | Meaning |
 |---|---|---|
-| `key` | string | `<provider slug>:<name>` (`claude:Work`), the same key as in `export::v1`. A pinned widget matches on it; when the key is gone the widget shows the account as unavailable and never another account. |
-| `name`, `provider` | string | Account name and provider slug. |
+| `id` | string | The stable account id (PRD 0029), the same `id` as in `export::v1`. A pinned widget matches on it, so a rename keeps the pin; when the account is gone the widget shows it as unavailable and never another account. |
+| `key` | string | `<provider slug>:<name>` (`claude:Work`), the same key as in `export::v1`; a rename changes it. Widgets pinned before ids still match on it. |
+| `name`, `provider` | string | Display name (the configured name, or the provider's name for an unnamed account) and provider slug. |
 | `email` | string | Only when the user turned identity on; absent otherwise. |
 | `state` | `ready` / `stale` / `unavailable` | `stale`: the current query failed (or is pending) and the metrics are the preserved reading. `unavailable`: nothing to show, current or preserved. |
 | `checked_at` | RFC 3339 or `null` | When the reading shown was **measured**. While stale it is the original time of the preserved reading, never the time the file was written. `null` while `unavailable`. |
@@ -149,7 +150,7 @@ Sources live in [`apps/desktop/widgets/macos`](../apps/desktop/widgets/macos):
 | `Sources/CuotaiSnapshot.swift` | The file's model and its location (*app group* first, per-user data directory otherwise). |
 | `Sources/WidgetViews.swift` | Shared drawing: the age in the system's relative text, dimmed bars for stale data, the empty state. |
 | `Sources/SummaryWidget.swift` | Summary: each account's binding metric (small, medium, large). |
-| `Sources/AccountWidget.swift` | One account pinned by an App Intent; never falls back to another account. |
+| `Sources/AccountWidget.swift` | One account pinned by an App Intent, by its stable id; never falls back to another account. |
 | `Sources/HistoryWidget.swift` | An area chart of the binding metric's series, only when the file carries one. |
 | `Sources/CuotaiWidgets.swift` | The `WidgetBundle` with the three widgets. |
 | `typecheck.sh` | Type-checks the sources with the Command Line Tools. |

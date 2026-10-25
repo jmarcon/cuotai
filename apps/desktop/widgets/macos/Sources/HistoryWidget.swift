@@ -17,7 +17,7 @@ struct HistoryEntry: TimelineEntry {
     var account: WidgetAccount? {
         let accounts = snapshot?.accounts ?? []
         guard let pinnedKey else { return accounts.first }
-        return accounts.first { $0.key == pinnedKey }
+        return accounts.first { $0.isPinned(pinnedKey) }
     }
 
     var points: [WidgetAccount.HistoryPoint] {
@@ -42,7 +42,7 @@ struct HistoryProvider: AppIntentTimelineProvider {
     private func entry(for configuration: AccountIntent) -> HistoryEntry {
         HistoryEntry(date: Date(),
                      snapshot: WidgetSnapshot.load(),
-                     pinnedKey: configuration.account?.key)
+                     pinnedKey: configuration.account?.id)
     }
 }
 
