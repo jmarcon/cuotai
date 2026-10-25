@@ -45,7 +45,7 @@
           "type": "object",
           "required": ["category", "paths"],
           "properties": {
-            "category": { "enum": ["timeout", "offline", "auth_required", "rate_limited", "schema_changed", "invalid_output", "provider_error"] },
+            "category": { "anyOf": [{ "enum": ["timeout", "offline", "auth_required", "rate_limited", "schema_changed", "invalid_output", "provider_error"] }, { "type": "string" }] },
             "paths": { "type": "array", "items": { "type": "string" }, "description": "JSON paths that no longer matched the interface (array indices read [], unusual keys {*}); never values." }
           },
           "description": "Present only when the current reading failed (PRD 0028 RF1.3)."
