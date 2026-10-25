@@ -42,7 +42,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const editing = index != null;
   // Core decides which providers can be added (`pickable`); the account being edited keeps its own.
   let existing = editing ? await getAccount(index) : null;
-  const providers = (await listProviders()).filter((p) => p.pickable || p.id === existing?.provider).sort((a, b) => a.label.localeCompare(b.label, currentLocale(), { sensitivity: "base" }));
+  const providers = (await listProviders()).filter((p) => p.pickable || p.id === existing?.provider);
+  // The order is the core's (`picker_providers`), the same one the TUI shows; never re-sorted here.
   let provider = existing?.provider ?? providers[0].id;
   let schema = await formSchema(provider);
   // Valores correntes por chave: { text } ou { choice }.

@@ -177,6 +177,14 @@ for (const [provider, kind, tool] of lib.DEMO_NATIVE_DETECT) {
   assert.equal(line, "hace 3 min", "core catalog ids resolve in the dialog's language");
   await i18n.setLocale("en-US");
 }
+// PRD 0005/0027: the dialog keeps the core's provider order (no JS re-sort).
+{
+  const dialog = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/account-dialog.js", root)), "utf8");
+  assert.ok(!/localeCompare/.test(dialog), "account-dialog.js does not re-sort the core's provider order");
+  const list = await lib.listProviders();
+  const pickable = list.filter((p) => p.pickable).map((p) => p.label.toLowerCase());
+  assert.deepEqual(pickable, [...pickable].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), "demo list follows the core's lowercase-label order");
+}
 const about = await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/src/about.rs", root)), "utf8");
 assert.ok(about.includes(`"${lib.NEW_PROVIDER_URL}"`), "the new-provider address is allow-listed by open_external");
 console.log("provider picker UI smoke: ok");

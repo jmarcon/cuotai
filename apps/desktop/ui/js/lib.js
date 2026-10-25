@@ -1736,7 +1736,9 @@ const demo = {
     const r = demoReports[index];
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
   },
-  list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, pickable: !DEMO_NO_QUERY.includes(id) })),
+  // Same key as the core's `picker_providers` (lowercased label), pickable first.
+  list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, pickable: !DEMO_NO_QUERY.includes(id) }))
+    .sort((a, b) => (b.pickable - a.pickable) || (a.label.toLowerCase() < b.label.toLowerCase() ? -1 : a.label.toLowerCase() > b.label.toLowerCase() ? 1 : 0)),
   // ponytail: the browser demo has no core; a name/slug filter with one sign-in method stands in for the search.
   search_providers: async ({ query }) => {
     const fold = (v) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

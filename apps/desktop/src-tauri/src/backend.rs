@@ -4905,10 +4905,22 @@ pub struct ProviderInfo {
     pickable: bool,
 }
 
+/// The providers the account editor lists. PRD 0005/0027: the pickable ones
+/// come first in the core's own order (`account_edit::picker_providers`, the
+/// order the TUI shows); the rest (kept so an existing account can still be
+/// edited) follow, sorted the same way. The UI never re-sorts.
 pub fn providers() -> Vec<ProviderInfo> {
-    Provider::ALL
+    let mut ordered = cuotai_core::account_edit::picker_providers(None);
+    let mut rest: Vec<Provider> = Provider::ALL
         .iter()
-        .map(|&id| ProviderInfo {
+        .copied()
+        .filter(|p| !ordered.contains(p))
+        .collect();
+    rest.sort_by_key(|p| p.label().to_lowercase());
+    ordered.extend(rest);
+    ordered
+        .into_iter()
+        .map(|id| ProviderInfo {
             id,
             label: id.label(),
             pickable: cuotai_core::access::has_usage_query(id),
@@ -5639,6 +5651,23 @@ pub fn tray_view() -> TrayView {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0005/0027: the desktop provider list is in the core's picker
+    /// order, the one the TUI wizard uses, so the two clients agree.
+    #[test]
+    fn desktop_provider_order_matches_the_core_picker_order() {
+        let all = super::providers();
+        let pickable: Vec<_> = all.iter().filter(|p| p.pickable).map(|p| p.id).collect();
+        assert_eq!(
+            pickable,
+            cuotai_core::account_edit::picker_providers(None),
+            "pickable providers must follow picker_providers"
+        );
+        // Pickable first, then the rest; nothing is dropped.
+        let first_other = all.iter().position(|p| !p.pickable).unwrap_or(all.len());
+        assert!(all[first_other..].iter().all(|p| !p.pickable));
+        assert_eq!(all.len(), Provider::ALL.len());
+    }
+
     #[test]
     fn toggle_listed_adds_and_removes_one_sub_id() {
         assert_eq!(
