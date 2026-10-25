@@ -15,29 +15,29 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. "Tray" or "popover" is the 380 × 600 px window opened from the menu-bar/system-tray icon; "menu bar" is the icon itself (macOS status item, Windows and Linux tray icon). "De/Para" (Portuguese for "from/to") is the before → after pairing of section 9.
 
-## Implementation status (2026-10-23)
+## Implementation status (2026-10-25)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. The logotype itself shipped in 0.79.0 (`wordmark()`); this RF moves it out of the tray overview header (owner decision 2026-10-23). |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
-| RF10 | — | Proposed. |
-| RF11 | — | Proposed. |
-| RF12 | — | Proposed. |
-| RF13 | — | Proposed. |
-| RF14 | — | Proposed. |
-| RF15 | — | Proposed. The Cuotai theme shipped in 0.76.0; Dracula is still `DEFAULT_THEME`. |
-| RF16 | — | Proposed. |
-| RF17 | 0.80.0 | RF17.1, RF17.2, RF17.4, RF17.6 and RF17.7 delivered: the tray subscribes to cached updater state only after every render dependency is initialized, so an already-known status renders the popover and update notice instead of blanking the tray, with a production-module regression smoke (DS-A11Y-6, DS-GOV-5); the update banner renders a localized date-only release date with the year instead of the raw ISO timestamp, with rendered four-locale coverage; Settings renders one localized Updates heading owned by the updater section, with rendered four-locale coverage; both HTML roots synchronously apply the stored or detected locale before first paint, while shared boot and runtime selection keep `lang` and rendered strings synchronized (DS-TOK-TYP-8), with an executable bootstrap and production-render smoke; the en-US remaining-share unit and its direct quota compositions say "left", with rendered four-locale coverage and UI-owned catalog parity. RF17.3, RF17.5 and RF17.8–RF17.9 remain proposed. |
-| RF18 | — | Proposed. The mockup generator is committed with this PRD (`assets/0022/after/src/`). |
-| RF19 | — | Proposed. |
+| RF1 | vNEXT | Delivered: spacing, radius, type scale (with `--text-2xs` and `--font-script`), dialog widths and the derived roles in `themes.css`; every padding, margin, gap and font size in `ui/css` on the scale; the literal colors and component blurs replaced; `--shadow-card` on cards; the refresh's glyphs in `icon()`; `tools/lint_ui.py`, run in CI. |
+| RF2 | vNEXT | Delivered: one continuous meter (`js/components.js`) with the ±5-point pace corridor (tick on 4 px bars), no pace mark on stale, unknown, exhausted or overage meters, hatch for unknown, dotted and dimmed stale, `role="meter"` with value text; `scripts/test-meter-ui.mjs`. |
+| RF3 | vNEXT | Delivered: tray rows and main-window cards with the figure block, one status line, at most one extra line, the multi-account title rule and the monogram (MONO-1..3), one stripe, folded local cost, foot with counts and Details. The monogram override of MONO-4 (account form, `desktop.json`) is not built. |
+| RF4 | vNEXT | Delivered: the one-line status line with the state ring, the core's label and detail and the absolute reset; the fitting plan (drop detail, then truncate the label; the reset never). Time chips from core keys wait for PRD 0024 RF1 (today's core pace text stays in the slot; no compact label until those keys exist). |
+| RF5 | vNEXT | Delivered: the static C-ring state glyph (status lines, tab badges outside the tile, the 16 px All tab), the static Rings view, `animateRings` removed. |
+| RF6 | vNEXT | Delivered for meters, rows, rings and the local-cost bars (hatched unpriced day, baseline tick for zero). The "≈" prefix on estimates needs catalog wording and is not added yet. |
+| RF7 | vNEXT | Delivered: tray header with the filter tabs only (More menu measured after render), footer with Settings, Open, last refresh age and refresh; the logotype in the main topbar and drill-in headers only; main topbar per DS-CMP-SHELL-3, two rows below 900 px. |
+| RF8 | vNEXT | RF8.1 delivered (List, Rings, Compact; one preference with PRD 0025's `tray.popover_view` in `desktop.json`, whose former "grid" reads as Rings, chosen in Settings › Dashboard with option cards). RF8.2–RF8.3 (row presets and the live preview) wait for PRD 0025 RF9, which is not built yet. |
+| RF9 | vNEXT | RF9.2 (no shadow on the selected segment), RF9.5 (notification preview) and RF9.6 (flag + endonym with its own `lang`, check mark) delivered. RF9.3 account management in Dashboard belongs to PRD 0025; the Menu bar page of RF9.4 shipped with PRD 0025 RF4 and searches through the catalog keywords like every Settings row. |
+| RF10 | vNEXT | RF10.1–RF10.4 delivered (details order and sub-limit rows, callouts and banners, update banner with one primary, empty states, extensions list). RF10.5 surfaces wait for the data of PRDs 0023, 0024, 0026–0028 (not shown without data). |
+| RF11 | vNEXT | Delivered: no chart entrance, dashed 50/100 gridlines on percent histories, mono ticks, segmented ranges, neutral daily bars with "Today" in the accent, hatched unpriced and baseline-tick zero days. |
+| RF12 | vNEXT | Delivered: DS §7.2 applied, tokens 120/180 ms, the static change marker and the reduced-motion spinner; `scripts/test-motion-ui.mjs`; idle windows report 0 animations. |
+| RF13 | vNEXT | Delivered: meters, names on every icon control, one `--focus` ring, roving tabs, the polite live region with per-refresh announcements, `lang` (RF17.6). The axe-style automated pass of the acceptance is not built (the overflow check covers layout only). |
+| RF14 | vNEXT | Delivered: `apps/desktop/tools/ui-shots/check.mjs` on the real UI in en-US, pt-BR, es, it and `en-XA` (0 problems; `--selftest` catches a forced long string); the dev-only pseudo-locale. Not yet a CI job (it needs Chrome). |
+| RF15 | vNEXT | Delivered: Cuotai for new installs with the pre-paint migration (existing profiles keep Dracula), docs, soft card shadows, all eight failing themes fixed, `contrast_gate.py` with an empty baseline in CI. The shell-side "profile existed" check for cleared web storage is not built. |
+| RF16 | vNEXT | Delivered: palette module, terminal default fg/bg, `NO_COLOR`, no blink or wipe, gauge tween only with `CUOTAI_GAUGE_TWEEN`. |
+| RF17 | 0.80.0, vNEXT | RF17.3 (vNEXT, narrow topbar), RF17.5 (vNEXT, literal colors) and RF17.9 (vNEXT, documented and tested) delivered; RF17.8 waits for PRD 0025 RF3.1. RF17.1, RF17.2, RF17.4, RF17.6 and RF17.7 delivered: the tray subscribes to cached updater state only after every render dependency is initialized, so an already-known status renders the popover and update notice instead of blanking the tray, with a production-module regression smoke (DS-A11Y-6, DS-GOV-5); the update banner renders a localized date-only release date with the year instead of the raw ISO timestamp, with rendered four-locale coverage; Settings renders one localized Updates heading owned by the updater section, with rendered four-locale coverage; both HTML roots synchronously apply the stored or detected locale before first paint, while shared boot and runtime selection keep `lang` and rendered strings synchronized (DS-TOK-TYP-8), with an executable bootstrap and production-render smoke; the en-US remaining-share unit and its direct quota compositions say "left", with rendered four-locale coverage and UI-owned catalog parity. |
+| RF18 | vNEXT | RF18.2 and RF18.3 delivered (`apps/desktop/tools/ui-shots/`, captures in `assets/0022/delivered/`); the dedicated six-account fixture of RF18.2 is not built (the demo's own fixtures are used). |
+| RF19 | — | Amendments recorded in DS §10; the DS status stays Draft until RF8.2, RF9.3–RF9.4 and RF10.5 land; new doc screenshots wait for the owner's review of the delivered set. |
 
 ## 1. Context
 
