@@ -744,7 +744,7 @@ dialog.extensions-dlg {
 }
 /* PRD 0027 RF3: Add-account catalog picker (DS-CMP-SRCH, DS-CMP-CAT, DS-CMP-LIST-6). */
 dialog.dlg.dlg-catalog {
-  width: min(var(--dialog-lg), calc(100vw - 32px));
+  width: min(var(--dialog-xl), calc(100vw - 32px));
 }
 .picker {
   display: flex;
@@ -760,7 +760,7 @@ dialog.dlg.dlg-catalog {
   display: flex;
   flex-direction: column;
   gap: var(--space-0);
-  max-height: min(62dvh, 640px);
+  max-height: min(72dvh, 760px);
   overflow-y: auto;
 }
 .pick-group-label {
@@ -1026,4 +1026,13 @@ dialog.dlg.dlg-shell:popover-open {
 .dlg-shell-body .wn-scroll {
   max-height: none;
   overflow: visible;
+}
+
+/* Mockup 31 has no "Provider" caption over the catalog; the label stays for assistive tech. */
+.dlg-catalog #prov-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }

@@ -160,7 +160,7 @@ All tokens are CSS custom properties on `:root`, defined in `css/themes.css`. Ex
 | Tray popover | 380 × 600 px, fixed width; body scrolls, header and footer fixed | `--space-3` |
 | Main window | default 1200 × 820, min width 520; card grid `minmax(min(100%, 380px), 1fr)`, gap `--space-4` | `--space-5` |
 | Settings window | 860 × 640, min 640 × 460; sidebar ≈ 220 px, content max 640 px | `--space-5` |
-| Dialog | `--dialog-sm` 440, `--dialog-md` 560, `--dialog-lg` 680 px (new), each capped at `100vw − 32px` | `--space-5` |
+| Dialog | `--dialog-sm` 440, `--dialog-md` 560, `--dialog-lg` 680, `--dialog-xl` 760 px (the Add-account catalog), each capped at `100vw − 32px` | `--space-5` |
 
 - **DS-TOK-LAY-2** Dialog widths MUST use the three tokens (today: 520, 560, 600, 640, 680 px).
 - **DS-TOK-LAY-3** Content MUST NOT scroll horizontally at the minimum size or at 200 % text zoom.

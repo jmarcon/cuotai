@@ -32,6 +32,11 @@
 07c-report-problem	settings.html?page=about	860	640	dracula	dark	en-US	[data-report-problem]
 13-main-update-available	index.html	1200	820	dracula	dark	en-US
 31-account-add-catalog	index.html	1200	820	dracula	dark	en-US	[data-add]
+31-account-add-catalog.pt-BR	index.html	1200	820	dracula	dark	pt-BR	[data-add]
+31-account-add-catalog.dracula-light	index.html	1200	820	dracula	light	en-US	[data-add]
+31-account-add-catalog.cuotai	index.html	1200	820	cuotai	dark	en-US	[data-add]
+31-account-add-catalog.cuotai-light	index.html	1200	820	cuotai	light	en-US	[data-add]
+31-account-add-catalog.cuotai-pt-BR	index.html	1200	820	cuotai	light	pt-BR	[data-add]
 50-settings-menubar	settings.html?page=menubar	860	960	dracula	dark	en-US
 50-settings-menubar.pt-BR	settings.html?page=menubar	860	960	dracula	dark	pt-BR
 50-settings-menubar.es	settings.html?page=menubar	860	960	dracula	dark	es

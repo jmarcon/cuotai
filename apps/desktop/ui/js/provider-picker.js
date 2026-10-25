@@ -26,6 +26,13 @@ export const pickerHtml = (labelledBy) => `<div class="picker" id="picker">
     <p class="picker-foot" id="picker-foot"></p>
   </div>`;
 
+/** Mockup 31: at most five browser sign-ins lead, the other groups fill the rest, so every group shows. */
+const featured = (result) => {
+  const first = result.filter((e) => e.method === result[0]?.method).slice(0, 5);
+  const rest = result.filter((e) => e.method !== first[0]?.method).slice(0, FEATURED - first.length);
+  return [...first, ...rest];
+};
+
 /** The grouped catalog shows this many providers; the rest are found by searching (mockup 31). */
 export const FEATURED = 9;
 
@@ -59,7 +66,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     const hint = tl(entry.hint);
     return `<div role="option" class="pick" id="pick-${i}" data-i="${i}" aria-selected="${i === active}">
       ${logo(entry.provider, 32)}
-      <span class="pick-text"><span class="pick-name"><b>${esc(entry.label)}</b><span class="pick-chips">${entryChips(entry, found)}${found
+      <span class="pick-text"><span class="pick-name"><b>${esc(entry.label)}</b><span class="pick-chips">${entryChips(entry, found)}${found && !grouped
           ? `<button type="button" class="link-btn" data-dismiss="${esc(found.kind)}">${te("dialog.detect.dismiss")}</button>` : ""}</span></span>
         <small class="pick-method">${grouped ? `<span class="pick-hint">${esc(hint)}</span>` : `${esc(method)}${hint !== method ? ` · <span class="pick-hint">${esc(hint)}</span>` : ""}`}</small></span>
       <span class="btn outline sm pick-connect" aria-hidden="true">${te("dialog.picker.connect")}</span>
@@ -113,7 +120,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     const result = await searchProviders(input.value, currentLocale());
     if (mine !== seq) return; // a newer keystroke won
     total = result.length;
-    entries = input.value.trim() ? result : result.slice(0, FEATURED);
+    entries = input.value.trim() ? result : featured(result);
     // Mockup 31: the empty search names how many providers it covers.
     if (!input.value.trim()) input.placeholder = t("dialog.picker.searchCount", { count: result.length });
     active = input.value.trim() ? 0 : -1;

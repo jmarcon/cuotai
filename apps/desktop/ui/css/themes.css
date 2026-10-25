@@ -82,6 +82,7 @@
   --dialog-sm: 440px;
   --dialog-md: 560px;
   --dialog-lg: 680px;
+  --dialog-xl: 760px;
 }
 /* DS-TOK-TYP-9: CJK and Devanagari never go below 11 px. */
 :root:lang(zh),
