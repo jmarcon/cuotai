@@ -1,6 +1,6 @@
 // Settings › Data & privacy (PRD 0020 RF2.5): the measurement history and the provider status pages.
 import { t, te } from "../i18n.js";
-import { STALE, brand, esc, historyErase, historyExport, historySize, icon, pickExportFile, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
+import { STALE, brand, esc, historyErase, historyExport, historySize, icon, pickExportFile, setDetectEnabled, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
 import { errorText, fmtBytes, group, l10nError } from "./common.js";
 import { buttons, commitField, disc, num, row, rowError, select, sw, toast } from "./rows.js";
 
@@ -33,6 +33,9 @@ function privacyHtml(s, view) {
   return group("privacy", te("settings.privacy.title"),
     row({ key: "status", label: te("settings.status.on"), info: te("settings.status.help"), msg: "status-msg",
       control: (a) => sw("status-queries", s.status_queries, a) })
+    // PRD 0027 RF6.5: the Add-account question, changeable here; off (or unanswered) checks nothing.
+    + row({ key: "detect", label: te("settings.detect.on"), info: te("settings.detect.help"), msg: "detect-msg",
+      control: (a) => sw("detect-enabled", s.detect?.enabled === true, a) })
     + disc("status-domains", te("settings.status.domainsTitle"), `<p class="hint" data-status-domains>${domains.length
       ? `${te("settings.status.domains")} ${domains.map((d) => `<code>${esc(d)}</code>`).join(", ")}`
       : te("settings.status.none")}</p>`), "data-privacy");
@@ -60,6 +63,9 @@ export function bind(root, ctx) {
   // PRD 0011 RF4.3: saved in desktop.json; on failure the switch goes back to the saved value.
   root.querySelector("#status-queries").onchange = (e) => setStatusEnabled(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("status_queries"); },
+    (x) => { e.target.checked = !e.target.checked; rowError(e.target, errorText(x)); e.target.focus(); });
+  root.querySelector("#detect-enabled").onchange = (e) => setDetectEnabled(e.target.checked).then(
+    () => { rowError(e.target, ""); toast(); ctx.changed("detect"); },
     (x) => { e.target.checked = !e.target.checked; rowError(e.target, errorText(x)); e.target.focus(); });
 }
 

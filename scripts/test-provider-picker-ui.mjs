@@ -104,4 +104,29 @@ for (const { code } of i18n.LOCALES) {
     }
   }
 }
+// PRD 0027 RF3: the catalog picker's markup, chips and empty state in every locale, with no status label; the demo
+// search answers like the core's shape; the "Request a provider" address is the one the shell allow-lists.
+const picker = await import("../apps/desktop/ui/js/provider-picker.js");
+const KEYS = ["dialog.picker.search", "dialog.picker.clear", "dialog.picker.count", "dialog.picker.connect", "dialog.picker.metered",
+  "dialog.picker.found", "dialog.picker.empty", "dialog.picker.request", "dialog.picker.change", "dialog.picker.otherWays",
+  "dialog.detect.ask", "dialog.detect.check", "dialog.detect.notNow", "dialog.detect.dismiss", "settings.detect.on", "settings.detect.help"];
+const entries = await lib.searchProviders("", "en-US");
+assert.ok(entries.length > 0 && entries.every((e) => e.provider && e.method && e.hint && e.level === undefined), "demo catalog shape");
+assert.ok(!entries.some((e) => e.provider === "poolside"), "a provider without any query is not offered");
+assert.ok((await lib.searchProviders("CURSÓR", "en-US")).some((e) => e.provider === "cursor"), "case- and accent-insensitive demo search");
+assert.deepEqual(await lib.searchProviders("zzzz-none", "en-US"), [], "no match is an empty list");
+for (const { code } of i18n.LOCALES) {
+  await i18n.setLocale(code);
+  const catalog = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${code}.json`, root)), "utf8"));
+  for (const key of KEYS) assert.ok(typeof catalog[key] === "string" && catalog[key], `${code}: ${key} missing`);
+  const html = picker.pickerHtml("prov-label") + picker.entryChips({ metered: true }, { kind: "cursor_app" });
+  assert.ok(html.includes('role="listbox"') && html.includes('role="combobox"'), `${code}: listbox semantics`);
+  assert.ok(html.includes(catalog["dialog.picker.metered"]) && html.includes(catalog["dialog.picker.found"]), `${code}: chips`);
+  for (const level of LEVELS) {
+    const label = i18n.tl({ id: `access.level.${level}`, params: {}, fallback: level });
+    assert.ok(!html.includes(label), `${code}: status label "${label}" in the picker`);
+  }
+}
+const about = await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/src/about.rs", root)), "utf8");
+assert.ok(about.includes(`"${lib.NEW_PROVIDER_URL}"`), "the new-provider address is allow-listed by open_external");
 console.log("provider picker UI smoke: ok");

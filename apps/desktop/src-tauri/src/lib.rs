@@ -51,6 +51,50 @@ fn list_providers() -> Vec<ProviderInfo> {
     backend::providers()
 }
 
+/// PRD 0027 RF3.1: the Add-account picker's results, from the core search.
+#[tauri::command]
+fn search_providers(query: String, locale: String) -> Vec<backend::PickerEntry> {
+    backend::search_providers(&query, &locale)
+}
+
+/// PRD 0027 RF5.1: every way to connect a provider, recommended first.
+#[tauri::command]
+fn provider_modes(provider: cuotai_core::Provider) -> Vec<backend::PickerEntry> {
+    backend::provider_modes(provider)
+}
+
+/// PRD 0027 RF6.2/RF6.5: presence-only detection, run when the picker opens
+/// and only after this device agreed to it; dismissed kinds are left out.
+#[tauri::command]
+async fn detect_sources(b: Shared<'_>) -> Result<Vec<cuotai_core::detect::Detected>, String> {
+    let prefs = settings::detect_prefs();
+    if prefs.enabled != Some(true) {
+        return Ok(Vec::new());
+    }
+    let configured = b.configured_providers().await;
+    let found = tauri::async_runtime::spawn_blocking(move || {
+        cuotai_core::detect::local_sources_here(&configured)
+    })
+    .await
+    .map_err(|_| "detect_failed".to_string())?;
+    Ok(found
+        .into_iter()
+        .filter(|d| !prefs.dismissed.iter().any(|k| k == d.kind.slug()))
+        .collect())
+}
+
+/// PRD 0027 RF6.5: answer (or change) "Check this device…". Error: `unwritable`.
+#[tauri::command]
+fn set_detect_enabled(on: bool) -> Result<(), String> {
+    settings::save_detect_enabled(on).map_err(str::to_owned)
+}
+
+/// PRD 0027 RF7.3: "Don't suggest this again". Errors: `invalid_source`, `unwritable`.
+#[tauri::command]
+fn dismiss_detected(kind: String) -> Result<(), String> {
+    settings::dismiss_detected(&kind).map_err(str::to_owned)
+}
+
 #[tauri::command]
 async fn list_extensions(
     b: Shared<'_>,
@@ -1552,6 +1596,11 @@ pub fn run() {
             refresh_all,
             refresh_account,
             list_providers,
+            search_providers,
+            provider_modes,
+            detect_sources,
+            set_detect_enabled,
+            dismiss_detected,
             list_extensions,
             extension_disclosure,
             enable_extension,

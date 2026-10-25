@@ -92,6 +92,78 @@ struct Stored {
     /// One-time migrations already done, e.g. `{"local_storage": 1}` (PRD 0020 RF7.2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     migrations: Option<serde_json::Value>,
+    /// PRD 0027 RF6.5/RF7.3: presence detection of local AI tools; absent
+    /// means the one-time question was not answered and nothing is checked.
+    /// Read leniently ([`DetectPrefs::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    detect: Option<serde_json::Value>,
+}
+
+/// PRD 0027 RF6.5/RF7.3: `detect.enabled` (`None` until answered) and the
+/// dismissed source kinds (`detect.dismissed`, core slugs).
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
+pub struct DetectPrefs {
+    pub enabled: Option<bool>,
+    pub dismissed: Vec<String>,
+}
+
+impl DetectPrefs {
+    fn from_value(value: Option<&serde_json::Value>) -> Self {
+        let Some(value) = value else {
+            return Self::default();
+        };
+        let enabled = value.get("enabled").and_then(serde_json::Value::as_bool);
+        let dismissed = value
+            .get("dismissed")
+            .and_then(serde_json::Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .filter(|slug| cuotai_core::detect::SourceKind::from_slug(slug).is_some())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self { enabled, dismissed }
+    }
+
+    fn to_value(&self) -> serde_json::Value {
+        serde_json::json!({ "enabled": self.enabled, "dismissed": self.dismissed })
+    }
+}
+
+fn detect_of(stored: &Stored) -> DetectPrefs {
+    DetectPrefs::from_value(stored.detect.as_ref())
+}
+
+/// PRD 0027 RF6.5: this device's detection preferences.
+pub fn detect_prefs() -> DetectPrefs {
+    detect_of(&load())
+}
+
+/// PRD 0027 RF6.5: answers the check question (or changes it in Settings).
+pub fn save_detect_enabled(on: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        let mut prefs = detect_of(s);
+        prefs.enabled = Some(on);
+        s.detect = Some(prefs.to_value());
+    })
+}
+
+/// PRD 0027 RF7.3: "Don't suggest this again" for one source kind.
+/// Errors: `invalid_source`, `unwritable`.
+pub fn dismiss_detected(kind: &str) -> Result<(), &'static str> {
+    cuotai_core::detect::SourceKind::from_slug(kind).ok_or("invalid_source")?;
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        let mut prefs = detect_of(s);
+        if !prefs.dismissed.iter().any(|d| d == kind) {
+            prefs.dismissed.push(kind.to_owned());
+        }
+        s.detect = Some(prefs.to_value());
+    })
 }
 
 /// PRD 0018 RF2.6/RF3.3: the update-check preferences of this device.
@@ -1071,6 +1143,8 @@ pub struct SettingsView {
     widgets: WidgetPrefs,
     widget_accounts_min: usize,
     widget_accounts_max: usize,
+    /// PRD 0027 RF6.5: local-tool detection (`enabled` is `None` until asked).
+    detect: DetectPrefs,
     version: &'static str,
 }
 
@@ -1113,6 +1187,7 @@ pub fn view() -> SettingsView {
         widgets: widgets_of(&stored),
         widget_accounts_min: 1,
         widget_accounts_max: MAX_WIDGET_ACCOUNTS,
+        detect: detect_of(&stored),
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -1133,6 +1208,21 @@ pub fn open_user_dir() -> Result<(), &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detect_prefs_read_leniently_and_keep_known_kinds() {
+        assert_eq!(DetectPrefs::from_value(None), DetectPrefs::default());
+        let value = serde_json::json!({ "enabled": "yes", "dismissed": ["cursor_app", "nope", 3] });
+        let prefs = DetectPrefs::from_value(Some(&value));
+        assert_eq!(prefs.enabled, None);
+        assert_eq!(prefs.dismissed, vec!["cursor_app".to_string()]);
+        let saved = DetectPrefs {
+            enabled: Some(true),
+            dismissed: vec!["aws_cli".into()],
+        };
+        let round = DetectPrefs::from_value(Some(&saved.to_value()));
+        assert_eq!(round, saved);
+    }
 
     #[test]
     fn rejects_relative_root_and_files() {

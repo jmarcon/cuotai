@@ -769,5 +769,21 @@
   "report.copy": "Copy",
   "report.copied": "Copied",
   "report.copyFailed": "Could not copy the text.",
-  "report.open": "Open on GitHub"
+  "report.open": "Open on GitHub",
+  "dialog.picker.search": "Search providers",
+  "dialog.picker.clear": "Clear search",
+  "dialog.picker.count": "{count} providers",
+  "dialog.picker.connect": "Connect",
+  "dialog.picker.metered": "Billed per query",
+  "dialog.picker.found": "Found on this device",
+  "dialog.picker.empty": "No provider matches '{query}'",
+  "dialog.picker.request": "Request a provider",
+  "dialog.picker.change": "Change provider",
+  "dialog.picker.otherWays": "Other ways to connect",
+  "dialog.detect.ask": "Check this device for AI tools you already use? Cuotai only checks whether their folders exist and reads nothing.",
+  "dialog.detect.check": "Check",
+  "dialog.detect.notNow": "Not now",
+  "dialog.detect.dismiss": "Don't suggest this again",
+  "settings.detect.on": "Detect local AI tools",
+  "settings.detect.help": "Only when you open Add account. Cuotai checks whether the tools' folders exist and reads nothing; each suggestion says what it will read and asks first."
 }

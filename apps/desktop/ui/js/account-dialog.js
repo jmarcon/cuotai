@@ -2,11 +2,13 @@
 // RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
 // tipados (LoginEvent, sem segredos) e envia entradas do usuário.
 import {
-  accountLabel, configChangedOnDisk, deleteAccount, draftAccess, errText, esc, fieldChoices, formSchema, getAccount, getView, listProviders,
+  accountLabel, configChangedOnDisk, deleteAccount, detectSources, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
+  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, sessionNoticeHtml, testSession, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
+import { entryChips, mountPicker, pickerHtml } from "./provider-picker.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
 import { showDialog } from "./motion.js";
 
@@ -59,9 +61,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
 
   const dlg = open(`<form method="dialog" class="dlg-body" autocomplete="off">
     <h2>${te(editing ? "dialog.editTitle" : "dialog.addTitle")}</h2>
-    <label class="f" data-field="provider"><span>${te("dialog.provider")}</span>
-      <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>
-      <small class="field-err" hidden></small></label>
+    <div class="f" data-field="provider"><span id="prov-label">${te("dialog.provider")}</span>
+      ${editing ? "" : pickerHtml("prov-label")}
+      <div class="prov-head" id="prov-head" ${editing ? "" : "hidden"}></div>
+      <small class="field-err" hidden></small></div>
+    <div class="form-rest" id="form-rest" ${editing ? "" : "hidden"}>
+    <p class="cost-advisory offer-consent" id="offer-consent" role="note" hidden></p>
     <label class="f" data-field="name"><span>${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" /><small class="field-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
@@ -90,8 +95,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
     <div id="models-host"></div>
+    </div>
     <p class="err" id="err" role="alert"></p>
-    <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn primary" id="ok">${te("common.save")}</button></div>
+    <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn primary" id="ok" ${editing ? "" : "hidden"}>${te("common.save")}</button></div>
   </form>`);
   const form = dlg.querySelector("form");
   const dyn = dlg.querySelector("#dyn");
@@ -750,6 +756,18 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         radios.push(`<label class="mode mode-off"><input type="radio" name="auth" value="${esc(m.id)}" disabled /> ${esc(tl(m.label, { id: m.id }))} <small>${esc(tl(m.unavailable_reason))}</small></label>`);
       }
       authHtml = `<fieldset class="auth"><legend>${te("dialog.authLegend")}</legend>${radios.join("")}</fieldset>`;
+      // PRD 0027 RF5.1 / DS-CMP-CAT-3: a new account opens the recommended mode; the others sit, collapsed, under
+      // "Other ways to connect", each with the core's hint.
+      if (!editing && radios.length > 1) {
+        const hints = new Map(catalogModes.map((m) => [m.mode ?? "credential", tl(m.hint)]));
+        const current = radios.find((r) => r.includes("checked")) ?? "";
+        const others = radios.filter((r) => r !== current).map((r) => {
+          const id = /value="([^"]*)"/.exec(r)?.[1];
+          return hints.has(id) ? r.replace("</label>", ` <small class="pick-hint">${esc(hints.get(id))}</small></label>`) : r;
+        });
+        authHtml = `<fieldset class="auth"><legend>${te("dialog.authLegend")}</legend>${current}
+          <details class="other-ways"><summary>${te("dialog.picker.otherWays")}${icon("chev")}</summary>${others.join("")}</details></fieldset>`;
+      }
     }
 
     // RF3.2: the access notes share the area of the credential help (`#access-notes`, filled by renderAccess).
@@ -811,17 +829,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   }
 
   dlg.addEventListener("change", async (e) => {
-    if (e.target.name === "provider") {
-      provider = e.target.value;
-      schema = await formSchema(provider);
-      values.clear();
-      await resetLogin();
-      await syncNameRule();
-      authMode = schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential";
-      await renderDynamic();
-      renderSession();
-      renderModels();
-    } else if (e.target.name === "auth") {
+    if (e.target.name === "auth") {
       syncModeChoicesToFields(selectedMode());
       await resetLogin();
       authMode = e.target.value;
@@ -977,6 +985,91 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   }
   dlg.addEventListener("close", () => { modelsSeq++; models?.dispose(); });
   await syncNameRule();
+
+  // ----- PRD 0027 RF3/RF5/RF6/RF7: the catalog picker, the recommended mode and consented offers -----
+  const head = dlg.querySelector("#prov-head");
+  const rest = dlg.querySelector("#form-rest");
+  const consentLine = dlg.querySelector("#offer-consent");
+  let detected = [];
+  const paintHead = (entry, found) => {
+    head.innerHTML = `${logo(entry.provider, 32)}<span class="pick-text"><b>${esc(entry.label)}</b>
+        <small class="pick-method">${esc(tl(entry.method_label))}</small>
+        <span class="pick-chips">${entryChips(entry, found)}</span></span>
+      ${editing ? "" : `<button type="button" class="btn sm" id="prov-change">${te("dialog.picker.change")}</button>`}`;
+    head.querySelector("#prov-change")?.addEventListener("click", backToPicker);
+  };
+  // A mode the tile names opens only when the core offers it for this provider now.
+  const offered = (mode) => mode && (mode === "credential"
+    ? schema.credential_kind !== "none"
+    : modes().some((m) => m.id === mode && !m.unavailable_reason));
+  async function choose(entry, found) {
+    provider = entry.provider;
+    schema = await formSchema(provider);
+    catalogModes = await providerModes(provider).catch(() => []);
+    values.clear();
+    await resetLogin();
+    await syncNameRule();
+    const wanted = found?.mode ?? entry.mode;
+    authMode = offered(wanted) ? wanted : (schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential");
+    paintHead(entry, found);
+    // RF7.2: what the offered flow will read, before anything is read; Change provider (or Cancel) reads nothing.
+    consentLine.textContent = found ? tl(found.consent) : "";
+    consentLine.hidden = !found;
+    picker?.closest(".picker").setAttribute("hidden", "");
+    dlg.classList.remove("dlg-catalog");
+    head.hidden = false;
+    rest.hidden = false;
+    dlg.querySelector("#ok").hidden = false;
+    await renderDynamic();
+    renderSession();
+    renderModels();
+    nameInput.focus();
+  }
+  function backToPicker() {
+    rest.hidden = true;
+    head.hidden = true;
+    dlg.querySelector("#ok").hidden = true;
+    dlg.classList.add("dlg-catalog");
+    dlg.querySelector("#picker").hidden = false;
+    pickerApi.focus();
+  }
+  let catalogModes = await providerModes(provider).catch(() => []);
+  let picker = null;
+  let pickerApi = null;
+  if (!editing) {
+    picker = dlg.querySelector("#picker-list");
+    dlg.classList.add("dlg-catalog");
+    pickerApi = mountPicker(dlg.querySelector("#picker"), {
+      onChoose: (entry, found) => choose(entry, found),
+      detected: () => detected,
+      onDismiss: async (kind) => {
+        try { await dismissDetected(kind); } catch { /* the badge goes away for this dialog anyway */ }
+        detected = detected.filter((d) => d.kind !== kind);
+        pickerApi.refresh();
+      },
+      onRequest: () => openExternal(NEW_PROVIDER_URL).catch(() => {}),
+    });
+    await pickerApi.reload();
+    // RF6.5: detection is opt-in; with no answer the question shows and nothing is checked.
+    const ask = dlg.querySelector("#detect-ask");
+    const runDetection = () => detectSources().then((found) => { detected = found; pickerApi.refresh(); }, () => {});
+    const prefs = (await getSettings().catch(() => null))?.detect ?? { enabled: false };
+    if (prefs.enabled == null) {
+      ask.hidden = false;
+      for (const btn of ask.querySelectorAll("[data-detect]")) btn.addEventListener("click", async () => {
+        const on = btn.dataset.detect === "1";
+        ask.hidden = true;
+        try { await setDetectEnabled(on); } catch { return; }
+        if (on) runDetection();
+        pickerApi.focus();
+      });
+    } else if (prefs.enabled) {
+      runDetection(); // off the dialog's path (RF6 performance): the tiles gain their chip when it answers
+    }
+  } else {
+    const entry = catalogModes.find((m) => m.mode === (existing?.auth_mode ?? null)) ?? catalogModes[0];
+    if (entry) paintHead(entry, null);
+  }
   await renderDynamic();
   renderModels();
   // SES-01: "Paste a new session" opens this editor on the account's paste box.
@@ -985,6 +1078,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     sessionBox.querySelector("#session-status").textContent = t("dialog.session.pasteNew");
     sessionBox.scrollIntoView({ block: "center" });
     pasteField.focus();
+  } else if (pickerApi) {
+    pickerApi.focus();
   } else {
     dlg.querySelector("[name=name]").focus();
   }

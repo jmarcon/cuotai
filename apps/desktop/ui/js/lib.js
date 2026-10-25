@@ -60,6 +60,14 @@ export const getView = () => call("get_view");
 export const refreshAll = () => call("refresh_all");
 export const refreshAccount = (index) => call("refresh_account", { index });
 export const listProviders = () => call("list_providers");
+// PRD 0027: the Add-account catalog (core search, ranking and grouping), its modes and the consented detection.
+export const searchProviders = (query, locale) => call("search_providers", { query, locale });
+export const providerModes = (provider) => call("provider_modes", { provider });
+export const detectSources = () => call("detect_sources");
+export const setDetectEnabled = (on) => call("set_detect_enabled", { on });
+export const dismissDetected = (kind) => call("dismiss_detected", { kind });
+/** The new-provider issue template (allow-listed by the shell's `open_external`). */
+export const NEW_PROVIDER_URL = "https://github.com/jmarcon/cuotai/issues/new?template=new-provider.yml";
 export const listExtensions = () => call("list_extensions");
 export const extensionDisclosure = (id) => call("extension_disclosure", { id });
 export const enableExtension = (candidate) => call("enable_extension", { candidate });
@@ -1120,7 +1128,7 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
     : dl("user_session.warning_env", "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.") };
 const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
-  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null,
+  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null, detect: { enabled: null, dismissed: [] },
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
@@ -1347,6 +1355,21 @@ const demo = {
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
   },
   list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, pickable: !DEMO_NO_QUERY.includes(id) })),
+  // ponytail: the browser demo has no core; a name/slug filter with one sign-in method stands in for the search.
+  search_providers: async ({ query }) => {
+    const fold = (v) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const q = fold(query).trim();
+    return Object.entries(brands).filter(([id]) => !DEMO_NO_QUERY.includes(id) && id !== "extension")
+      .filter(([id, b]) => !q || fold(b.label).includes(q) || id.includes(q))
+      .map(([id, b]) => demoPickerEntry(id, b));
+  },
+  provider_modes: async ({ provider }) => [demoPickerEntry(provider, brand(provider))],
+  detect_sources: async () => (demoSettings.detect.enabled ? [{ provider: "cursor", kind: "cursor_app", mode: "oauth",
+    hint: { id: "detect.hint", params: { tool: "Cursor" }, fallback: "Cursor está instalado neste dispositivo" },
+    consent: { id: "detect.consent.cursor_import", params: {}, fallback: "O Cuotai vai ler uma vez o token de login do banco local do Cursor." } }]
+    .filter((d) => !demoSettings.detect.dismissed.includes(d.kind)) : []),
+  set_detect_enabled: async ({ on }) => { demoSettings.detect.enabled = on; },
+  dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },
   list_extensions: async () => [],
   extension_disclosure: async () => ({ lines: [], candidate: { token: "demo" } }),
   enable_extension: async ({ candidate }) => ({ id: candidate?.id ?? "demo", message: dl("extensions.action.enabled", "Extensão ativada."), account: null }),
@@ -1488,7 +1511,7 @@ const demo = {
     theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), group_recharging: get(GROUP_KEY, "off") === "on", locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
-    alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, version: "demo" }),
+    alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -1887,6 +1910,9 @@ const DEMO_LEVELS = {
   official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud"],
 };
 // Providers without a usage query in any mode (`access::has_usage_query`, demo only): left out of the picker.
+const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, method: "api_key",
+  method_label: { id: "catalog.method.api_key", params: {}, fallback: "Chave de API" },
+  hint: { id: "catalog.hint.api_key", params: {}, fallback: "Chave de API" }, metered: id === "aws_bedrock", recommended: true });
 const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside", "alibaba_model_studio"];
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
 const demoLevel = (level) => dl(`access.level.${level}`, { official: "Oficial", undocumented: "Não documentada", derived: "Derivada", unavailable: "Indisponível" }[level]);

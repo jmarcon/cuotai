@@ -121,11 +121,17 @@ pub fn whats_new() -> WhatsNewView {
 /// comando.
 pub fn is_listed(url: &str) -> bool {
     url == about::PROJECT_REPOSITORY
+        || url == NEW_PROVIDER_ISSUE
         || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
         || cuotai_core::support::is_issue_url(url)
 }
+
+/// PRD 0027 RF3.5: the new-provider issue template, offered by the picker's
+/// empty state ("Request a provider"); `NEW_PROVIDER_URL` in `js/lib.js`.
+pub const NEW_PROVIDER_ISSUE: &str =
+    "https://github.com/jmarcon/cuotai/issues/new?template=new-provider.yml";
 
 /// Abre `url` no navegador padrão do sistema, se estiver na lista.
 pub fn open_external(url: &str) -> Result<(), &'static str> {
@@ -151,6 +157,7 @@ mod tests {
     #[test]
     fn only_published_addresses_open() {
         assert!(is_listed(about::PROJECT_REPOSITORY));
+        assert!(is_listed(NEW_PROVIDER_ISSUE));
         for library in about::libraries() {
             assert!(is_listed(library.repository), "{}", library.name);
         }

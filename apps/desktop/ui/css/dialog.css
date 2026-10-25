@@ -629,3 +629,157 @@ dialog.extensions-dlg {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* PRD 0027 RF3: Add-account catalog picker (DS-CMP-SRCH, DS-CMP-CAT, DS-CMP-LIST-6). */
+dialog.dlg.dlg-catalog {
+  width: min(720px, calc(100vw - 32px));
+}
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.picker-search input {
+  width: 100%;
+  height: 32px;
+}
+.picker-list {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(56dvh, 520px);
+  overflow-y: auto;
+}
+.pick-group-label {
+  margin: 10px 0 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pick-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pick,
+.prov-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+}
+.pick {
+  cursor: pointer;
+}
+.pick:hover,
+.pick[aria-selected="true"] {
+  background: var(--surface-2);
+}
+.pick[aria-selected="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pick-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pick-method,
+.pick-hint {
+  color: var(--fg-muted);
+}
+.pick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pick-chips:empty {
+  display: none;
+}
+.btn.outline {
+  background: transparent;
+}
+.picker .btn.sm,
+.prov-head .btn.sm {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* DS-CMP-CAT-1: a 96 px tile grid at 560 px and above, only for the grouped catalog; results stay a list. */
+@container (min-width: 560px) {
+  .picker-list.is-grouped .pick-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 6px;
+  }
+  .picker-list.is-grouped .pick {
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 96px;
+    border: 1px solid var(--border);
+  }
+  .picker-list.is-grouped .pick-connect {
+    margin-top: auto;
+  }
+}
+.picker-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.detect-ask {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.dlg-actions.left {
+  justify-content: flex-start;
+}
+.other-ways summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  cursor: pointer;
+  color: var(--fg-muted);
+}
+.other-ways summary svg.i {
+  width: 14px;
+  height: 14px;
+  transform: rotate(90deg);
+}
+.other-ways[open] summary svg.i {
+  transform: rotate(-90deg);
+}
+.picker[hidden],
+.picker-empty[hidden],
+.prov-head[hidden],
+.detect-ask[hidden],
+.picker-search .icon[hidden] {
+  display: none;
+}
+.dlg-actions .btn[hidden],
+.form-rest[hidden],
+.offer-consent[hidden] {
+  display: none;
+}
+.form-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}

@@ -769,5 +769,21 @@
   "report.copy": "Copia",
   "report.copied": "Copiato",
   "report.copyFailed": "Impossibile copiare il testo.",
-  "report.open": "Apri su GitHub"
+  "report.open": "Apri su GitHub",
+  "dialog.picker.search": "Cerca provider",
+  "dialog.picker.clear": "Cancella ricerca",
+  "dialog.picker.count": "{count} provider",
+  "dialog.picker.connect": "Connetti",
+  "dialog.picker.metered": "Addebitato per query",
+  "dialog.picker.found": "Trovato su questo dispositivo",
+  "dialog.picker.empty": "Nessun provider corrisponde a '{query}'",
+  "dialog.picker.request": "Richiedi un provider",
+  "dialog.picker.change": "Cambia provider",
+  "dialog.picker.otherWays": "Altri modi per connettersi",
+  "dialog.detect.ask": "Cercare su questo dispositivo gli strumenti di IA che usi già? Cuotai controlla solo se le loro cartelle esistono e non legge nulla.",
+  "dialog.detect.check": "Cerca",
+  "dialog.detect.notNow": "Non ora",
+  "dialog.detect.dismiss": "Non suggerire più",
+  "settings.detect.on": "Rileva strumenti di IA",
+  "settings.detect.help": "Solo quando apri Aggiungi account. Cuotai controlla se le cartelle degli strumenti esistono e non legge nulla; ogni suggerimento dice cosa leggerà e chiede prima."
 }

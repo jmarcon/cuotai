@@ -776,5 +776,21 @@
   "report.copy": "Copiar",
   "report.copied": "Copiado",
   "report.copyFailed": "Não foi possível copiar o texto.",
-  "report.open": "Abrir no GitHub"
+  "report.open": "Abrir no GitHub",
+  "dialog.picker.search": "Buscar provedores",
+  "dialog.picker.clear": "Limpar busca",
+  "dialog.picker.count": "{count} provedores",
+  "dialog.picker.connect": "Conectar",
+  "dialog.picker.metered": "Cobrado por consulta",
+  "dialog.picker.found": "Encontrado neste dispositivo",
+  "dialog.picker.empty": "Nenhum provedor corresponde a '{query}'",
+  "dialog.picker.request": "Pedir um provedor",
+  "dialog.picker.change": "Trocar provedor",
+  "dialog.picker.otherWays": "Outras formas de conectar",
+  "dialog.detect.ask": "Procurar neste dispositivo ferramentas de IA que você já usa? O Cuotai só confere se as pastas delas existem e não lê nada.",
+  "dialog.detect.check": "Procurar",
+  "dialog.detect.notNow": "Agora não",
+  "dialog.detect.dismiss": "Não sugerir de novo",
+  "settings.detect.on": "Detectar ferramentas de IA",
+  "settings.detect.help": "Só ao abrir Adicionar conta. O Cuotai confere se as pastas das ferramentas existem e não lê nada; cada sugestão diz o que vai ler e pergunta antes."
 }

@@ -3733,6 +3733,69 @@ pub fn providers() -> Vec<ProviderInfo> {
         .collect()
 }
 
+/// PRD 0027 RF3.1: one picker tile, from a core catalog entry. Carries no
+/// integration-status level (owner rule: no such label in the UI).
+#[derive(Serialize)]
+pub struct PickerEntry {
+    provider: Provider,
+    label: &'static str,
+    /// `auth_mode` the tile opens (`None`: the provider's only mode).
+    mode: Option<&'static str>,
+    method: cuotai_core::account_edit::SignInMethod,
+    method_label: cuotai_core::text::Localized,
+    hint: cuotai_core::text::Localized,
+    /// Every query is billed ("Billed per query" chip, DS-CMP-BADGE-2).
+    metered: bool,
+    recommended: bool,
+}
+
+impl From<cuotai_core::account_edit::CatalogEntry> for PickerEntry {
+    fn from(entry: cuotai_core::account_edit::CatalogEntry) -> Self {
+        Self {
+            provider: entry.provider,
+            label: entry.provider.label(),
+            mode: entry.mode,
+            method: entry.method,
+            method_label: entry.method.label(),
+            hint: entry.hint,
+            metered: entry.metered,
+            recommended: entry.recommended,
+        }
+    }
+}
+
+/// PRD 0027 RF2/RF3: the picker's results for `query`, ranked and grouped
+/// by the core.
+pub fn search_providers(query: &str, locale: &str) -> Vec<PickerEntry> {
+    account_edit::picker_search(query, locale)
+        .into_iter()
+        .map(|m| m.entry.into())
+        .collect()
+}
+
+/// PRD 0027 RF5.1: every way to connect `provider`, recommended first.
+pub fn provider_modes(provider: Provider) -> Vec<PickerEntry> {
+    let mut entries: Vec<PickerEntry> = account_edit::catalog()
+        .into_iter()
+        .filter(|entry| entry.provider == provider)
+        .map(Into::into)
+        .collect();
+    entries.sort_by_key(|entry| !entry.recommended);
+    entries
+}
+
+impl Backend {
+    /// PRD 0027 RF6.2: the providers that already have an account, which
+    /// detection skips.
+    pub async fn configured_providers(&self) -> Vec<Provider> {
+        let g = self.inner.lock().await;
+        g.loaded
+            .as_ref()
+            .map(|l| l.file.config.accounts.iter().map(|a| a.provider).collect())
+            .unwrap_or_default()
+    }
+}
+
 /// PRD 0016 RF2.2: the dialog's non-empty pastes reduced by the core to the
 /// cookies each slot accepts; the first one it refuses is the error (it
 /// names cookies, never values).
