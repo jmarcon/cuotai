@@ -113,10 +113,19 @@ pub(crate) async fn run(
         // The first step starts the full sweep at once (the cycle's
         // deadlines are for the next readings).
         if driver.step(Instant::now()).await {
-            if monitor.history_recording() {
-                if let Some(store) = monitor.history() {
-                    let now = Utc::now();
-                    let _ = journal.observe(&store, &driver.export(&config, &identity, now), now);
+            {
+                // The journal reads the live configuration (a SIGHUP reload
+                // swaps it) and the pace input, like --watch.
+                let live = read(&live);
+                if live.monitor.history_recording() {
+                    if let Some(store) = live.monitor.history() {
+                        let now = Utc::now();
+                        let pace = |index, report: &cuotai_core::Report| {
+                            crate::ui::pace_input(&live.monitor, &live.config, index, report)
+                        };
+                        let export = driver.export(&live.config, &live.identity, now);
+                        let _ = journal.observe_with(&store, &export, now, pace);
+                    }
                 }
             }
             if let Some(watch) = watch.as_mut() {
