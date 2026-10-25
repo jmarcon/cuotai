@@ -30,6 +30,7 @@ use cuotai_core::{
     models::{self, ModelError, ModelState},
     oauth::{vault_index, OAuthSession},
     pace::{self, Pace, Point},
+    tray,
     refresh::{Edit, RefreshCycle},
     user_session, Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor,
     Provider, Report, Status,
@@ -305,7 +306,6 @@ pub struct Backend {
     /// PRD 0011 RF4: wakes the status loop when the preference changes.
     status_nudge: tokio::sync::Notify,
     /// PRD 0011 RF4.2: the tray icon currently shows the outage indicator.
-    tray_outage: AtomicBool,
     /// PRD 0012 RF5: the local server. Locked before `inner`, never after.
     serve: Mutex<Integration>,
     /// What the local server reads, published from `inner` while it runs.
@@ -446,6 +446,9 @@ pub struct ReportView {
     /// The core's stable `Account::key` (provider slug + name), which the
     /// per-account notice preference is keyed by (PRD 0003 RF3.2).
     account_key: String,
+    /// PRD 0029 RF1: the stable account id, which the menu-bar selection is
+    /// keyed by (PRD 0025 RF2.2).
+    account_id: String,
     /// PRD 0003 RF3.2: the account's bell (reset notices and, PRD 0008
     /// RF3.2, usage alerts on).
     notify: bool,
@@ -652,6 +655,55 @@ pub struct View {
     serve: ServeView,
     /// PRD 0013 RF4: whether hooks are on and, when on, run or why not.
     hooks: HooksBadge,
+    /// PRD 0025 RF2.3: the menu-bar style and the ids it shows, in order
+    /// (the popover lists the rest under "Not in menu bar").
+    tray: TrayView,
+    /// The menu bar's input, per account in dashboard order (not sent).
+    #[serde(skip)]
+    tray_accounts: Vec<tray::AccountView>,
+}
+
+/// PRD 0025 RF2.3: what the popover needs from the menu-bar selection.
+#[derive(Serialize, Clone, Default)]
+pub struct TrayView {
+    style: tray::TrayStyle,
+    selected: Vec<String>,
+    popover_view: crate::settings::PopoverView,
+}
+
+/// PRD 0025 RF1.1: the menu bar's view of one account: the current binding
+/// share, else the preserved reading's (marked stale), its alerts, outage
+/// and projected exhaustion.
+fn tray_account(view: &ReportView, last_good: Option<&Report>) -> tray::AccountView {
+    let (current, preserved) = match &view.binding {
+        Some(b) => (Some(b.clone()), false),
+        None => (last_good.and_then(binding), true),
+    };
+    let runs_out_at = (!preserved)
+        .then_some(current.as_ref())
+        .flatten()
+        .and_then(|b| view.metrics.get(b.index))
+        .and_then(|m| m.pace.as_ref())
+        .and_then(|p| p.pace.projected_exhaustion_at);
+    tray::AccountView {
+        key: view.account_id.clone(),
+        provider: view.provider.slug().to_owned(),
+        provider_label: view.provider.label().to_owned(),
+        name: view.account.clone(),
+        remaining: current.as_ref().map(|b| (1.0 - b.used_ratio).clamp(0.0, 1.0)),
+        stale: current.is_some() && (preserved || view.freshness == Freshness::Stale),
+        exhausted: current
+            .as_ref()
+            .is_some_and(|b| b.reason == cuotai_core::metrics::BindingReason::Exhausted),
+        resets_at: current.as_ref().and_then(|b| b.blocked_until.or(b.resets_at)),
+        runs_out_at,
+        alert: !view.usage_alerts.is_empty(),
+        incident: view
+            .incident
+            .as_ref()
+            .is_some_and(|i| !i.status.stale && i.status.state.is_outage()),
+        on_extra: false,
+    }
 }
 
 fn metric_view(metric: &Metric) -> MetricView {
@@ -720,6 +772,7 @@ fn report_view(
         pace_index,
         access: report_access(account, report),
         account_key: account.state_key(),
+        account_id: account.id().to_string(),
         notify: true,
         usage_alerts: Vec::new(),
         incident: None,
@@ -889,6 +942,8 @@ impl Inner {
                 },
                 serve: self.serve.clone(),
                 hooks: self.hooks,
+                tray: TrayView::default(),
+                tray_accounts: Vec::new(),
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -953,6 +1008,10 @@ impl Inner {
                 Some(view)
             })
             .collect();
+        let tray_accounts = reports
+            .iter()
+            .map(|v| tray_account(v, l.cycle.last_good_report(v.index)))
+            .collect();
         let next = self
             .notices
             .next(&l.file.config, &notice_readings(&l.cycle), clock)
@@ -993,6 +1052,8 @@ impl Inner {
             ),
             serve: self.serve.clone(),
             hooks: self.hooks,
+            tray: TrayView::default(),
+            tray_accounts,
         }
     }
 
@@ -1319,10 +1380,9 @@ impl Backend {
                 view.hooks = badge;
             }
         }
-        let outage = view.status.outage;
-        if self.tray_outage.swap(outage, Ordering::Relaxed) != outage {
-            crate::show_tray_outage(app, outage);
-        }
+        // PRD 0025 RF3: the menu bar follows every state (title, image, badge).
+        crate::tray_bar::update(app, std::mem::take(&mut view.tray_accounts));
+        view.tray = tray_view();
         let _ = app.emit(EVENT, view);
         self.notice_nudge.notify_one();
         // PRD 0014 RF1.4: the snapshot follows the state changes of its own
@@ -4368,6 +4428,24 @@ pub fn visible_keys(
         .collect()
 }
 
+/// PRD 0025 RF2.3: the stored menu-bar choice, resolved against the current
+/// accounts.
+pub fn tray_view() -> TrayView {
+    let prefs = crate::settings::tray_prefs();
+    let accounts = crate::tray_bar::accounts();
+    let picked = prefs.selection().pick(&accounts);
+    let cap = match (prefs.accounts.is_none(), prefs.style) {
+        (_, tray::TrayStyle::Meters) => tray::AUTO_METERS,
+        (true, tray::TrayStyle::LogosPercent) => tray::AUTO_LOGOS,
+        _ => usize::MAX,
+    };
+    TrayView {
+        style: prefs.style,
+        selected: picked.iter().take(cap).map(|a| a.key.clone()).collect(),
+        popover_view: prefs.popover_view.unwrap_or_default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6241,3 +6319,4 @@ mod tests {
         );
     }
 }
+

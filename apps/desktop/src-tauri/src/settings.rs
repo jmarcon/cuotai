@@ -5,6 +5,7 @@ use cuotai_core::{
     alerts::{AlertPrefs, THRESHOLD_RANGE},
     history::Retention,
     resets::{NotifyWhen, Prefs},
+    tray::{TraySelection, TrayStyle},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -97,6 +98,17 @@ struct Stored {
     /// Read leniently ([`DetectPrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     detect: Option<serde_json::Value>,
+    /// PRD 0025 RF2.2/RF3.6/RF4.3: the menu bar (style, colored variant,
+    /// selection and the popover view); absent = the defaults. Read
+    /// leniently ([`TrayPrefs::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tray: Option<serde_json::Value>,
+    /// PRD 0025 RF5.3: Settings window state (`advanced_open`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    settings: Option<serde_json::Value>,
+    /// PRD 0025 RF6.4: the first-run record (`version`); absent = not shown yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    onboarding: Option<serde_json::Value>,
 }
 
 /// PRD 0027 RF6.5/RF7.3: `detect.enabled` (`None` until answered) and the
@@ -164,6 +176,153 @@ pub fn dismiss_detected(kind: &str) -> Result<(), &'static str> {
         }
         s.detect = Some(prefs.to_value());
     })
+}
+
+/// PRD 0025 RF6.4: the version of the first-run step; raising it shows the
+/// step again to every profile.
+pub const ONBOARDING_VERSION: u64 = 1;
+
+/// PRD 0025 RF4.3: how the tray popover lists the accounts.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PopoverView {
+    #[default]
+    Grid,
+    List,
+}
+
+/// PRD 0025 RF2.2: the menu-bar preferences of this device. `accounts`
+/// `None` is `Auto`; otherwise the stable account ids (PRD 0029) in the
+/// user's order.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct TrayPrefs {
+    pub style: TrayStyle,
+    pub colored: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accounts: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popover_view: Option<PopoverView>,
+}
+
+impl TrayPrefs {
+    /// Each field on its own: an unknown or mistyped value is its default.
+    fn from_value(value: &serde_json::Value) -> Self {
+        Self {
+            style: value["style"]
+                .as_str()
+                .and_then(TrayStyle::parse)
+                .unwrap_or_default(),
+            colored: value["colored"].as_bool().unwrap_or(false),
+            accounts: value["accounts"].as_array().map(|ids| clean_ids(ids)),
+            popover_view: serde_json::from_value(value["popover_view"].clone()).ok(),
+        }
+    }
+
+    pub fn selection(&self) -> TraySelection {
+        match &self.accounts {
+            None => TraySelection::Auto,
+            Some(ids) => TraySelection::Custom(ids.clone()),
+        }
+    }
+
+    /// RF2.2: a custom selection without the ids of removed accounts;
+    /// `None` when nothing changes.
+    pub fn pruned(&self, existing: &[String]) -> Option<Self> {
+        let ids = self.accounts.as_ref()?;
+        let TraySelection::Custom(kept) = self.selection().pruned(existing) else {
+            return None;
+        };
+        (kept != *ids).then(|| Self {
+            accounts: Some(kept),
+            ..self.clone()
+        })
+    }
+}
+
+/// Valid account ids (PRD 0029), without repeats, in order.
+pub fn clean_ids(ids: &[serde_json::Value]) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for id in ids.iter().filter_map(|v| v.as_str()) {
+        if cuotai_core::AccountId::parse(id).is_some() && !kept.iter().any(|k| k == id) {
+            kept.push(id.to_owned());
+        }
+    }
+    kept
+}
+
+/// PRD 0025 RF2.2: the menu-bar preferences stored in `file`.
+pub fn read_tray(file: &Path) -> TrayPrefs {
+    read(file)
+        .tray
+        .as_ref()
+        .map(TrayPrefs::from_value)
+        .unwrap_or_default()
+}
+
+/// Store the menu-bar preferences in `file`; the defaults remove the key.
+pub fn write_tray(file: &Path, prefs: &TrayPrefs) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.tray = (*prefs != TrayPrefs::default())
+            .then(|| serde_json::to_value(prefs).ok())
+            .flatten()
+    })
+}
+
+/// The menu-bar preferences of this device.
+pub fn tray_prefs() -> TrayPrefs {
+    settings_file().map(|f| read_tray(&f)).unwrap_or_default()
+}
+
+/// Store the menu-bar preferences of this device. Error: `unwritable`.
+pub fn save_tray(prefs: &TrayPrefs) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    write_tray(&file, prefs)
+}
+
+/// PRD 0025 RF5.3: whether the Settings window's Advanced group is open.
+#[cfg(test)]
+pub fn read_advanced_open(file: &Path) -> bool {
+    read(file)
+        .settings
+        .as_ref()
+        .and_then(|v| v["advanced_open"].as_bool())
+        .unwrap_or(false)
+}
+
+/// Store whether the Advanced group is open, keeping other `settings` keys.
+pub fn write_advanced_open(file: &Path, open: bool) -> Result<(), &'static str> {
+    update(file, |s| {
+        let mut value = s
+            .settings
+            .take()
+            .filter(serde_json::Value::is_object)
+            .unwrap_or_else(|| serde_json::json!({}));
+        value["advanced_open"] = serde_json::Value::Bool(open);
+        s.settings = Some(value);
+    })
+}
+
+/// PRD 0025 RF6.4: the first-run version this profile has seen (0 = never).
+#[cfg(test)]
+pub fn read_onboarding(file: &Path) -> u64 {
+    read(file)
+        .onboarding
+        .as_ref()
+        .and_then(|v| v["version"].as_u64())
+        .unwrap_or(0)
+}
+
+/// Record the first run as seen (`Some(version)`) or reset it (`None`,
+/// "Show the recommended setup again").
+pub fn write_onboarding(file: &Path, version: Option<u64>) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.onboarding = version.map(|v| serde_json::json!({ "version": v }))
+    })
+}
+
+/// The `desktop.json` of this device, or `unwritable`.
+pub fn file() -> Result<PathBuf, &'static str> {
+    settings_file().ok_or("unwritable")
 }
 
 /// PRD 0018 RF2.6/RF3.3: the update-check preferences of this device.
@@ -1145,6 +1304,13 @@ pub struct SettingsView {
     widget_accounts_max: usize,
     /// PRD 0027 RF6.5: local-tool detection (`enabled` is `None` until asked).
     detect: DetectPrefs,
+    /// PRD 0025 RF2.2/RF3.6/RF4.3: the menu bar.
+    tray: TrayPrefs,
+    /// PRD 0025 RF5.3: the Advanced group is open.
+    advanced_open: bool,
+    /// PRD 0025 RF6.4: the first-run version seen (0 = never) and the current one.
+    onboarding: u64,
+    onboarding_version: u64,
     version: &'static str,
 }
 
@@ -1188,6 +1354,22 @@ pub fn view() -> SettingsView {
         widget_accounts_min: 1,
         widget_accounts_max: MAX_WIDGET_ACCOUNTS,
         detect: detect_of(&stored),
+        tray: stored
+            .tray
+            .as_ref()
+            .map(TrayPrefs::from_value)
+            .unwrap_or_default(),
+        advanced_open: stored
+            .settings
+            .as_ref()
+            .and_then(|v| v["advanced_open"].as_bool())
+            .unwrap_or(false),
+        onboarding: stored
+            .onboarding
+            .as_ref()
+            .and_then(|v| v["version"].as_u64())
+            .unwrap_or(0),
+        onboarding_version: ONBOARDING_VERSION,
         version: env!("CARGO_PKG_VERSION"),
     }
 }
@@ -1222,6 +1404,66 @@ mod tests {
         };
         let round = DetectPrefs::from_value(Some(&saved.to_value()));
         assert_eq!(round, saved);
+    }
+
+    #[test]
+    fn tray_prefs_round_trip_and_read_leniently() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(read_tray(&file), TrayPrefs::default());
+        assert_eq!(read_tray(&file).style, TrayStyle::TightestPercent);
+        let prefs = TrayPrefs {
+            style: TrayStyle::Meters,
+            colored: true,
+            accounts: Some(vec!["acc_b".into(), "acc_a".into()]),
+            popover_view: Some(PopoverView::List),
+        };
+        write_tray(&file, &prefs).unwrap();
+        assert_eq!(read_tray(&file), prefs);
+        // The defaults remove the key.
+        write_tray(&file, &TrayPrefs::default()).unwrap();
+        assert!(!fs::read_to_string(&file).unwrap().contains("tray"));
+        // Mistyped values fall back one by one; invalid and repeated ids drop.
+        fs::write(
+            &file,
+            r#"{"tray":{"style":"nope","colored":"yes","accounts":["acc_a","BAD ID","acc_a",3],"popover_view":"list"}}"#,
+        )
+        .unwrap();
+        let read_back = read_tray(&file);
+        assert_eq!(read_back.style, TrayStyle::TightestPercent);
+        assert!(!read_back.colored);
+        assert_eq!(read_back.accounts, Some(vec!["acc_a".to_owned()]));
+        assert_eq!(read_back.popover_view, Some(PopoverView::List));
+    }
+
+    #[test]
+    fn tray_selection_prunes_removed_accounts_and_keeps_renamed_ones() {
+        // A rename keeps the stable id, so the account stays selected.
+        let prefs = TrayPrefs {
+            accounts: Some(vec!["acc_keep".into(), "acc_gone".into()]),
+            ..TrayPrefs::default()
+        };
+        let existing = vec!["acc_new".to_owned(), "acc_keep".to_owned()];
+        let pruned = prefs.pruned(&existing).unwrap();
+        assert_eq!(pruned.accounts, Some(vec!["acc_keep".to_owned()]));
+        assert_eq!(pruned.pruned(&existing), None);
+        // Auto never changes (new accounts appear only there).
+        assert_eq!(TrayPrefs::default().pruned(&existing), None);
+    }
+
+    #[test]
+    fn advanced_group_and_onboarding_records() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert!(!read_advanced_open(&file));
+        write_advanced_open(&file, true).unwrap();
+        assert!(read_advanced_open(&file));
+        assert_eq!(read_onboarding(&file), 0);
+        write_onboarding(&file, Some(ONBOARDING_VERSION)).unwrap();
+        assert_eq!(read_onboarding(&file), ONBOARDING_VERSION);
+        assert!(read_advanced_open(&file));
+        write_onboarding(&file, None).unwrap();
+        assert_eq!(read_onboarding(&file), 0);
     }
 
     #[test]

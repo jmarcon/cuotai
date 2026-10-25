@@ -8,6 +8,7 @@ mod local_server;
 mod notify;
 mod settings;
 mod settings_window;
+mod tray_bar;
 mod updater;
 mod user_content;
 mod widgets;
@@ -526,9 +527,9 @@ fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String>
     let menu = build_tray_menu(&app, &payload).map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("cuotai") {
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
-        tray.set_tooltip(Some(tray_tooltip(&payload)))
-            .map_err(|e| e.to_string())?;
     }
+    // PRD 0025 RF7.1: the summary's label first, then these lines.
+    tray_bar::set_menu_tooltip(&app, tray_tooltip(&payload));
     Ok(())
 }
 
@@ -599,6 +600,111 @@ fn migrate_local_storage(
         let _ = app.emit("settings-changed", serde_json::json!({ "key": "" }));
     }
     Ok(settings::view())
+}
+
+/// PRD 0025 RF4.1: the menu-bar summary `style` and `accounts` (`None` =
+/// automatic) would produce from the current readings, for the Settings
+/// preview. Error: `invalid_tray_style`.
+#[tauri::command]
+fn tray_preview(
+    style: String,
+    accounts: Option<Vec<serde_json::Value>>,
+) -> Result<cuotai_core::tray::TraySummary, String> {
+    let style = cuotai_core::tray::TrayStyle::parse(&style).ok_or("invalid_tray_style")?;
+    let selection = match accounts {
+        None => cuotai_core::tray::TraySelection::Auto,
+        Some(ids) => cuotai_core::tray::TraySelection::Custom(settings::clean_ids(&ids)),
+    };
+    Ok(tray_bar::preview(style, &selection))
+}
+
+/// PRD 0025 RF4.2: the accounts the Settings list offers, dashboard order.
+#[tauri::command]
+fn tray_accounts() -> Vec<cuotai_core::tray::AccountView> {
+    tray_bar::accounts()
+}
+
+/// PRD 0025 RF2.2/RF3.6/RF4.3: save the menu-bar choices, redraw the item
+/// and tell every window (the popover follows the selection and the view).
+/// `accounts` `None` is automatic; ids of removed accounts are dropped.
+/// Errors: `invalid_tray_style`, `invalid_popover_view`, `unwritable`.
+#[tauri::command]
+fn set_tray_prefs(
+    app: AppHandle,
+    style: String,
+    colored: bool,
+    accounts: Option<Vec<serde_json::Value>>,
+    popover_view: Option<String>,
+) -> Result<(), String> {
+    let style = cuotai_core::tray::TrayStyle::parse(&style).ok_or("invalid_tray_style")?;
+    let popover_view = popover_view
+        .map(|v| serde_json::from_value(serde_json::Value::String(v)).map_err(|_| "invalid_popover_view"))
+        .transpose()?;
+    let existing = tray_bar::account_keys();
+    let accounts = accounts.map(|ids| {
+        let ids = settings::clean_ids(&ids);
+        if existing.is_empty() {
+            ids
+        } else {
+            ids.into_iter().filter(|id| existing.contains(id)).collect()
+        }
+    });
+    let prefs = settings::TrayPrefs {
+        style,
+        colored,
+        accounts,
+        popover_view,
+    };
+    settings::save_tray(&prefs).map_err(str::to_owned)?;
+    tray_bar::redraw(&app, &prefs);
+    let _ = app.emit("tray-prefs-changed", backend::tray_view());
+    Ok(())
+}
+
+/// PRD 0025 RF5.3: remember whether the Settings sidebar's Advanced group is
+/// open. Error: `unwritable`.
+#[tauri::command]
+fn set_advanced_open(open: bool) -> Result<(), String> {
+    let file = settings::file().map_err(str::to_owned)?;
+    settings::write_advanced_open(&file, open).map_err(str::to_owned)
+}
+
+/// PRD 0025 RF6.1/RF6.2/RF6.6: **Turn on** of the first run. Asks the
+/// operating system for permission once and, when granted, turns usage
+/// alerts on with the core's recommended thresholds, exhaustion and recovery
+/// (`AlertPrefs::recommended`); nothing else changes (no status pages,
+/// local cost, server, hooks, widgets or update checks). Records the step as
+/// seen either way. Returns the permission. Error: `unwritable`.
+#[tauri::command]
+async fn first_run_turn_on(app: AppHandle, b: Shared<'_>) -> Result<String, String> {
+    let permission = notify::request_permission(&app);
+    let recommended = cuotai_core::alerts::AlertPrefs::recommended();
+    let thresholds: Vec<u8> = recommended.thresholds().collect();
+    if permission == "granted" {
+        b.update_notices(&app, |n| {
+            let alerts =
+                n.alerts()
+                    .with_choices(&thresholds, recommended.exhaustion, recommended.recovery)?;
+            n.set_alerts(alerts)?;
+            n.switch_alerts(permission)
+        })
+        .await?;
+    }
+    record_first_run(Some(settings::ONBOARDING_VERSION))?;
+    Ok(permission.to_owned())
+}
+
+/// PRD 0025 RF6.1/RF6.4: **Not now** records the step only; `again` (Settings
+/// › General, "Show the recommended setup again") clears the record.
+/// Error: `unwritable`.
+#[tauri::command]
+fn first_run_record(again: bool) -> Result<(), String> {
+    record_first_run((!again).then_some(settings::ONBOARDING_VERSION))
+}
+
+fn record_first_run(version: Option<u64>) -> Result<(), String> {
+    let file = settings::file().map_err(str::to_owned)?;
+    settings::write_onboarding(&file, version).map_err(str::to_owned)
 }
 
 /// PRD 0007 RF3.4: show or hide the consumption pace. Error: `unwritable`.
@@ -1512,49 +1618,9 @@ fn tray_tooltip(p: &TrayMenuPayload) -> String {
     }
 }
 
-const TRAY_PNG: &[u8] = include_bytes!("../icons/tray.png");
-
-/// PRD 0011 RF4.2: paint the outage indicator on the tray icon's RGBA
-/// pixels: a red dot with a light ring in the bottom-right corner, a third
-/// of the icon wide, so it reads on light and dark menu bars.
-fn paint_outage_dot(rgba: &mut [u8], width: u32, height: u32) {
-    let size = width.min(height) as f32;
-    let radius = size / 6.0;
-    let ring = (size / 22.0).max(1.0);
-    let (cx, cy) = (width as f32 - radius - ring, height as f32 - radius - ring);
-    for y in 0..height {
-        for x in 0..width {
-            let distance = (x as f32 + 0.5 - cx).hypot(y as f32 + 0.5 - cy);
-            let color = if distance <= radius {
-                [0xe5, 0x48, 0x4d, 0xff]
-            } else if distance <= radius + ring {
-                [0xff, 0xff, 0xff, 0xff]
-            } else {
-                continue;
-            };
-            let at = ((y * width + x) * 4) as usize;
-            rgba[at..at + 4].copy_from_slice(&color);
-        }
-    }
-}
-
-/// The tray icon, with the outage indicator when `outage`.
-fn tray_icon(outage: bool) -> tauri::Result<tauri::image::Image<'static>> {
-    let icon = tauri::image::Image::from_bytes(TRAY_PNG)?;
-    if !outage {
-        return Ok(icon);
-    }
-    let (width, height) = (icon.width(), icon.height());
-    let mut rgba = icon.rgba().to_vec();
-    paint_outage_dot(&mut rgba, width, height);
-    Ok(tauri::image::Image::new_owned(rgba, width, height))
-}
-
-/// PRD 0011 RF4.2: show or clear the outage indicator on the tray icon.
-pub(crate) fn show_tray_outage(app: &AppHandle, outage: bool) {
-    if let (Some(tray), Ok(icon)) = (app.tray_by_id("cuotai"), tray_icon(outage)) {
-        let _ = tray.set_icon(Some(icon));
-    }
+/// The tray icon before the first state arrives (PRD 0025 RF3 redraws it).
+fn tray_icon() -> tauri::Result<tauri::image::Image<'static>> {
+    tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))
 }
 
 pub fn run() {
@@ -1593,6 +1659,12 @@ pub fn run() {
         .manage(settings_window::State::new(settings::settings_path()))
         .invoke_handler(tauri::generate_handler![
             get_view,
+            tray_preview,
+            tray_accounts,
+            set_tray_prefs,
+            set_advanced_open,
+            first_run_turn_on,
+            first_run_record,
             refresh_all,
             refresh_account,
             list_providers,
@@ -1702,10 +1774,11 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
-            let icon = tray_icon(false)?;
+            let icon = tray_icon()?;
             TrayIconBuilder::with_id("cuotai")
                 .icon(icon)
-                .icon_as_template(false)
+                // PRD 0025 RF3.1: a template on macOS (light and dark menu bars).
+                .icon_as_template(cfg!(target_os = "macos"))
                 .tooltip("Cuotai")
                 // Clique esquerdo abre o popover; o direito mostra o menu de texto (contas e ações).
                 .show_menu_on_left_click(false)
@@ -1919,26 +1992,7 @@ mod tests {
         assert_eq!((x, y), (-90.0, 16.0));
     }
 
-    use super::{clean_menu_line, paint_outage_dot};
-
-    #[test]
-    fn outage_dot_marks_only_the_bottom_right_corner() {
-        let (width, height) = (44, 44);
-        let blank = vec![0u8; (width * height * 4) as usize];
-        let mut rgba = blank.clone();
-        paint_outage_dot(&mut rgba, width, height);
-        let pixel = |x: u32, y: u32| {
-            let at = ((y * width + x) * 4) as usize;
-            <[u8; 4]>::try_from(&rgba[at..at + 4]).unwrap()
-        };
-        // Red in the dot, a light ring around it, the logo untouched.
-        assert_eq!(pixel(35, 35), [0xe5, 0x48, 0x4d, 0xff]);
-        assert_eq!(pixel(43, 35)[..3], [0xff, 0xff, 0xff]);
-        for (x, y) in [(0, 0), (22, 22), (43, 0), (0, 43), (22, 30)] {
-            assert_eq!(pixel(x, y), [0, 0, 0, 0], "({x}, {y})");
-        }
-        assert_ne!(rgba, blank);
-    }
+    use super::clean_menu_line;
 
     #[test]
     fn menu_lines_are_trimmed_stripped_of_controls_and_capped() {
