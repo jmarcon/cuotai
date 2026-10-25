@@ -920,6 +920,8 @@
   "dialog.picker.search": "Search providers",
   "dialog.picker.clear": "Clear search",
   "dialog.picker.count": "{count} providers",
+  "dialog.picker.hint.browser": "Connects locally",
+  "dialog.picker.hint.apiKey": "Needs a key",
   "dialog.picker.connect": "Connect",
   "dialog.picker.metered": "Billed per query",
   "dialog.picker.found": "Found on this device",

@@ -920,6 +920,8 @@
   "dialog.picker.search": "Buscar proveedores",
   "dialog.picker.clear": "Borrar búsqueda",
   "dialog.picker.count": "{count} proveedores",
+  "dialog.picker.hint.browser": "Se conecta localmente",
+  "dialog.picker.hint.apiKey": "Requiere una clave",
   "dialog.picker.connect": "Conectar",
   "dialog.picker.metered": "Se cobra por consulta",
   "dialog.picker.found": "Encontrado en este dispositivo",

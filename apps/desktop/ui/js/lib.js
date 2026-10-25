@@ -1721,7 +1721,7 @@ const demo = {
     return Object.entries(brands).filter(([id]) => !DEMO_NO_QUERY.includes(id) && id !== "extension")
       .filter(([id, b]) => !q || fold(b.label).includes(q) || id.includes(q))
       .map(([id, b]) => demoPickerEntry(id, b))
-      .sort((x, y) => (x.method === y.method ? 0 : x.method === "self_hosted_gateway" ? 1 : y.method === "self_hosted_gateway" ? -1 : 0));
+      .sort((x, y) => DEMO_METHOD_ORDER.indexOf(x.method) - DEMO_METHOD_ORDER.indexOf(y.method));
   },
   provider_modes: async ({ provider }) => [demoPickerEntry(provider, brand(provider))],
   detect_sources: async () => (demoSettings.detect.enabled ? [{ provider: "cursor", kind: "cursor_app", mode: "oauth",
@@ -2453,10 +2453,16 @@ const DEMO_LEVELS = {
 // Providers without a usage query in any mode (`access::has_usage_query`, demo only): left out of the picker.
 // The core groups aggregators under "Self-hosted gateway" (`catalog::SignInMethod::SelfHostedGateway`).
 const DEMO_GATEWAYS = ["nine_router", "litellm"];
+// Providers the core classes as browser sign-in (a native login exists), shown first in the demo picker.
+const DEMO_BROWSER = ["claude", "chat_gpt", "cursor", "copilot", "antigravity", "windsurf", "kimi", "grok", "kiro", "zed"];
 const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, ...(DEMO_GATEWAYS.includes(id)
     ? { method: "self_hosted_gateway", method_label: { id: "catalog.method.self_hosted_gateway", params: {}, fallback: "Gateway auto-hospedado" } }
-    : { method: "api_key", method_label: { id: "catalog.method.api_key", params: {}, fallback: "Chave de API" } }),
-  hint: { id: "catalog.hint.api_key", params: {}, fallback: "Chave de API" }, metered: id === "aws_bedrock", recommended: true });
+    : DEMO_BROWSER.includes(id)
+      ? { method: "browser_sign_in", method_label: { id: "catalog.method.browser_sign_in", params: {}, fallback: "Entrar pelo navegador" } }
+      : { method: "api_key", method_label: { id: "catalog.method.api_key", params: {}, fallback: "Chave de API" } }),
+  hint: DEMO_BROWSER.includes(id) ? { id: "catalog.hint.browser_sign_in", params: {}, fallback: "Entre pelo navegador" }
+    : { id: "catalog.hint.api_key", params: {}, fallback: "Chave de API" }, metered: id === "aws_bedrock", recommended: true });
+const DEMO_METHOD_ORDER = ["browser_sign_in", "api_key", "self_hosted_gateway"];
 const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside", "alibaba_model_studio"];
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
 const demoLevel = (level) => dl(`access.level.${level}`, { official: "Oficial", undocumented: "Não documentada", derived: "Derivada", unavailable: "Indisponível" }[level]);

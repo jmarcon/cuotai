@@ -5,14 +5,11 @@ import { esc, icon, logo, searchProviders } from "./lib.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
 
 let seq = 0;
+/** The right-hand note of a group header (mockup 31). */
+const GROUP_HINTS = { browser_sign_in: "dialog.picker.hint.browser", api_key: "dialog.picker.hint.apiKey" };
 
 /** The picker's markup (`labelledBy`: the id of its visible label); `mountPicker` wires it. */
 export const pickerHtml = (labelledBy) => `<div class="picker" id="picker">
-    <div class="detect-ask" id="detect-ask" hidden>
-      <p>${te("dialog.detect.ask")}</p>
-      <div class="dlg-actions left"><button type="button" class="btn sm" data-detect="1">${te("dialog.detect.check")}</button>
-        <button type="button" class="btn sm" data-detect="0">${te("dialog.detect.notNow")}</button></div>
-    </div>
     <div class="filter picker-search"><span class="filter-ico">${icon("search")}</span>
       <input type="search" id="picker-q" role="combobox" aria-expanded="true" aria-controls="picker-list" aria-autocomplete="list"
         autocomplete="off" spellcheck="false" placeholder="${te("dialog.picker.search")}" aria-label="${te("dialog.picker.search")}" />
@@ -21,6 +18,11 @@ export const pickerHtml = (labelledBy) => `<div class="picker" id="picker">
     <div class="picker-list" id="picker-list" role="listbox" aria-labelledby="${labelledBy}"></div>
     <div class="picker-empty" id="picker-empty" hidden><p class="hint" id="picker-empty-text"></p>
       <button type="button" class="btn outline sm" id="picker-request">${te("dialog.picker.request")}</button></div>
+    <div class="detect-ask" id="detect-ask" hidden>
+      <p>${te("dialog.detect.ask")}</p>
+      <div class="dlg-actions left"><button type="button" class="btn sm" data-detect="1">${te("dialog.detect.check")}</button>
+        <button type="button" class="btn sm" data-detect="0">${te("dialog.detect.notNow")}</button></div>
+    </div>
     <p class="picker-foot" id="picker-foot"></p>
   </div>`;
 
@@ -48,10 +50,10 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
   let entries = [];
   let total = 0;
   const foot = root.querySelector("#picker-foot");
-  let active = 0;
+  let active = -1; // no row is highlighted on open (mockup 31); the first arrow key or a query selects one
   const foundFor = (provider) => detected().find((d) => d.provider === provider) ?? null;
 
-  const option = (entry, i) => {
+  const option = (entry, i, grouped = false) => {
     const found = foundFor(entry.provider);
     const method = tl(entry.method_label);
     const hint = tl(entry.hint);
@@ -59,7 +61,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
       ${logo(entry.provider, 32)}
       <span class="pick-text"><span class="pick-name"><b>${esc(entry.label)}</b><span class="pick-chips">${entryChips(entry, found)}${found
           ? `<button type="button" class="link-btn" data-dismiss="${esc(found.kind)}">${te("dialog.detect.dismiss")}</button>` : ""}</span></span>
-        <small class="pick-method">${esc(method)}${hint !== method ? ` · <span class="pick-hint">${esc(hint)}</span>` : ""}</small></span>
+        <small class="pick-method">${grouped ? `<span class="pick-hint">${esc(hint)}</span>` : `${esc(method)}${hint !== method ? ` · <span class="pick-hint">${esc(hint)}</span>` : ""}`}</small></span>
       <span class="btn outline sm pick-connect" aria-hidden="true">${te("dialog.picker.connect")}</span>
     </div>`;
   };
@@ -84,8 +86,9 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
         else groups.push({ method: entry.method, label: tl(entry.method_label), items: [[entry, i]] });
       });
       list.innerHTML = groups.map((g, gi) => `<div role="group" class="pick-group" aria-labelledby="pick-g-${gi}">
-          <div class="pick-group-label" id="pick-g-${gi}" role="presentation">${esc(g.label)}</div>
-          <div class="pick-items">${g.items.map(([entry, i]) => option(entry, i)).join("")}</div></div>`).join("");
+          <div class="pick-group-label" id="pick-g-${gi}" role="presentation">${esc(g.label)}${GROUP_HINTS[g.method]
+            ? `<span class="pick-group-hint">${te(GROUP_HINTS[g.method])}</span>` : ""}</div>
+          <div class="pick-items">${g.items.map(([entry, i]) => option(entry, i, true)).join("")}</div></div>`).join("");
     }
     // Mockup 31/31b: the footer counts what the grouped view hides and always offers an extension.
     const hidden = grouped ? total - entries.length : 0;
@@ -113,7 +116,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     entries = input.value.trim() ? result : result.slice(0, FEATURED);
     // Mockup 31: the empty search names how many providers it covers.
     if (!input.value.trim()) input.placeholder = t("dialog.picker.searchCount", { count: result.length });
-    active = 0;
+    active = input.value.trim() ? 0 : -1;
     paint();
   }
 
@@ -127,11 +130,11 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (!entries.length) return;
-      active = (active + (e.key === "ArrowDown" ? 1 : -1) + entries.length) % entries.length;
+      active = active < 0 ? (e.key === "ArrowDown" ? 0 : entries.length - 1) : (active + (e.key === "ArrowDown" ? 1 : -1) + entries.length) % entries.length;
       syncActive();
     } else if (e.key === "Enter") {
       e.preventDefault();
-      choose(active);
+      choose(Math.max(active, 0));
     } else if (e.key === "Escape" && input.value) {
       // RF3.2: Esc clears first; the next Esc closes the dialog.
       e.preventDefault();

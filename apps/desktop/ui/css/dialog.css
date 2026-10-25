@@ -760,7 +760,7 @@ dialog.dlg.dlg-catalog {
   display: flex;
   flex-direction: column;
   gap: var(--space-0);
-  max-height: min(46dvh, 480px);
+  max-height: min(62dvh, 640px);
   overflow-y: auto;
 }
 .pick-group-label {
