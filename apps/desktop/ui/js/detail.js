@@ -40,6 +40,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
     ${pace ? paceHtml(pace, { expected: true }) : ""}
     ${forecastHtml(m)}
     ${reset && !renewed ? `<div class="resets">${m.resets_label ? esc(tl(m.resets_label)) : te("metric.resetsAt", { when: reset })}</div>` : ""}
+    ${m.alert?.missed ? `<div class="resets missed" data-missed>${icon("clock")}<span>${te("alerts.missed", { percent: m.alert.missed })}</span></div>` : ""}
   </div>`;
 }
 

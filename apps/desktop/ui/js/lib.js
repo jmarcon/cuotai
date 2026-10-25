@@ -187,6 +187,10 @@ export const resetTimeline = (range, generation) => call("reset_timeline", { ran
 export const setNotifyEnabled = (on) => call("set_notify_enabled", { on });
 export const setNotifyOptions = (leadMinutes, when, includeOther) => call("set_notify_options", { leadMinutes, when, includeOther });
 export const setAccountNotify = (accountKey, on) => call("set_account_notify", { accountKey, on });
+// PRD 0032: lock-screen-safe texts (RF7.1), quiet hours (RF2) and the "crossed while closed" marker seen (RF8.2).
+export const setNotifyPrivate = (on) => call("set_notify_private", { on });
+export const setQuietHours = (quiet) => call("set_quiet_hours", { quiet });
+export const acknowledgeMissed = (accountKey) => call("acknowledge_missed", { accountKey });
 export const sendTestNotification = (title, body) => call("send_test_notification", { title, body });
 // PRD 0008 RF3: usage alerts (desktop.json; the backend judges each reading and sends them). `setAlertsEnabled` asks
 // the same system permission as reset notices and resolves to `granted`, `denied`, `prompt` or `off`.
@@ -1181,10 +1185,14 @@ function demoIncident(r) {
 function demoMetricAlert(r, m, notify) {
   const a = demoSettings.alerts;
   const used = m.used ?? (m.limit != null && m.remaining != null ? m.limit - m.remaining : null);
-  if (!a.enabled || r.status !== "ready" || m.kind !== "quota" || !(m.limit > 0) || used == null) return null;
+  // `?missed` also turns the alerts on, so the marker can be seen without touching the settings first.
+  if (!(a.enabled || new URLSearchParams(location.search).has("missed")) || r.status !== "ready" || m.kind !== "quota" || !(m.limit > 0) || used == null) return null;
   const muted = (a.muted[demoKey(r)] ?? []).includes(m.label);
   const pct = (used / m.limit) * 100;
-  return { muted, active: notify && !muted && (pct >= 100 || a.thresholds.some((t) => pct >= t)) };
+  // PRD 0032 RF8: `?missed` plays a first reading above a threshold that nobody was told about (until opened).
+  const reached = pct >= 100 ? 100 : Math.max(0, ...a.thresholds.filter((t) => pct >= t));
+  const missed = new URLSearchParams(location.search).has("missed") && reached > 0 && !demoSettings.missedSeen.has(demoKey(r)) ? { missed: reached } : {};
+  return { muted, active: notify && !muted && (pct >= 100 || a.thresholds.some((t) => pct >= t)), ...missed };
 }
 // ponytail: demo mirror of `Account::key` and of the core planner's next notice (first future quota reset with a
 // window, "always" filter, lead applied); the app reads both from the backend.
@@ -1226,7 +1234,8 @@ const demoSettings = { tray: { style: "tightest_percent", colored: false, accoun
   // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
   custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
-  notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
+  notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [], private: true },
+  quiet: { enabled: false, days: {}, digest: true }, missedSeen: new Set(),
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null, detect: { enabled: null, dismissed: [] },
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
@@ -1671,7 +1680,7 @@ const demo = {
     theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), aggregators_in_all: get("cuotai.aggregators-in-all", "grouped"), group_recharging: get(GROUP_KEY, "off") === "on", locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
-    alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
+    alerts: structuredClone(demoSettings.alerts), quiet: structuredClone(demoSettings.quiet), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
     tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
@@ -1873,6 +1882,17 @@ const demo = {
     if (![0, 5, 15, 60].includes(leadMinutes) || !["used", "exhausted", "always"].includes(when)) throw "invalid_notify";
     Object.assign(demoSettings.notify, { lead_minutes: leadMinutes, when, include_other: includeOther });
   },
+  set_notify_private: async ({ on }) => { demoSettings.notify.private = on; },
+  set_quiet_hours: async ({ quiet }) => {
+    const days = quiet?.days ?? {};
+    const time = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const valid = typeof quiet?.enabled === "boolean" && typeof quiet?.digest === "boolean"
+      && Object.entries(days).every(([k, list]) => ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].includes(k) && Array.isArray(list) && list.length <= 3
+        && list.every((i) => time.test(i?.from) && time.test(i?.to)));
+    if (!valid) throw "invalid_quiet";
+    demoSettings.quiet = { enabled: quiet.enabled, digest: quiet.digest, days: structuredClone(days) };
+  },
+  acknowledge_missed: async ({ accountKey }) => { demoSettings.missedSeen.add(accountKey); },
   set_account_notify: async ({ accountKey, on }) => {
     const off = demoSettings.notify.off_accounts.filter((k) => k !== accountKey);
     demoSettings.notify.off_accounts = on ? off : [...off, accountKey];

@@ -61,6 +61,7 @@ function ruleHtml(hv, d, i, dirty) {
         <button class="icon" data-arg-remove="${j}" title="${te("settings.hooks.argumentRemove")}" aria-label="${te("settings.hooks.argumentRemove")}">${icon("trash")}</button></li>`).join("")}</ol>
       <small>${te("settings.hooks.commandHelp")}</small></div>
     <div class="dlg-actions left"><button class="btn" data-arg-add>${icon("plus")} ${te("settings.hooks.argumentAdd")}</button></div>
+    <label class="check hook-quiet">${check("data-quiet-skip", d.quiet === "skip")}<span>${te("settings.hooks.quietSkip")} <small>${te("settings.hooks.quietHelp")}</small></span></label>
     ${kept.length ? `<p class="hint">${te("settings.hooks.kept", { filters: kept.join(", ") })}</p>` : ""}
     <div class="dlg-actions left"><button class="btn" data-hook-test ${testable ? "" : "disabled"} title="${te(testable ? "settings.hooks.testHelp" : "settings.hooks.testOff")}">${te("settings.hooks.test")}</button>
       <button class="btn danger-btn" data-hook-remove>${icon("trash")} ${te("settings.hooks.remove")}</button></div>
@@ -113,6 +114,8 @@ export async function bindHooks(box, ctx) {
         d.events = c.checked ? [...d.events.filter((x) => x !== c.dataset.event), c.dataset.event] : d.events.filter((x) => x !== c.dataset.event);
         edited();
       };
+      // RF5.2: `quiet = "skip"` is written only when chosen; the default is left out of the file.
+      fs.querySelector("[data-quiet-skip]").onchange = (e) => { if (e.target.checked) d.quiet = "skip"; else delete d.quiet; edited(); };
       for (const input of fs.querySelectorAll("[data-arg]")) input.oninput = () => { d.command[Number(input.dataset.arg)] = input.value; edited(); };
       const restructure = (change, focus) => () => {
         change();

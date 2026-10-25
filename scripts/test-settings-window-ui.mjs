@@ -226,6 +226,21 @@ for (const { code } of i18n.LOCALES) {
     total += words;
   }
   assert.ok(total <= 450, `${code}: ${total} words shown across the pages`);
+  // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
+  // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
+  const alertsPage = rendered.get("alerts");
+  assert.ok(alertsPage.includes('data-row="quiet"') && /data-row="quiet"[^>]*data-keywords="[^"]+"/.test(alertsPage), `${code}: quiet row or its keywords missing`);
+  for (const id of ['id="quiet-on"', 'id="quiet-digest"', 'id="notify-private"', "data-quiet-days"]) assert.ok(alertsPage.includes(id), `${code}: ${id} missing from the Alerts page`);
+  const { quietDaysHtml, quietSummary } = modules.get("alerts");
+  const week = Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => [day, [{ from: "22:00", to: "08:00" }]]));
+  week.mon.push({ from: "12:00", to: "13:00" }, { from: "15:00", to: "16:00" });
+  const editor = quietDaysHtml({ enabled: true, digest: true, days: week });
+  assert.equal(editor.match(/data-row="quiet-(mon|tue|wed|thu|fri|sat|sun)"/g)?.length, 7, `${code}: seven weekday rows`);
+  assert.equal(editor.match(/type="time"/g)?.length, 2 * (3 + 6), `${code}: a labelled from/to pair per interval`);
+  assert.ok(!editor.match(/<input type="time"(?![^>]*aria-label)/), `${code}: unlabelled time field`);
+  assert.match(editor, /data-quiet-add="mon"[^>]*disabled/, `${code}: the fourth interval is refused`);
+  assert.ok(editor.includes("data-quiet-same") && !/settings\.quiet\./.test(editor), `${code}: same-every-day shortcut or untranslated key`);
+  assert.ok(quietSummary({ enabled: false, digest: true, days: {} }) !== quietSummary({ enabled: true, digest: true, days: {} }), `${code}: off and unset read differently`);
   console.log(`${code}: ${PAGES.length} pages, ${CONTROLS.length} controls rendered, ${total} words shown`);
 }
 

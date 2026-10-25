@@ -116,6 +116,9 @@ function card(r, position, ordered, recharging = false, { connection = false } =
   const rate = rateLimitOf(r);
   const rateChip = rate != null && level(rate) !== "good"
     ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "";
+  // PRD 0032 RF8.2: a level crossed while Cuotai was closed (no notice was sent); gone once the details are opened.
+  const missedLevel = Math.max(0, ...r.metrics.map((m) => m.alert?.missed ?? 0));
+  const missedChip = missedLevel ? `<span class="mini info" data-missed-chip title="${te("alerts.missed", { percent: missedLevel })}">${icon("clock")}<span class="mini-t">${te("alerts.missedChip")}</span></span>` : "";
   const alertChip = alert ? `<span class="mini ${alert.tone}" title="${esc(alert.label(r))}">${icon(alert.icon)}<span class="mini-t">${esc(alert.label(r))}</span></span>` : "";
   // PRD 0009 RF2.2: the core's binding window next to the state ("Week · 100%"); an emphasis, the other metrics stay.
   const bindingTitle = blockedText(r) ?? t("card.binding.title");
@@ -142,7 +145,7 @@ function card(r, position, ordered, recharging = false, { connection = false } =
       ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
       : summaryHtml(r)}${pasteSessionHtml(r)}${paceLine(r)}${stale ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
     <div class="card-foot">
-      ${connection ? connectionChips(r) : ""}${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${stale ? "" : overageChipHtml(r)}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
+      ${connection ? connectionChips(r) : ""}${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${missedChip}${bindingChip}${stale ? "" : overageChipHtml(r)}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
     </div>
   </section>`;

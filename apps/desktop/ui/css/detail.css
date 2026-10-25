@@ -765,3 +765,14 @@
   margin-left: auto;
   flex: none;
 }
+/* PRD 0032 RF8.2: the line of a level crossed while Cuotai was closed. */
+.resets.missed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--info);
+}
+.resets.missed svg.i {
+  width: 14px;
+  height: 14px;
+}

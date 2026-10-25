@@ -941,3 +941,26 @@
   color: var(--fg-muted);
   font-size: 13px;
 }
+/* PRD 0032 RF2.3: the quiet-hours weekday editor. Time fields look like the other row fields; theme roles only. */
+.q-interval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.q-interval input[type="time"] {
+  height: 30px;
+  padding: 0 8px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.q-interval span {
+  color: var(--fg-muted);
+}
+.hook-quiet {
+  margin-top: 8px;
+}

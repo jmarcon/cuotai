@@ -148,6 +148,15 @@ for (const { code } of i18n.LOCALES) {
   assert.equal(i18n.t("sort.pct-asc"), wording.sortAsc, `${code}: ascending sort composition drifted`);
   assert.equal(i18n.t("sort.pct-desc"), wording.sortDesc, `${code}: descending sort composition drifted`);
 
+  // PRD 0032 RF8.2: a level crossed while Cuotai was closed shows its own line in the details, in the language;
+  // a metric without it shows none.
+  const crossed = metricCardHtml(report, { ...metric, ratio: 0.08, alert: { muted: false, active: true, missed: 90 } });
+  assert.ok(crossed.includes("data-missed"), `${code}: missed line did not render`);
+  const line = crossed.match(/data-missed><svg[\s\S]*?<\/svg><span>([^<]*)<\/span>/)?.[1];
+  assert.equal(line, i18n.t("alerts.missed", { percent: 90 }), `${code}: missed line text`);
+  assert.ok(line && !line.includes("{") && /90/.test(line), `${code}: missed line not translated: ${line}`);
+  assert.ok(!metricCardHtml(report, { ...metric, alert: { muted: false, active: false } }).includes("data-missed"), `${code}: marker without a crossing`);
+
   console.log(`${code}: 75% ${wording.unit}; ${wording.rateLimit}`);
 }
 

@@ -1,6 +1,6 @@
 // Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, histórico, notas, selos e ações.
 import { te, tl } from "./i18n.js";
-import { bellHtml, brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
+import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, reportKey, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
@@ -75,6 +75,9 @@ function renderConnection(r) {
 export function openDetails(key, context, from = null) {
   ctx = context;
   currentKey = key;
+  // PRD 0032 RF8.2: the "crossed while closed" marker is shown by this first render and recorded as seen.
+  const opened = ctx.reports().find((x) => reportKey(x) === key);
+  if (opened?.account_key && opened.metrics.some((m) => m.alert?.missed)) acknowledgeMissed(opened.account_key).catch(() => {});
   if (!dlg) {
     dlg = document.createElement("dialog");
     dlg.className = "dlg details";
