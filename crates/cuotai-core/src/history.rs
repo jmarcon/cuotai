@@ -955,20 +955,29 @@ impl HistoryStore {
     /// [`Self::bounds`] for a read that must not create the store: `None`
     /// when the file does not exist yet.
     pub(crate) fn recorded_bounds(&self) -> Result<Option<Bounds>, HistoryError> {
-        if self.open_existing()?.is_none() {
-            return Ok(None);
+        match self.open_existing()? {
+            Some(db) => self.bounds_in(&db),
+            None => Ok(None),
         }
-        self.bounds()
     }
 
     /// First and last sample times of this configuration; `None` when empty.
     pub fn bounds(&self) -> Result<Option<Bounds>, HistoryError> {
-        let db = self.open()?;
-        let (first, last) = db.query_row(
-            "SELECT MIN(taken_at), MAX(taken_at) FROM samples WHERE config_key = ?1",
-            [&self.config_key],
-            |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, Option<i64>>(1)?)),
-        )?;
+        self.bounds_in(&self.open()?)
+    }
+
+    fn bounds_in(&self, db: &Connection) -> Result<Option<Bounds>, HistoryError> {
+        // One aggregate per query: SQLite answers a lone MIN or MAX from the
+        // ends of `samples_by_time`, while both together walk the whole
+        // index of the configuration.
+        let edge = |aggregate: &str| {
+            db.query_row(
+                &format!("SELECT {aggregate}(taken_at) FROM samples WHERE config_key = ?1"),
+                [&self.config_key],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+        };
+        let (first, last) = (edge("MIN")?, edge("MAX")?);
         match (first, last) {
             (Some(first), Some(last)) => Ok(Some(Bounds {
                 first: instant(first)?,

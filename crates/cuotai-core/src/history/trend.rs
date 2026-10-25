@@ -282,66 +282,81 @@ impl HistoryStore {
         };
         let (start, end) = span(range);
         let account_digest = series_digest(&db, &self.config_key, account)?;
-        let mut query = db.prepare(
-            "SELECT x.metric_key, s.label, x.unit, x.kind, x.\"window\", x.taken_at,
-                    x.used, x.\"limit\", x.resets_at, s.billing, s.scope IS NOT NULL
-             FROM samples x JOIN series s ON s.config_key = x.config_key
-               AND s.account_digest = x.account_digest AND s.metric_key = x.metric_key
-             WHERE x.config_key = ?1 AND x.account_digest = ?2 AND x.taken_at BETWEEN ?3 AND ?4
-             ORDER BY s.position, s.seen_at DESC, x.metric_key, x.taken_at",
+        // The series of the account first (a few rows), then the samples of
+        // each one through the primary key, already in time order. One join
+        // over the account's whole span would walk the samples of every
+        // account in it through `samples_by_time` and sort them in a
+        // temporary tree: an order of magnitude slower on a month of data.
+        let mut series_query = db.prepare(
+            "SELECT metric_key, label, billing, scope IS NOT NULL FROM series
+             WHERE config_key = ?1 AND account_digest = ?2
+             ORDER BY position, seen_at DESC, metric_key",
         )?;
-        let mut rows = query.query(rusqlite::params![
-            self.config_key,
-            account_digest,
-            start,
-            end
-        ])?;
-        let mut metrics: Vec<(MetricHistory, Vec<WindowSample>)> = Vec::new();
-        while let Some(row) = rows.next()? {
-            let key: String = row.get(0)?;
-            let sample = WindowSample {
-                taken_at: instant(row.get(5)?)?,
-                used: row.get(6)?,
-                limit: row.get(7)?,
-                resets_at: row.get::<_, Option<i64>>(8)?.map(instant).transpose()?,
-            };
-            if metrics.last().is_none_or(|(metric, _)| metric.key != key) {
-                metrics.push((
-                    MetricHistory {
-                        key,
-                        label: row.get(1)?,
-                        unit: row.get(2)?,
-                        kind: untag(row.get(3)?)?,
+        let series: Vec<(String, String, String, bool)> = series_query
+            .query_map(rusqlite::params![self.config_key, account_digest], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        let mut samples_query = db.prepare(
+            "SELECT unit, kind, \"window\", taken_at, used, \"limit\", resets_at FROM samples
+             WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
+               AND taken_at BETWEEN ?4 AND ?5
+             ORDER BY taken_at",
+        )?;
+        let mut metrics: Vec<MetricHistory> = Vec::new();
+        for (key, label, billing, scoped) in series {
+            let mut rows = samples_query.query(rusqlite::params![
+                self.config_key,
+                account_digest,
+                key,
+                start,
+                end
+            ])?;
+            let mut metric: Option<MetricHistory> = None;
+            let mut samples = Vec::new();
+            while let Some(row) = rows.next()? {
+                let sample = WindowSample {
+                    taken_at: instant(row.get(3)?)?,
+                    used: row.get(4)?,
+                    limit: row.get(5)?,
+                    resets_at: row.get::<_, Option<i64>>(6)?.map(instant).transpose()?,
+                };
+                let metric = match &mut metric {
+                    Some(metric) => metric,
+                    None => metric.insert(MetricHistory {
+                        key: key.clone(),
+                        label: label.clone(),
+                        unit: row.get(0)?,
+                        kind: untag(row.get(1)?)?,
                         window: row
-                            .get::<_, Option<String>>(4)?
+                            .get::<_, Option<String>>(2)?
                             .map(untag::<MetricWindow>)
                             .transpose()?,
-                        billing: untag(row.get(9)?)?,
-                        scoped: row.get(10)?,
+                        billing: untag(billing.clone())?,
+                        scoped,
                         limit: None,
                         points: Vec::new(),
                         windows: Vec::new(),
-                    },
-                    Vec::new(),
-                ));
+                    }),
+                };
+                metric.limit = finite(sample.limit).or(metric.limit);
+                if let Some(used) = finite(sample.used) {
+                    metric.points.push(Point {
+                        taken_at: sample.taken_at,
+                        used,
+                    });
+                }
+                samples.push(sample);
             }
-            let (metric, samples) = metrics.last_mut().expect("pushed above");
-            metric.limit = finite(sample.limit).or(metric.limit);
-            if let Some(used) = finite(sample.used) {
-                metric.points.push(Point {
-                    taken_at: sample.taken_at,
-                    used,
+            // A series without samples in the span is left out, as before.
+            if let Some(metric) = metric {
+                metrics.push(MetricHistory {
+                    windows: group_windows(samples),
+                    ..metric
                 });
             }
-            samples.push(sample);
         }
-        Ok(metrics
-            .into_iter()
-            .map(|(metric, samples)| MetricHistory {
-                windows: group_windows(samples),
-                ..metric
-            })
-            .collect())
+        Ok(metrics)
     }
 }
 
