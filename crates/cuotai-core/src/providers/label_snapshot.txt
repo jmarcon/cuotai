@@ -4,9 +4,18 @@ eleven_labs | 5813be61add5349d | Quota | Some(Monthly) | créditos | Included | 
 eleven_labs | 4a10b4a68d15f48f | Usage | Some(Monthly) | créditos | Overage | Créditos extras usados
 kimchi | 0c48a8dd7fb22eb1 | Spend | Some(Other) | USD | Included | Orçamento — equipe compartilhada
 kimchi | 3ddae3bd392ccb3b | Spend | Some(Other) | USD | Included | Orçamento do provedor — anthropic
+litellm | a82cad28ed76354d | Spend | Some(Monthly) | USD | Included | Orçamento do provedor (30d)
+litellm | 18426cc5760aa292 | Spend | Some(Daily) | USD | Included | Orçamento do provedor (1d)
 mimo_platform | 0e654021e24fb0c3 | Quota | Some(Monthly) | créditos | Included | Plano de tokens MiMo
 mimo_platform | f7cb75fb22a89df1 | Balance | None | USD | Included | Saldo da plataforma
 nine_router | e767f57c22a212f7 | Quota | Some(Window5h) |  | Included | Session
+open_router.key | 7adb201160b9d600 | Quota | Some(Monthly) | USD | Included | Limite da chave
+open_router.key | c880d8aa493191da | Spend | Some(Daily) | USD | Included | Gasto hoje
+open_router.key | b5d0ce687fcee23d | Spend | Some(Weekly) | USD | Included | Gasto na semana
+open_router.key | 2ed1eaeca7204b81 | Spend | Some(Monthly) | USD | Included | Gasto no mês
+open_router.key | e8125f3180fbf142 | Spend | None | USD | Included | Gasto total da chave
+open_router.credits | bc1b896926c7ea87 | Balance | None | créditos | Included | Saldo de créditos
+open_router.credits | bfe2b03a5e16025c | Spend | None | créditos | Included | Créditos usados (total)
 router_grok | 5146191accd4312a | Quota | Some(Monthly) | créditos | Included | Grok CLI: mensal incluído
 router_grok | 9aaa319be500f968 | Quota | Some(Monthly) | créditos | Overage | Grok CLI: sob demanda
 router_grok | 7b7f9caddf47b64a | Credits | None | créditos | Included | Grok CLI: pré-pago

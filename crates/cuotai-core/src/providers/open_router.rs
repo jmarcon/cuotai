@@ -859,6 +859,34 @@ pub(crate) async fn models(
     Err(QueryError::schema())
 }
 
+/// PRD 0028 RF11: the fixtures whose metric identities `label_snapshot`
+/// records (the key view and the account credits view).
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let now = Utc.with_ymd_and_hms(2026, 9, 15, 12, 0, 0).unwrap();
+    let key = serde_json::json!({"data": {
+        "label": "sk-or-v1-abc...xyz", "limit": 100, "limit_remaining": 74.5,
+        "limit_reset": "monthly", "usage": 30.5, "usage_daily": 1.25,
+        "usage_weekly": 4.5, "usage_monthly": 25.5,
+        "is_free_tier": false, "is_management_key": false,
+    }});
+    let credits = serde_json::json!({"data": {"total_credits": 100.5, "total_usage": 25.75}});
+    vec![
+        (
+            "open_router.key",
+            parse_key(&key, now, String::new())
+                .expect("fixture decodes")
+                .metrics,
+        ),
+        (
+            "open_router.credits",
+            parse_credits(&credits, String::new())
+                .expect("fixture decodes")
+                .metrics,
+        ),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -39,8 +39,10 @@ fn fixtures() -> Vec<(&'static str, Vec<Metric>)> {
     let mut all = Vec::new();
     all.extend(eleven_labs::label_fixtures());
     all.extend(kimchi::label_fixtures());
+    all.extend(litellm::label_fixtures());
     all.extend(mimo_platform::label_fixtures());
     all.extend(nine_router::label_fixtures());
+    all.extend(open_router::label_fixtures());
     all.extend(router_grok::label_fixtures());
     all.extend(router_keys::label_fixtures());
     all.extend(router_sessions::label_fixtures());

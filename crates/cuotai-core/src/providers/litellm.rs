@@ -250,6 +250,23 @@ pub(crate) async fn test_connection(
     }
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records (the documented `/provider/budgets` example).
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let body = serde_json::json!({"providers": {
+        "openai": {"budget_limit": 100.0, "time_period": "1d", "spend": 2.5,
+                   "budget_reset_at": "2026-10-02T00:00:00Z"},
+        "anthropic": {"budget_limit": 50.0, "time_period": "30d", "spend": 1.0,
+                      "budget_reset_at": null}
+    }});
+    let subs = parse_budgets(&body, Utc::now()).expect("fixture decodes");
+    vec![(
+        "litellm",
+        subs.into_iter().flat_map(|sub| sub.metrics).collect(),
+    )]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
