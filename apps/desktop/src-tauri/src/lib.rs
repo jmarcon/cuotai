@@ -3,6 +3,7 @@
 mod about;
 mod autostart;
 mod backend;
+mod desk_text;
 mod hooks;
 mod local_cost;
 mod local_server;
@@ -457,7 +458,21 @@ fn model_support(provider: Provider) -> backend::ModelSupport {
 
 #[tauri::command]
 fn load_user_content() -> Result<user_content::UserContent, String> {
-    user_content::load().ok_or_else(|| "Pasta de configuração indisponível.".to_string())
+    user_content::load().ok_or_else(desk_text::config_folder_unavailable)
+}
+
+/// The words of the placeholder tray menu shown until the interface loads and
+/// replaces it, in the system language (Portuguese, else English).
+fn initial_tray_words() -> (&'static str, &'static str, &'static str) {
+    let portuguese = ["LC_ALL", "LC_MESSAGES", "LANG"]
+        .iter()
+        .find_map(|name| std::env::var(name).ok().filter(|v| !v.is_empty()))
+        .is_some_and(|v| v.to_lowercase().starts_with("pt"));
+    if portuguese {
+        ("Abrir", "Configurações", "Sair")
+    } else {
+        ("Open", "Settings", "Quit")
+    }
 }
 
 /// RF8: ship the core-owned locale catalog (`crates/cuotai-core/locales/*.json`)
@@ -2135,12 +2150,13 @@ pub fn run() {
                 })
                 .build(app)?;
             // Menu inicial (a interface o substitui, já traduzido e com as contas, assim que carrega).
+            let initial = initial_tray_words();
             let initial = TrayMenuPayload {
                 lines: vec![],
                 empty: "Cuotai".into(),
-                open: "Abrir".into(),
-                settings: "Configurações".into(),
-                quit: "Sair".into(),
+                open: initial.0.into(),
+                settings: initial.1.into(),
+                quit: initial.2.into(),
                 tooltip: "Cuotai".into(),
                 notice: None,
                 update: None,

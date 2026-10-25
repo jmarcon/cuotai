@@ -479,7 +479,7 @@ export const usedPct = (m) => {
 export const level = (p) => (p == null ? "unknown" : p >= 70 ? "good" : p >= 30 ? "warn" : "bad");
 export const fmtNumber = (n, max = 2) => (n == null ? "—" : new Intl.NumberFormat(currentLocale(), { maximumFractionDigits: max }).format(n));
 // Unidades que descrevem "contagem de requisições": ficam implícitas. Outras (USD, créditos, tokens) são exibidas.
-const QUIET_UNITS = new Set(["", "%", "—", "solicitações", "requisições", "consultas", "unidades"]);
+const QUIET_UNITS = new Set(["", "%", "—", "solicitações", "requisições", "consultas", "unidades", "requests"]);
 const unitSuffix = (m) => (QUIET_UNITS.has(m.unit) ? "" : ` ${m.unit}`);
 export function fmtAmount(m) {
   if (m.limit == null) return m.used == null ? "—" : `${fmtNumber(m.used)}${unitSuffix(m)}`;
@@ -1006,7 +1006,7 @@ export function createStore(render) {
 
 // ---------- demo (só no navegador; mesma forma dos comandos Tauri) ----------
 const h = (n) => new Date(Date.now() + n * 3600e3).toISOString();
-const dm = (label, used, limit, resetH, kind, window, unit = "solicitações") => {
+const dm = (label, used, limit, resetH, kind, window, unit = "requests") => {
   const unmeasured = used === 0 && limit === 0;
   const exhausted = !unmeasured && limit > 0 && used >= limit;
   return { label, used, limit, remaining: limit - used, unit, kind, window, period: null, resets_at: h(resetH),
@@ -1040,19 +1040,19 @@ const demoReports = [
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
   dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),
   dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
-  drn("Personal", "anthropic_api", [], demoNote("auth", "Credencial ausente ou expirada."), "authentication_error"),
-  drn("Personal", "mistral", [], demoNote("rate", "HTTP 429: limite de requisições atingido."), "rate_limited"),
-  { ...drn("Dev", "cursor", [], demoNote("down", "Serviço indisponível no momento."), "error"), checked_at: ago(1),
+  drn("Personal", "anthropic_api", [], demoNote("auth", "Credential missing or expired."), "authentication_error"),
+  drn("Personal", "mistral", [], demoNote("rate", "HTTP 429: rate limit reached."), "rate_limited"),
+  { ...drn("Dev", "cursor", [], demoNote("down", "Service unavailable right now."), "error"), checked_at: ago(1),
     last_good: { checked_at: ago(42), metrics: [dm("Fast requests", 380, 500, 120, "quota", "monthly")] } },
-  drn("Work", "windsurf", [], demoNote("config", "Informe a variável de ambiente da credencial."), "needs_configuration"),
-  { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "quota", "other", "créditos")]),
-    identity: { email: null, copy: { label: "ARN do perfil", value: "arn:aws:codewhisperer:us-east-1:123456789012:profile/EXAMPLEPROFILE" },
-      badges: [{ tone: "accent", text: "IAM Identity Center" }, { tone: "info", text: "us-east-1" }, { tone: "good", text: "ativa" }] } },
+  drn("Work", "windsurf", [], demoNote("config", "Set the environment variable that holds the credential."), "needs_configuration"),
+  { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "quota", "other", "credits")]),
+    identity: { email: null, copy: { label: { id: "identity.profile_arn", params: {}, fallback: "Profile ARN" }, value: "arn:aws:codewhisperer:us-east-1:123456789012:profile/EXAMPLEPROFILE" },
+      badges: [{ tone: "accent", text: "IAM Identity Center" }, { tone: "info", text: "us-east-1" }, { tone: "good", text: { id: "demo.kiro.badge.active", params: {}, fallback: "active" } }] } },
   { ...dr("alex@example.com", "grok", [dm("On-demand", 1, 1, 100, "quota", "monthly")]), identity: { email: "alex@example.com", badges: [], copy: null } },
   dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false }]),
   // PRD 0005 RF4.2 fixtures: an Unavailable provider (no query) and an Undocumented one whose response broke the schema.
-  drn("Work", "poolside", [], demoNote("poolside", "Poolside não publica endpoint de uso/saldo por chave."), "unsupported"),
-  { ...dr("Personal", "zed", [], ["Resposta incompatível com a interface de consulta; nenhum valor foi estimado."], "error"),
+  drn("Work", "poolside", [], demoNote("poolside", "Poolside publishes no usage or balance endpoint per key."), "unsupported"),
+  { ...dr("Personal", "zed", [], ["Response is incompatible with the query interface; no value was estimated."], "error"),
     notes_l10n: [{ id: "query.schema", params: {}, fallback: "Response is incompatible with the query interface; no value was estimated." }] },
   // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
   { ...dr("Restored", "chat_gpt", []), pending: true, class: "unmeasured", checked_at: ago(180),
@@ -1171,6 +1171,14 @@ const demoConnectionBinding = (c) => {
   return { index, label: m.label, window: m.window, used_ratio: used, remaining: m.limit * (1 - used), resets_at: m.resets_at,
     reason: used >= 1 ? "exhausted" : "tightest", blocked_until: used >= 1 ? m.resets_at : null };
 };
+// Demo account names are catalog texts (`demo.account.*`), so every language shows its own; the report keeps the raw
+// name for keys and look-ups, and only what the screens receive is translated.
+const DEMO_NAMES = { Personal: "demo.account.personal", Work: "demo.account.work", Dev: "demo.account.dev", Restored: "demo.account.restored" };
+const demoName = (name) => {
+  const numbered = /^Account (\d+)$/.exec(name ?? "");
+  if (numbered) return t("demo.account.numbered", { n: numbered[1] });
+  return DEMO_NAMES[name] ? t(DEMO_NAMES[name]) : name;
+};
 const demoView = () => {
   const now = new Date().toISOString();
   const reports = demoReports.map((r, index) => {
@@ -1187,7 +1195,7 @@ const demoView = () => {
       .map((c) => ({ ...c, index, binding: demoConnectionBinding(c), binding_rank: 0, pace_index: null,
       metrics: c.metrics.map((m) => ({ ...m, pace: null, alert: null })), next_refresh_at_ms: Date.now() + 90e3, access: demoAccess(r),
       account_key: `nine_router:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
-    return { ...r, connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
+    return { ...r, account: demoName(r.account), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics, pace_index: paceIndex,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
       account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label), incident,
@@ -1209,7 +1217,7 @@ const demoView = () => {
 // ponytail: a rough demo of the core's `tray::summary` (PRD 0025 RF1); the app always asks the core.
 const demoTrayAccounts = () => demoReports.map((r) => {
   const b = demoBinding(r);
-  return { key: demoKey(r), provider: r.provider, provider_label: r.provider, name: r.account,
+  return { key: demoKey(r), provider: r.provider, provider_label: r.provider, name: demoName(r.account),
     remaining: b ? Math.max(0, 1 - b.used_ratio) : null, exhausted: b?.reason === "exhausted" };
 });
 function demoTraySelection(style = demoSettings.tray.style, accounts = demoSettings.tray.accounts) {
@@ -1267,23 +1275,23 @@ function demoListing(rules) {
   rules.forEach((r, i) => {
     const command = JSON.stringify(r.command), events = r.events.join(", ");
     lines.push(demoL10n("hooks.confirm.rule", { index: i + 1, name: r.name }, `${i + 1}. ${r.name}`),
-      demoL10n("hooks.confirm.events", { events }, `eventos: ${events}`),
-      demoL10n("hooks.confirm.timeout", { seconds: r.timeout_seconds ?? 10 }, `limite de tempo: ${r.timeout_seconds ?? 10} s`),
-      demoL10n("hooks.confirm.command", { command }, `comando: ${command}`));
+      demoL10n("hooks.confirm.events", { events }, `events: ${events}`),
+      demoL10n("hooks.confirm.timeout", { seconds: r.timeout_seconds ?? 10 }, `time limit: ${r.timeout_seconds ?? 10} s`),
+      demoL10n("hooks.confirm.command", { command }, `command: ${command}`));
   });
   return lines;
 }
 /** The core's `hooks.error.*` for the cases the editor can produce. */
 function demoHooksError(rules) {
-  if (!rules.length) return demoL10n("hooks.error.empty", {}, "hooks.toml não tem nenhuma regra [[hooks]].");
+  if (!rules.length) return demoL10n("hooks.error.empty", {}, "hooks.toml has no [[hooks]] rule.");
   const seen = new Set();
   for (const [i, r] of rules.entries()) {
     const name = r.name.trim();
     if (!name || name.length > 64) return demoL10n("hooks.error.name", { index: i + 1, max: 64 }, `A regra ${i + 1} precisa de um name de 1 a 64 caracteres, sem caracteres de controle.`);
-    if (!r.events.length) return demoL10n("hooks.error.no_events", { name }, `A regra "${name}" não lista nenhum evento.`);
+    if (!r.events.length) return demoL10n("hooks.error.no_events", { name }, `Rule "${name}" lists no event.`);
     const program = r.command[0] ?? "";
-    if (!program || !(program.startsWith("/") || !program.includes("/"))) return demoL10n("hooks.error.command", { name }, `O command da regra "${name}" deve ser uma lista de argumentos cujo primeiro item é um caminho absoluto ou um nome procurado no PATH, como ["/caminho/script", "--opcao"].`);
-    if (seen.has(name)) return demoL10n("hooks.error.duplicate", { name }, `Há mais de uma regra chamada "${name}".`);
+    if (!program || !(program.startsWith("/") || !program.includes("/"))) return demoL10n("hooks.error.command", { name }, `The command of rule "${name}" must be a list of arguments whose first item is an absolute path or a name looked up in PATH, such as ["/path/script", "--flag"].`);
+    if (seen.has(name)) return demoL10n("hooks.error.duplicate", { name }, `More than one rule is named "${name}".`);
     seen.add(name);
   }
   return null;
@@ -1303,8 +1311,8 @@ const DEMO_STATUS = new URLSearchParams(location.search).get("status");
 const DEMO_STATUS_HOSTS = { claude: "status.claude.com", anthropic_api: "status.claude.com", chat_gpt: "status.openai.com",
   copilot: "www.githubstatus.com", groq: "groqstatus.com", mini_max: "status.minimax.io", kimi: "status.moonshot.cn",
   cursor: "status.cursor.com", windsurf: "status.windsurf.com", grok: "status.x.ai" };
-const DEMO_STATE_PT = { operational: "Operacional", degraded: "Desempenho degradado", partial_outage: "Interrupção parcial",
-  major_outage: "Interrupção grave", maintenance: "Em manutenção", unknown: "Status desconhecido" };
+const DEMO_STATE_EN = { operational: "Operational", degraded: "Degraded performance", partial_outage: "Partial outage",
+  major_outage: "Major outage", maintenance: "Under maintenance", unknown: "Unknown status" };
 const DEMO_INCIDENTS = {
   claude: ["partial_outage", "Elevated errors on claude.ai & Claude Code", "https://status.claude.com/incidents/demo1", 0.8],
   cursor: ["major_outage", "Cursor IDE requests failing", "https://status.cursor.com/incidents/demo2", 0.3],
@@ -1318,7 +1326,7 @@ function demoIncident(r) {
   if (!demoSettings.statusQueries || !host) return null;
   const offline = DEMO_STATUS === "offline";
   const [state, title, url, startedH] = offline ? ["unknown"] : DEMO_INCIDENTS[r.provider] ?? ["operational"];
-  return { provider: r.provider, state, label: dl(`incident.state.${state}`, DEMO_STATE_PT[state]), page_url: `https://${host}/`,
+  return { provider: r.provider, state, label: dl(`incident.state.${state}`, DEMO_STATE_EN[state]), page_url: `https://${host}/`,
     incident: title ? { title, started_at: h(-startedH), url } : null, read_at: offline ? null : ago(2), stale: offline };
 }
 // ponytail: demo mirror of `alerts::eligible` and of an active alert (a capped quota at or above the lowest
@@ -1359,7 +1367,7 @@ function demoAccess(r) {
   const changed = level === "undocumented" && r.status === "error" && r.notes_l10n?.some((n) => n.id === "query.schema")
     ? { id: "access.interface_changed", params: { evidence: url }, fallback: `The response does not follow the known internal interface: it may have changed without notice. Reference contract: ${url}` }
     : null;
-  return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Consulta de uso de demonstração."), reason,
+  return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Demo usage query."), reason,
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
     explanation: r.status === "ready" ? null : reason ?? changed, session: demoSessionNotice(demoSessionState(r)) };
 }
@@ -1386,7 +1394,7 @@ const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.searc
 const demoModels = async ({ index, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
   if (!demoReports[index]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Account does not exist in this configuration." });
-  return { state: "unsupported", reason: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } };
+  return { state: "unsupported", reason: { id: "models.demo", params: {}, fallback: "Browser demo: the model catalog is only queried in the desktop app." } };
 };
 // ponytail: demo mirror of `HistoryStore::account_history` + `MetricHistory::{trend, chart}` over synthetic samples:
 // every 20 minutes for 10 days with a day missing (days 6 to 5 ago), 5-hour windows that refill, weekly and longer
@@ -1474,7 +1482,7 @@ const demoStats = async ({ range, account, generation }) => {
   });
   const accounts = indexes.map((i, row) => {
     const d = daily(i * 3.1), have = d.filter((x) => x.share != null);
-    return { account_index: row, name: demoReports[i].account, hits: have.filter((x) => x.share >= 1).length,
+    return { account_index: row, name: demoName(demoReports[i].account), hits: have.filter((x) => x.share >= 1).length,
       average_peak: have.length ? have.reduce((a, x) => a + x.share, 0) / have.length : null, days_with_data: have.length, days: d };
   });
   const dailyAll = accounts[0] ? accounts[0].days.map((_, k) => ({ ...accounts[0].days[k],
@@ -1488,7 +1496,7 @@ const demoStats = async ({ range, account, generation }) => {
     { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): window reset" } },
     { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): quota exhausted" } },
     { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.provider_error", params: {}, fallback: "provider error" } }, fallback: "Refresh failed: provider error" } },
-  ].filter((e) => account == null || e.account === demoReports[account].account);
+  ].filter((e) => account == null || e.account === demoReports[account].account).map((e) => ({ ...e, account: demoName(e.account), parent: e.parent ? demoName(e.parent) : e.parent }));
   return { summary: { range, hits: accounts.reduce((a, x) => a + x.hits, 0), average_peak: averages.length ? averages.reduce((a, x) => a + x, 0) / averages.length : null,
       accounts, extra_spent: account == null && !erased ? [{ unit: "USD", amount: 6.25 }] : null, daily: dailyAll, unknown_limits: 0,
       retention_days: 90, first_sample_at: at(24 * 10), coverage: withData < 2 ? { kind: "not_enough" } : withData === days ? { kind: "full" } : { kind: "partial", days_with_data: withData } },
@@ -1520,7 +1528,7 @@ const DEMO_COST = {
   codex_cli: { label: "Codex CLI", pattern: "**/rollout-*.jsonl", dirs: ["/Users/demo/.codex/sessions", "/Users/demo/.codex/archived_sessions"], files: 3,
     providers: ["chat_gpt"], models: { "gpt-5-codex": { entry: "gpt-5-codex", input: 1.25, output: 10, cache_read: 0.125, cache_write: 1.25 } } },
 };
-const DEMO_PERIODS = { today: "Hoje", last_7_days: "Últimos 7 dias", last_30_days: "Últimos 30 dias", current_month: "Mês atual", all: "Tudo o que está disponível" };
+const DEMO_PERIODS = { today: "Today", last_7_days: "Last 7 days", last_30_days: "Last 30 days", current_month: "Current month", all: "Everything available" };
 const demoCost = { on: {}, paths: {}, period: "last_7_days", retention: 120, erased: new Set() };
 // `?cost` starts the demo with every local-cost source on, so the cards and the tray show their cost rows (fa gap 3).
 if (new URLSearchParams(location.search).has("cost")) for (const id of Object.keys(DEMO_COST)) demoCost.on[id] = "2026-10-01T09:00:00Z";
@@ -1529,9 +1537,9 @@ const demoDisclosure = (id) => {
   const { label, pattern } = DEMO_COST[id];
   const dirs = demoDirs(id);
   return { source: id, label, directories: dirs, custom: !!demoCost.paths[id], pattern, digest: `demo-${id}-${dirs.join("|")}`,
-    purpose: demoL10n("cost.disclosure.purpose", { source: label }, `Para estimar, só neste computador, os tokens e o custo a preços de API do uso do ${label} por dia e por modelo.`),
-    extracted: demoL10n("cost.disclosure.extracted", {}, "Só números são extraídos: o horário, o modelo, as contagens de tokens (entrada, saída, leitura e gravação de cache) e um resumo anônimo da sessão."),
-    never: demoL10n("cost.disclosure.never", {}, "O conteúdo das conversas, prompts, respostas, nomes de arquivos e caminhos de projetos nunca é lido para o índice, gravado nem exibido. Nada sai do computador."),
+    purpose: demoL10n("cost.disclosure.purpose", { source: label }, `To estimate, on this computer only, the tokens and the cost at API prices of your ${label} usage per day and per model.`),
+    extracted: demoL10n("cost.disclosure.extracted", {}, "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write) and an anonymous digest of the session."),
+    never: demoL10n("cost.disclosure.never", {}, "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown. Nothing leaves this computer."),
     off: demoL10n("cost.disclosure.off", {}, "Desligar a fonte interrompe qualquer leitura e apaga tudo o que foi derivado dela.") };
 };
 const demoCostView = () => {
@@ -1541,7 +1549,7 @@ const demoCostView = () => {
     return { source: id, label: s.label, enabled, consented_at: demoCost.on[id] ?? null, paths: demoCost.paths[id] ?? [], disclosure: demoDisclosure(id),
       indexed: { files, invalid_lines: files ? 2 : 0 },
       summary: enabled ? demoL10n("cost.scan.ready", { source: s.label, files: String(s.files), requests: String(files ? 0 : 41), invalid: "2" },
-        `${s.label}: ${s.files} log(s); ${files ? 0 : 41} requisição(ões) nova(s); 2 linha(s) inválida(s) ignorada(s).`) : null };
+        `${s.label}: ${s.files} log(s); ${files ? 0 : 41} new request(s); 2 invalid line(s) ignored.`) : null };
   });
   const on = sources.some((s) => s.enabled);
   return { sources, period: demoCost.period, periods: Object.entries(DEMO_PERIODS).map(([id, text]) => ({ id, label: demoL10n(`cost.period.${id}`, {}, text) })),
@@ -1550,7 +1558,7 @@ const demoCostView = () => {
     size: on ? 86016 : 0 };
 };
 const DEMO_EFFECTIVE = "2026-10-21";
-const demoNotice = () => demoL10n("cost.estimate.notice", {}, "Estimativa a preços de API, não é uma cobrança; valores em USD.");
+const demoNotice = () => demoL10n("cost.estimate.notice", {}, "Estimate at API prices, not a charge; amounts in USD.");
 const tokenSum = (t) => t.input + t.output + t.cache_read + t.cache_write + (t.cache_write_1h ?? 0);
 const addTokens = (a, b) => ({ input: a.input + b.input, output: a.output + b.output, cache_read: a.cache_read + b.cache_read, cache_write: a.cache_write + b.cache_write, cache_write_1h: (a.cache_write_1h ?? 0) + (b.cache_write_1h ?? 0) });
 const ZERO_TOKENS = { input: 0, output: 0, cache_read: 0, cache_write: 0, cache_write_1h: 0 };
@@ -1592,7 +1600,7 @@ const demoCostUsage = () => {
   const noAccess = new URLSearchParams(location.search).has("cost-noaccess");
   const sources = Object.entries(DEMO_COST).map(([id, s]) => {
     const base = { source: id, label: s.label, providers: s.providers };
-    if (!(id in demoCost.on)) return { ...base, state: "off", note: demoL10n("cost.scan.off", { source: s.label }, `${s.label}: desligado; nada é lido.`), usage: null };
+    if (!(id in demoCost.on)) return { ...base, state: "off", note: demoL10n("cost.scan.off", { source: s.label }, `${s.label}: off; nothing is read.`), usage: null };
     const kept = !demoCost.erased.has(id);
     const rowsOf = (back) => (kept ? demoDayRows(id, back) : []);
     const days = [];
@@ -1604,7 +1612,7 @@ const demoCostUsage = () => {
     const periodLabel = demoL10n(`cost.period.${demoCost.period}`, {}, DEMO_PERIODS[demoCost.period]);
     const state = id === "claude_code" && noAccess ? "no_access" : "ready";
     const note = state === "no_access"
-      ? demoL10n("cost.view.no_access", { source: s.label }, `${s.label}: sem acesso aos diretórios dos logs; nada foi contornado. Os números são os que o índice já tinha.`)
+      ? demoL10n("cost.view.no_access", { source: s.label }, `${s.label}: no access to the log directories; nothing was worked around. The numbers are what the index already held.`)
       : period.models.length ? null : demoL10n("cost.view.empty", { source: s.label, period: periodLabel }, `${s.label}: no usage in the logs read (${periodLabel.fallback}).`);
     return { ...base, state, note, usage: { today: demoEstimate(rowsOf(0)), yesterday: demoEstimate(rowsOf(1)), period, days: period.models.length ? days : [] } };
   });
@@ -1635,9 +1643,9 @@ const demoPlansView = () => {
     const plans = currencies.length === 1 ? `${currencies[0]} ${price.toFixed(2)}` : planned.map((a) => `${a.plan.currency} ${a.plan.price.toFixed(2)}`).join(" · ");
     const rate = currencies.length === 1 && currencies[0] === "USD" ? 1 : currencies.length === 1 && demoPlan.display?.code === currencies[0] ? demoPlan.display.rate : null;
     const params = { source: planned.length > 1 ? demoL10n("cost.plan.combined", { source: label }, `Contas do ${label}`) : label, estimate: total == null ? "—" : fmtMoney(total), plans };
-    const text = total == null ? demoL10n("cost.plan.unknown", params, `${label}: custo a preços de API desconhecido · plano ${plans}`)
-      : rate ? demoL10n(rate === 1 ? "cost.plan.ratio" : "cost.plan.ratio_rate", { ...params, ratio: ((total * rate) / price).toFixed(1) }, `${label}: ≈ ${params.estimate} a preços de API (estimativa) · plano ${plans}`)
-        : demoL10n("cost.plan.side", params, `${label}: ≈ ${params.estimate} a preços de API (estimativa) · plano ${plans}`);
+    const text = total == null ? demoL10n("cost.plan.unknown", params, `${label}: cost at API prices unknown (models without a price) · plan ${plans}`)
+      : rate ? demoL10n(rate === 1 ? "cost.plan.ratio" : "cost.plan.ratio_rate", { ...params, ratio: ((total * rate) / price).toFixed(1) }, `${label}: ≈ ${params.estimate} at API prices (estimate) · plan ${plans}`)
+        : demoL10n("cost.plan.side", params, `${label}: ≈ ${params.estimate} at API prices (estimate) · plan ${plans}`);
     return [{ source, label, accounts: planned.map((a) => a.name), cycle_start: dayKey(new Date(today.getFullYear(), today.getMonth(), 1)), estimate: total, partial: false,
       plans: currencies.map((currency) => ({ currency, price: planned.filter((a) => a.plan.currency === currency).reduce((n, a) => n + a.plan.price, 0) })), ratio: rate && total != null ? (total * rate) / price : null, at_your_rate: rate != null && rate !== 1, text }];
   });
@@ -1656,7 +1664,7 @@ const demoPrices = () => {
 // `?update=consent` shows the question without a request; `off`, `managed` and
 // `error` exercise the other states.
 const DEMO_UPDATE = new URLSearchParams(location.search).get("update");
-const DEMO_NOTES = "Correções de medição e uma nova opção de atualização automática (PRD 0018).";
+const DEMO_NOTES = "Measurement fixes and a new automatic update option (PRD 0018).";
 const demoUpdate = {
   automatic: !["off", "consent"].includes(DEMO_UPDATE),
   consentAnswered: DEMO_UPDATE !== "consent",
@@ -1697,7 +1705,7 @@ const demoExtensions = () => {
       override_targets: extras ? [{ index: 1, name: "Groq", active: true }, { index: 2, name: "Groq (work)", active: false }] : [],
       declares_secrets: extras },
     { id: "lab-quota", name: "Lab quota", version: "0.3.1", description: "Quota of an internal inference gateway.",
-      state: "disabled", state_label: label("extensions.state.disabled", "Precisa de aprovação"), approved: false,
+      state: "disabled", state_label: label("extensions.state.disabled", "Needs approval"), approved: false,
       actions: { enable: true, disable: false, test: false, remove: false },
       last_run: null, error: null, catalog: null, account: null, overrides: null, override_targets: [], declares_secrets: false },
   ];
@@ -1738,8 +1746,8 @@ const demo = {
   dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },
   list_extensions: async () => demoExtensions(),
   extension_disclosure: async () => ({ lines: [], candidate: { token: "demo" } }),
-  enable_extension: async ({ candidate }) => ({ id: candidate?.id ?? "demo", message: dl("extensions.action.enabled", "Extensão ativada."), account: null }),
-  disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extensão ${id} desativada.`), account: null }),
+  enable_extension: async ({ candidate }) => ({ id: candidate?.id ?? "demo", message: dl("extensions.action.enabled", "Extension enabled."), account: null }),
+  disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extension ${id} disabled.`), account: null }),
   test_extension: async ({ id }) => ({ source: `extension:${id}`, status: "ready", metrics: [], notes: [], violations: [] }),
   // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
   draft_access: async ({ provider }) => {
@@ -1747,19 +1755,19 @@ const demo = {
     const reason = level === "unavailable" ? dlx(`access.reason.${provider}`, "demo.access.reason", "No public usage query for this credential (demo).") : null;
     return {
       level: demoLevel(level),
-      summary: dlx(`access.summary.${provider}`, "demo.access.summary", "Consulta de uso de demonstração."),
+      summary: dlx(`access.summary.${provider}`, "demo.access.summary", "Demo usage query."),
       notes: [dlx(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "demo.access.credential_hint", "Credencial da consulta (demo)."), ...(reason ? [reason] : [])],
       cost_advisory: provider === "aws_bedrock" ? dlx("access.cost_advisory", "demo.access.cost_advisory", "Provedor cobrado por consulta (demo).") : null,
       save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} The account will be saved, but it will show this reason instead of numbers.` },
     };
   },
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
-    credential_help: { id: "demo.credential_help", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },
-    login: { modes: [{ id: "oauth", label: { id: "demo.login.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "demo.login.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "demo.login.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "demo.login.oauth.unavailable", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
+    credential_help: { id: "demo.credential_help", params: {}, fallback: "Name of the environment variable that holds the credential (demo)." },
+    login: { modes: [{ id: "oauth", label: { id: "demo.login.oauth.label", params: {}, fallback: "OAuth sign-in (demo)" }, help: { id: "demo.login.oauth.help", params: {}, fallback: "The browser demo does not run the sign-in." }, completion_notice: { id: "demo.login.oauth.completion", params: {}, fallback: "Sign-in authorized (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "demo.login.oauth.unavailable", params: {}, fallback: "Sign-in is not available in the demo." } }], unsupported_reason: null },
     sessions: provider === "xiaomi_mimo" ? [DEMO_SESSION_SLOT] : [],
     session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
     fields: [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
-             { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Modo" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
+             { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
     : ["project_id", "mode"],
@@ -1774,7 +1782,7 @@ const demo = {
         options,
         choice: selected.index,
         notice: current && current !== selected
-          ? dl("edit_notice.option_replaced_for_auth_mode", `${current.label.fallback} não está disponível neste modo; ${selected.label.fallback} foi selecionado.`)
+          ? dl("edit_notice.option_replaced_for_auth_mode", `${current.label.fallback} is not available in this mode; ${selected.label.fallback} was selected.`)
           : null,
       };
     });
@@ -1854,7 +1862,7 @@ const demo = {
     setTimeout(() => demoEmit({ attempt, type: "finished", params: {} }), 500);
     return attempt;
   },
-  login_submit_code: async () => { throw { id: "demo.login_unavailable", params: {}, fallback: "Login indisponível na demonstração do navegador." }; },
+  login_submit_code: async () => { throw { id: "demo.login_unavailable", params: {}, fallback: "Sign-in is not available in the browser demo." }; },
   login_cancel: async () => {},
   delete_account: async ({ index, purge }) => {
     const oauth = demoReports[index]?.provider === "kiro" || demoReports[index]?.uses_oauth;
@@ -1868,7 +1876,7 @@ const demo = {
     demoSettings.generation++;
   },
   move_account: async ({ from, to }) => {
-    if (from < 0 || to < 0 || from >= demoReports.length || to >= demoReports.length) throw "Conta inexistente.";
+    if (from < 0 || to < 0 || from >= demoReports.length || to >= demoReports.length) throw "Account does not exist.";
     const [account] = demoReports.splice(from, 1);
     demoReports.splice(to, 0, account);
     demoSettings.generation++;
@@ -1880,7 +1888,7 @@ const demo = {
   model_state: demoModels,
   load_models: demoModels,
   sync_models: demoModels,
-  model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
+  model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Browser demo: the model catalog is only queried in the desktop app." } }),
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
     theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), aggregators_in_all: get("cuotai.aggregators-in-all", "grouped"), group_recharging: get(GROUP_KEY, "off") === "on", show_in_dock: demoSettings.showInDock !== false, locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
@@ -1949,7 +1957,7 @@ const demo = {
   cost_set_paths: async ({ source, paths }) => {
     const chosen = [...new Set(paths.map((p) => p.trim()).filter(Boolean))];
     if (chosen.some((p) => !(p.startsWith("/") || p === "~" || p.startsWith("~/")))) {
-      throw JSON.stringify(demoL10n("cost.error.relative_path", {}, "Use um diretório absoluto ou que comece com ~/."));
+      throw JSON.stringify(demoL10n("cost.error.relative_path", {}, "Use a directory that is absolute or starts with ~/."));
     }
     if (JSON.stringify(chosen) === JSON.stringify(demoCost.paths[source] ?? [])) return demoCostView();
     if (source in demoCost.on) { delete demoCost.on[source]; demoCost.erased.add(source); }
@@ -1958,7 +1966,7 @@ const demo = {
   },
   cost_enable: async ({ source, digest }) => {
     if (!DEMO_COST[source] || digest !== demoDisclosure(source).digest) {
-      throw JSON.stringify(demoL10n("cost.error.consent_changed", {}, "Os diretórios desta fonte mudaram desde que foram exibidos; revise e confirme de novo."));
+      throw JSON.stringify(demoL10n("cost.error.consent_changed", {}, "The directories of this source changed since they were shown; review and confirm again."));
     }
     demoCost.on[source] = new Date().toISOString();
     demoCost.erased.delete(source);
@@ -1967,7 +1975,7 @@ const demo = {
   cost_disable: async ({ source }) => { delete demoCost.on[source]; demoCost.erased.add(source); return demoCostView(); },
   cost_set_options: async ({ period, retentionDays }) => {
     if (!(Number.isInteger(retentionDays) && retentionDays >= 7 && retentionDays <= 730)) {
-      throw JSON.stringify(demoL10n("cost.error.retention_bounds", { min: "7", max: "730" }, "A retenção do índice de custo vai de 7 a 730 dias."));
+      throw JSON.stringify(demoL10n("cost.error.retention_bounds", { min: "7", max: "730" }, "The cost index retention ranges from 7 to 730 days."));
     }
     Object.assign(demoCost, { period, retention: retentionDays });
     return demoCostView();
@@ -1976,7 +1984,7 @@ const demo = {
   cost_set_plan: async ({ id, price, currency, cycleDay }) => {
     if (price == null) { delete demoPlan.plans[id]; return demoPlansView(); }
     if (!(price > 0) || !/^[A-Za-z]{3}$/.test(currency) || (cycleDay != null && !(cycleDay >= 1 && cycleDay <= 28))) {
-      throw JSON.stringify(demoL10n("cost.error.invalid_plan", {}, "Plano inválido: um preço maior que zero, uma moeda de três letras e um dia de ciclo de 1 a 28."));
+      throw JSON.stringify(demoL10n("cost.error.invalid_plan", {}, "Invalid plan: a price above zero, a three-letter currency and a cycle day from 1 to 28."));
     }
     demoPlan.plans[id] = { price: Math.round(price * 100) / 100, currency: currency.toUpperCase(), cycle_day: cycleDay ?? null };
     return demoPlansView();
@@ -1984,7 +1992,7 @@ const demo = {
   cost_set_display: async ({ code, rate }) => {
     if (code == null) { demoPlan.display = null; return demoPlansView(); }
     if (!/^[A-Za-z]{3}$/.test(code) || code.toUpperCase() === "USD" || !(rate > 0)) {
-      throw JSON.stringify(demoL10n("cost.error.invalid_rate", {}, "Câmbio inválido: uma moeda de três letras diferente de USD e uma taxa maior que zero."));
+      throw JSON.stringify(demoL10n("cost.error.invalid_rate", {}, "Invalid rate: a three-letter currency other than USD and a rate above zero."));
     }
     demoPlan.display = { code: code.toUpperCase(), rate, set_on: dayKey(new Date()) };
     return demoPlansView();
@@ -2067,7 +2075,7 @@ const demo = {
     if (!rule) throw "hook_unknown";
     setTimeout(() => {
       const run = { at: new Date().toISOString(), rule: name, event: rule.events[0], duration_ms: 42, outcome: "exited", exit_code: 0 };
-      demoHooks.runs.unshift({ ...run, summary: demoL10n("hooks.run.succeeded", { rule: name, event: run.event, ms: 42 }, `${name} (${run.event}): concluído em 42 ms`) });
+      demoHooks.runs.unshift({ ...run, summary: demoL10n("hooks.run.succeeded", { rule: name, event: run.event, ms: 42 }, `${name} (${run.event}): done in 42 ms`) });
       for (const cb of demoHookListeners) cb();
     }, 300);
     return view;
@@ -2473,19 +2481,19 @@ function demoKiroSchema() {
   return {
     credential_kind: "env", default_env: "KIRO_ACCESS_TOKEN", credential_help: dl("credential_help.kiro", "Access token Kiro (demo)."),
     login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("demo.kiro.login.oauth.label", "Login no navegador"), help: dl("demo.kiro.login.oauth.help", "Login nativo no navegador do sistema."),
-      completion_notice: dl("demo.kiro.login.oauth.completion", "Login autorizado (demo)."),
+      completion_notice: dl("demo.kiro.login.oauth.completion", "Sign-in authorized (demo)."),
       credential_store: "cuotai_vault", account_binding: { type: "none" },
       registration: [], unavailable_reason: null,
       options: [
-        { key: "auth_method", label: dl("demo.kiro.o.auth_method", "Método de autenticação"), help: dl("demo.kiro.o.auth_method.h", "builder-id ou idc."), required: false, validation: "none", choices: opts("demo.kiro.o.auth_method", [["builder-id", "AWS Builder ID"], ["idc", "IAM Identity Center"]]) },
-        { key: "region", label: dl("demo.kiro.o.region", "Região (opcional)"), help: dl("demo.kiro.o.region.h", ""), required: false, validation: "no_whitespace", choices: null },
-        { key: "start_url", label: dl("demo.kiro.o.start_url", "URL de início IDC (opcional)"), help: dl("demo.kiro.o.start_url.h", ""), required: false, validation: "no_whitespace", choices: null },
+        { key: "auth_method", label: dl("demo.kiro.o.auth_method", "Authentication method"), help: dl("demo.kiro.o.auth_method.h", "builder-id or idc."), required: false, validation: "none", choices: opts("demo.kiro.o.auth_method", [["builder-id", "AWS Builder ID"], ["idc", "IAM Identity Center"]]) },
+        { key: "region", label: dl("demo.kiro.o.region", "Region (optional)"), help: dl("demo.kiro.o.region.h", ""), required: false, validation: "no_whitespace", choices: null },
+        { key: "start_url", label: dl("demo.kiro.o.start_url", "IDC start URL (optional)"), help: dl("demo.kiro.o.start_url.h", ""), required: false, validation: "no_whitespace", choices: null },
       ] }] },
     fields: [
-      { key: "auth_method", label: dl("demo.kiro.f.auth_method", "Método de autenticação"), help: dl("demo.kiro.f.auth_method.h", "Origem do access token."), required: false,
+      { key: "auth_method", label: dl("demo.kiro.f.auth_method", "Authentication method"), help: dl("demo.kiro.f.auth_method.h", "Source of the access token."), required: false,
         options: [
-          ...opts("demo.kiro.f.auth_method", [["builder-id", "AWS Builder ID (padrão)"], ["idc", "IAM Identity Center"]]).map((option) => ({ ...option, auth_modes: ["oauth"], unavailable_reason: dl("demo.kiro.f.auth_method.login_only", "Disponível somente no login nativo.") })),
-          ...opts("demo.kiro.f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Importado"], ["api_key", "API key"], ["external_idp", "IdP externo"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl("demo.kiro.f.auth_method.env_only", "Disponível somente com credencial de ambiente.") })),
+          ...opts("demo.kiro.f.auth_method", [["builder-id", "AWS Builder ID (default)"], ["idc", "IAM Identity Center"]]).map((option) => ({ ...option, auth_modes: ["oauth"], unavailable_reason: dl("demo.kiro.f.auth_method.login_only", "Available only with the native sign-in.") })),
+          ...opts("demo.kiro.f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Imported"], ["api_key", "API key"], ["external_idp", "External IdP"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl("demo.kiro.f.auth_method.env_only", "Available only with an environment credential.") })),
         ] },
       { key: "profile_arn", label: dl("demo.kiro.f.profile_arn", "ARN do perfil CodeWhisperer (opcional)"), help: dl("demo.kiro.f.profile_arn.h", ""), required: false, options: null },
     ],

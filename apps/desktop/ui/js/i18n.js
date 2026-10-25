@@ -102,9 +102,10 @@ function mergedCatalog(code) {
   const user = userCatalogs.get(code); // se ausente, sem pacote do usuário
   const core = coreCatalogs.get(code) ?? {};
   const out = {};
-  // Ordem da mescla (sobreposição vence): core < en-US UI < atual UI < usuário.
-  Object.assign(out, core);
+  // Ordem da mescla (sobreposição vence): en-US UI < core do idioma < UI do idioma < usuário. O inglês vem primeiro:
+  // um id do core que só o en-US da UI conhece (o core não tem catálogo en-US) não pode cobrir a tradução do core.
   Object.assign(out, fallback);
+  Object.assign(out, core);
   Object.assign(out, ui);
   if (user) Object.assign(out, user);
   merged.set(code, out);
@@ -126,7 +127,7 @@ export function pickLocale(preferred, systemLangs = navigator.languages ?? [navi
 }
 
 // ---------- PRD 0022 RF14.3 (DS-MSG-16): the en-XA pseudo-locale, development only ----------
-// Generated at load from en-US (UI and core catalogs) and registered only in the browser demo with `?pseudo` in the
+// Generated at load from en-US (the UI catalog; the core's texts come from its English fallbacks in `tl`) and registered only in the browser demo with `?pseudo` in the
 // address: never in the desktop app, so release builds cannot offer it. Each string grows (+100 % up to 10
 // characters, +50 % up to 20, +40 % beyond), its letters take accents, and it is wrapped in ⟦ ⟧, so hard-coded
 // text, concatenation and clipping show. Placeholders such as {count} are kept.
@@ -227,12 +228,12 @@ function substitute(template, vars, escape) {
 /**
  * Resolve an RF8 core text (`{ id, params, fallback }`) against the merged
  * catalog (UI + core) for the current locale, falling back to `en-US` then
- * to the Portuguese `fallback` embedded in the value. Plain strings
+ * to the English `fallback` embedded in the value. Plain strings
  * (pre-RF8 callers) are returned unchanged. `vars` is merged with
  * `note.params` so callers can override individual placeholders.
  *
  * pt-* never falls back to the en-US catalog for a missing key: the
- * Portuguese `fallback` is authoritative.
+ * `fallback` of the value is used.
  */
 export function tl(value, vars = {}, escape = false) {
   if (value == null) return "";
@@ -243,9 +244,11 @@ export function tl(value, vars = {}, escape = false) {
   const currentCatalog = mergedCatalog(current);
   const fallbackCatalog = mergedCatalog(FALLBACK);
   const own = currentCatalog[value.id];
-  // pt-* não consulta fallback en-US: o fallback do próprio valor (português) é autoritativo.
+  // pt-* não consulta o catálogo en-US: o fallback do próprio valor é usado.
   const template = own ?? (current.toLowerCase().startsWith("pt") ? undefined : fallbackCatalog[value.id]);
-  const text = template ?? value.fallback;
+  // PRD 0034 RF7: the core's English fallbacks are the source of its en-US texts (there is no en-US core catalog), so the
+  // pseudo-locale derives its core texts from them, as it does from the UI catalog.
+  const text = template ?? (current === PSEUDO && typeof value.fallback === "string" ? pseudoText(value.fallback) : value.fallback);
   return substitute(typeof text === "string" ? text : value.fallback, allVars, escape);
 }
 

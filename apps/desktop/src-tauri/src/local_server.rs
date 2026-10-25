@@ -351,6 +351,8 @@ impl Integration {
             token,
             allow_browsers: prefs.allow_browsers,
             stats: prefs.stats,
+            // PRD 0034 RF5.2: the same variable that the CLI server reads.
+            fallback_locale: cuotai_core::text::fallback_locale(None),
             ..ServeConfig::default()
         })
     }
@@ -516,6 +518,21 @@ mod tests {
 
     async fn status(port: u16, path: &str, headers: &[(&str, &str)]) -> Option<u16> {
         get(port, path, headers).await.map(|(status, _)| status)
+    }
+
+    /// PRD 0034 RF7: the app's server renders its `fallback` texts in the language
+    /// of `CUOTAI_FALLBACK_LOCALE`, like `cuotai --serve`; nothing set keeps English.
+    #[tokio::test]
+    async fn the_server_honours_the_fallback_locale_variable() {
+        let vault: Arc<dyn TokenVault> = Arc::new(MemoryVault::default());
+        let prefs = ServePrefs::default();
+        std::env::remove_var(cuotai_core::text::FALLBACK_LOCALE_ENV);
+        let config = Integration::config_for(&prefs, &vault).await.unwrap();
+        assert_eq!(config.fallback_locale, None);
+        std::env::set_var(cuotai_core::text::FALLBACK_LOCALE_ENV, "es");
+        let config = Integration::config_for(&prefs, &vault).await.unwrap();
+        std::env::remove_var(cuotai_core::text::FALLBACK_LOCALE_ENV);
+        assert_eq!(config.fallback_locale.as_deref(), Some("es"));
     }
 
     #[tokio::test(flavor = "multi_thread")]

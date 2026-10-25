@@ -96,17 +96,23 @@ fn edit_error_to_json(error: &cuotai_core::edit_error::EditError) -> String {
     serde_json::to_string(&envelope).unwrap_or_else(|_| error.message())
 }
 
-fn refresh_edit_error(error: &cuotai_core::refresh::EditError) -> cuotai_core::text::Localized {
+fn refresh_edit_error(
+    error: &cuotai_core::refresh::EditError,
+    count: usize,
+) -> cuotai_core::text::Localized {
+    use cuotai_core::text::{params, Localized};
     match error {
-        cuotai_core::refresh::EditError::Index(index) => cuotai_core::text::Localized::with_param(
+        cuotai_core::refresh::EditError::Index(index) => Localized::with_params(
             "edit_error.index_out_of_range",
-            "index",
-            *index,
-            error.to_string(),
+            params([("index", (*index).into()), ("count", count.into())]),
+            "Index {index} out of range ({count}).",
         ),
-        cuotai_core::refresh::EditError::UnexpectedDiff => {
-            cuotai_core::text::Localized::fixed("edit_error.refresh_cycle_diff", error.to_string())
-        }
+        cuotai_core::refresh::EditError::UnexpectedDiff => Localized::with_param(
+            "edit_error.refresh_cycle_diff",
+            "detail",
+            error.to_string(),
+            "The new account layout was rejected by the refresh cycle diff guard: {detail}.",
+        ),
     }
 }
 
@@ -1636,12 +1642,12 @@ impl Inner {
                 // Somente desenvolvimento: SQLite em texto puro, recusado por builds release (core).
                 let session = match std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE") {
                     Some(path) => {
-                        eprintln!("AVISO: credenciais em SQLite SEM CRIPTOGRAFIA (desenvolvimento); Keychain não será usado.");
+                        eprintln!("WARNING: credentials in UNENCRYPTED SQLite (development only); the system keychain will not be used.");
                         OAuthSession::development_sqlite(std::path::Path::new(&path))
                     }
                     None => OAuthSession::system(),
                 };
-                let s = Arc::new(session.map_err(|_| "Cofre de credenciais indisponível.")?);
+                let s = Arc::new(session.map_err(|_| crate::desk_text::vault_unavailable())?);
                 self.session = Some(Arc::clone(&s));
                 s
             }
@@ -1976,7 +1982,7 @@ impl Backend {
         self.emit(app).await;
         if !deleted {
             // Nothing to remove is not a failure; the state still repaints.
-            eprintln!("cuotai: não havia dados de widgets para apagar");
+            eprintln!("cuotai: there was no widget data to delete");
         }
         Ok(())
     }
@@ -2586,9 +2592,12 @@ impl Backend {
         // the caller can retry later.
         let (monitor, token, previous) = {
             let mut g = self.inner.lock().await;
-            let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_mut()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             if index >= l.file.config.accounts.len() {
-                return Err("Conta inexistente.".into());
+                return Err(crate::desk_text::no_account());
             }
             let previous = sub
                 .as_ref()
@@ -2785,7 +2794,10 @@ impl Backend {
                 cycle.apply_edit(&prev, &enabled.config, Edit::Upsert(index), Instant::now())
             {
                 let rollback = manager.rollback(consent_rollback.take().unwrap());
-                return Err(rollback_with(&rollback, refresh_edit_error(&error)));
+                return Err(rollback_with(
+                    &rollback,
+                    refresh_edit_error(&error, prev.accounts.len()),
+                ));
             }
             let monitor = match loaded
                 .monitor
@@ -2916,7 +2928,7 @@ impl Backend {
             let mut cycle = loaded.cycle.clone();
             cycle
                 .apply_edit(&prev, &updated, Edit::Upsert(index), Instant::now())
-                .map_err(|error| l10n_to_json(&refresh_edit_error(&error)))?;
+                .map_err(|error| l10n_to_json(&refresh_edit_error(&error, prev.accounts.len())))?;
             let monitor = loaded
                 .monitor
                 .with_config(updated.clone())
@@ -3032,7 +3044,10 @@ impl Backend {
             return Ok(None);
         }
         let g = self.inner.lock().await;
-        let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        let l = g
+            .loaded
+            .as_ref()
+            .ok_or_else(crate::desk_text::config_not_loaded)?;
         let completed = g
             .login
             .as_ref()
@@ -3077,7 +3092,9 @@ impl Backend {
                 aggregator_tested,
                 ..
             } = &mut *g;
-            let l = loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let l = loaded
+                .as_mut()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             // RF2: a `commit_login` request deve encontrar o pending login
             // de THIS account/provider, da MESMA tentativa (o `attempt` evita
             // que um forwarder velho confunda um login já substituído por
@@ -3092,13 +3109,10 @@ impl Backend {
             });
             if input.commit_login {
                 let Some(p) = pending_match_ref else {
-                    return Err(
-                        "Autorização pendente não encontrada para esta conta; refaça o login."
-                            .into(),
-                    );
+                    return Err(crate::desk_text::pending_missing());
                 };
                 if !p.done {
-                    return Err("Login em andamento; conclua ou cancele antes de salvar.".into());
+                    return Err(crate::desk_text::login_unfinished());
                 }
             }
             let completed: Option<&CompletedLogin> = pending_match_ref
@@ -3122,7 +3136,7 @@ impl Backend {
                 {
                     return Err(l10n_to_json(&cuotai_core::text::Localized::fixed(
                         "desktop.account.aggregator_untested",
-                        "Teste a conexão com sucesso antes de salvar.",
+                        "Test the connection successfully before saving.",
                     )));
                 }
             }
@@ -3139,7 +3153,9 @@ impl Backend {
             let staged_paste = if pasted.is_empty() {
                 None
             } else {
-                let vault = vault.as_deref().ok_or("Sessão OAuth não inicializada.")?;
+                let vault = vault
+                    .as_deref()
+                    .ok_or_else(crate::desk_text::oauth_session_missing)?;
                 Some(
                     user_session::stage_pasted(
                         vault,
@@ -3183,7 +3199,7 @@ impl Backend {
                 Ok(due) => due,
                 Err(e) => {
                     undo_paste(vault.as_deref(), staged_paste).await;
-                    return Err(l10n_to_json(&refresh_edit_error(&e)));
+                    return Err(l10n_to_json(&refresh_edit_error(&e, prev.accounts.len())));
                 }
             };
             let refresh_target = due.first().copied();
@@ -3205,7 +3221,7 @@ impl Backend {
                 let session = session
                     .as_ref()
                     .map(Arc::as_ref)
-                    .ok_or("Sessão OAuth não inicializada.")?;
+                    .ok_or_else(crate::desk_text::oauth_session_missing)?;
                 match login::commit_login(&mut l.file, session, completed, updated.clone()).await {
                     login::LoginCommitOutcome::Saved => {}
                     login::LoginCommitOutcome::SavedWithCleanupFailure(failure) => {
@@ -3216,13 +3232,11 @@ impl Backend {
                     }
                     login::LoginCommitOutcome::PartialFailure(failure) => {
                         undo_paste(vault.as_deref(), staged_paste).await;
-                        let wrapped = format!(
-                            "{} A autorização continua em memória: clique em Salvar novamente para concluir sem refazer o login.",
-                            failure.message
-                        );
-                        return Err(l10n_to_json(&cuotai_core::text::Localized::fixed(
+                        return Err(l10n_to_json(&cuotai_core::text::Localized::with_param(
                             "edit_error.login_partial_failure",
-                            wrapped,
+                            "detail",
+                            failure.message,
+                            "{detail} The authorization remains in memory: click Save again to finish without signing in again.",
                         )));
                     }
                 }
@@ -3302,12 +3316,15 @@ impl Backend {
             let mut g = self.inner.lock().await;
             let session = match &g.session {
                 Some(s) => Arc::clone(s),
-                None => return Err("Sessão OAuth não inicializada.".into()),
+                None => return Err(crate::desk_text::oauth_session_missing()),
             };
-            let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_mut()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             let prev = l.file.config.clone();
             if index >= prev.accounts.len() {
-                return Err("Conta inexistente.".into());
+                return Err(crate::desk_text::no_account());
             }
             // Pre-compute the new config + cycle + monitor so a
             // failure (cycle refusal, monitor refusal, save failure)
@@ -3318,7 +3335,7 @@ impl Backend {
             let mut staged_cycle = l.cycle.clone_state_for_edit();
             staged_cycle
                 .apply_edit(&prev, &updated, Edit::Remove(index), Instant::now())
-                .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))?;
+                .map_err(|e| l10n_to_json(&refresh_edit_error(&e, prev.accounts.len())))?;
             let new_monitor = l
                 .monitor
                 .with_config(updated.clone())
@@ -3469,14 +3486,17 @@ impl Backend {
             let g = self.inner.lock().await;
             let session = match &g.session {
                 Some(s) => Arc::clone(s),
-                None => return Err("Sessão OAuth não inicializada.".into()),
+                None => return Err(crate::desk_text::oauth_session_missing()),
             };
-            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_ref()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             let pos = l
                 .pending_recovery
                 .iter()
                 .position(|entry| entry.handle == handle)
-                .ok_or_else(|| "Sem credencial pendente para este identificador.".to_string())?;
+                .ok_or_else(crate::desk_text::no_pending_credential)?;
             let removed = l.pending_recovery[pos].account.clone();
             let current_config = l.file.config.clone();
             (session, current_config, removed)
@@ -3484,7 +3504,7 @@ impl Backend {
         let oauth = match removed.oauth.as_ref() {
             Some(o) => o,
             None => {
-                return Err("A conta original não tinha credencial OAuth para apagar.".to_string());
+                return Err(crate::desk_text::original_without_oauth());
             }
         };
         let provider = removed.provider;
@@ -3526,7 +3546,10 @@ impl Backend {
         self.ensure_loaded().await;
         {
             let mut g = self.inner.lock().await;
-            let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_mut()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             let mut updated = l.file.config.clone();
             updated.refresh_seconds = seconds;
             updated
@@ -3612,7 +3635,10 @@ impl Backend {
     ) -> Result<(HistoryStore, Vec<cuotai_core::Account>), String> {
         self.ensure_loaded().await;
         let g = self.inner.lock().await;
-        let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        let l = g
+            .loaded
+            .as_ref()
+            .ok_or_else(crate::desk_text::config_not_loaded)?;
         if index.is_some() && generation != Some(l.generation) {
             return Err(STALE.into());
         }
@@ -3627,7 +3653,7 @@ impl Backend {
                 .accounts
                 .get(index)
                 .cloned()
-                .ok_or("Conta inexistente.")?],
+                .ok_or_else(crate::desk_text::no_account)?],
             None => l.file.config.accounts.clone(),
         };
         Ok((store, accounts))
@@ -3702,7 +3728,10 @@ impl Backend {
     ) -> Result<HistoryView, String> {
         let monitor = {
             let g = self.inner.lock().await;
-            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_ref()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             if l.generation != generation {
                 return Err(STALE.into());
             }
@@ -3760,7 +3789,10 @@ impl Backend {
     ) -> Result<StatsView, String> {
         let (monitor, accounts, indexes) = {
             let g = self.inner.lock().await;
-            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_ref()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             if l.generation != generation {
                 return Err(STALE.into());
             }
@@ -3839,7 +3871,10 @@ impl Backend {
         generation: u64,
     ) -> Result<cuotai_core::resets::Timeline, String> {
         let g = self.inner.lock().await;
-        let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        let l = g
+            .loaded
+            .as_ref()
+            .ok_or_else(crate::desk_text::config_not_loaded)?;
         if l.generation != generation {
             return Err(STALE.into());
         }
@@ -3872,7 +3907,10 @@ impl Backend {
         self.ensure_loaded().await;
         {
             let mut g = self.inner.lock().await;
-            let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_mut()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             let prev = l.file.config.clone();
             let updated = prev
                 .move_account(from, to)
@@ -3883,7 +3921,7 @@ impl Backend {
             let mut staged_cycle = l.cycle.clone_state_for_edit();
             let due = staged_cycle
                 .apply_edit(&prev, &updated, Edit::Move { from, to }, Instant::now())
-                .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))?;
+                .map_err(|e| l10n_to_json(&refresh_edit_error(&e, prev.accounts.len())))?;
             debug_assert!(due.is_empty(), "a move must not schedule queries");
             let new_monitor = l
                 .monitor
@@ -3921,16 +3959,22 @@ impl Backend {
             || sub.is_empty()
             || !sub.chars().all(|c| c.is_ascii_alphanumeric())
         {
-            return Err("Parâmetro de conexão inválido.".into());
+            return Err(crate::desk_text::bad_connection_param());
         }
         self.ensure_loaded().await;
         {
             let mut g = self.inner.lock().await;
-            let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_mut()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             let prev = l.file.config.clone();
-            let account = prev.accounts.get(index).ok_or("Conta inexistente.")?;
+            let account = prev
+                .accounts
+                .get(index)
+                .ok_or_else(crate::desk_text::no_account)?;
             if !account.provider.is_aggregator() {
-                return Err("Conta inexistente.".into());
+                return Err(crate::desk_text::no_account());
             }
             let mut updated = prev.clone();
             let params = &mut updated.accounts[index].params;
@@ -3944,7 +3988,7 @@ impl Backend {
             let mut staged_cycle = l.cycle.clone_state_for_edit();
             staged_cycle
                 .apply_edit(&prev, &updated, Edit::Upsert(index), Instant::now())
-                .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))?;
+                .map_err(|e| l10n_to_json(&refresh_edit_error(&e, prev.accounts.len())))?;
             let new_monitor = l
                 .monitor
                 .with_config(updated.clone())
@@ -3961,13 +4005,16 @@ impl Backend {
 
     pub async fn get_account(&self, index: usize) -> Result<AccountForm, String> {
         let g = self.inner.lock().await;
-        let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        let l = g
+            .loaded
+            .as_ref()
+            .ok_or_else(crate::desk_text::config_not_loaded)?;
         let a = l
             .file
             .config
             .accounts
             .get(index)
-            .ok_or("Conta inexistente.")?;
+            .ok_or_else(crate::desk_text::no_account)?;
         let credential = account_edit::stored_credential(a);
         // auth_mode + auth_options para prefill. Quando a conta tem oauth,
         // o id de modo é o que combina com o provider: hoje o core só
@@ -4033,7 +4080,7 @@ impl Backend {
     pub async fn test_session(&self, input: AccountInput) -> Result<SessionTestView, String> {
         self.ensure_loaded().await;
         let Some((account, monitor, pasted)) = self.session_probe(&input).await? else {
-            return Err("Cole uma sessão antes de testar.".into());
+            return Err(crate::desk_text::paste_session_first());
         };
         let report = user_session::test_pasted(&monitor, &account, &pasted).await;
         Ok(SessionTestView::from_report(&report))
@@ -4054,10 +4101,13 @@ impl Backend {
         self.ensure_loaded().await;
         let (account, monitor) = {
             let g = self.inner.lock().await;
-            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_ref()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             let account = input_account(&l.file.config, &input, None)?;
             if !account.provider.is_aggregator() {
-                return Err("Esta conta não é de um agregador.".into());
+                return Err(crate::desk_text::not_an_aggregator());
             }
             (account, Arc::clone(&l.monitor))
         };
@@ -4104,11 +4154,14 @@ impl Backend {
 
     async fn vault_inputs(&self) -> Result<(Arc<OAuthSession>, Config), String> {
         let g = self.inner.lock().await;
-        let session = g.session.clone().ok_or("Sessão OAuth não inicializada.")?;
+        let session = g
+            .session
+            .clone()
+            .ok_or_else(crate::desk_text::oauth_session_missing)?;
         let config = g
             .loaded
             .as_ref()
-            .ok_or("Configuração não carregada.")?
+            .ok_or_else(crate::desk_text::config_not_loaded)?
             .file
             .config
             .clone();
@@ -4147,8 +4200,12 @@ impl Backend {
             notices,
             ..
         } = &mut *g;
-        let session = session.clone().ok_or("Sessão OAuth não inicializada.")?;
-        let l = loaded.as_mut().ok_or("Configuração não carregada.")?;
+        let session = session
+            .clone()
+            .ok_or_else(crate::desk_text::oauth_session_missing)?;
+        let l = loaded
+            .as_mut()
+            .ok_or_else(crate::desk_text::config_not_loaded)?;
         let prev = l.file.config.clone();
         let staged = match change {
             SessionChange::Migrate => {
@@ -4161,7 +4218,7 @@ impl Backend {
         let mut staged_cycle = l.cycle.clone_state_for_edit();
         let runtime = staged_cycle
             .apply_edit(&prev, &updated, Edit::Upsert(index), Instant::now())
-            .map_err(|e| l10n_to_json(&refresh_edit_error(&e)))
+            .map_err(|e| l10n_to_json(&refresh_edit_error(&e, prev.accounts.len())))
             .and_then(|due| {
                 l.monitor
                     .with_config(updated.clone())
@@ -4216,9 +4273,13 @@ impl Backend {
         // crítica é rápida.
         let mut g = self.inner.lock().await;
         if g.login.as_ref().is_some_and(|p| !p.done) {
-            return Err("Já há um login em andamento; conclua ou cancele.".into());
+            return Err(crate::desk_text::login_already_running());
         }
-        let session = Arc::clone(g.session.as_ref().ok_or("Sessão OAuth não inicializada.")?);
+        let session = Arc::clone(
+            g.session
+                .as_ref()
+                .ok_or_else(crate::desk_text::oauth_session_missing)?,
+        );
         // RF2.8: the core helper binds the request to the edited account and
         // owns credential_id reuse plus the replaced-key cleanup context.
         let existing = input.index.and_then(|index| {
@@ -4275,16 +4336,9 @@ impl Backend {
                                 // código aceito chega via LoginEvent.
                                 let result = match driver.submit_code(code) {
                                     Ok(()) => Ok(()),
-                                    Err(login::SubmitCodeError::Unsupported) => Err(
-                                        "Este fluxo não aceita código manual.".to_string(),
-                                    ),
-                                    Err(login::SubmitCodeError::Full(_)) => Err(
-                                        "Aguarde a validação do código anterior antes de reenviar."
-                                            .to_string(),
-                                    ),
-                                    Err(login::SubmitCodeError::Closed) => Err(
-                                        "A sessão de login foi encerrada.".to_string(),
-                                    ),
+                                    Err(login::SubmitCodeError::Unsupported) => Err(crate::desk_text::no_manual_code()),
+                                    Err(login::SubmitCodeError::Full(_)) => Err(crate::desk_text::code_pending()),
+                                    Err(login::SubmitCodeError::Closed) => Err(crate::desk_text::login_ended()),
                                 };
                                 let _ = reply.send(result);
                                 continue;
@@ -4371,17 +4425,13 @@ impl Backend {
         let (reply_tx, reply_rx) = oneshot::channel();
         {
             let g = self.inner.lock().await;
-            let p = g.login.as_ref().ok_or("Nenhum login em andamento.")?;
+            let p = g.login.as_ref().ok_or_else(crate::desk_text::no_login)?;
             if p.done {
-                return Err("O login já terminou; inicie novamente se necessário.".into());
+                return Err(crate::desk_text::login_finished());
             }
             p.code_tx.try_send((code, reply_tx)).map_err(|e| match e {
-                mpsc::error::TrySendError::Full(_) => {
-                    "Aguarde a validação do código anterior antes de reenviar.".to_string()
-                }
-                mpsc::error::TrySendError::Closed(_) => {
-                    "A sessão de login foi encerrada.".to_string()
-                }
+                mpsc::error::TrySendError::Full(_) => crate::desk_text::code_pending(),
+                mpsc::error::TrySendError::Closed(_) => crate::desk_text::login_ended(),
             })?;
         }
         // A espera deve terminar com o veredito IMEDIATO do core (Full/etc.)
@@ -4392,8 +4442,8 @@ impl Backend {
         match tokio::time::timeout(std::time::Duration::from_secs(5), reply_rx).await {
             Ok(Ok(Ok(()))) => Ok(()),
             Ok(Ok(Err(message))) => Err(message),
-            Ok(Err(_)) => Err("A sessão de login foi encerrada.".to_string()),
-            Err(_) => Err("A sessão de login não respondeu.".to_string()),
+            Ok(Err(_)) => Err(crate::desk_text::login_ended()),
+            Err(_) => Err(crate::desk_text::login_silent()),
         }
     }
 
@@ -4439,7 +4489,10 @@ impl Backend {
     {
         let monitor = {
             let g = self.inner.lock().await;
-            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            let l = g
+                .loaded
+                .as_ref()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
             if l.generation != generation {
                 return Err(STALE.into());
             }
@@ -4474,7 +4527,10 @@ impl Backend {
             None => app_draft(&app),
             Some(index) => {
                 let g = self.inner.lock().await;
-                let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+                let l = g
+                    .loaded
+                    .as_ref()
+                    .ok_or_else(crate::desk_text::config_not_loaded)?;
                 if l.generation != generation {
                     return Err(STALE.into());
                 }
@@ -4943,7 +4999,7 @@ fn input_account(
     } else {
         Some(
             login::login_mode(input.provider, &input.auth_mode)
-                .ok_or("Modo de autenticação não oferecido para este provedor.")?,
+                .ok_or_else(crate::desk_text::auth_mode_unavailable)?,
         )
     };
     let vault_mode = selected_mode
@@ -4959,7 +5015,7 @@ fn input_account(
     };
     let oauth_mode = vault_mode && (completed.is_some() || oauth_existing.is_some());
     if login_needed_before_save(selected_mode.as_ref(), oauth_mode) {
-        return Err("Conclua o login antes de salvar (ou volte para a credencial manual).".into());
+        return Err(crate::desk_text::finish_login_first());
     }
     let fields = draft_fields(input.provider, &input.fields);
     let oauth_login_params = completed.map(|c| c.params.clone()).unwrap_or_default();
@@ -6748,6 +6804,18 @@ mod tests {
         assert_ne!(remaining[0], handle, "retried handle must be dropped");
     }
 
+    /// PRD 0034 RF7: the refresh-cycle errors carry the params their catalog texts use.
+    #[test]
+    fn refresh_cycle_errors_carry_the_params_of_their_catalog_texts() {
+        let diff = refresh_edit_error(&cuotai_core::refresh::EditError::UnexpectedDiff, 3);
+        assert_eq!(diff.id, "edit_error.refresh_cycle_diff");
+        assert!(diff.params.contains_key("detail"));
+        assert!(!diff.fallback.contains('{'));
+        let index = refresh_edit_error(&cuotai_core::refresh::EditError::Index(7), 3);
+        assert_eq!(index.fallback, "Index 7 out of range (3).");
+        assert!(index.params.contains_key("count"));
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn retry_purge_rejects_unknown_handle() {
         let store = Arc::new(MemoryStore::default());
@@ -6767,7 +6835,7 @@ mod tests {
         // accidentally delete the survivor's credential).
         let err = backend.drive_retry("never-issued").await.unwrap_err();
         assert!(
-            err.contains("Sem credencial pendente") || err.contains("pendente"),
+            err.contains("desktop.error.no_pending_credential"),
             "unexpected error message: {err}"
         );
         assert!(

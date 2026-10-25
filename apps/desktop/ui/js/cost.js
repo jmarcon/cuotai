@@ -32,7 +32,7 @@ function displayLine(amount, display) {
   if (shown == null) return "";
   const stale = display.stale;
   return `<p class="lc-fx" data-cost-display>${tle({ id: stale ? "cost.display.line_stale" : "cost.display.line", params: { amount: shown, days: display.age_days },
-    fallback: `≈ ${shown} no seu câmbio (definido há ${display.age_days} dias)${stale ? "; atualize o câmbio" : ""}` })}</p>`;
+    fallback: `≈ ${shown} at your rate (set ${display.age_days} days ago)${stale ? "; update your rate" : ""}` })}</p>`;
 }
 
 /** RF1: the plan lines of a source's accounts (the core's text: always "estimate at API prices"); nothing without a plan. */
