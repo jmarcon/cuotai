@@ -2737,7 +2737,13 @@ impl Backend {
                 .monitor
                 .extension_manager()
                 .ok_or("extensions_unavailable")?;
-            let action = manager.disable(id).map_err(|note| l10n_to_json(&note))?;
+            // PRD 0028 RF7.4: revoking also deletes the extension's vault
+            // secrets, restored by core when the revocation cannot be saved.
+            let action = match &g.session {
+                Some(session) => manager.disable_with_secrets(id, session.token_store().as_ref()),
+                None => manager.disable(id),
+            }
+            .map_err(|note| l10n_to_json(&note))?;
             let index = loaded
                 .file
                 .config
@@ -2759,16 +2765,64 @@ impl Backend {
         id: &str,
     ) -> Result<cuotai_core::extensions::output::Checked, String> {
         self.ensure_loaded().await;
-        let manager = {
+        let (manager, store) = {
             let g = self.inner.lock().await;
-            g.loaded
+            let manager = g
+                .loaded
                 .as_ref()
                 .and_then(|loaded| loaded.monitor.extension_manager().cloned())
-                .ok_or("extensions_unavailable")?
+                .ok_or("extensions_unavailable")?;
+            (
+                manager,
+                g.session.as_ref().map(|session| session.token_store()),
+            )
         };
-        let checked = manager.test(id).await.map_err(|note| l10n_to_json(&note))?;
+        let checked = manager
+            .test_reading_with(id, store)
+            .await
+            .map(|reading| reading.checked)
+            .map_err(|note| l10n_to_json(&note))?;
         self.emit(app).await;
         Ok(checked)
+    }
+
+    /// PRD 0028 RF7.4: the secrets an extension declares, each with whether
+    /// the vault holds a value (never the value).
+    pub async fn extension_secrets(
+        &self,
+        id: &str,
+    ) -> Result<Vec<cuotai_core::extensions::management::SecretItem>, String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+        let manager = loaded
+            .monitor
+            .extension_manager()
+            .ok_or("extensions_unavailable")?;
+        let session = g.session.as_ref().ok_or("extensions_unavailable")?;
+        manager
+            .secrets(id, session.token_store().as_ref())
+            .map_err(|note| l10n_to_json(&note))
+    }
+
+    /// PRD 0028 RF7.4: keep one secret's value in the vault through core.
+    pub async fn set_extension_secret(
+        &self,
+        id: &str,
+        name: &str,
+        value: &str,
+    ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+        let manager = loaded
+            .monitor
+            .extension_manager()
+            .ok_or("extensions_unavailable")?;
+        let session = g.session.as_ref().ok_or("extensions_unavailable")?;
+        manager
+            .set_secret(id, name, value, session.token_store().as_ref())
+            .map_err(|note| l10n_to_json(&note))
     }
 
     // ---------- edição de contas ----------

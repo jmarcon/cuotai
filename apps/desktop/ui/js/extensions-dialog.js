@@ -2,7 +2,7 @@
 // integrity, consent, account and execution decisions come from core.
 import {
   disableExtension, enableExtension, errText, extensionDisclosure,
-  listExtensions, testExtension,
+  extensionSecrets, listExtensions, setExtensionSecret, testExtension,
 } from "./lib.js";
 import { t, te, tl } from "./i18n.js";
 import { showDialog } from "./motion.js";
@@ -71,6 +71,11 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
       const handler = { test: runTest, disable: runDisable, enable: consent }[key];
       actions.append(actionButton(label, () => handler(row.id), cls));
     }
+    // PRD 0028 RF7.4: an approved extension's secrets are entered here and
+    // kept in the system vault by core; the dialog never shows a value.
+    if (row.actions?.test) {
+      actions.append(actionButton(t("extensions.secrets"), () => secrets(row.id)));
+    }
     if (row.actions?.remove && row.account) {
       actions.append(actionButton(t("extensions.removeAccount"), () => {
         dlg.close();
@@ -137,6 +142,46 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
       box.append(label, buttons);
       list.prepend(box);
       check.focus();
+    } catch (error) {
+      status.textContent = errText(error);
+    }
+  }
+
+  async function secrets(id) {
+    try {
+      const items = await extensionSecrets(id);
+      if (!items.length) {
+        status.textContent = t("extensions.secretsNone");
+        return;
+      }
+      const box = el("section", "extension-consent");
+      box.setAttribute("aria-label", te("extensions.secretsTitle"));
+      box.append(el("h3", "", t("extensions.secretsTitle")));
+      box.append(el("p", "help", t("extensions.secretsHelp")));
+      for (const item of items) {
+        const label = el("label", "field");
+        const caption = el("span", "", `${item.name} (${item.env})`);
+        const input = document.createElement("input");
+        input.type = "password";
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        input.placeholder = item.stored ? t("extensions.secretStored") : "";
+        label.append(caption, input, el("small", "help", item.description));
+        const save = actionButton(t("extensions.secretSave"), async () => {
+          if (!input.value.trim()) return;
+          const value = input.value;
+          input.value = "";
+          const result = await setExtensionSecret(id, item.name, value);
+          status.textContent = tl(result.message);
+          input.placeholder = t("extensions.secretStored");
+        }, "primary");
+        box.append(label, save);
+      }
+      const buttons = el("div", "extension-actions");
+      buttons.append(actionButton(t("common.close"), async () => box.remove()));
+      box.append(buttons);
+      list.prepend(box);
+      box.querySelector("input")?.focus();
     } catch (error) {
       status.textContent = errText(error);
     }

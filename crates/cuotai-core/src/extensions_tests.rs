@@ -416,6 +416,54 @@ fn x_tables_are_ignored_and_other_unknown_keys_are_not() {
     assert_eq!(rejection(root.path()), "extensions.error.unknown_field");
 }
 
+/// PRD 0028 RF7.4: `[[secrets]]` entries are read by name, variable and
+/// description; a reserved, repeated or `env`-listed variable, a bad name,
+/// an unknown key inside an entry or too many entries are refused.
+#[test]
+fn secrets_are_declared_by_name_variable_and_description() {
+    let secret = |name: &str, env: &str| {
+        format!("\n[[secrets]]\nname = \"{name}\"\nenv = \"{env}\"\ndescription = \"Token\"\n")
+    };
+    let root = tempfile::tempdir().unwrap();
+    let text = with("p", "min_cuotai", None) + &secret("token", "P_SECRET");
+    extension(root.path(), "p", &text);
+    let discovery = discover(root.path());
+    let manifest = &discovery.extensions[0];
+    assert_eq!(
+        manifest.secrets,
+        vec![Secret {
+            name: "token".into(),
+            env: "P_SECRET".into(),
+            description: "Token".into()
+        }]
+    );
+
+    for (case, text) in [
+        ("reserved", secret("token", "PATH")),
+        ("listed in env", secret("token", "PROXY_TOKEN")),
+        ("bad name", secret("Token", "P_SECRET")),
+        (
+            "repeated",
+            secret("a", "P_SECRET") + &secret("b", "P_SECRET"),
+        ),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        extension(root.path(), "p", &(with("p", "min_cuotai", None) + &text));
+        assert_eq!(rejection(root.path()), "extensions.error.secret", "{case}");
+    }
+    let many: String = (0..=SECRETS_MAX)
+        .map(|i| secret(&format!("s{i}"), &format!("S_{i}")))
+        .collect();
+    let root = tempfile::tempdir().unwrap();
+    extension(root.path(), "p", &(with("p", "min_cuotai", None) + &many));
+    assert_eq!(rejection(root.path()), "extensions.error.secrets_count");
+
+    let root = tempfile::tempdir().unwrap();
+    let text = with("p", "min_cuotai", None) + &secret("token", "P_SECRET") + "value = \"x\"\n";
+    extension(root.path(), "p", &text);
+    assert_eq!(rejection(root.path()), "extensions.error.toml");
+}
+
 #[test]
 fn each_field_is_validated() {
     for (key, value, reason) in [

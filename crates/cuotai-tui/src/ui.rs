@@ -1906,7 +1906,9 @@ pub async fn run(
                         }
                         ExtensionAction::Disable(id) => {
                             if let Some(manager) = monitor.extension_manager().cloned() {
-                                match manager.disable(&id) {
+                                match manager
+                                    .disable_with_secrets(&id, session.token_store().as_ref())
+                                {
                                     Ok(action) => {
                                         let message = resolve_l10n(&action.message);
                                         if let Some(view) = &mut extensions {
@@ -1941,12 +1943,45 @@ pub async fn run(
                             if extension_test.is_none() {
                                 if let Some(manager) = monitor.extension_manager().cloned() {
                                     let run_id = id.clone();
+                                    let store = session.token_store();
                                     extension_test = Some((
                                         id,
-                                        tokio::spawn(async move { manager.test(&run_id).await }),
+                                        tokio::spawn(async move {
+                                            manager
+                                                .test_reading_with(&run_id, Some(store))
+                                                .await
+                                                .map(|reading| reading.checked)
+                                        }),
                                     ));
                                     if let Some(view) = &mut extensions {
                                         view.set_message("Testando extensão…".into(), false);
+                                    }
+                                }
+                            }
+                        }
+                        ExtensionAction::Secrets(id) => {
+                            if let Some(manager) = monitor.extension_manager() {
+                                let store = session.token_store();
+                                let result = manager.secrets(&id, store.as_ref());
+                                if let Some(view) = &mut extensions {
+                                    match result {
+                                        Ok(items) => view.ask_secrets(id, items),
+                                        Err(note) => view.set_message(resolve_l10n(&note), true),
+                                    }
+                                }
+                            }
+                        }
+                        ExtensionAction::SaveSecret { id, name, value } => {
+                            if let Some(manager) = monitor.extension_manager() {
+                                let store = session.token_store();
+                                let result = manager.set_secret(&id, &name, &value, store.as_ref());
+                                drop(value);
+                                if let Some(view) = &mut extensions {
+                                    match result {
+                                        Ok(action) => {
+                                            view.secret_saved(resolve_l10n(&action.message))
+                                        }
+                                        Err(note) => view.set_message(resolve_l10n(&note), true),
                                     }
                                 }
                             }

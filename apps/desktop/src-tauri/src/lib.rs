@@ -130,6 +130,24 @@ async fn disable_extension(
 }
 
 #[tauri::command]
+async fn extension_secrets(
+    b: Shared<'_>,
+    id: String,
+) -> Result<Vec<cuotai_core::extensions::management::SecretItem>, String> {
+    b.extension_secrets(&id).await
+}
+
+#[tauri::command]
+async fn set_extension_secret(
+    b: Shared<'_>,
+    id: String,
+    name: String,
+    value: String,
+) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+    b.set_extension_secret(&id, &name, &value).await
+}
+
+#[tauri::command]
 async fn test_extension(
     app: AppHandle,
     b: Shared<'_>,
@@ -1872,6 +1890,8 @@ pub fn run() {
             enable_extension,
             disable_extension,
             test_extension,
+            extension_secrets,
+            set_extension_secret,
             form_schema,
             visible_fields,
             field_choices,

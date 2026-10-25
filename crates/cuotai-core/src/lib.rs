@@ -961,7 +961,10 @@ impl Monitor {
             // A local program runs under the extension manager's own cap
             // (`Runner::MAX_RUNNING`), never the HTTP provider semaphore: a
             // slow extension must not hold a slot a provider query needs.
-            return match manager.run_account(account).await {
+            return match manager
+                .run_account_with(account, Some(self.oauth.token_store()))
+                .await
+            {
                 Ok(checked) => {
                     checked.into_report(account.name.clone(), Provider::Extension, checked_at)
                 }

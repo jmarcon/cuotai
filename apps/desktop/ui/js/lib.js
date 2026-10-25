@@ -75,6 +75,9 @@ export const extensionDisclosure = (id) => call("extension_disclosure", { id });
 export const enableExtension = (candidate) => call("enable_extension", { candidate });
 export const disableExtension = (id) => call("disable_extension", { id });
 export const testExtension = (id) => call("test_extension", { id });
+export const extensionSecrets = (id) => call("extension_secrets", { id });
+export const setExtensionSecret = (id, name, value) =>
+  call("set_extension_secret", { id, name, value });
 export const formSchema = (provider) => call("form_schema", { provider });
 export const visibleFields = (provider, choices, authMode, loginParams = {}) => call("visible_fields", { provider, choices, authMode, loginParams });
 export const fieldChoices = (provider, choices, authMode) => call("field_choices", { provider, choices, authMode });

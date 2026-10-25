@@ -284,6 +284,12 @@ impl Runner {
     /// runs ahead of it allow) and records the outcome in the extension's
     /// own schedule.
     pub async fn run(&self, approved: &Approved) -> Reading {
+        self.run_with(approved, &SecretEnv::default()).await
+    }
+
+    /// [`Self::run`] with the extension's vault secrets (PRD 0028 RF7.4),
+    /// added to the child's reduced environment only.
+    pub async fn run_with(&self, approved: &Approved, secrets: &SecretEnv) -> Reading {
         #[cfg(test)]
         self.waiting.fetch_add(1, Ordering::SeqCst);
         let permit = Arc::clone(&self.slots)
@@ -292,7 +298,7 @@ impl Runner {
             .expect("the runner semaphore stays open");
         #[cfg(test)]
         self.waiting.fetch_sub(1, Ordering::SeqCst);
-        let run = execute(approved, &self.parent, &self.admission).await;
+        let run = execute(approved, &self.parent, &self.admission, secrets).await;
         let checked = run.checked();
         let ok = checked.status == Status::Ready;
         let interval = Duration::from_secs(approved.manifest().interval_seconds);
@@ -307,12 +313,38 @@ impl Runner {
     }
 }
 
+/// PRD 0028 RF7.4: the values of an extension's `[[secrets]]`, read from
+/// the vault for one run, by the variable that receives each. Its `Debug`
+/// never shows a value, and it is never serialized.
+#[derive(Default, Clone)]
+pub struct SecretEnv(Vec<(String, String)>);
+
+impl SecretEnv {
+    pub(crate) fn push(&mut self, env: String, value: String) {
+        self.0.push((env, value));
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl std::fmt::Debug for SecretEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.0.iter().map(|(env, _)| format!("{env}=<redacted>")))
+            .finish()
+    }
+}
+
 /// The environment of the child: `PATH`, `HOME` and `LANG` plus, of the
 /// names the user approved, only those the manifest still asks for and the
-/// parent has. Nothing else — never a credential Cuotai holds.
+/// parent has, plus the vault secrets the manifest declares (RF7.4).
+/// Nothing else — never a credential of an account.
 fn child_env(
     parent: &BTreeMap<OsString, OsString>,
     approved: &Approved,
+    secrets: &SecretEnv,
 ) -> Vec<(OsString, OsString)> {
     let mut env = Vec::new();
     let mut push = |name: &str| {
@@ -326,6 +358,16 @@ fn child_env(
     for name in approved.env() {
         if approved.manifest().env.contains(name) {
             push(name);
+        }
+    }
+    for (name, value) in &secrets.0 {
+        if approved
+            .manifest()
+            .secrets
+            .iter()
+            .any(|secret| secret.env == *name)
+        {
+            env.push((OsString::from(name), OsString::from(value.as_str())));
         }
     }
     env
@@ -380,6 +422,7 @@ async fn execute(
     approved: &Approved,
     parent: &BTreeMap<OsString, OsString>,
     admission: &Arc<consent::Shared>,
+    secrets: &SecretEnv,
 ) -> Run {
     let manifest = approved.manifest();
     let started_at = Utc::now();
@@ -408,7 +451,7 @@ async fn execute(
     command
         .args(&manifest.command[1..])
         .env_clear()
-        .envs(child_env(parent, approved))
+        .envs(child_env(parent, approved, secrets))
         .current_dir(&manifest.dir)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

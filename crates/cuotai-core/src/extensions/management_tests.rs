@@ -622,3 +622,118 @@ async fn enable_refresh_disable_and_remove_in_every_locale() {
         );
     }
 }
+
+/// An in-memory vault for the RF7.4 tests.
+#[derive(Default)]
+struct Vault(std::sync::Mutex<BTreeMap<String, crate::oauth::OAuthToken>>);
+
+impl TokenStore for Vault {
+    fn load(&self, id: &str) -> Result<Option<crate::oauth::OAuthToken>, crate::oauth::OAuthError> {
+        Ok(self.0.lock().unwrap().get(id).cloned())
+    }
+    fn save(
+        &self,
+        id: &str,
+        token: &crate::oauth::OAuthToken,
+    ) -> Result<(), crate::oauth::OAuthError> {
+        self.0.lock().unwrap().insert(id.to_owned(), token.clone());
+        Ok(())
+    }
+    fn delete(&self, id: &str) -> Result<(), crate::oauth::OAuthError> {
+        self.0.lock().unwrap().remove(id);
+        Ok(())
+    }
+}
+
+const SEED: &str = "s3cr3t-seed-7f2a";
+
+/// PRD 0028 RF7.4 (seeded secret): the value entered once reaches only the
+/// child's environment (the program reports ready only when it sees it) and
+/// appears in no TOML, manifest, consent record, reading or debug output; a
+/// missing value refuses to run; revoking deletes the vault entry.
+#[tokio::test]
+async fn an_extension_secret_reaches_only_the_child_environment() {
+    let rig = Rig::new();
+    let error = r#"{"schema":1,"status":"error"}"#;
+    rig.extension_with_source(
+        "proxy",
+        &format!(
+            "fn main() {{ let ok = std::env::var(\"PROXY_SECRET\").ok().as_deref() == Some({SEED:?}); \
+             print!(\"{{}}\", if ok {{ {READY:?} }} else {{ {error:?} }}); }}\n"
+        ),
+    );
+    let manifest_file = rig.root.join("proxy").join(MANIFEST_FILE);
+    let mut manifest = fs::read_to_string(&manifest_file).unwrap();
+    manifest.push_str(
+        "\n[[secrets]]\nname = \"token\"\nenv = \"PROXY_SECRET\"\ndescription = \"Proxy token\"\n",
+    );
+    fs::write(&manifest_file, &manifest).unwrap();
+    let concrete = Arc::new(Vault::default());
+    let vault: Arc<dyn TokenStore> = concrete.clone();
+
+    let disclosure = rig.manager.disclosure("proxy").unwrap();
+    assert!(disclosure
+        .lines
+        .iter()
+        .any(|line| line.id.as_ref() == "extensions.consent.secret"));
+    let enabled = rig
+        .manager
+        .enable(&disclosure.candidate, true, &base())
+        .unwrap();
+    rig.manager.confirm_commit("proxy");
+    let account = enabled.config.accounts[0].clone();
+
+    // Without the value nothing starts.
+    let refused = rig
+        .manager
+        .run_account_with(&account, Some(Arc::clone(&vault)))
+        .await
+        .unwrap_err();
+    assert_eq!(refused.id, "extensions.action.secret_missing");
+    let items = rig.manager.secrets("proxy", vault.as_ref()).unwrap();
+    assert_eq!(items.len(), 1);
+    assert!(!items[0].stored);
+
+    rig.manager
+        .set_secret("proxy", "token", SEED, vault.as_ref())
+        .unwrap();
+    assert!(rig.manager.secrets("proxy", vault.as_ref()).unwrap()[0].stored);
+    let checked = rig
+        .manager
+        .run_account_with(&account, Some(Arc::clone(&vault)))
+        .await
+        .unwrap();
+    assert_eq!(checked.status, Status::Ready, "the child saw the secret");
+
+    // Nowhere else.
+    let toml = toml::to_string(&enabled.config).unwrap_or_default();
+    let consent_file = super::consent::Consent::file_for(&rig.root);
+    let consent = fs::read_to_string(consent_file).unwrap();
+    let listed = serde_json::to_string(&rig.manager.list(&enabled.config)).unwrap();
+    let report = checked.into_report(account.name.clone(), Provider::Extension, Utc::now());
+    for (place, text) in [
+        ("toml", toml),
+        ("manifest", fs::read_to_string(&manifest_file).unwrap()),
+        ("consent", consent),
+        ("list", listed),
+        ("report", serde_json::to_string(&report).unwrap()),
+        (
+            "debug",
+            format!(
+                "{report:?} {:?}",
+                rig.manager.secrets("proxy", vault.as_ref())
+            ),
+        ),
+    ] {
+        assert!(!text.contains(SEED), "{place} leaked the secret");
+    }
+
+    // Revocation deletes the vault entry.
+    rig.manager
+        .disable_with_secrets("proxy", vault.as_ref())
+        .unwrap();
+    assert!(
+        concrete.0.lock().unwrap().is_empty(),
+        "the vault entry is gone"
+    );
+}

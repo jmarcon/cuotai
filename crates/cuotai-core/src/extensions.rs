@@ -72,7 +72,7 @@ const ENV_MAX_NAMES: usize = 32;
 const ENV_NAME_MAX_CHARS: usize = 128;
 
 /// The keys a schema-1 manifest accepts, as the errors list them.
-const KEYS: [&str; 11] = [
+const KEYS: [&str; 12] = [
     "id",
     "name",
     "version",
@@ -84,7 +84,17 @@ const KEYS: [&str; 11] = [
     "homepage",
     "env",
     "min_cuotai",
+    "secrets",
 ];
+
+/// PRD 0028 RF7.4: the most `[[secrets]]` a manifest may declare.
+pub const SECRETS_MAX: usize = 8;
+const SECRET_NAME_MAX_CHARS: usize = 32;
+const SECRET_DESCRIPTION_MAX_CHARS: usize = 200;
+
+/// The variables the runner always sets itself; a secret may not take
+/// their name.
+const RESERVED_ENV: [&str; 4] = ["PATH", "HOME", "LANG", "SystemRoot"];
 
 /// PRD 0028 RF7.5: the prefix of the top-level tables a manifest may carry
 /// for its author or for future fields; they are ignored, while any other
@@ -116,6 +126,9 @@ pub struct Manifest {
     /// Names of the environment variables the extension asks for (never
     /// their values), without repetitions, in the manifest's order.
     pub env: Vec<String>,
+    /// PRD 0028 RF7.4: the secrets the extension asks for. Their values live
+    /// only in the OS vault and reach only the child's environment.
+    pub secrets: Vec<Secret>,
     /// The extension's folder, with symbolic links resolved.
     pub dir: PathBuf,
     /// The program `command[0]` names, resolved inside [`Self::dir`].
@@ -129,6 +142,17 @@ pub struct Manifest {
     /// the version the user is shown and the one consent hashes, so parsing
     /// and approving can never straddle two different files.
     pub source: String,
+}
+
+/// PRD 0028 RF7.4: one `[[secrets]]` entry of a manifest: never a value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Secret {
+    /// A slug (`[a-z0-9_]`, up to 32 characters), part of the vault key.
+    pub name: String,
+    /// The environment variable that receives the value.
+    pub env: String,
+    /// One line shown when the user is asked for the value.
+    pub description: String,
 }
 
 /// A folder of the extensions directory that is not a valid extension.
@@ -349,6 +373,16 @@ struct RawManifest {
     env: Vec<String>,
     #[allow(dead_code)] // checked before, on the table
     min_cuotai: Option<String>,
+    #[serde(default)]
+    secrets: Vec<RawSecret>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSecret {
+    name: String,
+    env: String,
+    description: String,
 }
 
 fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Localized> {
@@ -406,6 +440,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         .map(|url| valid_homepage(url.trim()))
         .transpose()?;
     let env = valid_env(raw.env)?;
+    let secrets = valid_secrets(raw.secrets, &env)?;
     let (dir, program) = resolve_program(dir, &raw.command)?;
     // FIX-04/FIX-05: the whole folder must be hashable, and on Unix
     // nobody else may change it, before it is ever offered for approval.
@@ -422,6 +457,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         description,
         homepage,
         env,
+        secrets,
         dir,
         program,
         interpreter,
@@ -503,6 +539,62 @@ fn valid_env(names: Vec<String>) -> Result<Vec<String>, Localized> {
         ));
     }
     Ok(env)
+}
+
+/// RF7.4: each secret has a slug name, a variable name that is neither one
+/// the runner sets itself nor one of `env` nor another secret's, and a
+/// one-line description.
+fn valid_secrets(raw: Vec<RawSecret>, env: &[String]) -> Result<Vec<Secret>, Localized> {
+    if raw.len() > SECRETS_MAX {
+        return Err(Localized::with_param(
+            "extensions.error.secrets_count",
+            "max",
+            SECRETS_MAX,
+            format!("O manifest.toml declara no máximo {SECRETS_MAX} secrets."),
+        ));
+    }
+    let mut secrets: Vec<Secret> = Vec::with_capacity(raw.len());
+    for secret in raw {
+        let name_ok = !secret.name.is_empty()
+            && secret.name.chars().count() <= SECRET_NAME_MAX_CHARS
+            && secret
+                .name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+        let var = valid_env(vec![secret.env.clone()])?;
+        let var = var.into_iter().next().unwrap_or_default();
+        let taken = RESERVED_ENV
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(&var))
+            || env.contains(&var)
+            || secrets
+                .iter()
+                .any(|other| other.env == var || other.name == secret.name);
+        if !name_ok || taken {
+            return Err(Localized::with_param(
+                "extensions.error.secret",
+                "name",
+                quoted(&secret.name),
+                format!(
+                    "O secret {} precisa de um name único (letras minúsculas, dígitos e \"_\", \
+                     até {SECRET_NAME_MAX_CHARS}) e de um env próprio, fora de env e de PATH, \
+                     HOME, LANG e SystemRoot.",
+                    quoted(&secret.name)
+                ),
+            ));
+        }
+        let description = single_line(
+            "secrets.description",
+            &secret.description,
+            SECRET_DESCRIPTION_MAX_CHARS,
+        )?;
+        secrets.push(Secret {
+            name: secret.name,
+            env: var,
+            description,
+        });
+    }
+    Ok(secrets)
 }
 
 /// The file extensions the operating system hands to a command interpreter

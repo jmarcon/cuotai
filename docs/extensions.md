@@ -44,6 +44,7 @@ timeout_seconds = 15 # optional; default 15
 | `homepage` | Optional `http` or `https` URL, at most 2,048 characters, with a host and without embedded username/password. |
 | `env` | Optional array of at most 32 environment-variable names. Each matches `[A-Za-z_][A-Za-z0-9_]*` and is at most 128 bytes. Repeated names are deduplicated in first-seen order. |
 | `min_cuotai` | Optional `X.Y.Z` text: the oldest Cuotai the extension works with. A newer requirement than the running Cuotai is refused first, before any other validation error, with a reason naming both versions. |
+| `[[secrets]]` | Optional, at most 8 tables with `name` (slug of lowercase letters, digits and `_`, at most 32), `env` (the variable that receives the value; not `PATH`, `HOME`, `LANG`, `SystemRoot`, a name already in `env` or another secret's) and `description` (one line, at most 200 characters). Unknown keys inside an entry are rejected. See "Extension secrets" below. |
 
 A manifest larger than 64 KiB is rejected. Top-level tables whose names start with `x-` (for example `[x-vendor]`) are ignored: they are reserved for extension authors and future fields. Every other unknown manifest field is rejected, including an `x-` key that is not a table; an unsupported schema is rejected. A folder whose manifest cannot be read is still listed by both frontends with the reason (state `Invalid`) and can never be enabled; one bad folder does not prevent other extensions or built-in accounts from loading. Two valid folders sharing an `id` are both rejected, and the row says so. When a configured account's folder stops parsing, that account's own row becomes `Invalid` with the reason instead of appearing twice or as missing. One extension maps to exactly one account: two accounts pointing at the same `extension_id` are refused as a configuration error.
 
@@ -175,6 +176,19 @@ Make it executable on Unix with `chmod +x quota.py`. Requested values are inheri
 
 The two examples above are Unix-only as written. On Windows, ship an executable.
 
+## Extension secrets
+
+An extension that needs a credential declares it instead of asking you to export it:
+
+```toml
+[[secrets]]
+name = "token"
+env = "TEAM_QUOTA_TOKEN"
+description = "API token of the quota service"
+```
+
+The disclosure lists each secret by name, variable and description. After you approve the extension, enter each value once: TUI `x`, select the extension, `v` (typed hidden, Enter saves); desktop **Extensions** › **Secrets**. The value is stored in the OS credential vault (the same store as OAuth tokens), keyed by the extension id, the approved manifest's digest and the secret's name, so a manifest that changes its secrets asks for them again. At run time the runner adds each value to the reduced environment of that extension's process only. A value never appears in the TOML, the manifest, the consent record, logs, reports, exports or problem drafts. Until every declared secret has a value, the extension does not run and its card says which one is missing. Disabling the extension (revoking its approval) deletes its vault entries; when the revocation cannot be saved, the entries are restored.
+
 ## Enable, test, disable and remove
 
 - **TUI:** press `x` on the dashboard, select an extension, then use `e` (enable), `t` (test), `d` (disable), or `x`/Delete (normal account removal). `e` on an extension account's card opens this screen instead of the account wizard, which has no form for a dynamic extension.
@@ -199,7 +213,7 @@ The approval is bound to exactly the files the disclosure showed: enabling hands
 
 Disabling takes effect immediately and permanently for in-flight runs: a run that has not started its process when the revocation completes never starts, even if it was queued behind another extension.
 
-Runs have closed standard input, the extension directory as working directory, low process priority, a timeout with process-tree termination, capped output, at most two concurrent extensions, and an isolated per-extension schedule/backoff. They do **not** take a provider query slot, so a slow extension can never delay a built-in account's refresh. The environment is cleared and rebuilt from `PATH`, `HOME`, `LANG` (`SystemRoot` on Windows) plus approved requested names. Cuotai never injects vault tokens or credentials from another account, never shows raw stdout/stderr, and never invokes a shell on behalf of the manifest.
+Runs have closed standard input, the extension directory as working directory, low process priority, a timeout with process-tree termination, capped output, at most two concurrent extensions, and an isolated per-extension schedule/backoff. They do **not** take a provider query slot, so a slow extension can never delay a built-in account's refresh. The environment is cleared and rebuilt from `PATH`, `HOME`, `LANG` (`SystemRoot` on Windows) plus approved requested names. Cuotai never injects an account's vault tokens or credentials (only the extension's own declared secrets), never shows raw stdout/stderr, and never invokes a shell on behalf of the manifest.
 
 One process-wide extension manager is shared by every monitor and dropped with the last one, so the two-process cap, the schedules and the revocation guard survive a configuration reload: a reloaded app never runs two extensions in parallel beyond the cap, and nothing is retained after the last user of the directory closes it.
 

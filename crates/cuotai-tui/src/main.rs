@@ -730,7 +730,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     // PRD 0017 RF2.4: one run of an approved extension, without loading
     // the accounts' configuration.
     if let Some(id) = args.extension_check.take() {
-        return extension_check::run(&id, args.json).await;
+        return extension_check::run(&id, args.json, args.dev_credentials_sqlite.as_deref()).await;
     }
     if let Some(action) = cost_action(&mut args) {
         // PRD 0029 RF2: plans are keyed by the account id when a

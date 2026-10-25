@@ -14,8 +14,9 @@ use serde::{Deserialize, Serialize};
 
 use super::consent::{self, Approval, Consent};
 use super::output::Checked;
-use super::runner::{Reading, Runner};
+use super::runner::{Reading, Runner, SecretEnv};
 use super::{discover, CatalogEntry, Manifest};
+use crate::oauth::{OAuthToken, TokenStore};
 use crate::text::Localized;
 use crate::{Account, Config, Provider, Status};
 
@@ -186,6 +187,16 @@ impl Candidate {
 pub struct Disclosure {
     pub lines: Vec<Localized>,
     pub candidate: Candidate,
+}
+
+/// PRD 0028 RF7.4: one `[[secrets]]` entry of an extension, for the
+/// extension dialogs: whether a value is stored, never the value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SecretItem {
+    pub name: String,
+    pub env: String,
+    pub description: String,
+    pub stored: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -581,15 +592,145 @@ impl Manager {
         })
     }
 
-    /// Explicit test of an enabled extension. It uses the same shared Runner
-    /// as recurring account refreshes and records only normalized output.
-    pub async fn test_reading(&self, id: &str) -> Result<Reading, Localized> {
+    /// RF7.4: [`Self::disable`] that also deletes the vault entries of the
+    /// revoked approval's secrets. The values are deleted first and put back
+    /// when the revocation cannot be saved, so a failed revocation leaves
+    /// the extension exactly as it was.
+    pub fn disable_with_secrets(
+        &self,
+        id: &str,
+        store: &dyn TokenStore,
+    ) -> Result<ActionResult, Localized> {
+        let Some((scope, names)) = self.consent.stored_secrets(id) else {
+            return self.disable(id);
+        };
+        let mut removed: Vec<(String, OAuthToken)> = Vec::new();
+        for name in &names {
+            let key = secret_key(id, &scope, name);
+            let restore = |removed: &[(String, OAuthToken)]| {
+                for (key, token) in removed {
+                    let _ = store.save(key, token);
+                }
+            };
+            match store.load(&key) {
+                Ok(Some(token)) => {
+                    if store.delete(&key).is_err() {
+                        restore(&removed);
+                        return Err(secret_storage());
+                    }
+                    removed.push((key, token));
+                }
+                Ok(None) => {}
+                Err(_) => {
+                    restore(&removed);
+                    return Err(secret_storage());
+                }
+            }
+        }
+        match self.disable(id) {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                for (key, token) in &removed {
+                    let _ = store.save(key, token);
+                }
+                Err(error)
+            }
+        }
+    }
+
+    /// RF7.4: the secrets the current manifest of `id` declares, each with
+    /// whether the vault holds a value for the files as they are now.
+    pub fn secrets(&self, id: &str, store: &dyn TokenStore) -> Result<Vec<SecretItem>, Localized> {
+        let manifest = self.manifest(id)?;
+        let scope = self
+            .consent
+            .snapshot(&manifest)
+            .map(|approval| approval.secret_scope());
+        Ok(manifest
+            .secrets
+            .iter()
+            .map(|secret| SecretItem {
+                name: secret.name.clone(),
+                env: secret.env.clone(),
+                description: secret.description.clone(),
+                stored: scope.as_deref().is_some_and(|scope| {
+                    matches!(
+                        store.load(&secret_key(id, scope, &secret.name)),
+                        Ok(Some(_))
+                    )
+                }),
+            })
+            .collect())
+    }
+
+    /// RF7.4: keep the value of one declared secret of an **approved**
+    /// extension in the vault, keyed by the extension id, the approval's
+    /// manifest digest and the secret's name. The value is never written to
+    /// the TOML, the manifest, the consent record or any log.
+    pub fn set_secret(
+        &self,
+        id: &str,
+        name: &str,
+        value: &str,
+        store: &dyn TokenStore,
+    ) -> Result<ActionResult, Localized> {
         let manifest = self.manifest(id)?;
         let approved = self
             .consent
             .check(manifest)
             .map_err(|manifest| consent::not_approved(&manifest.id))?;
-        let reading = self.runner.run(&approved).await;
+        let secret = approved
+            .manifest()
+            .secrets
+            .iter()
+            .find(|secret| secret.name == name)
+            .ok_or_else(|| unknown_secret(id, name))?;
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(empty_secret(&secret.name));
+        }
+        let token = OAuthToken {
+            access_token: value.to_owned(),
+            refresh_token: None,
+            expires_at: None,
+            metadata: BTreeMap::new(),
+        };
+        store
+            .save(&secret_key(id, &approved.secret_scope(), name), &token)
+            .map_err(|_| secret_storage())?;
+        // A run that failed for the missing value may go again at once.
+        self.runner.forget(id);
+        Ok(ActionResult {
+            id: id.to_owned(),
+            message: Localized::with_param(
+                "extensions.action.secret_saved",
+                "name",
+                name,
+                format!("Segredo {name} guardado no cofre do sistema."),
+            ),
+            account: None,
+        })
+    }
+
+    /// Explicit test of an enabled extension. It uses the same shared Runner
+    /// as recurring account refreshes and records only normalized output.
+    pub async fn test_reading(&self, id: &str) -> Result<Reading, Localized> {
+        self.test_reading_with(id, None).await
+    }
+
+    /// [`Self::test_reading`] with the vault of the extension's secrets.
+    pub async fn test_reading_with(
+        &self,
+        id: &str,
+        store: Option<Arc<dyn TokenStore>>,
+    ) -> Result<Reading, Localized> {
+        let manifest = self.manifest(id)?;
+        let approved = self
+            .consent
+            .check(manifest)
+            .map_err(|manifest| consent::not_approved(&manifest.id))?;
+        let secrets = load_secrets(&approved, store).await?;
+        let reading = self.runner.run_with(&approved, &secrets).await;
         self.record(id, &reading.checked);
         Ok(reading)
     }
@@ -603,8 +744,18 @@ impl Manager {
     /// manifest schedule; between due runs the last normalized reading is
     /// reused, never raw process output.
     pub async fn run_account(&self, account: &Account) -> Result<Checked, Localized> {
+        self.run_account_with(account, None).await
+    }
+
+    /// [`Self::run_account`] with the vault of the extension's secrets
+    /// (RF7.4); without one, an extension that declares secrets is not run.
+    pub async fn run_account_with(
+        &self,
+        account: &Account,
+        store: Option<Arc<dyn TokenStore>>,
+    ) -> Result<Checked, Localized> {
         let id = account.extension_id().ok_or_else(invalid_account)?;
-        let result = self.run_id(id).await;
+        let result = self.run_id(id, store).await;
         if let Err(note) = &result {
             let mut runtime = self.runtime.lock().unwrap_or_else(PoisonError::into_inner);
             let state = runtime.entry(id.to_owned()).or_default();
@@ -614,7 +765,11 @@ impl Manager {
         result
     }
 
-    async fn run_id(&self, id: &str) -> Result<Checked, Localized> {
+    async fn run_id(
+        &self,
+        id: &str,
+        store: Option<Arc<dyn TokenStore>>,
+    ) -> Result<Checked, Localized> {
         let manifest = self.manifest(id)?;
         let approved = self.consent.check(manifest).map_err(|manifest| {
             match self.consent.status(&manifest) {
@@ -635,7 +790,8 @@ impl Manager {
                 return Ok(checked);
             }
         }
-        let reading = self.runner.run(&approved).await;
+        let secrets = load_secrets(&approved, store).await?;
+        let reading = self.runner.run_with(&approved, &secrets).await;
         let checked = reading.checked;
         self.record(id, &checked);
         Ok(checked)
@@ -750,6 +906,83 @@ fn extension_account(manifest: &Manifest, config: &Config, editing: Option<usize
         refresh_seconds: Some(manifest.interval_seconds),
         group: None,
     }
+}
+
+/// RF7.4: the vault key of one secret: `ext_<id>_<scope>_<name>`, within
+/// the store's identifier alphabet and length (64 + 16 + 32 + 7 < 128).
+fn secret_key(id: &str, scope: &str, name: &str) -> String {
+    format!("ext_{id}_{scope}_{name}")
+}
+
+/// Every declared secret of `approved`, read from `store` off the async
+/// threads; a missing value (or no vault at all) stops the run before any
+/// process starts.
+async fn load_secrets(
+    approved: &consent::Approved,
+    store: Option<Arc<dyn TokenStore>>,
+) -> Result<SecretEnv, Localized> {
+    let manifest = approved.manifest();
+    if manifest.secrets.is_empty() {
+        return Ok(SecretEnv::default());
+    }
+    let Some(store) = store else {
+        return Err(missing_secret(&manifest.id, &manifest.secrets[0].name));
+    };
+    let id = manifest.id.clone();
+    let scope = approved.secret_scope();
+    let wanted: Vec<(String, String)> = manifest
+        .secrets
+        .iter()
+        .map(|secret| (secret.name.clone(), secret.env.clone()))
+        .collect();
+    tokio::task::spawn_blocking(move || {
+        let mut env = SecretEnv::default();
+        for (name, var) in wanted {
+            match store.load(&secret_key(&id, &scope, &name)) {
+                Ok(Some(token)) => env.push(var, token.access_token),
+                Ok(None) => return Err(missing_secret(&id, &name)),
+                Err(_) => return Err(secret_storage()),
+            }
+        }
+        Ok(env)
+    })
+    .await
+    .map_err(|_| secret_storage())?
+}
+
+fn missing_secret(id: &str, name: &str) -> Localized {
+    Localized::with_params(
+        "extensions.action.secret_missing",
+        crate::text::params([("id", id.into()), ("name", name.into())]),
+        format!(
+            "A extensão {id} precisa do segredo {name}; informe-o na tela de extensões. \
+             Nenhum programa foi executado."
+        ),
+    )
+}
+
+fn unknown_secret(id: &str, name: &str) -> Localized {
+    Localized::with_params(
+        "extensions.action.secret_unknown",
+        crate::text::params([("id", id.into()), ("name", name.into())]),
+        format!("A extensão {id} não declara o segredo {name}."),
+    )
+}
+
+fn empty_secret(name: &str) -> Localized {
+    Localized::with_param(
+        "extensions.action.secret_empty",
+        "name",
+        name,
+        format!("Informe um valor para o segredo {name}."),
+    )
+}
+
+fn secret_storage() -> Localized {
+    Localized::fixed(
+        "extensions.action.secret_storage",
+        "Não foi possível acessar o cofre do sistema para os segredos da extensão.",
+    )
 }
 
 fn invalid_account() -> Localized {

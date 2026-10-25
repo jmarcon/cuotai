@@ -24,7 +24,11 @@ use crate::ui;
 
 /// The `--extension-check <id>` command. See the module docs for the flow
 /// and the exit codes.
-pub(crate) async fn run(id: &str, json: bool) -> Result<u8, Box<dyn std::error::Error>> {
+pub(crate) async fn run(
+    id: &str,
+    json: bool,
+    dev_credentials: Option<&std::path::Path>,
+) -> Result<u8, Box<dyn std::error::Error>> {
     let locale = ui::tui_locale();
     let Some(dir) = extensions::default_dir() else {
         return Err(no_dir().resolve(locale).into());
@@ -60,8 +64,13 @@ pub(crate) async fn run(id: &str, json: bool) -> Result<u8, Box<dyn std::error::
             .approve(&disclosure.candidate, confirmation_matches(&typed, &answer))
             .map_err(|error| error.resolve(locale))?;
     }
+    // PRD 0028 RF7.4: the extension's own secrets come from the vault.
+    let session = match dev_credentials {
+        Some(path) => cuotai_core::oauth::OAuthSession::development_sqlite(path)?,
+        None => cuotai_core::oauth::OAuthSession::system()?,
+    };
     let reading = manager
-        .test_reading(id)
+        .test_reading_with(id, Some(session.token_store()))
         .await
         .map_err(|error| error.resolve(locale))?;
     let mut stdout = io::stdout().lock();

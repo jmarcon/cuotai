@@ -51,6 +51,11 @@ pub(crate) struct Approval {
     #[serde(default)]
     tree_sha256: String,
     env: Vec<String>,
+    /// PRD 0028 RF7.4: the names of the manifest's `[[secrets]]` (never a
+    /// value), so a revocation can delete their vault entries even after
+    /// the folder is gone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    secrets: Vec<String>,
 }
 
 impl Approval {
@@ -74,7 +79,19 @@ impl Approval {
             program_sha256: sha256_file(&manifest.program)?,
             tree_sha256: super::tree::scan(&manifest.dir).ok()?,
             env: manifest.env.clone(),
+            secrets: manifest
+                .secrets
+                .iter()
+                .map(|secret| secret.name.clone())
+                .collect(),
         })
+    }
+
+    /// The part of the vault key of this approval's secrets: the first 16
+    /// hex digits of the manifest digest, so a manifest that declares other
+    /// secrets never reads the values entered for an earlier one.
+    pub(crate) fn secret_scope(&self) -> String {
+        self.manifest_sha256.chars().take(16).collect()
     }
 
     /// Whether `self` and `other` hash the same files (the approved
@@ -201,6 +218,11 @@ impl Approved {
     /// the manifest's `env`.
     pub fn env(&self) -> &[String] {
         &self.env
+    }
+
+    /// RF7.4: the vault scope of this approval's secrets.
+    pub(crate) fn secret_scope(&self) -> String {
+        self.digests.secret_scope()
     }
 
     /// `true` while the manifest and the program on disk are still the
@@ -510,6 +532,15 @@ impl Consent {
         Ok(removed)
     }
 
+    /// RF7.4: the vault scope and the secret names of the stored approval of
+    /// `id`, whatever the files on disk are now.
+    pub(crate) fn stored_secrets(&self, id: &str) -> Option<(String, Vec<String>)> {
+        self.read()
+            .approved
+            .get(id)
+            .map(|approval| (approval.secret_scope(), approval.secrets.clone()))
+    }
+
     /// Whether an approval for `id` exists on disk, whatever its digests.
     /// Frontends use it to know whether disabling still has something to
     /// revoke, including for a row whose files are gone or unreadable.
@@ -586,6 +617,22 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
             "env",
             env.as_str(),
             format!("variáveis de ambiente pedidas: {env}"),
+        ));
+    }
+    // PRD 0028 RF7.4: each secret by name, variable and description; the
+    // value is asked for later and kept in the OS vault.
+    for secret in &manifest.secrets {
+        lines.push(Localized::with_params(
+            "extensions.consent.secret",
+            params([
+                ("name", secret.name.as_str().into()),
+                ("env", secret.env.as_str().into()),
+                ("description", secret.description.as_str().into()),
+            ]),
+            format!(
+                "segredo {} (variável {}), guardado no cofre do sistema: {}",
+                secret.name, secret.env, secret.description
+            ),
         ));
     }
     lines.push(Localized::with_params(

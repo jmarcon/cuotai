@@ -58,6 +58,12 @@ impl OAuthSession {
         self.vault_index.as_deref()
     }
 
+    /// The vault this session reads and writes, shared with the extension
+    /// secrets (PRD 0028 RF7.4).
+    pub fn token_store(&self) -> Arc<dyn TokenStore> {
+        Arc::clone(&self.store)
+    }
+
     pub fn new(
         store: Arc<dyn TokenStore>,
         secrets: Arc<dyn Credentials>,

@@ -122,7 +122,9 @@ fn the_child_environment_is_reduced_to_the_inherited_and_the_approved() {
     .into_iter()
     .map(|(name, value)| (OsString::from(name), OsString::from(value)))
     .collect();
-    let env: BTreeMap<OsString, OsString> = child_env(&parent, &approved).into_iter().collect();
+    let env: BTreeMap<OsString, OsString> = child_env(&parent, &approved, &SecretEnv::default())
+        .into_iter()
+        .collect();
     let expected = BTreeMap::from([
         (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
         (OsString::from("HOME"), OsString::from("/home/someone")),
@@ -147,7 +149,7 @@ fn the_variable_lookup_follows_the_platform_spelling_rules() {
             .into_iter()
             .map(|(name, value)| (OsString::from(name), OsString::from(value)))
             .collect();
-    let env: BTreeMap<String, String> = child_env(&parent, &approved)
+    let env: BTreeMap<String, String> = child_env(&parent, &approved, &SecretEnv::default())
         .into_iter()
         .map(|(name, value)| {
             (

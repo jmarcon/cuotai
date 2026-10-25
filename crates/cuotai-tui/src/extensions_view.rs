@@ -1,6 +1,6 @@
 use chrono::Local;
 use crossterm::event::KeyCode;
-use cuotai_core::extensions::management::{ExtensionItem, ExtensionState};
+use cuotai_core::extensions::management::{ExtensionItem, ExtensionState, SecretItem};
 use cuotai_core::text::Localized;
 use ratatui::{
     layout::{Constraint, Layout},
@@ -29,6 +29,23 @@ pub(crate) enum Action {
     Disable(String),
     Test(String),
     Remove(usize),
+    /// PRD 0028 RF7.4: ask core for the extension's declared secrets.
+    Secrets(String),
+    /// Keep one secret's value in the vault through core.
+    SaveSecret {
+        id: String,
+        name: String,
+        value: String,
+    },
+}
+
+/// PRD 0028 RF7.4: the secret being typed. The value is never drawn, only
+/// its length as dots, and is dropped as soon as core has it.
+struct SecretPrompt {
+    id: String,
+    items: Vec<SecretItem>,
+    index: usize,
+    value: String,
 }
 
 pub(crate) struct ExtensionsView {
@@ -38,6 +55,7 @@ pub(crate) struct ExtensionsView {
     /// First shown line of the disclosure; the footer says how to move.
     scroll: u16,
     message: Option<(String, bool)>,
+    secret: Option<SecretPrompt>,
 }
 
 /// The pending disclosure: the lines to review and the core's opaque
@@ -55,7 +73,36 @@ impl ExtensionsView {
             disclosure: None,
             scroll: 0,
             message: None,
+            secret: None,
         }
+    }
+
+    /// RF7.4: start asking for the secrets core listed for `id`.
+    pub(crate) fn ask_secrets(&mut self, id: String, items: Vec<SecretItem>) {
+        self.disclosure = None;
+        if items.is_empty() {
+            self.message = Some(("Esta extensão não declara segredos.".into(), false));
+            return;
+        }
+        self.message = None;
+        self.secret = Some(SecretPrompt {
+            id,
+            items,
+            index: 0,
+            value: String::new(),
+        });
+    }
+
+    /// The secret just saved: move to the next one, or finish.
+    pub(crate) fn secret_saved(&mut self, message: String) {
+        if let Some(prompt) = &mut self.secret {
+            prompt.index += 1;
+            prompt.value.clear();
+            if prompt.index >= prompt.items.len() {
+                self.secret = None;
+            }
+        }
+        self.message = Some((message, false));
     }
 
     pub(crate) fn replace(&mut self, items: Vec<ExtensionItem>) {
@@ -86,10 +133,33 @@ impl ExtensionsView {
 
     pub(crate) fn set_message(&mut self, message: String, error: bool) {
         self.disclosure = None;
+        self.secret = None;
         self.message = Some((message, error));
     }
 
     pub(crate) fn key(&mut self, code: KeyCode) -> Action {
+        if let Some(prompt) = &mut self.secret {
+            return match code {
+                KeyCode::Esc => {
+                    self.secret = None;
+                    Action::Stay
+                }
+                KeyCode::Backspace => {
+                    prompt.value.pop();
+                    Action::Stay
+                }
+                KeyCode::Enter if !prompt.value.trim().is_empty() => Action::SaveSecret {
+                    id: prompt.id.clone(),
+                    name: prompt.items[prompt.index].name.clone(),
+                    value: std::mem::take(&mut prompt.value),
+                },
+                KeyCode::Char(c) if !c.is_control() => {
+                    prompt.value.push(c);
+                    Action::Stay
+                }
+                _ => Action::Stay,
+            };
+        }
         if let Some(pending) = &self.disclosure {
             return match code {
                 KeyCode::Esc | KeyCode::Char('n' | 'N') => {
@@ -152,6 +222,12 @@ impl ExtensionsView {
                 .filter(|item| item.actions.test)
                 .map(|item| Action::Test(item.id.clone()))
                 .unwrap_or(Action::Stay),
+            // RF7.4: secrets are entered only for an approved extension.
+            KeyCode::Char('v' | 'V') => self
+                .selected_item()
+                .filter(|item| item.actions.test)
+                .map(|item| Action::Secrets(item.id.clone()))
+                .unwrap_or(Action::Stay),
             KeyCode::Delete | KeyCode::Char('x' | 'X') => self
                 .selected_item()
                 .filter(|item| item.actions.remove)
@@ -189,7 +265,36 @@ impl ExtensionsView {
         let block = Block::default().borders(Borders::ALL);
         let inner = block.inner(areas[1]);
         let inner_height = inner.height;
-        let lines = if let Some(pending) = &self.disclosure {
+        let lines = if let Some(prompt) = &self.secret {
+            let item = &prompt.items[prompt.index];
+            vec![
+                Line::styled(
+                    format!(
+                        "Segredo {} de {}: {} (variável {})",
+                        prompt.index + 1,
+                        prompt.items.len(),
+                        safe(&item.name),
+                        safe(&item.env)
+                    ),
+                    Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+                ),
+                Line::from(safe(&item.description).into_owned()),
+                Line::default(),
+                Line::from(format!(
+                    "Valor: {}",
+                    "•".repeat(prompt.value.chars().count())
+                )),
+                Line::default(),
+                Line::styled(
+                    if item.stored {
+                        "Já há um valor no cofre; Enter o substitui."
+                    } else {
+                        "O valor fica só no cofre do sistema e só chega ao ambiente da extensão."
+                    },
+                    Style::default().fg(MUTED),
+                ),
+            ]
+        } else if let Some(pending) = &self.disclosure {
             let mut lines = vec![
                 Line::styled(
                     "Revise todos os itens antes de aprovar:",
@@ -316,10 +421,12 @@ impl ExtensionsView {
         }
         paragraph = paragraph.scroll((self.scroll, 0));
         frame.render_widget(paragraph, areas[1]);
-        let footer = if self.disclosure.is_some() {
+        let footer = if self.secret.is_some() {
+            "digite o valor (oculto) · Enter guarda no cofre · Backspace apaga · Esc cancela"
+        } else if self.disclosure.is_some() {
             "↑↓/jk PgUp/PgDn rolam (sem aprovar) · s aprova e ativa · n/Esc cancela · risco residual permanece"
         } else {
-            "↑↓ seleciona · e ativa · d desativa · t testa · x/Delete remove a conta · Esc volta"
+            "↑↓ seleciona · e ativa · d desativa · t testa · v segredos · x/Delete remove a conta · Esc volta"
         };
         let mut footer_lines = vec![Line::styled(footer, Style::default().fg(YELLOW))];
         if let Some((message, error)) = &self.message {
@@ -471,6 +578,36 @@ mod tests {
 
     /// RF5.10: with many rows on a narrow terminal the viewport follows the
     /// selection, so the actions never act on an invisible row.
+    #[test]
+    fn a_secret_is_typed_hidden_and_handed_to_core_once() {
+        let mut view = ExtensionsView::new(vec![item(ExtensionState::Enabled, true, true)]);
+        assert!(matches!(view.key(KeyCode::Char('v')), Action::Secrets(_)));
+        view.ask_secrets(
+            "x".into(),
+            vec![SecretItem {
+                name: "token".into(),
+                env: "X_TOKEN".into(),
+                description: "Proxy token".into(),
+                stored: false,
+            }],
+        );
+        assert!(matches!(view.key(KeyCode::Enter), Action::Stay), "empty");
+        for c in "seed42".chars() {
+            assert!(matches!(view.key(KeyCode::Char(c)), Action::Stay));
+        }
+        let drawn = render(&mut view, 80, 20);
+        assert!(!drawn.contains("seed42"), "the value is never drawn");
+        assert!(drawn.contains("X_TOKEN"));
+        match view.key(KeyCode::Enter) {
+            Action::SaveSecret { name, value, .. } => {
+                assert_eq!((name.as_str(), value.as_str()), ("token", "seed42"));
+            }
+            _ => panic!("Enter hands the value to core"),
+        }
+        view.secret_saved("ok".into());
+        assert!(matches!(view.key(KeyCode::Char('q')), Action::Close));
+    }
+
     #[test]
     fn the_viewport_follows_the_selection_on_a_narrow_terminal() {
         let rows: Vec<ExtensionItem> = (0..40)
