@@ -1,5 +1,6 @@
 mod about_view;
 mod auth_ui;
+mod canary;
 mod changelog_view;
 mod cost;
 mod dashboard;
@@ -95,6 +96,33 @@ struct Args {
         ]
     )]
     report_problem: Option<String>,
+    /// PRD 0028 RF4: o canário de contrato local. Consulta uma vez as contas
+    /// configuradas (as cobradas por consulta ficam de fora), grava um
+    /// registro sem valores em `<dados>/cuotai/canary/`, compara com a
+    /// execução anterior e imprime o relatório em Markdown e um rascunho de
+    /// issue por desvio. Nada é aberto nem enviado sozinho. Saída 0 sem
+    /// desvio, 2 com desvio, 1 em erro local.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "list_providers", "changelog", "extension_check", "once", "json",
+            "json_v1", "history", "notify", "serve", "watch", "install_source",
+            "cost_action", "report_problem",
+        ]
+    )]
+    canary: bool,
+    /// Com --canary, o diretório dos registros (padrão: `<dados>/cuotai/canary`).
+    #[arg(long, value_name = "DIR", requires = "canary")]
+    out: Option<std::path::PathBuf>,
+    /// Com --canary, calcula e imprime sem gravar nada.
+    #[arg(long, requires = "canary")]
+    dry_run: bool,
+    /// Com --canary, abre no navegador o link de cada rascunho de issue.
+    #[arg(long, requires = "canary")]
+    canary_open: bool,
+    /// Com --canary, inclui também as contas cobradas por consulta.
+    #[arg(long, requires = "canary")]
+    canary_include_metered: bool,
     /// Informa de onde esta cópia foi instalada, por que o atualizador
     /// interno deve ficar desligado e o comando de atualização, quando
     /// conhecido. É local: não lê a configuração nem consulta a rede.
@@ -589,7 +617,8 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         && !args.json_v1
         && !args.serve
         && !args.watch
-        && args.report_problem.is_none();
+        && args.report_problem.is_none()
+        && !args.canary;
     let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
     if interactive && (!io::stdout().is_terminal() || !io::stdin().is_terminal()) {
         return Err(
@@ -629,6 +658,19 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         None => OAuthSession::system()?,
     });
+    if args.canary {
+        return canary::run(
+            &file.config,
+            canary::CanaryArgs {
+                out: args.out.take(),
+                dry_run: args.dry_run,
+                open: args.canary_open,
+                include_metered: args.canary_include_metered,
+            },
+            session,
+        )
+        .await;
+    }
     if let Some(name) = args.report_problem.take() {
         return report_problem::run(&file.config, &name, session).await;
     }

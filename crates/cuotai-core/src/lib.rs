@@ -7,6 +7,7 @@ pub mod account_edit;
 pub mod account_id;
 pub mod aggregators;
 pub mod alerts;
+pub mod canary;
 pub mod catalog;
 pub mod changelog;
 pub mod config_file;

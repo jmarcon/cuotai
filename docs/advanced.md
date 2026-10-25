@@ -26,6 +26,10 @@ cuotai --config cuotai.toml --once
 # account name, e-mail, credential or response value; nothing is sent.
 cuotai --config cuotai.toml --report-problem ACCOUNT
 
+# Maintainers: the local contract canary compares each provider's answer shape
+# with the previous run (see docs/canary.md). Exit 2 means drift.
+cuotai --config cuotai.toml --canary
+
 # Structured JSON snapshot for scripts and status bars
 cuotai --config cuotai.toml --json
 

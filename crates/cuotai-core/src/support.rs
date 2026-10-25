@@ -78,7 +78,7 @@ fn plain(value: &str) -> String {
 }
 
 /// How the account authenticates, without naming any credential.
-fn auth_mode(account: &Account) -> &'static str {
+pub(crate) fn auth_mode(account: &Account) -> &'static str {
     if account.provider == crate::Provider::Extension {
         "extension"
     } else if account.oauth.is_some() {
@@ -101,11 +101,44 @@ fn age_text(age: Duration) -> String {
 
 /// The problem report of `view`.
 pub fn issue_draft(view: &AccountView<'_>, app: &AppInfo) -> IssueDraft {
+    build(view, app, None)
+}
+
+/// PRD 0028 RF2.5: the draft the local canary offers for a drift: the same
+/// secret-free facts plus the canary's `category` and its shape diff (paths
+/// and types only, already redacted by the canary).
+pub fn canary_draft(
+    view: &AccountView<'_>,
+    app: &AppInfo,
+    category: &str,
+    shape_diff: &str,
+) -> IssueDraft {
+    build(view, app, Some((category, shape_diff)))
+}
+
+/// Keep a canary shape diff to plain, bounded single-line text.
+fn plain_diff(diff: &str) -> String {
+    diff.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(1_500)
+        .collect()
+}
+
+fn build(view: &AccountView<'_>, app: &AppInfo, canary: Option<(&str, &str)>) -> IssueDraft {
     let account = view.account;
     let report = view.report;
     let slug = account.provider.slug();
     let access = access::describe(account);
-    let category = FailureCategory::of(report).map_or("none", FailureCategory::name);
+    let category = canary.map_or_else(
+        || {
+            FailureCategory::of(report)
+                .map_or("none", FailureCategory::name)
+                .to_string()
+        },
+        |(category, _)| plain(category),
+    );
+    let category = category.as_str();
+    let shape_diff = canary.map(|(_, diff)| plain_diff(diff));
     let mode = auth_mode(account);
     let level = serde_json::to_value(access.level)
         .ok()
@@ -126,7 +159,11 @@ pub fn issue_draft(view: &AccountView<'_>, app: &AppInfo) -> IssueDraft {
     let arch = plain(&app.arch);
     let channel = plain(&app.install_channel);
 
-    let title = format!("[Provider] {slug}: {category}");
+    let title = if canary.is_some() {
+        format!("[Provider] {slug}: canary {category}")
+    } else {
+        format!("[Provider] {slug}: {category}")
+    };
     let mut body = String::from("## Provider problem report\n\n");
     let mut line = |text: String| {
         body.push_str("- ");
@@ -145,6 +182,9 @@ pub fn issue_draft(view: &AccountView<'_>, app: &AppInfo) -> IssueDraft {
     line(format!("Failure category: `{category}`"));
     if !paths.is_empty() {
         line(format!("Drifted fields: {paths}"));
+    }
+    if let Some(diff) = &shape_diff {
+        line(format!("Canary shape diff: {diff}"));
     }
     if let Some(digest) = &digest {
         line(format!("Response fingerprint (SHA-256): `{digest}`"));
@@ -178,6 +218,9 @@ pub fn issue_draft(view: &AccountView<'_>, app: &AppInfo) -> IssueDraft {
     query.append_pair("category", category);
     if !paths.is_empty() {
         query.append_pair("paths", &paths);
+    }
+    if let Some(diff) = &shape_diff {
+        query.append_pair("shape_diff", diff);
     }
     query.append_pair("context", &body);
     let url = format!("{REPOSITORY}/issues/new?{}", query.finish());
