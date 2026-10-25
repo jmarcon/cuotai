@@ -77,7 +77,7 @@ A metric whose amount is billed on top of the plan (Claude extra usage, Cursor a
 
 ## Limits summary (`Limits`)
 
-`Limits::from_export(&export)` is the body of the local server's `/v1/limits`: `schema`, `generated_at` and, per account in configuration order, `index`, `id`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness` and `stale`, with the same meaning as in `AccountExport`. It is part of version 1 under the same additive policy and is declared as `$defs/Limits` in the schema (checked by `export::v1::tests::limits_summary_follows_its_schema`).
+`Limits::from_export(&export)` is the body of the local server's `/v1/limits`: `schema`, `generated_at` and, per account in configuration order, `index`, `id`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness`, `stale` and `incident` (`state` and `stale` of the provider status, `null` without one), with the same meaning as in `AccountExport`. `summary` digests the accounts for a status bar: `worst_class` (exhausted, then unmeasured, then available), `tightest` (`key`, `name`, `used_ratio`, `resets_at` of the account whose binding metric is the most consumed), `next_reset_at` (earliest future `resets_at` among the current reports' metrics) and `worst_incident` (most severe non-stale provider state). `best` waits for PRD 0024 decision C. It is part of version 1 under the same additive policy and is declared as `$defs/Limits` in the schema (checked by `export::v1::tests::limits_summary_follows_its_schema`).
 
 ## The three "stale" fields
 

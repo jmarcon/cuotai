@@ -58,17 +58,44 @@
     "Limits": {
       "type": "object",
       "description": "Body of the local server's /v1/limits (PRD 0012 RF2.2): a per-account summary of the export.",
-      "required": ["schema", "generated_at", "accounts"],
+      "required": ["schema", "generated_at", "accounts", "summary"],
       "properties": {
         "schema": { "const": 1 },
         "generated_at": { "type": "string", "format": "date-time" },
-        "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountLimit" }, "description": "In configuration order." }
+        "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountLimit" }, "description": "In configuration order." },
+        "summary": { "$ref": "#/$defs/LimitsSummary" }
+      }
+    },
+    "LimitsSummary": {
+      "type": "object",
+      "description": "PRD 0031 RF4.2: the cross-account digest a status bar reads.",
+      "required": ["worst_class", "tightest", "next_reset_at", "worst_incident"],
+      "properties": {
+        "worst_class": { "anyOf": [{ "type": "null" }, { "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }], "description": "Most severe class: exhausted, then unmeasured, then available." },
+        "tightest": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["key", "name", "used_ratio", "resets_at"],
+              "properties": {
+                "key": { "type": "string" },
+                "name": { "type": "string" },
+                "used_ratio": { "type": "number", "minimum": 0 },
+                "resets_at": { "type": ["string", "null"], "format": "date-time" }
+              }
+            }
+          ],
+          "description": "The account whose binding metric is the most consumed."
+        },
+        "next_reset_at": { "type": ["string", "null"], "format": "date-time", "description": "Earliest future resets_at among the current reports' metrics." },
+        "worst_incident": { "anyOf": [{ "type": "null" }, { "enum": ["operational", "degraded", "partial_outage", "major_outage", "maintenance", "unknown"] }, { "type": "string" }], "description": "Most severe non-stale provider state." }
       }
     },
     "AccountLimit": {
       "type": "object",
       "description": "The same fields as AccountExport, with the same meaning.",
-      "required": ["index", "id", "key", "name", "provider", "class", "binding", "age_seconds", "freshness", "stale"],
+      "required": ["index", "id", "key", "name", "provider", "class", "binding", "age_seconds", "freshness", "stale", "incident"],
       "properties": {
         "index": { "type": "integer", "minimum": 0 },
         "id": { "type": "string" },
@@ -79,7 +106,21 @@
         "binding": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Binding" }] },
         "age_seconds": { "type": ["integer", "null"], "minimum": 0 },
         "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }, { "type": "string" }] },
-        "stale": { "type": "boolean" }
+        "stale": { "type": "boolean" },
+        "incident": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["state", "stale"],
+              "properties": {
+                "state": { "anyOf": [{ "enum": ["operational", "degraded", "partial_outage", "major_outage", "maintenance", "unknown"] }, { "type": "string" }] },
+                "stale": { "type": "boolean", "description": "The latest status query failed; state is the previous reading." }
+              }
+            }
+          ],
+          "description": "PRD 0031 RF4.1: the provider status, reduced to state and stale."
+        }
       }
     },
     "Provider": { "type": "string", "description": "Provider slug (docs/providers.md); new providers add values." },

@@ -253,6 +253,34 @@ pub struct Limits {
     pub generated_at: DateTime<Utc>,
     /// In configuration order.
     pub accounts: Vec<AccountLimit>,
+    /// PRD 0031 RF4.2: what a status bar needs without walking `accounts`.
+    pub summary: LimitsSummary,
+}
+
+/// The cross-account digest of [`Limits`] (PRD 0031 RF4.2).
+#[derive(Debug, Clone, Serialize)]
+pub struct LimitsSummary {
+    /// The most severe [`AccountClass`] (`exhausted`, then `unmeasured`,
+    /// then `available`); `null` without accounts.
+    pub worst_class: Option<AccountClass>,
+    /// The account whose binding metric is the most consumed; `null` when
+    /// no account has a binding.
+    pub tightest: Option<TightestAccount>,
+    /// Earliest `resets_at` after `generated_at` among the metrics of the
+    /// current reports; `null` when none is known.
+    pub next_reset_at: Option<DateTime<Utc>>,
+    /// The most severe state among the non-stale provider statuses; `null`
+    /// without a status reading.
+    pub worst_incident: Option<IncidentState>,
+}
+
+/// [`LimitsSummary::tightest`].
+#[derive(Debug, Clone, Serialize)]
+pub struct TightestAccount {
+    pub key: String,
+    pub name: String,
+    pub used_ratio: f64,
+    pub resets_at: Option<DateTime<Utc>>,
 }
 
 /// One account of [`Limits`]; every field means what it means in
@@ -269,6 +297,35 @@ pub struct AccountLimit {
     pub age_seconds: Option<u64>,
     pub freshness: Option<Freshness>,
     pub stale: bool,
+    /// PRD 0031 RF4.1: the provider status as in [`AccountExport::incident`],
+    /// reduced to `state` and `stale`.
+    pub incident: Option<AccountIncident>,
+}
+
+/// The subset of [`IncidentExport`] kept by [`AccountLimit`].
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountIncident {
+    pub state: IncidentState,
+    pub stale: bool,
+}
+
+fn class_rank(class: AccountClass) -> u8 {
+    match class {
+        AccountClass::Available => 0,
+        AccountClass::Unmeasured => 1,
+        AccountClass::Exhausted => 2,
+    }
+}
+
+fn incident_rank(state: IncidentState) -> u8 {
+    match state {
+        IncidentState::Operational => 0,
+        IncidentState::Unknown => 1,
+        IncidentState::Maintenance => 2,
+        IncidentState::Degraded => 3,
+        IncidentState::PartialOutage => 4,
+        IncidentState::MajorOutage => 5,
+    }
 }
 
 impl Limits {
@@ -276,6 +333,7 @@ impl Limits {
         Self {
             schema: export.schema,
             generated_at: export.generated_at,
+            summary: LimitsSummary::from_export(export),
             accounts: export
                 .accounts
                 .iter()
@@ -290,8 +348,54 @@ impl Limits {
                     age_seconds: account.age_seconds,
                     freshness: account.freshness,
                     stale: account.stale,
+                    incident: account.incident.as_ref().map(|incident| AccountIncident {
+                        state: incident.state,
+                        stale: incident.stale,
+                    }),
                 })
                 .collect(),
+        }
+    }
+}
+
+impl LimitsSummary {
+    fn from_export(export: &Export) -> Self {
+        let tightest = export
+            .accounts
+            .iter()
+            .filter_map(|account| Some((account, account.binding.as_ref()?)))
+            .fold(None::<(&AccountExport, &Binding)>, |best, candidate| match best {
+                Some(best) if best.1.used_ratio >= candidate.1.used_ratio => Some(best),
+                _ => Some(candidate),
+            })
+            .map(|(account, binding)| TightestAccount {
+                key: account.key.clone(),
+                name: account.name.clone(),
+                used_ratio: binding.used_ratio,
+                resets_at: binding.resets_at,
+            });
+        Self {
+            worst_class: export
+                .accounts
+                .iter()
+                .map(|account| account.class)
+                .max_by_key(|class| class_rank(*class)),
+            tightest,
+            next_reset_at: export
+                .accounts
+                .iter()
+                .filter_map(|account| account.report.as_ref())
+                .flat_map(|report| report.metrics.iter())
+                .filter_map(|metric| metric.resets_at)
+                .filter(|at| *at > export.generated_at)
+                .min(),
+            worst_incident: export
+                .accounts
+                .iter()
+                .filter_map(|account| account.incident.as_ref())
+                .filter(|incident| !incident.stale)
+                .map(|incident| incident.state)
+                .max_by_key(|state| incident_rank(*state)),
         }
     }
 }
@@ -1358,6 +1462,16 @@ mod tests {
         assert_eq!(accounts[1]["age_seconds"], 60);
         // Still pending: nothing to summarize, never zero.
         assert!(accounts[3]["age_seconds"].is_null() && accounts[3]["binding"].is_null());
+
+        // RF4.2: the digest agrees with the accounts it summarizes.
+        let summary = &limits["summary"];
+        assert!(summary["worst_class"].is_string());
+        let max_ratio = accounts
+            .iter()
+            .filter_map(|account| account["binding"]["used_ratio"].as_f64())
+            .fold(f64::MIN, f64::max);
+        assert_eq!(summary["tightest"]["used_ratio"].as_f64(), Some(max_ratio));
+        assert!(accounts.iter().any(|account| account["incident"].is_object()));
 
         let mut broken = limits.clone();
         broken["accounts"][0]["report"] = Value::Null;
