@@ -1522,6 +1522,8 @@ const DEMO_COST = {
 };
 const DEMO_PERIODS = { today: "Hoje", last_7_days: "Últimos 7 dias", last_30_days: "Últimos 30 dias", current_month: "Mês atual", all: "Tudo o que está disponível" };
 const demoCost = { on: {}, paths: {}, period: "last_7_days", retention: 120, erased: new Set() };
+// `?cost` starts the demo with every local-cost source on, so the cards and the tray show their cost rows (fa gap 3).
+if (new URLSearchParams(location.search).has("cost")) for (const id of Object.keys(DEMO_COST)) demoCost.on[id] = "2026-10-01T09:00:00Z";
 const demoDirs = (id) => demoCost.paths[id]?.map((p) => p.replace(/^~(?=\/|$)/, "/Users/demo")) ?? DEMO_COST[id].dirs;
 const demoDisclosure = (id) => {
   const { label, pattern } = DEMO_COST[id];

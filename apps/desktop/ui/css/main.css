@@ -123,7 +123,7 @@
   align-items: center;
   margin-block: var(--space-2) 0;
   padding: var(--space-2) var(--space-4);
-  border-color: color-mix(in srgb, var(--c) 25%, var(--border));
+  border-color: var(--border); /* fa gap 12: a hairline callout, not a toned full-width banner */
   border-radius: var(--radius-lg);
 }
 .banner[data-update-banner][data-update="available"] > svg.i {
@@ -683,6 +683,9 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--space-4);
 }
+.wins.three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
 .win {
   min-width: 0;
 }
@@ -846,9 +849,15 @@
   flex: 0 0 auto;
 }
 
-/* PRD 0022 (mockup 10): limit columns, the Binding tag, one reset line under the bar, the "…" menu */
+/* PRD 0022 (mockup 10): limit columns, the Binding tag, one reset line under the bar, the "…" menu. Fa gap 15: the
+   limits follow the header directly, with no blank band between them. */
 .card-head {
   border-bottom: 0;
+  padding-bottom: var(--space-1);
+}
+.card .summary {
+  padding-top: var(--space-1);
+  min-height: 0;
 }
 .win-top {
   display: flex;

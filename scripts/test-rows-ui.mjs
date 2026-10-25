@@ -36,7 +36,8 @@ assert.match(c.tileHtml("claude", 32, "WO"), /class="mono-badge"[^>]*aria-hidden
 assert.doesNotMatch(c.tileHtml("claude", 32, ""), /mono-badge/);
 
 // RF4.1: one status line with the binding label and the absolute reset at the right
-assert.match(html, /<span class="stl"[^>]*><span class="stl-l"><svg class="ring pct bad"[^>]*>.*<span class="lbl fg">Week<\/span><\/span><span class="rst"/);
+assert.match(html, /<span class="stl"[^>]*><span class="stl-l"><svg class="ring pct bad"[^>]*>.*<span class="lbl bad">Running low<\/span><\/span><span class="rst"/);
+assert.doesNotMatch(html, /class="lbl[^"]*">Week</, "without a pace the status line names the level, never the window (fa gap 1)");
 // RF4.2: the overflow order: compact label → drop detail → truncate; the reset is never measured or cut
 const width = (p) => [...`${p.label}${p.detail ? ` · ${p.detail}` : ""}`].length * 7;
 const longest = { label: "34 puntos por encima del ritmo", compact: "↑ 34 pts", detail: "se agota a las 18:53, 1d 7h antes del reinicio" };
@@ -66,8 +67,8 @@ assert.match(staleHtml, /class="mtr good stale"/);
 assert.match(staleHtml, /Stale/);
 assert.doesNotMatch(staleHtml, /class="pm/, "no pace mark on a stale meter");
 const gone = c.rowHtml(report({ exhausted: true }), { title: "Cursor" });
-assert.match(gone, /<b class="bad">Exhausted<\/b>/);
-assert.doesNotMatch(gone, /<small>left<\/small>/, "a word figure has no unit line");
+assert.match(gone, /<b class="">0%<\/b><small>left<\/small>/, "an exhausted figure stays a number; the status line names the state (fa gap 5)");
+assert.match(gone, /<span class="lbl bad">Limit hit<\/span>/, "the status line carries the exhausted state");
 
 // every locale renders the unit word below the figure
 for (const [locale, unit] of [["pt-BR", "disponível"], ["es", "disponible"], ["it", "disponibile"]]) {

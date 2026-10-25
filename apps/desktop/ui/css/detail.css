@@ -170,9 +170,19 @@
   height: 13px;
   margin-top: 1px;
 }
+/* Fa gap 7 (mockup 05): the extra-usage figure reads like a sub-limit figure (no big colored sentence); its cycle
+   line is the muted mono reset line, left-aligned. */
 .extra-detail .balance {
-  color: var(--warn);
+  color: var(--fg);
+  font-size: var(--text-base);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.extra-detail .resets {
+  text-align: left;
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  font-weight: 400;
+  color: var(--fg-muted);
 }
 .pace-line svg.i {
   flex: none;

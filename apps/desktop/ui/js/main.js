@@ -98,9 +98,11 @@ function windowSlot(r, name, w, stale = false) {
  *  is being billed, takes the second column. */
 function summaryHtml(r, stale = false) {
   const win = windowsOf(r);
-  if (win.h5 || win.week) return `<div class="wins">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}</div>`;
+  // Fa gap 4: paid extra usage is its own limit column (mockup 10), never a repeated chip.
+  const extra = stale ? "" : extraColumn(r);
+  if (win.h5 || win.week) return `<div class="wins${extra ? " three" : ""}">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}${extra}</div>`;
   const s = summaryOf(r);
-  if (s.kind === "bar") return `<div class="wins">${limitColumn(r, s.m.label, s.m, s.pct, stale)}${stale ? "" : extraColumn(r)}</div>`;
+  if (s.kind === "bar") return `<div class="wins">${limitColumn(r, s.m.label, s.m, s.pct, stale)}${extra}</div>`;
   if (s.kind === "text") {
     return `<div class="sum-text">
       <div class="win-top"><span class="win-name">${esc(s.m.label)}</span></div>
@@ -110,6 +112,9 @@ function summaryHtml(r, stale = false) {
   if (s.kind === "renewed") return `<p class="sum-note" data-renewed-waiting>${icon("clock")}<span>${esc(renewedText(s.m))}</span></p>`;
   return `<div class="sum-none">${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown" })}<p class="sum-note">${esc(causeText(r))}</p></div>`;
 }
+
+/** Whether the summary draws the extra-usage column (then the foot leaves its chip out). */
+const hasExtraColumn = (r) => !!billingOverage(r) && (!!(windowsOf(r).h5 || windowsOf(r).week) || summaryOf(r).kind === "bar");
 
 /** PRD 0022 RF3.5 (DS-TOK-BRD-3): one state stripe at most: critical > warning. */
 const stripeOf = (r, alert) => (alert?.tone === "bad" || isRecharging(r) ? "stripe-bad" : r.usage_alerts?.length ? "stripe-warn" : "");
@@ -133,7 +138,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const chips = [
     connection ? connectionChips(r) : "",
     recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : "",
-    stale ? "" : overageChipHtml(r),
+    stale || hasExtraColumn(r) ? "" : overageChipHtml(r),
     missedLevel ? `<span class="mini info" data-missed-chip title="${te("alerts.missed", { percent: missedLevel })}">${icon("clock")}<span class="mini-t">${te("alerts.missedChip")}</span></span>` : "",
     r.session_expiry ? `<span class="mini ${r.session_expiry.soon ? "warn" : ""}" data-session-expiry title="${esc(tl(r.session_expiry.label))}">${icon("clock")}<span class="mini-t">${esc(tl(r.session_expiry.label))}</span></span>` : "",
     rate != null && level(rate) !== "good" ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "",
@@ -170,7 +175,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>

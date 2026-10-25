@@ -33,7 +33,7 @@ assert.match(header, /class="tst" aria-hidden="true"/, "a provider needing atten
 
 const footer = /<footer class="pop-foot">([\s\S]*?)<\/footer>/.exec(rendered)?.[1] ?? "";
 assert.match(footer, /data-open-settings aria-keyshortcuts="(Meta|Control)\+Comma"/);
-assert.match(footer, /data-open-main/);
+assert.doesNotMatch(footer, /data-open-main/, "the main window opens from the tray menu, not the footer (mockup 01)");
 assert.match(footer, /data-refresh-all aria-label="Refresh all"/);
 assert.doesNotMatch(rendered, /alert-chip/, "no attention chips in the footer (DS-CMP-FOOT-3)");
 assert.ok((rendered.match(/class="pop-notice/g) ?? []).length <= 1, "one notice at a time (DS-CMP-FOOT-4)");

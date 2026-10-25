@@ -36,6 +36,7 @@ const store = createStore(() => render());
 let expanded = null; // the one expanded row (DS-CMP-ROW-5), or the opened drill-in (Rings, Compact, 9router, connection)
 let filter = "all"; // the selected filter tab: "all" or a provider id (remembered for this window, DS-CMP-TAB-5)
 let moreOpen = false;
+let filterBeforeOpen = null; // the tab to return to when an account opened from "All" closes (fa gap 6)
 let models = null; // models section of the expanded account; survives re-renders
 // DS-CMP-TAB-4: provider tabs shown before "More"; measured after each render (tabs never wrap or scroll).
 let tabFit = 8;
@@ -71,7 +72,8 @@ const notInHtml = () => `<p class="pop-sub" role="presentation">${te("settings.m
 
 /** The chips a row carries besides its status line: extra usage (PRD 0023), the best account (PRD 0024 RF7) and a
  *  9router connection's own state (PRD 0036). */
-const rowChips = (r, via = false) => `${isConnection(r) ? connectionChips(r, { via }) : ""}${overageChipHtml(r)}${bestChipHtml(r)}`;
+// Fa gap 4: an exhausted account on extra usage says so on its status line, so the extra chip stays off the row.
+const rowChips = (r, via = false) => `${isConnection(r) ? connectionChips(r, { via }) : ""}${accountState(r).kind === "exhausted" ? "" : overageChipHtml(r)}${bestChipHtml(r)}`;
 
 /** The row of one account, with the multi-account title rule (DS-CMP-ROW-1) and its monogram. */
 function row(r, ctx, open = null, { via = false } = {}) {
@@ -97,9 +99,18 @@ function ringTile(r, ctx) {
   const center = glyph ? icon(glyph, `sg ${st.icon ? st.role : st.kind === "exhausted" ? "bad" : "muted"}`)
     : `<span class="${[...f.fig].length > 3 ? "long" : ""}${f.role ? ` ${f.role}` : ""}">${esc(f.fig)}</span>`;
   return `<button class="tile" data-open="${esc(reportKey(r))}" aria-label="${esc(name)}" title="${esc(name)}">
-    <span class="donut${st.stale ? " stale" : ""}">${ringHtml(st.kind === "status" ? "unknown" : st.kind === "exhausted" ? "pct" : st.kind, st.pct, 64)}<span class="center">${center}</span></span>
+    <span class="donut${st.stale || (r.status === "ready" && r.freshness === "aging") ? " stale" : ""}">${ringHtml(st.kind === "status" ? "unknown" : st.kind === "exhausted" ? "pct" : st.kind, st.pct, 64)}<span class="center">${center}</span></span>
     <span class="tile-name">${tileHtml(r.provider, 14)}<b>${esc(ctx.repeated.has(r.provider) ? accountLabel(r) : brand(r.provider).label)}</b></span>
-    <span class="tile-st lbl ${p.role}">${stateGlyph(st)}<span>${esc(p.label)}</span></span></button>`;
+    <span class="tile-st lbl ${p.role}">${tileStateIcon(st, p)}<span>${esc(p.label)}</span></span></button>`;
+}
+/** Fa gap 10 (mockup 01c): the tile's status leads with a state icon (✓ ⚠ ✕ clock), never a second ring. */
+function tileStateIcon(st, p) {
+  if (st.icon) return icon(st.icon, `sg ${st.role}`);
+  if (st.kind === "exhausted") return icon("xcircle", "sg bad");
+  if (st.kind === "stale" || st.kind === "unknown") return icon("clock", `sg ${st.kind === "stale" ? "warn" : "muted"}`);
+  if (p.pace) return icon({ good: "check", neutral: "check", warn: "warn", bad: "xcircle" }[p.pace.tone] ?? "clock", `sg ${p.role}`);
+  const role = p.role === "fg" ? st.role : p.role;
+  return icon(role === "good" ? "check" : role === "bad" ? "xcircle" : role === "warn" ? "warn" : "clock", `sg ${role}`);
 }
 
 /** Compact view (RF8.1): one 44 px line per account: tile, name, 72 px bar with the pace tick, state glyph, figure. */
@@ -191,8 +202,8 @@ function noticeHtml(view, error) {
 
 const isMac = () => /^Mac/.test(globalThis.navigator?.platform ?? "");
 /** DS-CMP-FOOT-1..3: Settings and Stats on the left; the last completed refresh's age and refresh on the right. The
- *  Settings keycap lives in the tooltip and `aria-keyshortcuts` (PRD 0022 RF7.2 amendment); the main window is the
- *  last icon (it also opens from the tray menu). */
+ *  Settings keycap lives in the tooltip and `aria-keyshortcuts` (PRD 0022 RF7.2 amendment); the main window opens
+ *  from the tray menu (mockup 01 has no footer icon for it). */
 function footerHtml(view, statsShown) {
   const busy = !!view && view.busy.length > 0;
   const age = view?.finished_at ? fmtAge(view.finished_at) : "";
@@ -203,7 +214,6 @@ function footerHtml(view, statsShown) {
     <span class="grow"></span>
     ${age ? `<span class="foot-age" title="${esc(t("tray.footer.age", { age }))}">${esc(age)}</span>` : ""}
     <button class="icon" data-refresh-all aria-label="${esc(refreshName)}" title="${esc(refreshName)}" ${busy ? 'aria-busy="true" disabled' : ""}>${icon("refresh", busy ? "spin" : "")}</button>
-    <button class="icon" data-open-main aria-label="${te("common.open")}" title="${te("common.open")}">${icon("window")}</button>
   </footer>`;
 }
 
@@ -291,6 +301,7 @@ function render() {
 
 function select(next) {
   filter = next;
+  filterBeforeOpen = null;
   moreOpen = false;
   render();
   (root.querySelector(`[role="tab"][data-tab="${CSS.escape(next)}"]`) ?? root.querySelector("[data-more]"))?.focus();
@@ -298,6 +309,7 @@ function select(next) {
 function back() {
   const key = expanded;
   expanded = null;
+  if (filterBeforeOpen) { filter = filterBeforeOpen; filterBeforeOpen = null; }
   statsOpen = false;
   render();
   if (key) root.querySelector(`[data-open="${CSS.escape(key)}"], [data-agg-toggle="${CSS.escape(key)}"]`)?.focus();
@@ -332,6 +344,11 @@ root.addEventListener("click", (e) => {
     const key = open.dataset.open;
     expanded = expanded === key && !open.closest(".agg-body") ? null : key;
     statsOpen = false;
+    // Fa gap 6 (mockup 03): opening an account from "All" in the list selects its provider's tab, so the expanded
+    // account is shown on its own tab instead of in the middle of the full list; Esc goes back to "All".
+    const target = expanded && trayViewPref() === "list" ? withConnections(store.view?.reports ?? []).find((x) => reportKey(x) === expanded) : null;
+    if (target && filter === "all" && !isConnection(target) && !isAggregator(target)) { filterBeforeOpen = filter; filter = target.provider; }
+    else if (!expanded && filterBeforeOpen) { filter = filterBeforeOpen; filterBeforeOpen = null; }
     clearChange(key); // RF12.3: opening the account clears its change marker
     render();
     return root.querySelector(`[data-open="${CSS.escape(key)}"]`)?.focus();

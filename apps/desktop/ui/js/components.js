@@ -196,6 +196,8 @@ export function statusParts(r, st = accountState(r)) {
     label = t("stage.exhausted"); // the figure already reads "Exhausted"; the reset carries the return time
     role = "bad";
     reset = isBlocked(r) ? r.binding.blocked_until : binding?.resets_at ?? null;
+    // Fa gap 4: on paid extra usage the one line says so ("Limit hit · on extra balance"); the money is the figure.
+    if (billingOverage(r)) detail = t("stl.onExtra");
   } else if (pace) {
     // DS-CMP-STL-3: the pace stage names the line; the core's sentence stays in the tooltip.
     label = t(`stage.${pace.stage}`);
@@ -203,9 +205,13 @@ export function statusParts(r, st = accountState(r)) {
     detail = [tl(pace.label), pace.outlook ? tl(pace.outlook) : ""].filter(Boolean).join(" · ");
     reset = binding.resets_at;
   } else if (binding) {
+    // Fa gap 1: without a pace the line names the level (never the window, which the meter's limit already is); the
+    // window stays in the detail and the tooltip.
     const w = r.binding.window;
-    label = w && w !== "other" ? t(`card.binding.${w}`) : r.binding.label ?? binding.label;
-    role = "fg";
+    const lv = st.role === "good" || st.role === "warn" || st.role === "bad" ? st.role : null;
+    label = lv ? t(`stage.level.${lv}`) : w && w !== "other" ? t(`card.binding.${w}`) : r.binding.label ?? binding.label;
+    role = lv ?? "fg";
+    if (lv) detail = w && w !== "other" ? t(`card.binding.${w}`) : r.binding.label ?? binding.label ?? "";
     reset = binding.resets_at;
   } else if (st.kind === "unknown") {
     label = t("meter.noData");
@@ -252,7 +258,7 @@ export function statusLineHtml(r, st = accountState(r), { glyph = true, compact 
   if (!p.label && !p.reset) return "";
   const lbl = p.label ? `<span class="lbl ${p.role}">${esc(p.label)}</span>` : "";
   const chips = !p.pace ? "" : compact ? timeChipHtml(p.binding?.forecast?.chip, { compact: true }) : paceChipsHtml(p.binding, p.pace);
-  const det = st.kind === "stale" && p.detail ? `<span class="det">· ${esc(p.detail)}</span>` : "";
+  const det = (st.kind === "stale" || st.kind === "exhausted") && p.detail ? `<span class="det">· ${esc(p.detail)}</span>` : "";
   const rst = reset && p.reset ? `<span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>` : "";
   return `<span class="stl" title="${esc(p.full)}"><span class="stl-l">${glyph ? stateGlyph(st) : ""}${lbl}${chips}${det}</span>${rst}</span>`;
 }
@@ -406,9 +412,10 @@ export function figureOf(r, st = accountState(r)) {
     // DS-CMP-ROW-2, DS-COL-3: on extra balance the figure is the money being charged ("$6.25 extra").
     const o = billingOverage(r);
     if (o?.spent != null) return { fig: fmtExtra(o.spent, o.unit, o.currency), unit: t("figure.extra"), role: "warn" };
-    return { fig: t("metric.exhausted"), unit: "", role: "bad", word: true };
+    // Fa gap 5: the figure stays a number ("0% left"); the status line already names the state in its role.
+    return { fig: "0%", unit: t("card.available"), role: "" };
   }
-  if (st.pct != null) return { fig: `${Math.round(st.pct)}%`, unit: t("card.available"), role: "", dim: st.kind === "stale" };
+  if (st.pct != null) return { fig: `${Math.round(st.pct)}%`, unit: t("card.available"), role: "", dim: st.kind === "stale" || isAging(r) };
   const s = summaryOf(r);
   if (s.kind === "text") return { fig: s.text, unit: "", role: "", word: true };
   return { fig: "—", unit: "", role: "" };
@@ -461,6 +468,8 @@ export function rowName(r, st = accountState(r)) {
   const value = f.unit ? t("meter.left", { pct: Math.round(st.pct) }) : f.fig;
   return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.resetFull].filter(Boolean).join(", ");
 }
+/** Fa gap 9 (mockup 06): an aging reading is drawn like a stale one: dimmed figure, dotted meter, no pace mark. */
+const isAging = (r) => r.status === "ready" && r.freshness === "aging";
 /** The row's meter with its accessible value text (DS-CMP-MTR-9); none for a failed query without a reading. */
 export function accountMeterHtml(r, st = accountState(r), { thin = false } = {}) {
   if (st.kind === "status") return "";
@@ -468,8 +477,8 @@ export function accountMeterHtml(r, st = accountState(r), { thin = false } = {})
   const p = statusParts(r, st);
   return meterHtml(st.pct, {
     thin,
-    state: st.kind === "stale" ? "stale" : st.kind === "exhausted" ? "exhausted" : st.pct == null ? "unknown" : "fresh",
-    expected: st.kind === "pct" ? expectedLeft(binding) : null,
+    state: st.kind === "stale" || (st.kind === "pct" && isAging(r)) ? "stale" : st.kind === "exhausted" ? "exhausted" : st.pct == null ? "unknown" : "fresh",
+    expected: st.kind === "pct" && !isAging(r) ? expectedLeft(binding) : null,
     text: st.pct == null ? t("meter.noData") : p.full ? t("meter.valuetext", { pct: Math.round(st.pct), status: p.full }) : "",
   });
 }
@@ -494,7 +503,7 @@ export function rowHtml(r, { title, sub = "", mono = "", open = null, key = repo
     <button class="rh" data-open="${esc(key)}" aria-expanded="${open != null}" aria-label="${esc(name)}" title="${esc(name)}">
       ${tileHtml(r.provider, 32, mono)}
       <span class="rc">
-        <span class="r1"><span class="nm">${esc(title)}</span>${planBadgeHtml({ plan })}${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim, cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
+        <span class="r1"><span class="nm">${esc(title)}</span>${planBadgeHtml({ plan })}${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim || isAging(r), cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
         ${meter ? `<span class="rm">${meter}</span>` : ""}
         ${status}
         ${lay.elements.sublimits ? subLimitsHtml(r) : ""}
