@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0027 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (`account_edit` catalog and search, presence detection), desktop and TUI account editors |
 | Consumers | `apps/desktop/ui/js/account-dialog.js`, `crates/cuotai-tui/src/wizard.rs`, PRD 0025 (RF5.4, RF6) |
 | Depends on | PRD 0005 (RF1: `access::describe` credential class, level and metering) |
@@ -17,8 +17,8 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
+| RF1 | vNEXT | Core `account_edit::catalog` (`catalog.rs`): one entry per provider and mode, hint and sign-in method derived from the access descriptor, recommended mode, generated table in `docs/providers.md`. Extension entries (RF1.3) wait for the PRD 0017 discovery hook. |
+| RF2 | vNEXT | Core `account_edit::search`: case- and accent-insensitive ranking, one result per provider unless the query names a mode, empty query grouped by sign-in method. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
 | RF5 | — | Proposed. |

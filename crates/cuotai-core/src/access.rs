@@ -1283,6 +1283,10 @@ mod tests {
     /// produces today; a classification change without the document fails.
     #[test]
     fn providers_doc_matrix_matches_the_descriptors() {
+        // Both doc tests rewrite the same file when regenerating.
+        let _guard = crate::catalog::DOC_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
             .join(PROVIDERS_DOC);

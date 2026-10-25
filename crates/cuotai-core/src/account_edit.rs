@@ -22,6 +22,12 @@ use crate::oauth::{requires_client_registration, OAuthConfig};
 use crate::{Account, Config, Provider};
 use std::collections::BTreeMap;
 
+// PRD 0027 RF1/RF2: the provider catalog and its search live in `catalog.rs`
+// and are exposed here with the other account-editing descriptors.
+pub use crate::catalog::{
+    catalog, search, CatalogEntry, CatalogMatch, Category, LocalSource, SignInMethod,
+};
+
 /// Minimum interval accepted for an individual account override. Matches the
 /// global minimum so a per-account override can never be more aggressive than
 /// the global cap.
