@@ -30,6 +30,8 @@ serde_json.workspace = true
 # `signal`: `--serve` and `--watch` shut down on SIGINT/SIGTERM (and `--watch` on SIGHUP).
 tokio = { workspace = true, features = ["signal"] }
 clap = { version = "4", features = ["derive"] }
+# PRD 0031 RF3: `--completions` for bash, zsh, fish and PowerShell.
+clap_complete = "4"
 ratatui = { version = "0.30", features = ["unstable-rendered-line-info"] }
 crossterm = "0.29"
 sys-locale = "0.3"

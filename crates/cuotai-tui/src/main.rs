@@ -123,6 +123,26 @@ struct Args {
     /// Com --canary, inclui também as contas cobradas por consulta.
     #[arg(long, requires = "canary")]
     canary_include_metered: bool,
+    /// PRD 0031 RF3: imprime o script de completação do shell indicado
+    /// (gerado da definição da linha de comando) e sai com 0. É local: não
+    /// lê a configuração nem consulta a rede.
+    #[arg(
+        long,
+        value_name = "SHELL",
+        conflicts_with_all = [
+            "list_providers",
+            "install_source",
+            "once",
+            "json",
+            "json_v1",
+            "history",
+            "notify",
+            "serve",
+            "watch",
+            "cost_action",
+        ]
+    )]
+    completions: Option<clap_complete::Shell>,
     /// Informa de onde esta cópia foi instalada, por que o atualizador
     /// interno deve ficar desligado e o comando de atualização, quando
     /// conhecido. É local: não lê a configuração nem consulta a rede.
@@ -555,6 +575,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     };
     if args.install_source {
         print_install_source()?;
+        return Ok(0);
+    }
+    if let Some(shell) = args.completions {
+        let mut command = <Args as clap::CommandFactory>::command();
+        clap_complete::generate(shell, &mut command, "cuotai", &mut std::io::stdout());
         return Ok(0);
     }
     if args.list_providers {

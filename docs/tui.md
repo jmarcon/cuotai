@@ -27,6 +27,16 @@ cargo run -p cuotai-tui -- --notify   # announce quota resets and usage alerts w
 cargo run -p cuotai-tui -- --status   # show the providers' public status (off by default)
 ```
 
+### Shell completions
+
+`cuotai --completions bash|zsh|fish|powershell` prints a completion script generated from the command-line definition and exits 0 (it reads no configuration and uses no network). For example:
+
+```sh
+cuotai --completions bash > ~/.local/share/bash-completion/completions/cuotai
+cuotai --completions zsh  > "${fpath[1]}/_cuotai"
+cuotai --completions fish > ~/.config/fish/completions/cuotai.fish
+```
+
 The TUI resolves the texts delivered by the core (login labels,
 fields, help, edit errors, report notes, cost warnings) against the
 core catalog, using the locale set in `CUOTAI_LANG`
