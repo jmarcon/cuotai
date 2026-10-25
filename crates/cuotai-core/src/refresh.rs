@@ -13,7 +13,24 @@ use chrono::{TimeDelta, Utc};
 /// PRD 0033 RF2.2: restored readings older than this are not used.
 pub const RESTORE_MAX_AGE: TimeDelta = TimeDelta::hours(24);
 
-use crate::{Account, Config, Report, Snapshot, Status};
+use crate::{Account, Config, MetricKind, Report, Snapshot, Status};
+
+/// PRD 0033 RF1.2: the reset-driven query runs this long after the reset.
+pub const RESET_QUERY_DELAY: TimeDelta = TimeDelta::seconds(30);
+/// PRD 0033 RF1.1: a deadline within this of the wanted time is left alone.
+const BRING_FORWARD_SLACK: Duration = Duration::from_secs(60);
+/// PRD 0033 RF1.2: minimum spacing between two reset-driven queries of an
+/// account.
+const RESET_QUERY_SPACING: Duration = Duration::from_secs(300);
+
+/// What the cycle remembers of an account's reset-driven query (RF1.2).
+#[derive(Clone, Debug)]
+struct ResetQuery {
+    /// Earliest `resets_at` of the window instance that was served.
+    instance: chrono::DateTime<Utc>,
+    /// When the extra query was armed.
+    armed_at: Instant,
+}
 
 /// Refresh state for one validated [`Config`].
 ///
@@ -71,6 +88,9 @@ pub struct RefreshCycle {
     /// returns them all — and the scheduler would re-fire the same
     /// full sweep every tick.
     attempted_full: bool,
+    /// Reset-driven queries already armed, by [`Report::account_key`], so
+    /// each window instance causes at most one (PRD 0033 RF1.2).
+    reset_queries: std::collections::BTreeMap<String, ResetQuery>,
 }
 
 /// Identifier returned by [`RefreshCycle::begin`]. The frontend passes
@@ -154,6 +174,83 @@ impl RefreshCycle {
             generation: 0,
             in_flight: vec![None; len],
             attempted_full: false,
+            reset_queries: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// PRD 0033 RF1.1: lower `index`'s deadline to `at`. Never raises it,
+    /// and does nothing while the account is busy or when `at` is within
+    /// 60 s of the current deadline. `true` when the deadline moved.
+    pub fn bring_forward(&mut self, index: usize, at: Instant) -> bool {
+        let Some(deadline) = self.deadlines.get(index).copied() else {
+            return false;
+        };
+        if self.busy.contains(&index) || at + BRING_FORWARD_SLACK > deadline {
+            return false;
+        }
+        self.deadlines[index] = at;
+        true
+    }
+
+    /// PRD 0033 RF1.2/RF1.3: after a reading, schedule the one extra query
+    /// that follows the account's next plan-limit reset. `wall` is the
+    /// current wall clock, `now` the scheduler's.
+    fn arm_reset_query(
+        &mut self,
+        index: usize,
+        report: &Report,
+        wall: chrono::DateTime<Utc>,
+        now: Instant,
+    ) {
+        if report.status != Status::Ready || report.provider.is_metered() {
+            return;
+        }
+        let mut resets: Vec<_> = report
+            .metrics
+            .iter()
+            .filter(|m| m.kind == MetricKind::Quota)
+            .filter_map(|m| m.resets_at)
+            .filter(|at| *at > wall)
+            .collect();
+        resets.sort();
+        let Some(first) = resets.first().copied() else {
+            return;
+        };
+        let key = report.account_key();
+        if let Some(done) = self.reset_queries.get(&key) {
+            if (done.instance - first).abs() < crate::resets::DRIFT_TOLERANCE {
+                return;
+            }
+        }
+        // Resets within two minutes of the first share one query, after
+        // the last of them.
+        let last = resets
+            .iter()
+            .copied()
+            .take_while(|at| *at - first <= crate::resets::DRIFT_TOLERANCE)
+            .last()
+            .unwrap_or(first);
+        let target = (last + RESET_QUERY_DELAY - wall)
+            .to_std()
+            .map_or(now, |d| now + d);
+        let target = match self.reset_queries.get(&key) {
+            Some(done) => target.max(done.armed_at + RESET_QUERY_SPACING),
+            None => target,
+        };
+        let deadline = self.deadlines[index];
+        // Moved, or the scheduled query already lands within a minute of
+        // the wanted time. A deadline well before it does not count and
+        // re-arms on the next reading.
+        let covered = self.bring_forward(index, target)
+            || (target + BRING_FORWARD_SLACK > deadline && target < deadline + BRING_FORWARD_SLACK);
+        if covered {
+            self.reset_queries.insert(
+                key,
+                ResetQuery {
+                    instance: first,
+                    armed_at: now,
+                },
+            );
         }
     }
 
@@ -257,6 +354,7 @@ impl RefreshCycle {
             generation: self.generation,
             in_flight: self.in_flight.clone(),
             attempted_full: self.attempted_full,
+            reset_queries: self.reset_queries.clone(),
         }
     }
 
@@ -501,6 +599,7 @@ impl RefreshCycle {
                 let backoff = Self::backoff_for(self.intervals[index], next_failures);
                 self.deadlines[index] = now + backoff;
                 self.remember(index, report);
+                self.arm_reset_query(index, report, Utc::now(), now);
             }
             self.slots = snapshot.reports.iter().cloned().map(Some).collect();
             self.snapshot = Some(snapshot);
@@ -571,6 +670,9 @@ impl RefreshCycle {
                 };
                 let backoff = Self::backoff_for(self.intervals[index], next_failures);
                 self.remember(index, &report);
+                self.deadlines[index] = now + backoff;
+                self.arm_reset_query(index, &report, Utc::now(), now);
+                let next_deadline = self.deadlines[index];
                 self.slots[index] = Some(report);
                 if let Some(snapshot) = self.snapshot.as_mut() {
                     snapshot.reports[index] = self.slots[index]
@@ -588,7 +690,7 @@ impl RefreshCycle {
                             .collect(),
                     });
                 }
-                self.deadlines[index] = now + backoff;
+                self.deadlines[index] = next_deadline;
             }
             None => {
                 // The task itself failed (panic, network exception) and
@@ -2537,5 +2639,106 @@ mod prd0033_rf2_tests {
             TimeDelta::hours(5),
         ))]);
         assert!(cycle.last_good_report(0).is_none());
+    }
+    fn quota_report(provider: Provider, resets: &[TimeDelta]) -> Report {
+        let mut report = reading(TimeDelta::zero(), TimeDelta::hours(1));
+        report.provider = provider;
+        let base = report.metrics[0].clone();
+        report.metrics = resets
+            .iter()
+            .enumerate()
+            .map(|(i, after)| crate::Metric {
+                label: format!("w{i}"),
+                resets_at: Some(Utc::now() + *after),
+                ..base.clone()
+            })
+            .collect();
+        report
+    }
+
+    fn cycle_with(provider: Provider, seconds: u64) -> (RefreshCycle, Instant) {
+        let now = Instant::now();
+        let acct = crate::Account {
+            name: "a".into(),
+            provider,
+            credential_env: None,
+            session: None,
+            oauth: None,
+            params: Default::default(),
+            refresh_seconds: Some(seconds),
+        };
+        let config = Config {
+            accounts: vec![acct],
+            ..Config::default()
+        };
+        (RefreshCycle::new(&config, now), now)
+    }
+
+    fn finish_one(cycle: &mut RefreshCycle, report: Report, now: Instant) {
+        let token = cycle.begin(0).unwrap();
+        assert!(cycle.finish_account(0, Some(report), token, now));
+    }
+
+    #[test]
+    fn a_reset_brings_the_account_forward_once() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let report = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
+        finish_one(&mut cycle, report.clone(), now);
+        let wait = cycle.next_refresh_in(0, now);
+        assert!(wait > Duration::from_secs(10 * 60 + 25), "{wait:?}");
+        assert!(wait < Duration::from_secs(10 * 60 + 35), "{wait:?}");
+        // The extra query answered; the same window instance does not
+        // arm a second one.
+        let later = now + wait;
+        finish_one(&mut cycle, report, later);
+        assert_eq!(cycle.next_refresh_in(0, later), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn resets_within_two_minutes_share_one_query() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let report = quota_report(
+            Provider::Claude,
+            &[TimeDelta::minutes(10), TimeDelta::minutes(11)],
+        );
+        finish_one(&mut cycle, report, now);
+        let wait = cycle.next_refresh_in(0, now);
+        assert!(wait > Duration::from_secs(11 * 60 + 25), "{wait:?}");
+        assert!(wait < Duration::from_secs(11 * 60 + 35), "{wait:?}");
+    }
+
+    #[test]
+    fn metered_accounts_are_never_brought_forward() {
+        let (mut cycle, now) = cycle_with(Provider::AwsBedrock, 3600);
+        let report = quota_report(Provider::AwsBedrock, &[TimeDelta::minutes(10)]);
+        finish_one(&mut cycle, report, now);
+        assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn a_scheduled_refresh_next_to_the_reset_adds_no_query() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 600 + 45);
+        let report = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
+        finish_one(&mut cycle, report, now);
+        assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(645));
+    }
+
+    #[test]
+    fn bring_forward_never_raises_and_skips_busy_accounts() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 600);
+        assert!(!cycle.bring_forward(0, now + Duration::from_secs(900)));
+        assert!(cycle.bring_forward(0, now + Duration::from_secs(60)));
+        assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(60));
+        let _ = cycle.begin(0).unwrap();
+        assert!(!cycle.bring_forward(0, now));
+    }
+
+    #[test]
+    fn failed_readings_do_not_arm_a_reset_query() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let mut report = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
+        report.status = Status::AuthenticationError;
+        finish_one(&mut cycle, report, now);
+        assert!(cycle.next_refresh_in(0, now) >= Duration::from_secs(3600));
     }
 }
