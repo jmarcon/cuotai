@@ -179,6 +179,7 @@ fn aliases(provider: Provider) -> &'static [&'static str] {
         Provider::Antigravity => &["google"],
         Provider::Kimchi => &[],
         Provider::ElevenLabs => &["eleven labs", "11labs"],
+        Provider::NineRouter => &["9router", "nine router", "router", "aggregator"],
         Provider::Extension => &[],
     }
 }
@@ -222,6 +223,7 @@ fn category(provider: Provider) -> Category {
         | Provider::AlibabaCodingPlan
         | Provider::AlibabaTokenPlan
         | Provider::Antigravity => Category::CodingTool,
+        Provider::NineRouter => Category::Router,
         Provider::Extension => Category::Extension,
     }
 }
@@ -289,6 +291,10 @@ fn method_and_hint(
         Credential::UserSession => (
             SignInMethod::WebSession,
             hint("web_session", "Cole uma sessão web"),
+        ),
+        Credential::AggregatorLogin => (
+            SignInMethod::ApiKey,
+            hint("aggregator_login", "Senha do painel (opcional)"),
         ),
     }
 }

@@ -1289,6 +1289,7 @@
   "catalog.hint.cloud": "Cloud credentials",
   "catalog.hint.local_cli": "Uses the {cli} CLI",
   "catalog.hint.web_session": "Paste a web session",
+  "catalog.hint.aggregator_login": "Dashboard password (optional)",
   "stats.history_kept": "History kept {days} days on this device",
   "stats.not_enough": "Not enough history",
   "oauth.page.success.title": "Authorization received",

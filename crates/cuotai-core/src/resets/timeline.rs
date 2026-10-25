@@ -185,6 +185,7 @@ mod tests {
 
     fn report(metrics: Vec<Metric>) -> Report {
         Report {
+            sub_reports: Vec::new(),
             diagnostic: Default::default(),
             account_id: None,
             account: "x".into(),

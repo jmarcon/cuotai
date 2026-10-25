@@ -2480,6 +2480,7 @@ mod prd0033_rf2_tests {
     fn reading(checked_ago: TimeDelta, resets_in: TimeDelta) -> Report {
         let now = Utc::now();
         Report {
+            sub_reports: Vec::new(),
             diagnostic: Default::default(),
             account_id: None,
             account: "a".into(),

@@ -105,7 +105,7 @@
         "upstream": { "type": "string", "description": "The aggregator's provider slug, verbatim." },
         "provider": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Provider" }], "description": "The mapped Cuotai provider; null for an upstream Cuotai does not know." },
         "label": { "type": "string", "description": "Connection name as the aggregator masks it; an e-mail is redacted unless identity is included." },
-        "status": { "enum": ["ready", "needs_configuration", "unsupported", "authentication_error", "rate_limited", "error"] },
+        "status": { "anyOf": [{ "enum": ["ready", "needs_configuration", "unsupported", "authentication_error", "rate_limited", "error"] }, { "type": "string" }] },
         "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" } },
         "notes_l10n": { "type": "array", "items": { "$ref": "#/$defs/Localized" } },
         "checked_at": { "type": "string", "format": "date-time" },

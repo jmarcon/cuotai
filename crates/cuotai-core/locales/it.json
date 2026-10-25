@@ -1289,6 +1289,7 @@
   "catalog.hint.cloud": "Credenziali cloud",
   "catalog.hint.local_cli": "Usa la CLI {cli}",
   "catalog.hint.web_session": "Incolla una sessione web",
+  "catalog.hint.aggregator_login": "Password della dashboard (facoltativa)",
   "stats.history_kept": "Cronologia conservata per {days} giorni su questo dispositivo",
   "stats.not_enough": "Cronologia insufficiente",
   "oauth.page.success.title": "Autorizzazione ricevuta",

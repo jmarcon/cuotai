@@ -47,6 +47,7 @@ const VERIFIED: &[(&str, &str)] = &[
     ("kiro", "2026-10-20"),
     ("mini_max", "2026-10-20"),
     ("mistral", "2026-10-20"),
+    ("nine_router", "2026-10-25"),
     ("nvidia_nim", "2026-10-20"),
     ("ollama_cloud", "2026-10-20"),
     ("open_ai_api", "2026-10-20"),
