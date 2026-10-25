@@ -102,4 +102,11 @@ assert.equal(agg.aggregatorsInAll(), "listed");
 agg.setAggregatorsInAll("nonsense");
 assert.equal(agg.aggregatorsInAll(), "grouped");
 
+// PRD 0036 RF2.1/RF2.6: a vault password or key slot (`secret`) is a masked one-line field, an account-host slot
+// lists no hosts, and Test connection sends the unsaved pastes with the draft.
+const dialogSrc = await readFile(ui("js/account-dialog.js"), "utf8");
+assert.match(dialogSrc, /s\.secret\s*\n?\s*\/\/[^\n]*\n\s*\? `<input type="password" class="session-paste" data-slot=/, "secret slots render as password fields");
+assert.ok(dialogSrc.includes("${s.hosts.length ? `<small"), "no empty hosts line for account-host slots");
+assert.ok(dialogSrc.includes("testAggregator({ ...draftInput(), sessions: pastes() })"), "Test connection carries the pastes");
+assert.ok(!dialogSrc.includes('querySelectorAll("textarea[data-slot]")'), "pastes are read from every field kind");
 console.log("PASS: 9router instance, pools, connections and details render in pt-BR, en-US, es and it without raw keys, paths or e-mails");

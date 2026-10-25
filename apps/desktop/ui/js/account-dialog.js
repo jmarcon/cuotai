@@ -375,10 +375,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const sessionSlots = () => [...new Set([...(existing?.session_slots ?? []), ...pastes().map((p) => p.slot)])];
   const sessionBox = dlg.querySelector("#session-box");
   // PRD 0016 RF2.1: the pasted sessions live only in the masked fields; they go to the core on preview, test and save.
-  const pastes = () => [...sessionBox.querySelectorAll("textarea[data-slot]")]
+  const pastes = () => [...sessionBox.querySelectorAll(".session-paste[data-slot]")]
     .filter((el) => el.value.trim())
     .map((el) => ({ slot: el.dataset.slot, paste: el.value }));
-  const clearPastes = () => sessionBox.querySelectorAll("textarea[data-slot]").forEach((el) => { el.value = ""; });
+  const clearPastes = () => sessionBox.querySelectorAll(".session-paste[data-slot]").forEach((el) => { el.value = ""; });
   let confirmMigrate = false;
   let confirmForget = false;
   let previewSeq = 0;
@@ -395,10 +395,13 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>${slots.length ? sessionNoticeHtml(schema.session_notice) : ""}`
       + slots.map((s) => `<div class="session-slot">
           <label class="f"><span>${esc(tl(s.label))}</span>
-            <textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"
-              placeholder="${te("dialog.session.placeholder")}"></textarea>
+            ${s.secret
+              // PRD 0036 RF2.1: a vault password or key is a masked one-line field, never a cookie box.
+              ? `<input type="password" class="session-paste" data-slot="${esc(s.slot)}" autocomplete="new-password" autocapitalize="off" spellcheck="false">`
+              : `<textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"
+              placeholder="${te("dialog.session.placeholder")}"></textarea>`}
             <small class="hint">${esc(tl(s.instructions))}</small>
-            <small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>
+            ${s.hosts.length ? `<small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>` : ""}
             ${stored.includes(s.slot) ? `<small class="hint">${te("dialog.session.replace")}</small>` : ""}
             <small class="hint" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></label>
         </div>`).join("")
@@ -410,7 +413,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       + (offers.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-migrate">${te("dialog.session.migrate")}</button></div>` : "")
       + `<p class="hint" id="session-status" role="status" aria-live="polite">${esc(status)}</p>`;
     // RF2.2: the core says what each paste keeps (names, counts, expiry) — never the value.
-    sessionBox.querySelectorAll("textarea[data-slot]").forEach((el) => el.addEventListener("input", async () => {
+    sessionBox.querySelectorAll(".session-paste[data-slot]").forEach((el) => el.addEventListener("input", async () => {
       const seq = ++previewSeq;
       const out = sessionBox.querySelector(`[data-preview="${el.dataset.slot}"]`);
       sessionBox.querySelector("#session-test-status").textContent = "";
@@ -497,7 +500,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   }
   async function runAggregatorTest(pending) {
     aggregatorStatus.textContent = t(pending);
-    const result = await testAggregator(draftInput());
+    const result = await testAggregator({ ...draftInput(), sessions: pastes() });
     aggregatorStatus.textContent = tl(result.message);
     // PRD 0036 RF2.3: trust on first use — the fingerprint is pinned only after the user confirms it.
     if (!result.ok && result.fingerprint && (await confirmFingerprint(result.fingerprint)) === "trust") {
@@ -1134,7 +1137,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   await renderDynamic();
   renderModels();
   // SES-01: "Paste a new session" opens this editor on the account's paste box.
-  const pasteField = pasteSession ? sessionBox.querySelector("textarea[data-slot]") : null;
+  const pasteField = pasteSession ? sessionBox.querySelector(".session-paste[data-slot]") : null;
   if (pasteField) {
     sessionBox.querySelector("#session-status").textContent = t("dialog.session.pasteNew");
     sessionBox.scrollIntoView({ block: "center" });

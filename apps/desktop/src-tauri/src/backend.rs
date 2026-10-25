@@ -3942,7 +3942,10 @@ impl Backend {
             }
             (account, Arc::clone(&l.monitor))
         };
-        let test = monitor.test_nine_router(&account).await;
+        // PRD 0036 RF2.1/RF2.6: an unsaved vault password, key or SSO paste
+        // is tested in place of the saved one; nothing is stored here.
+        let pasted = reduce_pastes(input.provider, &input.sessions)?;
+        let test = monitor.test_nine_router_with(&account, &pasted).await;
         let mut g = self.inner.lock().await;
         g.aggregator_tested = test.is_ok().then(|| account.clone());
         Ok(AggregatorTestView {
@@ -4954,6 +4957,9 @@ pub struct SessionSlotSchema {
     label: cuotai_core::text::Localized,
     instructions: cuotai_core::text::Localized,
     hosts: &'static [&'static str],
+    /// PRD 0036 RF2.1/RF10.1: the paste is a password or key (a masked
+    /// one-line field), not a cookie list.
+    secret: bool,
 }
 
 /// The dialog's values in the core draft shape; unknown keys and values of
@@ -5137,6 +5143,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                 label: descriptor.label(),
                 instructions: descriptor.instructions(),
                 hosts: descriptor.hosts,
+                secret: descriptor.delivery == user_session::Delivery::Secret,
             })
             .collect(),
         session_notice: user_session::paste_notice(provider),
@@ -6977,6 +6984,50 @@ mod tests {
             }],
             save_anyway: false,
         }
+    }
+
+    /// PRD 0036 RF2.1/RF2.6: Test connection of a 9router draft reads the
+    /// pasted slots (an unsaved SSO session is reduced, and refused when it
+    /// lacks its cookie) instead of testing only the vault ones; the dialog
+    /// schema marks the vault password as a masked secret paste.
+    #[tokio::test(flavor = "current_thread")]
+    async fn aggregator_test_uses_the_pasted_sessions() {
+        let backend = build_backend(Arc::new(MemoryStore::default()), Vec::new()).await;
+        let mut input = pasted_input("theme=dark");
+        input.index = None;
+        input.provider = Provider::NineRouter;
+        input.name = "Home".into();
+        input.credential = String::new();
+        input.fields = vec![FieldValue {
+            key: "base_url".into(),
+            text: Some("http://127.0.0.1:9".into()),
+            choice: None,
+        }];
+        input.sessions[0].slot = user_session::NINE_ROUTER_SSO_SLOT.into();
+        let error = backend
+            .inner
+            .test_aggregator(input)
+            .await
+            .err()
+            .unwrap_or_default();
+        assert!(error.contains("auth_token"), "{error}");
+
+        let schema = serde_json::to_value(form_schema(Provider::NineRouter)).unwrap();
+        let slots = schema["sessions"].as_array().unwrap();
+        let secret = |slot: &str| {
+            slots
+                .iter()
+                .find(|s| s["slot"] == slot)
+                .map(|s| s["secret"].clone())
+        };
+        assert_eq!(
+            secret(user_session::CREDENTIAL_SLOT),
+            Some(serde_json::json!(true))
+        );
+        assert_eq!(
+            secret(user_session::NINE_ROUTER_SSO_SLOT),
+            Some(serde_json::json!(false))
+        );
     }
 
     /// PRD 0029 RF3.3: adding a second MiMo account beside an unnamed one
