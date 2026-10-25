@@ -65,7 +65,11 @@ pub struct Export {
 pub struct AccountExport {
     /// Position in the configuration.
     pub index: usize,
-    /// [`Account::key`]: `<provider slug>:<name>`, stable across reordering.
+    /// PRD 0029 RF4.1: [`Account::state_key`], stable across renames,
+    /// reordering and parameter edits. Prefer it to `key`.
+    pub id: String,
+    /// [`Account::key`]: `<provider slug>:<name>`, stable across reordering
+    /// but changed by a rename; prefer `id`.
     pub key: String,
     pub name: String,
     pub provider: Provider,
@@ -231,6 +235,7 @@ pub struct Limits {
 #[derive(Debug, Clone, Serialize)]
 pub struct AccountLimit {
     pub index: usize,
+    pub id: String,
     pub key: String,
     pub name: String,
     pub provider: Provider,
@@ -251,6 +256,7 @@ impl Limits {
                 .iter()
                 .map(|account| AccountLimit {
                     index: account.index,
+                    id: account.id.clone(),
                     key: account.key.clone(),
                     name: account.name.clone(),
                     provider: account.provider,
@@ -278,6 +284,7 @@ fn account_export(
     let age = |at| freshness::age(at, now).as_secs();
     AccountExport {
         index,
+        id: account.state_key(),
         key: account.key(),
         name: account.name.clone(),
         provider: account.provider,

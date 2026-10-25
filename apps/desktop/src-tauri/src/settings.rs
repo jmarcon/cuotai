@@ -141,7 +141,7 @@ pub const NOTIFY_LEADS: [u32; 4] = [0, 5, 15, 60];
 pub const NOTIFY_WHENS: [&str; 3] = ["used", "exhausted", "always"];
 
 /// PRD 0003 RF3: reset notice preferences of this device. The global switch
-/// is off by default; `off_accounts` holds the `Account::key`s whose bell is
+/// is off by default; `off_accounts` holds the `Account::state_key`s (ids, PRD 0029) whose bell is
 /// off (a rename changes the key and so loses the choice).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NotifyPrefs {

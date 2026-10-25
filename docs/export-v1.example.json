@@ -5,6 +5,7 @@
   "accounts": [
     {
       "index": 0,
+      "id": "acc_1crv1gsny95j",
       "key": "claude:Personal",
       "name": "Personal",
       "provider": "claude",
@@ -138,6 +139,7 @@
     },
     {
       "index": 1,
+      "id": "acc_76xeex2rdj2r",
       "key": "open_ai_api:Work",
       "name": "Work",
       "provider": "open_ai_api",
@@ -215,6 +217,7 @@
     },
     {
       "index": 2,
+      "id": "acc_6krg88fgngxa",
       "key": "groq:Groq",
       "name": "Groq",
       "provider": "groq",
@@ -286,6 +289,7 @@
     },
     {
       "index": 3,
+      "id": "acc_w4vqcwbqxcc9",
       "key": "kimi:Kimi",
       "name": "Kimi",
       "provider": "kimi",

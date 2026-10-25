@@ -352,12 +352,12 @@ fn a_restarted_engine_or_a_forgotten_account_starts_a_new_baseline() {
         [QuotaThresholdCrossed]
     );
 
-    watch.state.retain_accounts(["claude:Other"]);
+    watch.state.retain_accounts([sk("claude:Other").as_str()]);
     assert!(
         watch.read(6, ready(100.0)).is_empty(),
         "forgotten: baseline"
     );
-    watch.state.retain_accounts(["claude:Work"]);
+    watch.state.retain_accounts([sk("claude:Work").as_str()]);
     assert!(
         watch
             .read(8, failed(Status::Error, "query.transport"))
@@ -485,6 +485,7 @@ fn payloads_carry_the_common_fields_values_and_previous() {
             "event": "quota_threshold_crossed",
             "occurred_at": "2026-10-20T12:02:00Z",
             "account_key": "claude:Work",
+            "account_id": sk("claude:Work"),
             "account_name": "Work",
             "provider": "claude",
             "metric": { "label": LABEL, "window": "window_5h" },
@@ -513,6 +514,7 @@ fn payloads_carry_the_common_fields_values_and_previous() {
             "event": "refresh_failed",
             "occurred_at": "2026-10-20T12:04:00Z",
             "account_key": "claude:Work",
+            "account_id": sk("claude:Work"),
             "account_name": "Work",
             "provider": "claude",
             "metric": null,
@@ -622,6 +624,7 @@ fn every_summary_reads_in_each_catalog() {
             event: kind,
             occurred_at: t0(),
             account_key: "claude:Work".into(),
+            account_id: "acc_test00000000".into(),
             account_name: "Work".into(),
             provider: Provider::Claude,
             metric: Some(MetricRef {
@@ -652,6 +655,7 @@ fn every_summary_reads_in_each_catalog() {
             event: UsageUpdated,
             occurred_at: t0(),
             account_key: "claude:Work".into(),
+            account_id: "acc_test00000000".into(),
             account_name: "Work".into(),
             provider: Provider::Claude,
             metric: None,
@@ -684,4 +688,8 @@ fn every_summary_reads_in_each_catalog() {
             assert_ne!(label.resolve(locale), label.fallback, "{category:?}");
         }
     }
+}
+
+fn sk(key: &str) -> String {
+    crate::AccountId::derive(key, None).to_string()
 }

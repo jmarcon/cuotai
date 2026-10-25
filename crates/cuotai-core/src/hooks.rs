@@ -220,6 +220,7 @@ impl Rule {
             event: kind,
             occurred_at: now,
             account_key: format!("{}:{account_name}", provider.slug()),
+            account_id: "acc_sample000000".into(),
             account_name,
             provider,
             metric: about_metric.then(|| MetricRef {

@@ -747,7 +747,13 @@ impl State {
                 .and_then(http::percent_decode)
             {
                 Some(key) => self.with_export(
-                    |export| match export.accounts.iter().find(|account| account.key == key) {
+                    // PRD 0029 RF4.2: an id first, then the legacy key.
+                    |export| match export
+                        .accounts
+                        .iter()
+                        .find(|account| account.id == key)
+                        .or_else(|| export.accounts.iter().find(|account| account.key == key))
+                    {
                         Some(account) => Response::json(200, account),
                         None => Response::error(404, "not_found"),
                     },

@@ -121,6 +121,75 @@ CREATE INDEX samples_by_time ON samples (config_key, taken_at);",
 CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;",
 ];
 
+/// PRD 0029 RF2.2: `legacy_digest` (the pre-0029 series identity,
+/// [`account_key`]) → `account_id` of every series moved to its id. Created
+/// on open *without* a `user_version` step: an older release opening the
+/// file after a downgrade must not reject it as newer (it just starts new
+/// series under its legacy digests, which the next open of this release
+/// merges back into the id's series).
+const ALIASES: &str = "CREATE TABLE IF NOT EXISTS aliases (
+    config_key TEXT NOT NULL,
+    legacy_digest TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    PRIMARY KEY (config_key, legacy_digest)
+) WITHOUT ROWID;";
+
+/// PRD 0029 RF2.2: the series identity of `account`, a digest of its id
+/// alone, so a rename or a parameter edit keeps the series. Samples an
+/// older release stored under the legacy digest of the account as it is
+/// configured now move to it here, once (recorded in `aliases`), so old
+/// samples join the new series; rows already under the id win.
+pub(crate) fn series_digest(
+    db: &Connection,
+    config_key: &str,
+    account: &Account,
+) -> rusqlite::Result<String> {
+    let id = account.state_key();
+    let current = digest(format!("cuotai.series.v2\u{1f}{id}").as_bytes());
+    let legacy = account_key(account);
+    let pending = db
+        .query_row(
+            "SELECT 1 FROM series WHERE config_key = ?1 AND account_digest = ?2
+             UNION ALL SELECT 1 FROM samples WHERE config_key = ?1 AND account_digest = ?2
+             LIMIT 1",
+            rusqlite::params![config_key, legacy],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some();
+    if pending {
+        let tx = db.unchecked_transaction()?;
+        tx.execute(
+            "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label,
+                position, seen_at, removed_at)
+             SELECT config_key, ?3, metric_key, label, position, seen_at, removed_at
+             FROM series WHERE config_key = ?1 AND account_digest = ?2",
+            rusqlite::params![config_key, legacy, current],
+        )?;
+        tx.execute(
+            "INSERT OR IGNORE INTO samples (config_key, account_digest, metric_key, taken_at,
+                used, \"limit\", remaining, unit, kind, \"window\", resets_at)
+             SELECT config_key, ?3, metric_key, taken_at, used, \"limit\", remaining, unit,
+                kind, \"window\", resets_at
+             FROM samples WHERE config_key = ?1 AND account_digest = ?2",
+            rusqlite::params![config_key, legacy, current],
+        )?;
+        for table in ["samples", "series"] {
+            tx.execute(
+                &format!("DELETE FROM {table} WHERE config_key = ?1 AND account_digest = ?2"),
+                rusqlite::params![config_key, legacy],
+            )?;
+        }
+        tx.execute(
+            "INSERT OR REPLACE INTO aliases (config_key, legacy_digest, account_id)
+             VALUES (?1, ?2, ?3)",
+            rusqlite::params![config_key, legacy, id],
+        )?;
+        tx.commit()?;
+    }
+    Ok(current)
+}
+
 /// Measurement history of one configuration. Holds only the database path
 /// and the configuration digest; errors surface on use.
 #[derive(Debug, Clone)]
@@ -459,6 +528,7 @@ impl HistoryStore {
         wal(&db)?;
         db.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT)?;
         migrate(&mut db, &MIGRATIONS)?;
+        db.execute_batch(ALIASES)?;
         Ok(db)
     }
 
@@ -502,8 +572,8 @@ impl HistoryStore {
         if at > future_sample_cutoff(now) {
             return Ok(0);
         }
-        let account_digest = account_key(account);
         let mut db = self.open()?;
+        let account_digest = series_digest(&db, &self.config_key, account)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let mut added = 0;
         {
@@ -588,10 +658,14 @@ impl HistoryStore {
         if !self.path.try_exists().map_err(|_| HistoryError::Storage)? {
             return Ok(());
         }
-        let keep =
-            serde_json::to_string(&saved.accounts.iter().map(account_key).collect::<Vec<_>>())
-                .map_err(|_| HistoryError::Storage)?;
         let mut db = self.open()?;
+        // The id series of each account, plus legacy digests not moved yet.
+        let mut kept = Vec::new();
+        for account in &saved.accounts {
+            kept.push(series_digest(&db, &self.config_key, account)?);
+            kept.push(account_key(account));
+        }
+        let keep = serde_json::to_string(&kept).map_err(|_| HistoryError::Storage)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         tx.execute(
             "UPDATE series SET removed_at = ?3 WHERE config_key = ?1 AND removed_at IS NULL
@@ -651,7 +725,7 @@ impl HistoryStore {
         account: &Account,
         now: DateTime<Utc>,
     ) -> rusqlite::Result<Option<StoredReport>> {
-        let account_digest = account_key(account);
+        let account_digest = series_digest(db, &self.config_key, account)?;
         let cutoff = future_sample_cutoff(now);
         let current_seen_at = db.query_row(
             "SELECT MAX(seen_at) FROM series
@@ -750,7 +824,7 @@ impl HistoryStore {
         let Some(db) = self.open_existing()? else {
             return Ok(points);
         };
-        let account_digest = account_key(account);
+        let account_digest = series_digest(&db, &self.config_key, account)?;
         let mut query = db.prepare(
             "SELECT taken_at, used FROM samples
              WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
@@ -826,6 +900,7 @@ impl HistoryStore {
     ) -> Result<Vec<WindowSample>, HistoryError> {
         let (start, end) = span(range);
         let db = self.open()?;
+        let account_digest = series_digest(&db, &self.config_key, account)?;
         let mut query = db.prepare(
             "SELECT taken_at, used, \"limit\", resets_at FROM samples
              WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
@@ -834,13 +909,7 @@ impl HistoryStore {
         )?;
         let samples = query
             .query_map(
-                rusqlite::params![
-                    self.config_key,
-                    account_key(account),
-                    metric_key,
-                    start,
-                    end
-                ],
+                rusqlite::params![self.config_key, account_digest, metric_key, start, end],
                 |row| {
                     Ok(WindowSample {
                         taken_at: instant(row.get(0)?)?,
@@ -1157,6 +1226,60 @@ credential_env = "GROQ_KEY_BETA"
         );
     }
 
+    /// PRD 0029 RF2.2: samples an older release stored under the legacy
+    /// digest join the account id's series on the first read, survive a
+    /// rename and a credential edit afterwards, and leave the schema version
+    /// an older release accepts.
+    #[test]
+    fn legacy_series_move_to_the_account_id_and_survive_a_rename() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let mut account = config(CONFIG).accounts[0].clone();
+        account.id = crate::AccountId::parse("acc_0123456789ab");
+        history
+            .record(&account, t0(), &[quota("5h", Some(10.0), Some(100.0))])
+            .unwrap();
+        // What a pre-0029 release left behind: the same rows under the
+        // legacy digest of the account.
+        let conn = Connection::open(&db).unwrap();
+        for table in ["samples", "series"] {
+            conn.execute(
+                &format!("UPDATE {table} SET account_digest = ?1"),
+                [account_key(&account)],
+            )
+            .unwrap();
+        }
+        assert!(
+            history.latest(&account).unwrap().is_some(),
+            "adopted on read"
+        );
+        let legacy_left: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM samples WHERE account_digest = ?1",
+                [account_key(&account)],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(legacy_left, 0);
+        let aliases: i64 = conn
+            .query_row("SELECT COUNT(*) FROM aliases", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(aliases, 1);
+
+        let mut renamed = account.clone();
+        renamed.name = "renamed".into();
+        renamed.credential_env = Some("GROQ_KEY_OTHER".into());
+        let stored = history.latest(&renamed).unwrap().expect("same series");
+        assert_eq!(stored.metrics.len(), 1);
+        assert!(history.latest(&renamed).unwrap().is_some(), "idempotent");
+        // No schema step an older release would reject as newer.
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, MIGRATIONS.len() as i64);
+    }
+
     #[test]
     fn identity_follows_moves_and_starts_over_on_rename_or_new_credential() {
         let dir = tempfile::tempdir().unwrap();
@@ -1191,15 +1314,22 @@ credential_env = "GROQ_KEY_BETA"
             ),
             "display params do not change the identity"
         );
+        // PRD 0029 RF2.2: the series is the account id's. These accounts
+        // have no id line, so theirs derives from the legacy key: a rename
+        // without an id is another account, while a credential or region
+        // edit keeps the series.
+        assert!(
+            !found(&groq("alpha2", "GROQ_KEY_ALPHA", ""), 0),
+            "renamed: new series"
+        );
         for (case, edited) in [
-            ("renamed", groq("alpha2", "GROQ_KEY_ALPHA", "")),
             ("new credential", groq("alpha", "GROQ_KEY_OTHER", "")),
             (
                 "new region",
                 groq("alpha", "GROQ_KEY_ALPHA", "params = { region = \"eu\" }"),
             ),
         ] {
-            assert!(!found(&edited, 0), "{case}: new series");
+            assert!(found(&edited, 0), "{case}: same series");
         }
 
         // Saved without alpha: alpha's series of this configuration are

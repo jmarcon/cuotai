@@ -79,7 +79,7 @@ impl Notices {
     /// Forget the usage alerts of accounts no longer in `config` (after a
     /// save), so one added back later starts afresh.
     pub(crate) fn keep_accounts(&mut self, config: &Config) {
-        let keys: Vec<String> = config.accounts.iter().map(Account::key).collect();
+        let keys: Vec<String> = config.accounts.iter().map(Account::state_key).collect();
         self.pending
             .retain(|event| keys.contains(&event.account_key));
         self.alerts.retain_accounts(keys.iter().map(String::as_str));
@@ -164,7 +164,7 @@ impl Notices {
         }
         let mut pending = std::mem::take(&mut self.pending);
         for account in &config.accounts {
-            let key = account.key();
+            let key = account.state_key();
             let (mine, rest): (Vec<_>, Vec<_>) = pending
                 .into_iter()
                 .partition(|event| event.account_key == key);

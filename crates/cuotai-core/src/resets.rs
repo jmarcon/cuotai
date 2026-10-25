@@ -217,7 +217,7 @@ where
         if report.provider != account.provider || report.account != account.name {
             continue;
         }
-        let account_key = account.key();
+        let account_key = account.state_key();
         if prefs.disabled.contains(&account_key) {
             continue;
         }
@@ -420,6 +420,39 @@ impl Ledger {
         self.notified.len() != before || alerts
     }
 
+    /// PRD 0029 RF2.3: rewrite the reset notices and alert marks an older
+    /// release keyed by the legacy key of each report's account to its state
+    /// key (see [`AlertState::adopt_ids`]). Front ends call it with the
+    /// readings they hold before judging new ones. Idempotent; `true` when
+    /// something changed and the ledger should be saved.
+    pub fn adopt_ids<'a, I>(&mut self, reports: I) -> bool
+    where
+        I: IntoIterator<Item = &'a Report>,
+        I::IntoIter: Clone,
+    {
+        let reports = reports.into_iter();
+        let mut changed = false;
+        for report in reports.clone() {
+            let (legacy, id) = (report.account_key(), report.state_key());
+            if legacy == id {
+                continue;
+            }
+            for metric in &report.metrics {
+                let (old, new) = (
+                    key_digest(&legacy, &metric.label),
+                    key_digest(&id, &metric.label),
+                );
+                for entry in &mut self.notified {
+                    if entry.digest == old {
+                        entry.digest = new.clone();
+                        changed = true;
+                    }
+                }
+            }
+        }
+        changed | self.alerts.adopt_ids(reports)
+    }
+
     /// What usage alerts remember (PRD 0008).
     pub fn alerts(&self) -> &AlertState {
         &self.alerts
@@ -461,6 +494,10 @@ fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Option<ResetM
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sk(key: &str) -> String {
+        crate::AccountId::derive(key, None).to_string()
+    }
     use crate::model::{Account, MetricKind, Provider, Status};
     use chrono::TimeZone;
 
@@ -518,6 +555,64 @@ mod tests {
             ..Config::default()
         };
         (config, reports)
+    }
+
+    /// PRD 0029 RF2.3: a `notified.json` written before account ids (marks
+    /// and notices keyed by `provider:name`) moves to the account's id once
+    /// a reading of it is in hand, so a rename afterwards keeps the pending
+    /// reset notice and the active 90 % alert; running it again changes
+    /// nothing, and the file keeps the shape an older release reads.
+    #[test]
+    fn a_legacy_ledger_moves_to_the_id_and_survives_a_rename() {
+        let resets_at = now() + mins(30);
+        let legacy = "claude:acc0";
+        let digest = |key: &str| crate::models::digest(key.as_bytes());
+        let file = serde_json::json!({
+            "notified": [{
+                "digest": key_digest(legacy, "5h"),
+                "resets_at": resets_at,
+                "at": now(),
+            }],
+            "alerts": { "marks": [{
+                "account": digest(legacy),
+                "metric": key_digest(legacy, "5h"),
+                "kind": "threshold",
+                "threshold": 90,
+                "resets_at": resets_at,
+                "notified": true,
+                "at": now(),
+            }]},
+        });
+        let mut ledger: Ledger = serde_json::from_value(file).unwrap();
+        let (mut config, mut reports) = setup(vec![vec![quota("5h", Some(95.0), Some(resets_at))]]);
+        let id = crate::AccountId::parse("acc_0123456789ab").unwrap();
+        config.accounts[0].id = Some(id.clone());
+        reports[0].account_id = Some(id.clone());
+
+        assert!(ledger.adopt_ids(&reports));
+        assert!(!ledger.adopt_ids(&reports), "idempotent");
+        // Pruning by the configuration keeps the adopted marks.
+        assert!(!ledger.alerts_mut().retain_config(&config));
+
+        // Rename: same id, another legacy key.
+        config.accounts[0].name = "renamed".into();
+        reports[0].account = "renamed".into();
+        assert!(ledger.notified(&key_digest(id.as_str(), "5h"), resets_at));
+        assert_eq!(
+            ledger
+                .alerts()
+                .active(&reports[0])
+                .map(|metric| metric.label.as_str())
+                .collect::<Vec<_>>(),
+            ["5h"]
+        );
+        let prefs = Prefs::default();
+        let plan = plan(&config, &reports, now() + mins(29), &prefs, &ledger);
+        assert!(plan.due.is_empty() && plan.next.is_none(), "{plan:?}");
+        // Still the file shape an older release reads.
+        let saved = serde_json::to_value(&ledger).unwrap();
+        assert!(saved["notified"][0]["digest"].is_string());
+        assert!(saved["alerts"]["marks"][0]["metric"].is_string());
     }
 
     fn labels(metrics: Vec<Metric>, prefs: &Prefs) -> Vec<String> {
@@ -682,7 +777,7 @@ mod tests {
                 (0, vec!["later"], at + mins(5) - mins(15)),
             ]
         );
-        assert_eq!(events[0].account_key, "claude:acc0");
+        assert_eq!(events[0].account_key, sk("claude:acc0"));
         assert_eq!(events[0].resets_at, at);
     }
 
@@ -694,7 +789,7 @@ mod tests {
             vec![quota("b", Some(5.0), soon)],
         ]);
         let prefs = Prefs {
-            disabled: BTreeSet::from(["claude:acc0".to_string()]),
+            disabled: BTreeSet::from([sk("claude:acc0")]),
             ..Prefs::default()
         };
         let events = upcoming(&config, &reports, now(), &prefs);

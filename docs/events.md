@@ -126,7 +126,8 @@ One reading can fire several events; they come in this order: refresh events, `q
 | `schema` | integer | Always `1`. Within version 1 the payload is additive: consumers must ignore fields and names they do not know. |
 | `event` | string | One of the names above. |
 | `occurred_at` | RFC 3339 | When the engine observed the transition. |
-| `account_key` | string | `<provider slug>:<account name>`, as in `export::v1`. |
+| `account_key` | string | `<provider slug>:<account name>`, as in `export::v1`; a rename changes it, prefer `account_id`. |
+| `account_id` | string | The account's stable id (`id` in `export::v1`, PRD 0029): it survives renames, reordering and parameter edits. |
 | `account_name` | string | The account name in the configuration. |
 | `provider` | string | Provider slug. |
 | `metric` | object or `null` | `label` and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`). |
@@ -137,7 +138,7 @@ One reading can fire several events; they come in this order: refresh events, `q
 The value objects hold only the fields that apply and are known; a missing field is never zero: `status` (the `Report` status), `category`, `threshold`, `used`, `limit`, `remaining`, `unit`, `used_ratio` (consumed fraction of the cap, 0 to 1), `resets_at`, `blocked_until`, `incident` and `metrics` (each with `label`, `window`, `used`, `limit`, `remaining`, `unit`, `used_ratio` and `resets_at`, `null` when unknown).
 
 ```json
-{"schema":1,"event":"quota_threshold_crossed","occurred_at":"2026-10-20T12:02:00Z","account_key":"claude:Work","account_name":"Work","provider":"claude","metric":{"label":"Sessão (5h)","window":"window_5h"},"current":{"threshold":75,"used":80.0,"limit":100.0,"unit":"%","used_ratio":0.8,"resets_at":"2026-10-20T12:20:00Z"},"previous":{"used":50.0,"limit":100.0,"unit":"%","used_ratio":0.5,"resets_at":"2026-10-20T12:20:00Z"}}
+{"schema":1,"event":"quota_threshold_crossed","occurred_at":"2026-10-20T12:02:00Z","account_key":"claude:Work","account_id":"acc_0123456789ab","account_name":"Work","provider":"claude","metric":{"label":"Sessão (5h)","window":"window_5h"},"current":{"threshold":75,"used":80.0,"limit":100.0,"unit":"%","used_ratio":0.8,"resets_at":"2026-10-20T12:20:00Z"},"previous":{"used":50.0,"limit":100.0,"unit":"%","used_ratio":0.5,"resets_at":"2026-10-20T12:20:00Z"}}
 ```
 
 ### Failure categories

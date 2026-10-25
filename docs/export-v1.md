@@ -47,7 +47,8 @@ println!("{}", serde_json::to_string(&export)?);
 | Field | Type | Meaning |
 |---|---|---|
 | `index` | integer | Position in the configuration. |
-| `key` | string | Stable identity `<provider slug>:<name>` (`claude:Work`), the same key as reset notifications use. It survives reordering; a rename gives a new key. |
+| `id` | string | Stable account id (PRD 0029): `acc_` plus 12 lowercase base32 characters, or a hand-written `[a-z0-9_-]{4,40}`. It survives renames, reordering and parameter edits; prefer it to `key`. |
+| `key` | string | Legacy identity `<provider slug>:<name>` (`claude:Work`). It survives reordering; a rename gives a new key, so prefer `id`. Kept unchanged for compatibility. |
 | `name`, `provider` | string | Account name and provider slug ([`providers.md`](providers.md)). |
 | `email` | string or `null` | Only when the producer includes identity; `null` when the e-mail is unknown. Absent by default. |
 | `class` | `available` / `exhausted` / `unmeasured` | Classification of `report` (`unmeasured` without a report or when it failed). |
@@ -70,7 +71,7 @@ A metric whose amount is billed on top of the plan (Claude extra usage, Cursor a
 
 ## Limits summary (`Limits`)
 
-`Limits::from_export(&export)` is the body of the local server's `/v1/limits`: `schema`, `generated_at` and, per account in configuration order, `index`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness` and `stale`, with the same meaning as in `AccountExport`. It is part of version 1 under the same additive policy and is declared as `$defs/Limits` in the schema (checked by `export::v1::tests::limits_summary_follows_its_schema`).
+`Limits::from_export(&export)` is the body of the local server's `/v1/limits`: `schema`, `generated_at` and, per account in configuration order, `index`, `id`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness` and `stale`, with the same meaning as in `AccountExport`. It is part of version 1 under the same additive policy and is declared as `$defs/Limits` in the schema (checked by `export::v1::tests::limits_summary_follows_its_schema`).
 
 ## Missing values
 

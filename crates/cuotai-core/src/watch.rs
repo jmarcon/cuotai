@@ -106,7 +106,7 @@ impl Watcher {
         let mut out = Vec::new();
         for next in &export.accounts {
             let blank;
-            let prev = match self.previous.get(&next.key) {
+            let prev = match self.previous.get(&next.id) {
                 Some(prev) => prev,
                 None => {
                     blank = AccountExport {
@@ -129,10 +129,10 @@ impl Watcher {
         self.previous = export
             .accounts
             .iter()
-            .map(|account| (account.key.clone(), account.clone()))
+            .map(|account| (account.id.clone(), account.clone()))
             .collect();
         self.state
-            .retain_accounts(export.accounts.iter().map(|account| account.key.as_str()));
+            .retain_accounts(export.accounts.iter().map(|account| account.id.as_str()));
         out
     }
 }

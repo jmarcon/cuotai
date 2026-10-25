@@ -193,8 +193,10 @@ pub struct Event {
     pub event: EventKind,
     /// When the engine observed the transition (the `now` of [`diff`]).
     pub occurred_at: DateTime<Utc>,
-    /// [`crate::Account::key`].
+    /// [`crate::Account::key`]; changes on a rename, prefer `account_id`.
     pub account_key: String,
+    /// PRD 0029 RF4.3: [`crate::Account::state_key`], stable across renames.
+    pub account_id: String,
     pub account_name: String,
     pub provider: Provider,
     /// The metric the event is about; `null` for account-wide events
@@ -401,7 +403,7 @@ impl Values {
     }
 }
 
-/// What earlier readings left behind, per account key, in memory only.
+/// What earlier readings left behind, per account id, in memory only.
 #[derive(Debug, Clone)]
 pub struct EventState {
     prefs: AlertPrefs,
@@ -454,8 +456,9 @@ impl EventState {
         }
     }
 
-    /// Forget every account whose key is not in `keys` (removed or edited
-    /// away): its next reading is a new baseline.
+    /// Forget every account whose id ([`AccountExport::id`]) is not in
+    /// `keys` (removed from the configuration): its next reading is a new
+    /// baseline. A rename keeps the id, so it keeps the baseline.
     pub fn retain_accounts<'a>(&mut self, keys: impl IntoIterator<Item = &'a str>) {
         let kept: BTreeSet<&str> = keys.into_iter().collect();
         self.accounts.retain(|key, _| kept.contains(key.as_str()));
@@ -497,7 +500,7 @@ pub fn diff(
         events: Vec::new(),
     };
     let fresh = next.report.as_ref().filter(|report| {
-        prev.key != next.key
+        prev.id != next.id
             || prev
                 .report
                 .as_ref()
@@ -529,6 +532,7 @@ impl Emit<'_> {
             event,
             occurred_at: self.now,
             account_key: self.next.key.clone(),
+            account_id: self.next.id.clone(),
             account_name: self.next.name.clone(),
             provider: self.next.provider,
             metric,
@@ -549,7 +553,7 @@ impl EventState {
         } = self;
         let now = out.now;
         let failure = FailureCategory::of(report);
-        let Some(track) = accounts.get_mut(&out.next.key) else {
+        let Some(track) = accounts.get_mut(&out.next.id) else {
             let mut track = Track {
                 status: report.status,
                 failure,
@@ -560,7 +564,7 @@ impl EventState {
             if report.status == Status::Ready {
                 track.baseline(report, out.next.binding.as_ref(), prefs, alerts, now);
             }
-            accounts.insert(out.next.key.clone(), track);
+            accounts.insert(out.next.id.clone(), track);
             return;
         };
         match (track.failure, failure) {
@@ -703,7 +707,7 @@ impl EventState {
         else {
             return;
         };
-        match self.incidents.get_mut(&out.next.key) {
+        match self.incidents.get_mut(&out.next.id) {
             Some(before) if *before != state => {
                 let previous = std::mem::replace(before, state);
                 out.push(
@@ -715,7 +719,7 @@ impl EventState {
             }
             Some(_) => {}
             None => {
-                self.incidents.insert(out.next.key.clone(), state);
+                self.incidents.insert(out.next.id.clone(), state);
             }
         }
     }
@@ -732,7 +736,7 @@ impl Track {
         alerts: &mut AlertState,
         now: DateTime<Utc>,
     ) {
-        let account_key = report.account_key();
+        let account_key = report.state_key();
         let exhausted: Vec<AlertEvent> = report
             .metrics
             .iter()

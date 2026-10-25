@@ -8,6 +8,7 @@
 use crate::settings::{self, AlertSettings, NotifyPrefs};
 use chrono::{DateTime, Utc};
 use cuotai_core::{
+    account_id,
     alerts::{self, AlertEvent, AlertPrefs, NOTICE_SPACING},
     resets::{self, Ledger, ResetEvent},
     Config, Metric, Report,
@@ -199,17 +200,48 @@ impl Notices {
         self.set_prefs(prefs)
     }
 
+    /// PRD 0029 RF2.3: rewrite the bells and muted metrics `desktop.json`
+    /// keeps under a legacy key (`provider:name`) of an account of `config`
+    /// to its id, once; entries of no configured account stay for
+    /// [`Self::keep_accounts`] to prune. Idempotent.
+    pub fn adopt_config(&mut self, config: &Config) -> Result<(), &'static str> {
+        let legacy = account_id::legacy_keys(config);
+        let mut alerts = self.alerts.clone();
+        if account_id::migrate_map(&mut alerts.muted, &legacy) {
+            self.set_alerts(alerts)?;
+        }
+        let mut prefs = self.prefs.clone();
+        if account_id::migrate_set(&mut prefs.off_accounts, &legacy) {
+            self.set_prefs(prefs)?;
+        }
+        Ok(())
+    }
+
+    /// PRD 0029 RF2.3: move what `notified.json` keeps under the legacy key
+    /// of the accounts of `reports` to their ids (saved when it changed).
+    /// Called with the readings held before judging new ones.
+    pub fn adopt_reports<'a, I>(&mut self, reports: I)
+    where
+        I: IntoIterator<Item = &'a Report>,
+        I::IntoIter: Clone,
+    {
+        if self.ledger.adopt_ids(reports) {
+            self.save_ledger();
+        }
+    }
+
     /// Forget the bells, muted metrics, alert state and pending alerts of
-    /// accounts no longer in `config` (after a save).
+    /// accounts no longer in `config` (after a load or a save), once the
+    /// legacy entries of its accounts moved to their ids
+    /// ([`Self::adopt_config`]).
     pub fn keep_accounts(&mut self, config: &Config) -> Result<(), &'static str> {
-        let keys: Vec<String> = config.accounts.iter().map(|a| a.key()).collect();
+        self.adopt_config(config)?;
+        let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
         self.pending
             .retain(|event| keys.contains(&event.account_key));
-        if self
-            .ledger
-            .alerts_mut()
-            .retain_accounts(keys.iter().map(String::as_str))
-        {
+        // Marks still under a legacy key of a configured account are kept
+        // until a reading moves them (`adopt_reports`).
+        if self.ledger.alerts_mut().retain_config(config) {
             self.save_ledger();
         }
         let mut alerts = self.alerts.clone();
@@ -265,7 +297,7 @@ impl Notices {
     /// PRD 0008 RF3.4: the metrics of `report` with an active alert, while
     /// alerts are on and the account's bell and the metric are not muted.
     pub fn active<'r>(&'r self, report: &'r Report) -> impl Iterator<Item = &'r Metric> + 'r {
-        let account_key = report.account_key();
+        let account_key = report.state_key();
         let on = self.evaluator.enabled && self.account_on(&account_key);
         self.ledger
             .alerts()
@@ -333,7 +365,8 @@ impl Notices {
         now: DateTime<Utc>,
         notifier: &dyn Notifier,
     ) -> Tick {
-        let mut changed = self.ledger.prune(now);
+        let mut changed = self.ledger.adopt_ids(readings.iter().flatten().copied());
+        changed |= self.ledger.prune(now);
         let mut tick = Tick {
             delivered: 0,
             next: None,
@@ -378,7 +411,7 @@ impl Notices {
         now: DateTime<Utc>,
         notifier: &dyn Notifier,
     ) -> (usize, Option<DateTime<Utc>>) {
-        let keys: Vec<String> = config.accounts.iter().map(|a| a.key()).collect();
+        let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
         let evaluator = &self.evaluator;
         self.pending
             .retain(|event| evaluator.wants(event) && keys.contains(&event.account_key));
@@ -414,6 +447,10 @@ impl Notices {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sk(key: &str) -> String {
+        cuotai_core::AccountId::derive(key, None).to_string()
+    }
     use chrono::{TimeDelta, TimeZone};
     use cuotai_core::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
     use std::cell::RefCell;
@@ -732,12 +769,12 @@ mod tests {
         assert!(tick(&mut notices, &cfg, &reports, t0() - mins(5), &fake)
             .next
             .is_some());
-        notices.set_account("claude:Work", false).unwrap();
+        notices.set_account(&sk("claude:Work"), false).unwrap();
         assert_eq!(
             tick(&mut notices, &cfg, &reports, t0() - mins(4), &fake).next,
             None
         );
-        notices.set_account("claude:Work", true).unwrap();
+        notices.set_account(&sk("claude:Work"), true).unwrap();
         notices
             .set_prefs(NotifyPrefs {
                 enabled: false,
@@ -765,9 +802,36 @@ mod tests {
         notices.set_account("claude:Old", false).unwrap();
         notices.keep_accounts(&config(&["Work", "New"])).unwrap();
         let reopened = Notices::open(Some(store(dir.path())));
-        assert!(!reopened.account_on("claude:Work"));
+        assert!(!reopened.account_on(&sk("claude:Work")));
         assert!(reopened.account_on("claude:Old"));
         assert_eq!(reopened.prefs().off_accounts.len(), 1);
+    }
+
+    /// PRD 0029 RF2.3: bells and muted metrics `desktop.json` keeps under
+    /// a legacy key move to the account id on load, survive a rename and
+    /// a second migration changes nothing.
+    #[test]
+    fn legacy_bells_and_mutes_move_to_the_id_and_survive_a_rename() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut notices = Notices::open(Some(store(dir.path())));
+        notices.set_account("claude:Work", false).unwrap();
+        notices
+            .set_metric_alert("claude:Work", "5h", false)
+            .unwrap();
+        let mut cfg = config(&["Work"]);
+        cfg.accounts[0].id = cuotai_core::AccountId::parse("acc_0123456789ab");
+        let id = cfg.accounts[0].state_key();
+
+        let mut reopened = Notices::open(Some(store(dir.path())));
+        reopened.adopt_config(&cfg).unwrap();
+        reopened.adopt_config(&cfg).unwrap();
+        cfg.accounts[0].name = "Renamed".into();
+        reopened.keep_accounts(&cfg).unwrap();
+        let after = Notices::open(Some(store(dir.path())));
+        assert!(!after.account_on(&id));
+        assert!(after.metric_muted(&id, "5h"));
+        assert_eq!(after.prefs().off_accounts.len(), 1);
+        assert_eq!(after.alerts().muted.len(), 1);
     }
 
     /// A system that refuses every notice (permission denied).
@@ -1006,21 +1070,23 @@ mod tests {
         // The account's bell turned off midway.
         let mut notices = alerting(None);
         judged(&mut notices);
-        notices.set_account("claude:Work", false).unwrap();
+        notices.set_account(&sk("claude:Work"), false).unwrap();
         assert_eq!(notices.tick(&cfg, &[], b.checked_at, &fake).delivered, 0);
         assert_eq!(notices.active(&b).count(), 0);
         assert!(fake.titles().is_empty());
         // A muted metric stays silent; unmuted, only what comes next fires.
         let mut notices = alerting(None);
         notices
-            .set_metric_alert("claude:Work", "5h", false)
+            .set_metric_alert(&sk("claude:Work"), "5h", false)
             .unwrap();
         assert_eq!(
             observe(&mut notices, &cfg, Some(&a), &b, &fake).delivered,
             0
         );
-        notices.set_metric_alert("claude:Work", "5h", true).unwrap();
-        assert!(!notices.metric_muted("claude:Work", "5h"));
+        notices
+            .set_metric_alert(&sk("claude:Work"), "5h", true)
+            .unwrap();
+        assert!(!notices.metric_muted(&sk("claude:Work"), "5h"));
         let full = usage("Work", t0() + mins(10), 100.0, w());
         assert_eq!(
             observe(&mut notices, &cfg, Some(&b), &full, &fake).delivered,
@@ -1082,7 +1148,7 @@ mod tests {
         assert_eq!(notices.tick(&kept, &[], b.checked_at, &fake).delivered, 0);
         let mut reopened = Notices::open(Some(store(dir.path())));
         assert!(!reopened.metric_muted("claude:Old", "Week"));
-        assert!(reopened.metric_muted("claude:Work", "5h"));
+        assert!(reopened.metric_muted(&sk("claude:Work"), "5h"));
         // Added back under the same name: nothing of the old one is known,
         // so a crossing within 10 minutes of the recorded reading fires.
         let (c, d) = (

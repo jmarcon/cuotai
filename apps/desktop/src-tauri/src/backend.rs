@@ -662,7 +662,7 @@ fn report_view(
         pending: false,
         pace_index,
         access: report_access(account, report),
-        account_key: account.key(),
+        account_key: account.state_key(),
         notify: true,
         usage_alerts: Vec::new(),
         incident: None,
@@ -749,6 +749,7 @@ fn finish_account(
     token: cuotai_core::refresh::Generation,
     now: chrono::DateTime<chrono::Utc>,
 ) {
+    notices.adopt_reports(last_reading(cycle, index).into_iter().chain([&report]));
     let events = notices.assess(last_reading(cycle, index), &report, now);
     if cycle.finish_account(index, Some(report), token, Instant::now()) {
         if let Some(next) = cycle.account_report(index) {
@@ -766,6 +767,10 @@ fn finish_full(
     token: cuotai_core::refresh::Generation,
     now: chrono::DateTime<chrono::Utc>,
 ) {
+    let previous: Vec<Report> = (0..snapshot.reports.len())
+        .filter_map(|index| last_reading(cycle, index).cloned())
+        .collect();
+    notices.adopt_reports(previous.iter().chain(&snapshot.reports));
     let events: Vec<_> = snapshot
         .reports
         .iter()
@@ -1070,7 +1075,14 @@ impl Inner {
         // PRD 0010 RF2.3: the last recorded readings show, stale, until the
         // first query of each account answers.
         let mut cycle = RefreshCycle::new(&file.config, Instant::now());
-        cycle.restore_last_good(monitor.restored_readings());
+        let restored = monitor.restored_readings();
+        // PRD 0029 RF2.3: bells, mutes, reset notices and alert marks an
+        // older release keyed by name move to the account ids, with the
+        // configuration and its last readings (which carry the labels) in
+        // hand, before any rename or new reading can strand them.
+        let _ = self.notices.adopt_config(&file.config);
+        self.notices.adopt_reports(restored.iter().flatten());
+        cycle.restore_last_good(restored);
         self.loaded = Some(Loaded {
             other_config,
             cycle,
@@ -1132,7 +1144,7 @@ fn attach_history(
             Some(cuotai_core::MetricWindow::Weekly) => HistoryRange::Week,
             _ => HistoryRange::Day,
         };
-        let Some(config_account) = accounts.iter().find(|a| a.key() == published.key) else {
+        let Some(config_account) = accounts.iter().find(|a| a.state_key() == published.id) else {
             continue;
         };
         let key = cuotai_core::history::metric_key(metric);
@@ -4360,8 +4372,11 @@ mod tests {
         let mut g = backend.inner.inner.lock().await;
         g.notices.switch_alerts("granted").unwrap();
         let now = chrono::Utc::now();
+        // The monitor labels every report with its account's id.
+        let id = g.loaded.as_ref().unwrap().file.config.accounts[0].id();
         let reading = |used, minutes_ago| Report {
             checked_at: now - chrono::Duration::minutes(minutes_ago),
+            account_id: Some(id.clone()),
             ..ready("a", vec![quota("5h", used, Window5h, 2)])
         };
         let titles = Titles(Default::default());

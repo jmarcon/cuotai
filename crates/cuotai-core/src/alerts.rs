@@ -58,9 +58,9 @@ pub struct AlertPrefs {
     pub exhaustion: bool,
     /// Notify `Recovered` (on by default).
     pub recovery: bool,
-    /// [`crate::Account::key`]s whose alerts are muted.
+    /// [`crate::Account::state_key`]s whose alerts are muted.
     pub muted_accounts: BTreeSet<String>,
-    /// Muted metrics: account key → metric labels.
+    /// Muted metrics: account state key → metric labels.
     pub muted_metrics: BTreeMap<String, BTreeSet<String>>,
 }
 
@@ -145,7 +145,7 @@ pub enum AlertKind {
 /// One notice about one metric of one account.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AlertEvent {
-    /// [`crate::Account::key`] of the account.
+    /// [`crate::Account::state_key`] of the account (PRD 0029 RF2.1).
     pub account_key: String,
     pub label: String,
     pub window: Option<MetricWindow>,
@@ -238,7 +238,7 @@ pub fn evaluate(
     }) else {
         return events;
     };
-    let account_key = next.account_key();
+    let account_key = next.state_key();
     let first = !state.seen.contains(&account_digest(&account_key));
     if first && next.checked_at - prev.checked_at > CROSSING_GRACE {
         return events;
@@ -314,7 +314,7 @@ fn session_expiring(next: &Report, state: &AlertState, now: DateTime<Utc>) -> Op
     if !expiry.soon {
         return None;
     }
-    let account_key = next.account_key();
+    let account_key = next.state_key();
     let digest = key_digest(&account_key, SESSION_MARK);
     let noticed = state.marks.iter().any(|mark| {
         mark.metric == digest
@@ -354,7 +354,7 @@ impl AlertState {
             return false;
         }
         let mut changed = false;
-        let account_key = next.account_key();
+        let account_key = next.state_key();
         let account = account_digest(&account_key);
         if now - next.checked_at <= CROSSING_GRACE {
             self.seen.insert(account.clone());
@@ -441,15 +441,68 @@ impl AlertState {
         changed
     }
 
-    /// Forget every account whose key is not in `keys` (removed from the
-    /// configuration): its levels, recoveries and first-reading status.
-    /// `true` when a mark was dropped.
+    /// Forget every account whose state key is not in `keys` (removed from
+    /// the configuration): its levels, recoveries and first-reading status.
+    /// `true` when a mark was dropped. Prefer [`Self::retain_config`], which
+    /// also keeps marks an older release wrote under a legacy key until
+    /// [`Self::adopt_ids`] moves them.
     pub fn retain_accounts<'a>(&mut self, keys: impl IntoIterator<Item = &'a str>) -> bool {
         let kept: BTreeSet<String> = keys.into_iter().map(account_digest).collect();
         let before = self.marks.len();
         self.marks.retain(|mark| kept.contains(&mark.account));
         self.seen.retain(|account| kept.contains(account));
         self.marks.len() != before
+    }
+
+    /// [`Self::retain_accounts`] for the accounts of `config`: their state
+    /// keys and, until [`Self::adopt_ids`] rewrote them, the legacy keys
+    /// marks written before PRD 0029 used.
+    pub fn retain_config(&mut self, config: &crate::Config) -> bool {
+        let keys: Vec<String> = config
+            .accounts
+            .iter()
+            .flat_map(|account| [account.state_key(), account.key()])
+            .collect();
+        self.retain_accounts(keys.iter().map(String::as_str))
+    }
+
+    /// PRD 0029 RF2.3: move the marks an older release keyed by the legacy
+    /// key of each report's account ([`crate::Report::account_key`], the
+    /// account's current name) to its state key. Metric marks need the
+    /// label, so only the metrics the reports carry (and the session mark)
+    /// move; others age out with [`Self::prune`]. Idempotent; `true` when a
+    /// mark changed.
+    pub fn adopt_ids<'a>(&mut self, reports: impl IntoIterator<Item = &'a Report>) -> bool {
+        let mut changed = false;
+        for report in reports {
+            let (legacy, id) = (report.account_key(), report.state_key());
+            if legacy == id {
+                continue;
+            }
+            let (old_account, new_account) = (account_digest(&legacy), account_digest(&id));
+            let labels = report
+                .metrics
+                .iter()
+                .map(|metric| metric.label.as_str())
+                .chain([SESSION_MARK]);
+            let digests: BTreeMap<String, String> = labels
+                .map(|label| (key_digest(&legacy, label), key_digest(&id, label)))
+                .collect();
+            for mark in &mut self.marks {
+                if mark.account == old_account {
+                    mark.account = new_account.clone();
+                    changed = true;
+                }
+                if let Some(digest) = digests.get(&mark.metric) {
+                    mark.metric = digest.clone();
+                    changed = true;
+                }
+            }
+            if self.seen.remove(&old_account) {
+                self.seen.insert(new_account);
+            }
+        }
+        changed
     }
 
     /// Forget marks whose window instance and date are both more than
@@ -474,7 +527,7 @@ impl AlertState {
     /// re-armed since. A new window instance or a fall of
     /// [`HYSTERESIS_POINTS`] below the level ends it.
     pub fn active<'r>(&'r self, report: &'r Report) -> impl Iterator<Item = &'r Metric> + 'r {
-        let account_key = report.account_key();
+        let account_key = report.state_key();
         report.metrics.iter().filter(move |metric| {
             let digest = key_digest(&account_key, &metric.label);
             self.marks.iter().any(|mark| {
@@ -846,6 +899,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sk(key: &str) -> String {
+        crate::AccountId::derive(key, None).to_string()
+    }
     use crate::model::{MetricKind, Provider};
     use chrono::TimeZone;
 
@@ -1210,7 +1267,7 @@ mod tests {
         assert_eq!(
             events,
             vec![AlertEvent {
-                account_key: "claude:Work".into(),
+                account_key: sk("claude:Work"),
                 label: "5h".into(),
                 window: Some(MetricWindow::Window5h),
                 kind: AlertKind::Threshold,
@@ -1318,7 +1375,7 @@ mod tests {
             vec![]
         );
 
-        state.retain_accounts(["claude:Home"]);
+        state.retain_accounts([sk("claude:Home").as_str()]);
         let again = |state: &AlertState, account: &str, prev_used| {
             let prev = report(
                 account,
@@ -1385,7 +1442,7 @@ mod tests {
         let mut muted = on();
         muted
             .muted_metrics
-            .insert("claude:Work".into(), BTreeSet::from(["5h".to_string()]));
+            .insert(sk("claude:Work"), BTreeSet::from(["5h".to_string()]));
         let readings = same_window(&[Some(50.0), Some(80.0), Some(92.0)]);
         let mut state = AlertState::default();
         assert_eq!(run(&muted, &mut state, &readings[..2]), vec![vec![]; 2]);
@@ -1399,16 +1456,14 @@ mod tests {
         assert_eq!(fired(&unmuted), vec![(T, 90)]);
         // Another account's metric of the same label is not muted.
         let mut other = muted.clone();
-        other.muted_metrics = BTreeMap::from([(
-            "claude:Home".to_string(),
-            BTreeSet::from(["5h".to_string()]),
-        )]);
+        other.muted_metrics =
+            BTreeMap::from([(sk("claude:Home"), BTreeSet::from(["5h".to_string()]))]);
         assert_eq!(
             run(&other, &mut AlertState::default(), &readings)[1],
             vec![(T, 75)]
         );
         let mut account = on();
-        account.muted_accounts.insert("claude:Work".into());
+        account.muted_accounts.insert(sk("claude:Work"));
         assert_eq!(
             run(&account, &mut AlertState::default(), &readings),
             vec![vec![]; 3]
@@ -1635,7 +1690,7 @@ mod tests {
         assert!(evaluate(None, &unknown, &prefs, &state, t0()).is_empty());
         assert!(evaluate(None, &renewed, &AlertPrefs::default(), &state, t0()).is_empty());
         let mut muted = on();
-        muted.muted_accounts.insert(renewed.account_key());
+        muted.muted_accounts.insert(renewed.state_key());
         assert!(evaluate(None, &renewed, &muted, &state, t0()).is_empty());
 
         let account = Account {

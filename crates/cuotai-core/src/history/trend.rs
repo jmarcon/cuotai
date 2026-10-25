@@ -6,7 +6,7 @@
 
 use super::{finite, group_windows, instant, untag, HistoryError, HistoryStore, WindowSample};
 use super::{span, WindowUsage};
-use crate::models::account_key;
+use crate::history::series_digest;
 use crate::pace::Point;
 use crate::{Account, MetricKind, MetricWindow};
 use chrono::{DateTime, TimeDelta, Utc};
@@ -275,6 +275,7 @@ impl HistoryStore {
             return Ok(Vec::new());
         };
         let (start, end) = span(range);
+        let account_digest = series_digest(&db, &self.config_key, account)?;
         let mut query = db.prepare(
             "SELECT x.metric_key, s.label, x.unit, x.kind, x.\"window\", x.taken_at,
                     x.used, x.\"limit\", x.resets_at
@@ -285,7 +286,7 @@ impl HistoryStore {
         )?;
         let mut rows = query.query(rusqlite::params![
             self.config_key,
-            account_key(account),
+            account_digest,
             start,
             end
         ])?;

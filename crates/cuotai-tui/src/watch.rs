@@ -220,6 +220,7 @@ mod tests {
             event: kind,
             occurred_at: Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap(),
             account_key: format!("claude:{name}"),
+            account_id: "acc_test00000000".into(),
             account_name: name.into(),
             provider: Provider::Claude,
             metric: Some(MetricRef {

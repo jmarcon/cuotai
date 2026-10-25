@@ -18,10 +18,10 @@
 | RF | Version | Delivery |
 |---|---|---|
 | RF0 | 0.80.0 | Implemented: account TOML accepts the future `id` key and a missing `name` while rejecting other unknown keys; validation permits an unnamed account only when it has no provider peer; `ConfigFile` preserves existing ids without generating them. |
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
+| RF1 | vNEXT | Implemented: `AccountId` (`acc_` + 12 Crockford base32, or hand-written `[a-z0-9_-]{4,40}`); effective ids derived from the legacy key and `ConfigIdentity` on load, written as each table's first key on the next save; random ids for new accounts; `ConfigFile` matches tables by id; `ConfigError::AccountIds`; reports carry `account_id`. |
+| RF2 | vNEXT | Implemented: `Account::state_key`/`Report::state_key` key the reset ledger, alert marks and prefs, desktop bells and mutes, widget, watch/event tracks and history series (a digest of the id). Legacy state migrates once: `desktop.json` with the configuration, `notified.json` with the readings in hand (`Ledger::adopt_ids`, at load from the restored readings and before judging each new one), history rows on first access into an `aliases` table created without a `user_version` step so older releases still open the file. `RefreshCycle::apply_edit` was already positional, so a rename stays an edit. |
 | RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
+| RF4 | vNEXT (partial) | `id` on `AccountExport`, `AccountLimit` and the widget snapshot, `account_id` on events and `--json` reports, `/v1/accounts/{id_or_key}`; docs and schema updated. Pending: `named`, `CUOTAI_ACCOUNT_ID` and the `account_id` hook rule. |
 | RF5 | 0.77.1 (partial) | RF5.1 and the session half of RF5.2 delivered as PRD 0016 FIX-06 (`d265960`): removing an account or switching its provider deletes its vault web session, restored when the save fails. Pending: the old OAuth token purged after a provider switch (RF5.2) and the separate session/OAuth messages (RF5.3). |
 | RF6 | — | Proposed. |
 | RF7 | — | Proposed. |

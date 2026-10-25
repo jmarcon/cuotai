@@ -77,6 +77,8 @@ pub struct WidgetSnapshot {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WidgetAccount {
+    /// PRD 0029: [`crate::Account::state_key`], stable across renames.
+    pub id: String,
     /// [`crate::Account::key`]: `<provider slug>:<name>`, stable across
     /// reordering; a pinned widget matches on it and shows the account as
     /// unavailable when the key is gone, never another account.
@@ -158,9 +160,15 @@ impl WidgetSnapshot {
         }
     }
 
-    /// The account with `key`, for attaching a history series.
+    /// The account whose id (or, failing that, legacy key) is `key`, for
+    /// attaching a history series.
     pub fn account_mut(&mut self, key: &str) -> Option<&mut WidgetAccount> {
-        self.accounts.iter_mut().find(|account| account.key == key)
+        let index = self
+            .accounts
+            .iter()
+            .position(|account| account.id == key)
+            .or_else(|| self.accounts.iter().position(|account| account.key == key))?;
+        self.accounts.get_mut(index)
     }
 
     /// The JSON, within [`MAX_BYTES`]: accounts past the cap are dropped
@@ -296,6 +304,7 @@ fn project(account: &AccountExport) -> WidgetAccount {
         .map(|metrics| widget_metrics(metrics, reading.binding.as_ref(), reading.pace))
         .unwrap_or_default();
     WidgetAccount {
+        id: account.id.clone(),
         key: account.key.clone(),
         name: account.name.clone(),
         provider: account.provider,

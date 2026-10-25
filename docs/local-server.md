@@ -84,7 +84,7 @@ Every route is `GET` only; any other method answers `405` with `Allow: GET`, and
 |---|---|
 | `/health` | `{"status":"ok","version":"<Cuotai version>","schema":1}`, even before the first reading. |
 | `/v1/snapshot` | The full `Export` ([`export-v1.md`](export-v1.md)). |
-| `/v1/accounts/{key}` | One `AccountExport`; `{key}` is the account's `<provider slug>:<name>`, percent-encoded (`/v1/accounts/claude:Personal%20Max`). Unknown keys answer `404`. |
+| `/v1/accounts/{id_or_key}` | One `AccountExport`, found by its stable `id` first (`/v1/accounts/acc_0123456789ab`, PRD 0029) and then by its `<provider slug>:<name>` key, percent-encoded (`/v1/accounts/claude:Personal%20Max`). Unknown ones answer `404`. |
 | `/v1/limits` | The summary `Limits` (`schema`, `generated_at` and, per account, `index`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness`, `stale`), declared as `$defs/Limits` in [`export-v1.schema.json`](export-v1.schema.json). |
 
 Until some account has a reading (current or preserved), the data routes answer `503` with `Retry-After: 5`. Errors carry `{"error":"<code>"}` with `not_found`, `method_not_allowed`, `no_data`, `unauthorized`, `host_not_allowed`, `browser_not_allowed`, `peer_not_allowed`, `bad_request`, `uri_too_long` or `headers_too_large`.

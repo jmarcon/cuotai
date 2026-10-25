@@ -7,6 +7,7 @@
 //! while it works. Export and erasure are explicit user actions.
 
 use super::{finite, instances, instant, millis, HistoryError, HistoryStore, WindowSample};
+use crate::history::series_digest;
 use crate::models::account_key;
 use crate::text::{params, Localized};
 use crate::{Account, Provider};
@@ -430,9 +431,10 @@ impl HistoryStore {
                  ORDER BY s.position, x.metric_key, x.taken_at",
             )?;
             for account in accounts {
+                let account_digest = series_digest(&db, &self.config_key, account)?;
                 let mut found = query.query(rusqlite::params![
                     self.config_key,
-                    account_key(account),
+                    account_digest,
                     metric_key,
                     start,
                     end
@@ -481,8 +483,20 @@ impl HistoryStore {
             return Ok(0);
         };
         db.pragma_update(None, "secure_delete", true)?;
+        let digest = series_digest(&db, &self.config_key, account)?;
+        let legacy = account_key(account);
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let digest = account_key(account);
+        // Rows an older release wrote under the legacy digest go too.
+        for table in ["samples", "series"] {
+            tx.execute(
+                &format!("DELETE FROM {table} WHERE config_key = ?1 AND account_digest = ?2"),
+                rusqlite::params![self.config_key, legacy],
+            )?;
+        }
+        tx.execute(
+            "DELETE FROM aliases WHERE config_key = ?1 AND account_id = ?2",
+            rusqlite::params![self.config_key, account.state_key()],
+        )?;
         let removed = tx.execute(
             "DELETE FROM samples WHERE config_key = ?1 AND (account_digest = ?2
                 OR (account_digest, metric_key) IN (SELECT account_digest, metric_key FROM series

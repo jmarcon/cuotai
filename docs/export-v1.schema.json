@@ -16,12 +16,13 @@
     "AccountExport": {
       "type": "object",
       "required": [
-        "index", "key", "name", "provider", "class", "report", "age_seconds", "freshness",
+        "index", "id", "key", "name", "provider", "class", "report", "age_seconds", "freshness",
         "clock_adjusted", "stale", "last_good", "binding", "pace", "access", "incident"
       ],
       "properties": {
         "index": { "type": "integer", "minimum": 0, "description": "Position in the configuration." },
-        "key": { "type": "string", "description": "Stable identity: <provider slug>:<name>." },
+        "id": { "type": "string", "description": "Stable account id (PRD 0029): survives renames, reordering and parameter edits. Prefer it to key." },
+        "key": { "type": "string", "description": "Legacy identity <provider slug>:<name>: stable across reordering, changed by a rename; prefer id." },
         "name": { "type": "string" },
         "provider": { "$ref": "#/$defs/Provider" },
         "email": { "type": ["string", "null"], "description": "Present only when the producer includes identity; null when unknown." },
@@ -55,9 +56,10 @@
     "AccountLimit": {
       "type": "object",
       "description": "The same fields as AccountExport, with the same meaning.",
-      "required": ["index", "key", "name", "provider", "class", "binding", "age_seconds", "freshness", "stale"],
+      "required": ["index", "id", "key", "name", "provider", "class", "binding", "age_seconds", "freshness", "stale"],
       "properties": {
         "index": { "type": "integer", "minimum": 0 },
+        "id": { "type": "string" },
         "key": { "type": "string" },
         "name": { "type": "string" },
         "provider": { "$ref": "#/$defs/Provider" },
@@ -74,6 +76,7 @@
       "required": ["account", "provider", "checked_at", "status", "metrics", "notes", "source"],
       "properties": {
         "account": { "type": "string" },
+        "account_id": { "type": "string", "description": "Stable account id (PRD 0029); absent in readings produced without one." },
         "provider": { "$ref": "#/$defs/Provider" },
         "checked_at": { "type": "string", "format": "date-time" },
         "status": { "enum": ["ready", "needs_configuration", "unsupported", "authentication_error", "rate_limited", "error"] },
