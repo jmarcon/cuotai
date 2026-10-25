@@ -2,7 +2,8 @@
 import { currentLocale, t, te, tle } from "../i18n.js";
 import { confirmHooks, esc, hooksStatus, icon, onHookRun, saveHooks, setHooksEnabled, testHook } from "../lib.js";
 import { showDialog } from "../motion.js";
-import { l10nError, serveErrorText } from "./common.js";
+import { askDialog, l10nError, serveErrorText } from "./common.js";
+import { check, pathHtml, row, setGuard, subpage, subRow, sw, toast } from "./rows.js";
 
 /** PRD 0013 RF4: hooks, off by default. The switch, the state (running, waiting for the confirmation, or why not), an
  *  editor of `hooks.toml`'s rules (name, events and the command as one field per argument; filters and time limits
@@ -22,23 +23,24 @@ export function hooksHtml(hv, drafts, dirty) {
   const editor = hv.state === "no_config" ? "" : hv.rules == null
     ? `<p class="hint warn-txt">${te("settings.hooks.unparsable")}</p>`
     : `${drafts.map((d, i) => ruleHtml(hv, d, i, dirty)).join("")}
-      <div class="dlg-actions left"><button class="btn" data-hook-add>${icon("plus")} ${te("settings.hooks.add")}</button>
-        <button class="btn primary" data-hooks-save ${dirty ? "" : "disabled"}>${te("settings.hooks.save")}</button>
-        <button class="btn" data-hooks-discard ${dirty ? "" : "disabled"}>${te("settings.hooks.discard")}</button></div>`;
+      <div class="dlg-actions left"><button class="btn" data-hook-add>${icon("plus")} ${te("settings.hooks.add")}</button></div>
+      <div class="set-savebar dlg-actions" data-hooks-bar><button class="btn" data-hooks-discard ${dirty ? "" : "disabled"}>${te("settings.hooks.discard")}</button>
+        <button class="btn primary" data-hooks-save ${dirty ? "" : "disabled"}>${te("settings.hooks.save")}</button></div>`;
   const runs = hv.runs.length
     ? `<ul class="hook-runs" data-hook-runs>${hv.runs.map((r) => `<li class="${r.outcome === "exited" && r.exit_code === 0 ? "" : "warn-txt"}">
         <time datetime="${esc(r.at)}">${esc(new Date(r.at).toLocaleString(currentLocale()))}</time> ${tle(r.summary)}</li>`).join("")}</ul>`
     : `<p class="hint" data-hook-runs>${te("settings.hooks.runs.none")}</p>`;
-  return `<h4>${te("settings.hooks.title")}</h4>
-        <p class="hint">${te("settings.hooks.help")}</p>
-        <label class="check"><input id="hooks-on" type="checkbox" ${hv.enabled ? "checked" : ""} ${hv.state === "no_config" ? "disabled" : ""} /> ${te("settings.hooks.on")}</label>
-        ${state}
-        ${hv.path ? `<div class="path-row"><code title="${esc(hv.path)}">${esc(hv.path)}</code></div>` : ""}
-        ${hv.warnings.map((w) => `<p class="hint warn-txt">${tle(w)}</p>`).join("")}
+  // RF2.3: the rule editor and the latest runs open as a sub-page; its Save/Discard bar stays in view (RF4.4).
+  return row({ key: "hooks", label: te("settings.hooks.on"), info: te("settings.hooks.help"),
+      control: (a) => sw("hooks-on", hv.enabled, a, hv.state === "no_config" ? "disabled" : ""),
+      body: `${state}${hv.warnings.map((w) => `<p class="hint warn-txt">${tle(w)}</p>`).join("")}` })
+    + subRow({ key: "hooks-rules", label: te("settings.hooks.rules"), desc: dirty ? te("settings.hooks.unsaved") : "" })
+    + subpage("hooks-rules", te("settings.hooks.rules"), `
+        ${hv.path ? pathHtml(hv.path) : ""}
         ${editor}
         <p class="err" id="hooks-msg" role="status"></p>
         <h5>${te("settings.hooks.runs.title")}</h5>
-        ${runs}`;
+        ${runs}`);
 }
 
 /** One rule of the editor: name, events (payload names with a label) and the command, one field per argument. */
@@ -50,7 +52,7 @@ function ruleHtml(hv, d, i, dirty) {
     <legend>${te("settings.hooks.rule", { index: i + 1 })}</legend>
     <label class="f"><span>${te("settings.hooks.name")}</span><input data-name value="${esc(d.name)}" maxlength="64" autocomplete="off" spellcheck="false" /></label>
     <div class="f"><span>${te("settings.hooks.events")}</span>
-      <div class="hook-events">${hv.events.map((name) => `<label class="check"><input type="checkbox" data-event="${name}" ${d.events.includes(name) ? "checked" : ""} />
+      <div class="hook-events">${hv.events.map((name) => `<label class="check">${check(`data-event="${name}"`, d.events.includes(name))}
         <span><code>${name}</code> <small>${te(`settings.hooks.event.${name}`)}</small></span></label>`).join("")}</div></div>
     <div class="f"><span>${te("settings.hooks.command")}</span>
       <ol class="hook-args">${d.command.map((arg, j) => `<li><input data-arg="${j}" value="${esc(arg)}" autocomplete="off" spellcheck="false"
@@ -137,7 +139,8 @@ export async function bindHooks(box, ctx) {
       try {
         const next = await saveHooks(hv.revision, drafts);
         dirty = false;
-        paint(next, t("settings.hooks.saved"));
+        paint(next);
+        toast(t("settings.hooks.saved"));
         ctx.changed("hooks");
         // Saved while on: the new commands run only once confirmed.
         if (next.enabled && next.digest) await confirmThen(next, false);
@@ -145,6 +148,14 @@ export async function bindHooks(box, ctx) {
     };
   };
   paint(hv);
+  // RF4.4: leaving the rules (or the page) with unsaved edits asks first; discarding reads the file again.
+  setGuard("hooks-rules", async () => {
+    if (!dirty) return true;
+    if (!(await askDialog("hooks-leave", te("settings.hooks.leave.title"), `<p>${te("settings.hooks.leave.text")}</p>`, te("settings.hooks.discard")))) return false;
+    dirty = false;
+    hooksStatus().then((next) => paint(next), () => paint(null));
+    return true;
+  });
   // The log repaints after every run while this page is shown; leaving the page stops listening.
   const unlisten = onHookRun(() => {
     if (!box.isConnected) { unlisten.then((stop) => stop()); return; }

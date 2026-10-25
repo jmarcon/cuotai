@@ -1,7 +1,8 @@
 /* PRD 0020 RF1/RF2: the Settings window. Sidebar of pages (DS-CMP-SEG-5) on --surface, content on --bg with a
    readable maximum width, groups as a small-caps label over one rounded card (RF2.2). Layout values follow the
    DS-TOK-SPC scale (8/12/16/20/24 px) and DS-TOK-LAY-1 (sidebar about 220 px, content at most 640 px). Colors are
-   theme roles only. The row anatomy, search and visual pass are later steps (RF3, RF6, RF9). */
+   theme roles only. Rows and their components (RF3–RF5) follow the page shell; search and the visual pass are
+   later steps (RF6, RF9). */
 .set-window {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -145,8 +146,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
+  padding: 0;
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -182,12 +182,382 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .set-nav-toggle .set-nav-chev {
-    transition: none;
+/* RF3.1: a row = label and one short description on the left, the control on the right; hairlines between rows
+   inside the group card (DS-CMP-LIST-1/2). */
+.set-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 16px;
+  min-height: 52px;
+  padding: 8px 16px;
+}
+.set-sec > .set-row + .set-row,
+.set-sec > * + .set-row,
+.set-sec > * + .set-disc,
+.set-disc-body > .set-row + .set-row,
+.set-subpage .set-row + .set-row,
+[data-serve] > * + *,
+[data-hooks] > * + .set-row,
+[data-widgets] > * + *,
+[data-cost-body] > .set-row + .set-row,
+[data-cost-body] > .set-subpage + .set-row {
+  border-top: var(--border-w) solid var(--border);
+}
+.set-row-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+}
+.set-row-label {
+  color: var(--fg);
+  font-size: var(--text-base, 13px);
+}
+.set-row-label:empty {
+  display: none;
+}
+.set-row-desc {
+  flex-basis: 100%;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--text-sm, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-row-ctl {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.set-row-body {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 8px;
+}
+.set-row-body:has(> .lang-list:only-child) {
+  padding-top: 0;
+}
+.set-row-err {
+  grid-column: 1 / -1;
+  min-height: 0;
+  margin: 0;
+}
+.set-row-err:empty {
+  display: none;
+}
+.set-row-err:not(:empty)::before {
+  content: "⚠ ";
+}
+/* RF3.3: a dependent row is indented and attached to its parent; disabled with it, never hidden. */
+.set-row.dep {
+  padding-inline-start: 32px;
+}
+.set-row.dep:has(:disabled) .set-row-label {
+  color: var(--fg-muted);
+}
+/* RF3.4: destructive rows use the danger role. */
+.set-row.danger .set-row-label {
+  color: var(--bad);
+}
+
+/* RF3.2 switch (DS-CMP-SW-1): the native check box drawn as the shared switch. */
+.sw {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  margin: 0;
+  border-radius: var(--radius-pill);
+  background: var(--track);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+.sw::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--switch-knob);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.sw:checked {
+  background: var(--accent);
+}
+.sw:checked::after {
+  transform: translateX(18px);
+}
+.sw:disabled,
+.chk:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.sw:focus-visible,
+.chk:focus-visible,
+.seg [role="radio"]:focus-visible,
+.set-info:focus-visible,
+.set-disc > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* RF3.2 membership check (DS-CMP-CHK-1). */
+.chk {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: var(--border-w) solid var(--border);
+  border-radius: 50%;
+  background: var(--input-bg);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.chk:checked {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent-fg) 0 3px, var(--accent) 3.5px);
+}
+
+/* RF3.2 segmented control (DS-CMP-SEG-1). */
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.seg [role="radio"] {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-sm, 12px);
+}
+.seg [role="radio"][aria-checked="true"] {
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+}
+.seg [role="radio"]:disabled {
+  opacity: 0.45;
+}
+.set-row-body > .seg {
+  align-self: flex-start;
+}
+
+/* RF3.2 select and number field with unit (DS-CMP-SEL-1). */
+.set-row select,
+.set-num input,
+.thresholds input {
+  height: 30px;
+  padding: 0 8px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+}
+.set-row select {
+  max-width: 240px;
+}
+.set-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.set-num input {
+  width: 88px;
+  font-variant-numeric: tabular-nums;
+}
+.set-unit {
+  color: var(--fg-muted);
+  font-size: var(--text-sm, 12px);
+}
+.set-commit {
+  display: inline-flex;
+  gap: 6px;
+}
+.set-commit[hidden] {
+  display: none;
+}
+.set-btns {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.btn.sm {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: var(--text-sm, 12px);
+}
+.set-path {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* RF5.3: the ⓘ button and its popover. */
+.set-info {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.set-info svg.i {
+  width: 14px;
+  height: 14px;
+}
+.set-info:hover,
+.set-info[aria-expanded="true"] {
+  color: var(--fg);
+}
+.set-pop {
+  flex-basis: 100%;
+  padding: 8px 12px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: var(--text-sm, 12px);
+  line-height: 1.45;
+}
+.set-pop[hidden] {
+  display: none;
+}
+
+/* RF5.2: a disclosure inside a group. */
+.set-disc > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.set-disc > summary::-webkit-details-marker {
+  display: none;
+}
+.set-disc-chev {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.set-disc[open] > summary .set-disc-chev {
+  transform: rotate(90deg);
+}
+.set-disc-body {
+  border-top: var(--border-w) solid var(--border);
+}
+.set-disc-body > :not(.set-row) {
+  margin: 8px 16px;
+}
+
+/* RF2.3: a sub-page replaces the page content, with a back button; the rest of the page is hidden meanwhile. */
+.set-subpage:not(.on),
+.sub-off {
+  display: none !important;
+}
+.set-content[data-sub] .set-sec {
+  border: 0;
+  background: transparent;
+}
+.set-content[data-sub] .set-sec > h3 {
+  display: none;
+}
+.set-subpage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.set-subhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.set-subhead h2 {
+  font-size: 16px;
+  font-weight: 650;
+}
+.set-subhead h2:focus {
+  outline: none;
+}
+.set-back svg.i {
+  transform: rotate(180deg);
+}
+/* RF4.4: the hook rules' Save/Discard bar stays visible while the sub-page scrolls. */
+.set-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 8px 0;
+  border-top: var(--border-w) solid var(--border);
+  background: var(--bg);
+}
+
+/* RF4.1 / DS-CMP-MSG-3: the "Saved" toast. */
+.set-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10;
+  padding: 8px 14px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-dialog);
+  font-size: var(--text-sm, 12px);
+  animation: set-toast-in var(--motion-base) var(--ease-out);
+}
+.set-toast[hidden] {
+  display: none;
+}
+@keyframes set-toast-in {
+  from {
+    opacity: 0;
   }
 }
-:root[data-motion="off"] .set-nav-toggle .set-nav-chev,
-:root[data-motion="reduced"] .set-nav-toggle .set-nav-chev {
+
+@media (prefers-reduced-motion: reduce) {
+  .set-nav-toggle .set-nav-chev,
+  .set-disc-chev,
+  .sw,
+  .sw::after {
+    transition: none;
+  }
+  .set-toast {
+    animation: none;
+  }
+}
+:root[data-motion="off"] :is(.set-nav-toggle .set-nav-chev, .set-disc-chev, .sw, .sw::after),
+:root[data-motion="reduced"] :is(.set-nav-toggle .set-nav-chev, .set-disc-chev, .sw, .sw::after) {
   transition: none;
+}
+:root[data-motion="off"] .set-toast,
+:root[data-motion="reduced"] .set-toast {
+  animation: none;
 }
