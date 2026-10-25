@@ -1225,6 +1225,42 @@ async fn cost_usage(cost: Cost<'_>) -> Result<cuotai_core::cost::CostSummary, St
     cost.usage()
 }
 
+/// PRD 0030 RF1/RF6: the plan prices of the configured accounts, the display
+/// currency and the plan value lines. Reads the index, never a log.
+#[tauri::command]
+async fn cost_plans(cost: Cost<'_>, b: Shared<'_>) -> Result<local_cost::PlansView, String> {
+    cost.plans(&b.accounts().await)
+}
+
+/// PRD 0030 RF1.1: save the plan of the account `id` (`price` in
+/// `currency`, the cycle starting on `cycle_day`), or clear it when `price`
+/// is `None`. Error: `cost.error.invalid_plan` as JSON.
+#[tauri::command]
+async fn cost_set_plan(
+    cost: Cost<'_>,
+    b: Shared<'_>,
+    id: String,
+    price: Option<f64>,
+    currency: String,
+    cycle_day: Option<u8>,
+) -> Result<local_cost::PlansView, String> {
+    let plan = price.map(|price| (price, currency, cycle_day));
+    cost.set_plan(&b.accounts().await, &id, plan)
+}
+
+/// PRD 0030 RF6.1: save the display currency (`code`, how many of it one US
+/// dollar is), or clear it when `code` is `None`. Error:
+/// `cost.error.invalid_rate` as JSON.
+#[tauri::command]
+async fn cost_set_display(
+    cost: Cost<'_>,
+    b: Shared<'_>,
+    code: Option<String>,
+    rate: f64,
+) -> Result<local_cost::PlansView, String> {
+    cost.set_display(&b.accounts().await, code.map(|code| (code, rate)))
+}
+
 /// PRD 0015 RF1.1: turn `source` on after the user accepted the
 /// disclosure `digest` the dialog showed. Error: the core's
 /// `cost.error.*` text as JSON (`consent_changed` when the directories
@@ -1909,6 +1945,9 @@ pub fn run() {
             delete_widget_data,
             cost_status,
             cost_usage,
+            cost_plans,
+            cost_set_plan,
+            cost_set_display,
             cost_enable,
             cost_disable,
             cost_set_paths,

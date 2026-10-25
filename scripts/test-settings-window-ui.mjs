@@ -150,7 +150,7 @@ for (const file of await readdir(ui("js"))) {
 // Every control of the old dialog renders on its page, in every built-in catalog, with no raw key shown.
 const view = await lib.getView();
 const states = {
-  cost: async () => costHtml(await lib.costStatus(), await lib.costPrices()),
+  cost: async () => costHtml(await lib.costStatus(), await lib.costPrices(), await lib.costPlans()),
   serve: async () => integrationHtml(await lib.serveStatus()),
   hooks: async () => { const hv = await lib.hooksStatus(); return hooksHtml(hv, hv.rules ?? [], false); },
   widgets: async () => widgetsHtml(await lib.widgetsStatus()),

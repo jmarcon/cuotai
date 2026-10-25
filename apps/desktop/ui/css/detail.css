@@ -617,6 +617,18 @@
 }
 .lc-note.warn { color: var(--warn); }
 .lc-note.bad { color: var(--bad); }
+.lc-fx,
+.lc-plan {
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.lc-fx-amount {
+  display: block;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
 .lc-foot {
   margin: 6px 0 0;
   color: var(--fg-muted);

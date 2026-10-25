@@ -4,7 +4,7 @@
 // with its equivalent table) and by model. Everything is an estimate at API prices in USD, never a charge, and a
 // model without a price reads "cost unknown", never zero. A source that is off shows nothing on the cards and, in
 // the details, why and where to turn it on.
-import { currentLocale, t, te, tl } from "./i18n.js";
+import { currentLocale, t, te, tl, tle } from "./i18n.js";
 import { esc, fmtDate, icon, logo } from "./lib.js";
 import { showDialog } from "./motion.js";
 
@@ -17,6 +17,31 @@ const usd = (amount) => new Intl.NumberFormat(currentLocale(), { style: "currenc
 export const fmtUsd = (amount) => (amount > 0 && amount < 0.005 ? `< ${usd(0.01)}` : usd(amount));
 /** "1.2M" tokens, in the current language. */
 export const fmtTokens = (count) => new Intl.NumberFormat(currentLocale(), { notation: "compact", maximumFractionDigits: 1 }).format(count);
+
+/** PRD 0030 RF6: `amount` (USD) in the display currency the person typed, at their rate; `null` without one. Display
+ *  only: totals stay in USD and nothing converted is stored or exported. */
+export function convertedText(amount, display) {
+  if (!display || amount == null) return null;
+  const value = Math.round(amount * display.rate * 100) / 100;
+  try { return new Intl.NumberFormat(currentLocale(), { style: "currency", currency: display.code }).format(value); } catch { return `${display.code} ${value.toFixed(2)}`; }
+}
+
+/** RF6.2: "≈ R$ 1.149,00 at your rate (set 12 days ago)", plus "update your rate" from 30 days (the core's text). */
+function displayLine(amount, display) {
+  const shown = convertedText(amount, display);
+  if (shown == null) return "";
+  const stale = display.stale;
+  return `<p class="lc-fx" data-cost-display>${tle({ id: stale ? "cost.display.line_stale" : "cost.display.line", params: { amount: shown, days: display.age_days },
+    fallback: `≈ ${shown} no seu câmbio (definido há ${display.age_days} dias)${stale ? "; atualize o câmbio" : ""}` })}</p>`;
+}
+
+/** RF1: the plan lines of a source's accounts (the core's text: always "estimate at API prices"); nothing without a plan. */
+const planHtml = (sc, summary) => (summary.plans ?? []).filter((v) => v.source === sc.source)
+  .map((v) => `<p class="lc-plan" data-cost-plan>${tle(v.text)}</p>`).join("");
+
+/** RF1.4: no plan price yet for an account of this tool: a link to where it is typed, nothing more. */
+const planAddHtml = (sc, summary) => ((summary.planAccounts ?? []).some((a) => a.source === sc.source) && !(summary.planAccounts ?? []).some((a) => a.source === sc.source && a.plan)
+  ? `<div class="dlg-actions left"><button class="btn" data-cost-settings data-cost-plan-add>${icon("gear")} ${te("cost.plan.add")}</button></div>` : "");
 
 /** The cost of `e` (an estimate or a day): the priced part, what has no price, or that there was no usage. */
 export function costText(e) {
@@ -32,11 +57,11 @@ export const sourceFor = (summary, provider) => summary?.sources.find((s) => s.p
 const TONES = { partial: "warn", no_logs: "warn", no_access: "bad" };
 const noteHtml = (sc) => (sc.note ? `<p class="lc-note ${TONES[sc.state] ?? ""}" data-cost-note>${esc(tl(sc.note))}</p>` : "");
 
-const tile = (label, e) => `<div class="lc-tile"><span class="lc-label">${esc(label)}</span>
-  <b class="lc-cost${e.total == null && sum(e.tokens) ? " dim" : ""}">${esc(costText(e))}</b>
+const tile = (label, e, display) => `<div class="lc-tile"><span class="lc-label">${esc(label)}</span>
+  <b class="lc-cost${e.total == null && sum(e.tokens) ? " dim" : ""}">${esc(costText(e))}</b>${display && e.total != null ? `<span class="lc-fx-amount">≈ ${esc(convertedText(e.total, display))}</span>` : ""}
   <span class="lc-tokens">${te("cost.tokens", { amount: fmtTokens(sum(e.tokens)) })}</span></div>`;
 
-const tilesHtml = (sc, summary) => `<div class="lc-tiles">${tile(t("cost.today"), sc.usage.today)}${tile(t("cost.yesterday"), sc.usage.yesterday)}${tile(tl(summary.span.label), sc.usage.period)}</div>`;
+const tilesHtml = (sc, summary) => `<div class="lc-tiles">${tile(t("cost.today"), sc.usage.today, summary.display)}${tile(t("cost.yesterday"), sc.usage.yesterday, summary.display)}${tile(tl(summary.span.label), sc.usage.period, summary.display)}</div>${displayLine(sc.usage.period.total, summary.display)}${planHtml(sc, summary)}`;
 
 /** The block inside an account card; nothing while the source is off. */
 export function costCardHtml(sc, summary) {
@@ -109,6 +134,7 @@ export function costDetailHtml(sc, summary) {
   return `<section class="lc-detail" data-cost-detail="${esc(sc.source)}">${head}
     <p class="sub">${te("cost.detail.help", { source: sc.label })}</p>
     ${noteHtml(sc)}${tilesHtml(sc, summary)}
+    ${planAddHtml(sc, summary)}
     ${sc.usage.days.length ? chartHtml(sc, summary) : ""}${modelsHtml(sc, summary)}
     ${summary.pricing_error ? `<p class="lc-note warn">${esc(tl(summary.pricing_error))}</p>` : ""}
     ${summary.unpriced ? `<p class="lc-note warn" data-cost-unpriced>${esc(tl(summary.unpriced))}</p>` : ""}

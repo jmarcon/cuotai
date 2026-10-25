@@ -88,6 +88,8 @@ export const CONTROLS = [
   { section: "cost", page: "cost", selector: 'id="cost-period"', async: "cost" },
   { section: "cost", page: "cost", selector: 'id="cost-retention"', async: "cost" },
   { section: "cost", page: "cost", selector: "data-cost-save", async: "cost" },
+  { section: "cost", page: "cost", selector: "data-cost-plan-save", async: "cost" },
+  { section: "cost", page: "cost", selector: "data-cost-display-save", async: "cost" },
   { section: "cost", page: "cost", selector: "data-cost-erase", async: "cost" },
   { section: "integration", page: "integrations", selector: "data-serve" },
   { section: "integration", page: "integrations", selector: 'id="serve-on"', async: "serve" },

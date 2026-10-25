@@ -14,6 +14,7 @@ use cuotai_core::cost::{
     WorkerState,
 };
 use cuotai_core::text::Localized;
+use cuotai_core::Account;
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -90,6 +91,28 @@ pub struct PricesView {
     tables: Vec<TableInfo>,
     pricing_file: PricingFileView,
     models: Vec<PriceRow>,
+}
+
+/// PRD 0030 RF6: the typed display currency, with its age for the lines.
+#[derive(Serialize)]
+pub struct DisplayView {
+    code: String,
+    rate: f64,
+    set_on: chrono::NaiveDate,
+    age_days: u32,
+    stale: bool,
+}
+
+/// PRD 0030 RF1/RF6: the plan prices, the display currency and the plan
+/// value lines; shown in Settings → Local cost and on the cards. Typed by
+/// the person, kept in the machine-local cost settings, never exported.
+#[derive(Serialize)]
+pub struct PlansView {
+    /// The configured accounts a source reads, each with its plan.
+    accounts: Vec<cost::PlanAccount>,
+    display: Option<DisplayView>,
+    /// One line per source with a plan (RF1.2/RF1.3).
+    values: Vec<cost::PlanValue>,
 }
 
 fn l10n(error: CostError) -> String {
@@ -210,6 +233,76 @@ impl LocalCost {
             .map_err(l10n)
     }
 
+    /// PRD 0030 RF1/RF6: the plan accounts, the display currency and the
+    /// plan values of `accounts` (the configured ones). Plans still saved
+    /// under a legacy `provider:name` key move to the account id first.
+    /// Reads the index, never a log.
+    pub fn plans(&self, accounts: &[Account]) -> Result<PlansView, String> {
+        let stores = self.stores()?;
+        stores.settings.migrate_plans(accounts).map_err(l10n)?;
+        let saved = stores.settings.load().map_err(l10n)?;
+        let now = chrono::Utc::now();
+        let scanner = Self::scanner(stores, &self.env);
+        let today = scanner.zone().day(now);
+        let values = scanner
+            .plan_values(&stores.pricing, accounts, now)
+            .map_err(l10n)?;
+        Ok(PlansView {
+            accounts: cost::plan_accounts(&saved.plans, accounts),
+            display: saved.display_currency.as_ref().map(|d| DisplayView {
+                code: d.code.clone(),
+                rate: d.rate,
+                set_on: d.set_on,
+                age_days: d.age_days(today),
+                stale: d.stale(today),
+            }),
+            values,
+        })
+    }
+
+    /// PRD 0030 RF1.1: save (`price` given) or clear the plan of the
+    /// account `id`; refused unless a configured account has that id.
+    /// Error: `cost.error.invalid_plan` as JSON.
+    pub fn set_plan(
+        &self,
+        accounts: &[Account],
+        id: &str,
+        plan: Option<(f64, String, Option<u8>)>,
+    ) -> Result<PlansView, String> {
+        let stores = self.stores()?;
+        if !accounts.iter().any(|account| account.state_key() == id) {
+            return Err(l10n(CostError::InvalidPlan));
+        }
+        let plan = plan
+            .map(|(price, currency, day)| cost::PlanSetting::new(price, &currency, day))
+            .transpose()
+            .map_err(l10n)?;
+        stores.settings.set_plan(id, plan).map_err(l10n)?;
+        self.plans(accounts)
+    }
+
+    /// PRD 0030 RF6.1: save the rate typed ("1 USD = `rate` `code`"), or
+    /// with `None` clear it. Error: `cost.error.invalid_rate` as JSON.
+    pub fn set_display(
+        &self,
+        accounts: &[Account],
+        display: Option<(String, f64)>,
+    ) -> Result<PlansView, String> {
+        let stores = self.stores()?;
+        let today = Self::scanner(stores, &self.env)
+            .zone()
+            .day(chrono::Utc::now());
+        let display = display
+            .map(|(code, rate)| cost::DisplayCurrency::new(&code, rate, today))
+            .transpose()
+            .map_err(l10n)?;
+        stores
+            .settings
+            .set_display_currency(display)
+            .map_err(l10n)?;
+        self.plans(accounts)
+    }
+
     /// RF4.3: the local server's `local_cost`, `None` while every source
     /// is off or the index cannot be read.
     pub fn export(&self) -> Option<CostSummary> {
@@ -292,5 +385,87 @@ impl LocalCost {
         let removed = self.stores()?.index.erase().map_err(l10n)?;
         self.wake();
         Ok(removed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cuotai_core::Provider;
+
+    fn local(dir: &std::path::Path) -> LocalCost {
+        LocalCost {
+            stores: Some(Stores {
+                settings: SettingsStore::at(dir.join("settings.json")),
+                index: CostIndex::new(dir.join("index.sqlite3")),
+                pricing: PricingFile::at(dir.join("pricing.json")),
+            }),
+            env: Env::new(Some(dir.join("home")), []),
+            worker: Mutex::new(None),
+        }
+    }
+
+    fn account(name: &str, provider: Provider) -> Account {
+        Account {
+            id: None,
+            name: name.into(),
+            provider,
+            ..Account::default()
+        }
+    }
+
+    /// PRD 0030 RF1.1: a plan is saved under the account id, a legacy key
+    /// moves to it, an unknown account is refused and clearing removes it.
+    #[test]
+    fn plans_follow_the_account_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        let work = account("Work", Provider::Claude);
+        let other = account("Api", Provider::AnthropicApi);
+        let accounts = [work.clone(), other.clone()];
+
+        let view = cost.plans(&accounts).unwrap();
+        assert_eq!(
+            view.accounts.len(),
+            1,
+            "only the tool's accounts are listed"
+        );
+
+        let plan = cost::PlanSetting::new(100.0, "USD", None).unwrap();
+        let settings = &cost.stores().unwrap().settings;
+        settings.set_plan(&work.key(), Some(plan)).unwrap();
+        cost.plans(&accounts).unwrap();
+        let saved = settings.load().unwrap();
+        assert_eq!(saved.plans.keys().collect::<Vec<_>>(), [&work.state_key()]);
+
+        let id = work.state_key();
+        assert!(cost
+            .set_plan(&accounts, "nobody", Some((10.0, "USD".into(), None)))
+            .is_err());
+        assert!(cost
+            .set_plan(&accounts, &id, Some((0.0, "USD".into(), None)))
+            .is_err());
+        let view = cost
+            .set_plan(&accounts, &id, Some((20.0, "brl".into(), Some(15))))
+            .unwrap();
+        let saved = view.accounts[0].plan.as_ref().unwrap();
+        assert_eq!((saved.price, saved.currency.as_str()), (20.0, "BRL"));
+        let view = cost.set_plan(&accounts, &id, None).unwrap();
+        assert!(view.accounts[0].plan.is_none());
+    }
+
+    /// PRD 0030 RF6.1: the rate is validated and saved; USD is refused.
+    #[test]
+    fn the_display_currency_is_validated_and_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        assert!(cost.set_display(&[], Some(("USD".into(), 5.0))).is_err());
+        assert!(cost.set_display(&[], Some(("BRL".into(), 0.0))).is_err());
+        let view = cost.set_display(&[], Some(("brl".into(), 5.42))).unwrap();
+        let display = view.display.unwrap();
+        assert_eq!((display.code.as_str(), display.rate), ("BRL", 5.42));
+        assert_eq!(display.age_days, 0);
+        assert!(!display.stale);
+        assert!(cost.set_display(&[], None).unwrap().display.is_none());
     }
 }

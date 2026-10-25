@@ -2363,6 +2363,19 @@ impl Backend {
         Ok(view)
     }
 
+    /// The configured accounts (for the local cost's plan prices, PRD 0030
+    /// RF1); empty before a configuration is loaded.
+    pub async fn accounts(&self) -> Vec<cuotai_core::Account> {
+        self.ensure_loaded().await;
+        self.inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .map(|l| l.file.config.accounts.clone())
+            .unwrap_or_default()
+    }
+
     pub async fn view(&self) -> View {
         self.ensure_loaded().await;
         self.inner.lock().await.view()

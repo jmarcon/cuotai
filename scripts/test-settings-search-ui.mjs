@@ -48,7 +48,7 @@ for (const { code } of i18n.LOCALES) {
     assert.ok(r.label, `${code}/${r.page}/${r.key}: no label`);
     assert.ok(r.kw, `${code}/${r.page}/${r.key}: no keywords (settings.kw.${r.key})`);
     assert.ok(!/settings\.|common\./.test(r.label + r.desc), `${code}/${r.key}: untranslated text`);
-    used.add(r.key.startsWith("cost-src-") ? "cost-src" : r.key);
+    used.add(r.key.startsWith("cost-src-") ? "cost-src" : r.key.startsWith("cost-plan-") ? "cost-plan" : r.key);
   }
   // Every keyword key of the catalog belongs to a row that exists.
   for (const key of Object.keys(catalog).filter((k) => k.startsWith("settings.kw."))) {

@@ -14,7 +14,7 @@ import {
   fmtNext, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  bestChipHtml, cardPace, forecastChipHtml, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage,
+  bestChipHtml, cardPace, forecastChipHtml, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
 import { patch } from "./util.js";
@@ -36,6 +36,10 @@ let localCost = null;
 async function loadLocalCost() {
   let next = null;
   try { next = await costUsage(); } catch { next = null; }
+  // PRD 0030 RF1/RF6: the plan lines and the typed rate ride along with the summary (never part of the export).
+  if (next) {
+    try { const plans = await costPlans(); next = { ...next, plans: plans.values, display: plans.display, planAccounts: plans.accounts }; } catch { /* no plans */ }
+  }
   if (JSON.stringify(next) === JSON.stringify(localCost)) return;
   localCost = next;
   render();

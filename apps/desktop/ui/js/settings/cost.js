@@ -1,7 +1,7 @@
 // Settings › Advanced › Local cost (PRD 0015), as rows (PRD 0020 RF3): one switch per source, the period and
 // retention, then the directories and the price table as sub-pages (RF2.3) and the index erasure at the end (RF3.4).
 import { t, te, tle } from "../i18n.js";
-import { costDisable, costEnable, costErase, costPrices, costSetOptions, costSetPaths, costStatus, esc, fmtDate, fmtNumber, fmtReset, icon } from "../lib.js";
+import { costDisable, costEnable, costErase, costPlans, costPrices, costSetDisplay, costSetOptions, costSetPaths, costSetPlan, costStatus, esc, fmtDate, fmtNumber, fmtReset, icon } from "../lib.js";
 import { askDialog, fmtBytes, group, l10nError } from "./common.js";
 import { buttons, commitField, num, row, select, subpage, subRow, sw, toast } from "./rows.js";
 
@@ -20,7 +20,7 @@ export function bind(root, ctx) {
  *  (a different list turns a source that is on off, so its new disclosure is reviewed). Then the period, the index
  *  retention, the prices in effect (the embedded table under the user's pricing.json), the index size and its
  *  erasure; the state the core's background scan last reported (paused while saving energy). */
-export function costHtml(cv, prices) {
+export function costHtml(cv, prices, plans = null) {
   const state = { starting: "settings.cost.state.starting", scanning: "settings.cost.state.scanning", paused: "settings.cost.state.paused" }[cv.state];
   const dirs = (s) => `${te("settings.cost.dirs", { pattern: s.disclosure.pattern })} ${s.disclosure.directories.map((d) => `<code>${esc(d)}</code>`).join(", ")}${s.disclosure.custom ? ` (${te("settings.cost.pathsChosen")})` : ""}`;
   const sources = cv.sources.map((s) => row({ key: `cost-src-${esc(s.source)}`, kw: "cost-src", label: te("settings.cost.read", { source: s.label }), attrs: `data-cost-source="${esc(s.source)}"`,
@@ -43,6 +43,7 @@ export function costHtml(cv, prices) {
       control: (a) => select("cost-period", cv.periods.map((p) => [p.id, tle(p.label)]), cv.period, a) })}
     ${row({ key: "cost-retention-row", label: te("settings.cost.retention"), desc: te("settings.cost.retentionRange", { min: cv.retention_min, max: cv.retention_max }), msg: "cost-retention-msg",
       control: (a) => num("cost-retention", { value: cv.retention_days, min: cv.retention_min, max: cv.retention_max, apply: "data-cost-save" }, a) })}
+    ${plansHtml(plans)}
     ${subRow({ key: "cost-dirs", label: te("settings.cost.pathsEdit") })}
     ${subpage("cost-dirs", te("settings.cost.pathsEdit"), `<p class="hint">${te("settings.cost.pathsHelp")}</p>${editors}`)}
     ${subRow({ key: "cost-prices", label: te("settings.cost.prices") })}
@@ -55,6 +56,34 @@ export function costHtml(cv, prices) {
           <div class="dlg-actions left"><button class="btn danger-btn" data-cost-erase-confirm>${te("settings.cost.eraseConfirm")}</button>
             <button class="btn" data-cost-erase-cancel>${te("common.cancel")}</button></div>
         </div>` })}`;
+}
+
+/** PRD 0030 RF1/RF6: one plan price per account whose tool a source reads, and the second currency. Typed by the
+ *  person, kept on this computer, never in the TOML and never exported. Each row saves with its own button, so a
+ *  price, a currency and a cycle day are validated together by the core. */
+function plansHtml(plans) {
+  if (!plans) return "";
+  const field = (id, label, attrs, unit = "") => `<span class="set-num"><input id="${esc(id)}" aria-label="${esc(label)}" ${attrs} />${unit ? `<span class="set-unit">${unit}</span>` : ""}</span>`;
+  const accounts = plans.accounts.map((a) => {
+    const p = a.plan;
+    return row({ key: `cost-plan-${esc(a.id)}`, kw: "cost-plan", attrs: `data-cost-plan-row="${esc(a.id)}"`, msg: `cost-plan-${esc(a.id)}-msg`,
+      label: te("settings.cost.plan.label", { name: a.name, source: a.label }),
+      desc: p ? te("settings.cost.plan.current", { price: fmtNumber(p.price, 2), currency: p.currency, day: p.cycle_day ?? 1 }) : te("settings.cost.plan.none"),
+      info: te("settings.cost.plan.help"),
+      control: () => `${field(`cost-plan-price-${a.id}`, t("settings.cost.plan.price"), `type="number" inputmode="decimal" min="0" step="0.01" value="${p ? esc(p.price) : ""}" data-cost-plan-price`)}
+        ${field(`cost-plan-cur-${a.id}`, t("settings.cost.plan.currency"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="USD" value="${p ? esc(p.currency) : ""}" data-cost-plan-currency`)}
+        ${field(`cost-plan-day-${a.id}`, t("settings.cost.plan.day"), `type="number" inputmode="numeric" min="1" max="28" step="1" placeholder="1" value="${p?.cycle_day ? esc(p.cycle_day) : ""}" data-cost-plan-day`, te("settings.cost.plan.dayUnit"))}
+        ${buttons(`<button class="btn sm primary" data-cost-plan-save="${esc(a.id)}">${te("settings.apply")}</button>${p ? `<button class="btn sm" data-cost-plan-clear="${esc(a.id)}">${te("settings.cost.plan.clear")}</button>` : ""}`)}` });
+  }).join("");
+  const d = plans.display;
+  const display = row({ key: "cost-display", kw: "cost-display", msg: "cost-display-msg", label: te("settings.cost.display.label"),
+    desc: d ? `${te("settings.cost.display.current", { rate: fmtNumber(d.rate, 4), code: d.code, days: d.age_days })}${d.stale ? ` ${te("settings.cost.display.stale")}` : ""}` : te("settings.cost.display.none"),
+    info: te("settings.cost.display.help"),
+    control: () => `${field("cost-display-code", t("settings.cost.display.code"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="BRL" value="${d ? esc(d.code) : ""}" data-cost-display-code`)}
+      ${field("cost-display-rate", t("settings.cost.display.rate"), `type="number" inputmode="decimal" min="0" step="any" value="${d ? esc(d.rate) : ""}" data-cost-display-rate`, "USD = 1")}
+      ${buttons(`<button class="btn sm primary" data-cost-display-save>${te("settings.apply")}</button>${d ? `<button class="btn sm" data-cost-display-clear>${te("settings.cost.plan.clear")}</button>` : ""}`)}` });
+  return `${subRow({ key: "cost-plans", label: te("settings.cost.plans") })}
+    ${subpage("cost-plans", te("settings.cost.plans"), `<p class="hint">${te("settings.cost.plan.help")}</p>${accounts}${display}`)}`;
 }
 
 /** RF3/RF4.1: the prices the estimate uses, with each table's date and source and the state of pricing.json. */
@@ -80,7 +109,7 @@ function pricesHtml(p) {
  *  `keep`: a repaint the user did not ask for (the scan's state, the prices arriving) keeps the directories being
  *  typed and the focus. A refusal stays in the row of the control that caused it (RF4.3) until the next change. */
 async function bindCost(box, ctx) {
-  let cv, prices = null;
+  let cv, prices = null, plans = null;
   try { cv = await costStatus(); } catch (e) { box.querySelector(".hint").textContent = l10nError(e); return; }
   let timer = null;
   let failure = null; // [line id, text]
@@ -91,7 +120,7 @@ async function bindCost(box, ctx) {
     const drafts = keep ? [...box.querySelectorAll("[data-cost-paths]")].map((el) => [el.dataset.costPaths, el.value]) : [];
     const focused = keep && document.activeElement?.dataset?.costPaths;
     const caret = focused ? document.activeElement.selectionStart : 0;
-    box.innerHTML = costHtml(cv, prices);
+    box.innerHTML = costHtml(cv, prices, plans);
     for (const [source, value] of drafts) { const el = box.querySelector(`[data-cost-paths="${source}"]`); if (el) el.value = value; }
     if (focused) {
       const el = box.querySelector(`[data-cost-paths="${focused}"]`);
@@ -129,6 +158,27 @@ async function bindCost(box, ctx) {
     for (const button of box.querySelectorAll("[data-cost-paths-reset]")) button.onclick = () => {
       savePaths(cv.sources.find((s) => s.source === button.dataset.costPathsReset), []);
     };
+    // PRD 0030 RF1.1/RF6.1: a plan price or the typed rate saves with its own button; the core validates and
+    // answers with the new plans, shown at once on the cards (`settings-changed`).
+    const runPlans = (work, line) => work().then((answer) => {
+      failure = null;
+      plans = answer;
+      paint(cv, true);
+      toast(t("settings.saved"));
+      ctx.changed("cost");
+    }, (e) => { failure = [line, l10nError(e)]; paint(cv, true); });
+    const valueOf = (id) => box.querySelector(`#${CSS.escape(id)}`)?.value.trim() ?? "";
+    for (const button of box.querySelectorAll("[data-cost-plan-save]")) button.onclick = () => {
+      const id = button.dataset.costPlanSave;
+      const day = valueOf(`cost-plan-day-${id}`);
+      runPlans(() => costSetPlan(id, Number(valueOf(`cost-plan-price-${id}`)), valueOf(`cost-plan-cur-${id}`), day === "" ? null : Number(day)), `cost-plan-${id}-msg`);
+    };
+    for (const button of box.querySelectorAll("[data-cost-plan-clear]")) button.onclick = () => {
+      const id = button.dataset.costPlanClear;
+      runPlans(() => costSetPlan(id, null, "USD", null), `cost-plan-${id}-msg`);
+    };
+    box.querySelector("[data-cost-display-save]")?.addEventListener("click", () => runPlans(() => costSetDisplay(valueOf("cost-display-code"), Number(valueOf("cost-display-rate"))), "cost-display-msg"));
+    box.querySelector("[data-cost-display-clear]")?.addEventListener("click", () => runPlans(() => costSetDisplay(null, 0), "cost-display-msg"));
     // RF4.1/RF4.2: the period saves on change, the retention on Enter, on leaving the field or with its Apply.
     const period = box.querySelector("#cost-period");
     period.onchange = () => run(() => costSetOptions(period.value, cv.retention_days), "cost-period-msg");
@@ -152,6 +202,8 @@ async function bindCost(box, ctx) {
     if (busy) timer = setTimeout(() => { if (box.isConnected) costStatus().then((answer) => paint(answer, true), () => {}); }, 1000);
   };
   paint(cv);
+  // PRD 0030: the plan prices and the rate; read again after each save (the core answers with the new state).
+  costPlans().then((answer) => { plans = answer; if (box.isConnected) paint(cv, true); }, () => {});
   // The prices change only with pricing.json; read once per page opening.
   costPrices().then((answer) => {
     prices = answer;
@@ -171,7 +223,7 @@ function confirmDisclosure(d) {
 
 /** RF6.3: what the search indexes for this page: the rows drawn from the core's state, by the same function. */
 export async function searchHtml() {
-  return costHtml(await costStatus(), await costPrices());
+  return costHtml(await costStatus(), await costPrices(), await costPlans().catch(() => null));
 }
 
 /** RF2.4: turning a source off erases everything derived from it; resolves to the user's answer. */

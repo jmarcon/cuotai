@@ -314,6 +314,9 @@ jobs:
       # forecast callout, the reset pair and the best-account advice render
       # from the core texts in every built-in locale.
       - run: node scripts/test-pace-forecast-ui.mjs
+      # PRD 0030 RF1/RF6: plan price lines, the typed display currency and
+      # their Settings rows in every built-in locale.
+      - run: node scripts/test-cost-plan-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified

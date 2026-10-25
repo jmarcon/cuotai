@@ -235,6 +235,12 @@ export const onHookRun = (cb) => {
 // answers the new state. `costUsage` is the core's CostSummary the cards and details show.
 export const costStatus = () => call("cost_status");
 export const costUsage = () => call("cost_usage");
+// PRD 0030 RF1/RF6: the plan prices of the configured accounts, the display currency and the plan value lines (the
+// core's `PlansView`); typed by the person, kept on this computer, never exported. `price: null` clears a plan,
+// `code: null` clears the display currency.
+export const costPlans = () => call("cost_plans");
+export const costSetPlan = (id, price, currency, cycleDay) => call("cost_set_plan", { id, price, currency, cycleDay });
+export const costSetDisplay = (code, rate) => call("cost_set_display", { code, rate });
 export const costEnable = (source, digest) => call("cost_enable", { source, digest });
 export const costDisable = (source) => call("cost_disable", { source });
 export const costSetPaths = (source, paths) => call("cost_set_paths", { source, paths });
@@ -1473,6 +1479,37 @@ const demoCostUsage = () => {
   return { currency: "USD", notice: demoNotice(), span: { period: demoCost.period, days: null, label, first_day: demoCost.period === "all" ? null : at(span), last_day: at(0) }, sources,
     total: demoEstimate(all), pricing_error: null };
 };
+// PRD 0030 RF1/RF6 demo: plan prices by account key and one typed rate, kept for the page's life like the core's
+// settings. The value line mirrors `cost::plan_values` for a plan in one currency (a ratio when it is USD or the
+// display currency); the amounts are the demo period totals.
+const demoPlan = { plans: {}, display: null };
+const demoPlansView = () => {
+  const today = new Date();
+  const accounts = demoReports.flatMap((r) => {
+    const [source, s] = Object.entries(DEMO_COST).find(([, c]) => c.providers.includes(r.provider)) ?? [];
+    return source ? [{ id: demoKey(r), name: r.account, provider: r.provider, source, label: s.label, plan: demoPlan.plans[demoKey(r)] ?? null }] : [];
+  });
+  const usage = demoCostUsage();
+  const values = Object.keys(DEMO_COST).flatMap((source) => {
+    const planned = accounts.filter((a) => a.source === source && a.plan);
+    const total = usage.sources.find((s) => s.source === source)?.usage?.period.total;
+    if (!planned.length || total === undefined) return [];
+    const label = DEMO_COST[source].label;
+    const currencies = [...new Set(planned.map((a) => a.plan.currency))];
+    const price = planned.reduce((sum, a) => sum + a.plan.price, 0);
+    const plans = currencies.length === 1 ? `${currencies[0]} ${price.toFixed(2)}` : planned.map((a) => `${a.plan.currency} ${a.plan.price.toFixed(2)}`).join(" · ");
+    const rate = currencies.length === 1 && currencies[0] === "USD" ? 1 : currencies.length === 1 && demoPlan.display?.code === currencies[0] ? demoPlan.display.rate : null;
+    const params = { source: planned.length > 1 ? demoL10n("cost.plan.combined", { source: label }, `Contas do ${label}`) : label, estimate: total == null ? "—" : fmtMoney(total), plans };
+    const text = total == null ? demoL10n("cost.plan.unknown", params, `${label}: custo a preços de API desconhecido · plano ${plans}`)
+      : rate ? demoL10n(rate === 1 ? "cost.plan.ratio" : "cost.plan.ratio_rate", { ...params, ratio: ((total * rate) / price).toFixed(1) }, `${label}: ≈ ${params.estimate} a preços de API (estimativa) · plano ${plans}`)
+        : demoL10n("cost.plan.side", params, `${label}: ≈ ${params.estimate} a preços de API (estimativa) · plano ${plans}`);
+    return [{ source, label, accounts: planned.map((a) => a.name), cycle_start: dayKey(new Date(today.getFullYear(), today.getMonth(), 1)), estimate: total, partial: false,
+      plans: currencies.map((currency) => ({ currency, price: planned.filter((a) => a.plan.currency === currency).reduce((n, a) => n + a.plan.price, 0) })), ratio: rate && total != null ? (total * rate) / price : null, at_your_rate: rate != null && rate !== 1, text }];
+  });
+  const d = demoPlan.display;
+  return { accounts, values, display: d && { code: d.code, rate: d.rate, set_on: d.set_on, age_days: Math.floor((today - new Date(d.set_on)) / 864e5), stale: Math.floor((today - new Date(d.set_on)) / 864e5) >= 30 } };
+};
+const fmtMoney = (amount) => `$${amount.toFixed(2)}`;
 const demoPrices = () => {
   const models = Object.values(DEMO_COST).flatMap((s) => Object.values(s.models).filter(Boolean))
     .map((p) => ({ model: p.entry, origin: "embedded", rates: { input: p.input, output: p.output, cache_read: p.cache_read, cache_write: p.cache_write } }))
@@ -1763,6 +1800,23 @@ const demo = {
     }
     Object.assign(demoCost, { period, retention: retentionDays });
     return demoCostView();
+  },
+  cost_plans: async () => demoPlansView(),
+  cost_set_plan: async ({ id, price, currency, cycleDay }) => {
+    if (price == null) { delete demoPlan.plans[id]; return demoPlansView(); }
+    if (!(price > 0) || !/^[A-Za-z]{3}$/.test(currency) || (cycleDay != null && !(cycleDay >= 1 && cycleDay <= 28))) {
+      throw JSON.stringify(demoL10n("cost.error.invalid_plan", {}, "Plano inválido: um preço maior que zero, uma moeda de três letras e um dia de ciclo de 1 a 28."));
+    }
+    demoPlan.plans[id] = { price: Math.round(price * 100) / 100, currency: currency.toUpperCase(), cycle_day: cycleDay ?? null };
+    return demoPlansView();
+  },
+  cost_set_display: async ({ code, rate }) => {
+    if (code == null) { demoPlan.display = null; return demoPlansView(); }
+    if (!/^[A-Za-z]{3}$/.test(code) || code.toUpperCase() === "USD" || !(rate > 0)) {
+      throw JSON.stringify(demoL10n("cost.error.invalid_rate", {}, "Câmbio inválido: uma moeda de três letras diferente de USD e uma taxa maior que zero."));
+    }
+    demoPlan.display = { code: code.toUpperCase(), rate, set_on: dayKey(new Date()) };
+    return demoPlansView();
   },
   cost_erase: async () => { for (const id of Object.keys(DEMO_COST)) demoCost.erased.add(id); return 57; },
   // PRD 0018 RF2.6/RF3 browser demo: the same one-time answer and backend
