@@ -3,30 +3,43 @@
 // (DS-CMP-CHK-1, DS-CMP-DRAG, "Not in menu bar" per DS-CMP-LIST-3). Figures, levels, marks and the width budget come
 // from the core through `tray_preview`; this page only lays them out and saves the choice.
 import { t, te, tl } from "../i18n.js";
-import { esc, getSettings, icon, setTrayPrefs, trayAccounts, trayPreview } from "../lib.js";
+import { esc, getSettings, icon, logo, setTrayPrefs, trayAccounts, trayPreview } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { check, row, rowError, sw, toast } from "./rows.js";
 
-export const STYLES = ["tightest_percent", "logos_percent", "meters", "icon_only"];
+// Mockup order (`50-settings-menubar`): Meters, Logos + %, Tightest % (the default, decision N), Icon only.
+export const STYLES = ["meters", "logos_percent", "tightest_percent", "icon_only"];
 
-
+/** The page as in the approved mockup: the live preview on top, the four style cards with how many accounts the menu
+ *  bar shows, Appearance (the colored variant) and the account list with its count. Search keywords come only from
+ *  the catalogs (`settings.kw.<row>`, through `row()`). */
 export function html({ settings: s }) {
   const tray = s.tray ?? {};
   const style = STYLES.includes(tray.style) ? tray.style : "tightest_percent";
-  const cards = `<div class="seg opt-cards" role="radiogroup" id="tray-style" aria-labelledby="tray-style-label">${STYLES.map((v) => {
+  const cards = `<div class="seg opt-cards mb-cards" role="radiogroup" id="tray-style" aria-labelledby="tray-style-label">${STYLES.map((v) => {
     const on = v === style;
     return `<button type="button" role="radio" data-value="${v}" aria-checked="${on}" tabindex="${on ? 0 : -1}">
       <span class="opt-preview" data-tray-preview="${v}" aria-hidden="true"></span><span class="opt-label">${te(`settings.menubar.style.${v}`)}</span></button>`;
   }).join("")}</div>`;
-  return group("menubar-style", te("settings.menubar.style"),
-    row({ key: "tray-style", label: te("settings.menubar.style"), info: te("settings.menubar.style.help"), body: cards })
-    + `<div class="prev-card" data-tray-live role="img" aria-label=""><span class="prev-label">${te("settings.menubar.preview")}</span><span class="prev-out" data-tray-live-out></span></div>`
-    + row({ key: "tray-colored", label: te("settings.menubar.colored"), info: te("settings.menubar.colored.help"),
-      control: (a) => sw("tray-colored", !!tray.colored, a) }))
-    + group("menubar-accounts", te("settings.menubar.accounts"),
-      row({ key: "tray-auto", label: te("settings.menubar.auto"), info: te("settings.menubar.auto.help"),
-        control: (a) => sw("tray-auto", tray.accounts == null, a) })
-      + `<div data-tray-accounts><p class="hint">${te("common.loading")}</p></div>`);
+  return `<div class="prev-card mb-live" data-tray-live role="img" aria-label=""><span class="prev-label">${te("settings.menubar.preview")}</span><span class="prev-out" data-tray-live-out></span></div>`
+    + group("menubar-style", te("settings.menubar.style"),
+      row({ key: "tray-style", label: te("settings.menubar.style"), info: te("settings.menubar.style.help"), attrs: "data-bare", body: cards })
+      + `<p class="hint mb-showing" data-tray-showing></p>`)
+    + group("menubar-look", te("settings.menubar.appearance"),
+      row({ key: "tray-colored", label: te("settings.menubar.colored"), desc: te("settings.menubar.colored.desc"), info: te("settings.menubar.colored.help"),
+        control: (a) => sw("tray-colored", !!tray.colored, a) }))
+    + group("menubar-accounts", `${te("settings.menubar.accounts")}<span class="sec-count" data-tray-count></span>`,
+      `<div data-tray-accounts><p class="hint">${te("common.loading")}</p></div>`
+      + row({ key: "tray-auto", label: te("settings.menubar.auto"), info: te("settings.menubar.auto.help"),
+        control: (a) => sw("tray-auto", tray.accounts == null, a) }));
+}
+
+/** The account's state on its second line ("22% left", "Stale · 74% left", "On extra balance"). */
+export function accountStatus(a) {
+  if (a.exhausted) return a.on_extra ? t("settings.menubar.onExtra") : t("stage.exhausted");
+  if (a.remaining == null) return t("meter.noData");
+  const left = t("meter.left", { pct: Math.round(a.remaining * 100) });
+  return a.stale ? `${t("freshness.stale")} · ${left}` : left;
 }
 
 /** RF4.1: the preview of one style: the title as system text beside the mark, or continuous meters. */
@@ -44,18 +57,21 @@ export function previewHtml(summary, colored) {
   return `<span class="mb-item${colored ? " colored" : ""}"><span class="mb-mark">${icon("gauge")}${badge}</span>${summary.title ? `<span class="mb-title">${esc(summary.title)}</span>` : ""}</span>`;
 }
 
-/** RF4.2: the account list: the menu-bar accounts in their order (with handles), then "Not in menu bar". */
+/** RF4.2: the account list: the menu-bar accounts in their order (with handles), then "Not in menu bar"; each with
+ *  its tile, name, provider and state, and the membership check on the right (DS-CMP-CHK-1). */
 export function accountsHtml(accounts, selected, auto) {
   if (!accounts.length) return `<p class="hint">${te("settings.menubar.none")}</p>`;
   const inBar = selected.map((k) => accounts.find((a) => a.key === k)).filter(Boolean);
   const rest = accounts.filter((a) => !selected.includes(a.key));
   const item = (a, on) => `<li class="mb-acc" data-key="${esc(a.key)}" ${on && !auto ? 'draggable="true"' : ""}>
     ${on && !auto ? `<button type="button" class="icon mb-grip" data-grip aria-label="${te("settings.menubar.move", { name: a.name })}" title="${te("settings.menubar.move.hint")}">${icon("grip")}</button>` : '<span class="mb-grip-gap"></span>'}
-    ${check(`data-tray-pick="${esc(a.key)}" aria-label="${te("settings.menubar.pick", { name: a.name })}"`, on)}
-    <span class="mb-acc-name">${esc(a.name)}</span><span class="mb-acc-provider">${esc(a.provider_label)}</span></li>`;
-  return `<ul class="mb-list" aria-label="${te("settings.menubar.accounts")}">${inBar.map((a) => item(a, true)).join("")}</ul>
-    ${rest.length ? `<p class="mb-sub">${te("settings.menubar.not_in")}</p><ul class="mb-list">${rest.map((a) => item(a, false)).join("")}</ul>` : ""}
-    ${inBar.length > 1 && !auto ? `<p class="hint">${te("settings.menubar.drag")}</p>` : ""}`;
+    ${logo(a.provider, 28)}
+    <span class="mb-acc-text"><span class="mb-acc-l1"><span class="mb-acc-name">${esc(a.name)}</span> <span class="mb-acc-provider">${esc(a.provider_label)}</span></span>
+      <span class="mb-acc-st">${esc(accountStatus(a))}</span></span>
+    ${check(`data-tray-pick="${esc(a.key)}" aria-label="${te("settings.menubar.pick", { name: a.name })}"`, on)}</li>`;
+  return `<ul class="mb-list" aria-label="${te("settings.menubar.accounts")}">${inBar.map((a) => item(a, true)).join("")}
+    ${rest.length ? `<li class="mb-sub" role="presentation">${te("settings.menubar.not_in")}</li>${rest.map((a) => item(a, false)).join("")}` : ""}</ul>
+    ${inBar.length > 1 && !auto ? `<p class="hint mb-drag">${te("settings.menubar.drag")}</p>` : ""}`;
 }
 
 /** Moves `key` one place up (`-1`) or down in `order`; the same array when it cannot move. */
@@ -98,6 +114,11 @@ export function bind(root, ctx) {
   };
   const paintAccounts = (focusKey = null, focusSel = "[data-grip]") => {
     box.innerHTML = accountsHtml(all, selected(), state.accounts == null);
+    const shown = selected().filter((k) => all.some((a) => a.key === k)).length;
+    const count = root.querySelector("[data-tray-count]");
+    if (count) count.textContent = all.length ? t("settings.menubar.count", { n: shown, total: all.length }) : "";
+    const showing = root.querySelector("[data-tray-showing]");
+    if (showing) showing.textContent = all.length ? t("settings.menubar.showing", { n: shown, total: all.length }) : "";
     if (focusKey) box.querySelector(`[data-key="${CSS.escape(focusKey)}"] ${focusSel}`)?.focus();
   };
   // PRD 0022 RF8.1: the tray view shares this preference (Settings › Dashboard sets it); keep the stored one.

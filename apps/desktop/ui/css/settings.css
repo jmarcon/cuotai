@@ -1137,3 +1137,147 @@
   overflow-y: auto;
   min-width: 100%;
 }
+
+/* PRD 0025 RF4 / PRD 0022 RF9.4: Settings › Menu bar as in the approved mockup (`50-settings-menubar`). */
+.set-row[data-bare] > .set-row-text,
+.set-row[data-bare] > .set-row-ctl {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.set-content .set-sec > h3:has(.sec-count) {
+  right: 4px;
+  display: flex;
+}
+.sec-count {
+  margin-left: auto;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+.prev-card.mb-live {
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+}
+.prev-card.mb-live .prev-out {
+  display: inline-flex;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.seg.opt-cards.mb-cards [role="radio"] {
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2) var(--space-3);
+}
+.seg.opt-cards.mb-cards [role="radio"][aria-checked="true"] {
+  padding: calc(var(--space-4) - 1px) calc(var(--space-2) - 1px) calc(var(--space-3) - 1px);
+}
+.mb-cards .opt-preview {
+  background: none;
+}
+.mb-showing {
+  margin: 0 var(--space-4) var(--space-3);
+}
+.mb-acc {
+  min-height: 52px;
+}
+.mb-acc > .logo {
+  flex: none;
+}
+.mb-acc-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.mb-acc-l1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mb-acc-l1 .mb-acc-name {
+  flex: none;
+}
+.mb-acc-st {
+  color: var(--fg-muted);
+  font-size: var(--text-sm, 12px);
+  font-variant-numeric: tabular-nums;
+}
+li.mb-sub {
+  margin: 0 calc(-1 * var(--space-2));
+  border-top: var(--border-w) solid var(--border);
+  background: var(--surface-2);
+}
+li.mb-sub + .mb-acc {
+  border-top: var(--border-w) solid var(--border);
+}
+.mb-drag {
+  margin: var(--space-2) var(--space-4);
+}
+/* PRD 0025 RF5.2: the account list on Settings › Dashboard. */
+.acc-list .mb-acc > .icon:not(.mb-grip) {
+  flex: none;
+}
+/* PRD 0025 RF9 (mockup `50-settings-display-custom`): the row display sub-page. */
+.rows-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.rows-head > .hint {
+  flex: 1 1 200px;
+  margin: 0;
+}
+.prev-card.rows-prev {
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+}
+.rows-prev-out {
+  align-self: center;
+  width: min(100%, 380px);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  pointer-events: none;
+}
+.rows-prev-out .row {
+  border-bottom: 0;
+}
+.rows-prev-out > .hint {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-2);
+}
+.rows-el-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-2) var(--space-1) 0;
+}
+.rows-el-head h4 {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rows-el-head .hint {
+  margin: 0;
+}
+.rows-els {
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.rows-els > .set-row + .set-row {
+  border-top: var(--border-w) solid var(--border);
+}

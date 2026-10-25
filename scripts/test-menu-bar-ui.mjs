@@ -64,7 +64,7 @@ await i18n.setLocale("en-US");
 // RF4.2: keyboard reordering moves one place and stops at the ends.
 assert.deepEqual(menubar.moved(["a", "b", "c"], "b", -1), ["b", "a", "c"]);
 assert.deepEqual(menubar.moved(["a", "b", "c"], "c", 1), ["a", "b", "c"]);
-const accounts = [{ key: "a", name: "Work", provider_label: "Claude" }, { key: "b", name: "Home", provider_label: "Gemini" }];
+const accounts = [{ key: "a", name: "Work", provider: "claude", provider_label: "Claude", remaining: 0.22 }, { key: "b", name: "Home", provider: "gemini", provider_label: "Gemini", remaining: 0.74, stale: true }];
 const custom = menubar.accountsHtml(accounts, ["b"], false);
 assert.ok(custom.indexOf('data-key="b"') < custom.indexOf('data-key="a"'), "the menu-bar accounts come first, in their order");
 assert.match(custom, /Not in menu bar/);
