@@ -92,6 +92,11 @@ SUBCOMMANDS:
     --fail-after N          also fail past N days (the non-required job; e.g. 180)
     --today YYYY-MM-DD      date to compare against (default: today, UTC)
 
+  anonymize-fixture   Make a captured response safe to commit as a fixture (PRD 0028 RF5)
+    --provider SLUG         provider the response came from
+    --perturb FACTOR        scale numbers by FACTOR (default: keep them)
+    IN.json                 the capture; the fixture goes to stdout, the checklist to stderr
+
   release prepare     Compute the next version and write the release (PRD 0039 RF4)
     --repo PATH             repository root (default: .)
     --version X.Y.Z         override the computed version (RF3.4)
@@ -143,6 +148,9 @@ fn run(args: &[String]) -> Res<()> {
     };
     if sub == "release" {
         return release(&args[1..]);
+    }
+    if sub == "anonymize-fixture" {
+        return anonymize_fixture(&args[1..]);
     }
     let opts = Opts::parse(&args[1..])?;
     match sub.as_str() {
@@ -439,6 +447,35 @@ fn access_staleness(opts: &Opts) -> Res<()> {
         "{}",
         xtask::access::run(&repo, &today, days, number("fail-after")?)?
     );
+    Ok(())
+}
+
+/// `anonymize-fixture --provider SLUG [--perturb F] IN.json` (PRD 0028 RF5).
+fn anonymize_fixture(args: &[String]) -> Res<()> {
+    let (mut provider, mut input, mut options) = (None, None, xtask::anonymize::Options::default());
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--provider" => provider = it.next().cloned(),
+            "--perturb" => {
+                let factor = it.next().and_then(|v| v.parse::<f64>().ok());
+                if !factor.is_some_and(f64::is_finite) {
+                    return err("--perturb needs a finite number");
+                }
+                options.perturb = factor;
+            }
+            other if other.starts_with("--") => return err(format!("unknown option '{other}'")),
+            file => input = Some(file.to_string()),
+        }
+    }
+    let (Some(provider), Some(input)) = (provider, input) else {
+        return err("usage: cargo xtask anonymize-fixture --provider SLUG [--perturb F] IN.json");
+    };
+    let text = std::fs::read_to_string(&input)
+        .map_err(|_| Error::Msg(format!("cannot read '{input}'")))?;
+    let output = xtask::anonymize::run(&provider, &text, options)?;
+    print!("{output}");
+    eprint!("{}", xtask::anonymize::checklist(&provider));
     Ok(())
 }
 

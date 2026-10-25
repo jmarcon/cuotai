@@ -5,6 +5,7 @@
 //! Library half; `main.rs` is a thin CLI over it.
 
 pub mod access;
+pub mod anonymize;
 /// The changelog format itself (PRD 0019 RF7.4): one parser, compiled from
 /// the core's file so the repository checks and the product read exactly
 /// the same rules. It is dependency-free, which is what makes the `#[path]`
