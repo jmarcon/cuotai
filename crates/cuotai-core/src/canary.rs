@@ -481,6 +481,9 @@ mod tests {
 
     fn report(account: &Account, status: Status, labels: &[&str]) -> Report {
         Report {
+            account_id: None,
+            as_of: Default::default(),
+            sub_reports: Vec::new(),
             account: account.name.clone(),
             provider: account.provider,
             checked_at: chrono::Utc::now(),
