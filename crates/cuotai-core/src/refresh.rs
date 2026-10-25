@@ -1144,6 +1144,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 
@@ -1756,6 +1757,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 
@@ -2606,6 +2608,7 @@ mod prd0033_rf2_tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            as_of: None,
         }
     }
 

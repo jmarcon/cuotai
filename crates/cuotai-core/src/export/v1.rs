@@ -83,6 +83,10 @@ pub struct AccountExport {
     pub report: Option<Report>,
     /// Age of `report.checked_at`; `null` without a report.
     pub age_seconds: Option<u64>,
+    /// PRD 0033 RF3.3: age of `report.as_of`, present only when the
+    /// provider states the time of its data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_age_seconds: Option<u64>,
     /// [`freshness::assess`] of `report.checked_at` against the account's
     /// effective interval; `null` without a report.
     pub freshness: Option<Freshness>,
@@ -311,6 +315,9 @@ fn account_export(
         class: metrics::classify_report(report),
         report: report.map(|report| scrub.report(report)),
         age_seconds: report.map(|report| age(report.checked_at)),
+        data_age_seconds: report
+            .and_then(|report| freshness::data_age(report, now))
+            .map(|age| age.as_secs()),
         freshness: report.map(|report| freshness::assess(report.checked_at, interval, now)),
         clock_adjusted: report
             .is_some_and(|report| freshness::clock_adjusted(report.checked_at, now)),
@@ -597,6 +604,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 

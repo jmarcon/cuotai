@@ -778,6 +778,12 @@ pub struct Report {
     /// skipped when empty, so every other report serializes as before.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sub_reports: Vec<SubReport>,
+    /// PRD 0033 RF3.1: when the data itself is from, only for adapters
+    /// whose provider states it (the end of the last complete cost
+    /// bucket, say); `None` for every other adapter. Additive and skipped
+    /// when unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub as_of: Option<DateTime<Utc>>,
 }
 
 /// PRD 0036 RF1.2: one upstream connection of an aggregator instance. It
@@ -894,6 +900,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             sub_reports: Vec::new(),
+            as_of: None,
         };
         let json = serde_json::to_value(&report).unwrap();
         assert!(json.get("notes_l10n").is_none(), "empty sidecar must skip");

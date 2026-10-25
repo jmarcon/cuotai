@@ -526,6 +526,7 @@ mod tests {
             session_expires_at: None,
             diagnostic: None,
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 

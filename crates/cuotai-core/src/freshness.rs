@@ -46,6 +46,22 @@ pub fn assess(checked_at: DateTime<Utc>, interval: Duration, now: DateTime<Utc>)
     }
 }
 
+/// PRD 0033 RF3.2: gap after which a card names the data time.
+pub const AS_OF_LAG: Duration = Duration::from_secs(15 * 60);
+
+/// Age of the source's data at `now` when the provider states its time
+/// (`Report::as_of`); `None` otherwise.
+pub fn data_age(report: &crate::Report, now: DateTime<Utc>) -> Option<Duration> {
+    report.as_of.map(|as_of| age(as_of, now))
+}
+
+/// `Report::as_of` when it lies more than [`AS_OF_LAG`] before
+/// `checked_at`, i.e. when "Checked ... · data as of ..." is worth saying.
+pub fn lagging_as_of(report: &crate::Report) -> Option<DateTime<Utc>> {
+    let as_of = report.as_of?;
+    (report.checked_at - as_of > chrono::TimeDelta::from_std(AS_OF_LAG).ok()?).then_some(as_of)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,5 +123,28 @@ mod tests {
             assess(checked_at, Duration::from_secs(300), now),
             Freshness::Fresh
         );
+    }
+
+    #[test]
+    fn data_age_and_lag_follow_as_of_only() {
+        let mut report = crate::Report {
+            account: "a".into(),
+            provider: crate::Provider::OpenAiApi,
+            checked_at: at(10_000),
+            status: crate::Status::Ready,
+            metrics: Vec::new(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            as_of: None,
+        };
+        assert_eq!(data_age(&report, at(10_000)), None);
+        assert_eq!(lagging_as_of(&report), None);
+        report.as_of = Some(at(10_000 - 600));
+        assert_eq!(data_age(&report, at(10_060)), Some(Duration::from_secs(660)));
+        assert_eq!(lagging_as_of(&report), None, "10 minutes is not lag");
+        report.as_of = Some(at(10_000 - 7_200));
+        assert_eq!(lagging_as_of(&report), Some(at(10_000 - 7_200)));
     }
 }

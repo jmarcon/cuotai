@@ -122,6 +122,7 @@ impl Checked {
             source: self.source,
             session_expires_at: None,
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 }

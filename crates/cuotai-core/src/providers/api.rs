@@ -118,7 +118,26 @@ fn finite(value: f64) -> Result<f64, QueryError> {
 
 #[derive(Deserialize)]
 struct OpenAiCostBucket {
+    /// Unix seconds, stated by the Costs API for every bucket.
+    #[serde(default)]
+    start_time: Option<i64>,
+    #[serde(default)]
+    end_time: Option<i64>,
     results: Vec<OpenAiCostResult>,
+}
+
+/// PRD 0033 RF3.1: the data time of the Costs API is the end of the last
+/// complete daily bucket (`end_time`, a full `bucket_width` after its
+/// `start_time` and not after `now`); the current day's bucket is clipped at
+/// the query time and is not complete.
+fn openai_costs_as_of(buckets: &[OpenAiCostBucket], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    buckets
+        .iter()
+        .filter_map(|b| Some((b.start_time?, b.end_time?)))
+        .filter(|(start, end)| end - start == 86_400 && *end <= now.timestamp())
+        .map(|(_, end)| end)
+        .max()
+        .and_then(|end| DateTime::from_timestamp(end, 0))
 }
 
 #[derive(Deserialize)]
@@ -177,6 +196,7 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
     })
     .await?;
 
+    let as_of = openai_costs_as_of(&cost_buckets, now);
     let mut costs: BTreeMap<String, f64> = BTreeMap::new();
     for bucket in cost_buckets {
         for result in bucket.results {
@@ -287,7 +307,8 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         metrics,
         notes,
         "https://developers.openai.com/api/reference/resources/admin/subresources/organization",
-    ))
+    )
+    .with_as_of(as_of))
 }
 
 // ------------------------------------------------------------- Anthropic
@@ -544,6 +565,33 @@ mod tests {
             "has_more": false,
             "next_page": null,
         })
+    }
+
+    fn bucket(start: Option<i64>, end: Option<i64>) -> OpenAiCostBucket {
+        OpenAiCostBucket {
+            start_time: start,
+            end_time: end,
+            results: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn openai_as_of_is_the_end_of_the_last_complete_daily_bucket() {
+        let day = 86_400;
+        let now = DateTime::from_timestamp(10 * day + 3_600, 0).unwrap();
+        let buckets = [
+            bucket(Some(8 * day), Some(9 * day)),
+            bucket(Some(9 * day), Some(10 * day)),
+            // The current day is clipped at the query time: not complete.
+            bucket(Some(10 * day), Some(10 * day + 3_600)),
+        ];
+        assert_eq!(
+            openai_costs_as_of(&buckets, now),
+            DateTime::from_timestamp(10 * day, 0)
+        );
+        // Without stated times, nothing is claimed.
+        assert_eq!(openai_costs_as_of(&[bucket(None, None)], now), None);
+        assert_eq!(openai_costs_as_of(&[], now), None);
     }
 
     #[tokio::test]

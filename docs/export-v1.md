@@ -54,8 +54,9 @@ println!("{}", serde_json::to_string(&export)?);
 | `name`, `provider` | string | Account name and provider slug ([`providers.md`](providers.md)). |
 | `email` | string or `null` | Only when the producer includes identity; `null` when the e-mail is unknown. Absent by default. |
 | `class` | `available` / `exhausted` / `unmeasured` | Classification of `report` (`unmeasured` without a report or when it failed). |
-| `report` | object or `null` | The current report (`account`, `provider`, `checked_at`, `status`, `metrics`, `notes`, `notes_l10n`, `source`), the same shape as in `--json`, after redaction. `null` until the account has a report (first query or an edit pending). |
+| `report` | object or `null` | The current report (`account`, `provider`, `checked_at`, `status`, `metrics`, `notes`, `notes_l10n`, `source`, and, only when the provider states the time of its data, `as_of`), the same shape as in `--json`, after redaction. `null` until the account has a report (first query or an edit pending). |
 | `age_seconds` | integer or `null` | Age of `report.checked_at`. |
+| `data_age_seconds` | integer | Age of `report.as_of`, the time of the provider's data. Present only for providers that state it ([`providers.md`](providers.md)); never inferred. |
 | `freshness` | `fresh` / `aging` / `stale` or `null` | `report.checked_at` against the account's effective refresh interval: `fresh` up to 1.5 times, `aging` up to 3 times, `stale` above. |
 | `clock_adjusted` | boolean | `report.checked_at` is in the future (the system clock went backwards); the age then reads `0`. |
 | `stale` | boolean | `true` exactly when `last_good` is present: the current query failed (or is pending) and what is known of the account is an earlier reading. |

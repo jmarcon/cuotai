@@ -48,9 +48,17 @@ pub(crate) struct Data {
     /// PRD 0036: the sub-accounts an aggregator relays; empty for every
     /// ordinary provider.
     pub sub_reports: Vec<crate::SubReport>,
+    /// PRD 0033 RF3.1: the provider-stated time of the data, if any.
+    pub as_of: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl Data {
+    /// Record the provider-stated time of the data (RF3.1).
+    pub(crate) fn with_as_of(mut self, as_of: Option<chrono::DateTime<chrono::Utc>>) -> Self {
+        self.as_of = as_of;
+        self
+    }
+
     pub(crate) fn new(metrics: Vec<Metric>, notes: Notes, source: impl Into<String>) -> Self {
         let (notes, notes_l10n) = notes.finish();
         Self {
@@ -59,6 +67,7 @@ impl Data {
             notes_l10n,
             source: source.into(),
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 }

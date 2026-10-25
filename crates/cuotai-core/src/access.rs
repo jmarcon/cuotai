@@ -685,6 +685,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 

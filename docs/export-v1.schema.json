@@ -29,6 +29,7 @@
         "class": { "anyOf": [{ "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }] },
         "report": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Report" }], "description": "Current report; null until the account has one." },
         "age_seconds": { "type": ["integer", "null"], "minimum": 0, "description": "Age of report.checked_at; null without a report." },
+        "data_age_seconds": { "type": "integer", "minimum": 0, "description": "Age of report.as_of; present only when the provider states the time of its data." },
         "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }, { "type": "string" }], "description": "report.checked_at against the account's effective interval; null without a report." },
         "clock_adjusted": { "type": "boolean", "description": "report.checked_at is in the future; the age reads zero." },
         "stale": { "type": "boolean", "description": "true exactly when last_good is present." },
@@ -94,7 +95,8 @@
         "notes": { "type": "array", "items": { "type": "string" }, "description": "Portuguese texts, redacted." },
         "notes_l10n": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "Same length and order as notes; absent when empty." },
         "source": { "type": "string", "description": "Public endpoint or reference contract, redacted; may be empty." },
-        "sub_reports": { "type": "array", "items": { "$ref": "#/$defs/SubReport" }, "description": "Aggregator accounts only (PRD 0036): one entry per upstream connection; absent when empty." }
+        "sub_reports": { "type": "array", "items": { "$ref": "#/$defs/SubReport" }, "description": "Aggregator accounts only (PRD 0036): one entry per upstream connection; absent when empty." },
+        "as_of": { "type": "string", "format": "date-time", "description": "When the data is from, only for providers that state it (PRD 0033 RF3); absent otherwise." }
       }
     },
     "SubReport": {

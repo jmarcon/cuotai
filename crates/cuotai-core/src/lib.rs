@@ -770,6 +770,7 @@ impl Monitor {
                 source: String::new(),
                 session_expires_at: None,
                 sub_reports: Vec::new(),
+                as_of: None,
             };
         }
         self.query_report(account, sessions).await
@@ -811,6 +812,7 @@ impl Monitor {
                         .map_or_else(String::new, |id| format!("extension:{id}")),
                     session_expires_at: None,
                     sub_reports: Vec::new(),
+                    as_of: None,
                 }
             };
             let Some(manager) = &self.extensions else {
@@ -838,7 +840,7 @@ impl Monitor {
             )
             .await;
         let mut diagnostic = None;
-        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports) = match result {
+        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of) = match result {
             Ok(data) => (
                 Status::Ready,
                 data.metrics,
@@ -846,6 +848,7 @@ impl Monitor {
                 data.notes_l10n,
                 data.source,
                 data.sub_reports,
+                data.as_of,
             ),
             Err(error) => {
                 let mut notes = crate::text::Notes::one(error.note);
@@ -866,6 +869,7 @@ impl Monitor {
                     l10n,
                     String::new(),
                     Vec::new(),
+                    None,
                 )
             }
         };
@@ -886,6 +890,7 @@ impl Monitor {
             source,
             session_expires_at,
             sub_reports,
+            as_of,
         }
     }
 
@@ -1817,6 +1822,7 @@ credential_env = "OPENAI_ADMIN_KEY"
             notes_l10n: Vec::new(),
             source: "cost-explorer".into(),
             session_expires_at: None,
+            as_of: None,
         };
         let store = metered_record::Store::new(dir.path().to_path_buf());
         store.finish(
@@ -2049,6 +2055,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         source: String::new(),
                         session_expires_at: None,
                         sub_reports: Vec::new(),
+                        as_of: None,
                     },
                     crate::Report {
                         account_id: None,
@@ -2063,6 +2070,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         source: String::new(),
                         session_expires_at: None,
                         sub_reports: Vec::new(),
+                        as_of: None,
                     },
                 ],
             }),

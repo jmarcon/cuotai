@@ -17,7 +17,7 @@ For parameters, default variables and limitations of each provider, use the tabl
 
 | Identifier | Data queried | Configuration / restrictions |
 |---|---|---|
-| `open_ai_api` | Cost per currency; completions tokens and requests, UTC month | `OPENAI_ADMIN_KEY`, **Admin API key**. Optional `params.project_ids` and `params.models`, comma-separated |
+| `open_ai_api` | Cost per currency; completions tokens and requests, UTC month | `OPENAI_ADMIN_KEY`, **Admin API key**. Optional `params.project_ids` and `params.models`, comma-separated. States its data time (`as_of`, PRD 0033 RF3): the end of the last complete daily cost bucket. Every other adapter leaves `as_of` unset until its provider documents a data time |
 | `anthropic_api` | USD cost and message tokens including cache, UTC month | `ANTHROPIC_ADMIN_KEY`, admin key. Optional `params.workspace_ids` and `params.models`. Priority Tier is not included in the cost report |
 | `chat_gpt` | Percentage of the **Codex** windows and credit balance when returned | Native OAuth login or `CHATGPT_ACCESS_TOKEN`; optional `params.account_id`. Internal, undocumented interface. **Does not query the ChatGPT web message quota** |
 | `claude` | Usage windows and renewal; extra usage when returned | Native OAuth login or `CLAUDE_OAUTH_TOKEN`. Undocumented interface, contract evidenced by community clients. Undocumented extra-usage units are preserved as provider units |

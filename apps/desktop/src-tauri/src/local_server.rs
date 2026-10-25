@@ -432,6 +432,7 @@ mod tests {
             session_expires_at: None,
             diagnostic: None,
             sub_reports: Vec::new(),
+            as_of: None,
         };
         cycle.finish_account(0, Some(report), token, Instant::now());
         Feed {

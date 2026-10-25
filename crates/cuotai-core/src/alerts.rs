@@ -1276,6 +1276,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             sub_reports: Vec::new(),
+            as_of: None,
         }
     }
 
@@ -1993,6 +1994,7 @@ mod tests {
         let expiring = |at| Report {
             session_expires_at: Some(at),
             sub_reports: Vec::new(),
+            as_of: None,
             ..report("Work", t0(), Vec::new())
         };
         let soon = t0() + TimeDelta::days(2) + mins(30);
