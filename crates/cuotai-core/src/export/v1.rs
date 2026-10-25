@@ -434,6 +434,7 @@ impl LimitsSummary {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn account_export(
     index: usize,
     account: &Account,
