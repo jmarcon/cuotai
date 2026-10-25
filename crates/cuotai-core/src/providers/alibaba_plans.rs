@@ -344,7 +344,11 @@ fn http_error(code: reqwest::StatusCode, session: bool) -> QueryError {
             format!("Consulta Alibaba Coding Plan retornou HTTP {code}."),
         ),
     };
-    QueryError { status, note }
+    QueryError {
+        diagnostic: None,
+        status,
+        note,
+    }
 }
 
 async fn response_json(
@@ -376,6 +380,7 @@ async fn response_json(
 fn login_required(session: bool) -> QueryError {
     if session {
         QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.console_login_required",
@@ -697,6 +702,7 @@ fn parse_coding_plan_payload(
         }
         if code != 0 && code != 200 {
             return Err(QueryError {
+                diagnostic: None,
                 status: Status::Error,
                 note: Localized::fixed(
                     "query.alibaba_plans.rpc_quota",
@@ -1056,6 +1062,7 @@ fn token_plan_metrics(
         .is_some_and(|code| contains_ascii_case_insensitive(&code, "needlogin"))
     {
         return Err(QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.token_plan_session_expired",
@@ -1292,6 +1299,7 @@ async fn token_plan_send(
     if !response.status().is_success() {
         let code = response.status();
         return Err(QueryError {
+            diagnostic: None,
             status: match code.as_u16() {
                 401 | 403 => Status::AuthenticationError,
                 429 => Status::RateLimited,
@@ -1413,6 +1421,7 @@ async fn token_plan_with_session(
     .await?;
     if !info.status().is_success() {
         return Err(QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.qwen_cloud_session_invalid",
@@ -1425,6 +1434,7 @@ async fn token_plan_with_session(
     let sec_token = find_string(&info, &["secToken", "sec_token"])
         .or_else(|| cookie_value(cookie, "sec_token").map(str::to_owned))
         .ok_or_else(|| QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.qwen_cloud_missing_sec_token",
@@ -1515,7 +1525,7 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
     if find_string(&payload, &["code"])
         .is_some_and(|code| contains_ascii_case_insensitive(&code, "needlogin"))
     {
-        return Err(QueryError {
+        return Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.token_plan_cli_session_expired",
@@ -1640,7 +1650,11 @@ async fn run_token_plan_cli(
                 "CLI `bl` falhou ao consultar Token Plan; verifique o perfil configurado em params.cli_profile.",
             ),
         };
-        return Err(QueryError { status, note });
+        return Err(QueryError {
+            diagnostic: None,
+            status,
+            note,
+        });
     }
     let stdout = output.stdout;
     let trimmed = stdout

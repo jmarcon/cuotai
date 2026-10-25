@@ -10,6 +10,7 @@ pub mod catalog;
 pub mod changelog;
 pub mod config_file;
 pub mod cost;
+pub mod diagnostic;
 pub mod edit_error;
 pub mod events;
 pub mod export;
@@ -696,6 +697,7 @@ impl Monitor {
                 crate::text::Notes::one(edit_error::config_error_note(&error)).finish();
             return Report {
                 account_id: Some(account.id()),
+                diagnostic: None,
                 account: account.name.clone(),
                 provider: account.provider,
                 checked_at: self.now(),
@@ -733,6 +735,7 @@ impl Monitor {
                 let (notes, notes_l10n) = crate::text::Notes::one(note).finish();
                 Report {
                     account_id: None,
+                    diagnostic: None,
                     account: account.name.clone(),
                     provider: Provider::Extension,
                     checked_at,
@@ -770,6 +773,7 @@ impl Monitor {
                 },
             )
             .await;
+        let mut diagnostic = None;
         let (status, metrics, mut notes, mut notes_l10n, source) = match result {
             Ok(data) => (
                 Status::Ready,
@@ -780,6 +784,11 @@ impl Monitor {
             ),
             Err(error) => {
                 let mut notes = crate::text::Notes::one(error.note);
+                // PRD 0028 RF1.3: the details say which field drifted.
+                if let Some(found) = &error.diagnostic {
+                    notes.push_note(found.text());
+                }
+                diagnostic = error.diagnostic;
                 // PRD 0011 RF3: context only; the status stays as queried.
                 if let Some(state) = self.incident_state(account.provider).await {
                     notes.extend(incidents::failure_notes(error.status, state));
@@ -794,6 +803,7 @@ impl Monitor {
         }
         Report {
             account_id: None,
+            diagnostic,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: self.now(),
@@ -852,6 +862,7 @@ impl Monitor {
                             _ => Status::Error,
                         };
                         let error = providers::QueryError {
+                            diagnostic: None,
                             status,
                             note: error.l10n(),
                         };
@@ -932,6 +943,7 @@ impl Monitor {
             let result = match result {
                 Err(error) if error.status == Status::AuthenticationError && !read.is_empty() => {
                     Err(providers::QueryError {
+                        diagnostic: None,
                         status: Status::AuthenticationError,
                         note: user_session::rejected(),
                     })
@@ -1898,6 +1910,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                 reports: vec![
                     crate::Report {
                         account_id: None,
+                        diagnostic: None,
                         account: "aws-one".into(),
                         provider: Provider::AwsBedrock,
                         checked_at: chrono::Utc::now(),
@@ -1910,6 +1923,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                     },
                     crate::Report {
                         account_id: None,
+                        diagnostic: None,
                         account: "aws-two".into(),
                         provider: Provider::AwsBedrock,
                         checked_at: chrono::Utc::now(),

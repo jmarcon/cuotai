@@ -655,6 +655,7 @@ mod tests {
         let (notes, notes_l10n) = crate::text::Notes::one(error.note).finish();
         Report {
             account_id: None,
+            diagnostic: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: chrono::Utc::now(),

@@ -367,6 +367,7 @@ mod tests {
     pub(crate) fn ready(remaining: f64) -> Option<Report> {
         Some(Report {
             account_id: None,
+            diagnostic: None,
             account: "a".into(),
             provider: Provider::Groq,
             checked_at: chrono::Utc::now(),

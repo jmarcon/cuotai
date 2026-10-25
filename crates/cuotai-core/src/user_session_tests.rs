@@ -1275,6 +1275,7 @@ fn test_report(
     };
     crate::Report {
         account_id: None,
+        diagnostic: None,
         account: account.name.clone(),
         provider: account.provider,
         checked_at: now(),
@@ -1515,6 +1516,7 @@ fn only_a_failed_vault_session_offers_a_new_paste() {
         ..test_report(
             &draft,
             Err(crate::providers::QueryError {
+                diagnostic: None,
                 status,
                 note: Localized::fixed(id, "x"),
             }),

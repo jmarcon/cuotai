@@ -568,6 +568,7 @@ mod tests {
             .zip(metrics)
             .map(|(account, metrics)| Report {
                 account_id: None,
+                diagnostic: None,
                 account: account.name.clone(),
                 provider: account.provider,
                 checked_at: now(),

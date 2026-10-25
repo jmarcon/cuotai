@@ -362,6 +362,7 @@ async fn fetch_antigravity_at(
             format!("Antigravity sem dados: {}.", detail.join("; "))
         };
         return Err(QueryError {
+            diagnostic: None,
             status: crate::Status::Error,
             note: Localized::with_param(
                 "note.antigravity.fatal_summary",

@@ -372,6 +372,7 @@ mod tests {
     fn report(account: &Account, used: f64, resets_at: DateTime<Utc>) -> Report {
         Report {
             account_id: None,
+            diagnostic: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: start(),

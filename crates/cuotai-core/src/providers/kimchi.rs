@@ -177,6 +177,7 @@ async fn fetch_budget(
     }
     if !code.is_success() {
         return Err(QueryError {
+            diagnostic: None,
             status: match code.as_u16() {
                 401 | 403 => Status::AuthenticationError,
                 429 => Status::RateLimited,

@@ -37,6 +37,8 @@
   "access.risk.derived": "L'utilizzo è dedotto da un'altra fonte (metriche o header di rate limit); non è un saldo e può essere in ritardo.",
   "access.risk.extension": "Esegue un programma locale; esamina il codice prima di abilitarlo.",
   "access.risk.official": "Interfaccia documentata dal fornitore per questa credenziale; non garantisce il permesso sul tuo account.",
+  "diagnostic.schema_drift": "Il provider ha cambiato `{path}` ({expected} → {found}).",
+  "diagnostic.schema_drift_unknown": "Il provider ha cambiato il formato della risposta.",
   "access.risk.subscription_token": "Il token appartiene al client ufficiale del fornitore; usarlo da un altro strumento può violare i termini del fornitore.",
   "access.verified_recent": "Verificata questo mese.",
   "access.verified_month": "Verificata 1 mese fa.",

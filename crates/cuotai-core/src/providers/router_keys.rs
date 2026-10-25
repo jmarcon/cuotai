@@ -120,6 +120,7 @@ async fn send(req: reqwest::RequestBuilder) -> Result<reqwest::Response, QueryEr
     let code = response.status();
     if !code.is_success() {
         return Err(QueryError {
+            diagnostic: None,
             status: match code.as_u16() {
                 401 | 403 => Status::AuthenticationError,
                 429 => Status::RateLimited,
@@ -200,7 +201,11 @@ async fn opencode_go_at(
                 format!("Consulta retornou HTTP {other}. Verifique acesso e permissões."),
             ),
         };
-        return Err(QueryError { status, note });
+        return Err(QueryError {
+            diagnostic: None,
+            status,
+            note,
+        });
     }
 
     let body: serde_json::Value = response.json().await.map_err(|_| QueryError::schema())?;
@@ -573,6 +578,7 @@ fn kimi_plan_name(level: &str) -> &'static str {
 fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
     if status == 401 {
         return QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::with_params(
                 "query.router_keys.kimi_authentication_expired",
@@ -599,7 +605,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
         if reason == Some("REASON_FEATURE_NO_PERMISSION")
             || code.eq_ignore_ascii_case("permission_denied")
         {
-            return QueryError {
+            return QueryError { diagnostic: None,
                 status: Status::AuthenticationError,
                 note: Localized::with_params(
                     "query.router_keys.kimi_subscription_required",
@@ -609,6 +615,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
             };
         }
         return QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::with_params(
                 "query.router_keys.kimi_access_denied",
@@ -618,6 +625,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
         };
     }
     QueryError {
+        diagnostic: None,
         status: if status == 429 {
             Status::RateLimited
         } else {
@@ -730,7 +738,7 @@ async fn mimo_session_at(
         .timeout(ctx.timeout);
     let response = super::send_session(request, crate::Provider::XiaomiMimo, "session_env").await?;
     if response.status().as_u16() == 401 {
-        return Err(QueryError {
+        return Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::with_params(
                 "query.router_keys.xiaomi_session_expired",
@@ -742,6 +750,7 @@ async fn mimo_session_at(
     if !response.status().is_success() {
         let code = response.status().as_u16();
         return Err(QueryError {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::with_params(
                 "query.router_keys.xiaomi_session_http",
@@ -773,7 +782,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
         .timeout(ctx.timeout);
     let response = secure_send(request).await?;
     if response.status().as_u16() == 401 {
-        return Err(QueryError {
+        return Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::with_params(
                 "query.router_keys.xiaomi_aistudio_session_required",
@@ -785,6 +794,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
     if !response.status().is_success() {
         let code = response.status().as_u16();
         return Err(QueryError {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::with_params(
                 "query.router_keys.xiaomi_aistudio_http",

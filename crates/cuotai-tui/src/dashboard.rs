@@ -2089,6 +2089,7 @@ mod tests {
     fn report(status: Status, metrics: Vec<Metric>) -> Report {
         Report {
             account_id: None,
+            diagnostic: None,
             account: "acc".into(),
             provider: Provider::OpenAiApi,
             checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
@@ -2126,6 +2127,7 @@ mod tests {
             };
             let report = Report {
                 account_id: None,
+                diagnostic: None,
                 account: "quota".into(),
                 provider: Provider::Extension,
                 checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),

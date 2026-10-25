@@ -211,6 +211,13 @@ static LIBRARIES: &[Library] = &[
         &[Core, Tui, Desktop],
     ),
     lib(
+        "serde_path_to_error",
+        "MIT OR Apache-2.0",
+        "https://github.com/dtolnay/path-to-error",
+        Role::Runtime,
+        &[Core],
+    ),
+    lib(
         "sha1",
         "MIT OR Apache-2.0",
         "https://github.com/RustCrypto/hashes",

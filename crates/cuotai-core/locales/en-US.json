@@ -37,6 +37,8 @@
   "access.risk.derived": "Usage is inferred from another source (metrics or rate-limit headers); it is not a balance and may lag.",
   "access.risk.extension": "Runs a local program; review the code before enabling.",
   "access.risk.official": "Interface documented by the vendor for this credential; it does not guarantee permission on your account.",
+  "diagnostic.schema_drift": "The provider changed `{path}` ({expected} → {found}).",
+  "diagnostic.schema_drift_unknown": "The provider changed the response format.",
   "access.risk.subscription_token": "The token belongs to the vendor's own client; using it from another tool may go against the vendor's terms.",
   "access.verified_recent": "Verified this month.",
   "access.verified_month": "Verified 1 month ago.",

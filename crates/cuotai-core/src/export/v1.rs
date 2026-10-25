@@ -108,10 +108,23 @@ pub struct AccountExport {
     pub pace: Vec<Option<Pace>>,
     /// [`access::describe`] of the account.
     pub access: UsageAccess,
+    /// PRD 0028 RF1.3: why the current reading failed; absent for a ready
+    /// account or one without a report. Additive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<Failure>,
     /// PRD 0011 RF5: the public status of the account's provider, `null`
     /// while status queries are off or when the provider has no verified
     /// source (never "operational" without a reading).
     pub incident: Option<IncidentExport>,
+}
+
+/// The failure of [`AccountExport::failure`]: a category and, when a
+/// response no longer matched the interface, the JSON paths that drifted
+/// (never a value).
+#[derive(Debug, Clone, Serialize)]
+pub struct Failure {
+    pub category: crate::events::FailureCategory,
+    pub paths: Vec<String>,
 }
 
 /// The provider status of [`AccountExport::incident`].
@@ -332,6 +345,16 @@ fn account_export(
                 .collect()
         }),
         access: access::describe(account),
+        failure: report.and_then(|report| {
+            Some(Failure {
+                category: crate::events::FailureCategory::of(report)?,
+                paths: report
+                    .diagnostic
+                    .iter()
+                    .flat_map(|d| d.drift().paths.iter().map(|p| p.path.clone()))
+                    .collect(),
+            })
+        }),
         incident: None,
     }
 }
@@ -555,6 +578,7 @@ mod tests {
     fn report(account: &Account, status: Status, checked_at: DateTime<Utc>) -> Report {
         Report {
             account_id: None,
+            diagnostic: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at,

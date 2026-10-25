@@ -593,7 +593,7 @@ async fn run_aws(
     }
     let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
     if stderr.contains("credential") || stderr.contains("sso") || stderr.contains("token") {
-        return Err(QueryError {
+        return Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.cloud.aws_auth",
@@ -603,6 +603,7 @@ async fn run_aws(
     }
     if stderr.contains("accessdenied") || stderr.contains("not authorized") {
         return Err(QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::with_params(
                 "query.cloud.aws_access_denied",
@@ -613,6 +614,7 @@ async fn run_aws(
     }
     if stderr.contains("throttl") || stderr.contains("too many requests") {
         return Err(QueryError {
+            diagnostic: None,
             status: Status::RateLimited,
             note: Localized::fixed(
                 "query.cloud.aws_throttled",
@@ -622,6 +624,7 @@ async fn run_aws(
     }
     let code = output.status.code().unwrap_or(-1);
     Err(QueryError {
+        diagnostic: None,
         status: Status::Error,
         note: Localized::with_params(
             "query.cloud.aws_cli",

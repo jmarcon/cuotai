@@ -747,6 +747,10 @@ pub struct Report {
     /// skipped when unknown, so the legacy JSON stays byte-compatible.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_expires_at: Option<DateTime<Utc>>,
+    /// PRD 0028 RF1.3: what drifted in a response that no longer matched the
+    /// interface (paths and types only). Not serialized in the legacy JSON.
+    #[serde(skip)]
+    pub diagnostic: Option<crate::diagnostic::Diagnostic>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -812,6 +816,7 @@ mod tests {
     fn report_notes_l10n_is_additive_and_skipped_when_empty() {
         let report = Report {
             account_id: None,
+            diagnostic: None,
             account: "a".into(),
             provider: Provider::Kimi,
             checked_at: Utc::now(),

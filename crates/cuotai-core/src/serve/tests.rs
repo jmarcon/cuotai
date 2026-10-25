@@ -36,6 +36,7 @@ fn account(name: &str, provider: Provider) -> Account {
 fn report(account: &Account, status: Status) -> Report {
     Report {
         account_id: None,
+        diagnostic: None,
         account: account.name.clone(),
         provider: account.provider,
         checked_at: Utc::now() - chrono::TimeDelta::minutes(2),

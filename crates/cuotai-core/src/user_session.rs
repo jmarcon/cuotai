@@ -360,6 +360,7 @@ pub(crate) async fn load(
             storage_key(account.provider, config, slot),
         ) else {
             return Err(crate::providers::QueryError {
+                diagnostic: None,
                 status: crate::Status::NeedsConfiguration,
                 note: invalid_reference(),
             });
@@ -369,6 +370,7 @@ pub(crate) async fn load(
                 .load_by_key(&key)
                 .await
                 .map_err(|error| crate::providers::QueryError {
+                    diagnostic: None,
                     status: crate::Status::Error,
                     note: error.l10n(),
                 })?;
@@ -382,6 +384,7 @@ pub(crate) async fn load(
             }
             _ => {
                 return Err(crate::providers::QueryError {
+                    diagnostic: None,
                     status: crate::Status::NeedsConfiguration,
                     note: not_found(),
                 })

@@ -4,6 +4,7 @@
 //! package-manager manifests, workflow policy, and external-rule drift.
 //! Library half; `main.rs` is a thin CLI over it.
 
+pub mod access;
 /// The changelog format itself (PRD 0019 RF7.4): one parser, compiled from
 /// the core's file so the repository checks and the product read exactly
 /// the same rules. It is dependency-free, which is what makes the `#[path]`
@@ -11,7 +12,6 @@
 /// release jobs).
 #[path = "../../crates/cuotai-core/src/changelog.rs"]
 pub mod changelog;
-pub mod access;
 pub mod changelog_gate;
 pub mod check;
 pub mod commits;

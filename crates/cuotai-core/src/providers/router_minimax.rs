@@ -358,6 +358,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
         || auth_like
     {
         return Err(Failure::fatal(QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.router_minimax.invalid_key",
@@ -370,6 +371,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
         let code = status.as_u16();
         let error = if code == 429 {
             QueryError {
+                diagnostic: None,
                 status: Status::RateLimited,
                 note: Localized::with_params(
                     "query.router_minimax.rate_limited",
@@ -379,6 +381,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
             }
         } else {
             QueryError {
+                diagnostic: None,
                 status: Status::Error,
                 note: Localized::with_params(
                     "query.router_minimax.http",
@@ -393,6 +396,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
 
     if let Some(code) = status_code.filter(|c| *c != 0) {
         return Err(Failure::fatal(QueryError {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::with_params(
                 "query.router_minimax.quota_error",

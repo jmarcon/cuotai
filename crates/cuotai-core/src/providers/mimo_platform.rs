@@ -100,7 +100,7 @@ async fn get(
     let status = response.status().as_u16();
     match status {
         s @ 401 => {
-            return Err(QueryError {
+            return Err(QueryError { diagnostic: None,
                 status: Status::AuthenticationError,
                 note: Localized::with_params(
                     "query.mimo_platform.session_expired_http",
@@ -111,6 +111,7 @@ async fn get(
         }
         s @ 403 => {
             return Err(QueryError {
+                diagnostic: None,
                 status: Status::AuthenticationError,
                 note: Localized::with_params(
                     "query.mimo_platform.session_rejected_http",
@@ -121,6 +122,7 @@ async fn get(
         }
         s if !(200..300).contains(&s) => {
             return Err(QueryError {
+                diagnostic: None,
                 status: Status::Error,
                 note: Localized::with_params(
                     "query.mimo_platform.http",
@@ -135,7 +137,7 @@ async fn get(
     match body.get("code").and_then(|c| c.as_i64()) {
         Some(0) => Ok(Some(body)),
         // O envelope também sinaliza sessão no corpo (CodexBar trata igual).
-        Some(code @ (401 | 403)) => Err(QueryError {
+        Some(code @ (401 | 403)) => Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::with_params(
                 "query.mimo_platform.session_invalid_envelope",

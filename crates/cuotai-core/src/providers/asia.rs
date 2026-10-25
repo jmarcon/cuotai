@@ -115,6 +115,7 @@ fn minimax_check_base(resp: &MinimaxBaseResp) -> Result<(), QueryError> {
         Ok(())
     } else {
         Err(QueryError {
+            diagnostic: None,
             status: crate::Status::Error,
             note: Localized::with_params(
                 "query.minimax.balance_status",

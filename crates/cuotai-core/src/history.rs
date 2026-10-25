@@ -227,6 +227,7 @@ impl StoredReport {
     pub fn into_report(self, account: &Account) -> Report {
         Report {
             account_id: Some(account.id()),
+            diagnostic: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: self.checked_at,

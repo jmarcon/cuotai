@@ -109,6 +109,7 @@ impl Watch {
         };
         let report = Report {
             account_id: None,
+            diagnostic: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: at(minute),
@@ -427,6 +428,7 @@ fn provider_incidents_fire_on_known_status_changes() {
 fn failures_are_classified_by_status_and_note_id() {
     let report = |status: Status, id: &'static str| Report {
         account_id: None,
+        diagnostic: None,
         account: "Work".into(),
         provider: Provider::Claude,
         checked_at: t0(),

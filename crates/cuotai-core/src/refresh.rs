@@ -1031,6 +1031,7 @@ mod tests {
     fn report(account: &str, second: i64) -> Report {
         Report {
             account_id: None,
+            diagnostic: None,
             account: account.into(),
             provider: Provider::OpenAiApi,
             checked_at: Utc.timestamp_opt(second, 0).unwrap(),
@@ -1641,6 +1642,7 @@ mod tests {
     fn report_with_status(name: &str, second: i64, status: Status) -> Report {
         Report {
             account_id: None,
+            diagnostic: None,
             account: name.into(),
             provider: Provider::OpenAiApi,
             checked_at: Utc.timestamp_opt(second, 0).unwrap(),

@@ -41,6 +41,15 @@
           "description": "One entry per report.metrics item, same order, computed at report.checked_at; every entry is null unless freshness is fresh; empty without a report."
         },
         "access": { "$ref": "#/$defs/UsageAccess" },
+        "failure": {
+          "type": "object",
+          "required": ["category", "paths"],
+          "properties": {
+            "category": { "enum": ["timeout", "offline", "auth_required", "rate_limited", "schema_changed", "invalid_output", "provider_error"] },
+            "paths": { "type": "array", "items": { "type": "string" }, "description": "JSON paths that no longer matched the interface (array indices read [], unusual keys {*}); never values." }
+          },
+          "description": "Present only when the current reading failed (PRD 0028 RF1.3)."
+        },
         "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." }
       }
     },

@@ -73,6 +73,8 @@ pub(crate) const TIMEOUT_NOTE: &str = "query.timeout";
 pub(crate) struct QueryError {
     pub status: Status,
     pub note: Localized,
+    /// PRD 0028 RF1: what drifted, when a decode failed (value-free).
+    pub diagnostic: Option<crate::diagnostic::Diagnostic>,
 }
 
 impl QueryError {
@@ -80,6 +82,7 @@ impl QueryError {
     /// the frontend can render a specific message instead of a generic one.
     pub fn config(id: &'static str, message: impl Into<String>) -> Self {
         Self {
+            diagnostic: None,
             status: Status::NeedsConfiguration,
             note: Localized::fixed(id, message),
         }
@@ -90,12 +93,14 @@ impl QueryError {
         message: impl Into<String>,
     ) -> Self {
         Self {
+            diagnostic: None,
             status: Status::NeedsConfiguration,
             note: Localized::with_params(id, params, message),
         }
     }
     pub fn unsupported(id: &'static str, message: impl Into<String>) -> Self {
         Self {
+            diagnostic: None,
             status: Status::Unsupported,
             note: Localized::fixed(id, message),
         }
@@ -106,12 +111,14 @@ impl QueryError {
         message: impl Into<String>,
     ) -> Self {
         Self {
+            diagnostic: None,
             status: Status::Unsupported,
             note: Localized::with_params(id, params, message),
         }
     }
     pub fn schema() -> Self {
         Self {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::fixed(
                 SCHEMA_NOTE,
@@ -119,8 +126,16 @@ impl QueryError {
             ),
         }
     }
+    /// [`QueryError::schema`] with the redacted description of the drift.
+    pub fn schema_drift(drift: crate::diagnostic::SchemaDrift) -> Self {
+        Self {
+            diagnostic: Some(crate::diagnostic::Diagnostic::SchemaDrift(drift)),
+            ..Self::schema()
+        }
+    }
     pub fn transport() -> Self {
         Self {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::fixed(TRANSPORT_NOTE, "Falha de rede ou tempo limite na consulta."),
         }
@@ -128,6 +143,7 @@ impl QueryError {
     /// The account deadline (or the HTTP client's) ran out before an answer.
     pub fn timeout() -> Self {
         Self {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::fixed(TIMEOUT_NOTE, "Tempo limite da consulta esgotado."),
         }
@@ -136,6 +152,7 @@ impl QueryError {
     /// host; nothing was sent.
     pub fn insecure() -> Self {
         Self {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::fixed(
                 "query.insecure_transport",
@@ -176,7 +193,7 @@ pub(crate) async fn send_session(
     let (client, request) = request.build_split();
     let request = request.map_err(|_| QueryError::transport())?;
     if !crate::user_session::may_receive(provider, slot, request.url()) {
-        return Err(QueryError {
+        return Err(QueryError { diagnostic: None,
             status: Status::Error,
             note: Localized::fixed(
                 "query.session_host_refused",
@@ -192,7 +209,7 @@ pub(crate) async fn send_session(
         }
     })?;
     if response.status().is_redirection() {
-        return Err(QueryError {
+        return Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.session_redirected",
@@ -274,6 +291,7 @@ pub(crate) fn web_session(
         )
     };
     Err(QueryError {
+        diagnostic: None,
         status: Status::NeedsConfiguration,
         note,
     })
@@ -295,6 +313,7 @@ fn session_unset(name: &str, slot: &str, vault: bool) -> QueryError {
         )
     };
     QueryError {
+        diagnostic: None,
         status: Status::NeedsConfiguration,
         note,
     }
@@ -339,6 +358,7 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
     let code = response.status();
     if !code.is_success() {
         return Err(QueryError {
+            diagnostic: None,
             status: match code.as_u16() {
                 401 | 403 => Status::AuthenticationError,
                 429 => Status::RateLimited,
@@ -354,7 +374,10 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
             ),
         });
     }
-    response.json().await.map_err(|_| QueryError::schema())
+    let bytes = response.bytes().await.map_err(|_| QueryError::schema())?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())?;
+    crate::diagnostic::decode(&value).map_err(QueryError::schema_drift)
 }
 
 use std::future::Future;
@@ -386,6 +409,7 @@ where
         }
     }
     Err(QueryError {
+        diagnostic: None,
         status: Status::Error,
         note: Localized::fixed(
             "query.models.page_limit",

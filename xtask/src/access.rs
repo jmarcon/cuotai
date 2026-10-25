@@ -30,11 +30,7 @@ pub fn parse(doc: &str) -> Res<Vec<Row>> {
     };
     let mut rows = Vec::new();
     for line in matrix.lines().filter(|l| l.starts_with("| `")) {
-        let cells: Vec<&str> = line
-            .trim_matches('|')
-            .split(" | ")
-            .map(str::trim)
-            .collect();
+        let cells: Vec<&str> = line.trim_matches('|').split(" | ").map(str::trim).collect();
         if cells.len() != 8 {
             return err(format!("matrix row has {} cells, expected 8", cells.len()));
         }
@@ -180,7 +176,9 @@ mod tests {
         assert!(out.starts_with("::warning file=docs/providers.md::claude (default)"));
         assert!(out.contains("alibaba_token_plan"));
         let error = run(dir.path(), "2026-10-25", 90, Some(180)).unwrap_err();
-        assert!(error.to_string().contains("evidence older than 180 days: claude"));
+        assert!(error
+            .to_string()
+            .contains("evidence older than 180 days: claude"));
         let fresh = run(dir.path(), "2026-02-01", 90, Some(180)).unwrap();
         assert!(fresh.starts_with("access evidence is at most 90 days old"));
     }

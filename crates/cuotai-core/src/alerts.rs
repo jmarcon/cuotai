@@ -1265,6 +1265,7 @@ mod tests {
     fn report(account: &str, checked_at: DateTime<Utc>, metrics: Vec<Metric>) -> Report {
         Report {
             account_id: None,
+            diagnostic: None,
             account: account.into(),
             provider: Provider::Claude,
             checked_at,

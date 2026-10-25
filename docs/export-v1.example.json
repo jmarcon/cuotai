@@ -217,6 +217,10 @@
         },
         "reason": null
       },
+      "failure": {
+        "category": "provider_error",
+        "paths": []
+      },
       "incident": null
     },
     {
@@ -278,6 +282,10 @@
           "fallback": "O uso é inferido de outra fonte (métricas ou cabeçalhos de rate limit); não é um saldo e pode atrasar."
         },
         "reason": null
+      },
+      "failure": {
+        "category": "auth_required",
+        "paths": []
       },
       "incident": {
         "state": "unknown",

@@ -27,6 +27,8 @@ tempfile = "3"
 uuid = { version = "1", features = ["v4", "v5"] }
 keyring = { version = "4.2", features = ["v1"] }
 sha2 = "0.10"
+# PRD 0028 RF1: the JSON path of the field a decode failed on.
+serde_path_to_error = "0.1"
 base64 = "0.22"
 hmac.workspace = true
 sha1.workspace = true

@@ -111,6 +111,7 @@ impl Checked {
         let (notes, notes_l10n) = self.notes.into_iter().collect::<Notes>().finish();
         Report {
             account_id: None,
+            diagnostic: None,
             account: account.into(),
             provider,
             checked_at,

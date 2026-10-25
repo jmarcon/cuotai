@@ -903,6 +903,7 @@ fn business_error(code: &str) -> QueryError {
         _ => Status::Error,
     };
     QueryError {
+        diagnostic: None,
         status,
         note: Localized::with_params(
             "query.alibaba_billing.business_error",

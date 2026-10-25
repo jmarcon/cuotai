@@ -367,7 +367,7 @@ async fn kiro(
     }
     // Never include response bodies or URLs: they can carry the session token.
     if saw_auth {
-        Err(QueryError {
+        Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.router_sessions.kiro_authentication",
@@ -376,6 +376,7 @@ async fn kiro(
         })
     } else if let Some(code) = last_status {
         Err(QueryError {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::with_params(
                 "query.router_sessions.kiro_http",
@@ -609,6 +610,7 @@ async fn codebuddy(
     if code != 0 {
         // The server msg field is deliberately not propagated (response body).
         return Err(QueryError {
+            diagnostic: None,
             status: Status::Error,
             note: Localized::with_params(
                 "query.router_sessions.codebuddy_code",
