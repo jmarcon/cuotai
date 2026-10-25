@@ -6,6 +6,7 @@
 //! `Save` devolve uma cópia de `Config`; quem grava no disco é o chamador e, em
 //! caso de falha, o rascunho permanece intacto para nova tentativa.
 
+use crate::palette;
 use crossterm::event::{
     KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
@@ -125,13 +126,13 @@ fn min_interval_for(provider: Provider) -> u64 {
 // Paleta Dracula para o assistente; o dashboard expõe a mesma paleta em
 // outro ponto de desenho. Mantemos estes `const` aqui para que mudanças
 // visuais no wizard não dependam do tema do dashboard.
-const DRACULA_BG: Color = Color::Rgb(40, 42, 54);
-const DRACULA_FG: Color = Color::Rgb(248, 248, 242);
-const DRACULA_CYAN: Color = Color::Rgb(139, 233, 253);
-const DRACULA_GREEN: Color = Color::Rgb(80, 250, 123);
-const DRACULA_YELLOW: Color = Color::Rgb(241, 250, 140);
-const DRACULA_RED: Color = Color::Rgb(255, 85, 85);
-const DRACULA_COMMENT: Color = Color::Rgb(98, 114, 164);
+const DRACULA_BG: Color = palette::BG;
+const DRACULA_FG: Color = palette::FG;
+const DRACULA_CYAN: Color = palette::ACCENT;
+const DRACULA_GREEN: Color = palette::GOOD;
+const DRACULA_YELLOW: Color = palette::WARN;
+const DRACULA_RED: Color = palette::BAD;
+const DRACULA_COMMENT: Color = palette::MUTED;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {

@@ -7,6 +7,7 @@
 //! or stored here.
 
 use crate::motion::{eighth_bar, Anim};
+use crate::palette;
 use crate::ui::{
     age_text, data_as_of_suffix, local_time, metric_text, resolve_l10n, safe, tui_locale,
 };
@@ -59,15 +60,15 @@ fn resolve_card_l10n(value: &cuotai_core::text::Localized) -> String {
 }
 
 // Dracula palette: background, foreground, selection, muted, and status accents.
-const BG: Color = Color::Rgb(40, 42, 54);
-const FG: Color = Color::Rgb(248, 248, 242);
-const MUTED: Color = Color::Rgb(98, 114, 164);
-const PURPLE: Color = Color::Rgb(189, 147, 249);
-const CYAN: Color = Color::Rgb(139, 233, 253);
-const GREEN: Color = Color::Rgb(80, 250, 123);
-const YELLOW: Color = Color::Rgb(241, 250, 140);
-const RED: Color = Color::Rgb(255, 85, 85);
-const PINK: Color = Color::Rgb(255, 121, 198);
+const BG: Color = palette::BG;
+const FG: Color = palette::FG;
+const MUTED: Color = palette::MUTED;
+const PURPLE: Color = palette::INFO;
+const CYAN: Color = palette::ACCENT;
+const GREEN: Color = palette::GOOD;
+const YELLOW: Color = palette::WARN;
+const RED: Color = palette::BAD;
+const PINK: Color = palette::PINK;
 
 /// Localized label for an account class. Behavioral classification lives in
 /// `cuotai_core::metrics`; this function only owns the Portuguese labels the
@@ -1481,16 +1482,9 @@ fn render_card(
             status_spans.push(separator());
             status_spans.push(Span::styled(
                 class_label(class),
-                Style::default().fg(class_color(class)).add_modifier(
-                    if view
-                        .anim
-                        .is_some_and(|anim| anim.blinking(&account.state_key()))
-                    {
-                        Modifier::BOLD | Modifier::REVERSED
-                    } else {
-                        Modifier::BOLD
-                    },
-                ),
+                Style::default()
+                    .fg(class_color(class))
+                    .add_modifier(Modifier::BOLD),
             ));
             report.map(|report| {
                 Span::styled(
@@ -3804,7 +3798,7 @@ mod tests {
     #[test]
     fn card_gauge_renders_intermediate_then_final_value_after_refresh() {
         let accounts = three_accounts();
-        let mut anim = Anim::new(false);
+        let mut anim = Anim::new(false).with_tween();
         let start = anim.now;
         let render = |anim: &Anim, remaining: f64| {
             let reports: Vec<Option<Report>> = (0..3)
@@ -3862,20 +3856,12 @@ mod tests {
         anim.observe(&accounts, &old);
         let (new, _) = render(&anim, 20.0);
         anim.observe(&accounts, &new);
-        anim.track([false; 3].into_iter(), (false, false, false), start);
+        anim.track([false; 3].into_iter(), start);
         assert_eq!(percent(&render(&anim, 20.0).1), 80, "t=0 still shows old");
-        anim.track(
-            [false; 3].into_iter(),
-            (false, false, false),
-            start + Duration::from_millis(100),
-        );
+        anim.track([false; 3].into_iter(), start + Duration::from_millis(100));
         let mid = percent(&render(&anim, 20.0).1);
         assert!(mid > 20 && mid < 80, "intermediate frame: {mid}%");
-        anim.track(
-            [false; 3].into_iter(),
-            (false, false, false),
-            start + Duration::from_millis(300),
-        );
+        anim.track([false; 3].into_iter(), start + Duration::from_millis(300));
         assert_eq!(percent(&render(&anim, 20.0).1), 20, "final value");
         assert!(!anim.active());
     }

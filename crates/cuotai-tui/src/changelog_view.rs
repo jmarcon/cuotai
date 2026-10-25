@@ -12,6 +12,7 @@
 //! and `--changelog 0.5.0` (or `0.5.x`) prints that history with a note
 //! instead of failing.
 
+use crate::palette;
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use cuotai_core::changelog::{self, Changelog, PreRelease, Section};
 use cuotai_core::text::{
@@ -25,11 +26,11 @@ use ratatui::{
     Frame,
 };
 
-const BG: Color = Color::Rgb(40, 42, 54);
-const FG: Color = Color::Rgb(248, 248, 242);
-const MUTED: Color = Color::Rgb(98, 114, 164);
-const CYAN: Color = Color::Rgb(139, 233, 253);
-const YELLOW: Color = Color::Rgb(241, 250, 140);
+const BG: Color = palette::BG;
+const FG: Color = palette::FG;
+const MUTED: Color = palette::MUTED;
+const CYAN: Color = palette::ACCENT;
+const YELLOW: Color = palette::WARN;
 
 /// The version this binary carries; the screen marks its section.
 const CURRENT: &str = env!("CARGO_PKG_VERSION");

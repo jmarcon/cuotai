@@ -2,6 +2,7 @@
 //! details. It shows the secret-free draft built by `cuotai_core::support`
 //! and the link; nothing is sent and nothing leaves the process.
 
+use crate::palette;
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::{Constraint, Layout},
@@ -10,10 +11,10 @@ use ratatui::{
     Frame,
 };
 
-const BG: Color = Color::Rgb(40, 42, 54);
-const FG: Color = Color::Rgb(248, 248, 242);
-const MUTED: Color = Color::Rgb(98, 114, 164);
-const CYAN: Color = Color::Rgb(139, 233, 253);
+const BG: Color = palette::BG;
+const FG: Color = palette::FG;
+const MUTED: Color = palette::MUTED;
+const CYAN: Color = palette::ACCENT;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Reply {

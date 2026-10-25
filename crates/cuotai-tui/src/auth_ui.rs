@@ -2,6 +2,7 @@
 //! core (`cuotai_core::login`, RF2); este módulo apenas renderiza os eventos
 //! tipados e encaminha o código colado pelo usuário.
 
+use crate::palette;
 use crate::ui::safe;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use cuotai_core::{
@@ -22,9 +23,9 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 
 // Paleta Dracula local — mesma do dashboard/wizard.
-const DRACULA_BG: Color = Color::Rgb(40, 42, 54);
-const DRACULA_FG: Color = Color::Rgb(248, 248, 242);
-const DRACULA_CYAN: Color = Color::Rgb(139, 233, 253);
+const DRACULA_BG: Color = palette::BG;
+const DRACULA_FG: Color = palette::FG;
+const DRACULA_CYAN: Color = palette::ACCENT;
 
 pub(crate) enum Outcome {
     /// Cuotai credential authorized; the token is memory-only until commit.

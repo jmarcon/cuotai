@@ -1,3 +1,4 @@
+use crate::palette;
 use chrono::Local;
 use crossterm::event::KeyCode;
 use cuotai_core::extensions::management::{ExtensionItem, ExtensionState, SecretItem};
@@ -12,13 +13,13 @@ use ratatui::{
 
 use crate::ui::{resolve_l10n, safe};
 
-const BG: Color = Color::Rgb(40, 42, 54);
-const FG: Color = Color::Rgb(248, 248, 242);
-const CYAN: Color = Color::Rgb(139, 233, 253);
-const GREEN: Color = Color::Rgb(80, 250, 123);
-const YELLOW: Color = Color::Rgb(241, 250, 140);
-const RED: Color = Color::Rgb(255, 85, 85);
-const MUTED: Color = Color::Rgb(98, 114, 164);
+const BG: Color = palette::BG;
+const FG: Color = palette::FG;
+const CYAN: Color = palette::ACCENT;
+const GREEN: Color = palette::GOOD;
+const YELLOW: Color = palette::WARN;
+const RED: Color = palette::BAD;
+const MUTED: Color = palette::MUTED;
 
 pub(crate) enum Action {
     Stay,

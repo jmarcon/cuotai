@@ -7,6 +7,7 @@
 //! `cuotai_core::resets::timeline` and the history's journal; this module
 //! only words and lays them out.
 
+use crate::palette;
 use crate::ui::{local_time, safe};
 use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, Utc};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
@@ -29,12 +30,12 @@ const BAR_CELLS: usize = 20;
 const EVENT_LIMIT: usize = 20;
 const SPARK: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
-const BG: Color = Color::Rgb(40, 42, 54);
-const FG: Color = Color::Rgb(248, 248, 242);
-const MUTED: Color = Color::Rgb(98, 114, 164);
-const CYAN: Color = Color::Rgb(139, 233, 253);
-const YELLOW: Color = Color::Rgb(241, 250, 140);
-const RED: Color = Color::Rgb(255, 85, 85);
+const BG: Color = palette::BG;
+const FG: Color = palette::FG;
+const MUTED: Color = palette::MUTED;
+const CYAN: Color = palette::ACCENT;
+const YELLOW: Color = palette::WARN;
+const RED: Color = palette::BAD;
 
 /// How a row is drawn on the screen (plain on the command line).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

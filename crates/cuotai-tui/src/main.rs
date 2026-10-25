@@ -10,6 +10,7 @@ mod headless;
 mod models_view;
 mod motion;
 mod notify;
+mod palette;
 mod report_problem;
 mod report_view;
 mod serve;

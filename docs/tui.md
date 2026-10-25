@@ -133,7 +133,8 @@ cargo install --path crates/cuotai-tui --locked
 
 ### Animations
 
-- After a refresh, card gauges and detail bars slide from the old value to the new one (~300 ms) at 1/8-cell resolution. A class change (`Disponível`/`Esgotado`/`Sem dados`) flashes the label twice (2 flashes/s). A braille spinner (`⠋⠙⠹…`) precedes the card title while that account refreshes. Opening or closing the details, `Sobre` and `Modelos` uses a 120 ms top-down wipe.
+- A braille spinner (`⠋⠙⠹…`) precedes the card title while that account refreshes. New values appear at once: the class label does not flash and screens do not wipe in. Card gauges and detail bars slide from the old value to the new one (~300 ms, 1/8-cell resolution) only when `CUOTAI_GAUGE_TWEEN=1` is set.
+- **Colors:** with `NO_COLOR` set to any non-empty value the TUI draws no foreground or background colors; states stay readable through their labels. Otherwise the text and background are the terminal's own, so light terminals stay readable.
 - With `COLORTERM=truecolor` (or `24bit`) bar colours follow a red → yellow → green gradient by level; otherwise the usual red/yellow/green steps are used.
 - The loop draws at ~30 fps only while an effect runs; when idle it keeps the usual pace (redraw on events and the 1 s countdown tick).
 - **Off:** `--no-animations`, `CUOTAI_NO_ANIMATIONS=1` (any non-empty value except `0`), or `TERM=dumb` (always). Under SSH (`SSH_CONNECTION` or `SSH_TTY`) they are off by default; `CUOTAI_ANIMATIONS=1` turns them back on, but never overrides the opt-outs above. With animations off the screen renders exactly as before. `--once`/`--json` never animate.

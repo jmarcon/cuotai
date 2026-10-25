@@ -2,6 +2,7 @@
 //! open-source libraries it relies on (list owned by `cuotai_core::about`).
 //! Read-only and local: it never touches the network or the configuration.
 
+use crate::palette;
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use cuotai_core::about::{self, Component, Library, Role};
 use ratatui::{
@@ -12,11 +13,11 @@ use ratatui::{
     Frame,
 };
 
-const BG: Color = Color::Rgb(40, 42, 54);
-const FG: Color = Color::Rgb(248, 248, 242);
-const MUTED: Color = Color::Rgb(98, 114, 164);
-const CYAN: Color = Color::Rgb(139, 233, 253);
-const YELLOW: Color = Color::Rgb(241, 250, 140);
+const BG: Color = palette::BG;
+const FG: Color = palette::FG;
+const MUTED: Color = palette::MUTED;
+const CYAN: Color = palette::ACCENT;
+const YELLOW: Color = palette::WARN;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Reply {

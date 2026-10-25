@@ -1,3 +1,4 @@
+use crate::palette;
 use crate::{
     about_view::{AboutView, Reply as AboutReply},
     auth_ui::{LoginTask, Outcome},
@@ -50,9 +51,9 @@ use tokio::task::JoinHandle;
 type Screen = Terminal<CrosstermBackend<io::Stdout>>;
 
 // Paleta Dracula (mesma usada pelo dashboard/wizard/auth).
-const DRACULA_BG: Color = Color::Rgb(40, 42, 54);
-const DRACULA_FG: Color = Color::Rgb(248, 248, 242);
-const DRACULA_YELLOW: Color = Color::Rgb(241, 250, 140);
+const DRACULA_BG: Color = palette::BG;
+const DRACULA_FG: Color = palette::FG;
+const DRACULA_YELLOW: Color = palette::WARN;
 
 /// PRD 0011 RF5: how often the status loop lets the core read the due
 /// sources (each is read at most once every 5 minutes), as the desktop.
@@ -1506,7 +1507,6 @@ pub async fn run(
             let full = refresh.0.is_some();
             anim.track(
                 (0..account_refresh.len()).map(|i| full || account_refresh.slot(i).is_some()),
-                (state.details, about.is_some(), models.is_some()),
                 Instant::now(),
             );
             dirty |= anim.active();
@@ -1515,53 +1515,52 @@ pub async fn run(
             if let Some(task) = &mut auth_task {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    task.draw(frame)
+                    task.draw(frame);
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(view) = &mut changelog {
                 let locale = tui_locale();
                 terminal.draw(|frame| {
                     frame_area = frame.area();
                     view.draw(frame, locale);
-                    if let Some(anim) = &mut state.anim {
-                        anim.wipe(frame.buffer_mut());
-                    }
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(view) = &mut report_view {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    view.draw(frame)
+                    view.draw(frame);
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(view) = &mut stats {
                 let locale = tui_locale();
                 terminal.draw(|frame| {
                     frame_area = frame.area();
                     view.draw(frame, locale);
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(view) = &mut about {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
                     view.draw(frame);
-                    if let Some(anim) = &mut state.anim {
-                        anim.wipe(frame.buffer_mut());
-                    }
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(view) = &mut models {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
                     view.draw(frame);
-                    if let Some(anim) = &state.anim {
-                        anim.wipe(frame.buffer_mut());
-                    }
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(view) = &mut extensions {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    view.draw(frame)
+                    view.draw(frame);
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(wizard) = &mut wizard {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    wizard.draw(frame, &file.path)
+                    wizard.draw(frame, &file.path);
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(state_) = &deletion {
                 terminal.draw(|frame| {
@@ -1586,6 +1585,7 @@ pub async fn run(
                             .style(Style::default().fg(DRACULA_YELLOW)),
                         areas[1],
                     );
+                    palette::finish(frame.buffer_mut());
                 })?;
             } else {
                 let selected = state.selected_account(&cycle_slot_reports(&refresh_cycle));
@@ -3199,9 +3199,7 @@ impl State {
                     access_account: None,
                 },
             );
-            if let Some(anim) = &self.anim {
-                anim.wipe(frame.buffer_mut());
-            }
+            palette::finish(frame.buffer_mut());
         })?;
         self.targets = targets;
         Ok(())

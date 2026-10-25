@@ -2,6 +2,7 @@
 //! local search and manual sync. Opened from account details or the wizard;
 //! model tasks run in background and never touch quota refresh.
 
+use crate::palette;
 use crate::ui::{resolve_l10n, safe};
 use chrono::{DateTime, Utc};
 use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEventKind};
@@ -20,13 +21,13 @@ use ratatui::{
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
-const BG: Color = Color::Rgb(40, 42, 54);
-const FG: Color = Color::Rgb(248, 248, 242);
-const MUTED: Color = Color::Rgb(98, 114, 164);
-const CYAN: Color = Color::Rgb(139, 233, 253);
-const GREEN: Color = Color::Rgb(80, 250, 123);
-const YELLOW: Color = Color::Rgb(241, 250, 140);
-const RED: Color = Color::Rgb(255, 85, 85);
+const BG: Color = palette::BG;
+const FG: Color = palette::FG;
+const MUTED: Color = palette::MUTED;
+const CYAN: Color = palette::ACCENT;
+const GREEN: Color = palette::GOOD;
+const YELLOW: Color = palette::WARN;
+const RED: Color = palette::BAD;
 
 type Outcome = Result<ModelState, ModelError>;
 
