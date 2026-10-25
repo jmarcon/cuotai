@@ -1524,6 +1524,8 @@
   "detect.consent.native_login": "Cuotai abrirá el inicio de sesión de {provider}; no se lee nada de la carpeta de {tool}.",
   "detect.consent.aws_profile": "Cuotai leerá solo los nombres de los perfiles de ~/.aws/config cuando elijas el perfil; no se lee ninguna clave.",
   "detect.consent.key_step": "Pega tu clave; Cuotai no lee nada de la carpeta de {tool}.",
+  "detect.hint.nine_router_local": "Encontrado en este dispositivo: 9router responde en 127.0.0.1:20128",
+  "detect.consent.nine_router_local": "La dirección http://127.0.0.1:20128 ya viene rellenada. Solo se consultó la ruta pública de salud de 9router; no se leyó nada de él.",
   "tray.item.left": "{name} {pct} restante",
   "tray.item.left_resets": "{name} {pct} restante, se renueva a las {at}",
   "tray.item.exhausted": "{name} agotada",

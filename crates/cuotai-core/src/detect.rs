@@ -50,6 +50,9 @@ pub enum SourceKind {
     /// PRD 0038 Q5: `OPENROUTER_API_KEY` set in the environment (presence
     /// only, [`crate::catalog::detect_env_keys`]).
     OpenRouterKey,
+    /// PRD 0036 RF2.5: a 9router instance answering on its default local
+    /// port (a network presence probe, see [`probe_nine_router`]).
+    NineRouterLocal,
 }
 
 impl SourceKind {
@@ -66,6 +69,7 @@ impl SourceKind {
             Self::QwenCode => "qwen_code",
             Self::KiroCli => "kiro_cli",
             Self::OpenRouterKey => "open_router_key",
+            Self::NineRouterLocal => "nine_router_local",
         }
     }
 
@@ -73,7 +77,7 @@ impl SourceKind {
         TABLE
             .iter()
             .map(|entry| entry.kind)
-            .chain([Self::OpenRouterKey])
+            .chain([Self::OpenRouterKey, Self::NineRouterLocal])
             .find(|kind| kind.slug() == slug)
     }
 
@@ -91,6 +95,7 @@ impl SourceKind {
             Self::QwenCode => "Qwen Code",
             Self::KiroCli => "Kiro CLI",
             Self::OpenRouterKey => "OpenRouter",
+            Self::NineRouterLocal => "9router",
         }
     }
 }
@@ -237,6 +242,8 @@ pub fn paths(kind: SourceKind, home: &Path, os: Os, env: &dyn Env) -> Vec<PathBu
             .join("opencode")],
         SourceKind::CursorCli => vec![home.join(".cursor").join("cli-config.json")],
         SourceKind::QwenCode => vec![home.join(".qwen")],
+        // A network probe, never a path (`probe_nine_router`).
+        SourceKind::NineRouterLocal => Vec::new(),
         SourceKind::KiroCli => vec![
             home.join(".aws")
                 .join("sso")
@@ -345,11 +352,95 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
     out
 }
 
+/// PRD 0036 RF2.5: the one address the presence probe may ask.
+pub const NINE_ROUTER_LOCAL: &str = "http://127.0.0.1:20128";
+/// RF2.5: the probe's whole budget.
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(200);
+
+/// PRD 0036 RF2.5: with the device-check consent (PRD 0027 RF6.5), whether
+/// a 9router instance answers `GET http://127.0.0.1:20128/api/health` with
+/// `{"ok": true}` within 200 ms. One public request, no credential, no
+/// redirect, no proxy, no other port and no file of 9router is read.
+/// `None` when 9router is already configured or nothing answers.
+pub async fn probe_nine_router(configured: &[Provider]) -> Option<Detected> {
+    probe_nine_router_at(NINE_ROUTER_LOCAL, configured).await
+}
+
+async fn probe_nine_router_at(base: &str, configured: &[Provider]) -> Option<Detected> {
+    if configured.contains(&Provider::NineRouter) {
+        return None;
+    }
+    let http = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(PROBE_TIMEOUT)
+        .build()
+        .ok()?;
+    let response = http.get(format!("{base}/api/health")).send().await.ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let body: serde_json::Value = response.json().await.ok()?;
+    if body.get("ok") != Some(&serde_json::Value::Bool(true)) {
+        return None;
+    }
+    Some(Detected {
+        provider: Provider::NineRouter,
+        kind: SourceKind::NineRouterLocal,
+        mode: None,
+        hint: Localized::fixed(
+            "detect.hint.nine_router_local",
+            "Encontrado neste dispositivo: o 9router responde em 127.0.0.1:20128",
+        ),
+        consent: Localized::fixed(
+            "detect.consent.nine_router_local",
+            "O endereço http://127.0.0.1:20128 já vem preenchido. Só a rota pública de saúde do 9router foi consultada; nada foi lido dele.",
+        ),
+    })
+}
+
 /// [`local_sources`] for the current user and OS.
 pub fn local_sources_here(configured: &[Provider]) -> Vec<Detected> {
     match dirs::home_dir() {
         Some(home) => local_sources(&home, Os::current(), &ProcessEnv, configured),
         None => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn health(body: serde_json::Value) -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/health"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn a_local_instance_is_found_only_when_it_says_ok() {
+        let server = health(serde_json::json!({"ok": true})).await;
+        let found = probe_nine_router_at(&server.uri(), &[]).await.unwrap();
+        assert_eq!(found.provider, Provider::NineRouter);
+        assert_eq!(found.kind.slug(), "nine_router_local");
+        assert_eq!(SourceKind::from_slug("nine_router_local"), Some(found.kind));
+        // Already configured: no request at all.
+        assert!(probe_nine_router_at(&server.uri(), &[Provider::NineRouter])
+            .await
+            .is_none());
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+        let other = health(serde_json::json!({"status": "up"})).await;
+        assert!(probe_nine_router_at(&other.uri(), &[]).await.is_none());
+        // Nothing listening.
+        assert!(probe_nine_router_at("http://127.0.0.1:9", &[])
+            .await
+            .is_none());
     }
 }
 

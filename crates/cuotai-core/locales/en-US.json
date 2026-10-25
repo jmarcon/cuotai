@@ -1524,6 +1524,8 @@
   "detect.consent.native_login": "Cuotai will open the {provider} sign-in; nothing is read from {tool}'s folder.",
   "detect.consent.aws_profile": "Cuotai will read only the profile names in ~/.aws/config when you choose the profile; no key is read.",
   "detect.consent.key_step": "Paste your key; Cuotai reads nothing from {tool}'s folder.",
+  "detect.hint.nine_router_local": "Found on this device: 9router answers on 127.0.0.1:20128",
+  "detect.consent.nine_router_local": "The address http://127.0.0.1:20128 is filled in. Only 9router's public health route was asked; nothing was read from it.",
   "tray.item.left": "{name} {pct} left",
   "tray.item.left_resets": "{name} {pct} left, resets {at}",
   "tray.item.exhausted": "{name} exhausted",

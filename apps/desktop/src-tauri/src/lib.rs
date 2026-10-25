@@ -83,11 +83,14 @@ async fn detect_sources(b: Shared<'_>) -> Result<Vec<cuotai_core::detect::Detect
         return Ok(Vec::new());
     }
     let configured = b.configured_providers().await;
-    let found = tauri::async_runtime::spawn_blocking(move || {
+    let probe_configured = configured.clone();
+    let mut found = tauri::async_runtime::spawn_blocking(move || {
         cuotai_core::detect::local_sources_here(&configured)
     })
     .await
     .map_err(|_| "detect_failed".to_string())?;
+    // PRD 0036 RF2.5: the one consent-gated presence probe (loopback only).
+    found.extend(cuotai_core::detect::probe_nine_router(&probe_configured).await);
     Ok(found
         .into_iter()
         .filter(|d| !prefs.dismissed.iter().any(|k| k == d.kind.slug()))
