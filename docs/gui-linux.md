@@ -93,7 +93,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Launch at login
 
-Cuotai has no built-in "start at login" switch. Use your desktop's session settings (GNOME **Tweaks → Startup Applications**, KDE **System Settings → Autostart**), or drop a file such as `~/.config/autostart/cuotai.desktop` with `Type=Application`, `Name=Cuotai` and an `Exec=` line pointing at the installed binary (`/usr/bin/Cuotai` for the `.deb` / `.rpm` packages) or the AppImage.
+Turn on **Settings › General › Startup › Start at login**. Cuotai then writes a `.desktop` entry in `~/.config/autostart/` (the XDG autostart folder your desktop reads) and starts in the tray, without opening its window. The switch shows whether that entry exists, so removing it from GNOME **Tweaks → Startup Applications** or KDE **System Settings → Autostart** turns it off here too. For an AppImage, turn the switch off and on again after moving the file.
 
 ## Updates
 

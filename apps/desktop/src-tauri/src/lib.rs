@@ -1,6 +1,7 @@
 //! Shell Tauri do Cuotai: janela principal, popover na bandeja e comandos.
 //! Somente consome `cuotai-core` (via `backend.rs`); não contém lógica de provider.
 mod about;
+mod autostart;
 mod backend;
 mod hooks;
 mod local_cost;
@@ -735,6 +736,20 @@ fn set_tray_prefs(
     tray_bar::redraw(&app, &prefs);
     let _ = app.emit("tray-prefs-changed", backend::tray_view());
     Ok(())
+}
+
+/// PRD 0022 (audit #37): whether the system starts Cuotai at login, as the system reports it.
+/// Error: `autostart_failed`.
+#[tauri::command]
+fn autostart_status(app: AppHandle) -> Result<bool, String> {
+    autostart::status(&app)
+}
+
+/// PRD 0022 (audit #37): turn "Start at login" on or off and return what the system now reports.
+/// Error: `autostart_failed`.
+#[tauri::command]
+fn autostart_set(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    autostart::apply(&app, enabled)
 }
 
 /// PRD 0025 RF5.3: remember whether the Settings sidebar's Advanced group is
@@ -1905,6 +1920,12 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        // PRD 0022 (audit #37): official autostart plugin. The web UI never calls it (the shell's
+        // `autostart_*` commands do), so no `autostart:` capability is needed.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![autostart::ARG]),
+        ))
         // PRD 0018 RF1.1: official updater plugin (2.x). The web UI never calls it — the
         // shell exposes the commands above — so no `updater:` capability is needed.
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -1919,6 +1940,8 @@ pub fn run() {
             set_tray_prefs,
             set_advanced_open,
             set_rows,
+            autostart_status,
+            autostart_set,
             first_run_turn_on,
             first_run_record,
             refresh_all,
@@ -2112,6 +2135,10 @@ pub fn run() {
                 });
             }
             if let Some(w) = app.get_webview_window("main") {
+                // Started by the login entry: stay in the tray, without a window.
+                if autostart::launched_at_login(std::env::args()) {
+                    let _ = w.hide();
+                }
                 let handle = w.clone();
                 w.on_window_event(move |e| {
                     if let WindowEvent::CloseRequested { api, .. } = e {

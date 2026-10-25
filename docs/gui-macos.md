@@ -98,7 +98,7 @@ Notices come while the window is hidden in the menu bar, but not after you Quit.
 
 ## Launch at login
 
-Cuotai has no built-in "start at login" switch. To start it with your Mac, add it yourself: **System Settings → General → Login Items & Extensions → Open at Login → +**, then choose Cuotai in Applications.
+Turn on **Settings › General › Startup › Start at login**. Cuotai then adds a login item (a LaunchAgent) and starts in the menu bar, without opening its window. The switch shows what macOS reports, so removing the item under **System Settings → General → Login Items & Extensions** turns it off here too. If you move the app, turn the switch off and on again so the item points at the new location.
 
 ## Updates
 

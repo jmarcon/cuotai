@@ -283,6 +283,13 @@ static LIBRARIES: &[Library] = &[
     )
     .made_in_brazil(),
     lib(
+        "tauri-plugin-autostart",
+        "Apache-2.0 OR MIT",
+        "https://github.com/tauri-apps/plugins-workspace",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
         "tauri-plugin-dialog",
         "Apache-2.0 OR MIT",
         "https://github.com/tauri-apps/plugins-workspace",

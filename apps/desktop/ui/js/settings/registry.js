@@ -13,7 +13,7 @@ export const ADVANCED = "advanced";
 /** `sections`: the groups the page shows, in order; each one is a former section of the old dialog (or part of
  *  one, see LEGACY_SECTIONS) and also an anchor (`#set-<section>`) that links can land on. */
 export const PAGES = [
-  { id: "general", icon: "sliders", label: "settings.page.general", load: () => import("./general.js"), sections: ["appearance", "language"] },
+  { id: "general", icon: "sliders", label: "settings.page.general", load: () => import("./general.js"), sections: ["appearance", "language", "startup"] },
   { id: "dashboard", icon: "grid", label: "settings.page.dashboard", load: () => import("./dashboard.js"), sections: ["accounts", "order", "display", "refresh"] },
   { id: "menubar", icon: "window", label: "settings.page.menubar", load: () => import("./menubar.js"), sections: ["menubar-style", "menubar-accounts"] },
   { id: "alerts", icon: "bell", label: "settings.page.alerts", load: () => import("./alerts.js"), sections: ["notify"] },

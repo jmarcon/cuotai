@@ -31,6 +31,9 @@ dirs = "6"
 tauri-plugin-dialog = "2"
 # PRD 0003 RF2.2: reset notices (2.x line, compatible with Tauri 2.12).
 tauri-plugin-notification = "=2.7.0"
+# PRD 0022 (audit #37): "Start at login" in Settings › General, through the official autostart plugin
+# (2.x line, compatible with Tauri 2.12). Desktop-only: it registers a login item / Run key / .desktop entry.
+tauri-plugin-autostart = "=2.7.0"
 # PRD 0018 RF1.1: plugin oficial de atualização, versão 2.x fixada (compativel com Tauri 2.12).
 # O recurso `zip` fica desligado de propósito: ele só existe para desembrulhar os
 # artefatos zipados do updater v1 e para extrair um AppImage comprimido, e nenhum

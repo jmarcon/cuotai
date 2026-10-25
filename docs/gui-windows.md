@@ -92,7 +92,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Launch at sign-in
 
-Cuotai has no built-in "start with Windows" switch. To start it with Windows, press **Win + R**, run `shell:startup`, and put a shortcut to Cuotai (copy it from the Start menu) in the folder that opens.
+Turn on **Settings › General › Startup › Start at login**. Cuotai then adds itself to your user's startup entries (the `Run` key of the registry; no administrator rights) and starts in the notification area, without opening its window. The switch shows what Windows reports, so turning Cuotai off under **Settings → Apps → Startup** turns it off here too.
 
 ## Updates
 

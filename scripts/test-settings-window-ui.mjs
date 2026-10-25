@@ -225,7 +225,8 @@ for (const { code } of i18n.LOCALES) {
     assert.ok(words <= 150, `${code}/${page.id}: ${words} words shown before any disclosure`);
     total += words;
   }
-  assert.ok(total <= 450, `${code}: ${total} words shown across the pages`);
+  // Budget 450 -> 465: the Startup group of mockup 50-settings-general (audit #37) adds one heading and one row.
+  assert.ok(total <= 465, `${code}: ${total} words shown across the pages`);
   // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
   // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
   const alertsPage = rendered.get("alerts");
@@ -271,5 +272,38 @@ function plain(html) {
   return html.replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// Mockups 50-*: Advanced is a collapsible group label (not a page entry), General has the sliders icon, the
+// "Start at login" row (audit #37) sits in General with search keywords in every catalog.
+{
+  const side = registry.sidebarHtml("general", false);
+  assert.match(side, /class="set-nav-item set-nav-toggle set-nav-grouplabel"/, "Advanced is a group label");
+  assert.match(side, /<ul class="set-nav-list set-nav-sub" id="set-nav-advanced"><\/ul>/, "closed group lists no page");
+  assert.equal(registry.PAGES.find((p) => p.id === "general").icon, "sliders");
+  assert.ok(registry.PAGES.find((p) => p.id === "general").sections.includes("startup"));
+  const general = await import("../apps/desktop/ui/js/settings/general.js");
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    const html = general.html({ settings: { motion: "system" } });
+    assert.match(html, /<section class="set-sec" id="set-startup"/, `${code}: Startup group`);
+    assert.match(html, /<input id="autostart" type="checkbox" role="switch" class="sw"[^>]*disabled/, `${code}: autostart switch waits for the system`);
+    assert.match(html, /data-row="autostart" data-kw="[^"]{12,}"/, `${code}: autostart row has search keywords`);
+    const catalog = JSON.parse(await readFile(ui(`locales/${code}.json`), "utf8"));
+    for (const k of ["settings.autostart.label", "settings.autostart.desc", "settings.startup", "settings.error.autostart_failed", "report.intro"]) assert.ok(catalog[k], `${code}: ${k}`);
+  }
+  await i18n.setLocale("en-US");
+  // The demo answers like the shell: the system's state comes back from the write.
+  assert.equal(await lib.autostartStatus(), false);
+  assert.equal(await lib.autostartSet(true), true);
+  assert.equal(await lib.autostartStatus(), true);
+  assert.equal(await lib.autostartSet(false), false);
+  // The three dialogs share the one shell (title, ×, body, footer).
+  const { shellHtml } = await import("../apps/desktop/ui/js/dialog-shell.js");
+  const shell = shellHtml({ id: "x-title", title: "A <b>", body: "<p>b</p>", foot: "<button>ok</button>" });
+  assert.match(shell, /<h2 id="x-title">A &lt;b&gt;<\/h2>/);
+  assert.match(shell, /data-shell-close/);
+  assert.match(shell, /<div class="dlg-shell-foot"><button>ok<\/button><\/div>/);
+  const { stepHtml } = await import("../apps/desktop/ui/js/first-run.js");
+  assert.match(stepHtml({ updatePending: true }), /dlg-shell-head[\s\S]*dlg-shell-body[\s\S]*first-run-update[\s\S]*dlg-shell-foot[\s\S]*data-first-on/);
+}
 assert.deepEqual(long, [], "row labels over 4 words");
 console.log("PASS: Settings window pages follow DS-CMP-SEG-5, the sidebar navigates, every old dialog control renders on its page, and the rows keep the RF3/RF5 limits in pt-BR, en-US, es and it");

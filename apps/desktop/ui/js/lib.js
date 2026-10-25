@@ -172,6 +172,9 @@ export const setTrayPrefs = ({ style, colored, accounts = null, popover_view = n
 export const setAdvancedOpen = (open) => call("set_advanced_open", { open });
 /** PRD 0025 RF9.5: the row display (`tray`, `window`, `separate`). */
 export const setRows = (rows) => call("set_rows", { rows });
+// "Start at login" (PRD 0022, audit #37): the system owns the state; both calls return what it reports.
+export const autostartStatus = () => call("autostart_status");
+export const autostartSet = (enabled) => call("autostart_set", { enabled });
 export const firstRunTurnOn = () => call("first_run_turn_on");
 export const firstRunRecord = (again = false) => call("first_run_record", { again });
 export const setUserDir = (path) => call("set_user_dir", { path });
@@ -1873,6 +1876,8 @@ const demo = {
   },
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
   set_rows: async ({ rows }) => { demoSettings.rows = structuredClone(rows); },
+  autostart_status: async () => !!demoSettings.autostart,
+  autostart_set: async ({ enabled }) => { demoSettings.autostart = !!enabled; return demoSettings.autostart; },
   first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.alerts.projected_lead_minutes = 60; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_advice_enabled: async () => {},
