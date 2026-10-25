@@ -19,11 +19,11 @@
 |---|---|---|
 | RF1 | vNEXT | Core `account_edit::catalog` (`catalog.rs`): one entry per provider and mode, hint and sign-in method derived from the access descriptor, recommended mode, generated table in `docs/providers.md`. Extension entries (RF1.3) wait for the PRD 0017 discovery hook. |
 | RF2 | vNEXT | Core `account_edit::search`: case- and accent-insensitive ranking, one result per provider unless the query names a mode, empty query grouped by sign-in method. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
+| RF3 | vNEXT | Desktop catalog picker (`js/provider-picker.js`) over the core `search_providers` (`account_edit::picker_search`, keeping only providers with a usage query): sign-in method groups (grid at 560 px and above), ranked list for a query, hint, "Billed per query" and "Found on this device" chips, combobox/listbox keyboard, read-only header when editing, "Request a provider" via the allow-listed issue template. No level chip: the owner's 2026-10-25 rule removes integration-status labels from every UI surface. |
+| RF4 | vNEXT | TUI wizard type-to-filter through `picker_search`, method headings with an empty filter, hint line, empty state; Models moved from `m` to `Tab`. |
+| RF5 | vNEXT | Core `recommended_mode`/`other_modes`; both editors open the recommended mode, the desktop shows the others under "Other ways to connect", the TUI credential step names them (Tab). |
+| RF6 | vNEXT | Core `detect::local_sources` (presence via `symlink_metadata`, reviewed table with evidence; Qwen Code and Kiro CLI stay "to verify" and are never checked; Antigravity, Kimi CLI, Grok CLI, Zed and Kiro IDE are not in the table). Opt-in `detect.enabled` in `desktop.json` and Settings > Data & privacy; the TUI asks once per session (F6/F7). |
+| RF7 | vNEXT | Offers open the existing flows (Cursor import, native login, AWS profile step, OpenCode key) with the core's consent line first; `detect.dismissed` (desktop) or F8 for the session (TUI). |
 
 ## 1. Context
 
