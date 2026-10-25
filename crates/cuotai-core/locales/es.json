@@ -1208,7 +1208,7 @@
   "extensions.error.unreadable": "No se pudo leer el manifest.toml como texto UTF-8.",
   "extensions.error.tree_unreadable": "No se pudieron leer todos los archivos de la carpeta de la extensión.",
   "extensions.error.tree_escapes": "La carpeta de la extensión tiene un enlace simbólico que lleva fuera de ella (o a ninguna parte) o un archivo que no es común, carpeta ni enlace; Cuotai no aprueba lo que no puede comprobar.",
-  "extensions.error.tree_exposed": "La carpeta de la extensión, o algo dentro de ella, puede ser modificada por otros usuarios (con escritura para el grupo o para todos, o de otro dueño); corríjalo con chmod -R go-w y chown.",
+  "extensions.error.tree_exposed": "La carpeta de la extensión, algo dentro de ella o una carpeta superior hasta la carpeta de extensiones puede ser modificada por otros usuarios (con escritura para el grupo o para todos, o de otro dueño); corríjalo con chmod go-w y chown.",
   "extensions.error.tree_too_large": "La carpeta de la extensión supera {entries} entradas, {mib} MiB o {depth} niveles de carpetas.",
   "extensions.error.directory": "No se pudo listar el directorio de extensiones {path}.",
   "extensions.error.toml": "manifest.toml no válido en la línea {line}: acepta {keys}, con command y env como listas de textos y los números como enteros.",

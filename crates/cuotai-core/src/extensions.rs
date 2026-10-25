@@ -135,6 +135,11 @@ pub struct Manifest {
     pub overrides: Option<crate::Provider>,
     /// The extension's folder, with symbolic links resolved.
     pub dir: PathBuf,
+    /// FIX-05: the extensions root it was discovered under (as given to
+    /// [`discover`]); every folder from [`Self::dir`] up to it must be
+    /// private too ([`tree::scan_within`]).
+    #[serde(skip)]
+    pub(crate) root: PathBuf,
     /// The program `command[0]` names, resolved inside [`Self::dir`].
     pub program: PathBuf,
     /// The interpreter line of the program (`#!…`, without the `#!`) when
@@ -288,7 +293,7 @@ pub fn discover(root: &Path) -> Discovery {
     dirs.sort();
     let mut found: Vec<(PathBuf, Manifest)> = Vec::new();
     for dir in dirs {
-        match load(&dir) {
+        match load(&dir, root) {
             Ok(manifest) => found.push((dir, manifest)),
             Err((id, reason)) => discovery.rejected.push(Rejected { dir, id, reason }),
         }
@@ -311,7 +316,7 @@ pub fn discover(root: &Path) -> Discovery {
 
 /// The manifest of the folder `dir`; an error carries the `id` when it was
 /// read.
-fn load(dir: &Path) -> Result<Manifest, (Option<String>, Localized)> {
+fn load(dir: &Path, root: &Path) -> Result<Manifest, (Option<String>, Localized)> {
     let text = read_manifest(&dir.join(MANIFEST_FILE)).map_err(|reason| (None, reason))?;
     let table: toml::Table = text
         .parse()
@@ -347,7 +352,7 @@ fn load(dir: &Path) -> Result<Manifest, (Option<String>, Localized)> {
     }
     let raw: RawManifest =
         toml::from_str(&text).map_err(|error| fail(toml_error(&text, &error)))?;
-    validate(dir, raw, &text).map_err(fail)
+    validate(dir, root, raw, &text).map_err(fail)
 }
 
 fn read_manifest(path: &Path) -> Result<String, Localized> {
@@ -431,7 +436,12 @@ struct RawSecret {
     description: String,
 }
 
-fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Localized> {
+fn validate(
+    dir: &Path,
+    root: &Path,
+    raw: RawManifest,
+    source: &str,
+) -> Result<Manifest, Localized> {
     if !valid_id(&raw.id) {
         return Err(Localized::with_param(
             "extensions.error.id",
@@ -501,8 +511,9 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         .transpose()?;
     let (dir, program) = resolve_program(dir, &raw.command)?;
     // FIX-04/FIX-05: the whole folder must be hashable, and on Unix
-    // nobody else may change it, before it is ever offered for approval.
-    tree::scan(&dir).map_err(tree::Refused::reason)?;
+    // nobody else may change it (nor any folder above it up to the
+    // extensions root), before it is ever offered for approval.
+    tree::scan_within(&dir, root).map_err(tree::Refused::reason)?;
     let interpreter = tree::shebang(&program);
     Ok(Manifest {
         id: raw.id,
@@ -518,6 +529,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         secrets,
         overrides,
         dir,
+        root: root.to_path_buf(),
         program,
         interpreter,
         source: source.to_owned(),

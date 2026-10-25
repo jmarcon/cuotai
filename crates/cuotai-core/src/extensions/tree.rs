@@ -65,7 +65,7 @@ impl Refused {
             ),
             Self::Exposed => Localized::fixed(
                 "extensions.error.tree_exposed",
-                "The extension's folder, or something in it, can be changed by other users (writable by the group or by everyone, or owned by someone else); fix it with chmod -R go-w and chown.",
+                "The extension's folder, something in it or a folder above it up to the extensions folder can be changed by other users (writable by the group or by everyone, or owned by someone else); fix it with chmod go-w and chown.",
             ),
             Self::TooLarge => Localized::with_params(
                 "extensions.error.tree_too_large",
@@ -96,6 +96,32 @@ pub(crate) fn scan(dir: &Path) -> Result<String, Refused> {
     };
     walk.folder(dir, &mut Vec::new(), 0)?;
     Ok(format!("{:x}", walk.hasher.finalize()))
+}
+
+/// FIX-05: [`scan`], after checking that no folder above `dir` up to the
+/// extensions `root` (the root included) is writable by the group or by
+/// others or owned by another user (Unix): otherwise the extension's folder
+/// could be swapped by a rename between the verification and a run. A
+/// folder that resolves outside `root` (a symbolic link in it) has its own
+/// parent and the root checked.
+pub(crate) fn scan_within(dir: &Path, root: &Path) -> Result<String, Refused> {
+    let root = root.canonicalize().map_err(|_| Refused::Unreadable)?;
+    let mut above: Vec<&Path> = Vec::new();
+    if dir.starts_with(&root) {
+        above.extend(
+            dir.ancestors()
+                .skip(1)
+                .take_while(|ancestor| ancestor.starts_with(&root)),
+        );
+    } else {
+        above.extend(dir.parent());
+        above.push(&root);
+    }
+    for ancestor in above {
+        let meta = std::fs::symlink_metadata(ancestor).map_err(|_| Refused::Unreadable)?;
+        guard(&meta)?;
+    }
+    scan(dir)
 }
 
 /// The Unix ownership and permission rule, for one entry.

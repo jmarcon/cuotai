@@ -77,7 +77,7 @@ impl Approval {
         Some(Self {
             manifest_sha256: sha256_bytes(on_disk.as_bytes()),
             program_sha256: sha256_file(&manifest.program)?,
-            tree_sha256: super::tree::scan(&manifest.dir).ok()?,
+            tree_sha256: super::tree::scan_within(&manifest.dir, &manifest.root).ok()?,
             env: manifest.env.clone(),
             secrets: manifest
                 .secrets

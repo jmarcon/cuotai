@@ -494,6 +494,52 @@ mod unix {
         assert!(approved.verify(), "fixed permissions verify again");
     }
 
+    /// FIX-05: a parent folder up to the extensions root (the root
+    /// included) that others can write lets the extension's folder be
+    /// swapped by a rename: refused at discovery, and an approval no
+    /// longer verifies.
+    #[test]
+    fn a_parent_folder_others_can_write_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("extensions");
+        let nested = root.join("vendor");
+        Rig::with_manifest(&nested, "proxy", MANIFEST);
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o755)).unwrap();
+        fs::set_permissions(&nested, fs::Permissions::from_mode(0o755)).unwrap();
+        let consent = Consent::at(dir.path().join("consent.json"));
+        // The extension sits two levels below the root: `vendor/proxy`
+        // would be listed only from `vendor`, so discover from there with
+        // the outer root as the boundary.
+        let found = |boundary: &Path| {
+            let mut discovery = discover(&nested);
+            for manifest in &mut discovery.extensions {
+                manifest.root = boundary.to_path_buf();
+            }
+            discovery
+        };
+        let manifest = found(&root).get("proxy").expect("private parents").clone();
+        let approved = consent.approve(&manifest).unwrap();
+        assert!(approved.verify());
+
+        for (folder, mode) in [(&root, 0o775), (&root, 0o757), (&nested, 0o770)] {
+            fs::set_permissions(folder, fs::Permissions::from_mode(mode)).unwrap();
+            assert!(!approved.verify(), "{mode:o}");
+            fs::set_permissions(folder, fs::Permissions::from_mode(0o755)).unwrap();
+            assert!(approved.verify(), "fixed again");
+        }
+
+        // At discovery: a group-writable root refuses its extensions.
+        fs::set_permissions(&nested, fs::Permissions::from_mode(0o775)).unwrap();
+        let discovery = discover(&nested);
+        assert!(discovery.extensions.is_empty());
+        assert_eq!(
+            discovery.rejected[0].reason.id,
+            "extensions.error.tree_exposed"
+        );
+        fs::set_permissions(&nested, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(discover(&nested).get("proxy").is_some());
+    }
+
     /// FIX-04: special files (here a FIFO, which would block a read) are
     /// refused, never opened.
     #[test]

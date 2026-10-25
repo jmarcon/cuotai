@@ -455,7 +455,7 @@
   "extensions.error.toml": "manifest.toml inválido na linha {line}: ele aceita {keys}, com command e env como listas de textos e os números como inteiros.",
   "extensions.error.too_large": "O manifest.toml passa de {max} KiB.",
   "extensions.error.tree_escapes": "A pasta da extensão tem um link simbólico que leva para fora dela (ou para nada) ou um arquivo que não é comum, pasta nem link; o Cuotai não aprova o que não consegue conferir.",
-  "extensions.error.tree_exposed": "A pasta da extensão, ou algo dentro dela, pode ser alterada por outros usuários (gravável pelo grupo ou por todos, ou de outro dono); corrija com chmod -R go-w e chown.",
+  "extensions.error.tree_exposed": "A pasta da extensão, algo dentro dela ou uma pasta acima dela até a pasta de extensões pode ser alterada por outros usuários (gravável pelo grupo ou por todos, ou de outro dono); corrija com chmod go-w e chown.",
   "extensions.error.tree_too_large": "A pasta da extensão passa de {entries} entradas, {mib} MiB ou {depth} níveis de pastas.",
   "extensions.error.tree_unreadable": "Não foi possível ler todos os arquivos da pasta da extensão.",
   "extensions.error.unknown_field": "O manifest.toml tem o campo desconhecido {field}; os campos aceitos são {keys}.",
