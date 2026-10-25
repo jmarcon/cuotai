@@ -386,6 +386,8 @@ jobs:
         run: node apps/desktop/tools/ui-shots/check.mjs --selftest
       - name: No Portuguese outside pt-BR (PRD 0034 RF7)
         run: node apps/desktop/tools/ui-shots/locale-smoke.mjs
+      - name: Quiet-hours editor works from the keyboard (PRD 0032)
+        run: node apps/desktop/tools/ui-shots/keyboard.mjs
       - name: Accessibility pass (axe-core, advisory)
         continue-on-error: true
         run: node apps/desktop/tools/ui-shots/a11y.mjs

@@ -78,14 +78,17 @@ export function bindQuiet(root, ctx, initial) {
     deps();
     if (focus) days.querySelector(focus)?.focus();
   };
-  const save = async (next, el, focus) => {
+  // `repaint: false` for a time field edit: the field keeps its place and its typing position (a time input fires
+  // `change` after each completed segment, so drawing it again would cut a typed time short).
+  const save = async (next, el, focus, repaint = true) => {
     try {
       await setQuietHours(next);
       saved = next;
       rowError(el, "");
       toast();
       ctx.changed("quiet");
-      paint(focus);
+      if (repaint) paint(focus);
+      else summary.innerHTML = quietSummary(saved);
     } catch (x) {
       paint();
       rowError(el, errorText(x));
@@ -126,7 +129,7 @@ export function bindQuiet(root, ctx, initial) {
     const from = holder.querySelector("[data-q-from]").value;
     const to = holder.querySelector("[data-q-to]").value;
     if (!TIME.test(from) || !TIME.test(to)) { paint(); rowError(field, t("settings.error.invalid_quiet")); return; }
-    save(edit((q) => { q.days[day][Number(index)] = { from, to }; }), field, `[data-q-day="${day}"][data-q-index="${index}"] ${field.matches("[data-q-from]") ? "[data-q-from]" : "[data-q-to]"}`);
+    save(edit((q) => { q.days[day][Number(index)] = { from, to }; }), field, null, false);
   });
   deps();
 }

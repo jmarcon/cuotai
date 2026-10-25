@@ -18,6 +18,7 @@ repository root.
 | `node apps/desktop/tools/ui-shots/check.mjs --zoom [locale …]` | The 200 % zoom pass (PRD 0020 RNF): the same overflow check on the main window at 640 × 410 and four Settings pages at 640 × 360, the CSS viewports a 1280-wide screen leaves at 200 % |
 | `node apps/desktop/tools/ui-shots/a11y.mjs [--json] [--all]` | axe-core (pinned 4.10.2 from cdnjs, SHA-256 verified before it runs) over the tray, main window and four Settings pages, light and dark; fails on serious/critical violations (`--all`: every impact; `color-contrast` stays advisory, `contrast_gate.py` owns contrast); exit 3 when axe could not be fetched |
 | `node apps/desktop/tools/ui-shots/perf.mjs [--strict] [--runs N]` | Median of several runs: Settings open time (budget 300 ms, PRD 0020 RNF) and interaction-to-frame time in the tray (budget 16 ms); advisory unless `--strict` |
+| `node apps/desktop/tools/ui-shots/keyboard.mjs` | PRD 0032: drives Settings › Alerts › Quiet hours with the keyboard only (Tab, Shift+Tab, Enter, Space, typed digits): open the sub-page, switch on, add, type a time, remove, repeat on every day, reach the three-interval limit; exits 1 on the first step that needs a mouse |
 | `node apps/desktop/tools/ui-shots/check.mjs --selftest` | Forces a long string into a tray figure and passes only if the check catches it |
 
 `screens.tsv` columns: name, page (with its query), width, height, theme, mode, language, clicks

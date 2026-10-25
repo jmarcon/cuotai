@@ -87,11 +87,20 @@ export async function launch({ port, cdp } = {}) {
       await sleep(400);
     }
   }
+  /** Presses a key like a person at the keyboard (Tab, Shift+Tab, Enter, Space, a digit or a letter). */
+  async function press(key, { shift = false } = {}) {
+    const named = { Tab: [9, "Tab", ""], Enter: [13, "Enter", "\r"], " ": [32, "Space", " "], Escape: [27, "Escape", ""], ArrowDown: [40, "ArrowDown", ""], ArrowUp: [38, "ArrowUp", ""] };
+    const [vk, code, text] = named[key] ?? [key.toUpperCase().charCodeAt(0), /^\d$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`, key];
+    const base = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers: shift ? 8 : 0 };
+    await send("Input.dispatchKeyEvent", { ...base, type: text ? "keyDown" : "rawKeyDown", text });
+    await send("Input.dispatchKeyEvent", { ...base, type: "keyUp" });
+    await sleep(120);
+  }
   /** Writes a PNG of the viewport. */
   async function shot(file) {
     const r = await send("Page.captureScreenshot", { format: "png" });
     const { writeFileSync } = await import("node:fs");
     writeFileSync(file, Buffer.from(r.result.data, "base64"));
   }
-  return { open, click, shot, evaluate, close: () => { ws.close(); stop(); } };
+  return { open, click, press, shot, evaluate, close: () => { ws.close(); stop(); } };
 }
