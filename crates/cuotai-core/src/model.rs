@@ -956,7 +956,7 @@ pub struct Report {
 /// never carries a credential, a connection UUID, an email or a response
 /// body: `id` is a hash and the label comes from the aggregator's masked
 /// display name.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SubReport {
     /// Stable, opaque id of the connection (a truncated hash).
     pub id: String,
@@ -997,6 +997,29 @@ pub struct SubReport {
     pub identity: Option<String>,
 }
 
+/// Hand-written so the in-memory `identity` (an e-mail) never reaches logs
+/// or panic messages through `{:?}`.
+impl std::fmt::Debug for SubReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubReport")
+            .field("id", &self.id)
+            .field("upstream", &self.upstream)
+            .field("provider", &self.provider)
+            .field("label", &self.label)
+            .field("status", &self.status)
+            .field("metrics", &self.metrics)
+            .field("notes_l10n", &self.notes_l10n)
+            .field("checked_at", &self.checked_at)
+            .field("as_of", &self.as_of)
+            .field("enabled_upstream", &self.enabled_upstream)
+            .field("duplicate_of", &self.duplicate_of)
+            .field("plan", &self.plan)
+            .field("via", &self.via)
+            .field("identity", &self.identity.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
+}
+
 /// The provider's statement about paid extra usage that no metric carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1019,6 +1042,29 @@ pub struct Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sub_report_debug_redacts_identity() {
+        let sub = SubReport {
+            id: "abc".into(),
+            upstream: "codex".into(),
+            provider: None,
+            label: "Codex".into(),
+            status: Status::Ready,
+            metrics: Vec::new(),
+            notes_l10n: Vec::new(),
+            checked_at: Utc::now(),
+            as_of: None,
+            enabled_upstream: None,
+            duplicate_of: None,
+            plan: None,
+            via: None,
+            identity: Some("person@example.com".into()),
+        };
+        let shown = format!("{sub:?}");
+        assert!(!shown.contains("person@example.com"), "{shown}");
+        assert!(shown.contains("<redacted>"));
+    }
 
     #[test]
     fn slug_matches_serde_snake_case() {
