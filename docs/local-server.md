@@ -80,6 +80,8 @@ The source is called for every data request and must only read what the refresh 
 
 Every route answers `GET` and `HEAD` (PRD 0031 RF9.2: `HEAD` has the status and headers of `GET`, for every route and also for `401` and `404`, and no body); any other method answers `405` with `Allow: GET, HEAD`, and an unknown path answers `404`. Every response is `Content-Type: application/json` with `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`, and closes the connection.
 
+Status-bar recipes (Waybar, SketchyBar, tmux, i3bar/sway) built on `/v1/limits` are in [`integrations/`](integrations/README.md).
+
 **`ETag` and `304` (PRD 0031 RF6).** `cuotai --serve` and the desktop server build the export once per state change (a reading, an edit or a provider status) and reuse it for at most 10 seconds, so a burst of requests costs one build. `/v1/snapshot`, `/v1/limits` and `/v1/accounts/{key}` then carry `ETag: "<build>-<route>"` (the route is `snapshot`, `limits` or `account`); a request whose `If-None-Match` names it (or `*`) gets `304` with no body and `Cache-Control: no-store` still set. The tag changes with each build, so a client sees `200` again after a new reading and at least every 10 seconds, which keeps `age_seconds` and `freshness` honest. Embedders whose `Source` does not tell generations get no tag and build per request.
 
 | Route | Answer |

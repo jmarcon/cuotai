@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "generated_at": "2026-10-20T12:00:00Z",
+  "accounts": [
+    {
+      "index": 0,
+      "key": "claude:Personal",
+      "name": "Personal",
+      "provider": "claude",
+      "class": "exhausted",
+      "binding": {
+        "index": 0,
+        "label": "Sessão (5h)",
+        "window": "window_5h",
+        "used_ratio": 1.0,
+        "remaining": 0.0,
+        "resets_at": "2026-10-20T14:00:00Z",
+        "reason": "exhausted",
+        "blocked_until": "2026-10-20T14:00:00Z"
+      },
+      "age_seconds": 30,
+      "freshness": "fresh",
+      "stale": false,
+      "incident": { "state": "partial_outage", "stale": false }
+    }
+  ],
+  "summary": {
+    "worst_class": "exhausted",
+    "tightest": {
+      "key": "claude:Personal",
+      "name": "Personal",
+      "used_ratio": 1.0,
+      "resets_at": "2026-10-20T14:00:00Z"
+    },
+    "next_reset_at": "2026-10-20T14:00:00Z",
+    "worst_incident": "partial_outage"
+  }
+}

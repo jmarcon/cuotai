@@ -1148,6 +1148,23 @@ mod tests {
         assert_eq!(with.accounts[1].pace, without.accounts[1].pace);
     }
 
+    /// PRD 0031 RF1.2: the `/v1/limits` bodies the status-bar recipes run
+    /// against (`examples/integrations/fixtures`) follow the contract, so a
+    /// schema change that invalidates them fails here before it breaks a bar.
+    #[test]
+    fn recipe_fixtures_follow_the_limits_schema() {
+        let schema: Value =
+            serde_json::from_str(&std::fs::read_to_string(doc_path(SCHEMA_DOC)).unwrap()).unwrap();
+        for name in ["limits-busy.json", "limits-blocked.json"] {
+            let path = doc_path(&format!("examples/integrations/fixtures/{name}"));
+            let body: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap())
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
+            let mut errors = Vec::new();
+            validate(&schema, &schema["$defs"]["Limits"], &body, "$", &mut errors);
+            assert!(errors.is_empty(), "{name}: {errors:#?}");
+        }
+    }
+
     /// PRD 0024 FIX-11: the pace is evaluated at the reading's `checked_at`
     /// and is `null` for every metric of a reading that is not `Fresh`.
     #[test]

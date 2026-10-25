@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "generated_at": "2026-10-20T12:00:00Z",
+  "accounts": [
+    {
+      "index": 0,
+      "key": "claude:Personal",
+      "name": "Personal",
+      "provider": "claude",
+      "class": "available",
+      "binding": {
+        "index": 0,
+        "label": "Semana",
+        "window": "weekly",
+        "used_ratio": 0.78,
+        "remaining": 22.0,
+        "resets_at": "2026-10-24T09:00:00Z",
+        "reason": "tightest",
+        "blocked_until": null
+      },
+      "age_seconds": 120,
+      "freshness": "fresh",
+      "stale": false,
+      "incident": { "state": "operational", "stale": false }
+    },
+    {
+      "index": 1,
+      "key": "codex:Work",
+      "name": "Work",
+      "provider": "codex",
+      "class": "available",
+      "binding": {
+        "index": 0,
+        "label": "Sessão (5h)",
+        "window": "window_5h",
+        "used_ratio": 0.31,
+        "remaining": 69.0,
+        "resets_at": "2026-10-20T14:00:00Z",
+        "reason": "tightest",
+        "blocked_until": null
+      },
+      "age_seconds": 60,
+      "freshness": "fresh",
+      "stale": false,
+      "incident": null
+    }
+  ],
+  "summary": {
+    "worst_class": "available",
+    "tightest": {
+      "key": "claude:Personal",
+      "name": "Personal",
+      "used_ratio": 0.78,
+      "resets_at": "2026-10-24T09:00:00Z"
+    },
+    "next_reset_at": "2026-10-20T14:00:00Z",
+    "worst_incident": "operational"
+  }
+}
