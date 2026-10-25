@@ -1949,6 +1949,19 @@ pub enum CredentialKind {
 /// Shape of the credential field for `provider`. Mirrors the actual
 /// `build_account` fetcher behaviour so a frontend never has to
 /// `match` `Provider` to render the credential input.
+/// The providers an account editor offers, sorted by their name: only the
+/// ones with a usage query in some mode ([`crate::access::has_usage_query`]),
+/// plus `current` (the provider of the account being edited) when it has
+/// none, so editing an existing account still shows its provider.
+pub fn picker_providers(current: Option<Provider>) -> Vec<Provider> {
+    let mut providers: Vec<_> = Provider::ALL
+        .into_iter()
+        .filter(|p| Some(*p) == current || crate::access::has_usage_query(*p))
+        .collect();
+    providers.sort_by_key(|p| p.label().to_lowercase());
+    providers
+}
+
 pub fn credential_kind(provider: Provider) -> CredentialKind {
     match provider {
         Provider::AwsBedrock => CredentialKind::AwsProfile,
@@ -2642,6 +2655,20 @@ mod tests {
     use crate::oauth::OAuthConfig;
     use crate::{Config, Provider};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn picker_is_sorted_by_name_and_hides_providers_without_a_query() {
+        let picker = picker_providers(None);
+        let names: Vec<_> = picker.iter().map(|p| p.label().to_lowercase()).collect();
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(names, sorted);
+        assert!(!picker.contains(&Provider::Poolside));
+        assert!(picker.contains(&Provider::Perplexity));
+        assert!(picker.contains(&Provider::GeminiAi));
+        // Editing an existing account keeps its provider listed.
+        assert!(picker_providers(Some(Provider::Poolside)).contains(&Provider::Poolside));
+    }
 
     fn config_with(accounts: Vec<Account>) -> Config {
         Config {

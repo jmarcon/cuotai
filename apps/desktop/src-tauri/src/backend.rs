@@ -3518,8 +3518,9 @@ pub enum SessionChange {
 pub struct ProviderInfo {
     id: Provider,
     label: &'static str,
-    /// PRD 0005 RF3.1: level of the provider's default interface.
-    level: cuotai_core::text::Localized,
+    /// Whether the "Add account" picker offers it: the core's
+    /// `access::has_usage_query`. The access level stays out of the UI.
+    pickable: bool,
 }
 
 pub fn providers() -> Vec<ProviderInfo> {
@@ -3528,12 +3529,7 @@ pub fn providers() -> Vec<ProviderInfo> {
         .map(|&id| ProviderInfo {
             id,
             label: id.label(),
-            level: cuotai_core::access::describe(&cuotai_core::Account {
-                provider: id,
-                ..Default::default()
-            })
-            .level
-            .label(),
+            pickable: cuotai_core::access::has_usage_query(id),
         })
         .collect()
 }

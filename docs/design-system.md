@@ -48,7 +48,7 @@ These traits define Cuotai and MUST survive any redesign:
 - **DS-ID-3 Provider tiles.** Providers are shown as rounded tiles in the provider's brand color with a white glyph mask (`logo()` in `js/lib.js`, `.logo`, `--logo-radius`), with a letter fallback. Brand tile colors are provider identity, not theme colors, and are the one allowed exception to DS-COL-1.
 - **DS-ID-4 Typography.** System UI stack (`--font-ui`), headings at weight 650, large bold tabular figures for "how much is left", and uppercase micro labels with `0.04em` tracking (`.win-name`, `.lc-head`, settings group labels).
 - **DS-ID-5 The "available" criterion.** Meters show what is **left**, not what was used; levels are `good` ≥ 70 % left, `warn` 30–70 %, `bad` < 30 % (`level()` in `js/lib.js`).
-- **DS-ID-6 Breadth of truth.** Cuotai shows what other monitors hide: several accounts per provider, the binding limit, pace, measurement age and stale readings, provider incidents, the access level of each query, local cost estimates, history, usage alerts and extensions. Simplification moves these into disclosures; it never deletes them.
+- **DS-ID-6 Breadth of truth.** Cuotai shows what other monitors hide: several accounts per provider, the binding limit, pace, measurement age and stale readings, provider incidents, local cost estimates, history, usage alerts and extensions. Simplification moves these into disclosures; it never deletes them.
 - **DS-ID-7 Multilingual.** pt-BR, en-US, es and it catalogs, plus user language packs.
 - **DS-ID-8 The ring.** The tray's ring gauge (`.donut` tiles in `tray.js`) is the "C" of Cuotai: an open ring that echoes the logo. It is an identity element, not a donut chart, and is specified as a single-value component in DS-CMP-RING. Static and 12–16 px, it is also Cuotai's **account-state glyph** (DS-CMP-RING-6): the leading mark of status lines, the attention mark on filter tabs, the menu-bar icon, notifications where the OS allows an image, and widgets. It appears as a gauge in three places: one small static ring in the "All" filter tab, the "Icon only" menu-bar style, and the per-account ring grid, which is an **alternative** tray view the user selects in Settings; the default tray view is the list of account rows with continuous meters (DS-CMP-ROW).
 
@@ -291,7 +291,7 @@ Expanded (accordion):
      ◔ ↑ 8 pts ahead · Runs out ≈18:53      ↺ 19:30
      ── sub-limit rows (DS-CMP-SUB) ──
      ── forecast callout (DS-CMP-CALL) ──
-     ── incident / access / local cost lines ──
+     ── incident / session / local cost lines ──
      [Details]  [⟳ Refresh]  [🔔]
 ```
 
@@ -307,7 +307,7 @@ Expanded (accordion):
 
 ### 4.4 Account card, main window (`CARD`)
 
-- **DS-CMP-CARD-1** The card is the expanded row at window scale: head (40 px tile, name `--text-xl`/650, account name muted when present — the line is omitted for an unnamed account —, actions, enable switch), summary (per-window figures for 5 h and weekly, else the tightest quota, each as a figure block with the unit word below the figure, DS-CMP-ROW-1b, as today's `.sum-bar .big small`), status line, extra lines (pace, incident, access, local cost) and a foot of chips (count, binding, rate limit, alert, session expiry, age, next refresh).
+- **DS-CMP-CARD-1** The card is the expanded row at window scale: head (40 px tile, name `--text-xl`/650, account name muted when present — the line is omitted for an unnamed account —, actions, enable switch), summary (per-window figures for 5 h and weekly, else the tightest quota, each as a figure block with the unit word below the figure, DS-CMP-ROW-1b, as today's `.sum-bar .big small`), status line, extra lines (pace, incident, web session, local cost) and a foot of chips (count, binding, rate limit, alert, session expiry, age, next refresh).
 - **DS-CMP-CARD-2** Cards in one grid row MUST keep equal heights; a missing window keeps its slot with "—" (current `.wins` behavior).
 - **DS-CMP-CARD-3** The card foot shows at most four chips; the rest move into the details dialog.
 - **DS-CMP-CARD-4** "Waiting" cards (no report yet) show a static skeleton (DS-CMP-STATE-2) with `aria-busy="true"`.
@@ -715,7 +715,7 @@ Shared with the TUI and the menu bar. The shapes come from the TUI's pace vocabu
 - **DS-MSG-3 Length.** Labels ≤ 4 words; descriptions ≤ 90 characters on one line (PRD 0020 RF5.1); status details ≤ 6 words in the collapsed row.
 - **DS-MSG-4 Units.** Figure first, unit word after (below the figure in rows and cards, DS-CMP-ROW-1b), muted: "22% left", "$6.25 extra", "1.2M tokens". "Left" means remaining share of a limit: the English (en-US) value of the catalog's `card.available` is "left", other catalogs keep their own word ("disponível"); "used" only where the core reports use. Pace deltas are percentage **points** by default ("8 pts in reserve"); "%" appears only when the user chose percent (DS-CMP-TIME-6), and then it is the core's relative deviation, always with its comparison words ("20% faster than pace"), never points relabelled and never a bare "+20%".
 - **DS-MSG-5 Absent and estimated values.** Unknown = "—" or "No data"; unpriced = "Cost unknown"; below a cent = "< $0.01"; estimated figures carry "≈" (DS-CMP-HON-2) and say "estimate" once per view (cost, pace tooltip "linear estimate"). Never "0" for absent, never "unlimited" unless the core says so.
-- **DS-MSG-6 Core texts.** Pace stages and outlooks, binding summaries, access levels, incident states, freshness and causes come from the core's `Localized` (`tl()`); the UI MUST NOT compose them from parts or translate them itself. UI-only strings live in `ui/locales/*.json`.
+- **DS-MSG-6 Core texts.** Pace stages and outlooks, binding summaries, incident states, freshness and causes come from the core's `Localized` (`tl()`); the UI MUST NOT compose them from parts or translate them itself. UI-only strings live in `ui/locales/*.json`.
 - **DS-MSG-7 Numbers.** `Intl.NumberFormat(currentLocale())` for every number; percentages as integers in rows and cards, up to two decimals only in tables; compact notation for token counts; currency with `style: "currency"` (USD today, PRD 0015).
 - **DS-MSG-8 Time.** Absolute clock times use the locale's `toLocaleTimeString` with 2-digit hour and minute: within today the time only ("19:30"), within 6 days the short weekday and time ("Sat 11:54"), otherwise the short date and time ("22 Oct, 19:30"). Durations until a reset: "in 1h 35m", "in 3d 15h" (`fmtCountdown`). Ages: `Intl.RelativeTimeFormat` short ("3 min ago"). Rows show absolute reset times, details add the duration; the tooltip always has the full date. Dates without a time (release dates, price-table dates, "since" dates) use `toLocaleDateString(currentLocale(), { day: "numeric", month: "short", year: "numeric" })` inside a translated sentence ("Released 22 Oct 2026", "Lançada em 22 de out. de 2026"), never an ISO string on screen.
 - **DS-MSG-9 Error pattern.** "What happened. What to do." using the core's classification: authentication ("Sign-in expired. Sign in again."), rate limit, network, schema change, configuration. A provider incident adds the core note that the failure may not be the account's (PRD 0011 RF3). Never response bodies, URLs, tokens or stack traces.
@@ -753,7 +753,7 @@ Shared with the TUI and the menu bar. The shapes come from the TUI's pace vocabu
 | Dialog titles | wrap to two lines |
 
 - **DS-MSG-16 Longest-locale check.** UI review MUST render each changed screen at the minimum size in: the longest catalog for its strings (de once shipped; until then pt-BR or es, and it for status words), one CJK locale (ja or zh-CN, for glyph height and line breaking) and hi-IN (line height). Development builds offer a pseudo-locale `en-XA` that expands every string (+100 % up to 10 characters, +50 % up to 20, +40 % beyond), replaces letters with accented and stacked-diacritic forms, and wraps each string in ⟦ ⟧ so concatenation, hard-coded text and clipping are visible; it is never offered in release builds. A screen passes when nothing in the "never truncates" list is cut.
-- **DS-MSG-13** Glossary (one term per concept, all surfaces including the TUI): *account* (not agent), *provider*, *limit*/*quota*, *binding limit*, *pace*, *reset*, *reading*, *fresh/aging/stale*, *incident*, *access level*, *local cost (estimate)*, *history*, *usage alert*, *reset notice*, *extension*.
+- **DS-MSG-13** Glossary (one term per concept, all surfaces including the TUI): *account* (not agent), *provider*, *limit*/*quota*, *binding limit*, *pace*, *reset*, *reading*, *fresh/aging/stale*, *incident*, *local cost (estimate)*, *history*, *usage alert*, *reset notice*, *extension*.
 
 ## 7. Motion
 
@@ -844,6 +844,7 @@ Decisions of the project owner that settled questions raised while drafting this
 | 2026-10-22 | Large figures are neutral (`--fg`); the level is shown by the meter fill, status label and tab dot; an exhausted limit reads "Exhausted" with an empty meter. | DS-CMP-ROW-1a, DS-CMP-RING-2 |
 | 2026-10-22 | Settings is organized in more than four pages: General, Dashboard, Menu bar, Alerts, Data & privacy, collapsible Advanced (Integrations, Local cost, Extensions, Files), About. | DS-CMP-SEG-5 |
 | 2026-10-22 | The tray header loses the view toggle, sort, language flag and refresh-all (to Settings › Dashboard / General); refresh stays in the tray footer next to the age. The main topbar moves theme and language to Settings; "Add account" is outlined. | DS-CMP-HEAD-2, DS-CMP-FOOT-2, DS-CMP-SHELL-3 |
+| 2026-10-25 | The usage access level (Official, Undocumented, Derived, Unavailable) and its summary leave every UI surface (picker, cards, details, dialog notes); integration status lives only in `docs/providers.md` and `docs/oauth.md`. The picker lists providers by name only and leaves out those without any usage query (core `access::has_usage_query`). | DS-ID-6, DS-MSG-6, DS-MSG-13 |
 | 2026-10-22 | New token `--shadow-card` (one soft layer) for main-window cards only. | DS-TOK-ELV-1, DS-TOK-ELV-4, section 3.4 |
 | 2026-10-22 | Toned callouts use a role-colored border plus a light tint, so warning does not read muddy on Dracula. | DS-CMP-CALL-1 |
 | 2026-10-22 | *Superseded 2026-10-23:* the pace marker snapped to segment boundaries on segmented meters. | DS-CMP-MTR-6 |

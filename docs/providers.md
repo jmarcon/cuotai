@@ -48,11 +48,13 @@ Xiaomi MiMo (`session_env`, `platform_session_env`), Alibaba Coding Plan and Ali
 
 ## Usage access matrix
 
-How each account's usage is read, as `cuotai_core::access::describe` classifies it (PRD 0005) and as the wizard, the desktop dialog and the cards show it. A provider has one row for its default configuration plus one per mode (a `params` value or the native login) that changes the queried interface; modes with the same classification share a row.
+How each account's usage is read, as `cuotai_core::access::describe` classifies it (PRD 0005). This page is where that classification lives: since the owner decision of 2026-10-25 the TUI wizard, the desktop dialog, the cards and the details no longer show the level (Official, Undocumented, Derived, Unavailable) or its summary; the machine contracts (`export::v1`, the desktop view) still carry it. A provider has one row for its default configuration plus one per mode (a `params` value or the native login) that changes the queried interface; modes with the same classification share a row.
 
 - **Level:** `Official` is an interface the vendor documents for that credential (it does not promise permission on your account); `Undocumented` is internal or inferred and may change without notice; `Derived` infers usage from another source (Cloud Monitoring metrics, rate-limit headers); `Unavailable` has no query and the account shows the reason instead of numbers.
 - **Credential:** the class of secret the query needs. **Plan:** the vendor plan the query requires, when any. **Scope:** what the number covers (`Whole cloud` is a bill for every product of the cloud account).
 - **Evidence:** the vendor documentation, or the public 9router/community-client file whose contract the adapter follows. Every row was last checked on the descriptor's `verified_on` date.
+
+**Providers you cannot add from the app.** A provider that is `Unavailable` in every mode has no usage query at all, so an account for it would only show the reason instead of numbers. The "Add account" picker (desktop and TUI) leaves these out, as the core's `access::has_usage_query` decides: today Qwen (DashScope key and Qwen Code OAuth), Cloudflare Workers AI, NVIDIA NIM, Poolside and Alibaba Model Studio. An existing account of one of them keeps working as before: it is still edited, and the card still shows the reason. Providers with at least one queried mode stay in the picker (for example Perplexity with `product = computer` and Gemini AI with `product = cli`).
 
 The table is generated: a core test compares it with `access::describe` and fails when they differ. After changing a classification, regenerate it with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix` and commit the result.
 

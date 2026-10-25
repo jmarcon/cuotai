@@ -29,7 +29,7 @@ You only do this once per installed copy. Cuotai never asks you to disable Gatek
 
 1. Press **Add account** (or the **+** in the top bar).
 2. Choose the **provider** and give the account a **name** (it must be unique).
-3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser, you approve, and the token is stored in the Keychain. Otherwise, type the **name** of an environment variable that holds the key (the field help says which one the provider uses). The dialog also tells you how that account's usage is read: Official, Undocumented, Derived or Unavailable.
+3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser, you approve, and the token is stored in the Keychain. Otherwise, type the **name** of an environment variable that holds the key (the field help says which one the provider uses). How each provider's usage is read is documented in [`providers.md`](providers.md#usage-access-matrix).
 4. Press **Save**. The card appears and fills in on the next refresh.
 
 > **Environment variables and the Dock.** An app started from the Dock, Spotlight or Finder does not inherit variables you `export` in your shell, so an environment-variable credential is usually not visible to it. Either use the browser sign-in (stored in the Keychain), start Cuotai from a terminal where the variable is exported (`/Applications/Cuotai.app/Contents/MacOS/Cuotai`), or set it for your login session with `launchctl setenv NAME value` before launching the app.

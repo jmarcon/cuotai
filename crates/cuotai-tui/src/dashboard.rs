@@ -9,7 +9,7 @@
 use crate::motion::{eighth_bar, Anim};
 use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_locale};
 use chrono::{DateTime, Local, Utc};
-use cuotai_core::access::{self, UsageAccess};
+use cuotai_core::access;
 use cuotai_core::cost::{self, CostSummary, SourceCost};
 use cuotai_core::history::{self, HistoryRange, MetricHistory, Trend};
 use cuotai_core::incidents::{IncidentState, ProviderStatus};
@@ -1037,12 +1037,13 @@ fn render_card(
         .borders(Borders::ALL)
         .border_style(border_style)
         .title_style(title_style)
-        .title(title)
-        .title_bottom(access_title(
-            &access,
-            session_notice.as_ref().map(|notice| &notice.level),
+        .title(title);
+    if let Some(notice) = &session_notice {
+        block = block.title_bottom(session_title(
+            &notice.level,
             area.width.saturating_sub(expiry_width),
         ));
+    }
     if let Some(expiry) = expiry {
         block = block.title_bottom(expiry.right_aligned());
     }
@@ -1213,18 +1214,12 @@ fn class_color(class: AccountClass) -> Color {
     }
 }
 
-/// PRD 0005 RF4.1: the core's level and summary on the card's bottom border,
-/// muted and cut to the card so it never competes with the quota. PRD 0016
-/// RF4.1: a web session's `UserSession` level comes before the summary.
-fn access_title(
-    access: &UsageAccess,
-    session: Option<&cuotai_core::text::Localized>,
-    width: u16,
-) -> Line<'static> {
-    let mut text = resolve_card_l10n(&access.level.label());
-    for part in session.into_iter().chain([&access.summary]) {
-        text = format!("{text} · {}", resolve_card_l10n(part));
-    }
+/// PRD 0016 RF4.1: a web session's `UserSession` level on the card's bottom
+/// border, muted and cut to the card so it never competes with the quota.
+/// The integration's access level stays out of the UI: it is documented in
+/// `docs/providers.md`.
+fn session_title(session: &cuotai_core::text::Localized, width: u16) -> Line<'static> {
+    let text = resolve_card_l10n(session);
     let room = usize::from(width.saturating_sub(4));
     let text = if text.chars().count() > room {
         let cut: String = text.chars().take(room.saturating_sub(1)).collect();
@@ -1758,20 +1753,6 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     // in place of the generic "no metrics" line; the adapter's notes stay
     // listed below.
     let access = access::describe(account);
-    lines.push(Line::from(vec![
-        Span::styled(
-            "  ACESSO  ",
-            Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            resolve_l10n(&access.level.label()),
-            Style::default().fg(FG).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            format!(" · {}", resolve_l10n(&access.summary)),
-            Style::default().fg(MUTED),
-        ),
-    ]));
     // PRD 0016 RF4.1: the web session's level and warning, in full.
     if let Some(notice) = cuotai_core::user_session::notice(account) {
         lines.push(Line::from(vec![
@@ -2169,21 +2150,16 @@ mod tests {
                 Utc.with_ymd_and_hms(2026, 1, 1, 0, 1, 0).unwrap(),
                 locale,
             );
-            let expected_access = match locale {
-                "pt-BR" => "Extensão",
-                "en-US" => "Extension",
-                "es" => "Extensión",
-                "it" => "Estensione",
-                _ => unreachable!(),
-            };
             assert!(
                 screen.contains(Provider::Extension.label()),
                 "{locale}: the card names the provider:\n{screen}"
             );
-            assert!(
-                screen.contains(expected_access),
-                "{locale}: the card renders the exact localized access label:\n{screen}"
-            );
+            for label in ACCESS_LABELS {
+                assert!(
+                    !screen.contains(label),
+                    "{locale}: no access label `{label}` on the card:\n{screen}"
+                );
+            }
             assert!(
                 screen.contains(&expected_metric),
                 "{locale}: the card renders the metric text `{expected_metric}`:\n{screen}"
@@ -3535,8 +3511,59 @@ mod tests {
         (accounts, reports)
     }
 
+    /// The access levels in the four locales (core catalogs and Portuguese
+    /// fallbacks): none is rendered by the dashboard.
+    const ACCESS_LABELS: [&str; 15] = [
+        "Oficial",
+        "Não documentada",
+        "Indisponível",
+        "Derivada",
+        "Official",
+        "Undocumented",
+        "Unavailable",
+        "Derived",
+        "No documentada",
+        "No disponible",
+        "Ufficiale",
+        "Non documentato",
+        "Non disponibile",
+        "Derivato",
+        "Oficial ",
+    ];
+
     #[test]
-    fn cards_show_the_access_level_and_explain_unavailable_or_changed_interfaces() {
+    fn dashboard_renders_no_access_label_in_any_locale() {
+        let (accounts, mut reports) = access_fixture();
+        // `Unsupported` reads "Indisponível" as a report status; an error
+        // keeps the access reason without that unrelated word.
+        if let Some(report) = reports[0].as_mut() {
+            report.status = Status::Error;
+        }
+        for locale in ["pt-BR", "en-US", "es", "it"] {
+            for selected in 0..accounts.len() {
+                for details in [false, true] {
+                    let previous = TEST_LOCALE.with(|slot| slot.replace(Some(locale)));
+                    let screen = render_accounts(
+                        &accounts,
+                        &reports,
+                        &[],
+                        &[],
+                        (details, selected),
+                        at_min(0),
+                        (120, 40),
+                    )
+                    .join("\n");
+                    TEST_LOCALE.with(|slot| *slot.borrow_mut() = previous);
+                    for label in ACCESS_LABELS {
+                        assert!(!screen.contains(label), "{locale}: `{label}`:\n{screen}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cards_explain_unavailable_or_changed_interfaces() {
         let (accounts, reports) = access_fixture();
         let rows = render_accounts(
             &accounts,
@@ -3548,10 +3575,8 @@ mod tests {
             (120, 40),
         )
         .join("\n");
-        // RF4.1: level and summary on every card, discreetly on the border.
-        assert!(rows.contains("Indisponível · Chave de inferência do Poolside."));
-        assert!(rows.contains("Não documentada · Uso do plano Zed"));
-        assert!(rows.contains("Oficial · Custos e uso da organização"));
+        // No access level or summary on the cards: that lives in the docs.
+        assert!(!rows.contains("Chave de inferência do Poolside."));
         // RF4.2: the reason replaces the adapter's generic note.
         assert!(rows.contains("O endpoint de uso conhecido exige um token"));
         assert!(!rows.contains("Poolside não publica"));
@@ -3563,7 +3588,7 @@ mod tests {
     }
 
     #[test]
-    fn details_show_the_access_and_the_explanation_with_the_adapter_notes() {
+    fn details_show_the_explanation_with_the_adapter_notes() {
         let (accounts, reports) = access_fixture();
         let details = |selected| {
             render_accounts(
@@ -3578,16 +3603,14 @@ mod tests {
             .join("\n")
         };
         let pool = details(0);
-        assert!(pool.contains("ACESSO  Indisponível · Chave de inferência do Poolside."));
+        assert!(!pool.contains("ACESSO"));
         assert!(pool.contains("O endpoint de uso conhecido exige um token"));
         assert!(!pool.contains("Provedor sem métricas expostas"));
         assert!(pool.contains("Poolside não publica"), "adapter note kept");
         let zed = details(1);
-        assert!(zed.contains("ACESSO  Não documentada · Uso do plano Zed pela interface"));
         assert!(zed.contains("pode ter mudado sem aviso"));
         assert!(zed.contains("github.com/decolua/9router"), "{zed}");
         let openai = details(2);
-        assert!(openai.contains("ACESSO  Oficial"));
         assert!(openai.contains("Provedor sem métricas expostas"));
     }
 

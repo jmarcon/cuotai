@@ -66,7 +66,7 @@ The code is encrypted to that attempt's ephemeral key. The automatic callback is
 
 ### Qwen Code OAuth
 
-Select **Qwen → OAuth login**. The flow uses the device grant with PKCE of the official Qwen Code client (`chat.qwen.ai/api/v1/oauth2/device/code` and `/token`, scope `openid profile email model.completion`). Access and refresh tokens go into the vault, separate from DashScope's `QWEN_API_KEY`.
+Qwen is no longer offered in the "Add account" picker, because neither its DashScope key nor its OAuth session has a usage query; an existing Qwen account can still use **OAuth login** when edited. The flow uses the device grant with PKCE of the official Qwen Code client (`chat.qwen.ai/api/v1/oauth2/device/code` and `/token`, scope `openid profile email model.completion`). Access and refresh tokens go into the vault, separate from DashScope's `QWEN_API_KEY`.
 
 **Provider limitation:** the [official documentation](https://github.com/QwenLM/qwen-code/blob/81582ca19d0772afdd06ace9cad4845c207001f8/docs/users/configuration/auth.md) states that the free OAuth was discontinued on 2026-04-15. The interface offers the attempt with a warning; no Qwen Code quota endpoint was found, and a successful login is not turned into a false consumption measurement.
 

@@ -469,11 +469,9 @@ export const noteText = (report, index) =>
 export const causeText = (r) => (r.pending ? t("card.waiting") : r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
 /** Adapter notes still to list after `causeText` (all of them when the core's explanation took the first place). */
 export const restNotes = (r) => r.notes.map((_, index) => noteText(r, index)).slice(r.access?.explanation ? 0 : 1);
-/** PRD 0005 RF4.1: the core's level and summary in one discreet line; `full` wraps instead of cutting. PRD 0016 RF4.1:
- *  an account whose query uses a web session adds the `UserSession` level and the core's risk warning. */
-export const accessHtml = (r, { full = false } = {}) => r.access
-  ? `<p class="access-line${full ? " full" : ""}" data-access="${esc(r.access.level)}" title="${esc(tl(r.access.summary))}"><span class="lv">${esc(tl(r.access.label))}</span> · <span>${esc(tl(r.access.summary))}</span></p>${sessionNoticeHtml(r.access.session)}`
-  : "";
+/** PRD 0016 RF4.1: an account whose query uses a web session shows the `UserSession` level and the core's warning.
+ *  The integration's access level and summary stay out of the UI: they live in docs/providers.md. */
+export const accessHtml = (r) => (r.access ? sessionNoticeHtml(r.access.session) : "");
 /** PRD 0016 RF4.1: the `UserSession` level and the core's warning (card, details and the paste box). */
 export const sessionNoticeHtml = (notice) => notice
   ? `<p class="access-line session-notice" data-session-notice><span class="lv">${esc(tl(notice.level))}</span> · <span>${esc(tl(notice.warning))}</span></p>`
@@ -1199,7 +1197,7 @@ const demo = {
     const r = demoReports[index];
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
   },
-  list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, level: demoLevel(demoLevelOf(id)) })),
+  list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, pickable: !DEMO_NO_QUERY.includes(id) })),
   list_extensions: async () => [],
   extension_disclosure: async () => ({ lines: [], candidate: { token: "demo" } }),
   enable_extension: async ({ candidate }) => ({ id: candidate?.id ?? "demo", message: dl("extensions.action.enabled", "Extensão ativada."), account: null }),
@@ -1212,7 +1210,7 @@ const demo = {
     return {
       level: demoLevel(level),
       summary: dl(`access.summary.${provider}`, "Consulta de uso de demonstração."),
-      notes: [dl(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "Credencial da consulta (demo)."), dl(`access.risk.${level}`, "Risco da interface (demo)."), ...(reason ? [reason] : [])],
+      notes: [dl(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "Credencial da consulta (demo)."), ...(reason ? [reason] : [])],
       cost_advisory: provider === "aws_bedrock" ? dl("access.cost_advisory", "Provedor cobrado por consulta (demo).") : null,
       save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} A conta será gravada, mas mostrará este motivo em vez de números.` },
     };
@@ -1665,6 +1663,8 @@ const DEMO_LEVELS = {
   unavailable: ["qwen", "perplexity", "cloudflare_ai", "gemini_ai", "nvidia_nim", "poolside", "alibaba_model_studio"],
   official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud"],
 };
+// Providers without a usage query in any mode (`access::has_usage_query`, demo only): left out of the picker.
+const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside", "alibaba_model_studio"];
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
 const demoLevel = (level) => dl(`access.level.${level}`, { official: "Oficial", undocumented: "Não documentada", derived: "Derivada", unavailable: "Indisponível" }[level]);
 function demoKiroSchema() {
