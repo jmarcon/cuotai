@@ -22,10 +22,9 @@ export function html({ settings: s, view }) {
       + row({ key: "agg-in-all", label: te("settings.agg.all"), info: te("settings.agg.allHelp"),
         control: (a) => select("agg-in-all", AGG_MODES.map((m) => [m, te(`settings.agg.all.${m}`)]), aggregatorsInAll(), a) })
       + row({ key: "pace-unit", label: te("settings.pace.unit"), info: te("settings.pace.unitHelp"), msg: "pace-unit-msg",
-        control: (a) => seg("pace-unit", [["points", te("settings.pace.points")], ["percent", te("settings.pace.percent")]], s.pace_unit ?? "points", a),
-        body: `<p class="hint" id="pace-unit-example">${te("settings.pace.unitExample")}</p>` })
+        // The example lives in the info popover (PRD 0020 RF5.1 copy budget).
+        control: (a) => seg("pace-unit", [["points", te("settings.pace.points")], ["percent", te("settings.pace.percent")]], s.pace_unit ?? "points", a) })
       + row({ key: "advice", label: te("settings.advice.show"), info: te("settings.advice.help"), msg: "advice-msg",
-        keywords: te("settings.advice.keywords"),
         control: (a) => sw("advice-on", s.advice_enabled !== false, a) }))
     + group("refresh", te("settings.refresh.title"),
       row({ key: "refresh", label: te("settings.refresh.label"), desc: te("settings.refresh.min"), info: te("settings.refresh.help"), msg: "refresh-msg",

@@ -707,8 +707,11 @@ async fn first_run_turn_on(app: AppHandle, b: Shared<'_>) -> Result<String, Stri
             let mut alerts =
                 n.alerts()
                     .with_choices(&thresholds, recommended.exhaustion, recommended.recovery)?;
-            // PRD 0023 RF4.6: the extra-usage notices are part of the recommendation.
+            // PRD 0023 RF4.6 and PRD 0024 RF4.1: the extra-usage notices and
+            // the projected warning (60 minutes ahead) are part of the
+            // recommendation.
             alerts.overage = true;
+            alerts.projected_lead_minutes = Some(60);
             n.set_alerts(alerts)?;
             n.switch_alerts(permission)
         })

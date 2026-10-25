@@ -6595,6 +6595,7 @@ mod tests {
         let store = Arc::new(MemoryStore::default());
         let backend = build_backend(store, Vec::new()).await;
         let input = || AccountInput {
+            group: Default::default(),
             peer_name: Default::default(),
             index: None,
             provider: Provider::NineRouter,

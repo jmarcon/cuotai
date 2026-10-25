@@ -434,6 +434,8 @@ export function resetsText(m) {
   const left = legacyCountdown(m.resets_at);
   return left ? t("quota.resetsIn", { time: left }) : null;
 }
+/** "1h 35m" until `iso` ("now" once past): the local countdown the reset timeline speaks in its accessible names. */
+export const fmtCountdown = (iso) => legacyCountdown(iso);
 function legacyCountdown(iso) {
   if (!iso) return null;
   let s = Math.floor((new Date(iso).getTime() - Date.now()) / 1000);
@@ -1688,7 +1690,7 @@ const demo = {
     demoSettings.tray = { style, colored, accounts: accounts ?? null, popover_view: popover_view ?? null };
   },
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
-  first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.onboarding = 1; return "granted"; },
+  first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.alerts.projected_lead_minutes = 60; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_advice_enabled: async () => {},
   set_pace_unit: async ({ unit }) => { if (!["points", "percent"].includes(unit)) throw "invalid_pace_unit"; },

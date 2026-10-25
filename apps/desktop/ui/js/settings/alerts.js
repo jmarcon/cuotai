@@ -35,7 +35,6 @@ export function html({ settings: s }) {
       // PRD 0023 RF7.4: paid extra usage starting (and, with exhaustion, its budget running out).
       + row({ key: "overage", label: te("settings.alerts.overage"), dep: true, info: te("settings.alerts.overageHelp"), control: (x) => sw("alerts-overage", a.overage !== false, x) }))
     + row({ key: "projected", label: te("settings.alerts.projected"), info: te("settings.alerts.projectedHelp"),
-      desc: te("settings.alerts.projectedHonesty"),
       control: (x) => sw("projected-on", lead != null, x),
       body: `<div class="projected-lead"><span id="projected-lead-label">${te("settings.alerts.projectedLead")}</span>${seg("projected-lead", projectedLeads, lead ?? 60, 'aria-labelledby="projected-lead-label"')}</div>` })
     + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msg: "notify-msg", msgRole: "status",

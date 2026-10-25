@@ -344,6 +344,7 @@ root.addEventListener("click", (e) => {
   if (show) {
     const target = store.view?.reports?.find((x) => x.index === Number(show.dataset.showAccount));
     if (target) { selected = reportKey(target); return render(); }
+  }
   if (t.closest("[data-back]")) { selected = null; statsOpen = false; return render(); }
   if (t.closest("[data-open-stats]")) { selected = null; statsOpen = !statsOpen; return render(); }
   if (t.closest("[data-view]")) { trayView = trayView === "donut" ? "list" : "donut"; saveTrayView(trayView); return render(); }
