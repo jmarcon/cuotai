@@ -128,6 +128,7 @@ mod tests {
     #[test]
     fn data_age_and_lag_follow_as_of_only() {
         let mut report = crate::Report {
+            overage_hint: Default::default(),
             account_id: None,
             diagnostic: None,
             sub_reports: Vec::new(),

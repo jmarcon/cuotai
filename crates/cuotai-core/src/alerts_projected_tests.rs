@@ -39,6 +39,7 @@ fn quota(used: f64, resets_at: DateTime<Utc>) -> Metric {
 
 fn report(checked_at: DateTime<Utc>, metrics: Vec<Metric>) -> Report {
     Report {
+        overage_hint: Default::default(),
         as_of: Default::default(),
         sub_reports: Vec::new(),
         diagnostic: Default::default(),
@@ -127,6 +128,7 @@ fn off_by_default_and_recommended_at_60_minutes() {
     assert!(fired_at(&run(&on, &mut state, &steep(), true)).is_empty());
     on.projected = Some(Lead::Min60);
     let event = AlertEvent {
+        overage: Default::default(),
         account_key: "claude:Work".into(),
         label: "x".into(),
         window: None,
@@ -375,6 +377,7 @@ fn first_reading_rule() {
 
 fn pending(resets_at: DateTime<Utc>) -> AlertEvent {
     AlertEvent {
+        overage: Default::default(),
         account_key: crate::AccountId::derive("claude:Work", None).to_string(),
         label: "Session (5h)".into(),
         window: Some(MetricWindow::Window5h),

@@ -160,6 +160,7 @@ mod tests {
 
     fn report(status: Status) -> Report {
         Report {
+            overage_hint: Default::default(),
             account_id: None,
             diagnostic: None,
             sub_reports: Vec::new(),

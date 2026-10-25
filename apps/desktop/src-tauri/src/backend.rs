@@ -4251,6 +4251,7 @@ mod tests {
             resets_at: Some(now + chrono::Duration::hours(resets_in)),
         };
         let report = Report {
+            overage_hint: Default::default(),
             account_id: None,
             diagnostic: None,
             sub_reports: Vec::new(),

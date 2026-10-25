@@ -295,6 +295,7 @@ mod tests {
 
     fn report(status: Status, subs: Vec<SubReport>) -> Report {
         Report {
+            overage_hint: Default::default(),
             as_of: Default::default(),
             account_id: None,
             diagnostic: None,

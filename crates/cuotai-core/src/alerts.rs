@@ -13,8 +13,8 @@
 
 use crate::metrics::{classify_metric, window_param, MetricState};
 use crate::model::{Account, Metric, MetricWindow, Report, Status};
-use crate::pace::{self, Pace, PaceSource, PaceStage, Point};
 use crate::overage::{self, OverageExport, OverageState};
+use crate::pace::{self, Pace, PaceSource, PaceStage, Point};
 use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
 use crate::text::{params, provider_l10n, Localized};
 use chrono::{DateTime, Datelike, TimeDelta, TimeZone, Utc};
@@ -482,7 +482,7 @@ fn overage_events(prev: &Report, next: &Report, state: &AlertState) -> Vec<Alert
         return Vec::new();
     };
     let before = overage::assess(prev).map(|o| o.state);
-    let account_key = next.account_key();
+    let account_key = next.state_key();
     let digest = key_digest(&account_key, OVERAGE_MARK);
     let cycle = overage_cycle(&now_state, next.checked_at);
     let marked = |kind| {
@@ -511,6 +511,7 @@ fn overage_events(prev: &Report, next: &Report, state: &AlertState) -> Vec<Alert
         _ => 0.0,
     };
     vec![AlertEvent {
+        projection: Default::default(),
         account_key,
         label: now_state.label.clone(),
         window,
@@ -1378,6 +1379,7 @@ where
                 params([("metric", label.into()), ("at", at.as_str().into())]),
                 format!("{label} acaba ≈{at}"),
             )
+        }
         AlertKind::OverageStarted => match event.overage.as_ref().and_then(OverageExport::amount) {
             Some(amount) => {
                 let plain = amount_plain(&amount);

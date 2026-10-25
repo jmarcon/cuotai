@@ -203,6 +203,10 @@ pub fn assess(report: &Report) -> Option<Overage> {
 pub(crate) fn assess_metrics(metrics: &[Metric], hint: Option<OverageHint>) -> Option<Overage> {
     use crate::model::{Provider, Status};
     assess(&Report {
+        sub_reports: Vec::new(),
+        account_id: None,
+        as_of: Default::default(),
+        diagnostic: None,
         account: String::new(),
         provider: Provider::Claude,
         checked_at: Utc::now(),
@@ -344,6 +348,10 @@ mod tests {
 
     fn report(metrics: Vec<Metric>, hint: Option<OverageHint>) -> Report {
         Report {
+            sub_reports: Vec::new(),
+            account_id: None,
+            as_of: Default::default(),
+            diagnostic: None,
             account: "Work".into(),
             provider: Provider::Claude,
             checked_at: Utc::now(),

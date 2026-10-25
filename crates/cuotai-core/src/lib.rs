@@ -844,42 +844,42 @@ impl Monitor {
             )
             .await;
         let mut diagnostic = None;
-        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of, overage_hint) = match result
-        {
-            Ok(data) => (
-                Status::Ready,
-                data.metrics,
-                data.notes,
-                data.notes_l10n,
-                data.source,
-                data.sub_reports,
-                data.as_of,
-                data.overage_hint,
-            ),
-            Err(error) => {
-                let mut notes = crate::text::Notes::one(error.note);
-                // PRD 0028 RF1.3: the details say which field drifted.
-                if let Some(found) = &error.diagnostic {
-                    notes.push_note(found.text());
+        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of, overage_hint) =
+            match result {
+                Ok(data) => (
+                    Status::Ready,
+                    data.metrics,
+                    data.notes,
+                    data.notes_l10n,
+                    data.source,
+                    data.sub_reports,
+                    data.as_of,
+                    data.overage_hint,
+                ),
+                Err(error) => {
+                    let mut notes = crate::text::Notes::one(error.note);
+                    // PRD 0028 RF1.3: the details say which field drifted.
+                    if let Some(found) = &error.diagnostic {
+                        notes.push_note(found.text());
+                    }
+                    diagnostic = error.diagnostic.map(|found| *found);
+                    // PRD 0011 RF3: context only; the status stays as queried.
+                    if let Some(state) = self.incident_state(account.provider).await {
+                        notes.extend(incidents::failure_notes(error.status, state));
+                    }
+                    let (plain, l10n) = notes.finish();
+                    (
+                        error.status,
+                        Vec::new(),
+                        plain,
+                        l10n,
+                        String::new(),
+                        Vec::new(),
+                        None,
+                        None,
+                    )
                 }
-                diagnostic = error.diagnostic.map(|found| *found);
-                // PRD 0011 RF3: context only; the status stays as queried.
-                if let Some(state) = self.incident_state(account.provider).await {
-                    notes.extend(incidents::failure_notes(error.status, state));
-                }
-                let (plain, l10n) = notes.finish();
-                (
-                    error.status,
-                    Vec::new(),
-                    plain,
-                    l10n,
-                    String::new(),
-                    Vec::new(),
-                    None,
-                    None,
-                )
-            }
-        };
+            };
         if let Some(note) = account.metered_interval_note() {
             notes.push(note.text().to_owned());
             notes_l10n.push(note);
@@ -1821,6 +1821,7 @@ credential_env = "OPENAI_ADMIN_KEY"
         };
         // Another process already paid for this interval's query.
         let cached = Report {
+            overage_hint: Default::default(),
             account_id: None,
             diagnostic: None,
             sub_reports: Vec::new(),

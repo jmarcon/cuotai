@@ -185,6 +185,7 @@ mod tests {
 
     fn report(metrics: Vec<Metric>) -> Report {
         Report {
+            overage_hint: Default::default(),
             as_of: Default::default(),
             sub_reports: Vec::new(),
             diagnostic: Default::default(),

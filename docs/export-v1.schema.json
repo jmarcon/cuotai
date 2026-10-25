@@ -209,7 +209,7 @@
       "type": "object",
       "required": ["state", "spent", "unit", "currency", "cap", "cycle_ends_at"],
       "properties": {
-        "state": { "enum": ["disabled", "armed", "active", "cap_reached", "unknown"] },
+        "state": { "anyOf": [{ "enum": ["disabled", "armed", "active", "cap_reached", "unknown"] }, { "type": "string" }] },
         "spent": { "type": ["number", "null"], "description": "Amount billed on top of the plan so far; null when unknown, never 0 for a missing amount." },
         "unit": { "type": ["string", "null"], "description": "Unit of spent and cap; a provider unit when currency is null." },
         "currency": { "type": ["string", "null"], "description": "ISO 4217 code when the amount is money." },

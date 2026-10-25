@@ -3046,6 +3046,7 @@ mod tests {
     fn data_time_is_named_only_when_it_lags_the_query() {
         let checked_at = chrono::Utc::now();
         let mut report = cuotai_core::Report {
+            overage_hint: Default::default(),
             account_id: None,
             diagnostic: None,
             sub_reports: Vec::new(),

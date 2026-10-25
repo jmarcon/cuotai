@@ -31,8 +31,8 @@ use crate::alerts::{
 use crate::export::v1::AccountExport;
 use crate::incidents::IncidentState;
 use crate::metrics::{self, Binding, BindingReason, MetricState};
-use crate::pace::PaceSource;
 use crate::overage::{self, OverageExport, OverageState};
+use crate::pace::PaceSource;
 use crate::providers::{SCHEMA_NOTE, TIMEOUT_NOTE, TRANSPORT_NOTE};
 use crate::text::{params, Localized, ParamValue};
 use crate::{resets, Metric, MetricWindow, Provider, Report, Status};
