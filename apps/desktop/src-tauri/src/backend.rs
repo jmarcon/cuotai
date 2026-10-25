@@ -702,7 +702,11 @@ fn tray_account(view: &ReportView, last_good: Option<&Report>) -> tray::AccountV
             .incident
             .as_ref()
             .is_some_and(|i| !i.status.stale && i.status.state.is_outage()),
-        on_extra: false,
+        // PRD 0023: paying for extra usage right now (active or at its cap).
+        on_extra: view
+            .overage
+            .as_ref()
+            .is_some_and(|overage| overage.state.state.is_billing()),
     }
 }
 

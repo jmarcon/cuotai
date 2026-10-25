@@ -1566,7 +1566,7 @@ const demo = {
     demoSettings.tray = { style, colored, accounts: accounts ?? null, popover_view: popover_view ?? null };
   },
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
-  first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.onboarding = 1; return "granted"; },
+  first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an

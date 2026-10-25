@@ -191,6 +191,10 @@ impl AccountView {
             resets_at: binding
                 .as_ref()
                 .and_then(|b| b.blocked_until.or(b.resets_at)),
+            // PRD 0023: paying for extra usage right now (active or at its cap).
+            on_extra: report
+                .and_then(crate::overage::assess)
+                .is_some_and(|overage| overage.state.is_billing()),
             ..Self::default()
         }
     }

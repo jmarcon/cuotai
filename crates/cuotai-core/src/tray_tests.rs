@@ -263,3 +263,49 @@ fn style_slugs_round_trip() {
     }
     assert_eq!(TrayStyle::parse("nope"), None);
 }
+
+/// PRD 0023 via PRD 0025: an account paying for extra usage reads as
+/// `on_extra` from its report alone.
+#[test]
+fn a_report_with_active_extra_usage_is_on_extra() {
+    use crate::{Account, Billing, Metric, MetricKind, Provider, Report, Status};
+    let account = Account {
+        name: "Work".into(),
+        provider: Provider::Claude,
+        ..Account::default()
+    };
+    let extra = Metric {
+        label: "Extra".into(),
+        used: Some(5.0),
+        limit: Some(50.0),
+        remaining: Some(45.0),
+        unit: "USD".into(),
+        kind: MetricKind::Spend,
+        window: None,
+        period: None,
+        resets_at: None,
+        billing: Billing::Overage,
+        scope: None,
+    };
+    let report = Report {
+        account_id: None,
+        account: "Work".into(),
+        provider: Provider::Claude,
+        checked_at: chrono::Utc::now(),
+        status: Status::Ready,
+        metrics: vec![extra],
+        notes: Vec::new(),
+        notes_l10n: Vec::new(),
+        source: String::new(),
+        session_expires_at: None,
+        diagnostic: None,
+        sub_reports: Vec::new(),
+        as_of: None,
+        overage_hint: None,
+    };
+    let view =
+        AccountView::from_report(&account, Some(&report), crate::freshness::Freshness::Fresh);
+    assert!(view.on_extra);
+    let none = AccountView::from_report(&account, None, crate::freshness::Freshness::Fresh);
+    assert!(!none.on_extra);
+}
