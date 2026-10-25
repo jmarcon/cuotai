@@ -14,6 +14,7 @@ repository root.
 |---|---|
 | `sh apps/desktop/tools/ui-shots/capture.sh [--out DIR] [name-prefix …]` | Renders every screen of [`screens.tsv`](screens.tsv) at 2x into `docs/plans/assets/0022/delivered/` (same names as the mockups in `assets/0022/after/`) |
 | `node apps/desktop/tools/ui-shots/check.mjs [--json] [locale …]` | Runs the overflow check on the tray (380 × 600, List, Rings and Compact), the main window (520 and 1200 wide) and three Settings pages (640 × 460) in en-US, pt-BR, es, it and the `en-XA` pseudo-locale; exits 1 on any problem outside the allowed list |
+| `node apps/desktop/tools/ui-shots/locale-smoke.mjs [locale …]` | PRD 0034 RF7: renders the tray, the main window, the Settings pages and the dialogs in en-US, es and it with the core catalogs; exits 1 on any Portuguese word, or on a catalog key shown instead of its text |
 | `node apps/desktop/tools/ui-shots/check.mjs --selftest` | Forces a long string into a tray figure and passes only if the check catches it |
 
 `screens.tsv` columns: name, page (with its query), width, height, theme, mode, language, clicks
