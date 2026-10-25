@@ -2502,16 +2502,31 @@ impl Backend {
     }
 
     pub async fn refresh_account(&self, app: &AppHandle, index: usize) -> Result<(), String> {
+        self.refresh_account_or_connection(app, index, None).await
+    }
+
+    /// PRD 0036 RF4.4: [`Self::refresh_account`], or only the connection
+    /// `sub` of an aggregator account when one is named and the account
+    /// has a current reading (one usage request instead of the instance).
+    pub async fn refresh_account_or_connection(
+        &self,
+        app: &AppHandle,
+        index: usize,
+        sub: Option<String>,
+    ) -> Result<(), String> {
         // Claim the per-slot token before spawn so an edit that lands
         // mid-flight rejects the eventual result via the generation
         // guard. `begin` returns `None` when the slot is already busy;
         // the caller can retry later.
-        let (monitor, token) = {
+        let (monitor, token, previous) = {
             let mut g = self.inner.lock().await;
             let l = g.loaded.as_mut().ok_or("Configuração não carregada.")?;
             if index >= l.file.config.accounts.len() {
                 return Err("Conta inexistente.".into());
             }
+            let previous = sub
+                .as_ref()
+                .and_then(|_| l.cycle.account_report(index).cloned());
             // Allow refresh whenever the slot is pending OR the cycle
             // already has a snapshot — never bail out just because the
             // public snapshot is hidden by a partial edit.
@@ -2519,10 +2534,13 @@ impl Backend {
                 return Ok(());
             };
             l.tokens[index] = Some(token);
-            (Arc::clone(&l.monitor), token)
+            (Arc::clone(&l.monitor), token, previous)
         };
         self.emit(app).await;
-        let report = monitor.refresh_account(index).await;
+        let report = match (sub.as_deref(), previous.as_ref()) {
+            (Some(sub), Some(previous)) => monitor.refresh_connection(index, sub, previous).await,
+            _ => monitor.refresh_account(index).await,
+        };
         {
             let mut g = self.inner.lock().await;
             let Inner {

@@ -209,9 +209,17 @@ impl RefreshCycle {
         if report.status != Status::Ready || report.provider.is_metered() {
             return;
         }
+        // PRD 0036 RF4.4: an aggregator's active connections arm the same
+        // query (one refresh of the instance, under its interval floor).
+        let connections = report
+            .sub_reports
+            .iter()
+            .filter(|sub| sub.status == Status::Ready && crate::aggregators::sub_is_active(sub))
+            .flat_map(|sub| sub.metrics.iter());
         let mut resets: Vec<_> = report
             .metrics
             .iter()
+            .chain(connections)
             .filter(|m| crate::metrics::is_plan_limit(m))
             .filter_map(|m| m.resets_at)
             .filter(|at| *at > wall)
@@ -3141,6 +3149,45 @@ mod prd0033_rf2_tests {
         let mut report = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
         report.metrics[0].billing = crate::model::Billing::Overage;
         finish_one(&mut cycle, report, now);
+        assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(3600));
+    }
+
+    /// PRD 0036 RF4.4: a connection's reset brings its aggregator forward;
+    /// a duplicate connection or one off in the aggregator does not.
+    #[test]
+    fn a_connection_reset_brings_the_aggregator_forward() {
+        let connection = |duplicate: Option<&str>| {
+            let reading = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
+            crate::SubReport {
+                id: "c1".into(),
+                upstream: "claude".into(),
+                provider: Some(Provider::Claude),
+                label: "c1".into(),
+                status: Status::Ready,
+                metrics: reading.metrics,
+                notes_l10n: Vec::new(),
+                checked_at: reading.checked_at,
+                as_of: None,
+                enabled_upstream: Some(true),
+                duplicate_of: duplicate.map(str::to_string),
+                plan: None,
+                via: None,
+                identity: None,
+            }
+        };
+        let instance = |duplicate| {
+            let mut report = quota_report(Provider::NineRouter, &[]);
+            report.metrics.clear();
+            report.sub_reports = vec![connection(duplicate)];
+            report
+        };
+        let (mut cycle, now) = cycle_with(Provider::NineRouter, 3600);
+        finish_one(&mut cycle, instance(None), now);
+        let wait = cycle.next_refresh_in(0, now);
+        assert!(wait < Duration::from_secs(10 * 60 + 35), "{wait:?}");
+
+        let (mut cycle, now) = cycle_with(Provider::NineRouter, 3600);
+        finish_one(&mut cycle, instance(Some("claude:work")), now);
         assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(3600));
     }
 }

@@ -43,8 +43,14 @@ async fn refresh_all(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn refresh_account(app: AppHandle, b: Shared<'_>, index: usize) -> Result<(), String> {
-    b.refresh_account(&app, index).await
+async fn refresh_account(
+    app: AppHandle,
+    b: Shared<'_>,
+    index: usize,
+    sub: Option<String>,
+) -> Result<(), String> {
+    // PRD 0036 RF4.4: `sub` names one connection of an aggregator.
+    b.refresh_account_or_connection(&app, index, sub).await
 }
 
 #[tauri::command]

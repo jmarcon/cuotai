@@ -872,6 +872,51 @@ impl Monitor {
         report
     }
 
+    /// PRD 0036 RF4.4: refresh only the connection `sub_id` of the
+    /// aggregator account at `index`, merging it into `previous` (the
+    /// account's current reading). One usage request, never `force=1`.
+    /// The instance's other connections keep their readings; a connection
+    /// that is gone is dropped. When the instance itself fails, the result
+    /// is that failure, as a whole refresh would report it.
+    pub async fn refresh_connection(
+        &self,
+        index: usize,
+        sub_id: &str,
+        previous: &Report,
+    ) -> Report {
+        let account = &self.config.accounts[index];
+        if account.provider != Provider::NineRouter || previous.status != Status::Ready {
+            return self.refresh_account(index).await;
+        }
+        let result = self
+            .with_access(
+                account,
+                async |account: &Account, ctx: &providers::Context<'_>| {
+                    providers::nine_router::fetch_connection(account, ctx, sub_id).await
+                },
+            )
+            .await;
+        let mut report = previous.clone();
+        match result {
+            Ok(Some(sub)) => match report.sub_reports.iter_mut().find(|old| old.id == sub.id) {
+                Some(old) => *old = sub,
+                None => report.sub_reports.push(sub),
+            },
+            Ok(None) => report.sub_reports.retain(|old| old.id != sub_id),
+            Err(_) => return self.refresh_account(index).await,
+        }
+        aggregators::mark_duplicates(&self.config, account, &mut report);
+        if let Some(recorder) = &self.history {
+            for unit in aggregators::sub_units(index, account, &report)
+                .into_iter()
+                .filter(|unit| unit.sub_id == sub_id)
+            {
+                recorder.submit(&unit.account, &unit.report);
+            }
+        }
+        report
+    }
+
     /// PRD 0036 RF2.2: tests a 9router connection before it is saved:
     /// health, version, login (when a password is set) and the connection
     /// list. Read-only; nothing is stored. The outcome carries one sentence

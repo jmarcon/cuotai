@@ -1121,6 +1121,73 @@ fn usage_error(error: QueryError) -> QueryError {
     }
 }
 
+/// The connections `account` shows (its `include`, `exclude` and `hidden`
+/// parameters), each with its 1-based ordinal among them.
+fn select<'c>(account: &Account, connections: &'c [Connection]) -> Vec<(usize, &'c Connection)> {
+    let include = list_param(account, "include");
+    let exclude = list_param(account, "exclude");
+    let hidden = list_param(account, "hidden");
+    connections
+        .iter()
+        .filter(|connection| {
+            let slug = connection.provider.to_ascii_lowercase();
+            (include.is_empty() || include.contains(&slug))
+                && !exclude.contains(&slug)
+                && !hidden.contains(&sub_id(&connection.id))
+        })
+        .enumerate()
+        .map(|(index, connection)| (index + 1, connection))
+        .collect()
+}
+
+/// PRD 0036 RF4.4: "Refresh now" on one connection: the connection list
+/// (to find it; the raw id is never kept) and that connection's usage
+/// only, never `force=1`. `None` when the connection is gone or hidden.
+pub(crate) async fn fetch_connection(
+    account: &Account,
+    ctx: &Context<'_>,
+    wanted: &str,
+) -> Result<Option<SubReport>, QueryError> {
+    fetch_connection_at(account, ctx, wanted, Limits::DEFAULT, Utc::now()).await
+}
+
+pub(crate) async fn fetch_connection_at(
+    account: &Account,
+    ctx: &Context<'_>,
+    wanted: &str,
+    limits: Limits,
+    now: DateTime<Utc>,
+) -> Result<Option<SubReport>, QueryError> {
+    let base = account_base(account).map_err(base_error)?;
+    let password = password_of(account, ctx)?;
+    let trust = tls::mode(account, &base).map_err(tls_error)?;
+    let own = tls::client(&trust, ctx.timeout)?;
+    let (http, flag) = match &own {
+        Some((client, flag)) => (client, flag.clone()),
+        None => (ctx.http, None),
+    };
+    let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
+    let deadline = tokio::time::Instant::now() + limits.instance;
+    let mut token = instance.token(password.as_deref(), now, false).await?;
+    let (connections, _) = discover(&instance, &mut token, password.as_deref(), now).await?;
+    let Some((ordinal, connection)) = select(account, &connections)
+        .into_iter()
+        .find(|(_, connection)| sub_id(&connection.id) == wanted)
+    else {
+        return Ok(None);
+    };
+    let (_, report) = read_one(
+        &instance,
+        connection,
+        ordinal,
+        token.as_deref(),
+        now,
+        deadline,
+    )
+    .await;
+    Ok(Some(report))
+}
+
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     fetch_at(account, ctx, Limits::DEFAULT, Utc::now()).await
 }
@@ -1147,20 +1214,7 @@ pub(crate) async fn fetch_at(
     let (connections, truncated) =
         discover(&instance, &mut token, password.as_deref(), now).await?;
 
-    let include = list_param(account, "include");
-    let exclude = list_param(account, "exclude");
-    let hidden = list_param(account, "hidden");
-    let selected: Vec<(usize, &Connection)> = connections
-        .iter()
-        .filter(|connection| {
-            let slug = connection.provider.to_ascii_lowercase();
-            (include.is_empty() || include.contains(&slug))
-                && !exclude.contains(&slug)
-                && !hidden.contains(&sub_id(&connection.id))
-        })
-        .enumerate()
-        .map(|(index, connection)| (index + 1, connection))
-        .collect();
+    let selected = select(account, &connections);
 
     let token_ref = token.as_deref();
     let mut readings: Vec<(usize, SubReport)> = Vec::with_capacity(selected.len());
@@ -2130,6 +2184,57 @@ mod tests {
             .notes_l10n
             .iter()
             .any(|n| n.id == "note.nine_router.truncated"));
+    }
+
+    #[tokio::test]
+    async fn one_connection_refresh_reads_only_its_usage() {
+        let server = MockServer::start().await;
+        mount_json(
+            &server,
+            "/api/providers/client",
+            page(
+                json!([
+                    connection("a", "claude", "A"),
+                    connection("b", "codex", "B")
+                ]),
+                1,
+            ),
+        )
+        .await;
+        for id in ["a", "b"] {
+            mount_json(&server, &format!("/api/usage/{id}"), claude_usage()).await;
+        }
+        let http = client();
+        let acct = account(&server, false, &[]);
+        let one = fetch_connection_at(
+            &acct,
+            &context(&http),
+            &sub_id("b"),
+            Limits::DEFAULT,
+            Utc::now(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(one.label, "B");
+        assert_eq!(one.id, sub_id("b"));
+        // A hidden or unknown connection is not read.
+        let hidden = account(&server, false, &[("hidden", sub_id("a").as_str())]);
+        assert!(fetch_connection_at(
+            &hidden,
+            &context(&http),
+            &sub_id("a"),
+            Limits::DEFAULT,
+            Utc::now()
+        )
+        .await
+        .unwrap()
+        .is_none());
+        let requests = requests_of(&server.received_requests().await.unwrap());
+        let count = |target: &str| requests.iter().filter(|(_, t)| t == target).count();
+        assert_eq!(count("/api/usage/b"), 1);
+        assert_eq!(count("/api/usage/a"), 0);
+        assert!(requests.iter().all(|(_, t)| !t.contains("force")));
     }
 
     #[tokio::test]
