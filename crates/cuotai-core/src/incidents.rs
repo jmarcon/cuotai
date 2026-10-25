@@ -61,6 +61,10 @@ pub struct StatusSource {
     /// Only these components are relevant. Never use the page-wide rollup or
     /// infer that an unscoped incident affects every component on the page.
     pub scope: &'static [Component],
+    /// Sub-page slug of a multi-page source (one status URL, several regional
+    /// pages); `None` for single-page sources. The reading of any other
+    /// sub-page, or a response lacking this one, never counts.
+    pub subpage: Option<&'static str>,
     /// ISO date of the endpoint, format, component and use-policy verification.
     pub verified_on: &'static str,
 }
@@ -85,6 +89,25 @@ const CLAUDE: &str = "https://status.claude.com/api/v2/summary.json";
 const GOOGLE: &str = "https://status.cloud.google.com/incidents.json";
 const VERIFIED_ON: &str = "2026-10-20";
 
+const ELEVEN_LABS: &str = "https://status.elevenlabs.io/api/v1/summary";
+const UNITED_STATES: &str = "united-states";
+
+/// ElevenLabs: one incident.io summary for all regional sub-pages; the
+/// *ElevenAPI -> Other APIs* component (the group that hosts the account
+/// endpoints) has the same ID on every sub-page (verified 2026-10-25).
+const fn eleven_labs(subpage: &'static str) -> StatusSource {
+    const SCOPE: &[Component] = &[component("01M52E4R81RBEYD94QJACM67BQ", "Other APIs")];
+    StatusSource {
+        subpage: Some(subpage),
+        verified_on: "2026-10-25",
+        ..entry(
+            Format::JsonCustom(JsonFormat::IncidentIoWidget),
+            ELEVEN_LABS,
+            SCOPE,
+        )
+    }
+}
+
 const fn component(id: &'static str, name: &'static str) -> Component {
     Component { id, name }
 }
@@ -94,6 +117,7 @@ const fn entry(format: Format, url: &'static str, scope: &'static [Component]) -
         format,
         url,
         scope,
+        subpage: None,
         verified_on: VERIFIED_ON,
     }
 }
@@ -141,6 +165,7 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
                 component("01KMP3KP5M8X0EBTVW6KN327EE", "VS Code extension"),
             ]
         ),
+        Provider::ElevenLabs => eleven_labs(UNITED_STATES),
         Provider::AnthropicApi => source_entry!(
             StatuspageV2,
             CLAUDE,
@@ -276,11 +301,27 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         | Provider::AlibabaCloud
         | Provider::Antigravity
         | Provider::Kimchi
-        | Provider::ElevenLabs
         | Provider::NineRouter
         | Provider::OpenRouter
         | Provider::Extension => return None,
     })
+}
+
+/// The source for one configured account: like [`source`], but the region of
+/// a regional provider selects the sub-page (`default`/`us` -> United States,
+/// `eu`, `in` -> India, `sg` -> Singapore). An unknown region has no source
+/// (it is a configuration error elsewhere), never a guessed one.
+pub fn source_for(provider: Provider, region: Option<&str>) -> Option<StatusSource> {
+    if provider != Provider::ElevenLabs {
+        return source(provider);
+    }
+    Some(eleven_labs(match region {
+        None | Some("default" | "us") => UNITED_STATES,
+        Some("eu") => "eu",
+        Some("in") => "india",
+        Some("sg") => "singapore",
+        Some(_) => return None,
+    }))
 }
 
 /// Whether `url` is a link the status client can report: a plain `https`

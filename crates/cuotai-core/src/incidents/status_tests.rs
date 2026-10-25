@@ -788,3 +788,205 @@ fn provider_text_loses_markup_and_is_truncated() {
         "counts characters, not bytes"
     );
 }
+
+/// Synthetic multi-page summary in the incident.io widget shape (the
+/// captured quiet response is `fixtures/eleven-labs-summary.json`; no
+/// incident was live to capture). Component IDs are the real ones.
+const ELEVEN_LABS_OTHER_APIS: &str = "01M52E4R81RBEYD94QJACM67BQ";
+const ELEVEN_LABS_TEXT_TO_SPEECH: &str = "01M52E23077QGJZHKBM2FBBPFM";
+const ELEVEN_LABS_QUIET: &str =
+    r#""ongoing_incidents": [], "in_progress_maintenances": [], "scheduled_maintenances": []"#;
+
+fn eleven_labs_summary(eu: &str, us: &str) -> String {
+    let page = |slug: &str, events: &str| {
+        format!(
+            r#"{{"subpage": "{slug}", "summary": {{"page_title": "{slug}",
+            "page_url": "https://status.elevenlabs.io/{slug}", {events}}}}}"#
+        )
+    };
+    format!(
+        r#"{{"subpages": [{}, {}, {}, {}]}}"#,
+        page("united-states", us),
+        page("eu", eu),
+        page("india", ELEVEN_LABS_QUIET),
+        page("singapore", ELEVEN_LABS_QUIET)
+    )
+}
+
+fn eleven_labs_incident(component: &str, status: &str) -> String {
+    format!(
+        r#""ongoing_incidents": [{{
+          "id": "01EL", "name": "Elevated API errors",
+          "url": "https://status.elevenlabs.io/incidents/01EL",
+          "current_worst_impact": "partial_outage",
+          "started_at": "2026-10-25T10:00:00Z",
+          "affected_components": [{{"id": "{component}", "name": "x", "current_status": "{status}"}}]
+        }}], "in_progress_maintenances": [], "scheduled_maintenances": []"#
+    )
+}
+
+fn eleven_labs_account(region: Option<&str>) -> Account {
+    let mut account = Account {
+        name: format!("voice-{}", region.unwrap_or("default")),
+        provider: Provider::ElevenLabs,
+        credential_env: Some("ELEVENLABS_API_KEY".into()),
+        ..Account::default()
+    };
+    if let Some(region) = region {
+        account.params.insert("region".into(), region.into());
+    }
+    account
+}
+
+fn eleven_labs_monitor(regions: &[Option<&str>], status: &MockServer) -> Monitor {
+    let config = Config {
+        accounts: regions
+            .iter()
+            .map(|region| eleven_labs_account(*region))
+            .collect(),
+        ..Config::default()
+    };
+    let creds: Arc<dyn Credentials> = Arc::new(NoCredentials);
+    let session =
+        Arc::new(oauth::OAuthSession::new(Arc::new(EmptyStore), Arc::clone(&creds)).unwrap());
+    let monitor = Monitor::with_oauth(config, creds, session).unwrap();
+    monitor.incidents().set_test_knobs(TestKnobs {
+        base: Some(status.uri()),
+        ..TestKnobs::default()
+    });
+    monitor.incidents().set_enabled(true);
+    monitor
+}
+
+/// PRD 0037 RF8: the captured quiet summary reads as operational for each
+/// region from one request.
+#[tokio::test]
+async fn eleven_labs_quiet_summary_is_operational_per_region() {
+    for region in [None, Some("eu"), Some("in"), Some("sg")] {
+        let server = MockServer::start().await;
+        serve(
+            &server,
+            Provider::ElevenLabs,
+            body(include_str!("fixtures/eleven-labs-summary.json")),
+        )
+        .await;
+        let statuses = eleven_labs_monitor(&[region], &server)
+            .refresh_incidents()
+            .await;
+        let status = status_of(&statuses, Provider::ElevenLabs);
+        assert_eq!(status.state, IncidentState::Operational, "{region:?}");
+        assert_eq!(status.page_url, "https://status.elevenlabs.io/");
+        assert_eq!(requests(&server).await, 1);
+    }
+}
+
+/// An *Other APIs* incident on EU only: the EU account sees it, the default
+/// (US) account does not, and one request serves both regions.
+#[tokio::test]
+async fn eleven_labs_incident_applies_to_its_region_only() {
+    let server = MockServer::start().await;
+    serve(
+        &server,
+        Provider::ElevenLabs,
+        body(&eleven_labs_summary(
+            &eleven_labs_incident(ELEVEN_LABS_OTHER_APIS, "partial_outage"),
+            ELEVEN_LABS_QUIET,
+        )),
+    )
+    .await;
+    let eu = eleven_labs_monitor(&[Some("eu")], &server);
+    let statuses = eu.refresh_incidents().await;
+    let status = status_of(&statuses, Provider::ElevenLabs);
+    assert_eq!(status.state, IncidentState::PartialOutage);
+    assert_eq!(
+        status.incident.as_ref().unwrap().url,
+        "https://status.elevenlabs.io/incidents/01EL"
+    );
+    let state = eu.incident_state(&eleven_labs_account(Some("eu"))).await;
+    assert_eq!(state, Some(IncidentState::PartialOutage));
+    // A failed query during the incident gains the note.
+    assert!(!failure_notes(Status::Error, state.unwrap())
+        .finish()
+        .0
+        .is_empty());
+
+    let us = eleven_labs_monitor(&[None], &server);
+    assert_eq!(
+        us.incident_state(&eleven_labs_account(None)).await,
+        Some(IncidentState::Operational)
+    );
+    // Accounts in two regions: one request, the worst state wins.
+    let both = eleven_labs_monitor(&[None, Some("eu")], &server);
+    let statuses = both.refresh_incidents().await;
+    assert_eq!(statuses.len(), 1);
+    assert_eq!(statuses[0].state, IncidentState::PartialOutage);
+    assert_eq!(requests(&server).await, 3, "one request per monitor");
+}
+
+/// A Text to Speech incident does not make the account query unhealthy.
+#[tokio::test]
+async fn eleven_labs_unrelated_component_incident_is_not_in_scope() {
+    let server = MockServer::start().await;
+    serve(
+        &server,
+        Provider::ElevenLabs,
+        body(&eleven_labs_summary(
+            ELEVEN_LABS_QUIET,
+            &eleven_labs_incident(ELEVEN_LABS_TEXT_TO_SPEECH, "full_outage"),
+        )),
+    )
+    .await;
+    let monitor = eleven_labs_monitor(&[None], &server);
+    let state = monitor
+        .incident_state(&eleven_labs_account(None))
+        .await
+        .unwrap();
+    assert_eq!(state, IncidentState::Operational);
+    assert!(failure_notes(Status::Error, state).finish().0.is_empty());
+}
+
+/// Maintenance on *Other APIs* reads as maintenance; a response without the
+/// account's sub-page, or an empty one, is a doubt rather than health.
+#[tokio::test]
+async fn eleven_labs_maintenance_and_missing_subpage() {
+    let server = MockServer::start().await;
+    let maintenance = format!(
+        r#""ongoing_incidents": [], "scheduled_maintenances": [],
+        "in_progress_maintenances": [{{"id": "01M", "name": "Planned work",
+          "starts_at": "2026-10-25T09:00:00Z",
+          "affected_components": [{{"id": "{ELEVEN_LABS_OTHER_APIS}", "name": "x"}}]}}]"#
+    );
+    serve(
+        &server,
+        Provider::ElevenLabs,
+        body(&eleven_labs_summary(&maintenance, &maintenance)),
+    )
+    .await;
+    let statuses = eleven_labs_monitor(&[None], &server)
+        .refresh_incidents()
+        .await;
+    assert_eq!(
+        status_of(&statuses, Provider::ElevenLabs).state,
+        IncidentState::Maintenance
+    );
+
+    let server = MockServer::start().await;
+    let only_eu =
+        format!(r#"{{"subpages": [{{"subpage": "eu", "summary": {{{ELEVEN_LABS_QUIET}}}}}]}}"#);
+    serve(&server, Provider::ElevenLabs, body(&only_eu)).await;
+    let statuses = eleven_labs_monitor(&[Some("sg")], &server)
+        .refresh_incidents()
+        .await;
+    assert_eq!(
+        status_of(&statuses, Provider::ElevenLabs).state,
+        IncidentState::Unknown
+    );
+
+    let server = MockServer::start().await;
+    serve(&server, Provider::ElevenLabs, body(r#"{"subpages": []}"#)).await;
+    let statuses = eleven_labs_monitor(&[None], &server)
+        .refresh_incidents()
+        .await;
+    let status = status_of(&statuses, Provider::ElevenLabs);
+    assert_eq!((status.state, status.stale), (IncidentState::Unknown, true));
+}

@@ -1,0 +1,44 @@
+{
+  "subpages": [
+    {
+      "subpage": "united-states",
+      "summary": {
+        "page_title": "Global (United States)",
+        "page_url": "https://status.elevenlabs.io/united-states",
+        "ongoing_incidents": [],
+        "in_progress_maintenances": [],
+        "scheduled_maintenances": []
+      }
+    },
+    {
+      "subpage": "eu",
+      "summary": {
+        "page_title": "EU (Enterprise-only)",
+        "page_url": "https://status.elevenlabs.io/eu",
+        "ongoing_incidents": [],
+        "in_progress_maintenances": [],
+        "scheduled_maintenances": []
+      }
+    },
+    {
+      "subpage": "india",
+      "summary": {
+        "page_title": "India (Enterprise-only)",
+        "page_url": "https://status.elevenlabs.io/india",
+        "ongoing_incidents": [],
+        "in_progress_maintenances": [],
+        "scheduled_maintenances": []
+      }
+    },
+    {
+      "subpage": "singapore",
+      "summary": {
+        "page_title": "Singapore (Enterprise-only)",
+        "page_url": "https://status.elevenlabs.io/singapore",
+        "ongoing_incidents": [],
+        "in_progress_maintenances": [],
+        "scheduled_maintenances": []
+      }
+    }
+  ]
+}

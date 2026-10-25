@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0037 |
-| Status | Partially implemented (RF8, RF11 pending) |
+| Status | Partially implemented (RF11 pending) |
 | Owner | `cuotai-core` (model, adapter, access descriptor, account fields, incident registry), desktop and TUI (generic rendering only) |
 | Consumers | `apps/desktop` (cards, details, tray, account dialog), `crates/cuotai-tui` (cards, details, `--once`, wizard), `export::v1` and `--watch` consumers |
 | Depends on | PRD 0005 RF1 (`access::describe`, the exhaustive classification) |
@@ -24,8 +24,8 @@
 | RF5 | vNEXT | Extra-credits and cost metrics ship as `Usage`/`Spend`; `Billing::Overage` and `overage::assess` states wait for PRD 0023. |
 | RF6 | vNEXT | Delivered. |
 | RF7 | vNEXT | Delivered. |
-| RF8 | — | Still pending (checked again, no network access in this lane, so no id was guessed): the provider is registered as `None` in the incident registry until a stable per-region *Other APIs* component id is verified with a real read. |
-| RF9 | vNEXT | Adapter contract tests; the multi-sub-page incident fixtures belong to RF8. |
+| RF8 | vNEXT | Delivered: the registry arm `eleven_labs` (`IncidentIoWidget`, multi-page) selects the sub-page by `region` through `incidents::source_for`; the *Other APIs* id `01M52E4R81RBEYD94QJACM67BQ` was verified identical on all four sub-pages on 2026-10-25. Fixtures: the captured quiet summary and component catalog, plus synthetic incident, unrelated-component and maintenance responses in the widget shape (no sub-page had a live incident). |
+| RF9 | vNEXT | Adapter contract tests; the multi-sub-page incident tests are delivered with RF8. |
 | RF10 | vNEXT | Delivered. |
 | RF11 | — | Proposed (owner account available; the owner runs the procedure). |
 

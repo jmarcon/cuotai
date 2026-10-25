@@ -609,22 +609,42 @@ impl Monitor {
         self
     }
 
-    /// Providers of the configured accounts that have a verified source, in
-    /// configuration order, once each.
+    /// Distinct `(provider, source)` pairs of the configured accounts that
+    /// have a verified source, in configuration order. Regional providers
+    /// contribute one pair per distinct region.
     fn status_sources(&self) -> Vec<(Provider, incidents::StatusSource)> {
-        let mut seen = Vec::new();
-        self.config
-            .accounts
-            .iter()
-            .filter_map(|account| {
-                let provider = account.provider;
-                if seen.contains(&provider) {
-                    return None;
-                }
-                seen.push(provider);
-                incidents::source(provider).map(|source| (provider, source))
-            })
-            .collect()
+        let mut pairs: Vec<(Provider, incidents::StatusSource)> = Vec::new();
+        for account in &self.config.accounts {
+            let Some(source) = Self::status_source(account) else {
+                continue;
+            };
+            let pair = (account.provider, source);
+            if !pairs.contains(&pair) {
+                pairs.push(pair);
+            }
+        }
+        pairs
+    }
+
+    fn status_source(account: &Account) -> Option<incidents::StatusSource> {
+        incidents::source_for(
+            account.provider,
+            account.params.get("region").map(String::as_str),
+        )
+    }
+
+    /// One status per provider: accounts of a regional provider in several
+    /// regions report the worst of their sub-pages.
+    fn provider_statuses(&self) -> Vec<incidents::ProviderStatus> {
+        let mut merged: Vec<incidents::ProviderStatus> = Vec::new();
+        for (provider, source) in self.status_sources() {
+            let status = self.incidents.status(provider, source);
+            match merged.iter_mut().find(|known| known.provider == provider) {
+                Some(known) => known.merge(status),
+                None => merged.push(status),
+            }
+        }
+        merged
     }
 
     /// PRD 0011 RF4.3: the domains status queries reach for the configured
@@ -662,10 +682,7 @@ impl Monitor {
                 }),
         )
         .await;
-        sources
-            .into_iter()
-            .map(|(provider, source)| self.incidents.status(provider, source))
-            .collect()
+        self.provider_statuses()
     }
 
     /// The cached statuses of the configured providers with a verified
@@ -675,24 +692,21 @@ impl Monitor {
         if !self.incidents.is_enabled() {
             return Vec::new();
         }
-        self.status_sources()
-            .into_iter()
-            .map(|(provider, source)| self.incidents.status(provider, source))
-            .collect()
+        self.provider_statuses()
     }
 
     /// RF3: the provider's current state for a failed query, reusing (or
     /// waiting for) the cycle's single status query. `None` while off or
     /// without a verified source.
-    async fn incident_state(&self, provider: Provider) -> Option<incidents::IncidentState> {
+    async fn incident_state(&self, account: &Account) -> Option<incidents::IncidentState> {
         if !self.incidents.is_enabled() {
             return None;
         }
-        let source = incidents::source(provider)?;
+        let source = Self::status_source(account)?;
         self.incidents
             .ensure(source, &self.http, &self.query_slots)
             .await;
-        Some(self.incidents.status(provider, source).state)
+        Some(self.incidents.status(account.provider, source).state)
     }
 
     fn now(&self) -> chrono::DateTime<Utc> {
@@ -915,7 +929,7 @@ impl Monitor {
                     }
                     diagnostic = error.diagnostic.map(|found| *found);
                     // PRD 0011 RF3: context only; the status stays as queried.
-                    if let Some(state) = self.incident_state(account.provider).await {
+                    if let Some(state) = self.incident_state(account).await {
                         notes.extend(incidents::failure_notes(error.status, state));
                     }
                     let (plain, l10n) = notes.finish();

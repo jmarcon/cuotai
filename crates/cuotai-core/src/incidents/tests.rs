@@ -59,7 +59,10 @@ fn every_provider_has_a_verified_scope_or_an_explicit_none() {
         (AlibabaCloud, None),
         (Antigravity, None),
         (Kimchi, None),
-        (ElevenLabs, None),
+        (
+            ElevenLabs,
+            Some(include_str!("fixtures/eleven-labs-components.json")),
+        ),
         (NineRouter, None),
         (OpenRouter, None),
     ];
@@ -245,4 +248,37 @@ fn status_links_are_limited_to_plain_pages_on_verified_hosts() {
     ] {
         assert!(!is_status_link(url), "{url}");
     }
+}
+
+/// PRD 0037 RF8: the region picks the sub-page of the one shared summary;
+/// an unknown region has no source instead of a guessed one.
+#[test]
+fn eleven_labs_regions_select_a_subpage_of_one_shared_url() {
+    let subpage = |region| source_for(Provider::ElevenLabs, region).and_then(|s| s.subpage);
+    assert_eq!(subpage(None), Some("united-states"));
+    assert_eq!(subpage(Some("default")), Some("united-states"));
+    assert_eq!(subpage(Some("us")), Some("united-states"));
+    assert_eq!(subpage(Some("eu")), Some("eu"));
+    assert_eq!(subpage(Some("in")), Some("india"));
+    assert_eq!(subpage(Some("sg")), Some("singapore"));
+    assert_eq!(source_for(Provider::ElevenLabs, Some("mars")), None);
+    let urls: std::collections::HashSet<_> = [None, Some("eu"), Some("in"), Some("sg")]
+        .into_iter()
+        .map(|r| source_for(Provider::ElevenLabs, r).unwrap().url)
+        .collect();
+    assert_eq!(urls.len(), 1);
+    // Captured response: the four regional sub-pages exist.
+    let summary = json(include_str!("fixtures/eleven-labs-summary.json"));
+    let slugs: Vec<_> = summary["subpages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["subpage"].as_str().unwrap())
+        .collect();
+    assert_eq!(slugs, ["united-states", "eu", "india", "singapore"]);
+    // Only the account-endpoint component is in scope, not TTS/STT/Agents.
+    let source = source(Provider::ElevenLabs).unwrap();
+    assert!(source.includes_component("01M52E4R81RBEYD94QJACM67BQ"));
+    assert!(!source.includes_component("01M52E23077QGJZHKBM2FBBPFM")); // Text to Speech
+    assert!(!source.includes_component("01M52E2F2T3TJB9ADTV9MXEQBF")); // Speech to Text
 }

@@ -33,6 +33,10 @@ pub(crate) struct Reading {
     pub components: Vec<(String, IncidentState)>,
     /// Active (unresolved) incidents and in-progress maintenance.
     pub events: Vec<Event>,
+    /// Per-sub-page readings of a multi-page source, by sub-page slug; empty
+    /// for single-page formats. A sub-page absent here is unknown, never
+    /// healthy.
+    pub pages: Vec<(String, Reading)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -208,6 +212,7 @@ fn statuspage(body: &[u8], host: &str) -> Result<Reading, Invalid> {
             })
             .collect(),
         events,
+        pages: Vec::new(),
     })
 }
 
@@ -232,8 +237,39 @@ struct WidgetEvent {
     affected_components: Vec<StateComponent>,
 }
 
+/// Multi-page widget summary (ElevenLabs): the same per-page summary under
+/// each `subpages[]` entry, selected later by the source's sub-page.
+#[derive(Deserialize)]
+struct MultiWidget {
+    subpages: Vec<WidgetPage>,
+}
+
+#[derive(Deserialize)]
+struct WidgetPage {
+    subpage: String,
+    summary: Widget,
+}
+
 fn widget(body: &[u8]) -> Result<Reading, Invalid> {
-    let widget: Widget = serde_json::from_slice(body).map_err(|_| Invalid)?;
+    if let Ok(multi) = serde_json::from_slice::<MultiWidget>(body) {
+        if multi.subpages.is_empty() {
+            return Err(Invalid);
+        }
+        return Ok(Reading {
+            baseline: Baseline::Operational,
+            components: Vec::new(),
+            events: Vec::new(),
+            pages: multi
+                .subpages
+                .into_iter()
+                .map(|page| widget_reading(page.summary).map(|reading| (page.subpage, reading)))
+                .collect::<Result<_, _>>()?,
+        });
+    }
+    widget_reading(serde_json::from_slice(body).map_err(|_| Invalid)?)
+}
+
+fn widget_reading(widget: Widget) -> Result<Reading, Invalid> {
     let incidents = widget.ongoing_incidents.into_iter().map(|incident| Event {
         impact: incident
             .current_worst_impact
@@ -267,6 +303,7 @@ fn widget(body: &[u8]) -> Result<Reading, Invalid> {
         baseline: Baseline::Operational,
         components: Vec::new(),
         events: incidents.chain(maintenances).collect(),
+        pages: Vec::new(),
     })
 }
 
@@ -317,6 +354,7 @@ fn google(body: &[u8], host: &str) -> Result<Reading, Invalid> {
         baseline: Baseline::Operational,
         components: Vec::new(),
         events,
+        pages: Vec::new(),
     })
 }
 
@@ -484,6 +522,7 @@ fn aws(items: Vec<Item>) -> Reading {
         baseline: Baseline::Unknown,
         components: Vec::new(),
         events,
+        pages: Vec::new(),
     }
 }
 
@@ -525,6 +564,7 @@ fn xai(items: Vec<Item>) -> Reading {
         baseline: Baseline::Unknown,
         components: Vec::new(),
         events,
+        pages: Vec::new(),
     }
 }
 

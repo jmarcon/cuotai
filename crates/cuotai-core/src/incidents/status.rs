@@ -141,6 +141,24 @@ pub struct ProviderStatus {
     pub expired: bool,
 }
 
+impl ProviderStatus {
+    /// Fold another sub-page's status of the same provider into this one,
+    /// keeping the more severe state and its incident.
+    pub(crate) fn merge(&mut self, other: Self) {
+        let worse = other.state.rank() > self.state.rank();
+        self.stale |= other.stale;
+        self.expired |= other.expired;
+        self.read_at = match (self.read_at, other.read_at) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            _ => None,
+        };
+        if worse {
+            self.state = other.state;
+            self.incident = other.incident;
+        }
+    }
+}
+
 /// Opt-in status preference and per-source cache. Cloning shares both, so
 /// a monitor rebuilt for a new configuration keeps them.
 #[derive(Clone, Default)]
@@ -411,6 +429,26 @@ pub(crate) fn evaluate(
     reading: &Reading,
     source: StatusSource,
 ) -> (IncidentState, Option<Incident>) {
+    // Multi-page sources: only the account's own sub-page counts; one that
+    // the response does not contain is a doubt, not health.
+    if !reading.pages.is_empty() || source.subpage.is_some() {
+        let page = source.subpage.and_then(|wanted| {
+            reading
+                .pages
+                .iter()
+                .find(|(slug, _)| slug == wanted)
+                .map(|(_, page)| page)
+        });
+        return page.map_or((IncidentState::Unknown, None), |page| {
+            evaluate(
+                page,
+                StatusSource {
+                    subpage: None,
+                    ..source
+                },
+            )
+        });
+    }
     let mut state = match reading.baseline {
         Baseline::Operational => IncidentState::Operational,
         Baseline::Unknown => IncidentState::Unknown,
