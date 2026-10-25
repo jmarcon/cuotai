@@ -615,9 +615,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   function dispatch(ev) {
     if (!loginState) return;
     if (typeof ev.attempt === "number" && ev.attempt !== 0 && ev.attempt !== loginState.attempt) return;
+    // PRD 0034 RF2: Cuotai's own login lines carry a catalog id (`l10n`, `instructions_l10n`); provider CLI lines do not.
     switch (ev.type) {
       case "prompt":
-        loginState.lines = ev.instructions ? [tl(ev.instructions)] : [];
+        loginState.lines = ev.instructions ? [tl(ev.instructions_l10n ?? ev.instructions)] : [];
         loginState.url = ev.url || null;
         loginState.userCode = ev.user_code ?? null;
         break;
@@ -627,13 +628,13 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         break;
       case "progress":
         if (loginState.placeholder) { loginState.lines = []; loginState.placeholder = false; } // o core já diz o mesmo
-        loginState.lines.push(tl(ev.text));
+        loginState.lines.push(tl(ev.l10n ?? ev.text));
         break;
       case "waiting_code":
         loginState.waitingCode = true;
         break;
       case "code_rejected":
-        loginState.codeError = tl(ev.message);
+        loginState.codeError = tl(ev.l10n ?? ev.message);
         break;
       case "finished": {
         loginState.phase = "done";
@@ -661,7 +662,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       }
       case "failed":
         loginState.phase = "failed";
-        loginState.lines.push(tl(ev.message));
+        loginState.lines.push(tl(ev.l10n ?? ev.message));
         break;
     }
     renderLoginPanel();

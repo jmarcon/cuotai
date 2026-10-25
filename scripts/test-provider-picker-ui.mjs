@@ -166,6 +166,17 @@ for (const [provider, kind, tool] of lib.DEMO_NATIVE_DETECT) {
   }
   await i18n.setLocale("en-US");
 }
+// PRD 0034 RF2: login lines prefer the core's catalog text (`l10n`, `instructions_l10n`) over the English string.
+{
+  const dialog = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/account-dialog.js", root)), "utf8");
+  for (const use of ["tl(ev.instructions_l10n ?? ev.instructions)", "tl(ev.l10n ?? ev.text)", "tl(ev.l10n ?? ev.message)"]) {
+    assert.ok(dialog.includes(use), `login events: ${use}`);
+  }
+  await i18n.setLocale("es");
+  const line = i18n.tl({ id: "freshness.age.minutes", params: { n: 3 }, fallback: "{n} min ago" });
+  assert.equal(line, "hace 3 min", "core catalog ids resolve in the dialog's language");
+  await i18n.setLocale("en-US");
+}
 const about = await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/src/about.rs", root)), "utf8");
 assert.ok(about.includes(`"${lib.NEW_PROVIDER_URL}"`), "the new-provider address is allow-listed by open_external");
 console.log("provider picker UI smoke: ok");
