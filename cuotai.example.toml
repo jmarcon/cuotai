@@ -308,7 +308,12 @@ provider = "nine_router"
 # credential_env = "NINEROUTER_PASSWORD"   # name of the variable holding the dashboard password
 params = { base_url = "http://127.0.0.1:20128" }
 # Optional keys of params: include = "claude,codex,github" (only these 9router
-# providers) and exclude = "glm" (hide these). Outside this machine use
+# providers), exclude = "glm" (hide these) and hidden = "<id>,<id>" (hide single
+# connections; the id is in the connection details). A connection with the same
+# provider and e-mail as a direct account is shown once, as the direct account
+# (dedup = "auto", the default; "off" shows both, or show_both = "<id>" for one
+# connection). group = "<slug>" ranks the connections in that group for "best
+# account now"; without it each one ranks with its provider. Outside this machine use
 # https://; plain http on a private network also needs allow_private_http = "true".
 # A self-signed HTTPS instance: tls_ca_file = "/path/to/ca.pem" (the CA that
 # signed it) or tls_pin_sha256 = "AB:CD:…" (its certificate's SHA-256, offered

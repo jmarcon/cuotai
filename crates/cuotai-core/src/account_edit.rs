@@ -252,6 +252,9 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
             "allow_private_http",
             "include",
             "exclude",
+            "hidden",
+            "dedup",
+            "show_both",
             "tls_ca_file",
             "tls_pin_sha256",
         ],
@@ -1419,7 +1422,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         ],
         true,
     )];
-    const NINE_ROUTER: [FieldDescriptor; 6] = [
+    const NINE_ROUTER: [FieldDescriptor; 9] = [
         FieldDescriptor::text(
             "base_url",
             "Endereço do 9router",
@@ -1446,6 +1449,28 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "exclude",
             "Ocultar provedores (opcional)",
             "Lista separada por vírgula de provedores do 9router a ocultar.",
+            false,
+        ),
+        FieldDescriptor::text(
+            "hidden",
+            "Conexões ocultas (opcional)",
+            "Lista separada por vírgula dos identificadores das conexões a ocultar (o identificador aparece nos detalhes da conexão). Uma conexão oculta não é consultada.",
+            false,
+        ),
+        FieldDescriptor::choice(
+            "dedup",
+            "Conexões que repetem uma conta direta",
+            "Uma conexão com o mesmo provedor e o mesmo e-mail de uma conta direta é a mesma conta: a conta direta prevalece e a conexão fica só na seção do 9router.",
+            &[
+                ChoiceOptionDescriptor::new("auto", "Mostrar só a conta direta (padrão)"),
+                ChoiceOptionDescriptor::new("off", "Mostrar as duas"),
+            ],
+            false,
+        ),
+        FieldDescriptor::text(
+            "show_both",
+            "Mostrar nos dois lugares (opcional)",
+            "Lista separada por vírgula dos identificadores das conexões repetidas que continuam aparecendo também fora da seção do 9router.",
             false,
         ),
         FieldDescriptor::text(

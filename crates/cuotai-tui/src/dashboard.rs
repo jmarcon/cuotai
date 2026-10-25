@@ -666,8 +666,14 @@ pub(crate) fn sub_cards_of<'r>(
             .filter(|sub| sub.upstream == upstream)
         {
             let keyed = sub_account(account, sub);
+            // PRD 0036 RF9.1: a duplicate says so ("also direct").
+            let marker = if sub.duplicate_of.is_some() {
+                " · também direta"
+            } else {
+                ""
+            };
             let display = Account {
-                name: format!("{} · {}", account.name, sub.label),
+                name: format!("{} · {}{marker}", account.name, sub.label),
                 provider: sub.provider.unwrap_or(account.provider),
                 ..keyed
             };
@@ -3236,6 +3242,7 @@ mod tests {
             duplicate_of: None,
             plan: None,
             via: None,
+            identity: None,
         };
         let instance = Report {
             account: "home".into(),
@@ -3258,6 +3265,16 @@ mod tests {
         );
         plain.account = "OpenAI".into();
         (vec![router, direct], vec![Some(instance), Some(plain)])
+    }
+
+    #[test]
+    fn a_duplicate_connection_is_marked_also_direct_and_muted() {
+        let (accounts, mut reports) = aggregator_fixture();
+        reports[0].as_mut().unwrap().sub_reports[0].duplicate_of = Some("claude:work".into());
+        let cards = sub_cards_of(&accounts[0], reports[0].as_ref(), None, |_| None);
+        assert!(cards[0].muted);
+        assert!(cards[0].account.name.ends_with("também direta"));
+        assert!(!cards[1].account.name.contains("também direta"));
     }
 
     fn draw_aggregators(collapsed: bool, filter: &str, width: u16) -> (String, Targets) {

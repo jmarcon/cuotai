@@ -315,6 +315,9 @@ struct Connection {
     display_name: Option<String>,
     #[serde(default)]
     email: Option<String>,
+    /// Copilot connections carry the GitHub e-mail here (RF5.2).
+    #[serde(default)]
+    github_email: Option<String>,
     #[serde(default)]
     is_active: Option<bool>,
 }
@@ -386,6 +389,16 @@ fn label_of(connection: &Connection, ordinal: usize) -> String {
         Some(value) => value,
         None => format!("{} #{ordinal}", clean_text(&connection.provider, 40)),
     }
+}
+
+/// RF5.2: the normalized e-mail of a connection (`email`, else
+/// `githubEmail`), compared in memory with direct accounts only.
+fn identity_of(connection: &Connection) -> Option<String> {
+    [&connection.email, &connection.github_email]
+        .into_iter()
+        .flatten()
+        .map(|value| crate::aggregators::normalize_email(value))
+        .find(|value| value.contains('@'))
 }
 
 /// Opaque, stable id of a connection: SHA-256 of the 9router id, truncated.
@@ -948,6 +961,7 @@ fn sub_report(
         duplicate_of: None,
         plan,
         via: Some(VIA.to_string()),
+        identity: identity_of(connection),
     }
 }
 
@@ -1883,6 +1897,7 @@ mod tests {
             name: name.map(str::to_string),
             display_name: display.map(str::to_string),
             email: email.map(str::to_string),
+            github_email: None,
             is_active: Some(true),
         };
         assert_eq!(label_of(&conn(Some("work"), None, None), 1), "work");

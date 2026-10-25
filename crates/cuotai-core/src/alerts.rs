@@ -2243,6 +2243,7 @@ mod tests {
             duplicate_of: None,
             plan: None,
             via: None,
+            identity: None,
         };
         Report {
             provider: Provider::NineRouter,

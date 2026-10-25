@@ -96,7 +96,10 @@ pub fn sub_account_name(parent: &str, sub_id: &str) -> String {
 /// The keyed account of `sub` (see [`SubUnit::account`]).
 pub fn sub_account(parent: &Account, sub: &SubReport) -> Account {
     Account {
-        group: Default::default(),
+        // PRD 0036 RF6.5: a group set on the aggregator applies to its
+        // connections; without one a connection ranks under its mapped
+        // provider.
+        group: parent.group.clone(),
         // PRD 0029: the connection's state follows the aggregator's id.
         id: Some(crate::AccountId::connection(&parent.state_key(), &sub.id)),
         name: sub_account_name(&parent.name, &sub.id),
@@ -218,6 +221,68 @@ pub fn expand(config: &Config, readings: &[Option<&Report>]) -> Expanded {
         }
     }
     expanded
+}
+
+/// RF5.2: an e-mail as compared for duplicates: trimmed and case-folded.
+pub fn normalize_email(raw: &str) -> String {
+    raw.trim().to_lowercase()
+}
+
+/// Comma-separated values of `key` in `account.params`, trimmed and
+/// lowercased; empty entries are dropped.
+fn list_param(account: &Account, key: &str) -> Vec<String> {
+    account
+        .params
+        .get(key)
+        .map(|raw| {
+            raw.split(',')
+                .map(|item| item.trim().to_ascii_lowercase())
+                .filter(|item| !item.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Whether duplicate detection is on for the aggregator `account`
+/// (`dedup = "auto"`, the default; `"off"` shows every connection).
+pub fn dedup_enabled(account: &Account) -> bool {
+    !account
+        .params
+        .get("dedup")
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("off"))
+}
+
+/// PRD 0036 RF5.2/RF5.3: marks every connection of `report` (the reading
+/// of the aggregator `parent`) that is the same as a direct account of
+/// `config`: same mapped provider and the same normalized e-mail, exactly.
+/// Never by name and never a guess: a connection or a direct account
+/// without an e-mail is never a duplicate. The direct account wins, so
+/// `duplicate_of` names its key. A connection listed in the aggregator's
+/// `show_both` parameter (sub ids) stays in both places; `dedup = "off"`
+/// turns the detection off. Pure: it reads only the configuration.
+pub fn mark_duplicates(config: &Config, parent: &Account, report: &mut Report) {
+    if !parent.provider.is_aggregator() {
+        return;
+    }
+    let enabled = dedup_enabled(parent);
+    let show_both = list_param(parent, "show_both");
+    for sub in &mut report.sub_reports {
+        sub.duplicate_of = None;
+        if !enabled || show_both.contains(&sub.id.to_ascii_lowercase()) {
+            continue;
+        }
+        let (Some(provider), Some(email)) = (sub.provider, sub.identity.as_deref()) else {
+            continue;
+        };
+        sub.duplicate_of = config
+            .accounts
+            .iter()
+            .filter(|direct| !direct.provider.is_aggregator() && direct.provider == provider)
+            .find(|direct| {
+                crate::identity::email(direct).is_some_and(|own| normalize_email(own) == email)
+            })
+            .map(Account::key);
+    }
 }
 
 /// PRD 0036 RF8.2: the usage page of the aggregator's own dashboard
@@ -496,6 +561,7 @@ mod tests {
             duplicate_of: None,
             plan: None,
             via: None,
+            identity: None,
         }
     }
 
@@ -641,6 +707,91 @@ mod tests {
         assert_eq!(expanded.display(0).name, "work");
         // Without readings nothing is appended.
         assert_eq!(expand(&config, &[]).config.accounts.len(), 2);
+    }
+
+    fn dedup_config(router: Account) -> Config {
+        let direct = Account {
+            name: "work".into(),
+            provider: Provider::Claude,
+            credential_env: None,
+            params: [("email".to_string(), " Ana@Example.com ".to_string())]
+                .into_iter()
+                .collect(),
+            ..router_account()
+        };
+        Config {
+            groups: Default::default(),
+            refresh_seconds: 60,
+            concurrency: 2,
+            timeout_seconds: 5,
+            accounts: vec![direct, router],
+        }
+    }
+
+    fn with_identity(id: &str, upstream: &str, email: Option<&str>) -> SubReport {
+        SubReport {
+            identity: email.map(normalize_email),
+            ..sub(id, upstream, Status::Ready, vec![quota(10.0, None)])
+        }
+    }
+
+    #[test]
+    fn duplicates_match_provider_and_exact_email_only() {
+        let config = dedup_config(router_account());
+        let mut router = report(
+            Status::Ready,
+            vec![
+                with_identity("same", "claude", Some("ana@example.com")),
+                with_identity("other", "claude", Some("bia@example.com")),
+                with_identity("none", "claude", None),
+                with_identity("codex", "codex", Some("ana@example.com")),
+            ],
+        );
+        mark_duplicates(&config, &config.accounts[1], &mut router);
+        let dup: Vec<_> = router
+            .sub_reports
+            .iter()
+            .map(|s| s.duplicate_of.as_deref())
+            .collect();
+        assert_eq!(dup, [Some("claude:work"), None, None, None]);
+        // The duplicate is not an active unit: it never alerts or ranks.
+        let units = sub_units(1, &config.accounts[1], &router);
+        assert_eq!(units.len(), 3);
+        assert!(units.iter().all(|unit| unit.sub_id != "same"));
+        // The e-mail never reaches the serialized report.
+        let json = serde_json::to_string(&router).unwrap();
+        assert!(!json.contains("example.com"));
+    }
+
+    #[test]
+    fn show_both_and_dedup_off_keep_the_connection() {
+        let mut both = router_account();
+        both.params.insert("show_both".into(), "same".into());
+        let config = dedup_config(both);
+        let mut router = report(
+            Status::Ready,
+            vec![with_identity("same", "claude", Some("ana@example.com"))],
+        );
+        mark_duplicates(&config, &config.accounts[1], &mut router);
+        assert_eq!(router.sub_reports[0].duplicate_of, None);
+
+        let mut off = router_account();
+        off.params.insert("dedup".into(), "off".into());
+        let config = dedup_config(off);
+        mark_duplicates(&config, &config.accounts[1], &mut router);
+        assert_eq!(router.sub_reports[0].duplicate_of, None);
+    }
+
+    #[test]
+    fn a_group_on_the_aggregator_applies_to_its_connections() {
+        let mut parent = router_account();
+        assert_eq!(
+            sub_account(&parent, &sub("a", "claude", Status::Ready, Vec::new())).group,
+            None
+        );
+        parent.group = Some("team".into());
+        let account = sub_account(&parent, &sub("a", "claude", Status::Ready, Vec::new()));
+        assert_eq!(account.group.as_deref(), Some("team"));
     }
 
     #[test]

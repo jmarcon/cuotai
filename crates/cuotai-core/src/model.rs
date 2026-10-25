@@ -983,6 +983,11 @@ pub struct SubReport {
     /// Public file that defines the upstream reading in the aggregator.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub via: Option<String>,
+    /// PRD 0036 RF5.2: the connection's normalized e-mail (case-folded,
+    /// trimmed), kept in memory only to match a direct account. Never
+    /// serialized, exported or shown.
+    #[serde(skip)]
+    pub identity: Option<String>,
 }
 
 /// The provider's statement about paid extra usage that no metric carries.

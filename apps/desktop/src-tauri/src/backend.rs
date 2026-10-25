@@ -5578,6 +5578,7 @@ mod tests {
             duplicate_of: None,
             plan: None,
             via: None,
+            identity: None,
         };
         let mut instance = ready("home", vec![]);
         instance.provider = Provider::NineRouter;

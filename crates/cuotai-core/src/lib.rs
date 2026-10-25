@@ -857,6 +857,10 @@ impl Monitor {
             }
             None => self.query_report(account, &[]).await,
         };
+        let mut report = report;
+        // PRD 0036 RF5.3: a connection that duplicates a direct account is
+        // marked before history, alerts or the ranking see it.
+        aggregators::mark_duplicates(&self.config, account, &mut report);
         // RF2.2/RF2.4: only enqueued; the disk never delays the refresh.
         if let Some(recorder) = &self.history {
             recorder.submit(account, &report);
