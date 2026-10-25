@@ -28,7 +28,7 @@ export function corridor(expectedLeft) {
  * the core's pace (only drawn on fresh meters); `thin`: the 4 px form with a tick instead of the corridor;
  * `text`: the accessible value text (DS-CMP-MTR-9), built by the caller from core texts.
  */
-export function meterHtml(pct, { state = "fresh", expected = null, thin = false, role = null, text = "" } = {}) {
+export function meterHtml(pct, { state = "fresh", expected = null, thin = false, role = null, text = "", name = "" } = {}) {
   const unknown = state === "unknown" || (pct == null && state !== "exhausted");
   const value = state === "exhausted" ? 0 : unknown ? null : clamp(pct);
   const lv = role ?? (state === "exhausted" ? "bad" : level(value));
@@ -41,9 +41,11 @@ export function meterHtml(pct, { state = "fresh", expected = null, thin = false,
     ? `<span class="pm tick" style="left:${band.center}%"></span>`
     : `<span class="pm" style="left:${band.left}%;width:${band.width}%"></span>`;
   const cls = ["mtr", unknown ? "none" : lv, state === "stale" ? "stale" : "", thin ? "thin" : ""].filter(Boolean).join(" ");
-  const now = value == null ? "" : ` aria-valuenow="${Math.round(value)}"`;
   const label = text || (value == null ? t("meter.noData") : t("meter.left", { pct: Math.round(value) }));
-  return `<div class="${cls}" role="meter" aria-valuemin="0" aria-valuemax="100"${now} aria-valuetext="${esc(label)}">${fill}${mark}</div>`;
+  // PRD 0020 RNF (axe aria-required-attr): a meter without a value is not a meter; it is an image named "No data".
+  if (value == null) return `<div class="${cls}" role="img" aria-label="${esc(name || label)}">${fill}${mark}</div>`;
+  // axe aria-meter-name: every meter carries an accessible name (the caller's metric name, else its value text).
+  return `<div class="${cls}" role="meter" aria-label="${esc(name || label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(value)}" aria-valuetext="${esc(label)}">${fill}${mark}</div>`;
 }
 
 /** Expected remaining share (0–100) of a metric's core pace, or null. */
@@ -397,8 +399,8 @@ export function filterTabsHtml(reports, { selected: filter = "all", moreOpen = f
   const shown = overflow ? providers.slice(0, maxTabs) : providers;
   const rest = overflow ? providers.slice(maxTabs) : [];
   const restSelected = rest.includes(filter);
-  const more = rest.length ? `<span class="tab-more">
-      <button class="tab" data-more aria-haspopup="menu" aria-expanded="${moreOpen}" aria-selected="${restSelected}" aria-label="${te("tabs.more")}" title="${te("tabs.more")}">${restSelected ? tileHtml(filter, 20) : icon("more")}</button>
+  const more = rest.length ? `<span class="tab-more" role="presentation">
+      <button class="tab" role="tab" data-more aria-haspopup="menu" aria-expanded="${moreOpen}" aria-selected="${restSelected}" tabindex="${restSelected ? 0 : -1}" aria-label="${te("tabs.more")}" title="${te("tabs.more")}">${restSelected ? tileHtml(filter, 20) : icon("more")}</button>
       <span class="menu" role="menu" ${moreOpen ? "" : "hidden"}>${rest.map((p) => `<button role="menuitemradio" aria-checked="${filter === p}" data-tab="${esc(p)}">${tileHtml(p, 16)}<span>${esc(brand(p).label)}</span>${filter === p ? icon("tick") : ""}</button>`).join("")}</span>
     </span>` : "";
   return `<div class="tabs" role="tablist" aria-label="${te("tabs.label")}">${all}${shown.map(providerTab).join("")}${more}</div>`;

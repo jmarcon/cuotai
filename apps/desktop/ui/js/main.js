@@ -56,8 +56,8 @@ const openCostSettings = () => openSettingsWindow({ page: "cost" });
 const costContext = { summary: () => localCost, onSettings: openCostSettings };
 
 /** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
-const cardMeter = (m, pct, stale) =>
-  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m) });
+const cardMeter = (m, pct, stale, name = m.label) =>
+  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m), name });
 /** One limit of a card (mockup 10): the micro label with the "Binding" tag, the figure with its unit below, the
  *  meter, then "Resets 20:32 · in 2h 11m" once, under the bar. Counts ("15 / 1,000") are in the tooltip. */
 function limitColumn(r, label, m, pct, stale) {
@@ -67,7 +67,7 @@ function limitColumn(r, label, m, pct, stale) {
   return `<div class="win${binding ? " binding" : ""}" title="${esc(`${m.label} · ${fmtAmount(m)}`)}">
     <div class="win-top"><span class="win-name">${esc(label)}</span>${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
     ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(`${Math.round(pct)}%`, t("card.available"), { cls: "left", dim: stale })}
-    ${cardMeter(m, pct, stale)}
+    ${cardMeter(m, pct, stale, label)}
     <div class="win-reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</div></div>`;
 }
 /** PRD 0023 (mockup 10): paid extra usage as a column beside the exhausted limit: the money, a budget meter only
@@ -88,7 +88,7 @@ function windowSlot(r, name, w, stale = false) {
   const label = t(`card.window.long.${name}`);
   if (!w) {
     return `<div class="win none" aria-label="${esc(label)}"><div class="win-top"><span class="win-name">${esc(label)}</span></div>
-      ${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown" })}</div>`;
+      ${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown", name: label })}</div>`;
   }
   return limitColumn(r, label, w.m, w.pct, stale);
 }

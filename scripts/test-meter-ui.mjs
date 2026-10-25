@@ -16,7 +16,7 @@ const band = (html) => /class="pm" style="left:([\d.]+)%;width:([\d.]+)%"/.exec(
 for (const [pct, lv] of [[82, "good"], [45, "warn"], [12, "bad"]]) {
   const html = meterHtml(pct, { expected: 38 });
   assert.match(html, new RegExp(`class="mtr ${lv}"`), `level ${lv}`);
-  assert.match(html, /role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="\d+"/);
+  assert.match(html, /role="meter" aria-label="[^"]+" aria-valuemin="0" aria-valuemax="100" aria-valuenow="\d+"/);
   const m = band(html);
   assert.ok(m, "fresh meter with a pace has a corridor");
   assert.equal(Number(m[1]), 33);
@@ -36,7 +36,12 @@ for (const state of ["stale", "unknown", "exhausted", "overage"]) {
 const unknown = meterHtml(null, { expected: 38 });
 assert.match(unknown, /class="mtr none"/);
 assert.doesNotMatch(unknown, /aria-valuenow/);
-assert.match(unknown, /aria-valuetext="No data"/);
+// PRD 0020 RNF (axe): a value-less meter is an image named "No data", not a meter without aria-valuenow
+assert.match(unknown, /role="img" aria-label="No data"/);
+assert.doesNotMatch(unknown, /role="meter"/);
+// every meter has an accessible name: the caller's metric name, else its value text (axe aria-meter-name)
+assert.match(meterHtml(40, { name: "Weekly" }), /aria-label="Weekly"/);
+assert.match(meterHtml(40), /aria-label="40% left"/);
 assert.doesNotMatch(unknown, /0%/);
 // stale: dimmed treatment class
 assert.match(meterHtml(40, { state: "stale" }), /class="mtr warn stale"/);

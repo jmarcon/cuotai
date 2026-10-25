@@ -32,7 +32,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     ? `<p class="sub" data-renewed-waiting>${icon("clock")} ${esc(renewedText(m))}</p>`
     : text != null
     ? `<div class="balance ${m.state === "exhausted" && !extra ? "bad" : ""}">${esc(text)}</div>`
-    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), text: valueText })}</div>`;
+    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), text: valueText, name: m.label })}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets the "Binding" tag; every other metric stays listed.
   const binding = isBindingMetric(r, m);
   // DS-CMP-SUB-1 (mockup 03): label + tag, the figure with its unit inline; the meter; the pace stage on the left and
