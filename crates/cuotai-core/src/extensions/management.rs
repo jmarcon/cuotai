@@ -266,6 +266,9 @@ pub struct ExtensionItem {
     /// The accounts of that provider, each with whether it uses this
     /// extension; offered only while the extension is enabled.
     pub override_targets: Vec<OverrideTarget>,
+    /// PRD 0028 RF7.4: the manifest declares `[[secrets]]`, so a frontend
+    /// offers the secrets entry (and the removal offer) only then.
+    pub declares_secrets: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -438,6 +441,7 @@ impl Manager {
                     account,
                     overrides: manifest.and_then(|m| m.overrides),
                     override_targets: Vec::new(),
+                    declares_secrets: manifest.is_some_and(|m| !m.secrets.is_empty()),
                     id,
                 }
             })
@@ -494,6 +498,7 @@ impl Manager {
                 account: None,
                 overrides: None,
                 override_targets: Vec::new(),
+                declares_secrets: false,
             });
         }
         for item in &mut items {
@@ -793,6 +798,37 @@ impl Manager {
                 Err(error)
             }
         }
+    }
+
+    /// PRD 0028 RF7.4: deletes the vault entries of the stored secrets of
+    /// `id` without touching the approval; frontends offer it when the
+    /// extension's account is removed. Returns how many entries were
+    /// deleted. A vault that refuses leaves what it could not delete and
+    /// reports the storage note; nothing is read back or logged.
+    pub fn forget_secrets(&self, id: &str, store: &dyn TokenStore) -> Result<usize, Localized> {
+        let Some((scope, names)) = self.consent.stored_secrets(id) else {
+            return Ok(0);
+        };
+        let mut deleted = 0;
+        for name in &names {
+            let key = secret_key(id, &scope, name);
+            match store.load(&key) {
+                Ok(Some(_)) => {
+                    store.delete(&key).map_err(|_| secret_storage())?;
+                    deleted += 1;
+                }
+                Ok(None) => {}
+                Err(_) => return Err(secret_storage()),
+            }
+        }
+        Ok(deleted)
+    }
+
+    /// Whether the vault holds a value for any secret of `id` (for the
+    /// account-removal offer); `false` when the vault cannot be read.
+    pub fn has_stored_secrets(&self, id: &str, store: &dyn TokenStore) -> bool {
+        self.secrets(id, store)
+            .is_ok_and(|items| items.iter().any(|item| item.stored))
     }
 
     /// RF7.4: the secrets the current manifest of `id` declares, each with

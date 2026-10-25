@@ -738,6 +738,40 @@ async fn an_extension_secret_reaches_only_the_child_environment() {
     );
 }
 
+/// PRD 0028 RF7.4: removing the extension's account can also delete its vault
+/// secrets; the approval stays and nothing else is touched.
+#[test]
+fn forgetting_secrets_deletes_only_the_vault_entries() {
+    let rig = Rig::new();
+    rig.extension_with_source("proxy", "fn main() { print!(\"x\"); }\n");
+    let manifest_file = rig.root.join("proxy").join(MANIFEST_FILE);
+    let mut manifest = fs::read_to_string(&manifest_file).unwrap();
+    manifest.push_str(
+        "\n[[secrets]]\nname = \"token\"\nenv = \"PROXY_SECRET\"\ndescription = \"Proxy token\"\n",
+    );
+    fs::write(&manifest_file, &manifest).unwrap();
+    let concrete = Arc::new(Vault::default());
+    let vault: Arc<dyn TokenStore> = concrete.clone();
+    let disclosure = rig.manager.disclosure("proxy").unwrap();
+    rig.manager
+        .enable(&disclosure.candidate, true, &base())
+        .unwrap();
+    rig.manager.confirm_commit("proxy");
+
+    assert_eq!(rig.manager.forget_secrets("proxy", vault.as_ref()), Ok(0));
+    assert!(!rig.manager.has_stored_secrets("proxy", vault.as_ref()));
+    rig.manager
+        .set_secret("proxy", "token", SEED, vault.as_ref())
+        .unwrap();
+    assert!(rig.manager.has_stored_secrets("proxy", vault.as_ref()));
+    assert_eq!(rig.manager.forget_secrets("proxy", vault.as_ref()), Ok(1));
+    assert!(concrete.0.lock().unwrap().is_empty());
+    // The approval stays: the declared secret is listed again, now unset.
+    let items = rig.manager.secrets("proxy", vault.as_ref()).unwrap();
+    assert_eq!(items.len(), 1);
+    assert!(!items[0].stored);
+}
+
 /// PRD 0028 RF7.1–RF7.3: an approved extension with `overrides` replaces
 /// the built-in query of the account that chose it, never receives that
 /// account's credential (the parent holds it; the program reports ready

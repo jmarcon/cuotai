@@ -2910,6 +2910,22 @@ impl Backend {
             .map_err(|note| l10n_to_json(&note))
     }
 
+    /// PRD 0028 RF7.4: deletes the vault secrets of extension `id` (offered
+    /// when its account is removed); returns how many entries were deleted.
+    pub async fn forget_extension_secrets(&self, id: &str) -> Result<usize, String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+        let manager = loaded
+            .monitor
+            .extension_manager()
+            .ok_or("extensions_unavailable")?;
+        let session = g.session.as_ref().ok_or("extensions_unavailable")?;
+        manager
+            .forget_secrets(id, session.token_store().as_ref())
+            .map_err(|note| l10n_to_json(&note))
+    }
+
     // ---------- edição de contas ----------
 
     pub async fn save_account(

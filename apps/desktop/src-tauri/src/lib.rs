@@ -172,6 +172,16 @@ async fn set_extension_secret(
 }
 
 #[tauri::command]
+fn open_extensions_folder() -> Result<(), String> {
+    about::open_extensions_folder().map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn forget_extension_secrets(b: Shared<'_>, id: String) -> Result<usize, String> {
+    b.forget_extension_secrets(&id).await
+}
+
+#[tauri::command]
 async fn test_extension(
     app: AppHandle,
     b: Shared<'_>,
@@ -1916,6 +1926,8 @@ pub fn run() {
             test_extension,
             extension_secrets,
             set_extension_secret,
+            forget_extension_secrets,
+            open_extensions_folder,
             set_extension_override,
             form_schema,
             visible_fields,

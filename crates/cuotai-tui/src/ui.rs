@@ -206,13 +206,23 @@ enum DeletionState {
     AskPurge {
         index: usize,
     },
+    /// PRD 0028 RF7.4: the account belongs to an extension whose vault holds
+    /// secrets; ask whether to delete them with it.
+    AskSecrets {
+        index: usize,
+        extension: String,
+    },
     Executing {
         index: usize,
         purge: bool,
+        /// The extension whose vault secrets are deleted after the removal.
+        forget_secrets: Option<String>,
     },
     Result {
         index: usize,
         outcome: Box<RemoveOutcome>,
+        /// What happened to the extension's secrets, when they were asked for.
+        secrets_note: Option<String>,
     },
 }
 
@@ -2481,6 +2491,15 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
             ),
             "s confirma exclusão • n/Esc cancela • Ctrl-C sai".into(),
         ),
+        DeletionState::AskSecrets { index, extension } => (
+            " Apagar segredos da extensão? ",
+            format!(
+                "A extensão \"{}\" guarda segredos no cofre do sistema para a conta {}.\n\nApagar também esses segredos?\n\n• s apaga a conta e os segredos\n• n mantém os segredos no cofre\n• Esc cancela a exclusão",
+                safe(extension),
+                account_label(*index),
+            ),
+            "s apaga segredos • n mantém • Esc cancela".into(),
+        ),
         DeletionState::AskPurge { index } => (
             " Apagar credencial do cofre? ",
             format!(
@@ -2494,8 +2513,15 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
             "Salvando a configuração e atualizando o cofre…".into(),
             "".into(),
         ),
-        DeletionState::Result { index, outcome } => {
-            let (body, footer) = render_deletion_result(*index, outcome);
+        DeletionState::Result {
+            index,
+            outcome,
+            secrets_note,
+        } => {
+            let (mut body, footer) = render_deletion_result(*index, outcome);
+            if let Some(note) = secrets_note {
+                body = format!("{body}\n\n{note}");
+            }
             (" Resultado ", body, footer)
         }
     }
@@ -2618,6 +2644,21 @@ fn handle_deletion_key(
             state,
             session,
         ),
+        DeletionState::AskSecrets { index, extension } => {
+            let (index, extension) = (*index, extension.clone());
+            handle_ask_secrets(
+                code,
+                index,
+                extension,
+                state_,
+                file,
+                monitor,
+                refresh_cycle,
+                account_refresh,
+                state,
+                session,
+            )
+        }
         DeletionState::Executing { .. } => false,
         DeletionState::Result { outcome, .. } => {
             handle_result(code, outcome, file, session.as_ref())
@@ -2645,12 +2686,17 @@ fn handle_confirm(
                 .accounts
                 .get(index)
                 .is_some_and(|a| a.oauth.is_some());
-            if has_oauth {
+            if let Some(extension) =
+                extension_with_stored_secrets(&file.config, index, monitor, session.as_ref())
+            {
+                *state_ = DeletionState::AskSecrets { index, extension };
+            } else if has_oauth {
                 *state_ = DeletionState::AskPurge { index };
             } else {
                 *state_ = DeletionState::Executing {
                     index,
                     purge: false,
+                    forget_secrets: None,
                 };
                 run_remove_account(
                     state_,
@@ -2666,6 +2712,58 @@ fn handle_confirm(
         }
         _ => false,
     }
+}
+
+/// PRD 0028 RF7.4: the extension id of account `index` when its vault holds
+/// secrets the removal could delete (core decides; the value is never read).
+fn extension_with_stored_secrets(
+    config: &Config,
+    index: usize,
+    monitor: &Monitor,
+    session: &OAuthSession,
+) -> Option<String> {
+    let id = config.accounts.get(index)?.extension_id()?.to_owned();
+    let manager = monitor.extension_manager()?;
+    manager
+        .has_stored_secrets(&id, session.token_store().as_ref())
+        .then_some(id)
+}
+
+/// `s` deletes the extension's secrets after the removal, `n` keeps them.
+#[allow(clippy::too_many_arguments)]
+fn handle_ask_secrets(
+    code: KeyCode,
+    index: usize,
+    extension: String,
+    state_: &mut DeletionState,
+    file: &mut ConfigFile,
+    monitor: &mut Arc<Monitor>,
+    refresh_cycle: &mut RefreshCycle,
+    account_refresh: &mut AccountRefresh,
+    state: &mut State,
+    session: Arc<OAuthSession>,
+) -> bool {
+    let forget_secrets = match code {
+        KeyCode::Esc => return true,
+        KeyCode::Char('s' | 'S') => Some(extension),
+        KeyCode::Char('n' | 'N') => None,
+        _ => return false,
+    };
+    *state_ = DeletionState::Executing {
+        index,
+        purge: false,
+        forget_secrets,
+    };
+    run_remove_account(
+        state_,
+        file,
+        monitor,
+        refresh_cycle,
+        account_refresh,
+        state,
+        session,
+    );
+    false
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2687,6 +2785,7 @@ fn handle_ask_purge(
             *state_ = DeletionState::Executing {
                 index,
                 purge: false,
+                forget_secrets: None,
             };
             run_remove_account(
                 state_,
@@ -2700,7 +2799,11 @@ fn handle_ask_purge(
             false
         }
         KeyCode::Char('s' | 'S') => {
-            *state_ = DeletionState::Executing { index, purge: true };
+            *state_ = DeletionState::Executing {
+                index,
+                purge: true,
+                forget_secrets: None,
+            };
             run_remove_account(
                 state_,
                 file,
@@ -2798,8 +2901,12 @@ fn run_remove_account(
     state: &mut State,
     session: Arc<OAuthSession>,
 ) -> bool {
-    let (index, purge) = match state_ {
-        DeletionState::Executing { index, purge } => (*index, *purge),
+    let (index, purge, forget_secrets) = match state_ {
+        DeletionState::Executing {
+            index,
+            purge,
+            forget_secrets,
+        } => (*index, *purge, forget_secrets.clone()),
         _ => return false,
     };
     let prev = file.config.clone();
@@ -2864,9 +2971,14 @@ fn run_remove_account(
             state.error = None;
             state.detail_scroll = 0;
             state.details = false;
+            // PRD 0028 RF7.4: the account is gone; the extension's vault
+            // secrets go only when the user asked for it.
+            let secrets_note = forget_secrets
+                .map(|id| forget_extension_secrets_note(monitor, session.as_ref(), &id));
             *state_ = DeletionState::Result {
                 index,
                 outcome: Box::new(outcome),
+                secrets_note,
             };
             // Keep the dialog open so the user reads the outcome.
             false
@@ -2896,6 +3008,20 @@ fn run_remove_account(
             state.error = Some(resolve_l10n(&error.l10n()));
             true
         }
+    }
+}
+
+/// Deletes the vault secrets of extension `id` and words the result.
+fn forget_extension_secrets_note(monitor: &Monitor, session: &OAuthSession, id: &str) -> String {
+    let Some(manager) = monitor.extension_manager() else {
+        return "Os segredos da extensão não puderam ser apagados.".to_string();
+    };
+    match manager.forget_secrets(id, session.token_store().as_ref()) {
+        Ok(count) => format!("{count} segredo(s) da extensão apagado(s) do cofre do sistema."),
+        Err(error) => format!(
+            "Os segredos da extensão NÃO puderam ser apagados: {}",
+            safe(&resolve_l10n(&error))
+        ),
     }
 }
 
@@ -3332,6 +3458,81 @@ mod tests {
         let (body, _) =
             render_deletion_result(0, &RemoveOutcome::RemovedNoCredential(removed(false)));
         assert!(!body.contains("sessão web"), "{body}");
+    }
+
+    /// PRD 0028 RF7.4: the removal of an extension account asks about the
+    /// extension's vault secrets, naming both and the three answers; the
+    /// result adds what happened to them. The note counts what the vault
+    /// actually deleted.
+    #[test]
+    fn removing_an_extension_account_offers_to_delete_its_secrets() {
+        let path = std::env::temp_dir().join(format!("cuotai-u3-{}.toml", std::process::id()));
+        let file = ConfigFile::open(
+            cuotai_core::config_file::ResolvedPath {
+                path: path.clone(),
+                source: cuotai_core::config_file::PathSource::Argument,
+            },
+            true,
+        )
+        .expect("an absent file opens as an empty configuration");
+        let (title, body, footer) = render_deletion(
+            &DeletionState::AskSecrets {
+                index: 0,
+                extension: "acme-usage".into(),
+            },
+            &file,
+        );
+        assert!(title.contains("segredos"), "{title}");
+        assert!(body.contains("acme-usage"), "{body}");
+        assert!(
+            footer.contains("s apaga") && footer.contains("n mantém"),
+            "{footer}"
+        );
+        let (_, body, _) = render_deletion(
+            &DeletionState::Result {
+                index: 0,
+                outcome: Box::new(RemoveOutcome::RemovedNoCredential(RemovedAccount {
+                    provider: Provider::Extension,
+                    oauth: None,
+                    storage_key: None,
+                    sessions_removed: false,
+                })),
+                secrets_note: Some("2 segredo(s) apagado(s)".into()),
+            },
+            &file,
+        );
+        assert!(body.contains("2 segredo(s) apagado(s)"), "{body}");
+
+        let monitor = Monitor::new(Config::default()).unwrap();
+        struct NoVault;
+        impl cuotai_core::oauth::TokenStore for NoVault {
+            fn load(
+                &self,
+                _: &str,
+            ) -> Result<Option<cuotai_core::oauth::OAuthToken>, cuotai_core::oauth::OAuthError>
+            {
+                Ok(None)
+            }
+            fn save(
+                &self,
+                _: &str,
+                _: &cuotai_core::oauth::OAuthToken,
+            ) -> Result<(), cuotai_core::oauth::OAuthError> {
+                Ok(())
+            }
+            fn delete(&self, _: &str) -> Result<(), cuotai_core::oauth::OAuthError> {
+                Ok(())
+            }
+        }
+        let session = OAuthSession::new(
+            Arc::new(NoVault),
+            Arc::new(cuotai_core::EnvironmentCredentials),
+        )
+        .unwrap();
+        let note = forget_extension_secrets_note(&monitor, &session, "acme-usage");
+        // Nothing was stored, so nothing is reported as deleted.
+        assert!(note.starts_with("0 segredo(s)"), "{note}");
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

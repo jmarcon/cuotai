@@ -560,6 +560,7 @@ mod tests {
             }),
             overrides: None,
             override_targets: Vec::new(),
+            declares_secrets: false,
         }
     }
 
