@@ -43,7 +43,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
  *  the provider's public status follows, while status queries are on. */
 export function detailHtml(r, { eye = false } = {}) {
   const notes = r.notes.map((_, index) => noteText(r, index));
-  const head = `<div class="det-age">${ageHtml(r)}</div>${accessHtml(r, { full: true })}${incidentDetailHtml(r)}`;
+  const head = `<div class="det-age">${ageHtml(r)}</div>${accessHtml(r)}${incidentDetailHtml(r)}`;
   const rest = restNotes(r).map((n) => `<p class="note">${esc(n)}</p>`).join("");
   if (isStaleReading(r)) {
     const s = staleView(r);

@@ -65,7 +65,7 @@ The TUI and the CLI read the same status only when you ask (`--status`, or `CUOT
 
 ## How each account's usage is read
 
-Every card and its details also say, discreetly, **how that account's usage is read**: `Official` (an interface the vendor documents), `Undocumented` (an internal interface that may change without notice), `Derived` (inferred from metrics or rate-limit headers) or `Unavailable` (no usage query exists), with a one-line summary. An `Unavailable` account shows why instead of a generic error, and when an undocumented interface stops matching, the card says it may have changed and names the public contract Cuotai follows. The same levels appear when you add an account. The per-provider matrix is in [`providers.md`](providers.md#usage-access-matrix).
+When an account has no usage query in its mode, its card says why instead of showing a generic error, and when an internal interface stops matching, the card says it may have changed and names the public contract Cuotai follows. How each integration reads usage is documented in [`providers.md`](providers.md#usage-access-matrix), not in the app; the "Add account" list shows provider names only and leaves out providers that have no usage query at all.
 
 ## Account details and history
 

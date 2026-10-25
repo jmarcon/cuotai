@@ -38,8 +38,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     // remains the last line of defence.
   }
   const editing = index != null;
-  const providers = (await listProviders()).sort((a, b) => a.label.localeCompare(b.label, currentLocale(), { sensitivity: "base" }));
+  // Core decides which providers can be added (`pickable`); the account being edited keeps its own.
   let existing = editing ? await getAccount(index) : null;
+  const providers = (await listProviders()).filter((p) => p.pickable || p.id === existing?.provider).sort((a, b) => a.label.localeCompare(b.label, currentLocale(), { sensitivity: "base" }));
   let provider = existing?.provider ?? providers[0].id;
   let schema = await formSchema(provider);
   // Valores correntes por chave: { text } ou { choice }.
@@ -59,7 +60,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const dlg = open(`<form method="dialog" class="dlg-body" autocomplete="off">
     <h2>${te(editing ? "dialog.editTitle" : "dialog.addTitle")}</h2>
     <label class="f" data-field="provider"><span>${te("dialog.provider")}</span>
-      <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)} · ${esc(tl(p.level))}</option>`).join("")}</select>
+      <select name="provider" ${editing ? "disabled" : ""}>${providers.map((p) => `<option value="${esc(p.id)}" ${p.id === provider ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>
       <small class="field-err" hidden></small></label>
     <label class="f" data-field="name"><span>${te("dialog.name")}</span><input name="name" value="${esc(existing?.name ?? "")}" required /><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>

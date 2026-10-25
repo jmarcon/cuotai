@@ -280,6 +280,8 @@ pub(crate) struct Wizard {
     step: Step,
     provider: Provider,
     provider_sel: usize,
+    /// Providers offered by the picker, from `edit::picker_providers`.
+    picker: Vec<Provider>,
     provider_offset: u16,
     name: String,
     credential: String,
@@ -334,10 +336,9 @@ impl Wizard {
     pub(crate) fn new(config: &Config, editing: Option<usize>) -> Self {
         let existing = editing.and_then(|i| config.accounts.get(i));
         let provider = existing.map(|a| a.provider).unwrap_or(Provider::OpenAiApi);
-        let provider_sel = Provider::ALL
-            .iter()
-            .position(|p| *p == provider)
-            .unwrap_or(0);
+        // Core decides which providers the picker offers and their order.
+        let picker = edit::picker_providers(existing.map(|a| a.provider));
+        let provider_sel = picker.iter().position(|p| *p == provider).unwrap_or(0);
         let name = existing.map(|a| a.name.clone()).unwrap_or_default();
         let credential = match existing {
             Some(a) => edit::stored_credential(a),
@@ -368,6 +369,7 @@ impl Wizard {
             step: Step::Provider,
             provider,
             provider_sel,
+            picker,
             provider_offset: 0,
             name,
             credential,
@@ -618,7 +620,7 @@ impl Wizard {
     }
 
     fn provider_at_sel(&self) -> Provider {
-        Provider::ALL[self.provider_sel]
+        self.picker[self.provider_sel]
     }
 
     /// Campos visíveis: decisão única no core via `edit::visible_field_indices`,
@@ -1278,7 +1280,7 @@ impl Wizard {
             },
             (KeyCode::Down, _) => match self.step {
                 Step::Provider => {
-                    self.provider_sel = (self.provider_sel + 1).min(Provider::ALL.len() - 1);
+                    self.provider_sel = (self.provider_sel + 1).min(self.picker.len() - 1);
                 }
                 Step::Params => {
                     if self.current_is_choice() {
@@ -1431,7 +1433,8 @@ impl Wizard {
                 let visible = inner.height.saturating_sub(2).max(1) as usize;
                 let idx = self.provider_offset as usize + (row as usize - 1);
                 if idx
-                    < Provider::ALL
+                    < self
+                        .picker
                         .len()
                         .min(self.provider_offset as usize + visible)
                 {
@@ -1985,12 +1988,6 @@ impl Wizard {
         // same core descriptor; an Unavailable account shows its reason here,
         // before the save that needs a second, explicit Enter.
         let access = self.access();
-        lines.push(Line::from(vec![
-            Span::styled("Acesso ao uso: ", dim),
-            Span::raw(crate::ui::resolve_l10n(&access.level.label())),
-            Span::styled(" — ", dim),
-            Span::raw(crate::ui::resolve_l10n(&access.summary)),
-        ]));
         for warning in access
             .cost_advisory()
             .into_iter()
@@ -2245,7 +2242,7 @@ impl Wizard {
 
     fn draw_provider(&mut self, frame: &mut Frame, area: ratatui::layout::Rect) {
         let visible = area.height.saturating_sub(2) as usize;
-        let total = Provider::ALL.len();
+        let total = self.picker.len();
         if self.provider_sel < self.provider_offset as usize {
             self.provider_offset = self.provider_sel as u16;
         }
@@ -2256,7 +2253,8 @@ impl Wizard {
             "Setas navegam; Enter seleciona o provedor da conta.",
             Style::default().fg(DRACULA_COMMENT),
         ))];
-        for (i, provider) in Provider::ALL
+        for (i, provider) in self
+            .picker
             .iter()
             .enumerate()
             .skip(self.provider_offset as usize)
@@ -2270,18 +2268,11 @@ impl Wizard {
             } else {
                 Style::default()
             };
-            // PRD 0005 RF3.1: the level of the provider's default interface.
-            let access = cuotai_core::access::describe(&Account {
-                provider: *provider,
-                ..Account::default()
-            });
-            lines.push(Line::from(vec![
-                Span::styled(format!("{marker}{}", provider.label()), style),
-                Span::styled(
-                    format!("  [{}]", crate::ui::resolve_l10n(&access.level.label())),
-                    Style::default().fg(DRACULA_COMMENT),
-                ),
-            ]));
+            // Clean names only: how each integration works lives in the docs.
+            lines.push(Line::from(Span::styled(
+                format!("{marker}{}", provider.label()),
+                style,
+            )));
         }
         if self.provider_offset as usize + visible < total {
             lines.push(Line::from(Span::styled(
@@ -2786,6 +2777,55 @@ mod tests {
         // Esc closes the picker without cancelling the wizard.
         assert!(matches!(press(&mut wizard, KeyCode::Esc), Action::Continue));
         assert_eq!(wizard.step, Step::Provider);
+    }
+
+    /// The provider picker offers clean names only, sorted by name, and
+    /// leaves out providers without any usage query (core decides).
+    #[test]
+    fn the_provider_picker_shows_clean_sorted_names_without_access_labels() {
+        use ratatui::{backend::TestBackend, Terminal};
+        let mut wiz = Wizard::new(&Config::default(), None);
+        assert_eq!(wiz.picker, edit::picker_providers(None));
+        assert!(!wiz.picker.contains(&Provider::Poolside));
+        let names: Vec<_> = wiz
+            .picker
+            .iter()
+            .map(|p| p.label().to_lowercase())
+            .collect();
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(names, sorted);
+        assert_eq!(wiz.provider_at_sel(), Provider::OpenAiApi);
+        let mut terminal = Terminal::new(TestBackend::new(100, 60)).unwrap();
+        terminal
+            .draw(|frame| wiz.draw(frame, Path::new("cuotai.toml")))
+            .unwrap();
+        let screen: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(screen.contains(wiz.picker[0].label()), "{screen}");
+        for label in [
+            "Oficial",
+            "Não documentada",
+            "Indisponível",
+            "Derivada",
+            "Official",
+            "Undocumented",
+            "Unavailable",
+            "Derived",
+            "No documentada",
+            "No disponible",
+            "Ufficiale",
+            "Non documentato",
+            "Non disponibile",
+            "Derivato",
+        ] {
+            assert!(!screen.contains(label), "`{label}`: {screen}");
+        }
     }
 
     fn wizard_with(name: &str, env: &str, interval: &str) -> Wizard {

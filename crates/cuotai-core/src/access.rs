@@ -245,10 +245,11 @@ impl UsageAccess {
     }
 
     /// What the account editors show where the credential help appears
-    /// (PRD 0005 RF3.2), in order: credential hint, risk, plan requirement
-    /// and, for `Unavailable`, the reason.
+    /// (PRD 0005 RF3.2), in order: credential hint, plan requirement and,
+    /// for `Unavailable`, the reason. The interface `risk` stays out: how an
+    /// integration works is documented in `docs/providers.md`, not in the UI.
     pub fn notes(&self) -> Vec<Localized> {
-        let mut notes = vec![self.credential_hint.clone(), self.risk.clone()];
+        let mut notes = vec![self.credential_hint.clone()];
         notes.extend(self.plan_requirement.clone().map(|plan| {
             let pt = format!("Requer o plano {}.", plan.fallback);
             Localized::with_param("access.requires_plan", "plan", plan, pt)
@@ -489,6 +490,38 @@ pub(crate) fn classify(
     access
 }
 
+/// Every param value that may switch a provider to another queried
+/// interface (`product`, `query_mode`, `mode`, a session or an organization),
+/// walked with and without the native login by [`has_usage_query`].
+const SWITCHING_PARAMS: [&[(&str, &str)]; 9] = [
+    &[],
+    &[("product", "cli")],
+    &[("product", "coding")],
+    &[("product", "computer")],
+    &[("query_mode", "personal")],
+    &[("query_mode", "quota")],
+    &[("mode", "org")],
+    &[("session_env", "X")],
+    &[("organization_id", "X")],
+];
+
+/// Whether some mode of `provider` has a usage query, that is, whether it is
+/// not [`Level::Unavailable`] in every mode. A provider without any query
+/// would only produce an account that shows a reason instead of numbers, so
+/// the account editors leave it out of the provider picker; the
+/// documentation (`docs/providers.md`) keeps listing it.
+pub fn has_usage_query(provider: Provider) -> bool {
+    SWITCHING_PARAMS.iter().any(|params| {
+        let params: BTreeMap<String, String> = params
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        [false, true]
+            .into_iter()
+            .any(|oauth| classify(provider, oauth, &params).level != Level::Unavailable)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -561,6 +594,21 @@ mod tests {
                     .flat_map(move |m| [false, true].map(|oauth| account(p, m, oauth)))
             })
             .collect()
+    }
+
+    /// Only providers that are `Unavailable` in every mode lack a query; a
+    /// provider with one working mode (Gemini AI, Perplexity) keeps it.
+    #[test]
+    fn has_usage_query_is_false_only_without_any_queried_mode() {
+        use Provider::*;
+        let without: Vec<_> = Provider::ALL
+            .into_iter()
+            .filter(|p| !has_usage_query(*p))
+            .collect();
+        assert_eq!(
+            without,
+            [Qwen, CloudflareAi, NvidiaNim, Poolside, AlibabaModelStudio]
+        );
     }
 
     #[test]
@@ -1017,11 +1065,7 @@ mod tests {
         let windsurf: Vec<_> = empty(Windsurf).notes().into_iter().map(|n| n.id).collect();
         assert_eq!(
             windsurf,
-            [
-                "access.credential_hint.admin_key",
-                "access.risk.official",
-                "access.requires_plan"
-            ]
+            ["access.credential_hint.admin_key", "access.requires_plan"]
         );
         let poolside = empty(Poolside);
         assert_eq!(poolside.notes().last(), poolside.reason.as_ref());
