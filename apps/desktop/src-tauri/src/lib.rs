@@ -468,6 +468,12 @@ fn about_info() -> about::AboutView {
     about::view()
 }
 
+/// PRD 0019 RF7.7: What's new, from the changelog embedded in the binary (no network).
+#[tauri::command]
+fn whats_new() -> about::WhatsNewView {
+    about::whats_new()
+}
+
 /// Abre no navegador um repositório da lista do "Sobre" ou uma página pública de status de uma fonte
 /// verificada (PRD 0011 RF4.1); qualquer outro endereço é recusado.
 #[tauri::command]
@@ -1464,6 +1470,7 @@ pub fn run() {
             updater_dismiss,
             updater_restart,
             about_info,
+            whats_new,
             open_external,
             config_changed_on_disk,
             login_start,

@@ -233,6 +233,8 @@ export async function pickExportFile(format) {
 }
 /** "Sobre": identidade do projeto e lista de bibliotecas de código aberto (vem do core). */
 export const aboutInfo = () => call("about_info");
+/** PRD 0019 RF7.7: o histórico do changelog já analisado pelo core (sem rede). */
+export const whatsNew = () => call("whats_new");
 /** Abre no navegador um repositório da lista do "Sobre" (o shell recusa qualquer outro endereço). */
 export const openExternal = (url) => (isDesktop ? call("open_external", { url }) : Promise.resolve(window.open(url, "_blank", "noopener,noreferrer")));
 /** PRD 0020 RF1.3: every entry point opens (or focuses) the one Settings window, optionally on a page of its
@@ -1508,6 +1510,18 @@ const demo = {
   account_history: demoHistory,
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
+  // Demonstração: amostra do histórico (no app, o core entrega o changelog embutido).
+  whats_new: async () => ({
+    current: "demo",
+    title: { id: "changelog.title", params: {}, fallback: "Novidades" },
+    entries_language: { id: "changelog.entries_language", params: {}, fallback: "As entradas são mantidas em inglês, o idioma do changelog." },
+    releases: [
+      { version: "demo", date: "2026-10-25", current: true, paragraphs: [], categories: [
+        { label: { id: "changelog.category.added", params: {}, fallback: "Adicionado" }, entries: ["Sample entry for the What's new screen in the browser demo."] },
+      ] },
+    ],
+    history: null,
+  }),
   // Demonstração: amostra da lista real (no app, a lista completa vem do core).
   about_info: async () => ({
     name: "Cuotai", version: "demo", license: "MIT", repository: "https://github.com/jmarcon/cuotai",

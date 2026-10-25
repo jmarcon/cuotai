@@ -379,6 +379,8 @@
   "models.demo": "Demostración en el navegador: el catálogo de modelos solo se consulta en la app de escritorio.",
   "about.license": "Licencia {license}",
   "about.libraries": "Bibliotecas de código abierto",
+  "about.whatsNew": "Novedades",
+  "about.whatsNew.current": "esta versión",
   "about.loading": "Cargando…",
   "about.libraries.help": "Cuotai se construye sobre proyectos de código abierto mantenidos por sus comunidades. Gracias a quienes los desarrollan. Los logotipos son marcas de sus respectivos titulares.",
   "about.open": "Abrir el repositorio en el navegador",

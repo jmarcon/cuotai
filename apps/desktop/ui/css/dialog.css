@@ -465,6 +465,49 @@ dialog.libs {
   text-decoration: underline;
 }
 
+/* PRD 0019 RF7.7: Sobre › Novidades (the changelog, newest first). */
+dialog.whats-new {
+  width: min(640px, calc(100vw - 32px));
+}
+.wn-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: clamp(160px, calc(100dvh - 250px), 560px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.wn-sec h3 {
+  font-size: 13px;
+  color: var(--fg);
+  font-weight: 650;
+}
+.wn-sec h3 small {
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+.wn-history h3 {
+  color: var(--fg-muted);
+}
+.wn-cat {
+  margin-top: 8px;
+}
+.wn-cat h4 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wn-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.wn-entry {
+  margin: 2px 0;
+}
+
 /* PRD 0008 RF3.1: the usage alert thresholds as editable chips. */
 .thresholds {
   display: flex;

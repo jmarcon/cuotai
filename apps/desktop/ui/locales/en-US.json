@@ -379,6 +379,8 @@
   "models.demo": "Browser demo: the model catalog is only queried in the desktop app.",
   "about.license": "{license} license",
   "about.libraries": "Open-source libraries",
+  "about.whatsNew": "What's new",
+  "about.whatsNew.current": "this version",
   "about.loading": "Loading…",
   "about.libraries.help": "Cuotai is built on open source projects maintained by their communities. Thanks to everyone who builds them. Logos are trademarks of their respective owners.",
   "about.open": "Open repository in the browser",
