@@ -125,6 +125,16 @@ export const retryPurge = (handle) => call("retry_purge", { handle });
 export const setRefreshSeconds = (seconds) => call("set_refresh_seconds", { seconds });
 export const moveAccount = (from, to) => call("move_account", { from, to });
 export const getSettings = () => call("get_settings");
+// PRD 0025: the menu bar (style, colored variant, selection, popover view), the Advanced group's state and the first
+// run. Figures and texts of the preview come from the core's `tray::summary`.
+export const trayPreview = (style, accounts) => call("tray_preview", { style, accounts });
+export const trayAccounts = () => call("tray_accounts");
+/** Tauri maps command arguments from camelCase; `popover_view` (as `get_settings` names it) is accepted too. */
+export const setTrayPrefs = ({ style, colored, accounts = null, popover_view = null, popoverView = popover_view }) =>
+  call("set_tray_prefs", { style, colored, accounts, popoverView });
+export const setAdvancedOpen = (open) => call("set_advanced_open", { open });
+export const firstRunTurnOn = () => call("first_run_turn_on");
+export const firstRunRecord = (again = false) => call("first_run_record", { again });
 export const setUserDir = (path) => call("set_user_dir", { path });
 // Animações (PRD 0004 RF1.2): `desktop.json` é a fonte; o localStorage só espelha para a leitura síncrona do <head>.
 export const MOTIONS = ["system", "always", "reduced", "off"];
@@ -986,8 +996,31 @@ const demoView = () => {
     notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
     status: { enabled: demoSettings.statusQueries, domains: [...new Set(demoReports.map((r) => DEMO_STATUS_HOSTS[r.provider]).filter(Boolean))],
       outage: reports.some((r) => ["partial_outage", "major_outage"].includes(r.incident?.state)) },
-    serve: demoServeView(), hooks: { state: demoHooks.enabled ? demoHooksView().state : "off" } };
+    serve: demoServeView(), hooks: { state: demoHooks.enabled ? demoHooksView().state : "off" },
+    tray: { style: demoSettings.tray.style, selected: demoTraySelection().map((a) => a.key), popover_view: demoSettings.tray.popover_view ?? "grid" } };
 };
+// ponytail: a rough demo of the core's `tray::summary` (PRD 0025 RF1); the app always asks the core.
+const demoTrayAccounts = () => demoReports.map((r) => {
+  const b = demoBinding(r);
+  return { key: demoKey(r), provider: r.provider, provider_label: r.provider, name: r.account,
+    remaining: b ? Math.max(0, 1 - b.used_ratio) : null, exhausted: b?.reason === "exhausted" };
+});
+function demoTraySelection(style = demoSettings.tray.style, accounts = demoSettings.tray.accounts) {
+  const all = demoTrayAccounts();
+  if (accounts) return accounts.map((k) => all.find((a) => a.key === k)).filter(Boolean);
+  return all.slice(0, style === "meters" ? 4 : style === "logos_percent" ? 6 : all.length);
+}
+function demoTrayPreview({ style, accounts }) {
+  const picked = demoTraySelection(style, accounts);
+  const pct = (a) => (a.remaining == null ? "—" : `${Math.round(a.remaining * 100)}%`);
+  const items = picked.map((a) => ({ ...a, level: a.remaining == null ? null : level(a.remaining * 100), figure: pct(a) }));
+  const tight = [...items].filter((a) => a.remaining != null).sort((a, b) => a.remaining - b.remaining)[0];
+  const title = style === "tightest_percent" ? (tight ? `${tight.figure} · ${tight.name}`.slice(0, 24) : items.length ? "—" : null)
+    : style === "logos_percent" ? items.slice(0, 3).map((a) => `${a.provider_label[0].toUpperCase()} ${a.figure}`).join(" · ") : null;
+  const label = items.map((a) => `${a.name} ${a.figure}`).join("; ");
+  return { style, items: style === "meters" ? items.slice(0, 4) : items, hidden: 0, title, badge: "none",
+    accessible_label: { id: "demo", params: {}, fallback: label }, tooltip: { id: "demo", params: {}, fallback: `Cuotai — ${label}` } };
+}
 // ponytail: demo mirror of the backend's local server state (PRD 0012 RF5); nothing listens in the browser.
 // `?serve=taken` plays port 6738 held by a `cuotai --serve` instance (the core's probe says so in the app).
 const DEMO_SERVE_TAKEN = new URLSearchParams(location.search).get("serve") === "taken";
@@ -1126,7 +1159,10 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
   warning: state === "vault"
     ? dl("user_session.warning", "Esta é uma sessão de login completa. O Cuotai a guarda no cofre do sistema e a usa só para consultar este serviço.")
     : dl("user_session.warning_env", "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.") };
-const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
+const demoSettings = { tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false,
+  // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
+  onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
+  custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null, detect: { enabled: null, dismissed: [] },
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
@@ -1511,7 +1547,8 @@ const demo = {
     theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), group_recharging: get(GROUP_KEY, "off") === "on", locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
-    alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), version: "demo" }),
+    alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
+    tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -1522,6 +1559,15 @@ const demo = {
     await emitSettingsChanged(key);
   },
   migrate_local_storage: async () => demo.get_settings(),
+  tray_preview: async (args) => demoTrayPreview(args),
+  tray_accounts: async () => demoTrayAccounts(),
+  set_tray_prefs: async ({ style, colored, accounts, popoverView: popover_view }) => {
+    if (!["meters", "logos_percent", "tightest_percent", "icon_only"].includes(style)) throw "invalid_tray_style";
+    demoSettings.tray = { style, colored, accounts: accounts ?? null, popover_view: popover_view ?? null };
+  },
+  set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
+  first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.onboarding = 1; return "granted"; },
+  first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
   // erased account (or everything) leaves the synthetic history of `account_history`.

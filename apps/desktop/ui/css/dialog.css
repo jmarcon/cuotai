@@ -783,3 +783,30 @@ dialog.dlg.dlg-catalog {
   flex-direction: column;
   gap: 14px;
 }
+/* PRD 0025 RF6: the first-run step (DS-CMP-DLG-1/2): what Turn on enables, then the update question on its own. */
+.first-run-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.first-run-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.first-run-list svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.first-run-update {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: var(--border-w) solid var(--border);
+}
+.first-run-update h3 {
+  margin: 0 0 4px;
+  font-size: var(--text-base, 13px);
+}

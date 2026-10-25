@@ -53,7 +53,7 @@ const ids = PAGES.map((p) => p.id);
 // RF2.5 / DS-CMP-SEG-5: order, Advanced group and About at the bottom. Menu bar and Extensions join later.
 const SEG5 = ["general", "dashboard", "menubar", "alerts", "data", "integrations", "cost", "extensions", "files", "about"];
 assert.deepEqual(ids, SEG5.filter((id) => ids.includes(id)), "pages are out of the DS-CMP-SEG-5 order");
-assert.deepEqual(ids.slice(0, 4), ["general", "dashboard", "alerts", "data"], "everyday pages drifted");
+assert.deepEqual(ids.slice(0, 5), ["general", "dashboard", "menubar", "alerts", "data"], "everyday pages drifted");
 assert.deepEqual(PAGES.filter((p) => p.group === ADVANCED).map((p) => p.id), ["integrations", "cost", "files"], "Advanced group drifted");
 assert.deepEqual(PAGES.filter((p) => p.bottom).map((p) => p.id), ["about"], "About must be the one page at the bottom");
 assert.equal(new Set(ids).size, ids.length, "duplicate page id");
@@ -89,11 +89,12 @@ const marked = (html) => html.match(/aria-current="page"/g)?.length ?? 0;
 const listed = (html) => [...html.matchAll(/data-page="([a-z-]+)"/g)].map((m) => m[1]);
 let nav = registry.sidebarHtml("general", false);
 assert.equal(marked(nav), 1);
-assert.deepEqual(listed(nav), ["general", "dashboard", "alerts", "data", "about"]);
+// PRD 0025 RF5 acceptance: with Advanced collapsed, five everyday pages plus About.
+assert.deepEqual(listed(nav), ["general", "dashboard", "menubar", "alerts", "data", "about"]);
 assert.match(nav, /data-advanced-toggle aria-expanded="false"/);
 assert.match(nav, /<nav class="set-nav" aria-label="/);
 nav = registry.sidebarHtml("cost", false);
-assert.deepEqual(listed(nav), ["general", "dashboard", "alerts", "data", "cost", "about"], "the current Advanced page must stay listed");
+assert.deepEqual(listed(nav), ["general", "dashboard", "menubar", "alerts", "data", "cost", "about"], "the current Advanced page must stay listed");
 nav = registry.sidebarHtml("files", true);
 assert.deepEqual(listed(nav), ids);
 assert.match(nav, /data-page="files"\s+aria-current="page"/);

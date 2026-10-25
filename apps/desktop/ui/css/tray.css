@@ -318,3 +318,10 @@ body {
 .tile.incident.muted { box-shadow: inset 0 -3px 0 var(--fg-muted); }
 .tile.usage-alert.incident.bad { box-shadow: inset 3px 0 0 var(--warn), inset 0 -3px 0 var(--bad); }
 .tile.usage-alert.incident.warn { box-shadow: inset 3px 0 0 var(--warn), inset 0 -3px 0 var(--warn); }
+
+/* PRD 0025 RF2.3 (DS-CMP-LIST-3): the accounts left out of the menu bar, under an inset muted label. */
+.pop-sub {
+  margin: 8px 4px 4px;
+  color: var(--fg-muted);
+  font-size: var(--text-sm, 12px);
+}

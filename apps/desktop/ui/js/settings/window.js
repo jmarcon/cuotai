@@ -3,7 +3,7 @@
 // anchor the shell asked for, and tells the other windows what changed. It has no page of its own (RF2.4).
 import { boot } from "../boot.js";
 import { t, te } from "../i18n.js";
-import { bindThemeSwitch, emitSettingsChanged, getSettings, getView, icon, initOrderSync, initTheme, isDesktop, updaterStatus } from "../lib.js";
+import { bindThemeSwitch, emitSettingsChanged, getSettings, getView, icon, initOrderSync, initTheme, isDesktop, setAdvancedOpen, updaterStatus } from "../lib.js";
 import { initUpdates, updateState } from "../updater.js";
 import { canLeave, initRows, resetPage } from "./rows.js";
 import { ADVANCED, nextEntry, pageById, pageOfAnchor, resolvePage, sidebarHtml } from "./registry.js";
@@ -21,7 +21,10 @@ const put = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 
 const root = document.getElementById("root");
 let current = resolvePage(get(PAGE_KEY)).id;
-let advancedOpen = get(ADVANCED_KEY) === "open";
+// PRD 0025 RF5.3: desktop.json holds the Advanced group's state; a value remembered by an older version moves there.
+let advancedOpen = await getSettings().then((s) => !!s.advanced_open, () => false);
+if (!advancedOpen && get(ADVANCED_KEY) === "open") { advancedOpen = true; setAdvancedOpen(true).catch(() => {}); }
+const rememberAdvanced = () => { put(ADVANCED_KEY, advancedOpen ? "open" : "closed"); setAdvancedOpen(advancedOpen).catch(() => {}); };
 let view = null;
 let leaving = [];
 let paintToken = 0;
@@ -112,7 +115,7 @@ async function go(id, { anchor = null, focusTitle = true, find = null } = {}) {
   current = page.id;
   put(PAGE_KEY, current);
   // A link or a restored page inside Advanced opens the group, so the sidebar shows where the user is.
-  if (page.group === ADVANCED && !advancedOpen) { advancedOpen = true; put(ADVANCED_KEY, "open"); }
+  if (page.group === ADVANCED && !advancedOpen) { advancedOpen = true; rememberAdvanced(); }
   paintNav();
   return paintPage({ anchor, focusTitle, find });
 }
@@ -128,7 +131,7 @@ root.addEventListener("click", (e) => {
   if (entry) return go(entry.dataset.page);
   if (e.target.closest("[data-advanced-toggle]")) {
     advancedOpen = !advancedOpen;
-    put(ADVANCED_KEY, advancedOpen ? "open" : "closed");
+    rememberAdvanced();
     paintNav();
   }
 });

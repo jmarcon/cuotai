@@ -7,7 +7,7 @@ import {
   accountLabel, bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
   bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, paceLabelOf, nextNoticeText,
-  incidentBadge, incidentHtml, bindStatusLinks, wordmark, overageChipHtml, billingOverage,
+  incidentBadge, incidentHtml, bindStatusLinks, wordmark, overageChipHtml, billingOverage, getSettings, setTrayPrefs,
 } from "./lib.js";
 import { initUpdates, onUpdateState } from "./updater.js";
 import { trayUpdateLine } from "./tray-menu.js";
@@ -41,10 +41,44 @@ function row(r) {
     </div>${icon("chev", "chev")}</button>`;
 }
 
-// Vista do popover: donuts (mais contas na mesma tela) ou lista. Preferência salva.
+// Vista do popover: donuts (mais contas na mesma tela) ou lista. PRD 0025 RF4.3: saved in desktop.json
+// (`tray.popover_view`), so Settings and the popover agree; the value an older version kept in localStorage moves
+// there once.
 const VIEW_KEY = "cuotai.trayView";
-let trayView = (() => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "donut"; } catch { return "donut"; } })();
-addEventListener("storage", (e) => { if (e.key === VIEW_KEY) { trayView = e.newValue === "list" ? "list" : "donut"; render(); } });
+const legacyView = (() => { try { return localStorage.getItem(VIEW_KEY); } catch { return null; } })();
+let trayView = legacyView === "list" ? "list" : "donut";
+/** The menu-bar selection the shell sent with the state (`view.tray`), or after a change in Settings. */
+let traySel = null;
+async function saveTrayView(view) {
+  try {
+    const s = await getSettings();
+    await setTrayPrefs({ style: s.tray?.style ?? "tightest_percent", colored: !!s.tray?.colored, accounts: s.tray?.accounts ?? null,
+      popoverView: view === "list" ? "list" : "grid" });
+    try { localStorage.removeItem(VIEW_KEY); } catch {}
+  } catch {}
+}
+getSettings().then((s) => {
+  const stored = s.tray?.popover_view;
+  if (stored) trayView = stored === "list" ? "list" : "donut";
+  else if (legacyView) saveTrayView(trayView);
+  render();
+}, () => {});
+const followTray = (tray) => {
+  if (!tray) return;
+  traySel = tray;
+  trayView = tray.popover_view === "list" ? "list" : "donut";
+};
+if (isDesktop) window.__TAURI__.event.listen("tray-prefs-changed", (e) => { followTray(e.payload); render(); });
+
+/** PRD 0025 RF2.3: the menu-bar accounts first, in the menu bar's order; the others under "Not in menu bar". */
+function splitByMenuBar(reports, view) {
+  const sel = traySel ?? view?.tray;
+  const keys = sel?.selected ?? [];
+  const inBar = keys.map((k) => reports.find((r) => r.account_id === k)).filter(Boolean);
+  if (!inBar.length || inBar.length === reports.length) return { inBar: reports, rest: [] };
+  return { inBar, rest: reports.filter((r) => !inBar.includes(r)) };
+}
+const notInHtml = () => `<p class="pop-sub" role="presentation">${te("settings.menubar.not_in")}</p>`;
 
 const R = 26, CIRC = 2 * Math.PI * R;
 /** Anel de porcentagem disponível; sem medida, o anel fica vazio. `center` é o conteúdo (número ou ícone). */
@@ -151,8 +185,10 @@ function render() {
     models.update(cur.index, view.generation);
   }
   const focus = models?.focused();
+  const { inBar, rest } = splitByMenuBar(reports, view);
+  const listOf = (list) => (trayView === "donut" ? `<div class="tiles">${list.map(tile).join("")}</div>` : list.map(row).join(""));
   const body = cur ? `${detailHtml(cur)}<div data-models-slot></div>`
-    : trayView === "donut" ? `<div class="tiles">${reports.map(tile).join("")}</div>` : reports.map(row).join("");
+    : listOf(inBar) + (rest.length ? notInHtml() + listOf(rest) : "");
   syncTrayMenu(view);
   const prev = rings();
   root.innerHTML = `<div class="pop">
@@ -184,7 +220,7 @@ root.addEventListener("click", (e) => {
   const open = t.closest("[data-open]");
   if (open) { selected = open.dataset.open; return render(); }
   if (t.closest("[data-back]")) { selected = null; return render(); }
-  if (t.closest("[data-view]")) { trayView = trayView === "donut" ? "list" : "donut"; try { localStorage.setItem(VIEW_KEY, trayView); } catch {} return render(); }
+  if (t.closest("[data-view]")) { trayView = trayView === "donut" ? "list" : "donut"; saveTrayView(trayView); return render(); }
   if (t.closest("[data-refresh-all]")) return store.refresh();
   if (t.closest("[data-open-main]")) return openMainWindow();
   if (t.closest("[data-open-settings]")) return openSettingsWindow();

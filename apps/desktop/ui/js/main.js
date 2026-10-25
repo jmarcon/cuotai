@@ -6,7 +6,8 @@ import { openExtensionsDialog } from "./extensions-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
 import { costCardHtml, costSoloCardHtml, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
-import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml } from "./updater.js";
+import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml, updateState } from "./updater.js";
+import { maybeShowFirstRun } from "./first-run.js";
 import {
   fmtNext, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
@@ -225,6 +226,8 @@ async function retryDelete() {
 
 const onSaved = (result) => {
   if (result?.cleanup_warning) setNotice("bad", tl(result.cleanup_warning));
+  // PRD 0025 RF6.1: after the first account is saved (once its dialog has closed), the first-run step.
+  setTimeout(() => getView().then((v) => maybeShowFirstRun(v, updateState())).catch(() => {}), 400);
 };
 const openExtensionManager = () => openExtensionsDialog({
   onChanged: () => isDesktop || store.reload(),
@@ -475,7 +478,9 @@ onSettingsChanged((key) => {
 bindUpdateBanner(root, { rerender: () => render(), onError: (e) => setNotice("bad", errText(e)) });
 await initUpdates();
 onUpdateState(() => render());
-await promptForUpdateConsent();
+// PRD 0025 RF6/RF6.5: the first-run step asks the update question itself; otherwise the separate dialog does.
+const firstRunOrConsent = async () => { if (!(await maybeShowFirstRun(await getView().catch(() => null), updateState()))) await promptForUpdateConsent(); };
+await firstRunOrConsent();
 loadLocalCost();
 setInterval(loadLocalCost, 30_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLocalCost(); });

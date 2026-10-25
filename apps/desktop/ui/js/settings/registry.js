@@ -1,10 +1,10 @@
 // PRD 0020 RF2.4/RF2.5: the one registry of the Settings window's pages (DS-CMP-SEG-5). Adding a page is one entry
 // here plus its module under `js/settings/`; the window shell has no page of its own.
 //
-// Order: General, Dashboard, (Menu bar), Alerts, Data & privacy, the collapsible Advanced group (Integrations, Local
-// cost, (Extensions), Files), then About separated at the bottom. The Menu bar page (PRD 0025 RF4) and the
-// Extensions page (PRDs 0017 and 0028 RF7) get their entries when their content moves here; until then the
-// extension manager stays in the main window.
+// Order: General, Dashboard, Menu bar (PRD 0025 RF4), Alerts, Data & privacy, the collapsible Advanced group
+// (Integrations, Local cost, (Extensions), Files), then About separated at the bottom. The Extensions page (PRDs 0017
+// and 0028 RF7) gets its entry when its content moves here; until then the extension manager stays in the main
+// window.
 import { te } from "../i18n.js";
 import { esc, icon } from "../lib.js";
 
@@ -15,6 +15,7 @@ export const ADVANCED = "advanced";
 export const PAGES = [
   { id: "general", icon: "settings", label: "settings.page.general", load: () => import("./general.js"), sections: ["appearance", "language"] },
   { id: "dashboard", icon: "grid", label: "settings.page.dashboard", load: () => import("./dashboard.js"), sections: ["order", "display", "refresh"] },
+  { id: "menubar", icon: "window", label: "settings.page.menubar", load: () => import("./menubar.js"), sections: ["menubar-style", "menubar-accounts"] },
   { id: "alerts", icon: "bell", label: "settings.page.alerts", load: () => import("./alerts.js"), sections: ["notify"] },
   { id: "data", icon: "shield", label: "settings.page.data", load: () => import("./data.js"), sections: ["history", "privacy"] },
   { id: "integrations", group: ADVANCED, icon: "plug", label: "settings.page.integrations", load: () => import("./integrations.js"), sections: ["serve", "hooks", "widgets"] },

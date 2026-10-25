@@ -1,8 +1,8 @@
 // Settings › General (PRD 0020 RF2.5): appearance (theme, light/dark mode, animations) and language, as rows (RF3).
-import { te } from "../i18n.js";
-import { langMenuHtml, MOTIONS, setMotion, themeSwitchHtml } from "../lib.js";
+import { t, te } from "../i18n.js";
+import { firstRunRecord, langMenuHtml, MOTIONS, setMotion, themeSwitchHtml } from "../lib.js";
 import { errorText, group } from "./common.js";
-import { row, rowError, seg, toast } from "./rows.js";
+import { buttons, row, rowError, seg, toast } from "./rows.js";
 
 export function html({ settings: s }) {
   // The shared switch draws the mode choice and the theme list; each goes in its own row.
@@ -12,13 +12,20 @@ export function html({ settings: s }) {
     + row({ key: "mode", label: te("theme.mode.label"), control: () => themeSwitchHtml() })
     + row({ key: "motion", label: te("settings.motion.label"), info: te("settings.motion.help"), msg: "motion-msg",
       control: (a) => seg("motion", MOTIONS.map((m) => [m, te(`settings.motion.${m}`)]), s.motion, a) }))
-    + group("language", te("lang.label"), row({ key: "lang", label: "", find: te("lang.label"), body: langMenuHtml({ inline: true }) }));
+    + group("language", te("lang.label"), row({ key: "lang", label: "", find: te("lang.label"), body: langMenuHtml({ inline: true }) }))
+    // PRD 0025 RF6.4: the first-run step shows again on the next launch of the main window.
+    + group("setup", "", row({ key: "setup-again", label: te("settings.setup.again"), info: te("settings.setup.again.help"),
+      control: () => buttons(`<button type="button" class="btn sm" data-setup-again>${te("settings.setup.again.button")}</button>`) }));
 }
 
 /** Theme, mode and language go through the shell's shared switch (`bindThemeSwitch`, with cross-fade); they are
  *  saved in desktop.json by the shell, which tells the other windows (RF7). Animations save on change
  *  (RF4.1); a refused value goes back to the saved one with the reason in its row (RF4.3). */
 export function bind(root, ctx) {
+  const again = root.querySelector("[data-setup-again]");
+  again.onclick = () => firstRunRecord(true).then(
+    () => { rowError(again, ""); toast(t("settings.setup.again.done")); ctx.changed("onboarding"); },
+    (x) => rowError(again, errorText(x)));
   const motion = root.querySelector("#motion");
   let saved = ctx.settings.motion;
   motion.addEventListener("change", () => setMotion(motion.value).then(
