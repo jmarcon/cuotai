@@ -109,7 +109,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             metrics.push(Metric {
                 billing: Default::default(),
                 scope: None,
-                label: format!("Copilot: {name}"),
+                label: format!("Copilot: {}", copilot_quota_name(&name)),
                 used,
                 limit,
                 remaining,
@@ -136,7 +136,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             metrics.push(Metric {
                 billing: Default::default(),
                 scope: None,
-                label: format!("Copilot: {name}"),
+                label: format!("Copilot: {}", copilot_quota_name(name)),
                 used,
                 limit,
                 remaining,
@@ -270,8 +270,37 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
     Ok(Data::new(metrics, notes, format!("{REF}google.js")))
 }
 
+/// The display name of a Copilot quota key: GitHub's product names for the
+/// known keys (`premium_interactions` is "Premium requests" in GitHub's own
+/// UI), the key with spaces and a capital otherwise. Never the raw key.
+fn copilot_quota_name(key: &str) -> String {
+    match key {
+        "premium_interactions" => "Premium requests".into(),
+        "chat" => "Chat".into(),
+        "completions" => "Completions".into(),
+        other => {
+            let spaced = other.replace('_', " ");
+            let mut chars = spaced.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().chain(chars).collect(),
+                None => spaced,
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn copilot_quota_keys_get_display_names() {
+        assert_eq!(
+            super::copilot_quota_name("premium_interactions"),
+            "Premium requests"
+        );
+        assert_eq!(super::copilot_quota_name("chat"), "Chat");
+        assert_eq!(super::copilot_quota_name("code_review"), "Code review");
+    }
+
     use super::*;
     use crate::Credentials;
     use std::time::Duration;
