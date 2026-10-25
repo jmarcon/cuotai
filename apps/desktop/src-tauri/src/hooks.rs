@@ -73,15 +73,19 @@ pub struct Integration {
     dropped: usize,
     /// A run's line could not be written to the log.
     log_failed: Arc<AtomicBool>,
+    /// PRD 0032 RF5.1: the quiet hours a rule with `quiet = "skip"` honours.
+    quiet: cuotai_core::notify_prefs::Source,
 }
 
 impl Default for Integration {
     fn default() -> Self {
-        Self::new(
+        let mut integration = Self::new(
             false,
             Consent::in_data_dir().ok(),
             RunLog::in_data_dir().map(|log| log.path().to_path_buf()),
-        )
+        );
+        integration.quiet = cuotai_core::notify_prefs::Source::open();
+        integration
     }
 }
 
@@ -151,6 +155,7 @@ impl Integration {
             path: None,
             dropped: 0,
             log_failed: Arc::new(AtomicBool::new(false)),
+            quiet: cuotai_core::notify_prefs::Source::new(None),
         }
     }
 
@@ -256,7 +261,8 @@ impl Integration {
             return false;
         };
         for event in &active.watcher.observe_with(export, now, pace) {
-            self.dropped += active.runner.submit(event);
+            let in_quiet = self.quiet.quiet_at(event.occurred_at);
+            self.dropped += active.runner.submit_in(event, in_quiet);
         }
         false
     }

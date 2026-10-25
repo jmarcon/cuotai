@@ -412,6 +412,14 @@ impl Source {
         &self.loaded
     }
 
+    /// PRD 0032 RF5.1: whether `at` falls inside a quiet window of the
+    /// schedule in the file (re-read when it changed), in the system's
+    /// time zone.
+    pub fn quiet_at(&mut self, at: chrono::DateTime<chrono::Utc>) -> bool {
+        self.refresh();
+        crate::quiet::window_at(&self.loaded.quiet, at, &chrono::Local).is_some()
+    }
+
     /// Re-read when the file changed (or appeared or vanished); `true` when
     /// the preferences differ now.
     pub fn refresh(&mut self) -> bool {

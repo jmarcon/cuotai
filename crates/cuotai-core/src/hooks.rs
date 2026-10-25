@@ -81,6 +81,40 @@ const NAME_MAX_CHARS: usize = 64;
 /// The run log is moved to `<name>.1` (replacing it) past this size.
 const LOG_ROTATE_BYTES: u64 = 256 * 1024;
 
+/// PRD 0032 RF5.1: what a rule does with an event that occurs inside a
+/// quiet window (the schedule of `desktop.json`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuietMode {
+    /// Run as always (the default, today's behaviour).
+    #[default]
+    Run,
+    /// Do not run for events inside a quiet window; there is no digest for
+    /// hooks. The `--watch` stream itself is never held.
+    Skip,
+}
+
+impl QuietMode {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Run => "run",
+            Self::Skip => "skip",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "run" => Some(Self::Run),
+            "skip" => Some(Self::Skip),
+            _ => None,
+        }
+    }
+
+    fn is_run(&self) -> bool {
+        *self == Self::Run
+    }
+}
+
 /// One rule of `hooks.toml`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Rule {
@@ -102,6 +136,10 @@ pub struct Rule {
     /// arguments, passed as they are, without a shell.
     pub command: Vec<String>,
     pub timeout_seconds: u64,
+    /// Left out of the confirmation digest while it is `run`, so rules
+    /// written before PRD 0032 keep the confirmation they have.
+    #[serde(skip_serializing_if = "QuietMode::is_run")]
+    pub quiet: QuietMode,
 }
 
 /// PRD 0036 RF7.3: `event` belongs to a connection of the aggregator
@@ -332,6 +370,9 @@ pub struct RuleDraft {
     pub command: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<i64>,
+    /// `"run"` (the default) or `"skip"` (PRD 0032 RF5.1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quiet: Option<String>,
 }
 
 /// The validated rules of one `hooks.toml`.
@@ -451,6 +492,9 @@ impl Hooks {
             if let Some(min) = rule.min_threshold {
                 filters.push(format!("min_threshold = {min}"));
             }
+            if rule.quiet == QuietMode::Skip {
+                filters.push(format!("quiet = {}", quoted(rule.quiet.name())));
+            }
             if !filters.is_empty() {
                 let filters = filters.join(", ");
                 lines.push(Localized::with_param(
@@ -496,8 +540,8 @@ fn parse(text: &str) -> Result<Vec<RuleDraft>, Localized> {
                 line,
                 format!(
                     "hooks.toml inválido na linha {line}: cada [[hooks]] aceita name, events, \
-                     provider, account, min_threshold, command (lista de argumentos) e \
-                     timeout_seconds."
+                     provider, account, min_threshold, command (lista de argumentos), \
+                     timeout_seconds e quiet."
                 ),
             )
         })
@@ -847,6 +891,16 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
                 )
             })?,
     };
+    let quiet = match raw.quiet.as_deref() {
+        None => QuietMode::Run,
+        Some(mode) => QuietMode::from_name(mode).ok_or_else(|| {
+            rule_error(
+                "hooks.error.quiet",
+                &name,
+                format!("O quiet da regra \"{name}\" deve ser \"run\" ou \"skip\"."),
+            )
+        })?,
+    };
     Ok(Rule {
         name,
         events,
@@ -856,6 +910,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
         min_threshold,
         command: raw.command,
         timeout_seconds,
+        quiet,
     })
 }
 
@@ -1300,11 +1355,19 @@ impl Runner {
     /// any. Returns how many queued runs were dropped (the oldest first)
     /// to keep the queue within [`QUEUE_CAPACITY`].
     pub fn submit(&self, event: &Event) -> usize {
+        self.submit_in(event, false)
+    }
+
+    /// [`Self::submit`] for an event that occurred `in_quiet` (inside a
+    /// quiet window, PRD 0032 RF5.1): the rules with `quiet = "skip"` do
+    /// not run for it.
+    pub fn submit_in(&self, event: &Event, in_quiet: bool) -> usize {
         let matching: Vec<usize> = self
             .rules
             .iter()
             .enumerate()
             .filter(|(_, rule)| rule.matches(event))
+            .filter(|(_, rule)| !(in_quiet && rule.quiet == QuietMode::Skip))
             .map(|(index, _)| index)
             .collect();
         self.enqueue(matching, event)

@@ -383,7 +383,7 @@
   "hooks.error.not_confirmed": "The hooks in {path} were not confirmed yet, or changed since they were confirmed; review and confirm their commands in a terminal with cuotai --watch --hooks or in the desktop app's Settings → Integration.",
   "hooks.error.provider": "Rule \"{name}\" filters by the unknown provider \"{provider}\" (use the identifier, as in cuotai --list-providers).",
   "hooks.error.timeout": "The timeout_seconds of rule \"{name}\" must be between 1 and {max}.",
-  "hooks.error.toml": "Invalid hooks.toml at line {line}: each [[hooks]] accepts name, events, provider, account, min_threshold, command (a list of arguments) and timeout_seconds.",
+  "hooks.error.toml": "Invalid hooks.toml at line {line}: each [[hooks]] accepts name, events, provider, account, min_threshold, command (a list of arguments), timeout_seconds and quiet.",
   "hooks.error.unknown_event": "Rule \"{name}\" names the unknown event \"{event}\". Valid events: {known}.",
   "hooks.error.unreadable": "Could not read {path} (a UTF-8 text file).",
   "hooks.error.unwritable": "Could not write {path}.",
@@ -1457,5 +1457,6 @@
   "quiet.digest.title": "Cuotai: {count} usage alerts held during quiet hours",
   "quiet.digest.join": "{first}\n{rest}",
   "quiet.digest.more": "and {count} more",
-  "quiet.digest.line": "{title}: {body}"
+  "quiet.digest.line": "{title}: {body}",
+  "hooks.error.quiet": "The quiet of rule \"{name}\" must be \"run\" or \"skip\"."
 }

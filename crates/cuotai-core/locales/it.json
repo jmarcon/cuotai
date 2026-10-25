@@ -383,7 +383,7 @@
   "hooks.error.not_confirmed": "Gli hook in {path} non sono ancora stati confermati, oppure sono cambiati dopo la conferma; rivedi e conferma i loro comandi in un terminale con cuotai --watch --hooks o in Impostazioni → Integrazione nell'app desktop.",
   "hooks.error.provider": "La regola \"{name}\" filtra per il provider sconosciuto \"{provider}\" (usa l'identificatore, come in cuotai --list-providers).",
   "hooks.error.timeout": "Il timeout_seconds della regola \"{name}\" deve essere compreso tra 1 e {max}.",
-  "hooks.error.toml": "hooks.toml non valido alla riga {line}: ogni [[hooks]] accetta name, events, provider, account, min_threshold, command (un elenco di argomenti) e timeout_seconds.",
+  "hooks.error.toml": "hooks.toml non valido alla riga {line}: ogni [[hooks]] accetta name, events, provider, account, min_threshold, command (un elenco di argomenti), timeout_seconds e quiet.",
   "hooks.error.unknown_event": "La regola \"{name}\" indica l'evento sconosciuto \"{event}\". Eventi validi: {known}.",
   "hooks.error.unreadable": "Impossibile leggere {path} (un file di testo UTF-8).",
   "hooks.error.unwritable": "Impossibile scrivere {path}.",
@@ -1457,5 +1457,6 @@
   "quiet.digest.title": "Cuotai: {count} avvisi di utilizzo trattenuti durante le ore di silenzio",
   "quiet.digest.join": "{first}\n{rest}",
   "quiet.digest.more": "e altri {count}",
-  "quiet.digest.line": "{title}: {body}"
+  "quiet.digest.line": "{title}: {body}",
+  "hooks.error.quiet": "Il quiet della regola \"{name}\" deve essere \"run\" o \"skip\"."
 }

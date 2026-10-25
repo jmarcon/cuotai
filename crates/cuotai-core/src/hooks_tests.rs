@@ -78,6 +78,7 @@ timeout_seconds = 60
                 min_threshold: Some(90),
                 command: vec!["afplay".into(), "Glass.aiff".into()],
                 timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
+                quiet: QuietMode::Run,
             },
             Rule {
                 name: "log".into(),
@@ -88,6 +89,7 @@ timeout_seconds = 60
                 min_threshold: None,
                 command: vec!["logger".into(), "-t".into(), "cuotai".into()],
                 timeout_seconds: 60,
+                quiet: QuietMode::Run,
             },
         ]
     );
@@ -114,6 +116,7 @@ fn invalid_files_are_rejected_with_their_reason() {
         (rule("timeout_seconds = 0"), "hooks.error.timeout"),
         (rule("min_threshold = 0"), "hooks.error.min_threshold"),
         (rule("min_threshold = 101"), "hooks.error.min_threshold"),
+        (rule("quiet = \"later\""), "hooks.error.quiet"),
         (rule("provider = \"nope\""), "hooks.error.provider"),
         (rule("account = \" \""), "hooks.error.account"),
         (format!("{}{}", rule(""), rule("")), "hooks.error.duplicate"),
@@ -272,6 +275,33 @@ command = ["notify", "it's \"done\"; rm -rf ~", "$(id)"]
     );
 }
 
+/// PRD 0032 RF5: `quiet = "skip"` is shown in the confirmation listing and
+/// changes the confirmation digest; the default `run` keeps the digest of
+/// rules written before it existed.
+#[test]
+fn quiet_is_confirmed_and_the_default_keeps_the_old_digest() {
+    let base = "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n";
+    let plain = hooks(base);
+    let explicit_run = hooks(&format!("{base}quiet = \"run\"\n"));
+    let skip = hooks(&format!("{base}quiet = \"skip\"\n"));
+    assert_eq!(plain.digest(), explicit_run.digest());
+    assert_ne!(plain.digest(), skip.digest(), "the consent digest changes");
+    assert_eq!(skip.rules()[0].quiet, QuietMode::Skip);
+    let listing: Vec<String> = skip
+        .listing()
+        .iter()
+        .map(|line| line.resolve("en-US"))
+        .collect();
+    assert!(
+        listing.contains(&"filters: quiet = \"skip\"".to_owned()),
+        "{listing:?}"
+    );
+    assert!(!plain
+        .listing()
+        .iter()
+        .any(|line| line.resolve("en-US").starts_with("filters:")));
+}
+
 #[test]
 fn every_message_reads_in_each_catalog() {
     let hooks = hooks(
@@ -311,6 +341,7 @@ fn every_message_reads_in_each_catalog() {
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\naccount = \"\"\ncommand = [\"true\"]\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\naccount_id = \"X\"\ncommand = [\"true\"]\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nmin_threshold = 0\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\nquiet = \"x\"\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = []\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\ntimeout_seconds = 0\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n",
@@ -1059,6 +1090,38 @@ rm '{running}/'$$
         assert_eq!(stdin, serde_json::to_value(&sample).unwrap());
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(!other.exists(), "only the named rule ran");
+    }
+
+    /// PRD 0032 RF5.1: a `skip` rule does not run for an event inside a
+    /// quiet window, a `run` rule always does, and both run outside one.
+    #[tokio::test]
+    async fn a_skip_rule_stays_silent_inside_quiet_hours() {
+        let rig = Rig::new();
+        let quiet_file = rig.path("quiet-ran");
+        let always_file = rig.path("always-ran");
+        let quiet_script = rig.script("q.sh", &format!("touch '{}'\n", quiet_file.display()));
+        let always_script = rig.script("a.sh", &format!("touch '{}'\n", always_file.display()));
+        let toml = format!(
+            "[[hooks]]\nname = \"quiet\"\nevents = [\"refresh_failed\"]\nquiet = \"skip\"\ncommand = {}\n\n[[hooks]]\nname = \"always\"\nevents = [\"refresh_failed\"]\ncommand = {}\n",
+            serde_json::to_string(&sh(&quiet_script, &[])).unwrap(),
+            serde_json::to_string(&sh(&always_script, &[])).unwrap(),
+        );
+        let hooks = Hooks::from_toml(rig.path("hooks.toml"), &toml).unwrap();
+        let confirmed = Consent::at(rig.path("consent.json"))
+            .confirm(hooks)
+            .unwrap();
+        let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
+        let event = runner.rules()[0].sample(Utc::now());
+        assert_eq!(runner.submit_in(&event, true), 0);
+        let run = next(&mut runs).await;
+        assert_eq!(run.rule, "always");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(always_file.exists() && !quiet_file.exists());
+        // Outside quiet hours both run.
+        runner.submit_in(&event, false);
+        next(&mut runs).await;
+        next(&mut runs).await;
+        assert!(quiet_file.exists());
     }
 }
 

@@ -52,6 +52,9 @@ pub(crate) struct Watch {
     watcher: Watcher,
     jsonl: bool,
     hooks: Option<Runner>,
+    /// PRD 0032 RF5.1: the desktop's quiet hours, which a hook rule with
+    /// `quiet = "skip"` honours (the stream itself is never held).
+    quiet: cuotai_core::notify_prefs::Source,
 }
 
 impl Watch {
@@ -68,6 +71,7 @@ impl Watch {
             ),
             jsonl: args.jsonl,
             hooks: args.hooks.map(start_hooks),
+            quiet: cuotai_core::notify_prefs::Source::open(),
         }
     }
 
@@ -98,7 +102,11 @@ impl Watch {
         }
         let locale = crate::ui::tui_locale();
         if let Some(runner) = &self.hooks {
-            let dropped: usize = events.iter().map(|event| runner.submit(event)).sum();
+            let quiet = &mut self.quiet;
+            let dropped: usize = events
+                .iter()
+                .map(|event| runner.submit_in(event, quiet.quiet_at(event.occurred_at)))
+                .sum();
             if dropped > 0 {
                 eprintln!("cuotai: {}", hooks::dropped(dropped).resolve(locale));
             }
