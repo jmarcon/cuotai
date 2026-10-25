@@ -6355,6 +6355,7 @@ mod tests {
                 id: "coding".into(),
                 label: Some("Coding".into()),
                 order: None,
+                members: Vec::new(),
             }],
             ..Config::default()
         };
