@@ -2,7 +2,7 @@
 //! with a fixed clock.
 
 use super::*;
-use crate::model::Provider;
+use crate::model::{MetricKind, Provider};
 use crate::pace::Point;
 use chrono::TimeZone;
 
@@ -23,6 +23,8 @@ const INTERVAL: Duration = Duration::from_secs(300);
 
 fn quota(used: f64, resets_at: DateTime<Utc>) -> Metric {
     Metric {
+        billing: Default::default(),
+        scope: None,
         label: "Session (5h)".into(),
         used: Some(used),
         limit: Some(100.0),
@@ -37,6 +39,7 @@ fn quota(used: f64, resets_at: DateTime<Utc>) -> Metric {
 
 fn report(checked_at: DateTime<Utc>, metrics: Vec<Metric>) -> Report {
     Report {
+        account_id: None,
         account: "Work".into(),
         provider: Provider::Claude,
         checked_at,
@@ -369,7 +372,7 @@ fn first_reading_rule() {
 
 fn pending(resets_at: DateTime<Utc>) -> AlertEvent {
     AlertEvent {
-        account_key: "claude:Work".into(),
+        account_key: crate::AccountId::derive("claude:Work", None).to_string(),
         label: "Session (5h)".into(),
         window: Some(MetricWindow::Window5h),
         kind: AlertKind::ProjectedExhaustion,

@@ -12,7 +12,7 @@
 //! one notification.
 
 use crate::metrics::{classify_metric, window_param, MetricState};
-use crate::model::{Account, Metric, MetricKind, MetricWindow, Report, Status};
+use crate::model::{Account, Metric, MetricWindow, Report, Status};
 use crate::pace::{self, Pace, PaceSource, PaceStage, Point};
 use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
 use crate::text::{params, provider_l10n, Localized};
@@ -471,7 +471,7 @@ fn projected(
     state: &AlertState,
     now: DateTime<Utc>,
 ) -> Option<Projection> {
-    let digest = key_digest(&next.account_key(), &metric.label);
+    let digest = key_digest(&next.state_key(), &metric.label);
     if state.has_projection(&digest, metric.resets_at) {
         return None;
     }
@@ -511,7 +511,7 @@ fn projected(
 /// (RF2.2.6: a margin that only shrank below [`PROJECTED_MIN_MARGIN`]
 /// keeps it). Any other kind, or another account's reading, never is.
 pub fn cancels(pending: &AlertEvent, next: &Report, pace: &PaceInput, now: DateTime<Utc>) -> bool {
-    if pending.kind != AlertKind::ProjectedExhaustion || next.account_key() != pending.account_key {
+    if pending.kind != AlertKind::ProjectedExhaustion || next.state_key() != pending.account_key {
         return false;
     }
     if next.status != Status::Ready {
