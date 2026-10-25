@@ -1049,6 +1049,8 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
       alert_each: false, dashboard: true } });
 }
 // PRD 0016 RF2.1 demo: the platform session slot the core declares for Xiaomi MiMo.
+// PRD 0027 RF6.4: the native-login detections of the core table (Kimi CLI, Grok CLI, Zed) for the demo picker.
+export const DEMO_NATIVE_DETECT = [["kimi", "kimi_cli", "Kimi Code CLI", "Kimi"], ["grok", "grok_cli", "Grok CLI", "Grok (xAI)"], ["zed", "zed", "Zed", "Zed"]];
 const DEMO_SESSION_SLOT = { slot: "platform_session_env",
   label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" },
   instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Entre em platform.xiaomimimo.com no navegador. Nas ferramentas do desenvolvedor (F12), aba Rede, recarregue a página, escolha uma requisição a platform.xiaomimimo.com e copie o cabeçalho Cookie ou use \"Copiar como cURL\"; a tabela de cookies da aba Aplicativo também serve. Só os cookies desta sessão são guardados; o resto do texto colado é descartado." },
@@ -1672,7 +1674,11 @@ const demo = {
   provider_modes: async ({ provider }) => [demoPickerEntry(provider, brand(provider))],
   detect_sources: async () => (demoSettings.detect.enabled ? [{ provider: "cursor", kind: "cursor_app", mode: "oauth",
     hint: { id: "detect.hint", params: { tool: "Cursor" }, fallback: "Cursor está instalado neste dispositivo" },
-    consent: { id: "detect.consent.cursor_import", params: {}, fallback: "O Cuotai vai ler uma vez o token de login do banco local do Cursor." } }]
+    consent: { id: "detect.consent.cursor_import", params: {}, fallback: "O Cuotai vai ler uma vez o token de login do banco local do Cursor." } },
+    ...DEMO_NATIVE_DETECT.map(([provider, kind, tool, name]) => ({ provider, kind, mode: "oauth",
+      hint: { id: "detect.hint", params: { tool }, fallback: `${tool} está instalado neste dispositivo` },
+      consent: { id: "detect.consent.native_login", params: { provider: name, tool },
+        fallback: `O Cuotai vai abrir o login de ${name}; nada é lido da pasta de ${tool}.` } }))]
     .filter((d) => !demoSettings.detect.dismissed.includes(d.kind)) : []),
   set_detect_enabled: async ({ on }) => { demoSettings.detect.enabled = on; },
   dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },

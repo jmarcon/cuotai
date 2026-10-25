@@ -30,7 +30,7 @@ export const FEATURED = 9;
 /** Chips of one entry: "Billed per query" (DS-CMP-BADGE-2, warning) and "Found on this device" (DS-CMP-CAT-2, info). */
 export const entryChips = (entry, found) =>
   (entry.metered ? `<span class="mini warn">${icon("warn")}${te("dialog.picker.metered")}</span>` : "")
-  + (found ? `<span class="mini info">${icon("check")}${te("dialog.picker.found")}</span>` : "");
+  + (found ? `<span class="mini info"${found.hint ? ` title="${esc(tl(found.hint))}"` : ""}>${icon("check")}${te("dialog.picker.found")}</span>` : "");
 
 /**
  * Wires the picker inside `root`.

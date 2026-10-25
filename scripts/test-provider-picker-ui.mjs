@@ -127,6 +127,14 @@ for (const { code } of i18n.LOCALES) {
     assert.ok(!html.includes(label), `${code}: status label "${label}" in the picker`);
   }
 }
+// PRD 0027 RF6.4: the Kimi CLI, Grok CLI and Zed detections show the found chip with the core hint and the brand logo.
+await i18n.setLocale("en-US");
+for (const [provider, kind, tool] of lib.DEMO_NATIVE_DETECT) {
+  const chip = picker.entryChips({}, { kind, provider, hint: { id: "detect.hint", params: { tool }, fallback: tool } });
+  assert.ok(chip.includes(`title="${tool} is installed on this device"`), `${kind}: hint ${chip}`);
+  const mark = lib.logo(provider, 32);
+  assert.ok(mark && !mark.includes(`>${provider}<`), `${kind}: brand logo`);
+}
 const about = await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/src/about.rs", root)), "utf8");
 assert.ok(about.includes(`"${lib.NEW_PROVIDER_URL}"`), "the new-provider address is allow-listed by open_external");
 console.log("provider picker UI smoke: ok");
