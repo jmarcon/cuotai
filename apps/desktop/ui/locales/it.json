@@ -949,7 +949,7 @@
   "settings.quiet.title": "Ore di silenzio",
   "settings.quiet.on": "Ore di silenzio",
   "settings.quiet.help": "Trattiene le notifiche negli intervalli scelti. Una quota esaurita avvisa comunque subito; il resto attende e arriva come un unico riepilogo alla fine dell'intervallo.",
-  "settings.quiet.keywords": "ore di silenzio non disturbare notte dormire silenzio orario fine settimana riepilogo",
+  "settings.kw.quiet": "ore di silenzio non disturbare notte dormire silenzio orario fine settimana riepilogo",
   "settings.quiet.digest": "Invia un riepilogo alla fine delle ore di silenzio",
   "settings.quiet.digestHelp": "Una notifica elenca ciò che è ancora valido alla fine dell'intervallo. Disattivato, le notifiche trattenute vengono scartate.",
   "settings.quiet.days": "Programma settimanale",

@@ -956,7 +956,7 @@
   "settings.quiet.title": "Horário de silêncio",
   "settings.quiet.on": "Horário de silêncio",
   "settings.quiet.help": "Segura as notificações nos intervalos que você escolher. Uma cota esgotada ainda avisa na hora; o resto espera e chega como um único resumo quando o intervalo termina.",
-  "settings.quiet.keywords": "horário de silêncio não perturbe noite dormir silêncio agenda fim de semana resumo",
+  "settings.kw.quiet": "horário de silêncio não perturbe noite dormir silêncio agenda fim de semana resumo",
   "settings.quiet.digest": "Enviar um resumo quando o silêncio terminar",
   "settings.quiet.digestHelp": "Uma notificação lista o que ainda vale ao fim do intervalo. Desligado, as notificações seguradas são descartadas.",
   "settings.quiet.days": "Agenda semanal",

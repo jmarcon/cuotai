@@ -949,7 +949,7 @@
   "settings.quiet.title": "Quiet hours",
   "settings.quiet.on": "Quiet hours",
   "settings.quiet.help": "Holds notifications during the intervals you choose. A quota that runs out still notifies at once; the rest waits and arrives as one summary when the interval ends.",
-  "settings.quiet.keywords": "quiet hours do not disturb night sleep silence schedule weekend digest summary",
+  "settings.kw.quiet": "quiet hours do not disturb night sleep silence schedule weekend digest summary",
   "settings.quiet.digest": "Send a summary when quiet hours end",
   "settings.quiet.digestHelp": "One notification lists what still holds when the interval ends. Off, the held notifications are dropped.",
   "settings.quiet.days": "Weekly schedule",

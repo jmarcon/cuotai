@@ -92,7 +92,7 @@ export function quietDaysHtml(q) {
     <div class="dlg-actions left"><button type="button" class="btn" data-quiet-same title="${te("settings.quiet.sameHelp")}">${te("settings.quiet.same")}</button></div>
     ${DAYS.map((day) => {
     const list = q.days[day] ?? [];
-    return row({ key: `quiet-${day}`, label: dayName(day), keywords: te("settings.quiet.keywords"),
+    return row({ key: `quiet-${day}`, label: dayName(day), kw: "quiet",
       control: (x) => `<button type="button" class="btn sm" data-quiet-add="${day}" ${x} ${list.length >= MAX_INTERVALS ? "disabled" : ""}>${icon("plus")} ${te("settings.quiet.add")}</button>`,
       body: intervals(day, list) });
   }).join("")}`;
