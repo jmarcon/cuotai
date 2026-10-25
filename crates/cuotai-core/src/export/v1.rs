@@ -399,6 +399,7 @@ impl Export {
                     options,
                     &points,
                 );
+                export.group = config.group_of(account).map(str::to_owned);
                 export.incident = incidents
                     .iter()
                     .find(|status| status.provider == account.provider)

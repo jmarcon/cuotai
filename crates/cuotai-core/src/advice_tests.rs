@@ -282,3 +282,62 @@ fn the_texts_carry_the_names_and_percentages_and_never_write_anything() {
     // reach the configuration or the cycle (checked by the signatures).
     let _: fn(&[AccountView], DateTime<Utc>) -> Vec<GroupBest> = best;
 }
+
+/// PRD 0024 RF7.1: `[[groups]]` may list member account ids (PRD 0029);
+/// the account's own `group` still wins, and an id cannot sit in two groups.
+#[test]
+fn groups_may_list_member_account_ids() {
+    let toml = r#"
+[[accounts]]
+id = "work-claude"
+name = "Work"
+provider = "groq"
+credential_env = "GROQ_WORK"
+[[accounts]]
+id = "home-claude"
+name = "Home"
+provider = "groq"
+credential_env = "GROQ_HOME"
+group = "personal"
+[[accounts]]
+id = "lab-account"
+name = "Lab"
+provider = "groq"
+credential_env = "GROQ_LAB"
+
+[[groups]]
+id = "coding"
+label = "Coding"
+members = ["work-claude", "gone-account"]
+
+[[groups]]
+id = "personal"
+members = ["home-claude"]
+"#;
+    let config = Config::from_toml(toml).unwrap();
+    let [work, home, lab] = &config.accounts[..] else {
+        panic!("three accounts");
+    };
+    assert_eq!(config.group_of(work), Some("coding"));
+    assert_eq!(config.group_of(home), Some("personal"));
+    assert_eq!(config.group_of(lab), None);
+    assert_eq!(group_label(&config, work), Some("Coding"));
+    let views = views(&config, |_| None, |_| true, now());
+    assert_eq!(views[0].group, Some("coding"));
+    assert_eq!(views[2].group, None);
+
+    // Listed by two groups, or by a group other than its own `group`.
+    let twice = toml.replace(
+        r#"members = ["home-claude"]"#,
+        r#"members = ["work-claude"]"#,
+    );
+    assert!(matches!(
+        Config::from_toml(&twice),
+        Err(crate::ConfigError::Group)
+    ));
+    let clash = toml.replace(r#"group = "personal""#, r#"group = "coding""#);
+    assert!(matches!(
+        Config::from_toml(&clash),
+        Err(crate::ConfigError::Group)
+    ));
+}

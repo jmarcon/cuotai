@@ -16,12 +16,13 @@ timeout_seconds = 30
 
 # Optional: accounts that can replace one another share a `group` (a slug of up to 32 lowercase letters,
 # digits, - or _). Cuotai then marks the best account now of each group, as advice only. Without a group, only
-# accounts of the same provider are compared. [[groups]] just gives a group a display name and a position;
-# membership stays on the account.
+# accounts of the same provider are compared. [[groups]] gives a group a display name and a position;
+# membership is the account's group, or the account ids listed in members (optional).
 # [[groups]]
 # id = "coding"
 # label = "Coding assistants"
 # order = 1
+# members = ["acc_0123456789ab"]
 
 # Opt in to the terminal update notice (off by default; CUOTAI_UPDATE_CHECK=1 does the same).
 # [updates]

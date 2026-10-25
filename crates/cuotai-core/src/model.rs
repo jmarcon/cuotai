@@ -337,7 +337,8 @@ pub fn is_group_slug(value: &str) -> bool {
 }
 
 /// PRD 0024 RF7.1: the display name and position of a group of comparable
-/// accounts (`[[groups]]`); membership stays on the account's `group`.
+/// accounts (`[[groups]]`). Membership is the account's `group`, or, with
+/// PRD 0029 ids, the account ids in `members` ([`Config::group_of`]).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GroupDef {
@@ -346,6 +347,11 @@ pub struct GroupDef {
     pub label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub order: Option<u32>,
+    /// PRD 0024 RF7.1: account ids (PRD 0029) that belong to this group
+    /// without a `group` of their own. Ids of no configured account are
+    /// ignored, so removing an account never breaks the file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<String>,
 }
 
 /// Account fields accepted from configuration; `deny_unknown_fields` keeps
@@ -640,6 +646,19 @@ pub struct Config {
 }
 
 impl Config {
+    /// PRD 0024 RF7.1: the group `account` belongs to: its own `group`, else
+    /// the `[[groups]]` entry that lists its id in `members`.
+    pub fn group_of<'a>(&'a self, account: &'a Account) -> Option<&'a str> {
+        if let Some(group) = account.group.as_deref() {
+            return Some(group);
+        }
+        let id = account.id();
+        self.groups
+            .iter()
+            .find(|group| group.members.iter().any(|member| member == id.as_str()))
+            .map(|group| group.id.as_str())
+    }
+
     /// Return a copy with the account at `from` moved to its final position
     /// `to`. Every account keeps its complete identity and settings; global
     /// settings are untouched. Indices are checked against the original

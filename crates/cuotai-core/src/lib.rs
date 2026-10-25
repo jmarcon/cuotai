@@ -158,7 +158,7 @@ pub enum ConfigError {
     Tls,
     /// PRD 0024 RF7.1: a `group` that is not a slug of at most 32 characters,
     /// or a `[[groups]]` table with an invalid or repeated id.
-    #[error("An account group and each [[groups]] id must be 1 to 32 lowercase letters, digits, - or _, and the [[groups]] ids cannot repeat.")]
+    #[error("An account group and each [[groups]] id must be 1 to 32 lowercase letters, digits, - or _; the [[groups]] ids cannot repeat, and an account id can be a member of one group only.")]
     Group,
     #[error("The OpenRouter account's params.product must be key or account, and params.breakdown (account only) off, provider or model.")]
     OpenRouter,
@@ -262,7 +262,19 @@ impl Config {
                             label.trim().is_empty() || label.chars().count() > 40
                         })
                 });
-        if bad_group {
+        // A member id listed by two groups, or by a group other than the
+        // account's own `group`, is ambiguous.
+        let mut members = HashSet::new();
+        let bad_members = self.groups.iter().any(|group| {
+            group.members.iter().any(|member| {
+                !members.insert(member.as_str())
+                    || self.accounts.iter().any(|account| {
+                        account.id().as_str() == member
+                            && account.group.as_deref().is_some_and(|own| own != group.id)
+                    })
+            })
+        });
+        if bad_group || bad_members {
             return Err(ConfigError::Group);
         }
         let mut identities = HashSet::new();

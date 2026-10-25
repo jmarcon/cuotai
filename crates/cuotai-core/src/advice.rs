@@ -67,7 +67,7 @@ pub fn views<'a>(
             AccountView {
                 index,
                 provider: account.provider,
-                group: account.group.as_deref(),
+                group: config.group_of(account),
                 enabled: enabled(index),
                 report,
                 freshness: report.map(|report| freshness::assess(report.checked_at, interval, now)),
@@ -195,7 +195,7 @@ pub fn best(accounts: &[AccountView], now: DateTime<Utc>) -> Vec<GroupBest> {
 /// The group of `account` for display: its configured display name when the
 /// configuration names it, else the group id; an ungrouped account has none.
 pub fn group_label<'a>(config: &'a Config, account: &'a Account) -> Option<&'a str> {
-    let id = account.group.as_deref()?;
+    let id = config.group_of(account)?;
     Some(
         config
             .groups
