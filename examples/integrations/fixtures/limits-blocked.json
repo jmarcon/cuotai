@@ -4,6 +4,7 @@
   "accounts": [
     {
       "index": 0,
+      "id": "acc_000000000001",
       "key": "claude:Personal",
       "name": "Personal",
       "provider": "claude",

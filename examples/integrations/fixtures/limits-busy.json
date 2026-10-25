@@ -4,6 +4,7 @@
   "accounts": [
     {
       "index": 0,
+      "id": "acc_000000000001",
       "key": "claude:Personal",
       "name": "Personal",
       "provider": "claude",
@@ -25,6 +26,7 @@
     },
     {
       "index": 1,
+      "id": "acc_000000000002",
       "key": "codex:Work",
       "name": "Work",
       "provider": "codex",
