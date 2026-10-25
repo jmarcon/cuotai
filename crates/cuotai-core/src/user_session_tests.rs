@@ -62,6 +62,7 @@ fn session(store: &Arc<MemoryStore>) -> OAuthSession {
 
 fn mimo(params: &[(&str, &str)]) -> Account {
     Account {
+        id: None,
         name: "MiMo".into(),
         provider: Provider::XiaomiMimo,
         params: params
@@ -322,6 +323,7 @@ async fn a_reference_moved_to_another_provider_or_slot_finds_nothing() {
     .unwrap();
     let reference = staged.config().accounts[0].session.clone().unwrap();
     let mut copied = Account {
+        id: None,
         name: "Coding".into(),
         provider: Provider::AlibabaCodingPlan,
         session: Some(reference.clone()),
@@ -976,6 +978,7 @@ fn the_card_warns_about_a_vault_or_variable_session_and_nothing_else() {
     // An API key alone, a blank variable or a provider without sessions.
     assert_eq!(super::notice(&mimo(&[(PLATFORM, " ")])), None);
     let openai = Account {
+        id: None,
         provider: Provider::OpenAiApi,
         params: [(PLATFORM.to_string(), "X".to_string())].into(),
         ..Default::default()
@@ -1271,6 +1274,7 @@ fn test_report(
         Err(error) => (error.status, Vec::new(), vec![error.note]),
     };
     crate::Report {
+        account_id: None,
         account: account.name.clone(),
         provider: account.provider,
         checked_at: now(),
@@ -1470,6 +1474,7 @@ async fn an_alibaba_paste_never_stores_the_whole_cookie_jar() {
     let store = Arc::new(MemoryStore::default());
     let oauth = session(&store);
     let account = Account {
+        id: None,
         name: "Coding".into(),
         provider: Provider::AlibabaCodingPlan,
         ..Default::default()

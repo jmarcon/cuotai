@@ -197,6 +197,7 @@ mod tests {
 
     fn account(provider: Provider) -> Account {
         Account {
+            id: None,
             name: "conta".to_string(),
             provider,
             credential_env: Some("TEST_TOKEN".to_string()),

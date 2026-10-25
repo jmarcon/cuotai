@@ -296,6 +296,7 @@ mod tests {
 
     fn report(status: Status, metrics: Vec<Metric>) -> Report {
         Report {
+            account_id: None,
             account: "alpha".into(),
             provider: crate::Provider::Groq,
             checked_at: t0(),

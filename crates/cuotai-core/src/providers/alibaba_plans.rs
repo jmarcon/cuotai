@@ -1717,6 +1717,7 @@ mod tests {
             params.insert("region".into(), r.into());
         }
         Account {
+            id: None,
             name: "conta".into(),
             provider,
             credential_env: Some(env.into()),

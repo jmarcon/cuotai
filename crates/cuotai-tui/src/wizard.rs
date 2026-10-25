@@ -464,6 +464,7 @@ impl Wizard {
         if accounts.is_empty() {
             // A new account has no saved credential: explain support only.
             let probe = Account {
+                id: None,
                 provider,
                 ..Default::default()
             };
@@ -2736,6 +2737,7 @@ mod tests {
 
     fn account(name: &str, env: &str) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider: Provider::OpenAiApi,
             credential_env: Some(env.into()),
@@ -2933,6 +2935,7 @@ mod tests {
             vec![cuotai_core::text::Localized::fixed(note, "x")]
         };
         Report {
+            account_id: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: chrono::Utc::now(),
@@ -3218,6 +3221,7 @@ mod tests {
     fn bailian_login_uses_and_persists_account_profile() {
         let config = Config {
             accounts: vec![Account {
+                id: None,
                 name: "Qwen Cloud".into(),
                 provider: Provider::AlibabaTokenPlan,
                 credential_env: None,
@@ -3262,6 +3266,7 @@ mod tests {
         let credential_id = oauth.credential_id.clone();
         let config = Config {
             accounts: vec![Account {
+                id: None,
                 name: "Kiro".into(),
                 provider: Provider::Kiro,
                 credential_env: None,
@@ -3375,6 +3380,7 @@ mod tests {
         let new_config = Config {
             accounts: vec![
                 Account {
+                    id: None,
                     name: "Other".into(),
                     provider: Provider::AnthropicApi,
                     credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
@@ -3384,6 +3390,7 @@ mod tests {
                     refresh_seconds: Some(45),
                 },
                 Account {
+                    id: None,
                     name: "OpenAI".into(),
                     provider: Provider::OpenAiApi,
                     credential_env: Some("OPENAI_ADMIN_KEY".into()),
@@ -3409,6 +3416,7 @@ mod tests {
         // surfaces in the credential step instead of an empty slot.
         let config = Config {
             accounts: vec![Account {
+                id: None,
                 name: "Prod".into(),
                 provider: Provider::AwsBedrock,
                 credential_env: None,
@@ -3439,6 +3447,7 @@ mod tests {
         // ask for an env-var name), and validation must accept it.
         let config = Config {
             accounts: vec![Account {
+                id: None,
                 name: "Qwen".into(),
                 provider: Provider::AlibabaTokenPlan,
                 credential_env: None,
@@ -3461,6 +3470,7 @@ mod tests {
         for provider in Provider::ALL {
             let config = Config {
                 accounts: vec![Account {
+                    id: None,
                     name: "Test".into(),
                     provider,
                     credential_env: None,
@@ -3494,6 +3504,7 @@ mod tests {
     fn kiro_mode_switch_reconciles_shared_choice_and_shows_notice() {
         let config = Config {
             accounts: vec![Account {
+                id: None,
                 name: "Kiro".into(),
                 provider: Provider::Kiro,
                 credential_env: None,
@@ -3532,6 +3543,7 @@ mod tests {
     fn editing_old_invalid_kiro_combination_substitutes_with_notice() {
         let config = Config {
             accounts: vec![Account {
+                id: None,
                 name: "Kiro".into(),
                 provider: Provider::Kiro,
                 credential_env: Some("KIRO_ACCESS_TOKEN".into()),

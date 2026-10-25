@@ -33,6 +33,7 @@ fn monitor(accounts: &[(Provider, Option<&str>)], status: &MockServer) -> Monito
             .iter()
             .enumerate()
             .map(|(index, (provider, key))| Account {
+                id: None,
                 name: format!("account-{index}"),
                 provider: *provider,
                 credential_env: key.map(|key| format!("GROQ_KEY_{key}")),

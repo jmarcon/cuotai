@@ -410,6 +410,7 @@ mod tests {
     fn feed_named(name: &str) -> Feed {
         let config = Config {
             accounts: vec![Account {
+                id: None,
                 name: name.into(),
                 provider: Provider::Claude,
                 ..Account::default()
@@ -419,6 +420,7 @@ mod tests {
         let mut cycle = RefreshCycle::new(&config, Instant::now());
         let token = cycle.begin(0).unwrap();
         let report = Report {
+            account_id: None,
             account: name.into(),
             provider: Provider::Claude,
             checked_at: Utc::now(),

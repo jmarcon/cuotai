@@ -408,6 +408,7 @@ mod tests {
 
     fn account() -> Account {
         Account {
+            id: None,
             name: "Kimchi".into(),
             provider: Provider::Kimchi,
             credential_env: Some("TEST_KIMCHI_KEY".into()),

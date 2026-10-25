@@ -150,6 +150,7 @@
   "edit_error.aws_profile_required": "Indique el perfil AWS (AWS CLI v2).",
   "edit_error.choice_invalid": "Selección inválida para {label}.",
   "edit_error.config_account_names": "Los nombres de cuenta indicados deben ser únicos; una cuenta sin nombre solo es válida cuando es la única de su proveedor.",
+  "edit_error.config_account_ids": "El campo {field} repite el id de otra cuenta (un bloque [[accounts]] copiado es la causa habitual); borra la línea id duplicada.",
   "edit_error.config_accounts_shape": "La clave 'accounts' existente no es una lista de tablas.",
   "edit_error.config_bounds": "refresh_seconds debe ser >= 30, concurrency entre 1 y 32 y timeout_seconds entre 1 y 300.",
   "edit_error.config_client": "Configuración inválida; no se pudo inicializar el cliente HTTPS.",

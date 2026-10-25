@@ -200,8 +200,12 @@ impl ConfigFile {
                 // ConfigError messages are fixed strings and never echo the body.
                 // Preserve the field/account detail of the metered compatibility
                 // boundary; other malformed documents keep the generic load error.
-                let config = Config::from_toml(text).map_err(|error| {
-                    if matches!(error, crate::ConfigError::MeteredRefreshFloor { .. }) {
+                let mut config = Config::from_toml(text).map_err(|error| {
+                    if matches!(
+                        error,
+                        crate::ConfigError::MeteredRefreshFloor { .. }
+                            | crate::ConfigError::AccountIds { .. }
+                    ) {
                         validation_note(None, config_error_note(&error))
                     } else {
                         validation(
@@ -211,6 +215,7 @@ impl ConfigFile {
                         )
                     }
                 })?;
+                config.resolve_ids(ConfigIdentity::of_path(&path).ok().as_ref());
                 Ok(Self {
                     config,
                     path,
@@ -289,7 +294,11 @@ impl ConfigFile {
     }
 
     /// Validate and durably persist `config`. See module docs for the policy.
-    pub fn save(&mut self, config: Config) -> Result<(), EditError> {
+    pub fn save(&mut self, mut config: Config) -> Result<(), EditError> {
+        // PRD 0029 RF1.3: an account the front end built without an id gets
+        // the effective one a reader of this file would derive; every saved
+        // table carries its id from now on.
+        config.resolve_ids(self.identity().ok().as_ref());
         config
             .validate()
             .map_err(|e| validation_note(None, config_error_note(&e)))?;
@@ -382,13 +391,14 @@ impl ConfigFile {
                 let text = std::str::from_utf8(&bytes).map_err(|_| {
                     validation(None, "edit_error.config_not_utf8", "arquivo nao e UTF-8")
                 })?;
-                let config = Config::from_toml(text).map_err(|_| {
+                let mut config = Config::from_toml(text).map_err(|_| {
                     validation(
                         None,
                         "edit_error.config_toml_invalid",
                         "arquivo TOML invalido",
                     )
                 })?;
+                config.resolve_ids(ConfigIdentity::of_path(&self.path).ok().as_ref());
                 // Commit only after every step above succeeded; an
                 // intermediate failure keeps `self` untouched.
                 self.config = config;
@@ -552,6 +562,14 @@ fn set_int(doc: &mut toml_edit::DocumentMut, key: &str, val: i64) {
 /// still use positional matching; extra tables are dropped and missing ones
 /// appended.
 fn table_matches_account(table: &toml_edit::Table, account: &Account) -> bool {
+    // PRD 0029 RF1.4: a table that names its id is that account, whatever
+    // its name or position now.
+    if let (Some(id), Some(table_id)) = (
+        account.id.as_ref(),
+        table.get("id").and_then(|id| id.as_str()),
+    ) {
+        return id.as_str() == table_id;
+    }
     let name = table
         .get("name")
         .and_then(|name| name.as_str())
@@ -693,6 +711,13 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
             table[key] = item.clone();
         }
     }
+    if account.id.is_none() {
+        table.remove("id");
+    } else if table.iter().next().is_some_and(|(key, _)| key != "id") {
+        // RF1.4: the id is the first key of its table. A stable sort keeps
+        // every other key, and its comments, in place.
+        table.sort_values_by(|a, _, b, _| (a.get() != "id").cmp(&(b.get() != "id")));
+    }
     if account.credential_env.is_none() {
         table.remove("credential_env");
     }
@@ -722,6 +747,7 @@ mod tests {
 
     fn account(name: &str, env: Option<&str>) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider: crate::Provider::OpenAiApi,
             credential_env: env.map(str::to_string),
@@ -757,14 +783,19 @@ mod tests {
         assert!(file.exists);
         assert_eq!(file.path, path);
         let reloaded = load_at(&path, true).unwrap();
+        // PRD 0029 RF1.3: the saved account carries the id it was given.
+        assert!(reloaded.config.accounts[0].id.is_some());
+        assert_eq!(reloaded.config.accounts, file.config.accounts);
+        let mut without_ids = reloaded.config.clone();
+        without_ids.accounts[0].id = None;
         assert_eq!(
-            toml::to_string(&reloaded.config).unwrap(),
+            toml::to_string(&without_ids).unwrap(),
             toml::to_string(&cfg).unwrap()
         );
     }
 
     #[test]
-    fn save_preserves_future_ids_without_generating_them() {
+    fn save_preserves_existing_ids_and_gives_new_accounts_one() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("future-id.toml");
         fs::write(&path, FUTURE_ID_FIXTURE).unwrap();
@@ -793,10 +824,13 @@ mod tests {
                 .and_then(|id| id.as_str()),
             Some("acc_bcdefghjkmnp")
         );
-        assert!(
-            accounts.get(2).unwrap().get("id").is_none(),
-            "RF0 must not generate account ids"
-        );
+        // PRD 0029 RF1.3: the account added without an id gains one.
+        let added = accounts
+            .get(2)
+            .and_then(|table| table.get("id"))
+            .and_then(|id| id.as_str())
+            .unwrap();
+        assert!(crate::AccountId::parse(added).is_some());
 
         let reloaded = load_at(&path, false).unwrap();
         assert_eq!(reloaded.config.accounts[0].name, "");
@@ -849,6 +883,172 @@ provider = "anthropic_api"
                 .map(|account| account.provider)
                 .collect::<Vec<_>>(),
             [crate::Provider::AnthropicApi, crate::Provider::Groq]
+        );
+    }
+
+    const LEGACY: &str = r#"# global comment
+refresh_seconds = 60 # trailing
+concurrency = 4
+timeout_seconds = 30
+
+# the work account
+[[accounts]]
+name = "Work"
+provider = "open_ai_api"
+credential_env = "WORK_KEY" # work key
+
+# the home account
+[[accounts]]
+name = "Home"
+provider = "open_ai_api"
+credential_env = "HOME_KEY"
+"#;
+
+    fn table_ids(path: &Path) -> Vec<Option<String>> {
+        let text = fs::read_to_string(path).unwrap();
+        let document = text.parse::<toml_edit::DocumentMut>().unwrap();
+        document["accounts"]
+            .as_array_of_tables()
+            .unwrap()
+            .iter()
+            .map(|table| {
+                table
+                    .get("id")
+                    .and_then(|id| id.as_str())
+                    .map(str::to_owned)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_old_config_gains_one_id_line_per_account_and_nothing_else() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("legacy.toml");
+        fs::write(&path, LEGACY).unwrap();
+        let mut file = load_at(&path, true).unwrap();
+        let ids: Vec<String> = file
+            .config
+            .accounts
+            .iter()
+            .map(|account| account.id.as_ref().unwrap().to_string())
+            .collect();
+        file.save(file.config.clone()).unwrap();
+
+        let text = fs::read_to_string(&path).unwrap();
+        let (id_lines, rest): (Vec<&str>, Vec<&str>) =
+            text.lines().partition(|line| line.starts_with("id = "));
+        assert_eq!(
+            id_lines,
+            ids.iter()
+                .map(|id| format!("id = \"{id}\""))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(rest, LEGACY.lines().collect::<Vec<_>>());
+        // Each id is the first key of its table.
+        assert!(text.contains(&format!(
+            "[[accounts]]\nid = \"{}\"\nname = \"Work\"",
+            ids[0]
+        )));
+        // A second save changes nothing (the migration is idempotent).
+        let before = fs::read(&path).unwrap();
+        let mut again = load_at(&path, true).unwrap();
+        again.save(again.config.clone()).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn read_only_processes_agree_on_effective_ids_before_any_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("legacy.toml");
+        fs::write(&path, LEGACY).unwrap();
+        let one = load_at(&path, false).unwrap();
+        let two = load_at(&path, false).unwrap();
+        assert_eq!(one.config.accounts, two.config.accounts);
+        assert_ne!(one.config.accounts[0].id, one.config.accounts[1].id);
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            LEGACY,
+            "reading writes nothing"
+        );
+        // The ids an interactive save writes are the ones readers derived.
+        let mut writer = load_at(&path, true).unwrap();
+        writer.save(writer.config.clone()).unwrap();
+        let ids: Vec<Option<String>> = one
+            .config
+            .accounts
+            .iter()
+            .map(|account| account.id.as_ref().map(ToString::to_string))
+            .collect();
+        assert_eq!(table_ids(&path), ids);
+        // Another file with the same accounts derives other ids.
+        let other = dir.path().join("other.toml");
+        fs::write(&other, LEGACY).unwrap();
+        assert_ne!(
+            load_at(&other, false).unwrap().config.accounts[0].id,
+            one.config.accounts[0].id
+        );
+    }
+
+    #[test]
+    fn a_duplicated_id_is_rejected_naming_the_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dup.toml");
+        fs::write(
+            &path,
+            r#"
+[[accounts]]
+id = "acc_0123456789ab"
+name = "Work"
+provider = "open_ai_api"
+
+[[accounts]]
+id = "acc_0123456789ab"
+name = "Home"
+provider = "open_ai_api"
+"#,
+        )
+        .unwrap();
+        let Err(error) = load_at(&path, false) else {
+            panic!("a duplicated id must not load");
+        };
+        let note = error.l10n();
+        assert_eq!(note.id, "edit_error.config_account_ids");
+        assert!(note.text().contains("accounts[1].id"), "{}", note.text());
+        let config = Config::from_toml(&fs::read_to_string(&path).unwrap());
+        assert!(matches!(
+            config,
+            Err(crate::ConfigError::AccountIds { field }) if field == "accounts[1].id"
+        ));
+    }
+
+    #[test]
+    fn moving_and_renaming_in_one_save_keeps_comments_with_their_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("legacy.toml");
+        fs::write(&path, LEGACY).unwrap();
+        let mut file = load_at(&path, true).unwrap();
+        file.save(file.config.clone()).unwrap();
+        let mut edited = file.config.move_account(0, 1).unwrap();
+        edited.accounts[1].name = "Office".into();
+        edited.accounts[0].name = "House".into();
+        file.save(edited.clone()).unwrap();
+
+        let text = fs::read_to_string(&path).unwrap();
+        let house = text.find("name = \"House\"").unwrap();
+        let office = text.find("name = \"Office\"").unwrap();
+        assert!(house < office, "{text}");
+        let work_comment = text.find("# the work account").unwrap();
+        let home_comment = text.find("# the home account").unwrap();
+        // Each comment stays above the table of its account.
+        assert!(home_comment < house && house < work_comment, "{text}");
+        assert!(work_comment < office, "{text}");
+        assert!(
+            text.contains("credential_env = \"WORK_KEY\" # work key"),
+            "{text}"
+        );
+        assert_eq!(
+            load_at(&path, false).unwrap().config.accounts,
+            edited.accounts
         );
     }
 

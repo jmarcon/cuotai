@@ -1563,6 +1563,7 @@ mod tests {
 
     fn oauth_account(name: &str, provider: Provider, config: OAuthConfig) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             credential_env: None,

@@ -197,6 +197,7 @@ async fn one_event_per_real_transition_over_an_accelerated_clock() {
 
 fn account(name: &str, provider: Provider, refresh_seconds: Option<u64>) -> Account {
     let mut account = Account {
+        id: None,
         name: name.into(),
         provider,
         refresh_seconds,

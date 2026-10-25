@@ -734,6 +734,13 @@ fn extension_account(manifest: &Manifest, config: &Config, editing: Option<usize
         manifest.name.clone()
     };
     Account {
+        // PRD 0029 RF1.3: re-adding keeps the edited account's id.
+        id: Some(
+            editing
+                .and_then(|index| config.accounts.get(index))
+                .map(Account::id)
+                .unwrap_or_else(crate::AccountId::random),
+        ),
         name,
         provider: Provider::Extension,
         credential_env: None,

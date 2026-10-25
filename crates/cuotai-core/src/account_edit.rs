@@ -2164,7 +2164,16 @@ pub fn build_account(
         .filter(|account| account.provider == *provider)
         .and_then(|account| account.session.clone());
 
+    // PRD 0029 RF1.3: an edit keeps the account's id, so its state follows
+    // a rename or a parameter change; a new account gets a random one.
+    let id = Some(
+        editing_account
+            .map(Account::id)
+            .unwrap_or_else(crate::AccountId::random),
+    );
+
     Ok(Account {
+        id,
         name,
         provider: *provider,
         credential_env,
@@ -2212,6 +2221,16 @@ impl Config {
             }
         }
         let mut account = account;
+        // PRD 0029 RF1.3: the replaced slot's id survives; a new account
+        // without one gets a random id.
+        // An in-memory account without an id whose key does not change keeps
+        // deriving the same one.
+        match editing.map(|idx| &self.accounts[idx]) {
+            _ if account.id.is_some() => {}
+            Some(existing) if existing.id.is_none() && existing.key() == account.key() => {}
+            Some(existing) => account.id = Some(existing.id()),
+            None => account.id = Some(crate::AccountId::random()),
+        }
         account.name = validate_name(&account.name, self, editing)
             .map_err(|message| build_account_field_error("name", message))?;
         let mut updated = self.clone();
@@ -2703,6 +2722,7 @@ mod tests {
 
     fn env_account(name: &str, provider: Provider, env: &str) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             credential_env: Some(env.into()),
@@ -2839,6 +2859,7 @@ mod tests {
             "OPENAI_ADMIN_KEY",
         )]);
         let new_account = Account {
+            id: None,
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
@@ -2861,6 +2882,7 @@ mod tests {
             "OPENAI_ADMIN_KEY",
         )]);
         let new_account = Account {
+            id: None,
             name: "Anthropic".into(),
             provider: Provider::AnthropicApi,
             credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
@@ -2882,6 +2904,7 @@ mod tests {
             "OPENAI_ADMIN_KEY",
         )]);
         let dup = Account {
+            id: None,
             name: "OpenAI".into(),
             provider: Provider::AnthropicApi,
             credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
@@ -3112,6 +3135,7 @@ mod tests {
         // Switching providers wipes the edit clone: the new provider starts
         // from empty params, never inherits stale values from the old one.
         let existing = Account {
+            id: None,
             name: "Multi".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
@@ -3146,6 +3170,7 @@ mod tests {
     fn build_account_preserves_unmanaged_params_when_provider_unchanged() {
         // Editing with the same provider keeps unrelated user params.
         let existing = Account {
+            id: None,
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
@@ -3336,6 +3361,7 @@ mod tests {
             .options
             .insert("region".into(), "us-east-1".into());
         let existing_account = Account {
+            id: None,
             name: "Kiro".into(),
             provider: Provider::Kiro,
             credential_env: None,
@@ -3576,6 +3602,7 @@ mod tests {
         // AWS: stored value lives in params["profile"]; credential_env is
         // always empty for AWS, so the EnvVar path would return empty.
         let account = Account {
+            id: None,
             name: "Prod".into(),
             provider: Provider::AwsBedrock,
             credential_env: None,
@@ -3588,6 +3615,7 @@ mod tests {
 
         // Empty params["profile"] → empty (never falls back to default_env).
         let account = Account {
+            id: None,
             name: "Prod".into(),
             provider: Provider::AwsBedrock,
             credential_env: None,
@@ -3605,6 +3633,7 @@ mod tests {
         // credential_env must always be empty here. The fallback does not
         // surface any default env (the credential kind is `None`).
         let account = Account {
+            id: None,
             name: "Qwen".into(),
             provider: Provider::AlibabaTokenPlan,
             credential_env: None,
@@ -3616,6 +3645,7 @@ mod tests {
         assert_eq!(stored_credential(&account), "qwen-personal");
 
         let empty = Account {
+            id: None,
             name: "Qwen".into(),
             provider: Provider::AlibabaTokenPlan,
             credential_env: None,
@@ -3633,6 +3663,7 @@ mod tests {
         // empty/missing, suggested_credential (default_env) fills in so the
         // form pre-populates a sane suggestion.
         let account = Account {
+            id: None,
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
@@ -3645,6 +3676,7 @@ mod tests {
 
         // Empty credential_env (cleared by user) falls back to default.
         let empty = Account {
+            id: None,
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some(String::new()),
@@ -3658,6 +3690,7 @@ mod tests {
         // Missing credential_env (e.g. account created by an older schema)
         // also falls back to default.
         let missing = Account {
+            id: None,
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: None,
@@ -3678,6 +3711,7 @@ mod tests {
         // confused by a stray `params["profile"]` left over from a
         // provider switch.
         let account = Account {
+            id: None,
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
             credential_env: Some("OPENAI_ADMIN_KEY".into()),
@@ -3947,6 +3981,7 @@ mod tests {
             "OPENAI_ADMIN_KEY",
         )]);
         let sneaky = Account {
+            id: None,
             name: "oPeNaI".into(),
             provider: Provider::AnthropicApi,
             credential_env: Some("ANTHROPIC_ADMIN_KEY".into()),
@@ -4033,6 +4068,7 @@ mod tests {
 
     fn oauth_account(name: &str, provider: Provider) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             credential_env: None,
@@ -4460,6 +4496,7 @@ mod tests {
             .unwrap()
             .upsert_account(
                 Account {
+                    id: None,
                     name: "replacement".into(),
                     provider: Provider::ChatGpt,
                     credential_env: None,

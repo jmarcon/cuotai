@@ -1311,6 +1311,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         assert_eq!(requests(&server).await, 0, "Unsupported uses no network");
 
         let variant = |provider, key: &str, value: &str| Account {
+            id: None,
             provider,
             params: [(key.to_string(), value.to_string())].into(),
             ..Default::default()
@@ -1323,6 +1324,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             variant(AlibabaModelStudio, "region", "cn"),
             variant(Grok, "product", "cli"),
             Account {
+                id: None,
                 provider: GeminiAi,
                 oauth: oauth.clone(),
                 ..Default::default()

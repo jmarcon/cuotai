@@ -144,6 +144,7 @@ mod tests {
             timeout: std::time::Duration::from_secs(5),
         };
         let account = Account {
+            id: None,
             name: account.into(),
             provider: Provider::GeminiAi,
             credential_env: Some(format!("GEMINI_KEY_{account}")),

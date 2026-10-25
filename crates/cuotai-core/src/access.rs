@@ -547,6 +547,7 @@ mod tests {
     fn failed(account: &Account, error: QueryError) -> Report {
         let (notes, notes_l10n) = crate::text::Notes::one(error.note).finish();
         Report {
+            account_id: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: chrono::Utc::now(),
@@ -561,6 +562,7 @@ mod tests {
 
     fn account(provider: Provider, params: &[(&str, &str)], oauth: bool) -> Account {
         Account {
+            id: None,
             provider,
             oauth: oauth.then(|| OAuthConfig::new(String::new())),
             params: params

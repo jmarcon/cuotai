@@ -513,6 +513,7 @@ mod tests {
         slot: &'static str,
     ) -> Result<Option<(String, bool)>, QueryError> {
         let account = Account {
+            id: None,
             provider,
             params: params
                 .iter()

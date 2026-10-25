@@ -539,6 +539,7 @@ mod tests {
                 ("region", "cn"),
             ] {
                 let account = crate::Account {
+                    id: None,
                     provider,
                     params: [(key.to_string(), value.to_string())].into(),
                     ..Default::default()
@@ -551,6 +552,7 @@ mod tests {
                 ids.push(session.label().id.to_string());
                 ids.push(session.instructions().id.to_string());
                 let legacy = crate::Account {
+                    id: None,
                     provider,
                     params: [(session.slot.to_string(), "VAR".to_string())].into(),
                     ..Default::default()

@@ -378,6 +378,7 @@ mod tests {
 
     fn account(provider: Provider, env: &'static str) -> Account {
         Account {
+            id: None,
             name: "conta".into(),
             provider,
             credential_env: Some(env.into()),

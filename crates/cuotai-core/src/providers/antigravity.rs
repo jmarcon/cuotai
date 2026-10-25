@@ -989,6 +989,7 @@ mod tests {
 
     fn account() -> Account {
         Account {
+            id: None,
             name: "ag".into(),
             provider: Provider::Antigravity,
             credential_env: Some(DEFAULT_CREDENTIAL_ENV.into()),

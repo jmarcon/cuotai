@@ -884,6 +884,7 @@ mod tests {
 
     fn report(account: &str, checked_at: DateTime<Utc>, metrics: Vec<Metric>) -> Report {
         Report {
+            account_id: None,
             account: account.into(),
             provider: Provider::Claude,
             checked_at,
@@ -1486,6 +1487,7 @@ mod tests {
     #[test]
     fn notice_names_provider_window_threshold_account_metric_and_reset() {
         let account = |name: &str| Account {
+            id: None,
             name: name.into(),
             provider: Provider::Claude,
             ..Account::default()
@@ -1637,6 +1639,7 @@ mod tests {
         assert!(evaluate(None, &renewed, &muted, &state, t0()).is_empty());
 
         let account = Account {
+            id: None,
             name: "Work".into(),
             provider: Provider::Claude,
             ..Account::default()

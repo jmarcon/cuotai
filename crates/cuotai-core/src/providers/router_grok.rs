@@ -675,6 +675,7 @@ mod tests {
 
     fn account(params: &[(&str, &str)]) -> Account {
         Account {
+            id: None,
             name: "test".into(),
             provider: Provider::Grok,
             credential_env: None,

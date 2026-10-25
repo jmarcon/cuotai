@@ -766,6 +766,7 @@ mod tests {
 
     fn account(provider: Provider, env: Option<&str>, params: BTreeMap<String, String>) -> Account {
         Account {
+            id: None,
             name: "conta".to_string(),
             provider,
             credential_env: env.map(str::to_string),

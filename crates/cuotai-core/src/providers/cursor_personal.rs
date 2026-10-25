@@ -620,6 +620,7 @@ mod tests {
 
     fn account() -> Account {
         Account {
+            id: None,
             name: "cursor-personal".into(),
             provider: Provider::Cursor,
             credential_env: Some("CURSOR_ACCESS_TOKEN".into()),

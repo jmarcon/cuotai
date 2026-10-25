@@ -157,6 +157,7 @@ impl StoredReport {
     /// It carries no notes and no source: only numbers were stored.
     pub fn into_report(self, account: &Account) -> Report {
         Report {
+            account_id: Some(account.id()),
             account: account.name.clone(),
             provider: account.provider,
             checked_at: self.checked_at,

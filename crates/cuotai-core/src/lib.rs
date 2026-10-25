@@ -4,6 +4,7 @@
 pub mod about;
 pub mod access;
 pub mod account_edit;
+pub mod account_id;
 pub mod alerts;
 pub mod catalog;
 pub mod changelog;
@@ -43,6 +44,7 @@ pub mod widget_snapshot;
 /// RF2 shared login driver, re-exported for convenience.
 pub use oauth::login;
 
+pub use account_id::AccountId;
 use chrono::Utc;
 use futures_util::{stream, StreamExt};
 pub use model::*;
@@ -89,6 +91,11 @@ pub enum ConfigError {
         "Nomes de conta informados precisam ser únicos; uma conta sem nome só é válida quando é a única do provedor."
     )]
     AccountNames,
+    /// PRD 0029 RF1.2: two accounts share an `id`.
+    #[error(
+        "O campo {field} repete o id de outra conta (um bloco [[accounts]] copiado é a causa usual); apague a linha id duplicada."
+    )]
+    AccountIds { field: String },
     #[error("Não foi possível inicializar o cliente HTTPS.")]
     Client,
     #[error("Configuração OAuth inválida ou combinada com credential_env; confira o registro do aplicativo.")]
@@ -122,6 +129,19 @@ impl Config {
         let config: Self = toml::from_str(text).map_err(|_| ConfigError::Parse)?;
         config.validate()?;
         Ok(config)
+    }
+
+    /// PRD 0029 RF1.3: give every account without an `id` its effective id,
+    /// derived from its legacy key and `identity` (the configuration file's
+    /// [`config_file::ConfigIdentity`]). Processes that read the same file
+    /// without writing it agree on the ids; [`config_file::ConfigFile`]
+    /// calls this on load and writes the ids on its next save.
+    pub fn resolve_ids(&mut self, identity: Option<&config_file::ConfigIdentity>) {
+        for account in &mut self.accounts {
+            if account.id.is_none() {
+                account.id = Some(AccountId::derive(&account.key(), identity));
+            }
+        }
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -206,6 +226,17 @@ impl Config {
             if let Some(id) = account.extension_id() {
                 if !identities.insert(id) {
                     return Err(ConfigError::Extension);
+                }
+            }
+        }
+        // PRD 0029 RF1.2: an id names exactly one account.
+        let mut ids = HashSet::new();
+        for (index, account) in self.accounts.iter().enumerate() {
+            if let Some(id) = &account.id {
+                if !ids.insert(id.as_str()) {
+                    return Err(ConfigError::AccountIds {
+                        field: format!("accounts[{index}].id"),
+                    });
                 }
             }
         }
@@ -664,6 +695,7 @@ impl Monitor {
             let (notes, notes_l10n) =
                 crate::text::Notes::one(edit_error::config_error_note(&error)).finish();
             return Report {
+                account_id: Some(account.id()),
                 account: account.name.clone(),
                 provider: account.provider,
                 checked_at: self.now(),
@@ -679,8 +711,18 @@ impl Monitor {
     }
 
     /// The report of one query of `account`, `pasted` sessions replacing the
-    /// vault ones of their slots.
+    /// vault ones of their slots, labelled with the account's id (PRD 0029).
     async fn query_report(
+        &self,
+        account: &Account,
+        pasted: &[user_session::ReducedSession],
+    ) -> Report {
+        let mut report = self.query_unlabelled(account, pasted).await;
+        report.account_id = Some(account.id());
+        report
+    }
+
+    async fn query_unlabelled(
         &self,
         account: &Account,
         pasted: &[user_session::ReducedSession],
@@ -690,6 +732,7 @@ impl Monitor {
             let unavailable = |note: crate::text::Localized| {
                 let (notes, notes_l10n) = crate::text::Notes::one(note).finish();
                 Report {
+                    account_id: None,
                     account: account.name.clone(),
                     provider: Provider::Extension,
                     checked_at,
@@ -750,6 +793,7 @@ impl Monitor {
             notes_l10n.push(note);
         }
         Report {
+            account_id: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: self.now(),
@@ -1653,6 +1697,7 @@ credential_env = "OPENAI_ADMIN_KEY"
 
     fn aws_account(override_seconds: Option<u64>) -> Account {
         let mut account = Account {
+            id: None,
             name: "bedrock-test".into(),
             provider: Provider::AwsBedrock,
             refresh_seconds: override_seconds,
@@ -1768,6 +1813,7 @@ credential_env = "OPENAI_ADMIN_KEY"
         let config = Config {
             refresh_seconds: 30,
             accounts: vec![Account {
+                id: None,
                 name: "openai".into(),
                 provider: Provider::OpenAiApi,
                 credential_env: Some("OPENAI_ADMIN_KEY".into()),
@@ -1851,6 +1897,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                 finished_at: chrono::Utc::now(),
                 reports: vec![
                     crate::Report {
+                        account_id: None,
                         account: "aws-one".into(),
                         provider: Provider::AwsBedrock,
                         checked_at: chrono::Utc::now(),
@@ -1862,6 +1909,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         session_expires_at: None,
                     },
                     crate::Report {
+                        account_id: None,
                         account: "aws-two".into(),
                         provider: Provider::AwsBedrock,
                         checked_at: chrono::Utc::now(),

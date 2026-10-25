@@ -984,6 +984,7 @@ mod tests {
             params.insert("security_token_env".into(), s.into());
         }
         Account {
+            id: None,
             name: "alibaba".into(),
             provider: Provider::AlibabaCloud,
             credential_env: None,

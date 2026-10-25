@@ -677,6 +677,7 @@ mod tests {
 
     fn account(provider: crate::Provider, params: &[(&str, &str)]) -> Account {
         Account {
+            id: None,
             name: "a".into(),
             provider,
             credential_env: Some("T".into()),

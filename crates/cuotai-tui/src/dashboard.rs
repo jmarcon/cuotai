@@ -2088,6 +2088,7 @@ mod tests {
 
     fn report(status: Status, metrics: Vec<Metric>) -> Report {
         Report {
+            account_id: None,
             account: "acc".into(),
             provider: Provider::OpenAiApi,
             checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
@@ -2113,6 +2114,7 @@ mod tests {
     fn an_extension_account_renders_a_normal_card_in_every_locale() {
         for locale in ["pt-BR", "en-US", "es", "it"] {
             let account = Account {
+                id: None,
                 name: "quota".into(),
                 provider: Provider::Extension,
                 params: std::collections::BTreeMap::from([(
@@ -2123,6 +2125,7 @@ mod tests {
                 ..Account::default()
             };
             let report = Report {
+                account_id: None,
                 account: "quota".into(),
                 provider: Provider::Extension,
                 checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
@@ -2285,6 +2288,7 @@ mod tests {
     fn hide_unmeasured_drops_unmeasured_group() {
         let accounts = vec![
             Account {
+                id: None,
                 name: "alpha".into(),
                 provider: Provider::OpenAiApi,
                 credential_env: None,
@@ -2294,6 +2298,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "beta".into(),
                 provider: Provider::AnthropicApi,
                 credential_env: None,
@@ -2303,6 +2308,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "gamma".into(),
                 provider: Provider::Cursor,
                 credential_env: None,
@@ -2330,6 +2336,7 @@ mod tests {
     fn filter_substring_is_case_insensitive() {
         let accounts = vec![
             Account {
+                id: None,
                 name: "OpenAI Work".into(),
                 provider: Provider::OpenAiApi,
                 credential_env: None,
@@ -2339,6 +2346,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "Anthropic".into(),
                 provider: Provider::AnthropicApi,
                 credential_env: None,
@@ -2370,6 +2378,7 @@ mod tests {
     fn empty_filter_returns_all_in_original_order() {
         let accounts = vec![
             Account {
+                id: None,
                 name: "one".into(),
                 provider: Provider::OpenAiApi,
                 credential_env: None,
@@ -2379,6 +2388,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "two".into(),
                 provider: Provider::AnthropicApi,
                 credential_env: None,
@@ -2388,6 +2398,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "three".into(),
                 provider: Provider::Cursor,
                 credential_env: None,
@@ -2438,6 +2449,7 @@ mod tests {
         // between exhausted and unmeasured.
         let mut accounts = vec![
             Account {
+                id: None,
                 name: "alpha".into(),
                 provider: Provider::OpenAiApi,
                 credential_env: None,
@@ -2447,6 +2459,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "beta".into(),
                 provider: Provider::AnthropicApi,
                 credential_env: None,
@@ -2456,6 +2469,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "gamma".into(),
                 provider: Provider::Cursor,
                 credential_env: None,
@@ -2465,6 +2479,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "delta".into(),
                 provider: Provider::Copilot,
                 credential_env: None,
@@ -2514,6 +2529,7 @@ mod tests {
     fn three_accounts() -> Vec<Account> {
         vec![
             Account {
+                id: None,
                 name: "alpha".into(),
                 provider: Provider::OpenAiApi,
                 credential_env: None,
@@ -2523,6 +2539,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "beta".into(),
                 provider: Provider::AnthropicApi,
                 credential_env: None,
@@ -2532,6 +2549,7 @@ mod tests {
                 refresh_seconds: None,
             },
             Account {
+                id: None,
                 name: "gamma".into(),
                 provider: Provider::Cursor,
                 credential_env: None,
@@ -3473,6 +3491,7 @@ mod tests {
     /// `query.schema`) and an Official one whose failure is not explained.
     fn access_fixture() -> (Vec<Account>, Vec<Option<Report>>) {
         let account = |name: &str, provider| Account {
+            id: None,
             name: name.into(),
             provider,
             credential_env: None,
@@ -3894,6 +3913,7 @@ mod tests {
             Span, SummaryInput, Tokens,
         };
         let account = |name: &str, provider| Account {
+            id: None,
             name: name.into(),
             provider,
             ..Account::default()
@@ -3997,6 +4017,7 @@ mod tests {
     #[test]
     fn a_rejected_session_offers_a_new_paste_on_its_card_and_details() {
         let account = Account {
+            id: None,
             name: "MiMo".into(),
             provider: Provider::XiaomiMimo,
             ..Default::default()

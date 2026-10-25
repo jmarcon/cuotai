@@ -2955,6 +2955,7 @@ mod tests {
 
     fn account(name: &str, provider: Provider) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             credential_env: None,

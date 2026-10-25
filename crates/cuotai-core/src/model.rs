@@ -260,6 +260,11 @@ impl Provider {
 /// Configuration holds credential references, never credential values.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Account {
+    /// PRD 0029 RF1: stable identity, first key of the table. `None` only
+    /// for an account built in memory without one; [`Account::id`] then
+    /// derives it from the legacy key. `ConfigFile` fills it when loading.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<crate::account_id::AccountId>,
     pub name: String,
     pub provider: Provider,
     #[serde(default)]
@@ -280,15 +285,13 @@ pub struct Account {
     pub refresh_seconds: Option<u64>,
 }
 
-/// Account fields accepted from configuration before stable account identity
-/// is part of the in-memory model. `id` is deliberately read and discarded:
-/// RF0 must tolerate the future key without generating or consuming it, while
-/// `deny_unknown_fields` continues to reject every other typo.
+/// Account fields accepted from configuration; `deny_unknown_fields` keeps
+/// rejecting typos.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AccountConfig {
-    #[serde(default, rename = "id")]
-    _future_id: Option<serde::de::IgnoredAny>,
+    #[serde(default)]
+    id: Option<crate::account_id::AccountId>,
     #[serde(default)]
     name: String,
     provider: Provider,
@@ -311,6 +314,7 @@ impl<'de> Deserialize<'de> for Account {
     {
         let account = AccountConfig::deserialize(deserializer)?;
         Ok(Self {
+            id: account.id,
             name: account.name,
             provider: account.provider,
             credential_env: account.credential_env,
@@ -387,6 +391,23 @@ impl Account {
     }
 }
 
+impl Account {
+    /// PRD 0029 RF1: the account's id, or the one derived from its legacy
+    /// key when it has none (an account built in memory).
+    pub fn id(&self) -> crate::account_id::AccountId {
+        self.id
+            .clone()
+            .unwrap_or_else(|| crate::account_id::AccountId::derive(&self.key(), None))
+    }
+
+    /// PRD 0029 RF2.1: the key every piece of per-account state uses (bells,
+    /// mutes, ledger and alert marks, history series): the id, which
+    /// survives renames and parameter edits.
+    pub fn state_key(&self) -> String {
+        self.id().as_str().to_owned()
+    }
+}
+
 fn account_key(provider: Provider, name: &str) -> String {
     format!("{}:{name}", provider.slug())
 }
@@ -412,6 +433,18 @@ impl Report {
             }
         }
         account_key(self.provider, &self.account)
+    }
+
+    /// [`Account::state_key`] of the account this report belongs to: its
+    /// `account_id`, or the id derived from the legacy key for a report
+    /// built without one (as [`Account::id`] does for such an account).
+    pub fn state_key(&self) -> String {
+        match &self.account_id {
+            Some(id) => id.as_str().to_owned(),
+            None => crate::account_id::AccountId::derive(&self.account_key(), None)
+                .as_str()
+                .to_owned(),
+        }
     }
 }
 
@@ -471,6 +504,7 @@ fn default_timeout() -> u64 {
 impl Default for Account {
     fn default() -> Self {
         Self {
+            id: None,
             name: String::new(),
             provider: Provider::OpenAiApi,
             credential_env: None,
@@ -491,6 +525,7 @@ impl Default for Config {
             accounts: Provider::ALL
                 .into_iter()
                 .map(|provider| Account {
+                    id: None,
                     name: provider.label().into(),
                     provider,
                     credential_env: None,
@@ -689,6 +724,10 @@ impl Metric {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
     pub account: String,
+    /// PRD 0029: [`Account::state_key`] of the account. Additive and skipped
+    /// when absent, so fixtures of older releases stay byte-compatible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<crate::account_id::AccountId>,
     pub provider: Provider,
     pub checked_at: DateTime<Utc>,
     pub status: Status,
@@ -772,6 +811,7 @@ mod tests {
     #[test]
     fn report_notes_l10n_is_additive_and_skipped_when_empty() {
         let report = Report {
+            account_id: None,
             account: "a".into(),
             provider: Provider::Kimi,
             checked_at: Utc::now(),
@@ -795,6 +835,7 @@ mod tests {
             accounts: ["a", "b", "c", "d"]
                 .iter()
                 .map(|name| Account {
+                    id: None,
                     name: (*name).to_string(),
                     ..Account::default()
                 })

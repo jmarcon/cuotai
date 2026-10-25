@@ -1010,6 +1010,7 @@ mod tests {
 
     fn account(name: &str, refresh_seconds: Option<u64>) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider: Provider::OpenAiApi,
             credential_env: None,
@@ -1029,6 +1030,7 @@ mod tests {
 
     fn report(account: &str, second: i64) -> Report {
         Report {
+            account_id: None,
             account: account.into(),
             provider: Provider::OpenAiApi,
             checked_at: Utc.timestamp_opt(second, 0).unwrap(),
@@ -1638,6 +1640,7 @@ mod tests {
 
     fn report_with_status(name: &str, second: i64, status: Status) -> Report {
         Report {
+            account_id: None,
             account: name.into(),
             provider: Provider::OpenAiApi,
             checked_at: Utc.timestamp_opt(second, 0).unwrap(),

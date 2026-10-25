@@ -398,6 +398,7 @@ mod tests {
 
     fn account(name: &str) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider: Provider::Groq,
             ..Default::default()

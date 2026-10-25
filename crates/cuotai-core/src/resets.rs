@@ -491,6 +491,7 @@ mod tests {
     fn setup(metrics: Vec<Vec<Metric>>) -> (Config, Vec<Report>) {
         let accounts: Vec<Account> = (0..metrics.len())
             .map(|i| Account {
+                id: None,
                 name: format!("acc{i}"),
                 provider: Provider::Claude,
                 ..Account::default()
@@ -500,6 +501,7 @@ mod tests {
             .iter()
             .zip(metrics)
             .map(|(account, metrics)| Report {
+                account_id: None,
                 account: account.name.clone(),
                 provider: account.provider,
                 checked_at: now(),
@@ -745,6 +747,7 @@ mod tests {
 
     fn account() -> Account {
         Account {
+            id: None,
             name: "Work".into(),
             provider: Provider::Claude,
             ..Account::default()

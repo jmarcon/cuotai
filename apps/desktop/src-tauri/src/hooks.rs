@@ -376,6 +376,7 @@ mod tests {
     #[cfg_attr(not(unix), allow(dead_code))]
     fn account() -> Account {
         Account {
+            id: None,
             name: "Work".into(),
             provider: Provider::AlibabaCloud,
             credential_env: Some("ALIBABA_KEY".into()),
@@ -393,6 +394,7 @@ mod tests {
         let mut cycle = RefreshCycle::new(&config, Instant::now());
         let token = cycle.begin_full().unwrap();
         let report = Report {
+            account_id: None,
             account: "Work".into(),
             provider: Provider::AlibabaCloud,
             checked_at: at,

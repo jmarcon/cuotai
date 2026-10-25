@@ -465,6 +465,7 @@ mod tests {
             accounts: names
                 .iter()
                 .map(|name| Account {
+                    id: None,
                     name: (*name).into(),
                     provider: Provider::Claude,
                     ..Account::default()
@@ -476,6 +477,7 @@ mod tests {
 
     fn report(name: &str, metrics: Vec<Metric>) -> Report {
         Report {
+            account_id: None,
             account: name.into(),
             provider: Provider::Claude,
             checked_at: t0() - mins(60),

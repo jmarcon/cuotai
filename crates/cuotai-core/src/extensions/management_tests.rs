@@ -315,6 +315,7 @@ async fn reapproval_runs_the_new_version_at_once() {
 #[test]
 fn one_extension_is_at_most_one_account() {
     let account = |name: &str, id: &str| Account {
+        id: None,
         name: name.to_owned(),
         provider: Provider::Extension,
         params: BTreeMap::from([(EXTENSION_ID_PARAM.to_owned(), id.to_owned())]),
@@ -365,6 +366,7 @@ async fn a_revocation_beats_a_queued_run() {
             .unwrap();
     }
     let account = |id: &str| Account {
+        id: None,
         name: id.to_owned(),
         provider: Provider::Extension,
         params: BTreeMap::from([(EXTENSION_ID_PARAM.to_owned(), id.to_owned())]),
@@ -498,6 +500,7 @@ async fn a_slow_extension_does_not_delay_a_builtin_account() {
         }
     }
     config.accounts.push(Account {
+        id: None,
         name: "builtin".into(),
         provider: Provider::Groq,
         credential_env: Some("GROQ_TEST_KEY".into()),

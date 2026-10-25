@@ -189,6 +189,14 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         );
     }
 
+    if let crate::ConfigError::AccountIds { field } = error {
+        return Localized::with_params(
+            "edit_error.config_account_ids",
+            params([("field", ParamValue::from(field.clone()))]),
+            error.to_string(),
+        );
+    }
+
     let id = match error {
         crate::ConfigError::Parse => "edit_error.config_parse",
         crate::ConfigError::Bounds => "edit_error.config_bounds",
@@ -198,7 +206,9 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::Session => "edit_error.config_session",
         crate::ConfigError::Extension => "edit_error.config_extension",
         crate::ConfigError::Region => "edit_error.config_region",
-        crate::ConfigError::MeteredRefreshFloor { .. } => unreachable!(),
+        crate::ConfigError::MeteredRefreshFloor { .. } | crate::ConfigError::AccountIds { .. } => {
+            unreachable!()
+        }
     };
     Localized::fixed(id, error.to_string())
 }

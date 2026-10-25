@@ -525,6 +525,7 @@ mod tests {
 
     fn account(name: &str, provider: Provider) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             ..Account::default()
@@ -541,6 +542,7 @@ mod tests {
 
     fn report(account: &Account, status: Status, checked_at: DateTime<Utc>) -> Report {
         Report {
+            account_id: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at,

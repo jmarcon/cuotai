@@ -77,6 +77,7 @@ struct Watch {
 impl Watch {
     fn new() -> Self {
         Self::with_account(Account {
+            id: None,
             name: "Work".into(),
             provider: Provider::Claude,
             ..Account::default()
@@ -107,6 +108,7 @@ impl Watch {
             Reading::Failed(status, note) => (status, Vec::new(), vec![note]),
         };
         let report = Report {
+            account_id: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: at(minute),
@@ -424,6 +426,7 @@ fn provider_incidents_fire_on_known_status_changes() {
 #[test]
 fn failures_are_classified_by_status_and_note_id() {
     let report = |status: Status, id: &'static str| Report {
+        account_id: None,
         account: "Work".into(),
         provider: Provider::Claude,
         checked_at: t0(),
@@ -528,6 +531,7 @@ fn payloads_carry_the_common_fields_values_and_previous() {
 #[test]
 fn no_payload_carries_credentials_urls_or_raw_messages() {
     let mut account = Account {
+        id: None,
         name: "Work".into(),
         provider: Provider::Claude,
         credential_env: Some("CLAUDE_SECRET_KEY".into()),

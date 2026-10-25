@@ -319,6 +319,7 @@ fn binding_of(
 ) -> Option<Binding> {
     let report = Report {
         account: account.name.clone(),
+        account_id: None,
         provider: account.provider,
         checked_at,
         status: Status::Ready,
@@ -400,6 +401,7 @@ mod tests {
 
     fn account(name: &str, provider: Provider) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             ..Account::default()
@@ -422,6 +424,7 @@ mod tests {
 
     fn report(account: &Account, status: Status, metrics: Vec<Metric>, minutes_ago: i64) -> Report {
         Report {
+            account_id: None,
             account: account.name.clone(),
             provider: account.provider,
             checked_at: now() - chrono::TimeDelta::minutes(minutes_ago),

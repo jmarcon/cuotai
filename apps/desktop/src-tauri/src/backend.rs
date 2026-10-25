@@ -3403,6 +3403,7 @@ pub struct ModelSupport {
 /// assistente da TUI (sem parâmetros gravados nem rede).
 pub fn model_support(provider: Provider) -> ModelSupport {
     let probe = cuotai_core::Account {
+        id: None,
         provider,
         ..Default::default()
     };
@@ -4106,6 +4107,7 @@ mod tests {
             .accounts
             .iter()
             .map(|a| Report {
+                account_id: None,
                 account: a.name.clone(),
                 provider: a.provider,
                 checked_at: chrono::Utc::now(),
@@ -4162,6 +4164,7 @@ mod tests {
 
     fn ready(name: &str, metrics: Vec<Metric>) -> Report {
         Report {
+            account_id: None,
             account: name.into(),
             provider: Provider::AlibabaCloud,
             checked_at: chrono::Utc::now(),
@@ -4755,6 +4758,7 @@ mod tests {
 
     fn oauth_account(name: &str, provider: Provider) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider,
             credential_env: None,
@@ -4771,6 +4775,7 @@ mod tests {
         oauth: &OAuthConfig,
     ) -> String {
         let key = account_edit::account_storage_key(&Account {
+            id: None,
             name: "probe".into(),
             provider,
             credential_env: None,
@@ -4964,6 +4969,7 @@ mod tests {
         assert!(
             store.entries.lock().contains_key(
                 &account_edit::account_storage_key(&Account {
+                    id: None,
                     name: "solo".into(),
                     provider: Provider::ChatGpt,
                     credential_env: None,
@@ -5110,6 +5116,7 @@ mod tests {
     /// A MiMo account reading its platform session from `env`.
     fn session_env_account(env: &str) -> Account {
         Account {
+            id: None,
             name: "MiMo".into(),
             provider: Provider::XiaomiMimo,
             params: BTreeMap::from([("platform_session_env".to_string(), env.to_string())]),
@@ -5659,6 +5666,7 @@ mod tests {
     /// pure-config operation that does not touch the vault.
     fn plain_account(name: &str) -> Account {
         Account {
+            id: None,
             name: name.into(),
             provider: Provider::AlibabaCloud,
             credential_env: Some(format!("{}_KEY", name.to_uppercase())),

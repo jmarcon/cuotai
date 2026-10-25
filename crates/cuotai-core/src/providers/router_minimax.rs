@@ -540,6 +540,7 @@ mod tests {
 
     fn account() -> Account {
         Account {
+            id: None,
             name: "conta".into(),
             provider: Provider::MiniMax,
             credential_env: None,

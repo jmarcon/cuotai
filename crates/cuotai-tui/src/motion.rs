@@ -353,6 +353,7 @@ mod tests {
 
     fn accounts() -> Vec<Account> {
         vec![Account {
+            id: None,
             name: "a".into(),
             provider: Provider::Groq,
             credential_env: None,
@@ -365,6 +366,7 @@ mod tests {
 
     pub(crate) fn ready(remaining: f64) -> Option<Report> {
         Some(Report {
+            account_id: None,
             account: "a".into(),
             provider: Provider::Groq,
             checked_at: chrono::Utc::now(),
