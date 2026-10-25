@@ -1,7 +1,7 @@
 // Settings › Dashboard (PRD 0020 RF2.5): account order, the "Recharging" group, consumption pace and the refresh
 // interval. Account management (PRD 0025 / DS-CMP-SEG-5) joins this page when it moves out of the main window.
 import { t, te } from "../i18n.js";
-import { adviceShown, currentSort, groupingRecharging, setAdviceEnabled, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort } from "../lib.js";
+import { adviceShown, currentSort, groupingRecharging, icon, setAdviceEnabled, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
 import { errorText, group, l10nError } from "./common.js";
 import { commitField, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
@@ -14,7 +14,10 @@ export function html({ settings: s, view }) {
     row({ key: "order", label: te("settings.order.binding"), info: te("settings.order.help"),
       control: (a) => sw("order-binding", currentSort() === "binding", a) }))
     + group("display", te("settings.display.title"),
-      row({ key: "grouping", label: te("settings.group.recharging"), info: te("settings.group.help"),
+      // PRD 0022 RF8.1 (DS-CMP-SHELL-5): the tray view; the list is the default, Rings and Compact are alternatives.
+      row({ key: "trayview", label: te("settings.trayView.label"), info: te("settings.trayView.desc"), msg: "trayview-msg",
+        body: optionCards("tray-view", TRAY_VIEWS.map((v) => [v, te(`settings.trayView.${v}`), VIEW_PREVIEW[v]]), trayViewOf(s.tray?.popover_view), `aria-labelledby="trayview-label"`) })
+      + row({ key: "grouping", label: te("settings.group.recharging"), info: te("settings.group.help"),
         control: (a) => sw("group-recharging", groupingRecharging(), a) })
       + row({ key: "pace", label: te("settings.pace.show"), info: te("settings.pace.help"), msg: "pace-msg",
         control: (a) => sw("show-pace", s.show_pace !== false, a) })
@@ -32,7 +35,45 @@ export function html({ settings: s, view }) {
         body: seg("refresh-presets", PRESETS.map(([sec, label]) => [sec, label, `data-preset="${sec}"`]), seconds, `aria-label="${te("settings.refresh.presets")}"`) }));
 }
 
+/** DS-CMP-CHK-3 option cards: a static preview on top, the label below; one radio group with arrow keys. */
+const VIEW_PREVIEW = {
+  list: `<span class="pv pv-list" aria-hidden="true"><i></i><i></i><i></i></span>`,
+  rings: `<span class="pv pv-rings" aria-hidden="true">${'<b></b>'.repeat(3)}</span>`,
+  compact: `<span class="pv pv-compact" aria-hidden="true">${'<i></i>'.repeat(5)}</span>`,
+};
+const optionCards = (id, options, value, a) =>
+  `<div class="opt-cards" role="radiogroup" id="${id}" ${a}>${options.map(([v, label, preview]) =>
+    `<button type="button" role="radio" class="opt-card" data-value="${v}" aria-checked="${v === value}" tabindex="${v === value ? 0 : -1}">${preview}<span>${label}</span>${v === value ? icon("tick") : ""}</button>`).join("")}</div>`;
+
 export function bind(root, ctx) {
+  // PRD 0022 RF8.1: the tray view saves on choice (desktop.json) and the tray repaints at once.
+  const cards = root.querySelector("#tray-view");
+  const choose = (button) => {
+    const value = button.dataset.value;
+    setTrayView(value).then(() => {
+      for (const b of cards.querySelectorAll("[role=radio]")) {
+        const on = b === button;
+        b.setAttribute("aria-checked", on);
+        b.tabIndex = on ? 0 : -1;
+        b.querySelector("svg.i")?.remove();
+        if (on) b.insertAdjacentHTML("beforeend", icon("tick"));
+      }
+      rowError(cards, "");
+      toast();
+      ctx.changed("tray_view");
+    }, (x) => rowError(cards, errorText(x)));
+  };
+  cards.addEventListener("click", (e) => { const b = e.target.closest("[role=radio]"); if (b) choose(b); });
+  cards.addEventListener("keydown", (e) => {
+    const list = [...cards.querySelectorAll("[role=radio]")];
+    const i = list.indexOf(document.activeElement);
+    const next = { ArrowLeft: i - 1, ArrowUp: i - 1, ArrowRight: i + 1, ArrowDown: i + 1 }[e.key];
+    if (i < 0 || next === undefined) return;
+    e.preventDefault();
+    const b = list[(next + list.length) % list.length];
+    b.focus();
+    choose(b);
+  });
   // PRD 0009 RF2.3: display-only ordering; the manual order (TOML, shared with the TUI) is never rewritten.
   root.querySelector("#order-binding").onchange = (e) => { setSort(e.target.checked ? "binding" : "custom"); toast(); };
   root.querySelector("#group-recharging").onchange = (e) => { setGroupRecharging(e.target.checked); toast(); };

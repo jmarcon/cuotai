@@ -1031,5 +1031,11 @@
   "live.was": "Era {value} antes de la última actualización",
   "account.reorderKeys": "Arrastra para reordenar, o pulsa Alt+↑ o Alt+↓",
   "cost.fold": "Coste local",
-  "cost.estimateChip": "estimación"
+  "cost.estimateChip": "estimación",
+  "settings.trayView.label": "Vista de la bandeja",
+  "settings.trayView.desc": "Todas las vistas muestran las mismas cuentas, orden y estados.",
+  "settings.trayView.list": "Lista",
+  "settings.trayView.rings": "Anillos",
+  "settings.trayView.compact": "Compacta",
+  "settings.kw.trayview": "bandeja popover vista lista anillos compacta dona cuadrícula diseño"
 }

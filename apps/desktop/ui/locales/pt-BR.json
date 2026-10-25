@@ -1038,5 +1038,11 @@
   "live.was": "Era {value} antes da última atualização",
   "account.reorderKeys": "Arraste para reordenar, ou use Alt+↑ ou Alt+↓",
   "cost.fold": "Custo local",
-  "cost.estimateChip": "estimativa"
+  "cost.estimateChip": "estimativa",
+  "settings.trayView.label": "Vista da bandeja",
+  "settings.trayView.desc": "Todas as vistas mostram as mesmas contas, ordem e estados.",
+  "settings.trayView.list": "Lista",
+  "settings.trayView.rings": "Anéis",
+  "settings.trayView.compact": "Compacta",
+  "settings.kw.trayview": "bandeja popover vista lista anéis compacta rosca grade layout"
 }

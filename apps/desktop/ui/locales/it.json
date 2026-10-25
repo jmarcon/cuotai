@@ -1031,5 +1031,11 @@
   "live.was": "Era {value} prima dell'ultimo aggiornamento",
   "account.reorderKeys": "Trascina per riordinare, oppure premi Alt+↑ o Alt+↓",
   "cost.fold": "Costo locale",
-  "cost.estimateChip": "stima"
+  "cost.estimateChip": "stima",
+  "settings.trayView.label": "Vista del vassoio",
+  "settings.trayView.desc": "Ogni vista mostra gli stessi account, ordine e stati.",
+  "settings.trayView.list": "Elenco",
+  "settings.trayView.rings": "Anelli",
+  "settings.trayView.compact": "Compatta",
+  "settings.kw.trayview": "vassoio popover vista elenco anelli compatta ciambella griglia layout"
 }

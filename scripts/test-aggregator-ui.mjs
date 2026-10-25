@@ -72,8 +72,9 @@ for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
   const want = expected[code];
   const pool = agg.poolLineHtml(router.aggregator.pools[0]);
-  // Pool sentences are core texts: in the browser-free run the core catalog is absent, so its Portuguese fallback shows.
-  assert.ok(pool.includes(expected["pt-BR"].pool), `${code}: ${pool}`);
+  // Pool sentences are core texts: the browser-free run reads the core's catalog files like the demo does (PRD 0022
+  // RF18.2); pt-BR has no file and shows the core's Portuguese fallback.
+  assert.ok(pool.includes(want.pool), `${code}: ${pool}`);
   const info = agg.instanceInfoHtml(router);
   assert.ok(info.includes("127.0.0.1:20128") && info.includes("0.5.109"), `${code}: instance info`);
   assert.ok(info.includes('data-pool-each="nine_router:home"'), `${code}: alert mode switch`);

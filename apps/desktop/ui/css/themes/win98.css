@@ -148,7 +148,10 @@
 :root[data-theme="win98"] .card-head .icon svg,
 :root[data-theme="win98"] .topbar h1,
 :root[data-theme="win98"] .topbar .check,
-:root[data-theme="win98"] .topbar .icon {
+:root[data-theme="win98"] .topbar .icon,
+:root[data-theme="win98"] .topbar .tab:not([aria-selected="true"]),
+:root[data-theme="win98"] .topbar .tab:not([aria-selected="true"]) .cnt,
+:root[data-theme="win98"] .topbar .tb-age {
   color: #ffffff;
 }
 :root[data-theme="win98"] .card-head .icon:hover:not(:disabled),

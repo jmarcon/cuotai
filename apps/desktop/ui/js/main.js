@@ -11,7 +11,7 @@ import { mountTimeline } from "./timeline.js";
 import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml, updateState } from "./updater.js";
 import { maybeShowFirstRun } from "./first-run.js";
 import {
-  fmtNext, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
+  fmtNext, fmtAge, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
@@ -20,7 +20,7 @@ import {
 import { patch } from "./util.js";
 import { connectionChips, groupsOf, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
 import {
-  accountState, announceChanges, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
+  accountState, announceChanges, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
   repeatedProviders, statusLineHtml, tileHtml, trackChanges,
 } from "./components.js";
 import * as motion from "./motion.js";
@@ -227,6 +227,12 @@ const rechargingGroup = (list, ctx) => `<details class="recharging" data-recharg
 
 // Filtro por texto (nome do provedor, da conta, e-mail): sem acentos e sem diferenciar maiúsculas.
 let filterText = "";
+let providerFilter = "all"; // PRD 0022 RF7.4 (DS-CMP-TAB-5): the selected filter tab, remembered for this window
+let tabsMoreOpen = false;
+/** DS-CMP-TAB-4: provider tabs shown before "More"; measured after each render (tabs never wrap or scroll). */
+let tabFit = 14;
+const tabsThatFit = () => tabFit;
+addEventListener("resize", () => { tabFit = 14; render(); });
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const matchesFilter = (r) =>
   !filterText.trim() || norm([brand(r.provider).label, r.account, r.identity?.email, r.provider, r.connection?.upstream].join(" ")).includes(norm(filterText.trim()))
@@ -385,7 +391,10 @@ function render() {
   if (dragKey) { renderPending = true; return; } // não reconstrói a tela no meio de um arraste
   const { view, error } = store;
   const reports = view?.reports ?? [];
-  const sorted = sortReports(reports).filter(matchesFilter);
+  // PRD 0022 RF7.4: the provider tabs filter the grid; the text filter narrows it further.
+  const shown = sortReports(reports).filter((r) => !disabled.has(reportKey(r)));
+  if (providerFilter !== "all" && !reports.some((r) => r.provider === providerFilter)) providerFilter = "all";
+  const sorted = sortReports(reports).filter(matchesFilter).filter((r) => providerFilter === "all" || r.provider === providerFilter);
   // PRD 0036 RF8.4: aggregators get sections of their own below the direct accounts.
   const ordered = sorted.filter((r) => !isAggregator(r));
   const aggregators = sorted.filter(isAggregator);
@@ -409,16 +418,21 @@ function render() {
   // Reconciliação por cartão (`data-card`): foco, cursor do filtro, rolagem e barras sobrevivem ao redesenho.
   patch(root, `<div class="shell">
     <header class="topbar" data-tauri-drag-region>
-      <h1 class="wordmark" data-tauri-drag-region>${wordmark(" data-tauri-drag-region")}</h1><div class="spacer" data-tauri-drag-region></div>
-      <div class="filter"><span class="filter-ico">${icon("search")}</span>
-        <input id="filter" type="text" autocomplete="off" spellcheck="false" value="${esc(filterText)}" placeholder="${te("filter.placeholder")}" aria-label="${te("filter.placeholder")}" />
-        ${filterText ? `<button class="icon" data-clear-filter title="${te("filter.clear")}" aria-label="${te("filter.clear")}">${icon("x")}</button>` : ""}</div>
-      ${themeSwitchHtml()}${sortMenuHtml()}${langMenuHtml()}
-      <button class="icon" data-stats-toggle aria-pressed="${statsPage}" title="${te("stats.title")}" aria-label="${te("stats.title")}">${icon("chart")}</button>
-      <button class="icon" data-settings title="${te("settings.title")}" aria-label="${te("settings.title")}">${icon("gear")}</button>
-      <button class="icon" data-add title="${te("common.add")}" aria-label="${te("common.add")}">${icon("plus")}</button>
-      <button class="icon" data-extensions title="${te("extensions.title")}" aria-label="${te("extensions.title")}">E</button>
-      <button class="icon" data-refresh-all title="${te("common.refreshAll")}" aria-label="${te("common.refreshAll")}" ${loading ? "disabled" : ""}>${icon("refresh")}</button>
+      <h1 class="wordmark tb-brand" data-tauri-drag-region>${wordmark(" data-tauri-drag-region")}</h1>
+      <div class="tb-tabs" data-tauri-drag-region>${shown.length ? filterTabsHtml(shown, { selected: providerFilter, moreOpen: tabsMoreOpen, maxTabs: tabsThatFit() }) : ""}</div>
+      <div class="filter tb-search"><span class="filter-ico">${icon("search")}</span>
+        <input id="filter" type="text" autocomplete="off" spellcheck="false" value="${esc(filterText)}" placeholder="${te("filter.placeholder")}" aria-label="${te("filter.placeholder")}" aria-keyshortcuts="/" />
+        ${filterText ? `<button class="icon" data-clear-filter title="${te("filter.clear")}" aria-label="${te("filter.clear")}">${icon("x")}</button>` : '<kbd aria-hidden="true">/</kbd>'}</div>
+      <div class="tb-sort">${sortMenuHtml()}</div>
+      <div class="tb-actions">
+        ${view?.finished_at ? `<span class="tb-age" title="${esc(t("tray.footer.age", { age: fmtAge(view.finished_at) }))}">${esc(fmtAge(view.finished_at))}</span>` : ""}
+        <button class="icon" data-refresh-all title="${esc(loading ? t("tray.refreshing") : t("common.refreshAll"))}" aria-label="${esc(loading ? t("tray.refreshing") : t("common.refreshAll"))}" ${loading ? 'disabled aria-busy="true"' : ""}>${icon("refresh", loading ? "spin" : "")}</button>
+        <button class="btn outline tb-add" data-add>${icon("plus")}<span>${te("common.add")}</span></button>
+        <button class="icon tb-add-icon" data-add title="${te("common.add")}" aria-label="${te("common.add")}">${icon("plus")}</button>
+        <button class="icon" data-stats-toggle aria-pressed="${statsPage}" title="${te("stats.title")}" aria-label="${te("stats.title")}">${icon("chartBar")}</button>
+        <button class="icon" data-extensions title="${te("extensions.title")}" aria-label="${te("extensions.title")}">${icon("puzzle")}</button>
+        <button class="icon" data-settings title="${te("settings.title")}" aria-label="${te("settings.title")}" aria-keyshortcuts="${/^Mac/.test(navigator.platform ?? "") ? "Meta+Comma" : "Control+Comma"}">${icon("gear")}</button>
+      </div>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
     ${otherBannerHtml()}
@@ -430,8 +444,8 @@ function render() {
       view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
     ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings="integrations" data-settings-anchor="hooks">${te("serve.bannerOpen")}</button></div>` : ""}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
-    ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
-    ${view && view.loaded && reports.length && !sorted.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
+    ${view && view.loaded && !reports.length ? `<div class="empty empty-state">${icon("plus")}<p>${te("account.empty")}</p><button class="btn primary" data-add>${te("common.add")}</button><small>${esc(configLabel(view))}</small></div>` : ""}
+    ${view && view.loaded && reports.length && !sorted.length ? `<div class="empty empty-state"><p>${te("filter.none")}</p><button class="btn outline" data-clear-filters>${te("tray.showAll")}</button></div>` : ""}
     ${statsPage ? `<main class="stats-page" data-stats-page>
       <div class="stats-back"><button type="button" class="btn" data-stats-back>${icon("back")}<span>${te("stats.back")}</span></button></div>
       <div data-timeline-slot></div><div data-stats-slot></div></main>`
@@ -446,6 +460,9 @@ function render() {
     statsMount.attach(root.querySelector("[data-stats-slot]"), hostFocus[0]);
   }
   motion.after(root, prev);
+  const tabs = root.querySelector(".tb-tabs");
+  const strip = tabs?.querySelector(".tabs");
+  if (strip && strip.scrollWidth > tabs.clientWidth + 1 && tabFit > 1) { tabFit--; return render(); }
   fitStatusLines(root);
   announceChanges();
 }
@@ -461,15 +478,19 @@ root.addEventListener("click", (e) => {
     return;
   }
   if (t.closest("[data-clear-filter]")) { filterText = ""; return render(); }
+  if (t.closest("[data-clear-filters]")) { filterText = ""; providerFilter = "all"; return render(); }
+  const tab = t.closest("[data-tab]");
+  if (tab) { providerFilter = tab.dataset.tab; tabsMoreOpen = false; render(); return root.querySelector(`[role="tab"][data-tab="${CSS.escape(providerFilter)}"]`)?.focus(); }
+  if (t.closest("[data-more]")) { tabsMoreOpen = !tabsMoreOpen; return render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
   if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
   if (t.closest("[data-retry-delete]")) return retryDelete();
   const move = t.closest("[data-move-from]");
   if (move) return reorderAccounts(Number(move.dataset.moveFrom), Number(move.dataset.moveTo));
   const one = t.closest("[data-refresh]");
-  if (one) { motion.spinOnce(one.querySelector("svg")); return store.refreshOne(Number(one.dataset.refresh)); }
+  if (one) return store.refreshOne(Number(one.dataset.refresh));
   const all = t.closest("[data-refresh-all]");
-  if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
+  if (all) return store.refresh();
   if (t.closest("[data-stats-toggle]")) return setPage(page === "stats" ? "grid" : "stats");
   if (t.closest("[data-stats-back]")) return setPage("grid");
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id) });
@@ -551,7 +572,23 @@ root.addEventListener("dragend", () => {
   render();
 });
 
-// Keyboard: the same arrow keys advertised by the grip move by one card.
+// DS-A11Y-4: arrow keys move inside the filter tabs (roving tabindex); Esc closes the More menu.
+root.addEventListener("keydown", (e) => {
+  const tab = e.target.closest?.('[role="tab"], [data-more]');
+  if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+    const tabs = [...root.querySelectorAll('[role="tab"], [data-more]')];
+    const i = tabs.indexOf(tab);
+    const next = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: tabs.length - 1 }[e.key];
+    e.preventDefault();
+    tabs[(next + tabs.length) % tabs.length]?.focus();
+  } else if (e.key === "Escape" && tabsMoreOpen) {
+    e.preventDefault();
+    tabsMoreOpen = false;
+    render();
+    root.querySelector("[data-more]")?.focus();
+  }
+});
+// Keyboard: the arrow keys (also with Alt, DS-CMP-DRAG-2) advertised by the grip move by one card.
 root.addEventListener("keydown", (e) => {
   const grip = e.target.closest?.("[data-grip]");
   const delta = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
@@ -597,7 +634,6 @@ setInterval(() => {
     const nt = el.querySelector(".nt");
     if (nt && nt.textContent !== text) nt.textContent = text;
     el.title = te("card.nextRefresh", { time: text });
-    motion.pulseIfDue(el, Number(el.dataset.nextAt));
   }
 }, 1000);
 initOrderSync(render);

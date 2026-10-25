@@ -2,15 +2,18 @@
   min-height: 100%;
   padding: 0 var(--space-5) var(--space-6);
 }
+/* PRD 0022 RF7.4 (DS-CMP-SHELL-3): logotype, filter tabs, search with its "/" keycap, sort, refresh with the
+   last refresh's age, the outlined "Add account", extensions and settings. Theme and language live in Settings. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-areas: "brand tabs search sort actions";
   align-items: center;
   gap: var(--space-3);
-  /* espaço para os botões de janela do macOS (overlay title bar) */
-  /* faixa de ponta a ponta (cancela o padding do .shell) */
+  /* room for the macOS window buttons (overlay title bar); edge to edge (cancels .shell's padding) */
   margin: 0 calc(-1 * var(--space-5));
   padding: var(--space-4) var(--space-5) var(--space-3) calc(var(--space-8) * 3);
   background: var(--topbar-bg); /* opaque by default; macOS and Windows 11 own their blur (DS-TOK-ELV-3) */
@@ -18,6 +21,50 @@
 .topbar h1 {
   font-size: var(--text-lg);
   font-weight: 650;
+}
+.tb-brand { grid-area: brand; }
+.tb-tabs { grid-area: tabs; min-width: 0; overflow: clip; overflow-clip-margin: 4px; }
+.tb-tabs .tab-more .menu { position: fixed; top: auto; right: auto; }
+.tb-search { grid-area: search; }
+.tb-sort { grid-area: sort; }
+.tb-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.tb-age {
+  color: var(--fg-muted);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  white-space: nowrap;
+}
+.topbar .tb-add-icon { display: none; }
+.tb-search kbd {
+  position: absolute;
+  right: var(--space-2);
+  pointer-events: none;
+}
+/* DS-TOK-LAY-3, DS-CMP-TAB-4: narrow windows (520 px minimum) get two rows: the brand and the icon actions, then
+   the filter tabs, the search (an icon until focused) and sort. Nothing is clipped. */
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "brand brand actions" "tabs search sort";
+    row-gap: var(--space-2);
+    padding-left: calc(var(--space-8) * 2 + var(--space-4));
+  }
+  .topbar .tb-add { display: none; }
+  .topbar .tb-add-icon { display: inline-grid; }
+  .tb-age { display: none; }
+  .topbar .tb-search input { width: 32px; padding-right: 0; color: transparent; }
+  .tb-search input::placeholder { color: transparent; }
+  .tb-search kbd { display: none; }
+  .topbar .tb-search:focus-within input,
+  .topbar .tb-search input:not(:placeholder-shown) { width: 180px; color: var(--fg); }
+  .tb-search:focus-within input::placeholder { color: var(--fg-muted); }
+}
+@media (max-width: 600px) {
+  .topbar { padding-left: var(--space-5); padding-top: calc(var(--space-8) + var(--space-1)); }
 }
 .spacer {
   flex: 1;
@@ -628,7 +675,7 @@
   height: 14px;
 }
 .filter input {
-  width: 170px;
+  width: clamp(120px, 18vw, 216px);
   height: 30px;
   padding: 0 var(--space-8) 0 var(--space-8);
   border: var(--border-w) solid var(--border);

@@ -113,7 +113,10 @@
   color: #ffffff;
   text-shadow: 1px 1px 0 rgba(0, 0, 40, 0.6);
 }
-:root[data-theme="winxp"] .topbar .icon {
+:root[data-theme="winxp"] .topbar .icon,
+:root[data-theme="winxp"] .topbar .tab:not([aria-selected="true"]),
+:root[data-theme="winxp"] .topbar .tab:not([aria-selected="true"]) .cnt,
+:root[data-theme="winxp"] .topbar .tb-age {
   color: #ffffff;
 }
 :root[data-theme="winxp"] .topbar .icon:hover:not(:disabled) {

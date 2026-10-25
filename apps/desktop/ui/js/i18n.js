@@ -71,8 +71,16 @@ async function loadCore(code) {
   if (coreCatalogs.has(code)) return coreCatalogs.get(code);
   const T = window.__TAURI__;
   if (!T || !T.core?.invoke) {
-    coreCatalogs.set(code, {});
-    return {};
+    // Browser demo served from the repository root (PRD 0022 RF18.2): read the core's catalog file directly.
+    // Portuguese is the core's built-in fallback and has no file. Absent (any other host): no core texts.
+    let data = {};
+    try {
+      const res = await fetch(`../../../crates/cuotai-core/locales/${code}.json`);
+      data = res.ok ? await res.json() : {};
+    } catch {}
+    coreCatalogs.set(code, data);
+    merged.clear();
+    return data;
   }
   try {
     const data = await T.core.invoke("core_catalog", { locale: code });

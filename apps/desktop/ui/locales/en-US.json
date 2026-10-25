@@ -1031,5 +1031,11 @@
   "live.was": "Was {value} before the last refresh",
   "account.reorderKeys": "Drag to reorder, or press Alt+↑ or Alt+↓",
   "cost.fold": "Local cost",
-  "cost.estimateChip": "estimate"
+  "cost.estimateChip": "estimate",
+  "settings.trayView.label": "Tray view",
+  "settings.trayView.desc": "Every view shows the same accounts, order and states.",
+  "settings.trayView.list": "List",
+  "settings.trayView.rings": "Rings",
+  "settings.trayView.compact": "Compact",
+  "settings.kw.trayview": "tray popover view list rings compact donut grid layout"
 }
