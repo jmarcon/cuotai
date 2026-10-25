@@ -477,7 +477,20 @@ export const usedPct = (m) => {
   return r == null ? null : 100 - r;
 };
 export const level = (p) => (p == null ? "unknown" : p >= 70 ? "good" : p >= 30 ? "warn" : "bad");
-export const fmtNumber = (n, max = 2) => (n == null ? "—" : new Intl.NumberFormat(currentLocale(), { maximumFractionDigits: max }).format(n));
+// Intl formatters by kind, locale and options. Building one costs far more than formatting with it, and one
+// render of the dashboard formats hundreds of numbers and times (the profile showed them at a tenth of a render).
+const formatters = new Map();
+export function intlFormatter(kind, locale, options) {
+  const key = `${kind}|${locale}|${JSON.stringify(options)}`;
+  let f = formatters.get(key);
+  if (!f) { f = new Intl[kind](locale, options); formatters.set(key, f); }
+  return f;
+}
+/** `date.toLocaleTimeString(locale, options)` / `toLocaleDateString` with the formatter cached (same output when
+ *  `options` names the fields, which every caller here does). */
+export const fmtLocal = (date, options, locale = currentLocale()) => intlFormatter("DateTimeFormat", locale, options).format(date);
+const HHMM = { hour: "2-digit", minute: "2-digit" };
+export const fmtNumber = (n, max = 2) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumFractionDigits: max }).format(n));
 // Unidades que descrevem "contagem de requisições": ficam implícitas. Outras (USD, créditos, tokens) são exibidas.
 const QUIET_UNITS = new Set(["", "%", "—", "solicitações", "requisições", "consultas", "unidades", "requests"]);
 const unitSuffix = (m) => (QUIET_UNITS.has(m.unit) ? "" : ` ${m.unit}`);
@@ -534,32 +547,32 @@ export function fmtDate(iso) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? null
-    : d.toLocaleDateString(currentLocale(), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    : fmtLocal(d, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 /** Day and clock time of `iso` in the viewer's zone, always with the day ("22 Oct, 18:10"). */
 export function fmtDateTime(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  const time = d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
-  return `${d.toLocaleDateString(currentLocale(), { day: "numeric", month: "short" })}, ${time}`;
+  const time = fmtLocal(d, HHMM);
+  return `${fmtLocal(d, { day: "numeric", month: "short" })}, ${time}`;
 }
 export function fmtReset(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  const time = d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+  const time = fmtLocal(d, HHMM);
   if (d.toDateString() === new Date().toDateString()) return t("time.today", { time });
-  return `${d.toLocaleDateString(currentLocale(), { day: "2-digit", month: "short" })}, ${time}`;
+  return `${fmtLocal(d, { day: "2-digit", month: "short" })}, ${time}`;
 }
 /** Clock time of `iso` in the viewer's local zone, with the day when it is not today ("14:30", "24 Oct, 14:30"). */
 export function fmtClock(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  const time = d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+  const time = fmtLocal(d, HHMM);
   if (d.toDateString() === new Date().toDateString()) return time;
-  return `${d.toLocaleDateString(currentLocale(), { day: "2-digit", month: "short" })}, ${time}`;
+  return `${fmtLocal(d, { day: "2-digit", month: "short" })}, ${time}`;
 }
 /** PRD 0033 RF2.1: a preserved or restored metric whose window renewed; the core sends it without values. */
 export const isRenewedWaiting = (m) => m.expired === true;
@@ -677,7 +690,7 @@ export function fmtAge(iso, now = Date.now()) {
   const min = Math.floor((now - new Date(iso).getTime()) / 60000);
   if (Number.isNaN(min)) return "";
   if (min < 1) return t("time.now");
-  const rtf = new Intl.RelativeTimeFormat(currentLocale(), { style: "short" });
+  const rtf = intlFormatter("RelativeTimeFormat", currentLocale(), { style: "short" });
   if (min < 60) return rtf.format(-min, "minute");
   return min < 1440 ? rtf.format(-Math.floor(min / 60), "hour") : rtf.format(-Math.floor(min / 1440), "day");
 }
@@ -1115,7 +1128,7 @@ const demoBinding = (r) => {
 };
 // ponytail: fixed core pace output per demo metric (one per stage), same shape as `MetricView.pace`; the browser
 // demo never estimates pace itself. Add a mocked backend when the demo needs paces that follow the clock.
-const hhmm = (iso) => new Date(iso).toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+const hhmm = (iso) => fmtLocal(new Date(iso), HHMM);
 const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
   const delta = (used - expected) * 100, points = String(Math.round(Math.abs(delta)));
   const label = { reserve: { id: "pace.reserve", params: { delta: points }, fallback: `${points} points in reserve` },
@@ -1141,8 +1154,8 @@ const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
 /** The local time the shell sends with a projection ("18:53", or the weekday and time when not today). */
 const demoAt = (iso) => {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
-  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(currentLocale(), { weekday: "short" })} ${time}`;
+  const time = fmtLocal(d, HHMM);
+  return d.toDateString() === new Date().toDateString() ? time : `${fmtLocal(d, { weekday: "short" })} ${time}`;
 };
 /** PRD 0024 RF4.3: the forecast the shell adds to a metric whose pace runs out before the reset (demo values). */
 const demoForecast = (m, pace) => {

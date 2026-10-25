@@ -35,7 +35,9 @@ function patchChildren(old, next) {
     }
     if (k != null) keyed.delete(k); // chave repetida: o segundo cartão ganha um nó novo
     if (!match) { old.insertBefore(n, cur); continue; }
-    patchNode(match, n);
+    // Um cartão (nó com chave) idêntico ao novo não tem nada a corrigir: a comparação nativa poupa percorrer a
+    // subárvore em JS a cada redesenho (cartões não têm campos de texto, cujo valor digitado o atributo não reflete).
+    if (k == null || !match.isEqualNode(n)) patchNode(match, n);
     if (match === cur) cur = cur.nextSibling;
     else old.insertBefore(match, cur);
   }

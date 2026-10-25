@@ -39,6 +39,12 @@ const store = {
 };
 
 export const currentLocale = () => current;
+// One Intl.PluralRules per locale: building one on every plural lookup showed in the render profile.
+let plural = null;
+function pluralRules() {
+  if (!plural || plural.locale !== current) plural = { locale: current, rules: new Intl.PluralRules(current) };
+  return plural.rules;
+}
 export const hasLocale = (code) => LOCALES.some((l) => l.code === code);
 
 /** Registra um idioma do usuário (já validado). */
@@ -187,7 +193,7 @@ function lookup(key) {
 function resolve(key, vars) {
   let v = lookup(key);
   if (v && typeof v === "object") {
-    const rule = new Intl.PluralRules(current).select(Number(vars.count ?? 0));
+    const rule = pluralRules().select(Number(vars.count ?? 0));
     v = v[rule] ?? v.other ?? Object.values(v)[0];
   }
   return typeof v === "string" ? v : null;

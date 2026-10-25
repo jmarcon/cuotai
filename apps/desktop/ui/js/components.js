@@ -5,7 +5,7 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import {
-  ALERTS, billingOverage, bindingPct, brand, fmtExtra, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
+  ALERTS, billingOverage, bindingPct, brand, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
   shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
@@ -169,12 +169,12 @@ export function fmtAt(iso, now = Date.now()) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   const loc = currentLocale();
-  const time = d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
+  const time = fmtLocal(d, { hour: "2-digit", minute: "2-digit" }, loc);
   const today = new Date(now);
   if (d.toDateString() === today.toDateString()) return time;
   const days = (d.getTime() - now) / 864e5;
-  if (days > -1 && days < 6.5) return `${d.toLocaleDateString(loc, { weekday: "short" })} ${time}`;
-  return `${d.toLocaleDateString(loc, { day: "numeric", month: "short" })}, ${time}`;
+  if (days > -1 && days < 6.5) return `${fmtLocal(d, { weekday: "short" }, loc)} ${time}`;
+  return `${fmtLocal(d, { day: "numeric", month: "short" }, loc)}, ${time}`;
 }
 
 // ---------- DS-CMP-STL: the status line ----------
