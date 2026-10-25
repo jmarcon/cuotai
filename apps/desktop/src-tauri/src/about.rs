@@ -138,6 +138,20 @@ pub fn open_external(url: &str) -> Result<(), &'static str> {
     if !is_listed(url) {
         return Err("not_listed");
     }
+    launch(url)
+}
+
+/// PRD 0036 RF8.2: open the usage page of the user's own aggregator
+/// instance. The address comes from the core (`aggregators::dashboard_url`,
+/// built from the validated base address), never from the interface.
+pub fn open_dashboard(url: &str) -> Result<(), &'static str> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("not_listed");
+    }
+    launch(url)
+}
+
+fn launch(url: &str) -> Result<(), &'static str> {
     #[cfg(target_os = "macos")]
     let mut cmd = std::process::Command::new("open");
     #[cfg(target_os = "linux")]

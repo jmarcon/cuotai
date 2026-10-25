@@ -3,7 +3,8 @@
 import { t, te } from "../i18n.js";
 import { currentSort, groupingRecharging, setGroupRecharging, setRefreshSeconds, setShowPace, setSort } from "../lib.js";
 import { errorText, group, l10nError } from "./common.js";
-import { commitField, num, row, rowError, seg, sw, toast } from "./rows.js";
+import { commitField, num, row, rowError, select, seg, sw, toast } from "./rows.js";
+import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
 
 const PRESETS = [[60, "1 min"], [300, "5 min"], [900, "15 min"], [3600, "1 h"]];
 
@@ -16,7 +17,10 @@ export function html({ settings: s, view }) {
       row({ key: "grouping", label: te("settings.group.recharging"), info: te("settings.group.help"),
         control: (a) => sw("group-recharging", groupingRecharging(), a) })
       + row({ key: "pace", label: te("settings.pace.show"), info: te("settings.pace.help"), msg: "pace-msg",
-        control: (a) => sw("show-pace", s.show_pace !== false, a) }))
+        control: (a) => sw("show-pace", s.show_pace !== false, a) })
+      // PRD 0036 RF8.3: how the popover's "All" shows 9router connections.
+      + row({ key: "agg-in-all", label: te("settings.agg.all"), info: te("settings.agg.allHelp"),
+        control: (a) => select("agg-in-all", AGG_MODES.map((m) => [m, te(`settings.agg.all.${m}`)]), aggregatorsInAll(), a) }))
     + group("refresh", te("settings.refresh.title"),
       row({ key: "refresh", label: te("settings.refresh.label"), desc: te("settings.refresh.min"), info: te("settings.refresh.help"), msg: "refresh-msg",
         control: (a) => num("refresh-seconds", { value: seconds, min: 30, unit: "s", apply: "data-apply-refresh" }, a),
@@ -27,6 +31,8 @@ export function bind(root, ctx) {
   // PRD 0009 RF2.3: display-only ordering; the manual order (TOML, shared with the TUI) is never rewritten.
   root.querySelector("#order-binding").onchange = (e) => { setSort(e.target.checked ? "binding" : "custom"); toast(); };
   root.querySelector("#group-recharging").onchange = (e) => { setGroupRecharging(e.target.checked); toast(); };
+  // PRD 0036 RF8.3: how the popover's "All" shows 9router connections (a per-device display choice).
+  root.querySelector("#agg-in-all").onchange = (e) => { setAggregatorsInAll(e.target.value); toast(); ctx.changed("aggregators_in_all"); };
   // PRD 0007 RF3.4: saved in desktop.json; on failure the switch goes back to the saved value.
   root.querySelector("#show-pace").onchange = (e) => setShowPace(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("show_pace"); },

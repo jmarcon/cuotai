@@ -251,6 +251,15 @@ fn preview_session(
     backend::preview_session(provider, &slot, paste)
 }
 
+/// PRD 0036 RF8.2: "Open dashboard" of the aggregator account at `index`
+/// (its instance's usage page, in the browser). Errors: `not_found`,
+/// `not_listed`, `unavailable`.
+#[tauri::command]
+async fn open_aggregator_dashboard(b: Shared<'_>, index: usize) -> Result<(), String> {
+    let url = b.aggregator_dashboard(index).await.ok_or("not_found")?;
+    about::open_dashboard(&url).map_err(str::to_owned)
+}
+
 /// PRD 0036 RF2.2: the account dialog's Test connection of an aggregator.
 #[tauri::command]
 async fn test_aggregator(
@@ -1715,6 +1724,7 @@ pub fn run() {
             preview_session,
             test_session,
             test_aggregator,
+            open_aggregator_dashboard,
             save_account,
             delete_account,
             retry_purge,

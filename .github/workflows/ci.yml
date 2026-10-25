@@ -304,6 +304,9 @@ jobs:
       # PRD 0023 RF7: the extra usage chip, row and details in every
       # built-in locale; overage is a textual figure, never a meter.
       - run: node scripts/test-extra-usage-ui.mjs
+      # PRD 0036 RF8: the 9router instance, pools, connection chips and
+      # details render in every built-in catalog without raw keys or paths.
+      - run: node scripts/test-aggregator-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified

@@ -5,11 +5,15 @@ import { syncTrayMenu } from "./tray-menu.js";
 import { easeOut, motionMs } from "./motion.js";
 import {
   accountLabel, bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
-  logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
+  logo, noteText, openMainWindow, openAggregatorDashboard, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
   bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, paceLabelOf, nextNoticeText,
   incidentBadge, incidentHtml, bindStatusLinks, wordmark, overageChipHtml, billingOverage, getSettings, setTrayPrefs,
 } from "./lib.js";
 import { initUpdates, onUpdateState } from "./updater.js";
+import {
+  accessibleName, aggregatorsInAll, activeConnection, connectionChips, connectionInfoHtml, connectionsOf, groupsOf, instanceHeadHtml,
+  isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, withConnections,
+} from "./aggregator.js";
 import { trayUpdateLine } from "./tray-menu.js";
 
 await boot();
@@ -21,7 +25,7 @@ const store = createStore(() => render());
 let selected = null;
 let models = null; // seção de modelos da conta aberta no popover; sobrevive aos redesenhos
 
-function row(r) {
+function row(r, { via = false } = {}) {
   const pct = bindingPct(r);
   const blocked = blockedText(r);
   const lv = r.status !== "ready" || blocked ? "bad" : level(pct);
@@ -32,6 +36,7 @@ function row(r) {
     <div class="row-main">
       <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${lv}">${esc(value)}</span></div>
       <div class="row-sub">${esc(accountLabel(r))}${r.binding ? ` · ${esc(bindingChipText(r))}` : ""}</div>
+      ${isConnection(r) && connectionChips(r, { via }) ? `<div class="row-chips">${connectionChips(r, { via })}</div>` : ""}
       ${r.usage_alerts?.length ? `<div class="row-alert">${icon("bell")}<span>${esc(ALERTS.find((c) => c.id === "usage").label(r))}</span></div>` : ""}
       <div class="row-age">${ageHtml(r)}</div>
       ${overageChipHtml(r)}
@@ -129,6 +134,70 @@ function tile(r) {
     <span class="tile-acct">${esc(accountLabel(r))}</span>${ageHtml(r)}</button>`;
 }
 const te2 = (key, vars) => t(key, vars);
+
+// PRD 0036 RF8.3: the aggregators expanded in place in "All" (accordion, DS-CMP-NAV-2); survives redraws only.
+const expanded = new Set();
+/** One grouped row per aggregator: tile, label, the pool figure ("1/3" available) and the status line (the exhausted
+ *  pool or the tightest connection). Activating it expands it here: pool lines, connection rows and a last ghost
+ *  line to the full 9router view. */
+function aggregatorRow(r) {
+  const key = reportKey(r);
+  const open = expanded.has(key);
+  const line = statusLine(r);
+  const failed = r.status !== "ready";
+  const figure = failed ? statusLabel(r.status) : poolFigure(r);
+  const tone = failed ? "bad" : line.tone === "bad" ? "bad" : level(poolPct(r));
+  return `<div class="agg-row${open ? " open" : ""}" data-agg="${esc(key)}">
+    <button class="row" data-agg-toggle="${esc(key)}" aria-expanded="${open}" aria-label="${esc(accessibleName(r))}">
+      ${logo(r.provider, 32)}
+      <div class="row-main">
+        <div class="row-top"><b>${esc(brand(r.provider).label)}</b><span class="pct ${tone}">${esc(figure)}${failed ? "" : `<small> ${te("agg.available")}</small>`}</span></div>
+        <div class="row-sub">${esc(r.account)}</div>
+        <div class="row-alert ${line.tone}"><span>${esc(line.text)}</span></div>
+        <div class="row-age">${ageHtml(r)}</div>
+      </div>${icon("chev", "chev")}</button>
+    ${open ? `<div class="agg-body">
+      ${groupsHtml(r)}
+      <button class="link" data-open="${esc(key)}">${icon("list")}<span>${te("agg.openView")}</span></button>
+    </div>` : ""}
+  </div>`;
+}
+/** The donut view's aggregator tile: the ring is the share of active connections with room left. */
+function aggregatorTile(r) {
+  const failed = r.status !== "ready";
+  const pct = failed ? null : poolPct(r);
+  const line = statusLine(r);
+  const tone = failed || line.tone === "bad" ? "bad" : level(pct);
+  return `<button class="tile" data-open="${esc(reportKey(r))}" title="${esc([accessibleName(r), line.text, ageText(r)].join("\n"))}" aria-label="${esc(accessibleName(r))}">
+    ${donutHtml(pct, tone, failed ? "—" : esc(poolFigure(r)))}
+    <span class="tile-name">${logo(r.provider, 14)}<b>${esc(brand(r.provider).label)}</b></span>
+    <span class="tile-acct">${esc(r.account)}</span>${ageHtml(r)}</button>`;
+}
+/** PRD 0036 RF8.1/RF8.2: the dedicated 9router view: the instance line with "Open dashboard", then each upstream's
+ *  pool sentence and its connection rows. */
+function aggregatorViewHtml(r) {
+  return `<div class="agg-view" aria-label="${esc(accessibleName(r))}">
+    <div class="agg-head">${instanceHeadHtml(r, 24)}
+      ${r.aggregator.dashboard ? `<button class="link" data-agg-dashboard="${r.index}">${icon("window")}<span>${te("agg.openDashboard")}</span></button>` : ""}</div>
+    <div class="row-age">${ageHtml(r)}</div>
+    ${r.status !== "ready" ? `<p class="cause">${icon("warn")}<span>${esc(noteText(r, 0) || statusLabel(r.status))}</span></p>` : ""}
+    ${groupsHtml(r)}
+  </div>`;
+}
+/** Each upstream's pool sentence (or name) followed by its connection rows. */
+const groupsHtml = (r) => groupsOf(r).map((g) => `<div class="agg-group">${g.pool ? poolLineHtml(g.pool) : `<p class="agg-pool">${esc(g.name)}</p>`}
+  ${g.items.map((c) => row(c)).join("")}</div>`).join("");
+/** What "All" draws for each report, by the Settings choice: an aggregator grouped (one row), listed (its active
+ *  connections among the accounts, marked "via 9router") or hidden. */
+function allItems(reports) {
+  const mode = aggregatorsInAll();
+  return reports.flatMap((r) => {
+    if (!isAggregator(r)) return [{ r }];
+    if (mode === "hidden") return [];
+    if (mode === "listed") return connectionsOf(r).filter(activeConnection).map((c) => ({ r: c, via: true }));
+    return [{ r, group: true }];
+  });
+}
 /** PRD 0007 RF3.3: "Week: lasts until the reset" / "Week: runs out at 16:40, 2h 10m before the reset". */
 const trayPace = (r, draw) => {
   const m = cardPace(r);
@@ -178,16 +247,25 @@ function render() {
   const { view, error } = store;
   const loading = !!view && view.busy.length > 0;
   const reports = sortReports(view?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
-  const cur = reports.find((r) => reportKey(r) === selected) ?? null;
-  if (models && (!cur || models.key !== selected)) { models.dispose(); models = null; }
-  if (cur) {
+  // PRD 0036 RF8: a connection or an aggregator can be opened too (their own keys).
+  const cur = withConnections(reports).find((r) => reportKey(r) === selected) ?? null;
+  if (models && (!cur || models.key !== selected || isConnection(cur) || isAggregator(cur))) { models.dispose(); models = null; }
+  if (cur && !isConnection(cur) && !isAggregator(cur)) {
     models ??= mountModels({ key: selected, index: cur.index, generation: view.generation });
     models.update(cur.index, view.generation);
   }
   const focus = models?.focused();
   const { inBar, rest } = splitByMenuBar(reports, view);
-  const listOf = (list) => (trayView === "donut" ? `<div class="tiles">${list.map(tile).join("")}</div>` : list.map(row).join(""));
-  const body = cur ? `${detailHtml(cur)}<div data-models-slot></div>`
+  const listOf = (list) => {
+    const items = allItems(list);
+    return trayView === "donut"
+      ? `<div class="tiles">${items.map(({ r, group }) => (group ? aggregatorTile(r) : tile(r))).join("")}</div>`
+      : items.map(({ r, group, via }) => (group ? aggregatorRow(r) : row(r, { via }))).join("");
+  };
+  const body = cur
+    ? isAggregator(cur) ? aggregatorViewHtml(cur)
+      : isConnection(cur) ? `${detailHtml(cur)}${connectionInfoHtml(cur, cur.index)}`
+        : `${detailHtml(cur)}<div data-models-slot></div>`
     : listOf(inBar) + (rest.length ? notInHtml() + listOf(rest) : "");
   syncTrayMenu(view);
   const prev = rings();
@@ -217,6 +295,15 @@ function render() {
 
 root.addEventListener("click", (e) => {
   const t = e.target;
+  const toggle = t.closest("[data-agg-toggle]");
+  if (toggle) {
+    const key = toggle.dataset.aggToggle;
+    if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+    render();
+    return root.querySelector(`[data-agg-toggle="${CSS.escape(key)}"]`)?.focus();
+  }
+  const dashboard = t.closest("[data-agg-dashboard]");
+  if (dashboard) return openAggregatorDashboard(Number(dashboard.dataset.aggDashboard)).catch(() => {});
   const open = t.closest("[data-open]");
   if (open) { selected = open.dataset.open; return render(); }
   if (t.closest("[data-back]")) { selected = null; return render(); }
@@ -242,6 +329,7 @@ addEventListener("focus", () => {
   animateRings(seen);
 });
 initOrderSync(render);
+onAggregatorModeChange(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 render();

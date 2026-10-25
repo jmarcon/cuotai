@@ -12,10 +12,11 @@ import {
   fmtNext, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  cardPace, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks, costUsage,
+  cardPace, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
 import { patch } from "./util.js";
+import { connectionChips, groupsOf, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
 import * as motion from "./motion.js";
 
 await boot();
@@ -87,15 +88,17 @@ function summaryHtml(r) {
   return `<p class="sum-note">${esc(causeText(r))}</p>`;
 }
 
-function card(r, position, ordered, recharging = false) {
+function card(r, position, ordered, recharging = false, { connection = false } = {}) {
   const index = r.index;
   const key = reportKey(r);
-  const on = !disabled.has(key);
+  // PRD 0036 RF8.4: a 9router connection has no switch of its own (it belongs to 9router), no reordering, and is
+  // drawn at 55 % opacity while it is off in 9router.
+  const on = connection ? r.connection.enabled_upstream !== false : !disabled.has(key);
   const isBusy = busy(index);
   // PRD 0010 RF3.2: a failure with a preserved reading draws the old metrics, dimmed and still, plus the cause.
   const stale = isStaleReading(r);
   const n = (stale ? r.last_good.metrics : r.metrics).length;
-  const custom = currentSort() === "custom" && !filterText.trim(); // com filtro, os vizinhos visíveis não são os da ordem real
+  const custom = !connection && currentSort() === "custom" && !filterText.trim(); // com filtro, os vizinhos visíveis não são os da ordem real
   const reorderButtons = custom ? [[-1, "↑"], [1, "↓"]].map(([delta, symbol]) => {
     const target = ordered[position + delta];
     const label = `${te("account.reorder")} ${symbol}`;
@@ -127,19 +130,49 @@ function card(r, position, ordered, recharging = false) {
       ${logo(r.provider)}
       <div class="who"><h2 title="${esc(brand(r.provider).label)}">${esc(brand(r.provider).label)}</h2><p title="${esc(r.account)}">${esc(r.account)}</p></div>
       <div class="actions">
-        <button class="icon" title="${te("common.refresh")}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
+        ${connection ? "" : `<button class="icon" title="${te("common.refresh")}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>`}
         ${bellHtml(store.view, r)}
         <button class="icon" title="${te("card.details")}" aria-label="${te("card.details")}" data-details="${esc(key)}">${icon("search")}</button>
-        <button class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" title="${te(on ? "account.disable" : "account.enable")}" data-toggle="${esc(key)}"><span></span></button>
+        ${connection ? "" : `<button class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" title="${te(on ? "account.disable" : "account.enable")}" data-toggle="${esc(key)}"><span></span></button>`}
       </div>
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
       : summaryHtml(r)}${pasteSessionHtml(r)}${paceLine(r)}${stale ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
     <div class="card-foot">
-      ${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${stale ? "" : overageChipHtml(r)}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
+      ${connection ? connectionChips(r) : ""}${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${bindingChip}${stale ? "" : overageChipHtml(r)}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
       <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
     </div>
+  </section>`;
+}
+
+/** PRD 0036 RF8.4: one section per aggregator below the direct accounts: the instance's header (micro label, hint,
+ *  refresh, bell, details and "Open dashboard"), its state when the instance failed, then the connection cards
+ *  grouped by upstream under each pool's core sentence. A filter that does not match the instance keeps only the
+ *  matching connections. */
+function aggregatorSection(r) {
+  const key = reportKey(r);
+  const isBusy = busy(r.index);
+  const q = norm(filterText.trim());
+  const instanceMatches = !q || norm([brand(r.provider).label, r.account].join(" ")).includes(q);
+  const groups = groupsOf(r)
+    .map((g) => ({ ...g, items: instanceMatches ? g.items : g.items.filter(matchesFilter) }))
+    .filter((g) => g.items.length);
+  const failed = r.status !== "ready";
+  return `<section class="agg-section${disabled.has(key) ? " off" : ""}" data-card="${esc(key)}" aria-label="${esc(`${brand(r.provider).label} · ${r.account}`)}">
+    <header class="agg-head">${instanceHeadHtml(r)}
+      <div class="actions">
+        <button class="icon" title="${te("common.refresh")}" data-refresh="${r.index}" ${isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
+        ${bellHtml(store.view, r)}
+        <button class="icon" title="${te("card.details")}" aria-label="${te("card.details")}" data-details="${esc(key)}">${icon("search")}</button>
+        ${r.aggregator.dashboard ? `<button class="link" data-agg-dashboard="${r.index}">${icon("window")}<span>${te("agg.openDashboard")}</span></button>` : ""}
+      </div>
+    </header>
+    <div class="agg-meta">${ageHtml(r)}${failed ? `<p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>` : ""}</div>
+    ${groups.length ? "" : `<p class="sum-note dim">${te("agg.none")}</p>`}
+    ${groups.map((g) => `<div class="agg-group" data-upstream="${esc(g.upstream)}">
+      ${g.pool ? poolLineHtml(g.pool) : `<p class="agg-pool">${esc(g.name)}</p>`}
+      <div class="grid">${g.items.map((c, position) => card(c, position, g.items, false, { connection: true })).join("")}</div></div>`).join("")}
   </section>`;
 }
 
@@ -170,7 +203,9 @@ const rechargingGroup = (list) => `<details class="recharging" data-recharging $
 let filterText = "";
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const matchesFilter = (r) =>
-  !filterText.trim() || norm([brand(r.provider).label, r.account, r.identity?.email, r.provider].join(" ")).includes(norm(filterText.trim()));
+  !filterText.trim() || norm([brand(r.provider).label, r.account, r.identity?.email, r.provider, r.connection?.upstream].join(" ")).includes(norm(filterText.trim()))
+  // PRD 0036 RF8.4: an aggregator stays when one of its connections matches.
+  || (isAggregator(r) && withConnections([r]).slice(1).some(matchesFilter));
 
 // Aviso curto após remover uma conta (o que aconteceu com a credencial no cofre).
 // `retry` é opcional: quando presente, o aviso ganha um botão "Tentar
@@ -254,7 +289,8 @@ const editAccount = (index) =>
 const pasteSession = (index) => openAccountDialog(index, { onSaved, pasteSession: true });
 
 const detailsContext = {
-  reports: () => store.view?.reports ?? [],
+  // PRD 0036 RF8.5: a connection's details are found by its own key.
+  reports: () => withConnections(store.view?.reports ?? []),
   generation: () => store.view?.generation ?? 0,
   historyEpoch: () => store.view?.history_epoch ?? 0,
   onEdit: editAccount,
@@ -268,6 +304,9 @@ const detailsContext = {
     setMetricAlert(accountKey, label, on).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
   localCost: () => localCost,
   onSettings: openCostSettings,
+  onPoolAlerts: (accountKey, each) =>
+    setPoolAlerts(accountKey, each).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
+  onDashboard: (index) => openAggregatorDashboard(index).catch((x) => setNotice("bad", errText(x))),
 };
 /** PRD 0003 RF3.2: the bell lives in desktop.json; the backend answers with a new view ("snapshot"). */
 function toggleBell(accountKey, on) {
@@ -284,7 +323,10 @@ function render() {
   if (dragKey) { renderPending = true; return; } // não reconstrói a tela no meio de um arraste
   const { view, error } = store;
   const reports = view?.reports ?? [];
-  const ordered = sortReports(reports).filter(matchesFilter);
+  const sorted = sortReports(reports).filter(matchesFilter);
+  // PRD 0036 RF8.4: aggregators get sections of their own below the direct accounts.
+  const ordered = sorted.filter((r) => !isAggregator(r));
+  const aggregators = sorted.filter(isAggregator);
   const [rest, recharging] = splitRecharging(ordered); // the chosen order holds inside each group
   const loading = !!view && view.busy.length > 0;
   // "Aguardando": contas da configuração que ainda não têm relatório (só antes da primeira resposta de cada uma).
@@ -318,9 +360,10 @@ function render() {
     ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings="integrations" data-settings-anchor="hooks">${te("serve.bannerOpen")}</button></div>` : ""}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty">${te("account.empty")}<br/><br/><button class="btn primary" data-add>${te("common.add")}</button><br/><small>${esc(configLabel(view))}</small></div>` : ""}
-    ${view && view.loaded && reports.length && !ordered.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
+    ${view && view.loaded && reports.length && !sorted.length ? `<div class="empty">${te("filter.none")}</div>` : ""}
     <main class="grid">${rest.map((report, position) => card(report, position, rest)).join("")}${waiting.map(skeleton).join("")}${solo.map((s) => costSoloCardHtml(s, localCost)).join("")}</main>
-    ${recharging.length ? rechargingGroup(recharging) : ""}</div>`);
+    ${recharging.length ? rechargingGroup(recharging) : ""}
+    ${aggregators.map(aggregatorSection).join("")}</div>`);
   motion.after(root, prev);
 }
 
@@ -356,6 +399,8 @@ root.addEventListener("click", (e) => {
   if (det) return openDetails(det.dataset.details, detailsContext, det.closest("[data-card]"));
   const bell = t.closest("[data-bell]");
   if (bell) return toggleBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
+  const dashboard = t.closest("[data-agg-dashboard]");
+  if (dashboard) return detailsContext.onDashboard(Number(dashboard.dataset.aggDashboard));
   const tog = t.closest("[data-toggle]");
   if (tog) { disabled.toggle(tog.dataset.toggle); return render(); }
 });

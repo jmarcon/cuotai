@@ -687,3 +687,40 @@
   font: 12px var(--font-mono);
   word-break: break-all;
 }
+
+/* PRD 0036 RF8.5: what the details add for an aggregator instance or one of its connections. */
+.agg-info dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 8px 0;
+}
+.agg-info dt {
+  color: var(--fg-muted);
+}
+.agg-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.agg-info .agg-pool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  font-variant-numeric: tabular-nums;
+}
+.agg-info .agg-pool.bad {
+  color: var(--bad);
+}
+.agg-info .agg-pool .i {
+  width: 14px;
+  height: 14px;
+}
+.agg-info .agg-micro {
+  margin-top: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}

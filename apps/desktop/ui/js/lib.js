@@ -103,6 +103,7 @@ export const previewSession = (provider, slot, paste) => call("preview_session",
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
 export const testSession = (input) => call("test_session", { input });
 export const testAggregator = (input) => call("test_aggregator", { input });
+export const openAggregatorDashboard = (index) => call("open_aggregator_dashboard", { index });
 export const saveAccount = (input) => call("save_account", { input });
 export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
 /// RF4: re-read the configuration from disk and rebuild the live
@@ -604,7 +605,9 @@ export function ageHtml(r) {
 /** The report with the preserved metrics in place of the failed ones, for drawing only: the status stays the
  *  failure and nothing from the old reading feeds the binding, alerts or ordering. */
 export const staleView = (r) => ({ ...r, metrics: r.last_good.metrics, notes: [], notes_l10n: [], binding: null });
-export const reportKey = (r) => `${r.provider}::${r.account}`;
+// PRD 0036 RF8: a 9router connection is keyed by the core's own key (`nine_router:<instance>/<id>`), never by a
+// provider and name another account could share.
+export const reportKey = (r) => (r.connection ? r.account_key : `${r.provider}::${r.account}`);
 /** Resolve the structured note sidecar by the same index as the legacy fallback. */
 export const noteText = (report, index) =>
   report.notes_l10n?.[index] ? tl(report.notes_l10n[index]) : report.notes[index] ?? "";
@@ -928,6 +931,31 @@ const demoReports = [
     session_expiry: { expires_at: new Date(Date.now() + 2.5 * 86400000).toISOString(), days: 2, soon: true,
       label: { id: "user_session.expiry.days", params: { days: 2 }, fallback: "Sessão expira em 2 dias." } } },
 ];
+// PRD 0036 RF8 demo: a local 9router instance with four connections (two Claude, one of them exhausted; a Codex one
+// off in 9router; an unmapped GLM one whose query failed). `?aggregator=off` leaves it out.
+const demoConnection = (id, label, upstream, mapped, metrics, extra = {}) => ({
+  ...dr(`home/${id}`, mapped ?? "nine_router", metrics), account: label, demo_id: id,
+  connection: { label, upstream, mapped, enabled_upstream: true, duplicate_of: null, plan: null, via: `open-sse/services/usage/${upstream}.js` }, ...extra,
+});
+if (new URLSearchParams(location.search).get("aggregator") !== "off") {
+  const conns = [
+    demoConnection("a1b2c3", "work", "claude", "claude", [dm("session (5h)", 22, 100, 3, "quota", "window_5h", "%"), dm("weekly (7d)", 40, 100, 80, "quota", "weekly", "%")]),
+    { ...demoConnection("d4e5f6", "personal", "claude", "claude", [dm("session (5h)", 100, 100, 2, "quota", "window_5h", "%")]), class: "exhausted" },
+    demoConnection("0718aa", "team", "codex", "chat_gpt", [], { status: "ready", notes: ["Off in 9router."],
+      connection: { label: "team", upstream: "codex", mapped: "chat_gpt", enabled_upstream: false, duplicate_of: null, plan: null, via: null } }),
+    { ...demoConnection("9bc0de", "zhipu", "glm", null, [], { status: "error", notes: ["Reconnect this account in 9router."], class: "unmeasured" }) },
+  ];
+  demoReports.push({ ...dr("home", "nine_router", [], ["2 of 4 9router connections with usage.", "9router 0.5.109."]),
+    class: "available", connections: conns,
+    aggregator: { kind: "9router", version: "0.5.109", host: "127.0.0.1:20128", available: 1, total: 3, connections: conns.length,
+      pools: [
+        { upstream: "claude", provider: "claude", available: 1, exhausted: 1, total: 2, returns_at: null,
+          summary: { id: "pool.available", params: { upstream: "Claude", available: "1", total: "2" }, fallback: "Claude · 1 de 2 disponíveis" } },
+        { upstream: "glm", provider: null, available: 0, exhausted: 0, total: 1, returns_at: null,
+          summary: { id: "pool.unmeasured", params: { upstream: "glm", total: "1" }, fallback: "glm · 1 conexões sem uso conhecido" } },
+      ],
+      alert_each: false, dashboard: true } });
+}
 // PRD 0016 RF2.1 demo: the platform session slot the core declares for Xiaomi MiMo.
 const DEMO_SESSION_SLOT = { slot: "platform_session_env",
   label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" },
@@ -973,6 +1001,15 @@ const DEMO_PACES = new Map([
   [8, [0, { 0: dp("reserve", "good", 0.656, 0, 248) }]],
   [14, [0, { 0: dp("exhausted", "bad", 0.866, 1, 100) }]],
 ].map(([index, pace]) => [demoReports[index], pace]));
+// The core's binding of a demo connection: its most consumed quota (demo only; the app gets it from the core).
+const demoConnectionBinding = (c) => {
+  const ratio = (m) => (m.limit ? m.used / m.limit : 0);
+  const index = c.metrics.reduce((best, m, i) => (best < 0 || ratio(m) > ratio(c.metrics[best]) ? i : best), -1);
+  if (index < 0) return null;
+  const m = c.metrics[index], used = Math.min(1, ratio(m));
+  return { index, label: m.label, window: m.window, used_ratio: used, remaining: m.limit * (1 - used), resets_at: m.resets_at,
+    reason: used >= 1 ? "exhausted" : "tightest", blocked_until: used >= 1 ? m.resets_at : null };
+};
 const demoView = () => {
   const now = new Date().toISOString();
   const reports = demoReports.map((r, index) => {
@@ -982,7 +1019,11 @@ const demoView = () => {
     const incident = demoIncident(r);
     // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
     const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;
-    return { ...r, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
+    // PRD 0036 RF8: a connection keeps its aggregator's index (actions act on it) and its own core key.
+    const connections = (r.connections ?? []).map((c) => ({ ...c, index, binding: demoConnectionBinding(c), binding_rank: 0, pace_index: null,
+      metrics: c.metrics.map((m) => ({ ...m, pace: null, alert: null })), next_refresh_at_ms: Date.now() + 90e3, access: demoAccess(r),
+      account_key: `nine_router:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
+    return { ...r, connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics, pace_index: paceIndex,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
       account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label), incident,
@@ -1487,6 +1528,7 @@ const demo = {
     const expiry = { id: "user_session.expiry.unknown", params: {}, fallback: "Validade desconhecida." };
     return { kept, discarded, expiry: null, summary: { id: "user_session.paste.summary", params: { kept: kept.join(", "), discarded, expiry }, fallback: `Guardados: ${kept.join(", ")}. Descartados: ${discarded}. Validade desconhecida.` } };
   },
+  open_aggregator_dashboard: async () => {},
   // PRD 0036 RF2.2: the demo instance answers like a local 9router with three connections.
   test_aggregator: async ({ input }) => {
     const base = (input.fields ?? []).find((f) => f.key === "base_url")?.text ?? "";

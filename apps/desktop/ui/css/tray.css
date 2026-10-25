@@ -325,3 +325,63 @@ body {
   color: var(--fg-muted);
   font-size: var(--text-sm, 12px);
 }
+/* PRD 0036 RF8.3: the grouped aggregator row of "All" expands in place (DS-CMP-NAV-2); RF8.1/RF8.2: the 9router view. */
+.agg-row .row .chev {
+  transition: transform var(--motion-base, 150ms) ease;
+}
+.agg-row.open .row .chev {
+  transform: rotate(90deg);
+}
+.agg-body,
+.agg-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 8px 12px;
+}
+.agg-view {
+  padding-left: 0;
+}
+.agg-view .agg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agg-view .who {
+  flex: 1;
+  min-width: 0;
+}
+.agg-micro {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.agg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agg-pool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.agg-pool.bad {
+  color: var(--bad);
+}
+.agg-pool .i {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+.row-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}

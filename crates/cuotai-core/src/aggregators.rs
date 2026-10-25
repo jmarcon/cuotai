@@ -213,6 +213,32 @@ pub fn expand(config: &Config, readings: &[Option<&Report>]) -> Expanded {
     expanded
 }
 
+/// PRD 0036 RF8.2: the usage page of the aggregator's own dashboard
+/// (`<base_url>/dashboard/usage`), from the validated base address; `None`
+/// for another provider or an invalid address. Front ends open it in the
+/// browser ("Open dashboard"); Cuotai never requests it.
+pub fn dashboard_url(account: &Account) -> Option<String> {
+    if account.provider != Provider::NineRouter {
+        return None;
+    }
+    let base = crate::providers::nine_router::account_base(account).ok()?;
+    base.join("dashboard/usage").ok().map(String::from)
+}
+
+/// PRD 0036 RF8.5: the host (and port) of the aggregator's address, the only
+/// part of it the details show.
+pub fn instance_host(account: &Account) -> Option<String> {
+    if account.provider != Provider::NineRouter {
+        return None;
+    }
+    let base = crate::providers::nine_router::account_base(account).ok()?;
+    let host = base.host_str()?.to_owned();
+    Some(match base.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host,
+    })
+}
+
 /// The instance's version an aggregator report noted ("0.5.109"), if any.
 pub fn instance_version(report: &Report) -> Option<String> {
     report
@@ -719,6 +745,37 @@ mod tests {
         assert_eq!((pool.available, pool.exhausted, pool.total), (0, 0, 1));
         assert!(!pool.is_exhausted());
         assert_eq!(pool.summary().id, "pool.unmeasured");
+    }
+
+    #[test]
+    fn the_dashboard_and_host_come_from_the_validated_address() {
+        let mut account = router_account();
+        assert_eq!(
+            dashboard_url(&account).as_deref(),
+            Some("http://127.0.0.1:20128/dashboard/usage")
+        );
+        assert_eq!(instance_host(&account).as_deref(), Some("127.0.0.1:20128"));
+        account
+            .params
+            .insert("base_url".into(), "https://router.example.com/9r/".into());
+        assert_eq!(
+            dashboard_url(&account).as_deref(),
+            Some("https://router.example.com/9r/dashboard/usage")
+        );
+        assert_eq!(
+            instance_host(&account).as_deref(),
+            Some("router.example.com")
+        );
+        // An address the rules refuse, or another provider, has neither.
+        account
+            .params
+            .insert("base_url".into(), "http://user:pw@10.0.0.1/".into());
+        assert!(dashboard_url(&account).is_none() && instance_host(&account).is_none());
+        let direct = Account {
+            provider: Provider::Claude,
+            ..router_account()
+        };
+        assert!(dashboard_url(&direct).is_none());
     }
 
     #[test]

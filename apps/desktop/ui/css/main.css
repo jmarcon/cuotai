@@ -639,3 +639,49 @@
   color: inherit;
   text-decoration: underline;
 }
+
+/* PRD 0036 RF8.4: one section per aggregator (9router) below the direct accounts, its connections grouped by
+   upstream under each pool sentence. */
+.agg-section {
+  margin-top: 24px;
+}
+.agg-section.off {
+  opacity: 0.55;
+}
+.agg-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.agg-micro {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.agg-head .who .hint {
+  white-space: normal;
+}
+.agg-meta {
+  margin-top: 4px;
+}
+.agg-group {
+  margin-top: 16px;
+}
+.agg-pool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.agg-pool.bad {
+  color: var(--bad);
+}
+.agg-pool .i {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}

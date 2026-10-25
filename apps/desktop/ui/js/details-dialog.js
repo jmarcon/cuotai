@@ -6,6 +6,7 @@ import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
 import { showDialog } from "./motion.js";
 import { openReportProblem } from "./report-dialog.js";
+import { connectionInfoHtml, instanceInfoHtml, isAggregator, isConnection } from "./aggregator.js";
 
 let dlg = null;
 let currentKey = null;
@@ -28,6 +29,9 @@ function localCostHtml(r) {
 function render() {
   const r = ctx.reports().find((x) => reportKey(x) === currentKey);
   if (!r) return dlg.close(); // a conta foi removida ou mudou de identidade
+  // PRD 0036 RF8.5: a 9router connection is not an account of its own: no edit, removal, models or history here
+  // (its index is the aggregator's); recovery is "Open dashboard".
+  if (isConnection(r)) return renderConnection(r);
   models ??= mountModels({ key: currentKey, index: r.index, generation: ctx.generation() });
   models.update(r.index, ctx.generation());
   history ??= mountHistory({ key: currentKey, index: r.index, generation: ctx.generation(), stamp: historyStamp(r) });
@@ -47,11 +51,24 @@ function render() {
     </div>
     ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
     ${r.paste_session ? `<div class="dlg-actions"><button type="button" class="btn" data-paste-session>${icon("edit")}<span>${te("card.pasteSession")}</span></button></div>` : ""}
-    <div class="det-body">${detailHtml(r, { eye: true })}${localCostHtml(r)}<div data-history-slot></div><div data-models-slot></div></div>
+    <div class="det-body">${detailHtml(r, { eye: true })}${isAggregator(r) ? instanceInfoHtml(r) : ""}${localCostHtml(r)}<div data-history-slot></div><div data-models-slot></div></div>
     <div class="dlg-actions">${r.status !== "ready" ? `<button class="btn" data-report>${te("report.action")}</button>` : ""}<button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;
   history.attach(dlg);
   models.attach(dlg, focus);
+}
+
+function renderConnection(r) {
+  dlg.innerHTML = `<div class="dlg-body">
+    <div class="det-head">
+      ${logo(r.provider, 44)}
+      <div class="who"><h2>${esc(brand(r.provider).label)}</h2><p>${esc(r.account)}</p></div>
+      ${r.status !== "ready" ? `<span class="pill st-${r.status}">${esc(statusLabel(r.status))}</span>` : ""}
+      <div class="actions">${bellHtml(ctx.view(), r)}</div>
+    </div>
+    <div class="det-body">${detailHtml(r, { eye: true })}${connectionInfoHtml(r, r.index)}</div>
+    <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
+  </div>`;
 }
 
 /** `from`: o cartão de origem; o diálogo cresce a partir dele (RF3.1). */
@@ -89,6 +106,11 @@ export function openDetails(key, context, from = null) {
         }).catch(() => {});
         return;
       }
+      // PRD 0036 RF8.5: the aggregator's own dashboard, and its alert mode (each connection or whole pools).
+      const dashboard = t.closest("[data-agg-dashboard]");
+      if (dashboard) return ctx.onDashboard?.(Number(dashboard.dataset.aggDashboard));
+      const each = t.closest("[data-pool-each]");
+      if (each) return ctx.onPoolAlerts?.(each.dataset.poolEach, each.checked);
       if (t.closest("[data-edit]")) { const rep = r(); dlg.close(); if (rep) ctx.onEdit(rep.index); }
       // SES-01: straight to the account's paste box.
       else if (t.closest("[data-paste-session]")) { const rep = r(); dlg.close(); if (rep) ctx.onPasteSession(rep.index); }

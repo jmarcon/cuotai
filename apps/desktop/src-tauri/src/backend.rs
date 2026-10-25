@@ -474,6 +474,16 @@ pub struct ReportView {
     /// PRD 0023 RF3: paid extra usage of this reading; `None` when the
     /// provider exposes no overage data.
     overage: Option<OverageView>,
+    /// PRD 0036 RF8: for an aggregator account, its connections as views
+    /// of their own (grouped by upstream; `index` is the aggregator's, so
+    /// every action acts on it), and the instance's summary.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    connections: Vec<ReportView>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    aggregator: Option<AggregatorView>,
+    /// PRD 0036 RF8: what a connection view adds; absent for accounts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    connection: Option<ConnectionView>,
 }
 
 /// The core's overage reading plus its texts, so no surface composes them.
@@ -503,6 +513,52 @@ fn overage_view(report: &Report) -> Option<OverageView> {
         caveat: state.units_caveat(),
         state: cuotai_core::overage::OverageExport::from(&state),
     })
+}
+
+/// PRD 0036 RF8.2/RF8.5: the instance of an aggregator account.
+#[derive(Serialize, Clone)]
+pub struct AggregatorView {
+    /// The aggregator's display name ("9router").
+    kind: &'static str,
+    version: Option<String>,
+    /// Host and port of the base address (never its path).
+    host: Option<String>,
+    /// Active connections with quota left, of all active ones.
+    available: usize,
+    total: usize,
+    /// Connections in the instance (active or not).
+    connections: usize,
+    pools: Vec<PoolView>,
+    /// Whether the connection alerts go one by one (else per pool).
+    alert_each: bool,
+    /// The instance's dashboard can be opened (`open_aggregator_dashboard`).
+    dashboard: bool,
+}
+
+#[derive(Serialize, Clone)]
+pub struct PoolView {
+    upstream: String,
+    provider: Option<Provider>,
+    available: usize,
+    exhausted: usize,
+    total: usize,
+    returns_at: Option<chrono::DateTime<chrono::Utc>>,
+    summary: cuotai_core::text::Localized,
+}
+
+/// PRD 0036 RF8: one upstream connection of an aggregator.
+#[derive(Serialize, Clone)]
+pub struct ConnectionView {
+    /// The connection's label (as the aggregator masks it).
+    label: String,
+    upstream: String,
+    /// The mapped Cuotai provider; `None` for an upstream Cuotai does not
+    /// know (the view's `provider` is then the aggregator's).
+    mapped: Option<Provider>,
+    enabled_upstream: Option<bool>,
+    duplicate_of: Option<String>,
+    plan: Option<String>,
+    via: Option<String>,
 }
 
 /// The core's provider status plus its state's text.
@@ -787,7 +843,106 @@ fn report_view(
         paste_session: user_session::offers_new_paste(report),
         data_as_of: cuotai_core::freshness::lagging_as_of(report),
         overage: overage_view(report),
+        connections: Vec::new(),
+        aggregator: None,
+        connection: None,
     }
+}
+
+/// PRD 0036 RF8: the views of the connections of the aggregator at
+/// `index` and its instance summary. The connections come from the current
+/// report when it is `Ready` (each with its own preserved reading while its
+/// query failed) or, while the instance failed, from its last good reading
+/// (all stale). Each view is a [`report_view`] of the connection presented
+/// as an account (its key, alerts and bell are its own; its usage access is
+/// the aggregator's), keeping the aggregator's `index` for actions.
+#[allow(clippy::too_many_arguments)]
+fn aggregator_views(
+    index: usize,
+    config: &Config,
+    current: Option<&Report>,
+    last_good: Option<&Report>,
+    last_good_sub: impl Fn(&str) -> Option<Report>,
+    next_refresh_at_ms: Option<u64>,
+    alert_each: bool,
+) -> (Vec<ReportView>, AggregatorView) {
+    use cuotai_core::aggregators::{
+        dashboard_url, instance_host, instance_version, pools, sub_account, sub_as_report,
+    };
+    let parent = &config.accounts[index];
+    let ready = current.filter(|report| report.status == Status::Ready);
+    let source = ready.or(last_good);
+    let mut upstreams: Vec<&str> = Vec::new();
+    for sub in source
+        .map(|report| report.sub_reports.as_slice())
+        .unwrap_or_default()
+    {
+        if !upstreams.contains(&sub.upstream.as_str()) {
+            upstreams.push(&sub.upstream);
+        }
+    }
+    let mut views = Vec::new();
+    if let Some(source) = source {
+        for upstream in &upstreams {
+            for sub in source
+                .sub_reports
+                .iter()
+                .filter(|sub| sub.upstream == *upstream)
+            {
+                let mut keyed = config.clone();
+                keyed.accounts[index] = sub_account(parent, sub);
+                let reading = sub_as_report(source, sub);
+                let mut view = if ready.is_some() {
+                    let mut view =
+                        report_view(index, &reading, &keyed, next_refresh_at_ms, None, 0, &[]);
+                    view.last_good = last_good_sub(&sub.id).map(|good| last_good_view(&good));
+                    view
+                } else {
+                    let mut view =
+                        pending_view(index, &reading, &keyed, next_refresh_at_ms, None, 0);
+                    view.last_good =
+                        (sub.status == Status::Ready).then(|| last_good_view(&reading));
+                    view
+                };
+                view.provider = sub.provider.unwrap_or(parent.provider);
+                view.account = sub.label.clone();
+                view.connection = Some(ConnectionView {
+                    label: sub.label.clone(),
+                    upstream: sub.upstream.clone(),
+                    mapped: sub.provider,
+                    enabled_upstream: sub.enabled_upstream,
+                    duplicate_of: sub.duplicate_of.clone(),
+                    plan: sub.plan.clone(),
+                    via: sub.via.clone(),
+                });
+                views.push(view);
+            }
+        }
+    }
+    let pools = source.map(pools).unwrap_or_default();
+    let summary = AggregatorView {
+        kind: "9router",
+        version: source.and_then(instance_version),
+        host: instance_host(parent),
+        available: pools.iter().map(|pool| pool.available).sum(),
+        total: pools.iter().map(|pool| pool.total).sum(),
+        connections: views.len(),
+        pools: pools
+            .into_iter()
+            .map(|pool| PoolView {
+                summary: pool.summary(),
+                upstream: pool.upstream,
+                provider: pool.provider,
+                available: pool.available,
+                exhausted: pool.exhausted,
+                total: pool.total,
+                returns_at: pool.returns_at,
+            })
+            .collect(),
+        alert_each,
+        dashboard: dashboard_url(parent).is_some(),
+    };
+    (views, summary)
 }
 
 /// An account no query answered yet, shown through its restored reading
@@ -1014,6 +1169,44 @@ impl Inner {
                     .map(|report| last_good_view(&report, now_utc));
                 view.notify = self.notices.account_on(&view.account_key);
                 view.incident = incident_view(&statuses, view.provider);
+                // PRD 0036 RF8: an aggregator carries its connections.
+                if l.file.config.accounts[i].provider.is_aggregator() {
+                    let (mut connections, summary) = aggregator_views(
+                        i,
+                        &l.file.config,
+                        slot.as_ref(),
+                        last_good,
+                        |id| {
+                            let good = l.cycle.last_good_sub(i, id)?;
+                            let source = l.cycle.last_good_report(i).or(slot.as_ref())?;
+                            Some(cuotai_core::aggregators::sub_as_report(source, good))
+                        },
+                        next,
+                        self.notices.alerts().pool_mode(&view.account_key)
+                            == alerts::PoolAlerts::EachConnection,
+                    );
+                    for connection in &mut connections {
+                        connection.notify = self.notices.account_on(&connection.account_key);
+                        connection.incident = incident_view(&statuses, connection.provider);
+                        if connection
+                            .connection
+                            .as_ref()
+                            .is_some_and(|c| c.mapped.is_none())
+                        {
+                            connection.incident = None;
+                        }
+                        if let Some(report) = slot.as_ref().filter(|r| r.status == Status::Ready) {
+                            if let Some(sub) = report.sub_reports.iter().find(|sub| {
+                                connection.account_key.ends_with(&format!("/{}", sub.id))
+                            }) {
+                                let reading = cuotai_core::aggregators::sub_as_report(report, sub);
+                                self.mark_usage_alerts(connection, &reading);
+                            }
+                        }
+                    }
+                    view.connections = connections;
+                    view.aggregator = Some(summary);
+                }
                 Some(view)
             })
             .collect();
@@ -3151,6 +3344,14 @@ impl Backend {
         Ok(SessionTestView::from_report(&report))
     }
 
+    /// PRD 0036 RF8.2: the dashboard address of the aggregator account at
+    /// `index`, from the core.
+    pub async fn aggregator_dashboard(&self, index: usize) -> Option<String> {
+        let g = self.inner.lock().await;
+        let account = g.loaded.as_ref()?.file.config.accounts.get(index)?;
+        cuotai_core::aggregators::dashboard_url(account)
+    }
+
     /// PRD 0036 RF2.2: the dialog's Test connection of an aggregator draft
     /// (health, version, login, connection list). Read-only; the account
     /// is remembered only so the save can tell it was tested.
@@ -4688,6 +4889,126 @@ mod tests {
         let plain = ready("plain", vec![quota("5h", 40.0, Window5h, 2)]);
         let view = serde_json::to_value(report_view(1, &plain, &config, None, None, 0, &[])).unwrap();
         assert!(view["overage"].is_null());
+    }
+
+    /// PRD 0036 RF8: an aggregator's view carries its connections (grouped
+    /// by upstream, each with its own key, the mapped provider and the
+    /// aggregator's index) and the instance summary; a connection whose
+    /// query failed offers its preserved reading; while the instance failed
+    /// every connection is stale.
+    #[test]
+    fn an_aggregator_view_carries_its_connections_and_pools() {
+        use cuotai_core::{MetricWindow::Weekly, SubReport};
+        let mut router = plain_account("home");
+        router.provider = Provider::NineRouter;
+        router
+            .params
+            .insert("base_url".into(), "http://127.0.0.1:20128".into());
+        let config = Config {
+            accounts: vec![router],
+            ..Config::default()
+        };
+        let sub = |id: &str, upstream: &str, mapped, status, used: f64| SubReport {
+            id: id.into(),
+            upstream: upstream.into(),
+            provider: mapped,
+            label: id.into(),
+            status,
+            metrics: vec![Metric {
+                limit: Some(100.0),
+                ..Metric::usage("weekly (7d)", used, "%", MetricKind::Quota, Some(Weekly))
+            }],
+            notes_l10n: Vec::new(),
+            checked_at: chrono::Utc::now(),
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+        };
+        let mut instance = ready("home", vec![]);
+        instance.provider = Provider::NineRouter;
+        instance.sub_reports = vec![
+            sub("a1", "claude", Some(Provider::Claude), Status::Ready, 40.0),
+            sub("g7", "glm", None, Status::Error, 0.0),
+            sub("b2", "claude", Some(Provider::Claude), Status::Ready, 100.0),
+        ];
+        let good = sub("g7", "glm", None, Status::Ready, 10.0);
+        let (views, summary) = aggregator_views(
+            0,
+            &config,
+            Some(&instance),
+            None,
+            |id| (id == "g7").then(|| cuotai_core::aggregators::sub_as_report(&instance, &good)),
+            None,
+            false,
+        );
+        let keys: Vec<_> = views.iter().map(|v| v.account_key.as_str()).collect();
+        // Grouped by upstream, in the order of first appearance.
+        assert_eq!(
+            keys,
+            [
+                "nine_router:home/a1",
+                "nine_router:home/b2",
+                "nine_router:home/g7"
+            ]
+        );
+        assert!(views.iter().all(|v| v.index == 0));
+        assert_eq!(views[0].provider, Provider::Claude);
+        assert_eq!(views[0].class, AccountClass::Available);
+        assert_eq!(views[1].class, AccountClass::Exhausted);
+        // An unknown upstream keeps the aggregator as provider and says so.
+        assert_eq!(views[2].provider, Provider::NineRouter);
+        assert!(views[2].connection.as_ref().unwrap().mapped.is_none());
+        assert!(
+            views[2].last_good.is_some(),
+            "the failed connection keeps its reading"
+        );
+        assert!(views[0].last_good.is_none());
+        // Its usage access is the aggregator's.
+        let json = serde_json::to_value(&views[0]).unwrap();
+        assert_eq!(json["access"]["level"], "undocumented");
+        assert_eq!(json["connection"]["upstream"], "claude");
+        assert_eq!(
+            (summary.available, summary.total, summary.connections),
+            (1, 3, 3)
+        );
+        assert_eq!(summary.host.as_deref(), Some("127.0.0.1:20128"));
+        assert!(summary.dashboard);
+        // A plain account's JSON has neither block.
+        let plain = serde_json::to_value(report_view(
+            0,
+            &ready("x", vec![]),
+            &Config {
+                accounts: vec![plain_account("x")],
+                ..Config::default()
+            },
+            None,
+            None,
+            0,
+            &[],
+        ))
+        .unwrap();
+        assert!(plain.get("connections").is_none() && plain.get("aggregator").is_none());
+
+        // The instance failed: connections come from its last good reading,
+        // all stale with no current metrics.
+        let mut failed = ready("home", vec![]);
+        failed.provider = Provider::NineRouter;
+        failed.status = Status::Error;
+        let (stale, summary) = aggregator_views(
+            0,
+            &config,
+            Some(&failed),
+            Some(&instance),
+            |_| None,
+            None,
+            true,
+        );
+        assert_eq!(stale.len(), 3);
+        assert!(stale.iter().all(|v| v.pending));
+        assert!(stale[0].last_good.is_some() && stale[2].last_good.is_none());
+        assert!(summary.alert_each);
     }
 
     #[test]

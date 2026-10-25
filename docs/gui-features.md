@@ -21,6 +21,7 @@ Everything the app shows comes from `cuotai-core`, the same engine the terminal 
 - [Account details and history](#account-details-and-history)
 - [Local cost](#local-cost)
 - [Tray popover and tray menu](#tray-popover-and-tray-menu)
+- [9router and other aggregators](#9router-and-other-aggregators)
 - [Themes and languages](#themes-and-languages)
 - [Integration: local server and hooks](#integration-local-server-and-hooks)
 
@@ -102,6 +103,15 @@ Closing the main window only hides it: Cuotai keeps running and refreshing from 
 </div>
 
 The tray icon, its tooltip, the right-click menu and the popover also carry the update notice ("Update 0.72.0 available"), the next reset notice and, when status is on, the red outage dot. Details that depend on the operating system are in the platform guides.
+
+## 9router and other aggregators
+
+A 9router instance you run (see [`providers.md`](providers.md#9router-nine_router)) is one account whose upstream connections are shown as accounts of their own:
+
+- **Adding it.** The account dialog has a **Test connection** box: it checks the address, the version, the dashboard password and the connection list, and answers with one sentence. Saving runs the test first and saves only when it connects. A self-signed HTTPS instance shows its certificate's SHA-256 fingerprint in a confirmation dialog; after you compare it with the server's, **Trust and test** pins it.
+- **Main window.** Below your direct accounts, each instance gets a section: "9ROUTER · HOME" with "7 connections · 9router 0.5.109", refresh, the bell, details and **Open dashboard** (the instance's own usage page in your browser). Its connections follow as cards grouped by provider, each under the core's pool sentence ("Claude · 2 of 3 available", or when every account of a provider is exhausted, the earliest return). Connection cards have no switch of their own (the switch belongs to 9router); one that is off in 9router is dimmed with "Off in 9router". Refreshing refreshes the whole instance.
+- **Tray popover.** In "All", an instance is one row with the pool figure ("5/7 available") and its tightest connection or exhausted pool; activating it expands it in place with the pool lines, the connection rows and **Open the 9router view**, the instance's full list. **Settings › Dashboard › 9router connections in All** shows it grouped (default), lists its active connections with your accounts marked "via 9router", or hides it.
+- **Details.** A connection's details show its quotas, the provider in 9router and in Cuotai, "via 9router" with the reminder that 9router may zero-fill a missing value or serve a cached reading, and **Open dashboard**. The instance's details add its address (host only), version, connection count, the pools and **Alert on each connection**: off by default, an instance notifies once when every account of one provider runs out and once when one returns; on, each connection alerts like an account.
 
 ## Themes and languages
 
