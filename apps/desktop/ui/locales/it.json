@@ -1225,5 +1225,7 @@
   "settings.rows.el.sublimits.desc": "Valori di 5 h e settimanali sotto la barra",
   "settings.kw.rows": "righe vista densità dettagliata standard minima personale elementi layout",
   "settings.kw.rows-separate": "righe vista finestra principale layout separato diverso",
-  "settings.display.more": "Altre opzioni di vista"
+  "settings.display.more": "Altre opzioni di vista",
+  "settings.page.extensions": "Estensioni",
+  "settings.kw.extensions": "estensioni estensione locale componente aggiuntivo plugin provider personalizzato eseguire approvare cartella"
 }

@@ -50,11 +50,11 @@ const names = [...(await lib.costStatus()).sources.map((x) => x.label), /^Cuotai
 const { PAGES, ADVANCED, LEGACY_SECTIONS, CONTROLS } = registry;
 const ids = PAGES.map((p) => p.id);
 
-// RF2.5 / DS-CMP-SEG-5: order, Advanced group and About at the bottom. Menu bar and Extensions join later.
+// RF2.5 / DS-CMP-SEG-5: order, Advanced group and About at the bottom. 
 const SEG5 = ["general", "dashboard", "menubar", "alerts", "data", "integrations", "cost", "extensions", "files", "about"];
 assert.deepEqual(ids, SEG5.filter((id) => ids.includes(id)), "pages are out of the DS-CMP-SEG-5 order");
 assert.deepEqual(ids.slice(0, 5), ["general", "dashboard", "menubar", "alerts", "data"], "everyday pages drifted");
-assert.deepEqual(PAGES.filter((p) => p.group === ADVANCED).map((p) => p.id), ["integrations", "cost", "files"], "Advanced group drifted");
+assert.deepEqual(PAGES.filter((p) => p.group === ADVANCED).map((p) => p.id), ["integrations", "cost", "extensions", "files"], "Advanced group drifted");
 assert.deepEqual(PAGES.filter((p) => p.bottom).map((p) => p.id), ["about"], "About must be the one page at the bottom");
 assert.equal(new Set(ids).size, ids.length, "duplicate page id");
 const sections = PAGES.flatMap((p) => p.sections);
@@ -62,7 +62,7 @@ assert.equal(new Set(sections).size, sections.length, "a section is listed on tw
 
 // RF2 acceptance: the 12 sections of the old dialog (plus Updates) all land on a registered page, and the
 // per-control checklist agrees with that map.
-assert.deepEqual(Object.keys(LEGACY_SECTIONS).sort(), ["about", "appearance", "config", "cost", "folder", "history", "integration",
+assert.deepEqual(Object.keys(LEGACY_SECTIONS).sort(), ["about", "appearance", "config", "cost", "extensions", "folder", "history", "integration",
   "language", "notifications", "order", "privacy", "refresh", "updates"], "old dialog sections drifted");
 for (const [section, pages] of Object.entries(LEGACY_SECTIONS)) {
   for (const page of pages) assert.ok(ids.includes(page), `${section} maps to unknown page ${page}`);

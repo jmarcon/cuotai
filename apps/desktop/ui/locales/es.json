@@ -1225,5 +1225,7 @@
   "settings.rows.el.sublimits.desc": "Valores de 5 h y semana bajo la barra",
   "settings.kw.rows": "filas vista densidad detallada estándar mínima personal elementos diseño",
   "settings.kw.rows-separate": "filas vista ventana principal diseño separado distinto",
-  "settings.display.more": "Más opciones"
+  "settings.display.more": "Más opciones",
+  "settings.page.extensions": "Extensiones",
+  "settings.kw.extensions": "extensiones extensión local complemento plugin proveedor personalizado ejecutar aprobar carpeta"
 }

@@ -1232,5 +1232,7 @@
   "settings.rows.el.sublimits.desc": "Valores de 5 h e semanal sob a barra",
   "settings.kw.rows": "linhas exibição densidade detalhada padrão mínima personalizada elementos layout",
   "settings.kw.rows-separate": "linhas exibição janela principal layout separado diferente",
-  "settings.display.more": "Mais opções de exibição"
+  "settings.display.more": "Mais opções de exibição",
+  "settings.page.extensions": "Extensões",
+  "settings.kw.extensions": "extensões extensão local plugin complemento provedor personalizado executar aprovar pasta"
 }

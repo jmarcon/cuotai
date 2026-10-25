@@ -2,9 +2,8 @@
 // here plus its module under `js/settings/`; the window shell has no page of its own.
 //
 // Order: General, Dashboard, Menu bar (PRD 0025 RF4), Alerts, Data & privacy, the collapsible Advanced group
-// (Integrations, Local cost, (Extensions), Files), then About separated at the bottom. The Extensions page (PRDs 0017
-// and 0028 RF7) gets its entry when its content moves here; until then the extension manager stays in the main
-// window.
+// (Integrations, Local cost, Extensions, Files), then About separated at the bottom. The Extensions page (PRDs 0017
+// and 0028 RF7) reuses the extension manager of the main window's dialog, which stays reachable there.
 import { te } from "../i18n.js";
 import { esc, icon } from "../lib.js";
 
@@ -20,6 +19,7 @@ export const PAGES = [
   { id: "data", icon: "shield", label: "settings.page.data", load: () => import("./data.js"), sections: ["history", "privacy"] },
   { id: "integrations", group: ADVANCED, icon: "plug", label: "settings.page.integrations", load: () => import("./integrations.js"), sections: ["serve", "hooks", "widgets"] },
   { id: "cost", group: ADVANCED, icon: "coins", label: "settings.page.cost", load: () => import("./cost.js"), sections: ["cost"] },
+  { id: "extensions", group: ADVANCED, icon: "puzzle", label: "settings.page.extensions", load: () => import("./extensions.js"), sections: ["extensions"] },
   { id: "files", group: ADVANCED, icon: "folder", label: "settings.page.files", load: () => import("./files.js"), sections: ["config", "folder", "credentials"] },
   { id: "about", bottom: true, icon: "info", label: "settings.page.about", load: () => import("./about.js"), sections: ["about", "updates"] },
 ];
@@ -36,6 +36,7 @@ export const LEGACY_SECTIONS = {
   history: ["data"],
   privacy: ["data"],
   cost: ["cost"],
+  extensions: ["extensions"],
   integration: ["integrations"],
   config: ["files"],
   folder: ["files"],
@@ -106,6 +107,10 @@ export const CONTROLS = [
   { section: "integration", page: "integrations", selector: 'id="widgets-identity"', async: "widgets" },
   { section: "integration", page: "integrations", selector: 'id="widgets-max"', async: "widgets" },
   { section: "integration", page: "integrations", selector: "data-widgets-delete", async: "widgets" },
+  // PRD 0020 RF2.5 parity with the main window's Extensions dialog: the page holds the same manager (list, state
+  // chips, consent, secrets, overrides, folder and guide), drawn into `data-ext-body` once the page loads.
+  { section: "extensions", page: "extensions", selector: 'data-row="extensions"' },
+  { section: "extensions", page: "extensions", selector: "data-ext-body" },
   { section: "config", page: "files", selector: "data-pick-config" },
   { section: "config", page: "files", selector: "data-reset-config" },
   { section: "folder", page: "files", selector: "data-pick" },

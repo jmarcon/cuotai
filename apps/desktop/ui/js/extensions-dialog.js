@@ -27,6 +27,17 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
   close.setAttribute("aria-label", te("common.close"));
   close.addEventListener("click", () => dlg.close());
   header.append(close);
+  dlg.append(header);
+  document.body.append(dlg);
+  dlg.addEventListener("close", () => dlg.remove());
+  showDialog(dlg);
+  await mountExtensions(dlg, { onChanged, onRemove, consentFor, closeHost: () => dlg.close() });
+}
+
+/** PRD 0020 RF2.5: the extension manager's body (help, status, list, note, footer), drawn into `host` so the dialog
+ *  of the main window and Settings > Advanced > Extensions share one implementation. `closeHost` closes the dialog
+ *  (a page has nothing to close and passes none: no "Close" button is drawn then). */
+export async function mountExtensions(host, { onChanged = () => {}, onRemove = () => {}, consentFor = null, closeHost = null, intro: showIntro = true } = {}) {
   const intro = el("p", "help", t("extensions.help"));
   const status = el("p", "ext-status");
   status.setAttribute("role", "status");
@@ -43,18 +54,19 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
   const foot = el("footer", "dlg-actions ext-foot");
   const folder = el("button", "btn ghost ext-folder");
   folder.type = "button";
+  folder.dataset.extFolder = "";
   folder.innerHTML = `${icon("folder")}${te("extensions.openFolder")}`;
   folder.addEventListener("click", () => {
     openExtensionsFolder().catch((error) => { status.textContent = errText(error); });
   });
-  const done = el("button", "btn", t("common.close"));
-  done.type = "button";
-  done.addEventListener("click", () => dlg.close());
-  foot.append(folder, done);
-  dlg.append(header, intro, status, list, note, foot);
-  document.body.append(dlg);
-  dlg.addEventListener("close", () => dlg.remove());
-  showDialog(dlg);
+  foot.append(folder);
+  if (closeHost) {
+    const done = el("button", "btn", t("common.close"));
+    done.type = "button";
+    done.addEventListener("click", closeHost);
+    foot.append(done);
+  }
+  host.append(...(showIntro ? [intro] : []), status, list, note, foot);
 
   async function load() {
     list.replaceChildren(el("p", "help", t("common.loading")));
@@ -114,7 +126,7 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
         // removal asks whether to delete them too (core lists, never the value).
         let hasSecrets = false;
         try { hasSecrets = (await extensionSecrets(row.id)).some((item) => item.stored); } catch { /* removal still works */ }
-        dlg.close();
+        closeHost?.();
         onRemove(row.account.index, row.account.name, hasSecrets ? row.id : null);
       }));
     }

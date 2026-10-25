@@ -1239,5 +1239,7 @@
   "settings.rows.el.sublimits.desc": "5 h and weekly values under the bar",
   "settings.kw.rows": "rows display density detailed standard minimal custom elements compact layout",
   "settings.kw.rows-separate": "rows display main window separate layout different",
-  "settings.display.more": "More display options"
+  "settings.display.more": "More display options",
+  "settings.page.extensions": "Extensions",
+  "settings.kw.extensions": "extensions local extension add-on plugin provider custom run approve folder"
 }

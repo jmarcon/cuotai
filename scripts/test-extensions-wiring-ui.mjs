@@ -24,4 +24,22 @@ assert.ok(guide, "lib.js declares the guide address");
 assert.ok(about.includes(`"${guide}"`), "the shell's allow-list constant is the same address");
 assert.match(about, /url == EXTENSIONS_GUIDE/, "the guide address is in is_listed");
 assert.match(about, /fn open_extensions_folder\(\)[\s\S]*cuotai_core::extensions::default_dir\(\)/, "the folder comes from the core, never from the UI");
+// PRD 0020 RF2.5: Settings > Advanced > Extensions reuses the dialog's manager; the main window keeps its entry point.
+const [dialog, page, registry, main] = await Promise.all([
+  read("apps/desktop/ui/js/extensions-dialog.js"),
+  read("apps/desktop/ui/js/settings/extensions.js"),
+  read("apps/desktop/ui/js/settings/registry.js"),
+  read("apps/desktop/ui/js/main.js"),
+]);
+assert.match(dialog, /export async function mountExtensions\(/, "the manager body is shared");
+assert.match(dialog, /export async function openExtensionsDialog\(/, "the dialog stays");
+assert.match(dialog, /await mountExtensions\(dlg,/, "the dialog is built on the shared body");
+assert.match(page, /mountExtensions\(host,/, "the page mounts the shared body");
+assert.match(registry, /id: "extensions", group: ADVANCED/, "Extensions is an Advanced page");
+assert.match(main, /openExtensionsDialog\(/, "the main window still opens the dialog");
+assert.match(main, /data-extensions/, "the main window keeps the Extensions button");
+for (const code of ["en-US", "pt-BR", "es", "it"]) {
+  const catalog = JSON.parse(await read(`apps/desktop/ui/locales/${code}.json`));
+  for (const key of ["settings.page.extensions", "settings.kw.extensions"]) assert.ok(catalog[key], `${code}: ${key}`);
+}
 console.log("extensions wiring ok");
