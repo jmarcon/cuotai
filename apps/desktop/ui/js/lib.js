@@ -1439,7 +1439,7 @@ const demoStats = async ({ range, account, generation }) => {
     { occurred_at: at(4), kind: "quota_threshold_crossed", account: "work@example.com", parent: demoReports[0].account, is_connection: true, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "weekly (7d)", threshold: 80 }, fallback: "weekly (7d): 80% usado" } },
     { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): janela renovada" } },
     { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): cota esgotada" } },
-    { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: {}, fallback: "Falha na consulta: erro do provedor" } },
+    { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.provider_error", params: {}, fallback: "erro do provedor" } }, fallback: "Falha na consulta: erro do provedor" } },
   ].filter((e) => account == null || e.account === demoReports[account].account);
   return { summary: { range, hits: accounts.reduce((a, x) => a + x.hits, 0), average_peak: averages.length ? averages.reduce((a, x) => a + x, 0) / averages.length : null,
       accounts, extra_spent: account == null && !erased ? [{ unit: "USD", amount: 6.25 }] : null, daily: dailyAll, unknown_limits: 0,
