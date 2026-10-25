@@ -269,6 +269,9 @@ pub struct AlertSettings {
     pub thresholds: Vec<u8>,
     pub exhaustion: bool,
     pub recovery: bool,
+    /// PRD 0023 RF4.6: notify when paid extra usage starts (`alerts.overage`
+    /// in `desktop.json`, on by default whenever usage alerts are on).
+    pub overage: bool,
     /// Account key → muted metric labels.
     pub muted: BTreeMap<String, BTreeSet<String>>,
 }
@@ -282,6 +285,7 @@ impl Default for AlertSettings {
             thresholds: core.thresholds().collect(),
             exhaustion: core.exhaustion,
             recovery: core.recovery,
+            overage: core.overage,
             muted: BTreeMap::new(),
         }
     }
@@ -308,6 +312,7 @@ impl AlertSettings {
                 .unwrap_or(default.thresholds),
             exhaustion: flag("exhaustion", default.exhaustion),
             recovery: flag("recovery", default.recovery),
+            overage: flag("overage", default.overage),
             muted: value["muted"]
                 .as_object()
                 .map(|accounts| {
@@ -372,6 +377,7 @@ impl AlertSettings {
             AlertPrefs::new(self.enabled, self.thresholds.iter().copied()).unwrap_or_default();
         prefs.exhaustion = self.exhaustion;
         prefs.recovery = self.recovery;
+        prefs.overage = self.overage;
         prefs.muted_accounts = off_accounts.clone();
         prefs.muted_metrics = self.muted.clone();
         prefs
@@ -1624,7 +1630,15 @@ mod tests {
         let defaults = read_alerts(&file);
         assert!(!defaults.enabled, "off by default");
         assert_eq!(defaults.thresholds, [75, 90]);
-        assert!(defaults.exhaustion && defaults.recovery);
+        assert!(defaults.exhaustion && defaults.recovery && defaults.overage);
+        let off = AlertSettings {
+            overage: false,
+            ..AlertSettings::default()
+        };
+        assert!(!off.evaluator(&BTreeSet::new()).overage);
+        write_alerts(&file, &off).unwrap();
+        assert!(!read_alerts(&file).overage);
+        write_alerts(&file, &AlertSettings::default()).unwrap();
         update(&file, |s| s.motion = Some("off".into())).unwrap();
         let chosen = AlertSettings {
             enabled: true,
@@ -1656,6 +1670,7 @@ mod tests {
         assert!(alerts.enabled);
         assert_eq!(alerts.thresholds, [50, 99]);
         assert!(alerts.exhaustion && alerts.recovery);
+        assert!(alerts.overage, "extra usage alerts default on");
         assert_eq!(
             alerts.muted,
             BTreeMap::from([(

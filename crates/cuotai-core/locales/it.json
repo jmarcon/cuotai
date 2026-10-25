@@ -1387,5 +1387,13 @@
   "overage.amount.provider_units": "{value} unità del provider",
   "access.overage.money": "Indicato in denaro",
   "access.overage.provider_units": "Indicato in unità del provider",
-  "access.overage.not_reported": "Non indicato"
+  "access.overage.not_reported": "Non indicato",
+  "alerts.title.overage_started": "{provider}: uso extra iniziato · {amount} finora",
+  "alerts.title.overage_started_unknown": "{provider}: uso extra iniziato",
+  "alerts.title.overage_cap": "{provider}: budget extra esaurito",
+  "alerts.body.overage": "{account} · il ciclo di fatturazione termina il {at}",
+  "alerts.body.overage_no_cycle": "{account}",
+  "alerts.item.overage_started": "uso extra iniziato · {amount}",
+  "alerts.item.overage_started_unknown": "uso extra iniziato",
+  "alerts.item.overage_cap": "budget extra esaurito"
 }

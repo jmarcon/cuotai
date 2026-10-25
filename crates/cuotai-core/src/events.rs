@@ -727,6 +727,8 @@ impl EventState {
                 }
                 // PRD 0016 RF3.2: a notice of its own, not a quota event.
                 AlertKind::SessionExpiring => continue,
+                // Handled below, with the other overage edge.
+                AlertKind::OverageStarted | AlertKind::OverageCapReached => continue,
             };
             let metric = MetricRef {
                 label: alert.label.clone(),
@@ -874,6 +876,7 @@ impl Track {
                 consumed: 1.0,
                 resets_at: metric.resets_at,
                 projection: None,
+                overage: None,
             })
             .collect();
         alerts.update(report, prefs, &exhausted, now);

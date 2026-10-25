@@ -100,6 +100,19 @@ impl From<&Overage> for OverageExport {
     }
 }
 
+impl OverageExport {
+    /// The amount spent, formatted for people; `None` when unknown.
+    pub fn amount(&self) -> Option<ParamValue> {
+        self.spent.map(|value| {
+            format_amount(
+                value,
+                self.unit.as_deref().unwrap_or(""),
+                self.currency.as_deref(),
+            )
+        })
+    }
+}
+
 fn is_money(metric: &Metric) -> bool {
     metric.kind == MetricKind::Spend
 }

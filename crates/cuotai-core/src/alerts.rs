@@ -14,9 +14,10 @@
 use crate::metrics::{classify_metric, window_param, MetricState};
 use crate::model::{Account, Metric, MetricWindow, Report, Status};
 use crate::pace::{self, Pace, PaceSource, PaceStage, Point};
+use crate::overage::{self, OverageExport, OverageState};
 use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
 use crate::text::{params, provider_l10n, Localized};
-use chrono::{DateTime, TimeDelta, TimeZone, Utc};
+use chrono::{DateTime, Datelike, TimeDelta, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
@@ -65,6 +66,9 @@ pub struct AlertPrefs {
     pub exhaustion: bool,
     /// Notify `Recovered` (on by default).
     pub recovery: bool,
+    /// Notify paid extra usage starting and, with `exhaustion`, its budget
+    /// running out (PRD 0023 RF4.6; on by default).
+    pub overage: bool,
     /// [`crate::Account::state_key`]s whose alerts are muted.
     pub muted_accounts: BTreeSet<String>,
     /// Muted metrics: account state key → metric labels.
@@ -117,6 +121,7 @@ impl Default for AlertPrefs {
             thresholds: BTreeSet::from(DEFAULT_THRESHOLDS),
             exhaustion: true,
             recovery: true,
+            overage: true,
             muted_accounts: BTreeSet::new(),
             muted_metrics: BTreeMap::new(),
             projected: None,
@@ -178,6 +183,8 @@ impl AlertPrefs {
                 AlertKind::Exhausted => self.exhaustion,
                 AlertKind::Recovered => self.recovery,
                 AlertKind::ProjectedExhaustion => self.projected.is_some(),
+                AlertKind::OverageStarted => self.overage,
+                AlertKind::OverageCapReached => self.overage && self.exhaustion,
             }
     }
 }
@@ -201,6 +208,12 @@ pub enum AlertKind {
     /// reset, within the lead of [`AlertPrefs::projected`]. `threshold` is
     /// 0; the details are in [`AlertEvent::projection`].
     ProjectedExhaustion,
+    /// PRD 0023 RF4.1: the account began paying for extra usage. `label`
+    /// is the overage metric (empty without one), `threshold` is 0 and
+    /// `overage` carries the amount at the reading.
+    OverageStarted,
+    /// PRD 0023 RF4.3: the extra budget (a positive cap) is used up.
+    OverageCapReached,
 }
 
 impl AlertKind {
@@ -257,11 +270,15 @@ pub struct AlertEvent {
     pub threshold: u8,
     /// Consumed fraction of the cap in the new reading, `0.0..=1.0`.
     pub consumed: f64,
-    /// The window instance of the reading, as the provider reported it.
+    /// The window instance of the reading, as the provider reported it
+    /// (the billing cycle end for the overage kinds).
     pub resets_at: Option<DateTime<Utc>>,
     /// PRD 0024 RF2.1: set only for [`AlertKind::ProjectedExhaustion`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub projection: Option<Projection>,
+    /// The overage reading, for the overage kinds only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overage: Option<OverageExport>,
 }
 
 /// What earlier readings left behind: per account, metric, window instance
@@ -399,6 +416,7 @@ pub fn evaluate_with(
             consumed: consumption.percent / 100.0,
             resets_at: metric.resets_at,
             projection: None,
+            overage: None,
         };
         if let (Some(input), Some(lead)) = (pace, prefs.projected) {
             if let Some(projection) = projected(prev, next, metric, input, lead, state, now) {
@@ -433,10 +451,75 @@ pub fn evaluate_with(
             events.push(event(AlertKind::Threshold, threshold));
         }
     }
+    events.extend(overage_events(prev, next, state));
     events.retain(|event| prefs.wants(event));
     // RF2.6: the projection is listed first in the account's notice.
     events.sort_by_key(|event| event.kind != AlertKind::ProjectedExhaustion);
     events
+}
+
+/// Mark of paid extra usage in [`AlertState`]: never a metric label.
+const OVERAGE_MARK: &str = "\u{0}overage";
+
+/// The identity of the billing cycle a reading belongs to: the overage
+/// metric's `resets_at` (drift-tolerant) or, when the provider gives no
+/// cycle end, the end of the calendar month in UTC.
+fn overage_cycle(state: &overage::Overage, checked_at: DateTime<Utc>) -> DateTime<Utc> {
+    state.cycle_ends_at.unwrap_or_else(|| {
+        let first = checked_at.date_naive().with_day(1).unwrap_or_default();
+        let next = first
+            .checked_add_months(chrono::Months::new(1))
+            .unwrap_or(first);
+        Utc.from_utc_datetime(&next.and_hms_opt(0, 0, 0).unwrap_or_default())
+    })
+}
+
+/// PRD 0023 RF4: `OverageStarted` when the account moves from not billing
+/// (disabled, armed, unknown, no data) to billing, `OverageCapReached` when
+/// a positive cap is reached; each once per billing cycle.
+fn overage_events(prev: &Report, next: &Report, state: &AlertState) -> Vec<AlertEvent> {
+    let Some(now_state) = overage::assess(next).filter(|o| o.state.is_billing()) else {
+        return Vec::new();
+    };
+    let before = overage::assess(prev).map(|o| o.state);
+    let account_key = next.account_key();
+    let digest = key_digest(&account_key, OVERAGE_MARK);
+    let cycle = overage_cycle(&now_state, next.checked_at);
+    let marked = |kind| {
+        state.marks.iter().any(|mark| {
+            mark.metric == digest && mark.kind == kind && same_instance(mark.resets_at, Some(cycle))
+        })
+    };
+    let started =
+        !before.is_some_and(OverageState::is_billing) && !marked(AlertKind::OverageStarted);
+    let cap = !started
+        && now_state.state == OverageState::CapReached
+        && before != Some(OverageState::CapReached)
+        && !marked(AlertKind::OverageCapReached);
+    let kind = match (started, cap) {
+        (true, _) => AlertKind::OverageStarted,
+        (false, true) => AlertKind::OverageCapReached,
+        (false, false) => return Vec::new(),
+    };
+    let window = next
+        .metrics
+        .iter()
+        .find(|metric| metric.billing == crate::Billing::Overage)
+        .and_then(|metric| metric.window);
+    let consumed = match (now_state.spent, now_state.cap) {
+        (Some(spent), Some(cap)) if cap > 0.0 => (spent / cap).clamp(0.0, 1.0),
+        _ => 0.0,
+    };
+    vec![AlertEvent {
+        account_key,
+        label: now_state.label.clone(),
+        window,
+        kind,
+        threshold: 0,
+        consumed,
+        resets_at: now_state.cycle_ends_at,
+        overage: Some(OverageExport::from(&now_state)),
+    }]
 }
 
 /// PRD 0024 RF2.2 conditions 1–3 for `metric` as a reading taken at
@@ -565,6 +648,7 @@ fn session_expiring(next: &Report, state: &AlertState, now: DateTime<Utc>) -> Op
         consumed: 0.0,
         resets_at: Some(at),
         projection: None,
+        overage: None,
     })
 }
 
@@ -612,6 +696,38 @@ impl AlertState {
                 at: now,
             });
             changed = true;
+        }
+        // PRD 0023 RF4.2: an extra usage seen once in a billing cycle is not
+        // noticed again in it, whether or not it was notified.
+        if let Some(now_state) = overage::assess(next).filter(|o| o.state.is_billing()) {
+            let digest = key_digest(&account_key, OVERAGE_MARK);
+            let cycle = overage_cycle(&now_state, next.checked_at);
+            let before = self.marks.len();
+            let mut kinds = vec![AlertKind::OverageStarted];
+            if now_state.state == OverageState::CapReached {
+                kinds.push(AlertKind::OverageCapReached);
+            }
+            for kind in kinds {
+                let has = self.marks.iter().any(|mark| {
+                    mark.metric == digest
+                        && mark.kind == kind
+                        && same_instance(mark.resets_at, Some(cycle))
+                });
+                if !has {
+                    self.marks.push(Mark {
+                        account: account.clone(),
+                        metric: digest.clone(),
+                        kind,
+                        threshold: 0,
+                        resets_at: Some(cycle),
+                        notified: events
+                            .iter()
+                            .any(|event| event.account_key == account_key && event.kind == kind),
+                        at: now,
+                    });
+                }
+            }
+            changed |= self.marks.len() != before;
         }
         for metric in &next.metrics {
             let Some(consumption) = consumption(metric) else {
@@ -1015,6 +1131,12 @@ where
     if let (AlertKind::ProjectedExhaustion, Some(projection)) = (event.kind, event.projection) {
         return projected_notice(account, event, projection, now, tz);
     }
+    if matches!(
+        event.kind,
+        AlertKind::OverageStarted | AlertKind::OverageCapReached
+    ) {
+        return overage_notice(account, event, tz);
+    }
     let provider_pt = account.provider.label();
     let percent = event.threshold.to_string();
     let label = event.label.as_str();
@@ -1077,6 +1199,9 @@ where
             ]),
             format!("{provider_pt}: {percent}% usado em {label}"),
         ),
+        (AlertKind::OverageStarted | AlertKind::OverageCapReached, _) => {
+            unreachable!("overage notices return early")
+        }
     };
     let body = match event.resets_at {
         Some(at) => {
@@ -1146,6 +1271,70 @@ where
     }
 }
 
+/// PRD 0023 RF4.5: "Claude: extra usage started · $0.40 so far" with
+/// "Work · billing cycle ends 2026-11-01". Only the provider, the account
+/// name, the amount and the cycle date.
+fn overage_notice<Tz>(account: &Account, event: &AlertEvent, tz: &Tz) -> Notice
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let provider = provider_l10n(account.provider);
+    let provider_pt = account.provider.label();
+    let title = match (
+        event.kind,
+        event.overage.as_ref().and_then(OverageExport::amount),
+    ) {
+        (AlertKind::OverageStarted, Some(amount)) => {
+            let plain = amount_plain(&amount);
+            Localized::with_params(
+                "alerts.title.overage_started",
+                params([("provider", provider.into()), ("amount", amount)]),
+                format!("{provider_pt}: uso extra iniciado · {plain} até agora"),
+            )
+        }
+        (AlertKind::OverageStarted, None) => Localized::with_param(
+            "alerts.title.overage_started_unknown",
+            "provider",
+            provider,
+            format!("{provider_pt}: uso extra iniciado"),
+        ),
+        _ => Localized::with_param(
+            "alerts.title.overage_cap",
+            "provider",
+            provider,
+            format!("{provider_pt}: orçamento extra esgotado"),
+        ),
+    };
+    let body = match event.resets_at {
+        Some(at) => {
+            let at = at.with_timezone(tz).format("%Y-%m-%d").to_string();
+            Localized::with_params(
+                "alerts.body.overage",
+                params([
+                    ("account", account.name.as_str().into()),
+                    ("at", at.as_str().into()),
+                ]),
+                format!("{} · o ciclo de cobrança termina em {at}", account.name),
+            )
+        }
+        None => Localized::with_param(
+            "alerts.body.overage_no_cycle",
+            "account",
+            account.name.as_str(),
+            account.name.clone(),
+        ),
+    };
+    Notice { title, body }
+}
+
+fn amount_plain(amount: &crate::text::ParamValue) -> String {
+    match amount {
+        crate::text::ParamValue::Text(text) => text.clone(),
+        crate::text::ParamValue::L10n(text) => text.fallback.to_string(),
+    }
+}
+
 /// "Session (5h) 90%", "… at the limit", "… available again", "… runs
 /// out ≈18:53" (the projected time in `tz`).
 fn item<Tz>(event: &AlertEvent, now: DateTime<Utc>, tz: &Tz) -> Localized
@@ -1189,6 +1378,20 @@ where
                 params([("metric", label.into()), ("at", at.as_str().into())]),
                 format!("{label} acaba ≈{at}"),
             )
+        AlertKind::OverageStarted => match event.overage.as_ref().and_then(OverageExport::amount) {
+            Some(amount) => {
+                let plain = amount_plain(&amount);
+                Localized::with_param(
+                    "alerts.item.overage_started",
+                    "amount",
+                    amount,
+                    format!("uso extra iniciado · {plain}"),
+                )
+            }
+            None => Localized::fixed("alerts.item.overage_started_unknown", "uso extra iniciado"),
+        },
+        AlertKind::OverageCapReached => {
+            Localized::fixed("alerts.item.overage_cap", "orçamento extra esgotado")
         }
     }
 }
@@ -1329,6 +1532,227 @@ mod tests {
     const T: AlertKind = AlertKind::Threshold;
     const X: AlertKind = AlertKind::Exhausted;
     const R: AlertKind = AlertKind::Recovered;
+
+    // --- PRD 0023 RF4: paid extra usage ---
+
+    const OS: AlertKind = AlertKind::OverageStarted;
+    const OC: AlertKind = AlertKind::OverageCapReached;
+
+    fn cycle() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 3, 1, 0, 0, 0).unwrap()
+    }
+
+    /// A Claude reading with the 5h window and one extra-usage meter.
+    fn extra(
+        i: i64,
+        spent: Option<f64>,
+        cap: Option<f64>,
+        cycle_end: Option<DateTime<Utc>>,
+    ) -> Report {
+        let mut meter = Metric {
+            billing: crate::Billing::Overage,
+            scope: None,
+            label: "Extra".into(),
+            used: spent,
+            limit: cap,
+            remaining: None,
+            unit: "USD".into(),
+            kind: MetricKind::Spend,
+            window: Some(MetricWindow::Monthly),
+            period: None,
+            resets_at: cycle_end,
+        };
+        if spent.is_none() && cap.is_none() {
+            meter.used = None;
+        }
+        report(
+            "Work",
+            t0() + mins(5 * i),
+            vec![quota(Some(40.0), window()), meter],
+        )
+    }
+
+    fn series_of(readings: &[Report]) -> Vec<Fired> {
+        run(&on(), &mut AlertState::default(), readings)
+    }
+
+    #[test]
+    fn extra_usage_starting_fires_once_per_cycle() {
+        let c = Some(cycle());
+        // Armed -> active fires; oscillating amounts do not repeat.
+        let fired = series_of(&[
+            extra(0, Some(0.0), Some(50.0), c),
+            extra(1, Some(0.4), Some(50.0), c),
+            extra(2, Some(0.4), Some(50.0), c),
+            extra(3, Some(0.0), Some(50.0), c),
+            extra(4, Some(1.0), Some(50.0), c),
+        ]);
+        assert_eq!(fired, vec![vec![], vec![(OS, 0)], vec![], vec![], vec![]]);
+    }
+
+    #[test]
+    fn a_new_cycle_fires_again_and_an_unknown_amount_does_not() {
+        let next_cycle = Some(cycle() + TimeDelta::days(31));
+        let fired = series_of(&[
+            extra(0, None, None, Some(cycle())),
+            extra(1, Some(2.0), None, Some(cycle())),
+            extra(2, Some(0.0), None, next_cycle),
+            extra(3, Some(0.5), None, next_cycle),
+        ]);
+        assert_eq!(fired, vec![vec![], vec![(OS, 0)], vec![], vec![(OS, 0)]]);
+    }
+
+    #[test]
+    fn without_a_cycle_end_the_calendar_month_identifies_the_cycle() {
+        // 15 Feb: the cycle ends 1 Mar; a reading in March is a new one.
+        let mut march = extra(1, Some(1.0), None, None);
+        march.checked_at = Utc.with_ymd_and_hms(2026, 3, 2, 12, 0, 0).unwrap();
+        let mut feb_active = extra(0, Some(1.0), None, None);
+        feb_active.checked_at = t0();
+        let mut feb_armed = extra(0, Some(0.0), None, None);
+        feb_armed.checked_at = t0() - mins(5);
+        let prefs = on();
+        let mut state = AlertState::default();
+        // First reading armed, second active in February.
+        let e = evaluate(Some(&feb_armed), &feb_active, &prefs, &state, t0());
+        assert_eq!(fired(&e), vec![(OS, 0)]);
+        state.update(&feb_active, &prefs, &e, t0());
+        // March, still active, previous reading active: not an edge.
+        let e = evaluate(Some(&feb_active), &march, &prefs, &state, march.checked_at);
+        assert!(e.is_empty());
+    }
+
+    #[test]
+    fn straight_to_the_cap_fires_started_and_a_later_cap_fires_once() {
+        let c = Some(cycle());
+        let fired = series_of(&[
+            extra(0, Some(0.0), Some(5.0), c),
+            extra(1, Some(5.0), Some(5.0), c),
+            extra(2, Some(5.0), Some(5.0), c),
+        ]);
+        assert_eq!(fired, vec![vec![], vec![(OS, 0)], vec![]]);
+        let fired = series_of(&[
+            extra(0, Some(0.0), Some(5.0), c),
+            extra(1, Some(2.0), Some(5.0), c),
+            extra(2, Some(5.0), Some(5.0), c),
+            extra(3, Some(5.0), Some(5.0), c),
+        ]);
+        assert_eq!(fired, vec![vec![], vec![(OS, 0)], vec![(OC, 0)], vec![]]);
+    }
+
+    #[test]
+    fn a_restart_with_the_persisted_state_does_not_resend() {
+        let c = Some(cycle());
+        let prefs = on();
+        let mut state = AlertState::default();
+        let readings = [extra(0, Some(0.0), None, c), extra(1, Some(1.0), None, c)];
+        assert_eq!(
+            run(&prefs, &mut state, &readings),
+            vec![vec![], vec![(OS, 0)]]
+        );
+        let json = serde_json::to_string(&state).unwrap();
+        let mut restarted: AlertState = serde_json::from_str(&json).unwrap();
+        // The process starts over: a drop and a rise in the same cycle.
+        let again = [extra(2, Some(0.0), None, c), extra(3, Some(1.5), None, c)];
+        assert_eq!(run(&prefs, &mut restarted, &again), vec![vec![], vec![]]);
+    }
+
+    #[test]
+    fn extra_usage_already_active_on_the_first_reading_is_not_news() {
+        let c = Some(cycle());
+        let prefs = on();
+        // The previous recorded reading is too old: nothing fires.
+        let old = extra(0, Some(0.0), None, c);
+        let mut fresh = extra(0, Some(1.0), None, c);
+        fresh.checked_at = old.checked_at + mins(30);
+        let state = AlertState::default();
+        assert!(evaluate(Some(&old), &fresh, &prefs, &state, fresh.checked_at).is_empty());
+        // Within the grace and still not active before: it fires.
+        fresh.checked_at = old.checked_at + mins(5);
+        let e = evaluate(Some(&old), &fresh, &prefs, &state, fresh.checked_at);
+        assert_eq!(fired(&e), vec![(OS, 0)]);
+    }
+
+    #[test]
+    fn the_overage_preference_turns_both_kinds_off() {
+        let c = Some(cycle());
+        let mut off = on();
+        off.overage = false;
+        let fired = run(
+            &off,
+            &mut AlertState::default(),
+            &[
+                extra(0, Some(0.0), Some(5.0), c),
+                extra(1, Some(5.0), Some(5.0), c),
+            ],
+        );
+        assert_eq!(fired, vec![vec![], vec![]]);
+        // Exhaustion off silences only the cap notice.
+        let mut no_exhaustion = on();
+        no_exhaustion.exhaustion = false;
+        let fired = run(
+            &no_exhaustion,
+            &mut AlertState::default(),
+            &[
+                extra(0, Some(0.0), Some(5.0), c),
+                extra(1, Some(2.0), Some(5.0), c),
+                extra(2, Some(5.0), Some(5.0), c),
+            ],
+        );
+        assert_eq!(fired, vec![vec![], vec![(OS, 0)], vec![]]);
+    }
+
+    #[test]
+    fn overage_notices_name_the_provider_amount_and_cycle_only() {
+        let c = Some(cycle());
+        let prev = extra(0, Some(0.0), None, c);
+        let next = extra(1, Some(0.4), None, c);
+        let events = evaluate(
+            Some(&prev),
+            &next,
+            &on(),
+            &AlertState::default(),
+            next.checked_at,
+        );
+        let work = Account {
+            name: "Work".into(),
+            provider: Provider::Claude,
+            ..Account::default()
+        };
+        let started = notice(&[(&work, events)], next.checked_at, &Utc).unwrap();
+        assert_eq!(
+            started.title.fallback,
+            "Claude: uso extra iniciado · $0.40 até agora"
+        );
+        assert_eq!(
+            started.title.resolve("en-US"),
+            "Claude: extra usage started · $0.40 so far"
+        );
+        assert_eq!(
+            started.body.resolve("en-US"),
+            "Work · billing cycle ends 2026-03-01"
+        );
+        // Provider units, no cycle end.
+        let mut units_prev = extra(0, Some(0.0), None, None);
+        let mut units_next = extra(1, Some(12.5), None, None);
+        for report in [&mut units_prev, &mut units_next] {
+            report.metrics[1].unit = crate::overage::PROVIDER_UNIT.into();
+            report.metrics[1].kind = MetricKind::Quota;
+        }
+        let events = evaluate(
+            Some(&units_prev),
+            &units_next,
+            &on(),
+            &AlertState::default(),
+            units_next.checked_at,
+        );
+        let units = notice(&[(&work, events)], units_next.checked_at, &Utc).unwrap();
+        assert_eq!(
+            units.title.resolve("en-US"),
+            "Claude: extra usage started · 12.5 provider units so far"
+        );
+        assert_eq!(units.body.resolve("en-US"), "Work");
+    }
 
     #[test]
     fn thresholds_must_be_between_10_and_99() {
@@ -1602,6 +2026,7 @@ mod tests {
                 consumed: 0.91,
                 resets_at: Some(window()),
                 projection: None,
+                overage: None,
             }]
         );
     }
@@ -1885,6 +2310,7 @@ mod tests {
             consumed: 0.9,
             resets_at,
             projection: None,
+            overage: None,
         };
         let ninety = event(
             "claude:Work",
