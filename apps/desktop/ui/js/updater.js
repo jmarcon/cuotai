@@ -4,6 +4,7 @@
 // moram nos quatro catálogos.
 import { te, t, currentLocale } from "./i18n.js";
 import { showDialog } from "./motion.js";
+import { row, sw } from "./settings/rows.js";
 import {
   esc, errText, fmtDate, icon, onUpdate, openExternal, updaterAnswerAutomatic, updaterCancelDownload, updaterCheckNow,
   updaterDismiss, updaterInstall, updaterRestart, updaterStatus, setUpdaterAutomatic,
@@ -193,7 +194,7 @@ export function updatesSectionHtml(s, message = "") {
     <h3>${te("update.title")}</h3>
     <div data-update-body>
       ${privacyNoteHtml()}
-      <label class="check"><input id="update-automatic" type="checkbox" ${s?.automatic ? "checked" : ""} ${switchLocked ? "disabled" : ""} /> ${te("update.automatic")}</label>
+      ${row({ key: "update-auto", label: te("update.automatic"), msg: "update-auto-msg", control: (a) => sw("update-automatic", s?.automatic, a, switchLocked ? "disabled" : "") })}
       ${off ? `<p class="hint warn-txt" data-update-off>${offText}</p>` : ""}
       <p class="hint">${te("update.version", { version: s?.current_version ?? "—" })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
       <p class="hint" id="update-last-check">${last}</p>

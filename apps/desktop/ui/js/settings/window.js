@@ -5,6 +5,7 @@ import { boot } from "../boot.js";
 import { t, te } from "../i18n.js";
 import { bindThemeSwitch, emitSettingsChanged, getSettings, getView, initOrderSync, initTheme, isDesktop, updaterStatus } from "../lib.js";
 import { initUpdates, updateState } from "../updater.js";
+import { canLeave, initRows, resetPage } from "./rows.js";
 import { ADVANCED, nextEntry, pageById, pageOfAnchor, resolvePage, sidebarHtml } from "./registry.js";
 
 const T = window.__TAURI__;
@@ -42,6 +43,7 @@ function paintFrame() {
     <div class="set-main"><div class="set-titlebar" data-tauri-drag-region></div>
       <main class="set-content" data-page-body aria-labelledby="set-page-title"></main></div>
   </div>`;
+  initRows(root.querySelector("[data-page-body]"));
   paintNav();
 }
 
@@ -89,8 +91,11 @@ function anchorIn(body, anchor) {
 }
 
 /** RF1.3/RF2.2: show `id` (an anchor alone finds its page); the choice is remembered for the next opening. */
-function go(id, { anchor = null, focusTitle = true } = {}) {
+async function go(id, { anchor = null, focusTitle = true } = {}) {
   const page = (id && pageById(id)) || (anchor && pageOfAnchor(anchor)) || pageById(current);
+  // RF4.4: an unsaved draft (the hook rules) asks before its page or sub-page is left.
+  if (!(await canLeave())) return;
+  resetPage();
   current = page.id;
   put(PAGE_KEY, current);
   // A link or a restored page inside Advanced opens the group, so the sidebar shows where the user is.

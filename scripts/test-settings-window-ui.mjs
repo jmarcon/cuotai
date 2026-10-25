@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Browser-free UI smoke for PRD 0020 RF1 and RF2: the Settings window's page registry follows DS-CMP-SEG-5, its
 // sidebar navigation (current page, Advanced disclosure, arrow keys) behaves, every section of the old 12-section
-// dialog maps to a page, and every control of the old dialog renders on its page in every built-in catalog.
+// dialog maps to a page, every control of the old dialog renders on its page in every built-in catalog, and the
+// pages keep the RF2.2/RF3/RF5 limits (switches only, 8 rows, one-line descriptions, 4-word labels, word budget).
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -43,6 +44,9 @@ const { hooksHtml } = await import("../apps/desktop/ui/js/settings/hooks.js");
 const { costHtml } = await import("../apps/desktop/ui/js/settings/cost.js");
 await i18n.initI18n();
 
+const long = [];
+// Product and source names count as one word.
+const names = [...(await lib.costStatus()).sources.map((x) => x.label), /^Cuotai \S+/];
 const { PAGES, ADVANCED, LEGACY_SECTIONS, CONTROLS } = registry;
 const ids = PAGES.map((p) => p.id);
 
@@ -182,7 +186,74 @@ for (const { code } of i18n.LOCALES) {
       }
     }
   }
-  console.log(`${code}: ${PAGES.length} pages, ${CONTROLS.length} controls rendered`);
+  // RF2.2/RF3/RF5: each page drawn with its async parts as the window shows it at first (sub-pages closed,
+  // disclosures closed, popovers hidden).
+  const filled = new Map();
+  const fills = { cost: ["data-cost-body", "cost"], integrations: ["data-serve", "serve", "data-hooks", "hooks", "data-widgets", "widgets"] };
+  let total = 0;
+  for (const page of PAGES) {
+    let out = rendered.get(page.id);
+    const f = fills[page.id] ?? [];
+    for (let i = 0; i < f.length; i += 2) {
+      const state = drawn.get(f[i + 1]) ?? (await states[f[i + 1]]());
+      out = out.replace(new RegExp(`<div ${f[i]}><p class="hint">[^<]*</p></div>`), `<div ${f[i]}>${state}</div>`);
+      assert.ok(out.includes(state), `${code}/${page.id}: ${f[i]} not filled`);
+    }
+    filled.set(page.id, out);
+    // RF3.1/RF3.2: no raw check box (only switches and membership checks), no old Apply/Save buttons (RF4.2).
+    for (const box of out.match(/<input[^>]*type="checkbox"[^>]*>/g) ?? []) {
+      assert.ok(/class="(sw|chk)"/.test(box), `${code}/${page.id}: raw check box ${box}`);
+      if (box.includes('class="sw"')) assert.match(box, /role="switch"/, `${code}/${page.id}: switch without role`);
+    }
+    assert.ok(!/<label class="check"><input id=/.test(out), `${code}/${page.id}: hand-written setting row`);
+    const shown = visible(out);
+    // RF2.2: at most 8 rows before a disclosure or sub-page.
+    const rows = shown.match(/class="set-row[" ]/g)?.length ?? 0;
+    assert.ok(rows <= 8, `${code}/${page.id}: ${rows} rows shown`);
+    // RF5.1: row descriptions fit one line (90 characters); the page text before any disclosure stays short.
+    for (const [, desc] of shown.matchAll(/<span class="set-row-desc"[^>]*>([\s\S]*?)<\/span>\s*<\/div>/g)) {
+      const text = plain(desc);
+      assert.ok(text.length <= 90, `${code}/${page.id}: description over 90 characters: ${text}`);
+    }
+    // RF5.1: a row label has at most 4 words (a source or version name counts as one).
+    for (const [, label] of shown.matchAll(/<span class="set-row-label"[^>]*>([\s\S]*?)<\/span>/g)) {
+      const n = names.reduce((text, name) => text.replace(name, "X"), plain(label)).split(/\s+/).filter(Boolean).length;
+      if (n > 4) long.push(`${code}/${page.id}: ${plain(label)}`);
+    }
+    const words = plain(shown).split(/\s+/).filter(Boolean).length;
+    assert.ok(words <= 150, `${code}/${page.id}: ${words} words shown before any disclosure`);
+    total += words;
+  }
+  assert.ok(total <= 450, `${code}: ${total} words shown across the pages`);
+  console.log(`${code}: ${PAGES.length} pages, ${CONTROLS.length} controls rendered, ${total} words shown`);
 }
 
-console.log("PASS: Settings window pages follow DS-CMP-SEG-5, the sidebar navigates, and every old dialog control renders on its page in pt-BR, en-US, es and it");
+/** The markup with what the window hides at first removed: popovers, closed disclosures' bodies, sub-pages and
+ *  hidden blocks. */
+function visible(html) {
+  let out = html;
+  const cut = (open, tag) => {
+    for (let at = out.search(open); at >= 0; at = out.search(open)) {
+      let depth = 0;
+      const re = new RegExp(`<${tag}\\b|</${tag}>`, "g");
+      re.lastIndex = at;
+      for (let m = re.exec(out); m; m = re.exec(out)) {
+        depth += m[0].startsWith("</") ? -1 : 1;
+        if (depth === 0) { out = out.slice(0, at) + out.slice(re.lastIndex); break; }
+      }
+      if (depth !== 0) throw new Error(`unbalanced ${tag}`);
+    }
+  };
+  cut(/<div class="set-pop"/, "div");
+  cut(/<div class="set-subpage"/, "div");
+  cut(/<div[^>]*\shidden>/, "div");
+  out = out.replace(/(<details class="set-disc"[^>]*>[\s\S]*?<\/summary>)/g, "$1<!--closed-->");
+  cut(/<!--closed--><div class="set-disc-body">/, "div");
+  return out;
+}
+function plain(html) {
+  return html.replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/g, " ").replace(/\s+/g, " ").trim();
+}
+
+assert.deepEqual(long, [], "row labels over 4 words");
+console.log("PASS: Settings window pages follow DS-CMP-SEG-5, the sidebar navigates, every old dialog control renders on its page, and the rows keep the RF3/RF5 limits in pt-BR, en-US, es and it");

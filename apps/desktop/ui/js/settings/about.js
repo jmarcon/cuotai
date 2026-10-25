@@ -4,11 +4,13 @@ import { esc } from "../lib.js";
 import { openLibraries } from "../about-dialog.js";
 import { bindUpdates, onUpdateState, updatesSectionHtml } from "../updater.js";
 import { group } from "./common.js";
+import { buttons, row } from "./rows.js";
 
 export function html({ settings: s, update }) {
-  return group("about", te("settings.about"), `
-      <p class="hint">Cuotai ${esc(s.version)} · ${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: t("update.state." + (update?.phase ?? "idle"), { version: update?.version ?? "" }) })}</p>
-      <div class="dlg-actions left"><button class="btn" data-libraries>${te("about.libraries")}</button></div>`)
+  return group("about", te("settings.about"),
+    row({ key: "version", label: `Cuotai ${esc(s.version)}`,
+      desc: `${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: t("update.state." + (update?.phase ?? "idle"), { version: update?.version ?? "" }) })}`,
+      control: () => buttons(`<button class="btn sm" data-libraries>${te("about.libraries")}</button>`) }))
     // PRD 0018 RF3.1 / PRD 0022 RF17.4: the updater owns its whole group, heading included (anchor `[data-updates]`).
     + updatesSectionHtml(update);
 }
