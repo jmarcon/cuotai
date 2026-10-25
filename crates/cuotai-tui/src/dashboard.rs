@@ -2116,6 +2116,7 @@ mod tests {
             session_expires_at: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         }
     }
 
@@ -2168,6 +2169,7 @@ mod tests {
                 session_expires_at: None,
                 sub_reports: Vec::new(),
                 as_of: None,
+                overage_hint: None,
             };
             let expected_metric = metric_text(&report.metrics[0]);
             let screen = crate::dashboard::render_for_test(

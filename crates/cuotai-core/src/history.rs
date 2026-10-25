@@ -239,6 +239,7 @@ impl StoredReport {
             session_expires_at: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         }
     }
 }

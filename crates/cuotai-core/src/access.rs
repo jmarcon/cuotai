@@ -163,6 +163,32 @@ pub struct UsageAccess {
     pub token_risk: Option<Localized>,
     /// Why there is no query; `Some` exactly when `level` is `Unavailable`.
     pub reason: Option<Localized>,
+    /// PRD 0023 RF2.7: whether this interface reports paid extra usage.
+    pub overage: OverageReporting,
+}
+
+/// How an interface reports paid extra usage (overage).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverageReporting {
+    /// The amount comes in a stated currency.
+    Money,
+    /// The amount comes in the provider's own units.
+    ProviderUnits,
+    /// The interface exposes no overage data.
+    NotReported,
+}
+
+impl OverageReporting {
+    /// `access.overage.*`: short label for the docs matrix and details.
+    pub fn label(self) -> Localized {
+        let (slug, pt) = match self {
+            Self::Money => ("money", "Informado em dinheiro"),
+            Self::ProviderUnits => ("provider_units", "Informado em unidades do provedor"),
+            Self::NotReported => ("not_reported", "Não informado"),
+        };
+        Localized::fixed(format!("access.overage.{slug}"), pt)
+    }
 }
 
 impl Level {
@@ -285,6 +311,7 @@ fn entry(
         credential_hint: credential.hint(),
         risk: level.risk(),
         reason: None,
+        overage: OverageReporting::NotReported,
     }
 }
 
@@ -620,6 +647,15 @@ pub(crate) fn classify(
         );
     }
     access.metered = provider.is_metered();
+    if access.level != Unavailable {
+        access.overage = match provider {
+            Provider::Cursor if oauth || param("query_mode", "personal") => OverageReporting::Money,
+            Provider::Kiro => OverageReporting::Money,
+            Provider::Claude => OverageReporting::ProviderUnits,
+            Provider::Grok if oauth || param("product", "cli") => OverageReporting::ProviderUnits,
+            _ => OverageReporting::NotReported,
+        };
+    }
     access
 }
 
@@ -687,6 +723,7 @@ mod tests {
             session_expires_at: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         }
     }
 
@@ -1364,11 +1401,12 @@ mod tests {
             }
         };
         format!(
-            "{} | {} | {plan} | {} | {evidence} | {}",
+            "{} | {} | {plan} | {} | {evidence} | {} | {}",
             en(access.level.label()),
             en(access.credential.label()),
             en(access.scope.label()),
             access.verified_on,
+            en(access.overage.label()).to_lowercase(),
         )
     }
 
@@ -1394,8 +1432,8 @@ mod tests {
     fn access_matrix() -> String {
         use std::fmt::Write;
         let mut out = String::from(
-            "| Identifier | Mode | Level | Credential | Plan | Scope | Evidence | Verified on |\n\
-             |---|---|---|---|---|---|---|---|\n",
+            "| Identifier | Mode | Level | Credential | Plan | Scope | Evidence | Verified on | Overage |\n\
+             |---|---|---|---|---|---|---|---|---|\n",
         );
         for provider in Provider::ALL {
             let default = matrix_cells(&describe(&account(provider, &[], false)));

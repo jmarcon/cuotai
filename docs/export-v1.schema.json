@@ -17,7 +17,7 @@
       "type": "object",
       "required": [
         "index", "id", "key", "name", "provider", "class", "report", "age_seconds", "freshness",
-        "clock_adjusted", "stale", "showing_last_good", "last_good", "binding", "pace", "access", "incident"
+        "clock_adjusted", "stale", "showing_last_good", "last_good", "binding", "pace", "access", "overage", "incident"
       ],
       "properties": {
         "index": { "type": "integer", "minimum": 0, "description": "Position in the configuration." },
@@ -51,6 +51,7 @@
           },
           "description": "Present only when the current reading failed (PRD 0028 RF1.3)."
         },
+        "overage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Overage" }], "description": "Paid extra usage of the current report (PRD 0023); null when the provider exposes no overage data or there is no report." },
         "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." }
       }
     },
@@ -204,13 +205,26 @@
         "lasts_until_reset": { "type": "boolean" }
       }
     },
+    "Overage": {
+      "type": "object",
+      "required": ["state", "spent", "unit", "currency", "cap", "cycle_ends_at"],
+      "properties": {
+        "state": { "enum": ["disabled", "armed", "active", "cap_reached", "unknown"] },
+        "spent": { "type": ["number", "null"], "description": "Amount billed on top of the plan so far; null when unknown, never 0 for a missing amount." },
+        "unit": { "type": ["string", "null"], "description": "Unit of spent and cap; a provider unit when currency is null." },
+        "currency": { "type": ["string", "null"], "description": "ISO 4217 code when the amount is money." },
+        "cap": { "type": ["number", "null"] },
+        "cycle_ends_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
     "UsageAccess": {
       "type": "object",
       "required": [
         "level", "credential", "plan_requirement", "scope", "metered", "evidence", "verified_on",
-        "summary", "credential_hint", "risk", "reason"
+        "summary", "credential_hint", "risk", "reason", "overage"
       ],
       "properties": {
+        "overage": { "anyOf": [{ "enum": ["money", "provider_units", "not_reported"] }, { "type": "string" }], "description": "Whether the interface reports paid extra usage, and in what." },
         "level": { "anyOf": [{ "enum": ["official", "undocumented", "derived", "unavailable", "extension"] }, { "type": "string" }] },
         "credential": { "anyOf": [{ "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session"] }, { "type": "string" }] },
         "plan_requirement": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },

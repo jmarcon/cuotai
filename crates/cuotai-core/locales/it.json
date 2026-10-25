@@ -1377,5 +1377,15 @@
   "pool.available": "{upstream} · {available} di {total} disponibili",
   "pool.exhausted": "{upstream} · tutte esaurite",
   "pool.exhausted_returns": "{upstream} · tutte esaurite · torna {at}",
-  "pool.unmeasured": "{upstream} · {total} connessioni con uso sconosciuto"
+  "pool.unmeasured": "{upstream} · {total} connessioni con uso sconosciuto",
+  "overage.on_extra": "Extra in uso · {amount}",
+  "overage.limit_hit_on_extra": "Limite raggiunto · in extra {amount}",
+  "overage.armed": "Uso extra attivo · nulla speso",
+  "overage.cap_reached": "Budget extra esaurito",
+  "overage.unknown": "Importo dell'uso extra sconosciuto",
+  "overage.disabled": "Uso extra disattivato",
+  "overage.amount.provider_units": "{value} unità del provider",
+  "access.overage.money": "Indicato in denaro",
+  "access.overage.provider_units": "Indicato in unità del provider",
+  "access.overage.not_reported": "Non indicato"
 }

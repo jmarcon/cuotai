@@ -802,6 +802,11 @@ pub struct Report {
     /// when unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub as_of: Option<DateTime<Utc>>,
+    /// What the provider says about paid extra usage when that is not
+    /// visible in a metric (PRD 0023 RF3): off, on with nothing spent, or
+    /// on with an unreadable amount. Additive and skipped when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overage_hint: Option<OverageHint>,
 }
 
 /// PRD 0036 RF1.2: one upstream connection of an aggregator instance. It
@@ -842,6 +847,18 @@ pub struct SubReport {
     /// Public file that defines the upstream reading in the aggregator.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub via: Option<String>,
+}
+
+/// The provider's statement about paid extra usage that no metric carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverageHint {
+    /// Extra usage is switched off (or capped at zero).
+    Disabled,
+    /// Extra usage is on and nothing has been spent yet.
+    Armed,
+    /// Extra usage is on but the amount is missing from the response.
+    Unknown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -919,6 +936,7 @@ mod tests {
             session_expires_at: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         };
         let json = serde_json::to_value(&report).unwrap();
         assert!(json.get("notes_l10n").is_none(), "empty sidecar must skip");

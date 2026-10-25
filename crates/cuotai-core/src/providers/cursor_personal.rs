@@ -598,6 +598,38 @@ struct ModelUsage {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn on_demand_limit_zero_means_disabled_and_a_missing_amount_stays_unknown() {
+        use crate::overage::{assess_metrics, OverageState};
+        let state = |json: serde_json::Value| {
+            let summary: UsageSummary = serde_json::from_value(json).unwrap();
+            let metrics = on_demand_metrics(&summary).unwrap();
+            assess_metrics(&metrics, None).map(|o| (o.state, o.spent))
+        };
+        let od = |v: serde_json::Value| serde_json::json!({ "individualUsage": { "onDemand": v } });
+        assert_eq!(
+            state(od(serde_json::json!({ "used": 0, "limit": 0 }))),
+            Some((OverageState::Disabled, Some(0.0)))
+        );
+        assert_eq!(
+            state(od(serde_json::json!({ "limit": 0 }))),
+            Some((OverageState::Disabled, None))
+        );
+        assert_eq!(
+            state(od(serde_json::json!({ "limit": 5000 }))),
+            Some((OverageState::Unknown, None))
+        );
+        assert_eq!(
+            state(od(serde_json::json!({ "used": 625, "limit": 5000 }))),
+            Some((OverageState::Active, Some(6.25)))
+        );
+        assert_eq!(
+            state(od(serde_json::json!({ "used": 5000, "limit": 5000 }))),
+            Some((OverageState::CapReached, Some(50.0)))
+        );
+        assert_eq!(state(serde_json::json!({})), None);
+    }
+
     use super::*;
     use crate::{Credentials, Provider};
     use std::collections::BTreeMap;
@@ -771,6 +803,8 @@ mod tests {
         assert_eq!(on_demand.used, Some(0.5));
         assert_eq!(on_demand.limit, Some(50.0));
         assert_eq!(on_demand.kind, MetricKind::Spend);
+        let state = crate::overage::assess_metrics(std::slice::from_ref(on_demand), None).unwrap();
+        assert_eq!(state.state, crate::overage::OverageState::Active);
         assert_eq!(on_demand.window, Some(MetricWindow::Monthly));
         assert!(data.notes.iter().any(|n| n.contains("[email protected]")));
     }

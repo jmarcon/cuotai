@@ -118,6 +118,7 @@ write(&export, std::path::Path::new("widget.json"), 6)?;
 | `freshness` | `fresh` / `aging` / `stale` or `null` | Freshness of the reading shown; `stale` for a preserved one. |
 | `binding` | object or `null` | The metric that restricts the account most (`index`, `label`, `window`, `used_ratio`, `remaining`, `resets_at`, `reason`, `blocked_until`), same shape as `export::v1`. Recomputed over the preserved metrics while stale, so an old bar can be drawn dimmed. `null` while `unavailable`. |
 | `metrics` | array | Up to **4** metrics that have a percentage (the binding one first): `label`, `used_fraction`, `limit`, `unit`, `window`, `resets_at`, and `pace` (PRD 0007) when there is one. A metric without a finite positive `limit` is never published: a percentage is not invented. |
+| `overage` | object or absent | Paid extra usage of the current reading (PRD 0023), same shape as `export::v1` (`state`, `spent`, `unit`, `currency`, `cap`, `cycle_ends_at`), so a widget can show "on extra". Absent while stale or unavailable and when the provider exposes no overage data. Overage amounts never appear in `metrics`. |
 | `history` | array or absent | Up to **96** points of the binding metric's recent series (`taken_at`, `used_fraction`), present only while this device records history (PRD 0006). The span follows the metric's window. |
 
 ### What the file never contains

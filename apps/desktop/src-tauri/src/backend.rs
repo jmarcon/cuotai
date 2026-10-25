@@ -4262,6 +4262,7 @@ mod tests {
                 diagnostic: None,
                 sub_reports: Vec::new(),
                 as_of: None,
+                overage_hint: None,
             })
             .collect();
         let snapshot = cuotai_core::Snapshot {
@@ -4322,6 +4323,7 @@ mod tests {
             diagnostic: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         }
     }
 

@@ -48,6 +48,18 @@
             "window": null,
             "period": null,
             "resets_at": null
+          },
+          {
+            "label": "Uso extra — utilizado",
+            "used": 12.5,
+            "limit": 50.0,
+            "remaining": 37.5,
+            "unit": "unid. provedor",
+            "kind": "quota",
+            "window": "monthly",
+            "period": null,
+            "resets_at": null,
+            "billing": "overage"
           }
         ],
         "notes": [],
@@ -96,6 +108,7 @@
           "projected_exhaustion_at": "2026-10-21T17:57:30Z",
           "lasts_until_reset": false
         },
+        null,
         null
       ],
       "access": {
@@ -121,7 +134,16 @@
           "id": "access.risk.undocumented",
           "fallback": "Interface interna, não documentada pelo fornecedor; pode mudar sem aviso."
         },
-        "reason": null
+        "reason": null,
+        "overage": "provider_units"
+      },
+      "overage": {
+        "state": "active",
+        "spent": 12.5,
+        "unit": "unid. provedor",
+        "currency": null,
+        "cap": 50.0,
+        "cycle_ends_at": null
       },
       "incident": {
         "state": "partial_outage",
@@ -215,12 +237,14 @@
           "id": "access.risk.official",
           "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
         },
-        "reason": null
+        "reason": null,
+        "overage": "not_reported"
       },
       "failure": {
         "category": "provider_error",
         "paths": []
       },
+      "overage": null,
       "incident": null
     },
     {
@@ -281,12 +305,14 @@
           "id": "access.risk.derived",
           "fallback": "O uso é inferido de outra fonte (métricas ou cabeçalhos de rate limit); não é um saldo e pode atrasar."
         },
-        "reason": null
+        "reason": null,
+        "overage": "not_reported"
       },
       "failure": {
         "category": "auth_required",
         "paths": []
       },
+      "overage": null,
       "incident": {
         "state": "unknown",
         "label": {
@@ -339,8 +365,10 @@
           "id": "access.risk.official",
           "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
         },
-        "reason": null
+        "reason": null,
+        "overage": "not_reported"
       },
+      "overage": null,
       "incident": null
     }
   ],

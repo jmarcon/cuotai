@@ -1377,5 +1377,15 @@
   "pool.available": "{upstream} · {available} of {total} available",
   "pool.exhausted": "{upstream} · all exhausted",
   "pool.exhausted_returns": "{upstream} · all exhausted · returns {at}",
-  "pool.unmeasured": "{upstream} · {total} connections with unknown usage"
+  "pool.unmeasured": "{upstream} · {total} connections with unknown usage",
+  "overage.on_extra": "On extra · {amount}",
+  "overage.limit_hit_on_extra": "Limit hit · on extra {amount}",
+  "overage.armed": "Extra usage on · nothing spent",
+  "overage.cap_reached": "Extra budget used up",
+  "overage.unknown": "Extra usage amount unknown",
+  "overage.disabled": "Extra usage off",
+  "overage.amount.provider_units": "{value} provider units",
+  "access.overage.money": "Reported in money",
+  "access.overage.provider_units": "Reported in provider units",
+  "access.overage.not_reported": "Not reported"
 }

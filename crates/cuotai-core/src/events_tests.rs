@@ -121,6 +121,7 @@ impl Watch {
             session_expires_at: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         };
         let token = self.cycle.begin(0).unwrap();
         self.cycle
@@ -442,6 +443,7 @@ fn failures_are_classified_by_status_and_note_id() {
         session_expires_at: None,
         sub_reports: Vec::new(),
         as_of: None,
+        overage_hint: None,
     };
     use FailureCategory as C;
     let cases = [

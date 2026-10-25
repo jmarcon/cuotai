@@ -30,6 +30,7 @@ use serde::Serialize;
 use crate::export::v1::{AccountExport, Export};
 use crate::freshness::Freshness;
 use crate::metrics::{self, Binding};
+use crate::overage::OverageExport;
 use crate::pace::Pace;
 use crate::{Metric, MetricWindow, Provider, Report, Status};
 
@@ -102,6 +103,11 @@ pub struct WidgetAccount {
     /// Up to [`MAX_METRICS`] metrics with a fraction, the binding one
     /// first. Empty while `unavailable`.
     pub metrics: Vec<WidgetMetric>,
+    /// PRD 0023 RF6.2: paid extra usage of the current reading, so a widget
+    /// can show "on extra"; absent for a stale or unavailable account and
+    /// when the provider exposes no overage data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overage: Option<OverageExport>,
     /// PRD 0014 RF3.2: the binding metric's recent series (the used
     /// fraction over time), attached by whoever records history; absent
     /// while history is off or has no samples.
@@ -314,6 +320,10 @@ fn project(account: &AccountExport) -> WidgetAccount {
         freshness: reading.freshness,
         binding: reading.binding,
         metrics,
+        overage: match reading.state {
+            WidgetState::Ready => account.overage.clone(),
+            _ => None,
+        },
         history: Vec::new(),
     }
 }
@@ -340,6 +350,7 @@ fn binding_of(
         session_expires_at: None,
         sub_reports: Vec::new(),
         as_of: None,
+        overage_hint: None,
     };
     metrics::binding(&report)
 }
@@ -347,6 +358,10 @@ fn binding_of(
 /// A metric goes to the file only with a percentage: a finite, non-negative
 /// `used` over a finite, positive `limit`. Unknown capacity stays out.
 fn fraction(metric: &Metric) -> Option<f64> {
+    // Paid extra usage is not a plan bar; the `overage` object carries it.
+    if metric.billing == crate::Billing::Overage {
+        return None;
+    }
     let used = metric
         .used
         .filter(|used| used.is_finite() && *used >= 0.0)?;
@@ -449,6 +464,7 @@ mod tests {
             session_expires_at: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         }
     }
 
@@ -522,6 +538,41 @@ mod tests {
                 "the file must not contain {needle:?}"
             );
         }
+    }
+
+    #[test]
+    fn overage_travels_as_an_object_and_never_as_a_bar() {
+        let mut export = ready_export(&[("Work", 40.0, 100.0)]);
+        let report = export.accounts[0].report.as_mut().unwrap();
+        report.metrics.push(
+            Metric {
+                limit: Some(50.0),
+                ..Metric::usage(
+                    "Extra",
+                    12.5,
+                    "unid. provedor",
+                    crate::MetricKind::Quota,
+                    Some(MetricWindow::Monthly),
+                )
+            }
+            .overage(),
+        );
+        export.accounts[0].overage =
+            crate::overage::assess(export.accounts[0].report.as_ref().unwrap())
+                .map(|state| OverageExport::from(&state));
+        let snapshot = WidgetSnapshot::from_export(&export, 6);
+        let json = serde_json::to_value(&snapshot).unwrap();
+        let work = &json["accounts"][0];
+        assert_eq!(work["overage"]["state"], "active");
+        assert_eq!(work["overage"]["spent"], 12.5);
+        assert_eq!(work["metrics"].as_array().unwrap().len(), 1, "no extra bar");
+        // An account without overage data carries no key at all.
+        let plain = serde_json::to_value(WidgetSnapshot::from_export(
+            &ready_export(&[("A", 1.0, 2.0)]),
+            6,
+        ))
+        .unwrap();
+        assert!(plain["accounts"][0].get("overage").is_none());
     }
 
     #[test]

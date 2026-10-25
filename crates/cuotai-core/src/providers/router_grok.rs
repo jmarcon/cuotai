@@ -651,6 +651,29 @@ async fn fetch_grpc_credits(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn grok_on_demand_cap_zero_is_disabled_not_cap_reached() {
+        use crate::overage::{assess_metrics, OverageState};
+        let billing = serde_json::json!({"config":{
+            "onDemandCap":{"val":0},"onDemandUsed":{"val":0},
+            "billingPeriodEnd":"2026-07-24T12:42:26+00:00"}});
+        let user = serde_json::json!({"subscriptionTier":"Free"});
+        let parsed = parse_billing(&billing, Some(&user));
+        assert!(parsed.on_demand_exhausted);
+        let state = assess_metrics(&parsed.metrics, None).unwrap();
+        assert_eq!(state.state, OverageState::Disabled);
+        // A positive cap in use is active; a spent cap is reached.
+        for (used, want) in [
+            (2.0, OverageState::Active),
+            (10.0, OverageState::CapReached),
+        ] {
+            let billing = serde_json::json!({"config":{
+                "onDemandCap":{"val":10},"onDemandUsed":{"val":used}}});
+            let parsed = parse_billing(&billing, Some(&user));
+            assert_eq!(assess_metrics(&parsed.metrics, None).unwrap().state, want);
+        }
+    }
+
     use super::*;
     use crate::Credentials;
     use std::collections::BTreeMap;

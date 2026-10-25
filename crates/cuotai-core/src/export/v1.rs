@@ -24,6 +24,7 @@ use crate::cost::CostSummary;
 use crate::freshness::{self, Freshness};
 use crate::incidents::{Incident, IncidentState, ProviderStatus};
 use crate::metrics::{self, AccountClass, Binding};
+use crate::overage::{self, OverageExport};
 use crate::pace::{self, Pace};
 use crate::refresh::RefreshCycle;
 use crate::text::{Localized, ParamValue};
@@ -116,6 +117,9 @@ pub struct AccountExport {
     /// account or one without a report. Additive.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<Failure>,
+    /// PRD 0023 RF6: the paid extra usage state of `report`, `null` when
+    /// the provider exposes no overage data or there is no report.
+    pub overage: Option<OverageExport>,
     /// PRD 0011 RF5: the public status of the account's provider, `null`
     /// while status queries are off or when the provider has no verified
     /// source (never "operational" without a reading).
@@ -362,6 +366,9 @@ fn account_export(
                     .collect(),
             })
         }),
+        overage: report
+            .and_then(overage::assess)
+            .map(|state| OverageExport::from(&state)),
         incident: None,
     }
 }
@@ -605,6 +612,7 @@ mod tests {
             session_expires_at: None,
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         }
     }
 
@@ -790,6 +798,18 @@ mod tests {
                 used: None,
                 ..Metric::usage("Créditos extras", 0.0, "USD", MetricKind::Credits, None)
             },
+            Metric {
+                limit: Some(50.0),
+                remaining: Some(37.5),
+                ..Metric::usage(
+                    "Uso extra — utilizado",
+                    12.5,
+                    "unid. provedor",
+                    MetricKind::Quota,
+                    Some(MetricWindow::Monthly),
+                )
+                .overage()
+            },
         ];
         ready.source = "https://api.anthropic.com/api/oauth/usage".into();
         finish(&mut cycle, 0, ready);
@@ -884,9 +904,17 @@ mod tests {
         assert_eq!(personal["freshness"], "fresh");
         assert_eq!(personal["stale"], false);
         assert_eq!(personal["binding"]["label"], "Semana");
-        assert_eq!(personal["pace"].as_array().unwrap().len(), 3);
+        assert_eq!(personal["pace"].as_array().unwrap().len(), 4);
         assert_eq!(personal["pace"][0]["stage"], "reserve");
         assert!(personal["pace"][2].is_null());
+        assert!(personal["pace"][3].is_null(), "overage has no pace");
+        assert_eq!(personal["report"]["metrics"][3]["billing"], "overage");
+        assert_eq!(personal["overage"]["state"], "active");
+        assert_eq!(personal["overage"]["spent"], 12.5);
+        assert_eq!(personal["overage"]["cap"], 50.0);
+        assert_eq!(personal["overage"]["unit"], "unid. provedor");
+        assert!(personal["overage"]["currency"].is_null());
+        assert_eq!(personal["access"]["overage"], "provider_units");
         assert_eq!(personal["access"]["level"], "undocumented");
 
         // The failure keeps its own report and age; the old values travel
@@ -899,6 +927,7 @@ mod tests {
         assert!(work["binding"].is_null());
         assert_eq!(work["class"], "unmeasured");
 
+        assert!(work["overage"].is_null() && groq["overage"].is_null());
         assert_eq!(groq["stale"], false);
         assert!(groq["last_good"].is_null());
 

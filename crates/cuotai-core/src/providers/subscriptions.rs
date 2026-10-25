@@ -463,7 +463,13 @@ async fn claude(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         MetricWindow::Weekly,
         Some("Sonnet"),
     )?;
+    let mut overage_hint = None;
     if let Some(extra) = body.extra_usage {
+        overage_hint = Some(match (extra.is_enabled == Some(true), extra.used_credits) {
+            (false, _) => crate::OverageHint::Disabled,
+            (true, None) => crate::OverageHint::Unknown,
+            (true, Some(_)) => crate::OverageHint::Armed,
+        });
         if extra.is_enabled == Some(true) {
             if let Some(used) = extra.used_credits {
                 // Unidade exata (créditos vs. centavos) não é documentada: rotulamos como
@@ -500,7 +506,8 @@ async fn claude(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         metrics,
         notes,
         "https://api.anthropic.com/api/oauth/usage (evidência comunitária: github.com/loocor/codmate)",
-    ))
+    )
+    .with_overage_hint(overage_hint))
 }
 
 // ------------------------------------------------------------------- Cursor
@@ -1091,6 +1098,10 @@ mod tests {
     }
 
     async fn claude_extra(extra: serde_json::Value) -> Vec<Metric> {
+        claude_extra_data(extra).await.metrics
+    }
+
+    async fn claude_extra_data(extra: serde_json::Value) -> Data {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/oauth/usage"))
@@ -1105,7 +1116,44 @@ mod tests {
         claude(&account(Provider::Claude), &context(&client), &server.uri())
             .await
             .unwrap()
-            .metrics
+    }
+
+    #[tokio::test]
+    async fn claude_extra_usage_maps_to_the_overage_states() {
+        use crate::overage::{assess_metrics, OverageState::*};
+        let cases = [
+            (
+                serde_json::json!({ "is_enabled": false, "used_credits": 5.0 }),
+                Disabled,
+            ),
+            (serde_json::json!({ "monthly_limit": 50.0 }), Disabled),
+            (
+                serde_json::json!({ "is_enabled": true, "monthly_limit": 50.0 }),
+                Unknown,
+            ),
+            (
+                serde_json::json!({ "is_enabled": true, "monthly_limit": 50.0, "used_credits": 0.0 }),
+                Armed,
+            ),
+            (
+                serde_json::json!({ "is_enabled": true, "monthly_limit": 50.0, "used_credits": 12.5 }),
+                Active,
+            ),
+            (
+                serde_json::json!({ "is_enabled": true, "monthly_limit": 50.0, "used_credits": 55.0 }),
+                CapReached,
+            ),
+        ];
+        for (extra, want) in cases {
+            let data = claude_extra_data(extra.clone()).await;
+            let got = assess_metrics(&data.metrics, data.overage_hint).unwrap();
+            assert_eq!(got.state, want, "{extra}");
+            // Claude stays in provider units until the RF2.6 scale check.
+            assert!(got.currency.is_none());
+        }
+        // No extra_usage object at all: nothing to say.
+        let data = claude_extra_data(serde_json::Value::Null).await;
+        assert!(assess_metrics(&data.metrics, data.overage_hint).is_none());
     }
 
     #[tokio::test]
@@ -1179,6 +1227,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            overage_hint: None,
         };
         let binding = crate::metrics::binding(&report).unwrap();
         assert_eq!(binding.label, "Sessão (5 horas) (%)");

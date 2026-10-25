@@ -425,6 +425,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
         "note.router_sessions.kiro.endpoint",
         "Endpoint interno getUsageLimits (CodeWhisperer/Amazon Q, us-east-1) observado no 9router; não documentado e sujeito a mudanças.",
     );
+    let mut saw_overage_amount = false;
     let empty = Vec::new();
     let breakdowns = body
         .get("usageBreakdownList")
@@ -440,6 +441,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
         let reset_at = parse_reset(breakdown.get("nextDateReset")).or(top_reset);
         let total_used = number(breakdown.get("currentUsageWithPrecision"));
         let overage_used = number(breakdown.get("currentOveragesWithPrecision"));
+        saw_overage_amount |= overage_used.is_some();
         // Split plan usage from overage only when the relation is consistent
         // (overage larger than the total is contradictory — keep the total
         // rather than inventing a split). Overuse above the limit is preserved:
@@ -570,7 +572,12 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
             "Nenhuma quota numérica retornada; ausente não significa ilimitado.",
         );
     }
-    Ok(Data::new(metrics, notes, format!("{REF}kiro.js")))
+    let overage_hint = overage_status.map(|enabled| match (enabled, saw_overage_amount) {
+        (false, _) => crate::OverageHint::Disabled,
+        (true, true) => crate::OverageHint::Armed,
+        (true, false) => crate::OverageHint::Unknown,
+    });
+    Ok(Data::new(metrics, notes, format!("{REF}kiro.js")).with_overage_hint(overage_hint))
 }
 
 // ---------------------------------------------------------------------------
@@ -1406,6 +1413,12 @@ mod tests {
         assert_eq!(charged.unit, "USD");
         assert_eq!(charged.used, Some(6.01));
         assert_eq!(charged.billing, crate::Billing::Overage);
+        // The headline is the money charged, with the credits listed apart.
+        let state = crate::overage::assess_metrics(&data.metrics, data.overage_hint).unwrap();
+        assert_eq!(state.state, crate::overage::OverageState::Active);
+        assert_eq!(state.currency.as_deref(), Some("USD"));
+        assert_eq!(state.spent, Some(6.01));
+        assert_eq!(state.items.len(), 2);
         assert!(data
             .notes
             .iter()

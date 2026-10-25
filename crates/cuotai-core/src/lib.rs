@@ -30,6 +30,7 @@ pub mod metrics;
 mod model;
 pub mod models;
 pub mod oauth;
+pub mod overage;
 pub mod pace;
 mod private_fs;
 mod process_tree;
@@ -772,6 +773,7 @@ impl Monitor {
                 session_expires_at: None,
                 sub_reports: Vec::new(),
                 as_of: None,
+                overage_hint: None,
             };
         }
         self.query_report(account, sessions).await
@@ -814,6 +816,7 @@ impl Monitor {
                     session_expires_at: None,
                     sub_reports: Vec::new(),
                     as_of: None,
+                    overage_hint: None,
                 }
             };
             let Some(manager) = &self.extensions else {
@@ -841,7 +844,7 @@ impl Monitor {
             )
             .await;
         let mut diagnostic = None;
-        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of) = match result
+        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of, overage_hint) = match result
         {
             Ok(data) => (
                 Status::Ready,
@@ -851,6 +854,7 @@ impl Monitor {
                 data.source,
                 data.sub_reports,
                 data.as_of,
+                data.overage_hint,
             ),
             Err(error) => {
                 let mut notes = crate::text::Notes::one(error.note);
@@ -871,6 +875,7 @@ impl Monitor {
                     l10n,
                     String::new(),
                     Vec::new(),
+                    None,
                     None,
                 )
             }
@@ -893,6 +898,7 @@ impl Monitor {
             session_expires_at,
             sub_reports,
             as_of,
+            overage_hint,
         }
     }
 
@@ -2061,6 +2067,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         session_expires_at: None,
                         sub_reports: Vec::new(),
                         as_of: None,
+                        overage_hint: None,
                     },
                     crate::Report {
                         account_id: None,
@@ -2076,6 +2083,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         session_expires_at: None,
                         sub_reports: Vec::new(),
                         as_of: None,
+                        overage_hint: None,
                     },
                 ],
             }),

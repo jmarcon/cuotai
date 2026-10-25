@@ -50,12 +50,19 @@ pub(crate) struct Data {
     pub sub_reports: Vec<crate::SubReport>,
     /// PRD 0033 RF3.1: the provider-stated time of the data, if any.
     pub as_of: Option<chrono::DateTime<chrono::Utc>>,
+    /// Overage state not visible in a metric (PRD 0023 RF3).
+    pub overage_hint: Option<crate::OverageHint>,
 }
 
 impl Data {
     /// Record the provider-stated time of the data (RF3.1).
     pub(crate) fn with_as_of(mut self, as_of: Option<chrono::DateTime<chrono::Utc>>) -> Self {
         self.as_of = as_of;
+        self
+    }
+
+    pub(crate) fn with_overage_hint(mut self, hint: Option<crate::OverageHint>) -> Self {
+        self.overage_hint = hint;
         self
     }
 
@@ -68,6 +75,7 @@ impl Data {
             source: source.into(),
             sub_reports: Vec::new(),
             as_of: None,
+            overage_hint: None,
         }
     }
 }
