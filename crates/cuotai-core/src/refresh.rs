@@ -2476,6 +2476,7 @@ mod prd0033_rf2_tests {
     fn reading(checked_ago: TimeDelta, resets_in: TimeDelta) -> Report {
         let now = Utc::now();
         Report {
+            account_id: None,
             account: "a".into(),
             provider: Provider::Claude,
             checked_at: now - checked_ago,
@@ -2504,6 +2505,7 @@ mod prd0033_rf2_tests {
     fn expired_metric_collapses_and_old_reading_is_ignored() {
         let config = Config {
             accounts: vec![crate::Account {
+                id: None,
                 name: "a".into(),
                 provider: Provider::Claude,
                 credential_env: None,

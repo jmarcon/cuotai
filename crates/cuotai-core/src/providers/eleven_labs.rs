@@ -397,6 +397,7 @@ mod tests {
 
     fn account() -> Account {
         Account {
+            id: None,
             name: "ElevenLabs".into(),
             provider: Provider::ElevenLabs,
             credential_env: Some("TEST_ELEVEN_KEY".into()),
