@@ -53,6 +53,29 @@ telling the user. The TUI has no tray.
 Verification: **code**; real GNOME/KDE session behavior is not exercised in
 CI.
 
+### What the menu-bar item shows (PRD 0025 RF3)
+
+`apps/desktop/src-tauri/src/tray_bar.rs` draws the item from the core's
+`tray::summary` with the style chosen in Settings › Menu bar. It changes only
+when the summary changes, and at most once per second (a burst of changes is
+drawn once, after the second).
+
+| Platform | Text styles (Tightest %, Logos + %) | Meters | Icon only | Outage or alert | Screen readers |
+|---|---|---|---|---|---|
+| macOS | Template image (follows the light and dark menu bar) plus the title as system text | Monochrome template image with up to four bars | Template image | Cut-out notch in the template image (alert: hollow); colored variant: a dot in the level color | The summary is the tooltip and the status item's accessibility label (VoiceOver) |
+| Windows | No tray title: the tightest figure (two digits, `!` for an active alert, `-` when unknown) is drawn white on a dark plate in the icon's corner; the full summary is the tooltip | The icon plus the tooltip | The icon | Colored dot | Tooltip (Narrator reads it) |
+| Linux, KDE Plasma | Title shown next to the icon (StatusNotifierItem label) | Meter image | The icon | Colored dot | Tooltip |
+| Linux, GNOME with the AppIndicator extension | Title shown as the indicator label | Meter image | The icon | Colored dot | Tooltip |
+| Linux, other trays (XFCE, Cinnamon, MATE, plain XEmbed) | The label is ignored where the tray does not support it; the full summary stays in the tooltip | Meter image | The icon | Colored dot | Tooltip |
+
+"Use color in the menu bar" (off by default) draws the meters and the mark in
+the level colors on every platform; figures, the stale mark and the alert mark
+carry the same meaning without color.
+
+Verification: **code** (shell tests map a summary to the title, image and
+tooltip of each platform); the light/dark menu-bar, Windows 11 taskbar,
+GNOME and KDE checks are owner smokes on real machines.
+
 ## Notifications
 
 Desktop: `apps/desktop/src-tauri/src/notify.rs` uses

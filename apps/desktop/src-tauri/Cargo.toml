@@ -59,7 +59,15 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
   "NSPanel",
   "NSResponder",
   "NSWindow",
+  # PRD 0025 RF7.1: the menu-bar item's accessibility description.
+  "NSAccessibilityProtocols",
+  "NSButton",
+  "NSControl",
+  "NSStatusBarButton",
+  "NSStatusItem",
+  "NSView",
 ] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
 
 [dev-dependencies]
 tempfile = "3"
