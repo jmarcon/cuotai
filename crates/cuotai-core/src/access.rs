@@ -11,8 +11,64 @@ use crate::{Account, Provider, Report, Status};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-/// Date the evidence below was last checked against its public source.
-const VERIFIED_ON: &str = "2026-10-20";
+/// PRD 0028 RF6.1: the date each interface (provider and mode, named by the
+/// slug of its summary) had its evidence last checked against the public
+/// source. Raise one entry only after checking that interface; the local
+/// canary's evidence patch (RF4.4) is the normal way. A slug missing here
+/// reads as the epoch, so it shows up as stale instead of as verified.
+const VERIFIED: &[(&str, &str)] = &[
+    ("alibaba_cloud", "2026-10-20"),
+    ("alibaba_coding_plan", "2026-10-20"),
+    ("alibaba_model_studio", "2026-10-20"),
+    ("alibaba_token_plan", "2026-10-20"),
+    ("anthropic_api", "2026-10-20"),
+    ("antigravity", "2026-10-20"),
+    ("aws_bedrock", "2026-10-20"),
+    ("azure_open_ai", "2026-10-20"),
+    ("chat_gpt", "2026-10-20"),
+    ("claude", "2026-10-20"),
+    ("cline", "2026-10-20"),
+    ("cloudflare_ai", "2026-10-20"),
+    ("code_buddy", "2026-10-20"),
+    ("copilot_billing", "2026-10-20"),
+    ("copilot_quota", "2026-10-20"),
+    ("cursor_personal", "2026-10-20"),
+    ("cursor_teams", "2026-10-20"),
+    ("extension", "2026-10-20"),
+    ("gemini_ai", "2026-10-20"),
+    ("gemini_ai_cli", "2026-10-20"),
+    ("gemini_api", "2026-10-20"),
+    ("grok", "2026-10-20"),
+    ("grok_cli", "2026-10-20"),
+    ("groq", "2026-10-20"),
+    ("kimchi", "2026-10-20"),
+    ("kimi", "2026-10-20"),
+    ("kimi_coding", "2026-10-20"),
+    ("kiro", "2026-10-20"),
+    ("mini_max", "2026-10-20"),
+    ("mistral", "2026-10-20"),
+    ("nvidia_nim", "2026-10-20"),
+    ("ollama_cloud", "2026-10-20"),
+    ("open_ai_api", "2026-10-20"),
+    ("open_code_go", "2026-10-20"),
+    ("perplexity", "2026-10-20"),
+    ("perplexity_computer", "2026-10-20"),
+    ("poolside", "2026-10-20"),
+    ("qoder", "2026-10-20"),
+    ("qwen", "2026-10-20"),
+    ("qwen_oauth", "2026-10-20"),
+    ("vertex_ai", "2026-10-20"),
+    ("windsurf", "2026-10-20"),
+    ("xiaomi_mimo", "2026-10-20"),
+    ("zed", "2026-10-20"),
+];
+
+fn verified_on(slug: &str) -> &'static str {
+    VERIFIED
+        .iter()
+        .find(|(known, _)| *known == slug)
+        .map_or("1970-01-01", |(_, date)| date)
+}
 
 macro_rules! router {
     ($file:literal) => {
@@ -77,6 +133,9 @@ impl Evidence {
     }
 }
 
+/// PRD 0028 RF6.2: evidence older than this reads as "Not verified since".
+pub const STALE_AFTER_DAYS: i64 = 90;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct UsageAccess {
     pub level: Level,
@@ -91,6 +150,11 @@ pub struct UsageAccess {
     pub summary: Localized,
     pub credential_hint: Localized,
     pub risk: Localized,
+    /// PRD 0028 RF6.3: `Some` for a subscription-session credential: the
+    /// token belongs to the vendor's own client and using it elsewhere may go
+    /// against the vendor's terms.
+    #[serde(skip)]
+    pub token_risk: Option<Localized>,
     /// Why there is no query; `Some` exactly when `level` is `Unavailable`.
     pub reason: Option<Localized>,
 }
@@ -182,6 +246,14 @@ impl Scope {
     }
 }
 
+/// `access.risk.subscription_token`.
+fn subscription_token_risk() -> Localized {
+    Localized::fixed(
+        "access.risk.subscription_token",
+        "O token pertence ao cliente oficial do fornecedor; usá-lo em outra ferramenta pode contrariar os termos do fornecedor.",
+    )
+}
+
 fn entry(
     level: Level,
     credential: Credential,
@@ -197,7 +269,8 @@ fn entry(
         scope,
         metered: false,
         evidence,
-        verified_on: VERIFIED_ON,
+        verified_on: verified_on(slug),
+        token_risk: (credential == Credential::SubscriptionSession).then(subscription_token_risk),
         summary: Localized::fixed(format!("access.summary.{slug}"), summary),
         credential_hint: credential.hint(),
         risk: level.risk(),
@@ -256,6 +329,40 @@ impl UsageAccess {
         }));
         notes.extend(self.reason.clone());
         notes
+    }
+
+    /// PRD 0028 RF6.2 (DS-CMP-VER-1): how old the evidence is on `today`.
+    /// "Verified N months ago", and past [`STALE_AFTER_DAYS`] "Not verified
+    /// since {date}". A malformed date reads as never verified.
+    pub fn verification(&self, today: chrono::NaiveDate) -> Localized {
+        let Ok(date) = chrono::NaiveDate::parse_from_str(self.verified_on, "%Y-%m-%d") else {
+            return Localized::with_param(
+                "access.verification_stale",
+                "date",
+                self.verified_on,
+                format!("Não verificada desde {}.", self.verified_on),
+            );
+        };
+        let days = (today - date).num_days().max(0);
+        if days > STALE_AFTER_DAYS {
+            return Localized::with_param(
+                "access.verification_stale",
+                "date",
+                self.verified_on,
+                format!("Não verificada desde {}.", self.verified_on),
+            );
+        }
+        let months = days / 30;
+        match months {
+            0 => Localized::fixed("access.verified_recent", "Verificada neste mês."),
+            1 => Localized::fixed("access.verified_month", "Verificada há 1 mês."),
+            months => Localized::with_param(
+                "access.verified_months",
+                "months",
+                months as u64,
+                format!("Verificada há {months} meses."),
+            ),
+        }
     }
 
     /// PRD 0005 RF3.4: the warning an editor shows before saving an
@@ -910,6 +1017,16 @@ mod tests {
                 "{at}"
             );
             assert_eq!(access.verified_on.len(), 10, "{at}");
+            assert_ne!(
+                access.verified_on, "1970-01-01",
+                "{at}: missing from VERIFIED"
+            );
+            // RF6.3: every subscription-session interface carries the token risk.
+            assert_eq!(
+                access.token_risk.is_some(),
+                access.credential == C::SubscriptionSession,
+                "{at}"
+            );
             let texts = [&access.summary, &access.credential_hint, &access.risk]
                 .into_iter()
                 .chain(&access.reason)
@@ -929,6 +1046,11 @@ mod tests {
         for account in variants() {
             let access = describe(&account);
             texts.extend(access.notes());
+            let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 25).unwrap();
+            texts.extend(access.token_risk.clone());
+            for days in [0, 40, 70, 200] {
+                texts.push(access.verification(today + chrono::Duration::days(days)));
+            }
             texts.extend(access.cost_advisory());
             texts.extend(access.save_confirmation());
             texts.extend(access.explain(&failed(&account, QueryError::schema())));
@@ -1146,6 +1268,27 @@ mod tests {
         }
     }
 
+    /// PRD 0028 RF6.1/RF6.2: dates are per interface; the age text follows the
+    /// months, and past 90 days says since when.
+    #[test]
+    fn verification_reads_the_age_of_the_evidence() {
+        use chrono::NaiveDate;
+        let day = |y, m, d| NaiveDate::from_ymd_opt(y, m, d).unwrap();
+        let mut access = describe(&account(Provider::Claude, &[], true));
+        access.verified_on = "2026-07-01";
+        let en = |today| access.verification(today).resolve("en-US");
+        assert_eq!(en(day(2026, 7, 10)), "Verified this month.");
+        assert_eq!(en(day(2026, 8, 5)), "Verified 1 month ago.");
+        assert_eq!(en(day(2026, 9, 5)), "Verified 2 months ago.");
+        assert_eq!(en(day(2026, 9, 27)), "Verified 2 months ago.");
+        assert_eq!(en(day(2026, 10, 2)), "Not verified since 2026-07-01.");
+        access.verified_on = "not-a-date";
+        assert_eq!(
+            access.verification(day(2026, 10, 2)).id,
+            "access.verification_stale"
+        );
+    }
+
     /// RF4.3: the serialized descriptor `export::v1` embeds per account.
     #[test]
     fn descriptor_serializes_with_stable_slugs_and_public_evidence() {
@@ -1197,10 +1340,11 @@ mod tests {
             }
         };
         format!(
-            "{} | {} | {plan} | {} | {evidence}",
+            "{} | {} | {plan} | {} | {evidence} | {}",
             en(access.level.label()),
             en(access.credential.label()),
             en(access.scope.label()),
+            access.verified_on,
         )
     }
 
@@ -1226,8 +1370,8 @@ mod tests {
     fn access_matrix() -> String {
         use std::fmt::Write;
         let mut out = String::from(
-            "| Identifier | Mode | Level | Credential | Plan | Scope | Evidence |\n\
-             |---|---|---|---|---|---|---|\n",
+            "| Identifier | Mode | Level | Credential | Plan | Scope | Evidence | Verified on |\n\
+             |---|---|---|---|---|---|---|---|\n",
         );
         for provider in Provider::ALL {
             let default = matrix_cells(&describe(&account(provider, &[], false)));

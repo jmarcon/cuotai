@@ -4,9 +4,7 @@ f01fb909e37189008080632ddaf404f096345cde.
 
 Applicable files: crates/cuotai-core/src/providers/router_*.rs,
 crates/cuotai-core/src/providers/antigravity.rs and
-crates/cuotai-core/src/oauth/reference*.rs. The model lists in
-crates/cuotai-core/src/providers/builtin_models.rs are copied from the
-provider registry (open-sse/providers/registry/*.js); the live model-listing
+crates/cuotai-core/src/oauth/reference*.rs. The live model-listing
 requests in crates/cuotai-core/src/providers/catalog.rs follow
 open-sse/services/*Models.js and src/app/api/providers/[id]/models/route.js.
 Reference modules: open-sse/services/usage/*.js, provider registry entries,

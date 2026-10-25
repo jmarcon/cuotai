@@ -59,58 +59,58 @@ How each account's usage is read, as `cuotai_core::access::describe` classifies 
 The table is generated: a core test compares it with `access::describe` and fails when they differ. After changing a classification, regenerate it with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix` and commit the result.
 
 <!-- access-matrix:start (generated from access::describe; do not edit by hand) -->
-| Identifier | Mode | Level | Credential | Plan | Scope | Evidence |
-|---|---|---|---|---|---|---|
-| `open_ai_api` | default | Official | Admin key | — | Organization | [documentation](https://developers.openai.com/api/reference/resources/admin/subresources/organization) |
-| `anthropic_api` | default | Official | Admin key | — | Organization | [documentation](https://platform.claude.com/docs/en/manage-claude/usage-cost-api) |
-| `chat_gpt` | default | Undocumented | Subscription session | — | Account | reference [`rate_limit_resets.rs`](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs) |
-| `claude` | default | Undocumented | Subscription session | — | Account | reference [`claude.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/claude.js) |
-| `gemini_api` | default | Derived | Cloud identity | — | Product | [documentation](https://cloud.google.com/monitoring/api/metrics_gcp_p_z) |
-| `vertex_ai` | default | Derived | Cloud identity | — | Product | [documentation](https://cloud.google.com/monitoring/api/metrics_gcp_p_z) |
-| `aws_bedrock` | default | Official | Cloud identity | — | Product | [documentation](https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html) |
-| `azure_open_ai` | default | Official | Cloud identity | — | Product | [documentation](https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage?view=rest-cost-management-2025-03-01) |
-| `cursor` | default | Official | Admin key | Teams or Enterprise | Organization | [documentation](https://cursor.com/docs/account/teams/admin-api) |
-| `cursor` | `query_mode = "personal"` or native login | Undocumented | Subscription session | — | Account | reference [`CursorStatusProbe.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift) |
-| `copilot` | default | Official | Admin key | — | Account | [documentation](https://docs.github.com/en/rest/billing/usage) |
-| `copilot` | `query_mode = "quota"` or native login | Undocumented | Subscription session | — | Account | reference [`github.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/github.js) |
-| `copilot` | `mode = "org"` | Official | Admin key | — | Organization | [documentation](https://docs.github.com/en/rest/billing/usage) |
-| `windsurf` | default | Official | Admin key | Enterprise | Organization | [documentation](https://docs.windsurf.com/windsurf/accounts/api-reference/get-team-credit-balance) |
-| `mini_max` | default | Undocumented | Inference key | — | Account | reference [`minimax.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/minimax.js) |
-| `kimi` | default | Official | Inference key | — | Account | [documentation](https://platform.kimi.ai/docs/api/balance.md) |
-| `kimi` | `product = "coding"` | Undocumented | Inference key | — | Account | reference [`kimi.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kimi.js) |
-| `kimi` | native login | Undocumented | Subscription session | — | Account | reference [`kimi.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kimi.js) |
-| `qwen` | default | Unavailable | Inference key | — | Account | [documentation](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope) |
-| `qwen` | native login | Unavailable | Subscription session | — | Account | [documentation](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/) |
-| `groq` | default | Derived | Inference key | — | Organization | [documentation](https://console.groq.com/docs/rate-limits) |
-| `perplexity` | default | Unavailable | Inference key | — | Account | [documentation](https://docs.perplexity.ai/docs/admin/computer-analytics-api.md) |
-| `perplexity` | `product = "computer"` | Official | Admin key | Enterprise | Organization | [documentation](https://docs.perplexity.ai/docs/admin/computer-analytics-api.md) |
-| `mistral` | default | Official | Admin key | Enterprise | Organization | [documentation](https://docs.mistral.ai/admin/admin-api/usage-metrics.md) |
-| `cloudflare_ai` | default | Unavailable | Inference key | — | Account | [documentation](https://developers.cloudflare.com/workers-ai/platform/pricing/) |
-| `ollama_cloud` | default | Undocumented | Inference key | — | Account | reference [`misc.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/misc.js) |
-| `xiaomi_mimo` | default | Undocumented | User session | — | Account | reference [`xiaomi-mimo.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/xiaomi-mimo.js) |
-| `open_code_go` | default | Undocumented | Inference key | — | Account | reference [`opencode-go.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/opencode-go.js) |
-| `qoder` | default | Undocumented | Subscription session | — | Account | reference [`misc.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/misc.js) |
-| `gemini_ai` | default | Unavailable | Inference key | — | Account | [documentation](https://ai.google.dev/gemini-api/docs/rate-limits) |
-| `gemini_ai` | `product = "cli"` or native login | Undocumented | Subscription session | — | Account | reference [`google.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/google.js) |
-| `grok` | default | Official | Admin key | — | Organization | [documentation](https://docs.x.ai/developers/rest-api-reference/management/billing.md) |
-| `grok` | `product = "cli"` or native login | Undocumented | Subscription session | — | Account | reference [`grok-cli.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/grok-cli.js) |
-| `nvidia_nim` | default | Unavailable | Inference key | — | Account | [documentation](https://docs.api.nvidia.com/nim/reference/llm-apis) |
-| `poolside` | default | Unavailable | Inference key | — | Account | [documentation](https://docs.poolside.ai/api/overview.md) |
-| `kiro` | default | Undocumented | Subscription session | — | Account | reference [`kiro.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kiro.js) |
-| `cline` | default | Official | Inference key | — | Account | [documentation](https://docs.cline.bot/enterprise-solutions/api-reference.md) |
-| `cline` | `organization_id` set | Official | Inference key | — | Organization | [documentation](https://docs.cline.bot/enterprise-solutions/api-reference.md) |
-| `cline` | native login | Official | Subscription session | — | Account | [documentation](https://docs.cline.bot/enterprise-solutions/api-reference.md) |
-| `code_buddy` | default | Undocumented | Subscription session | — | Account | reference [`codebuddy-cn.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/codebuddy-cn.js) |
-| `zed` | default | Undocumented | Subscription session | — | Account | reference [`zed.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/zed.js) |
-| `alibaba_model_studio` | default | Unavailable | Inference key | — | Account | [documentation](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope) |
-| `alibaba_coding_plan` | default | Undocumented | Inference key | — | Account | reference [`AlibabaCodingPlanUsageFetcher.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift) |
-| `alibaba_coding_plan` | `session_env` set or session in the vault | Undocumented | User session | — | Account | reference [`AlibabaCodingPlanUsageFetcher.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift) |
-| `alibaba_token_plan` | default | Undocumented | Local CLI | — | Account | reference [`token-plan.ts`](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts) |
-| `alibaba_token_plan` | `session_env` set or session in the vault | Undocumented | User session | — | Account | reference [`token-plan.ts`](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts) |
-| `alibaba_cloud` | default | Official | Cloud identity | — | Whole cloud | [documentation](https://www.alibabacloud.com/help/en/user-center/developer-reference/api-bssopenapi-2017-12-14-queryaccountbalance) |
-| `antigravity` | default | Undocumented | Subscription session | — | Account | reference [`antigravity-weekly.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) |
-| `kimchi` | default | Undocumented | Inference key | — | Account | reference [`status.ts`](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts) |
-| `eleven_labs` | default | Official | Inference key | — | Account | [documentation](https://elevenlabs.io/docs/api-reference/user/subscription/get) |
+| Identifier | Mode | Level | Credential | Plan | Scope | Evidence | Verified on |
+|---|---|---|---|---|---|---|---|
+| `open_ai_api` | default | Official | Admin key | — | Organization | [documentation](https://developers.openai.com/api/reference/resources/admin/subresources/organization) | 2026-10-20 |
+| `anthropic_api` | default | Official | Admin key | — | Organization | [documentation](https://platform.claude.com/docs/en/manage-claude/usage-cost-api) | 2026-10-20 |
+| `chat_gpt` | default | Undocumented | Subscription session | — | Account | reference [`rate_limit_resets.rs`](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs) | 2026-10-20 |
+| `claude` | default | Undocumented | Subscription session | — | Account | reference [`claude.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/claude.js) | 2026-10-20 |
+| `gemini_api` | default | Derived | Cloud identity | — | Product | [documentation](https://cloud.google.com/monitoring/api/metrics_gcp_p_z) | 2026-10-20 |
+| `vertex_ai` | default | Derived | Cloud identity | — | Product | [documentation](https://cloud.google.com/monitoring/api/metrics_gcp_p_z) | 2026-10-20 |
+| `aws_bedrock` | default | Official | Cloud identity | — | Product | [documentation](https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html) | 2026-10-20 |
+| `azure_open_ai` | default | Official | Cloud identity | — | Product | [documentation](https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage?view=rest-cost-management-2025-03-01) | 2026-10-20 |
+| `cursor` | default | Official | Admin key | Teams or Enterprise | Organization | [documentation](https://cursor.com/docs/account/teams/admin-api) | 2026-10-20 |
+| `cursor` | `query_mode = "personal"` or native login | Undocumented | Subscription session | — | Account | reference [`CursorStatusProbe.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift) | 2026-10-20 |
+| `copilot` | default | Official | Admin key | — | Account | [documentation](https://docs.github.com/en/rest/billing/usage) | 2026-10-20 |
+| `copilot` | `query_mode = "quota"` or native login | Undocumented | Subscription session | — | Account | reference [`github.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/github.js) | 2026-10-20 |
+| `copilot` | `mode = "org"` | Official | Admin key | — | Organization | [documentation](https://docs.github.com/en/rest/billing/usage) | 2026-10-20 |
+| `windsurf` | default | Official | Admin key | Enterprise | Organization | [documentation](https://docs.windsurf.com/windsurf/accounts/api-reference/get-team-credit-balance) | 2026-10-20 |
+| `mini_max` | default | Undocumented | Inference key | — | Account | reference [`minimax.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/minimax.js) | 2026-10-20 |
+| `kimi` | default | Official | Inference key | — | Account | [documentation](https://platform.kimi.ai/docs/api/balance.md) | 2026-10-20 |
+| `kimi` | `product = "coding"` | Undocumented | Inference key | — | Account | reference [`kimi.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kimi.js) | 2026-10-20 |
+| `kimi` | native login | Undocumented | Subscription session | — | Account | reference [`kimi.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kimi.js) | 2026-10-20 |
+| `qwen` | default | Unavailable | Inference key | — | Account | [documentation](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope) | 2026-10-20 |
+| `qwen` | native login | Unavailable | Subscription session | — | Account | [documentation](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/) | 2026-10-20 |
+| `groq` | default | Derived | Inference key | — | Organization | [documentation](https://console.groq.com/docs/rate-limits) | 2026-10-20 |
+| `perplexity` | default | Unavailable | Inference key | — | Account | [documentation](https://docs.perplexity.ai/docs/admin/computer-analytics-api.md) | 2026-10-20 |
+| `perplexity` | `product = "computer"` | Official | Admin key | Enterprise | Organization | [documentation](https://docs.perplexity.ai/docs/admin/computer-analytics-api.md) | 2026-10-20 |
+| `mistral` | default | Official | Admin key | Enterprise | Organization | [documentation](https://docs.mistral.ai/admin/admin-api/usage-metrics.md) | 2026-10-20 |
+| `cloudflare_ai` | default | Unavailable | Inference key | — | Account | [documentation](https://developers.cloudflare.com/workers-ai/platform/pricing/) | 2026-10-20 |
+| `ollama_cloud` | default | Undocumented | Inference key | — | Account | reference [`misc.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/misc.js) | 2026-10-20 |
+| `xiaomi_mimo` | default | Undocumented | User session | — | Account | reference [`xiaomi-mimo.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/xiaomi-mimo.js) | 2026-10-20 |
+| `open_code_go` | default | Undocumented | Inference key | — | Account | reference [`opencode-go.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/opencode-go.js) | 2026-10-20 |
+| `qoder` | default | Undocumented | Subscription session | — | Account | reference [`misc.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/misc.js) | 2026-10-20 |
+| `gemini_ai` | default | Unavailable | Inference key | — | Account | [documentation](https://ai.google.dev/gemini-api/docs/rate-limits) | 2026-10-20 |
+| `gemini_ai` | `product = "cli"` or native login | Undocumented | Subscription session | — | Account | reference [`google.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/google.js) | 2026-10-20 |
+| `grok` | default | Official | Admin key | — | Organization | [documentation](https://docs.x.ai/developers/rest-api-reference/management/billing.md) | 2026-10-20 |
+| `grok` | `product = "cli"` or native login | Undocumented | Subscription session | — | Account | reference [`grok-cli.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/grok-cli.js) | 2026-10-20 |
+| `nvidia_nim` | default | Unavailable | Inference key | — | Account | [documentation](https://docs.api.nvidia.com/nim/reference/llm-apis) | 2026-10-20 |
+| `poolside` | default | Unavailable | Inference key | — | Account | [documentation](https://docs.poolside.ai/api/overview.md) | 2026-10-20 |
+| `kiro` | default | Undocumented | Subscription session | — | Account | reference [`kiro.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kiro.js) | 2026-10-20 |
+| `cline` | default | Official | Inference key | — | Account | [documentation](https://docs.cline.bot/enterprise-solutions/api-reference.md) | 2026-10-20 |
+| `cline` | `organization_id` set | Official | Inference key | — | Organization | [documentation](https://docs.cline.bot/enterprise-solutions/api-reference.md) | 2026-10-20 |
+| `cline` | native login | Official | Subscription session | — | Account | [documentation](https://docs.cline.bot/enterprise-solutions/api-reference.md) | 2026-10-20 |
+| `code_buddy` | default | Undocumented | Subscription session | — | Account | reference [`codebuddy-cn.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/codebuddy-cn.js) | 2026-10-20 |
+| `zed` | default | Undocumented | Subscription session | — | Account | reference [`zed.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/zed.js) | 2026-10-20 |
+| `alibaba_model_studio` | default | Unavailable | Inference key | — | Account | [documentation](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope) | 2026-10-20 |
+| `alibaba_coding_plan` | default | Undocumented | Inference key | — | Account | reference [`AlibabaCodingPlanUsageFetcher.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift) | 2026-10-20 |
+| `alibaba_coding_plan` | `session_env` set or session in the vault | Undocumented | User session | — | Account | reference [`AlibabaCodingPlanUsageFetcher.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift) | 2026-10-20 |
+| `alibaba_token_plan` | default | Undocumented | Local CLI | — | Account | reference [`token-plan.ts`](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts) | 2026-10-20 |
+| `alibaba_token_plan` | `session_env` set or session in the vault | Undocumented | User session | — | Account | reference [`token-plan.ts`](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts) | 2026-10-20 |
+| `alibaba_cloud` | default | Official | Cloud identity | — | Whole cloud | [documentation](https://www.alibabacloud.com/help/en/user-center/developer-reference/api-bssopenapi-2017-12-14-queryaccountbalance) | 2026-10-20 |
+| `antigravity` | default | Undocumented | Subscription session | — | Account | reference [`antigravity-weekly.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) | 2026-10-20 |
+| `kimchi` | default | Undocumented | Inference key | — | Account | reference [`status.ts`](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts) | 2026-10-20 |
+| `eleven_labs` | default | Official | Inference key | — | Account | [documentation](https://elevenlabs.io/docs/api-reference/user/subscription/get) | 2026-10-23 |
 
 Billed per query (`metered`): `aws_bedrock`.
 <!-- access-matrix:end -->
@@ -299,11 +299,10 @@ Deliberate differences from 9router: missing fields do not become zero or unlimi
 
 ## Model catalog per account
 
-The list is only queried on demand (`load_models`/`sync_models`), never by the quota refresh. **Every provider tries to list**, always read-only and with no inference cost, using the same credential the account already stores for the quota:
+The list is only queried on demand (`load_models`/`sync_models`), never by the quota refresh. **A provider lists only where its listing interface is documented or was verified live**, always read-only and with no inference cost, using the same credential the account already stores for the quota:
 
 - **live query:** the provider's listing endpoint. When the credential is not accepted (for example, an admin key where the endpoint asks for an inference key), the account shows the classified failure (authentication, limit, transport, schema) and keeps the previous catalog; nothing is invented;
-- **built-in list:** only where the provider publishes no endpoint that lists an account's models (CodeBuddy, Windsurf, Xiaomi MIMO, Qoder, Alibaba Token Plan). It is the list from 9router's registry (`providers/builtin_models.rs`, MIT, see `THIRD_PARTY_NOTICES`), and the source text says it is **not a query of the account**;
-- **no list:** only Alibaba Cloud (billing AccessKey, no models endpoint), with the reason and no request.
+- **no list:** Alibaba Cloud (billing AccessKey, no models endpoint) and every provider or mode without evidence of a listing interface (CodeBuddy, Windsurf, Xiaomi MIMO, Qoder, Alibaba Token Plan, Qwen, Kimchi, GitHub Copilot, and the Gemini AI session, Grok CLI and Model Studio non-international modes), with the reason and no request. There are no embedded model lists: Cuotai never invents models from a static table.
 
 Pagination follows tokens to the end (limit of 50 pages, a repeated token is rejected); an invalid/incomplete page, HTTP 401/403/429 or cancellation fail without overwriting the saved catalog. IDs are deduplicated and sorted without rewriting. Response bodies, URLs and tokens never appear in errors.
 
@@ -318,54 +317,59 @@ Details that do not fit in the table:
 - **Antigravity:** same session and `fetchAvailableModels` request as the quota; a free plan or a response without `models` is `Unsupported`.
 - **Alibaba Model Studio:** `region = "intl"` uses Singapore's paginated listing; the other regions try the region's OpenAI-compatible endpoint.
 - **Kimi:** with a platform key, `api.moonshot.ai/v1/models`; with `product = "coding"` or native login, `api.kimi.com/coding/v1/models` (key in `x-api-key`, or OAuth token as Bearer with the quota's device headers).
-- **GitHub Copilot:** exchanges the GitHub token for a Copilot token (`/copilot_internal/v2/token`) and reads `api.githubcopilot.com/models`, keeping only chat models the plan does not disable.
 - **Kiro:** `ListAvailableModels` on the host of the `profile_arn`'s region (default `us-east-1`), with the same per-authentication-method headers as the quota.
 - **Cursor:** RPC `aiserver.v1.AiService/GetUsableModels` in Connect JSON, with the session token; accounts with only the admin key (Basic) get the provider's refusal.
 - **Zed:** `users/me` (organization) → `client/llm_tokens` → `cloud.zed.dev/models`; disabled models are left out. Plans without hosted models return an empty list, which is the real result.
 - **Azure OpenAI:** `…/accounts/{resource}/models` of the configured resource, with the ARM token; page links outside the ARM host are rejected.
 - **Grok:** a CLI session (`product = "cli"`) lists through `cli-chat-proxy.grok.com/models` with the client headers; with an API key, `api.x.ai/v1/models`.
 
-Verification: `live` = confirmed against a real account; `fixture` = local tests only.
+Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` and checked by a test; regenerate with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_models_matrix`. **documented** cites the vendor's documentation; **verified live** means an undocumented interface confirmed against a real account, citing the public contract the quota query follows. A mode without evidence is `Unsupported` for models.
 
-| Identifier | List source | Endpoint | Verification |
-|---|---|---|---|
-| `open_ai_api` | live query, documented | GET `api.openai.com/v1/models`; an Admin key may be refused | fixture |
-| `anthropic_api` | live query, documented | GET `api.anthropic.com/v1/models` (`x-api-key`); an Admin key may be refused | fixture |
-| `chat_gpt` | live query, undocumented | GET `chatgpt.com/backend-api/codex/models` | live |
-| `claude` | live query, undocumented for the token | GET `api.anthropic.com/v1/models` with OAuth | live |
-| `gemini_api` | live query, documented | GET `generativelanguage.googleapis.com/v1beta/models`; a Cloud Monitoring token may be refused | fixture |
-| `vertex_ai` | live query, documented | GET `aiplatform.googleapis.com/v1beta1/publishers/google/models`; a Cloud Monitoring token may be refused | fixture |
-| `aws_bedrock` | live query, documented | `ListFoundationModels` through the AWS CLI | fixture |
-| `azure_open_ai` | live query, documented | ARM `…/accounts/{resource}/models` | fixture |
-| `cursor` | live query, undocumented | `GetUsableModels` (Connect JSON) | live |
-| `copilot` | live query, undocumented | `api.githubcopilot.com/models` | live |
-| `windsurf` | built-in list | no endpoint | — |
-| `mini_max` | live query, documented | GET `api.minimax.io/v1/models` | live |
-| `kimi` | live query | `api.moonshot.ai/v1/models` (key) or `api.kimi.com/coding/v1/models` | live (coding) |
-| `qwen` | live query, undocumented | `dashscope-intl…/compatible-mode/v1/models` (key) or `portal.qwen.ai/v1/models` (OAuth) | fixture |
-| `groq` | live query, documented | GET `/openai/v1/models` | live |
-| `perplexity` | live query, documented | GET `api.perplexity.ai/v1/models` | fixture |
-| `mistral` | live query, documented | GET `api.mistral.ai/v1/models`; an Admin key may be refused | fixture |
-| `cloudflare_ai` | live query, documented | GET `/client/v4/accounts/{account_id}/ai/models/search`; requires `params.account_id` | fixture |
-| `ollama_cloud` | live query, documented | GET `ollama.com/v1/models` | live |
-| `xiaomi_mimo` | built-in list | no endpoint | — |
-| `open_code_go` | live query, undocumented | GET `opencode.ai/zen/go/v1/models` | live |
-| `qoder` | built-in list | the real catalog needs Cosy signing (RSA+AES+MD5), not ported yet | — |
-| `gemini_ai` | live query | `models.list` (AI Studio key) or `/v1beta/models` with the session | fixture |
-| `grok` | live query | `cli-chat-proxy.grok.com/models` (CLI session) or `api.x.ai/v1/models` (key) | fixture |
-| `nvidia_nim` | live query, documented | GET `integrate.api.nvidia.com/v1/models` | fixture |
-| `poolside` | live query, documented | GET `inference.poolside.ai/v1/models` | fixture |
-| `kiro` | live query, undocumented | `ListAvailableModels` | live |
-| `cline` | live query, documented | GET `api.cline.bot/api/v1/models` | fixture |
-| `code_buddy` | built-in list | no endpoint (`/v3/config` does not carry the account's models) | — |
-| `zed` | live query, undocumented | `cloud.zed.dev/models` with an LLM token | live (empty list on the account's plan) |
-| `alibaba_model_studio` | live query | paginated `/api/v1/models` (intl) or `/compatible-mode/v1/models` | fixture |
-| `alibaba_coding_plan` | live query, documented | GET `coding(-intl).dashscope.aliyuncs.com/v1/models` | fixture |
-| `alibaba_token_plan` | built-in list | no endpoint | — |
-| `alibaba_cloud` | no list | billing AccessKey, no models endpoint | — |
-| `antigravity` | live query, undocumented | the session's `fetchAvailableModels` (paid plans) | live |
-| `kimchi` | live query, undocumented | GET `llm.kimchi.dev/v1/models/metadata?include_in_cli=true` | fixture |
-| `eleven_labs` | no list | no models endpoint for quota monitoring | — |
+<!-- models-matrix:start -->
+| Identifier | Mode | Listing | Evidence | Verified on |
+|---|---|---|---|---|
+| `open_ai_api` | any | documented | [reference](https://platform.openai.com/docs/api-reference/models/list) | 2026-10-20 |
+| `anthropic_api` | any | documented | [reference](https://docs.anthropic.com/en/api/models-list) | 2026-10-20 |
+| `chat_gpt` | any | verified live | [reference](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs) | 2026-10-20 |
+| `claude` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/claude.js) | 2026-10-20 |
+| `gemini_api` | any | documented | [reference](https://ai.google.dev/api/models#method:-models.list) | 2026-10-20 |
+| `vertex_ai` | any | documented | [reference](https://cloud.google.com/vertex-ai/docs/reference/rest/v1beta1/publishers.models/list) | 2026-10-20 |
+| `aws_bedrock` | any | documented | [reference](https://docs.aws.amazon.com/cli/latest/reference/bedrock/list-foundation-models.html) | 2026-10-20 |
+| `azure_open_ai` | any | documented | [reference](https://learn.microsoft.com/en-us/rest/api/aiservices/accountmanagement/models/list) | 2026-10-20 |
+| `cursor` | any | verified live | [reference](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift) | 2026-10-20 |
+| `copilot` | any | none: `Unsupported` | — | — |
+| `windsurf` | any | none: `Unsupported` | — | — |
+| `mini_max` | any | documented | [reference](https://platform.minimax.io/docs) | 2026-10-20 |
+| `kimi` | default | documented | [reference](https://platform.kimi.ai/docs) | 2026-10-20 |
+| `kimi` | native login or product = coding | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kimi.js) | 2026-10-20 |
+| `qwen` | any | none: `Unsupported` | — | — |
+| `groq` | any | documented | [reference](https://console.groq.com/docs/api-reference#models-list) | 2026-10-20 |
+| `perplexity` | any | documented | [reference](https://docs.perplexity.ai/) | 2026-10-20 |
+| `mistral` | any | documented | [reference](https://docs.mistral.ai/api/) | 2026-10-20 |
+| `cloudflare_ai` | any | documented | [reference](https://developers.cloudflare.com/api/resources/ai/subresources/models/methods/search/) | 2026-10-20 |
+| `ollama_cloud` | any | documented | [reference](https://docs.ollama.com/api/openai-compatibility) | 2026-10-20 |
+| `xiaomi_mimo` | any | none: `Unsupported` | — | — |
+| `open_code_go` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/opencode-go.js) | 2026-10-20 |
+| `qoder` | any | none: `Unsupported` | — | — |
+| `gemini_ai` | default | documented | [reference](https://ai.google.dev/api/models#method:-models.list) | 2026-10-20 |
+| `gemini_ai` | native login or product = cli | none: `Unsupported` | — | — |
+| `grok` | default | documented | [reference](https://docs.x.ai/docs/api-reference) | 2026-10-20 |
+| `grok` | native login or product = cli | none: `Unsupported` | — | — |
+| `nvidia_nim` | any | documented | [reference](https://docs.api.nvidia.com/nim/reference/llm-apis) | 2026-10-20 |
+| `poolside` | any | documented | [reference](https://docs.poolside.ai/) | 2026-10-20 |
+| `kiro` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kiro.js) | 2026-10-20 |
+| `cline` | any | documented | [reference](https://docs.cline.bot/) | 2026-10-20 |
+| `code_buddy` | any | none: `Unsupported` | — | — |
+| `zed` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/zed.js) | 2026-10-20 |
+| `alibaba_model_studio` | default | documented | [reference](https://www.alibabacloud.com/help/en/model-studio/) | 2026-10-20 |
+| `alibaba_model_studio` | region = cn | none: `Unsupported` | — | — |
+| `alibaba_coding_plan` | any | documented | [reference](https://www.alibabacloud.com/help/en/model-studio/) | 2026-10-20 |
+| `alibaba_token_plan` | any | none: `Unsupported` | — | — |
+| `alibaba_cloud` | any | none: `Unsupported` | — | — |
+| `antigravity` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) | 2026-10-20 |
+| `kimchi` | any | none: `Unsupported` | — | — |
+| `eleven_labs` | any | none: `Unsupported` | — | — |
+<!-- models-matrix:end -->
 
 ## Public incident source registry
 

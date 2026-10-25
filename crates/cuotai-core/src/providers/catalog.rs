@@ -21,15 +21,12 @@ pub(crate) const NVIDIA_BASE: &str = "https://integrate.api.nvidia.com";
 pub(crate) const XAI_BASE: &str = "https://api.x.ai";
 pub(crate) const GROK_CLI_BASE: &str = "https://cli-chat-proxy.grok.com";
 pub(crate) const CLINE_BASE: &str = "https://api.cline.bot";
-pub(crate) const KIMCHI_BASE: &str = "https://llm.kimchi.dev";
 pub(crate) const MINIMAX_BASE: &str = "https://api.minimax.io";
 pub(crate) const MINIMAX_CN_BASE: &str = "https://api.minimaxi.com";
 pub(crate) const OPENCODE_GO_BASE: &str = "https://opencode.ai/zen/go";
 pub(crate) const OLLAMA_BASE: &str = "https://ollama.com";
 pub(crate) const KIMI_CODING_BASE: &str = "https://api.kimi.com/coding";
 pub(crate) const CURSOR_BASE: &str = "https://api2.cursor.sh";
-pub(crate) const GITHUB_BASE: &str = "https://api.github.com";
-pub(crate) const COPILOT_BASE: &str = "https://api.githubcopilot.com";
 pub(crate) const ZED_BASE: &str = "https://cloud.zed.dev";
 pub(crate) const CODING_PLAN_INTL: &str = "https://coding-intl.dashscope.aliyuncs.com";
 pub(crate) const CODING_PLAN_CN: &str = "https://coding.dashscope.aliyuncs.com";
@@ -37,18 +34,6 @@ pub(crate) const GEMINI_BASE: &str = "https://generativelanguage.googleapis.com"
 pub(crate) const VERTEX_BASE: &str = "https://aiplatform.googleapis.com";
 pub(crate) const AZURE_BASE: &str = "https://management.azure.com";
 pub(crate) const CLOUDFLARE_BASE: &str = "https://api.cloudflare.com";
-
-/// A built-in list as a catalog (no network); see `builtin_models`.
-pub(crate) fn builtin(entries: super::builtin_models::Entries) -> Vec<ModelInfo> {
-    entries
-        .iter()
-        .map(|(id, name)| ModelInfo {
-            id: (*id).to_owned(),
-            name: (*name != *id).then(|| (*name).to_owned()),
-            description: None,
-        })
-        .collect()
-}
 
 fn text(item: &Value, keys: &[&str]) -> Option<String> {
     keys.iter()
@@ -295,62 +280,6 @@ pub(crate) async fn cursor_models(
             })
         })
         .collect()
-}
-
-/// GitHub Copilot: exchange the GitHub token for a Copilot token, then list the chat models the
-/// editor offers. Entries the plan disables are left out, like the editor does.
-pub(crate) async fn copilot_models(
-    account: &Account,
-    ctx: &Context<'_>,
-    github_base: &str,
-    copilot_base: &str,
-) -> Result<Vec<ModelInfo>, QueryError> {
-    #[derive(serde::Deserialize)]
-    struct Exchange {
-        token: String,
-    }
-    let github_token = secret(account, ctx, "GITHUB_TOKEN")?;
-    let editor = |request: RequestBuilder| {
-        request
-            .header("Accept", "application/json")
-            .header("editor-version", "vscode/1.107.1")
-            .header("editor-plugin-version", "copilot-chat/0.26.7")
-            .header("user-agent", "GitHubCopilotChat/0.26.7")
-    };
-    let exchange: Exchange = json(
-        editor(
-            ctx.http
-                .get(format!("{github_base}/copilot_internal/v2/token")),
-        )
-        .header("Authorization", format!("token {}", github_token.trim()))
-        .timeout(ctx.timeout),
-    )
-    .await?;
-    let body: Value = json(
-        editor(ctx.http.get(format!("{copilot_base}/models")))
-            .bearer_auth(exchange.token.trim())
-            .header("Copilot-Integration-Id", "vscode-chat")
-            .timeout(ctx.timeout),
-    )
-    .await?;
-    let items = body
-        .get("data")
-        .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
-    let mut models = Vec::new();
-    for item in items {
-        let id = text(item, &["id"]).ok_or_else(QueryError::schema)?;
-        let chat = item.pointer("/capabilities/type").and_then(Value::as_str) == Some("chat");
-        let disabled = item.pointer("/policy/state").and_then(Value::as_str) == Some("disabled");
-        if chat && !disabled {
-            models.push(ModelInfo {
-                name: text(item, &["name"]).filter(|n| *n != id),
-                id,
-                description: None,
-            });
-        }
-    }
-    Ok(models)
 }
 
 /// Kiro (AWS CodeWhisperer): `GET ListAvailableModels` on the host of the profile ARN's region,
@@ -850,38 +779,6 @@ mod tests {
             .unwrap();
         assert_eq!(ids(&models), ["default", "gpt-5.3-codex-low"]);
         assert_eq!(models[0].name.as_deref(), Some("Auto"));
-    }
-
-    #[tokio::test]
-    async fn copilot_exchanges_the_token_and_keeps_enabled_chat_models() {
-        let github = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/copilot_internal/v2/token"))
-            .and(header("authorization", "token secret-token"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({"token": "cp-token"})),
-            )
-            .mount(&github)
-            .await;
-        let copilot = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/models"))
-            .and(header("authorization", "Bearer cp-token"))
-            .and(header("copilot-integration-id", "vscode-chat"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"data": [
-                {"id": "gpt-chat", "name": "GPT Chat", "capabilities": {"type": "chat"}, "policy": {"state": "enabled"}},
-                {"id": "embed", "capabilities": {"type": "embeddings"}},
-                {"id": "off", "capabilities": {"type": "chat"}, "policy": {"state": "disabled"}},
-                {"id": "no-policy", "capabilities": {"type": "chat"}}
-            ]})))
-            .mount(&copilot)
-            .await;
-        let http = reqwest::Client::new();
-        let acc = account(crate::Provider::Copilot, &[]);
-        let models = copilot_models(&acc, &ctx(&http), &github.uri(), &copilot.uri())
-            .await
-            .unwrap();
-        assert_eq!(ids(&models), ["gpt-chat", "no-policy"]);
     }
 
     #[tokio::test]

@@ -114,19 +114,71 @@ impl From<rusqlite::Error> for ModelError {
     }
 }
 
+/// PRD 0028 RF10.1: why a listing interface is trusted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceBasis {
+    /// The vendor documents the listing endpoint for this credential.
+    Documented,
+    /// Undocumented, but confirmed against a real account; the reference is
+    /// the public contract the quota query already follows.
+    VerifiedLive,
+}
+
+/// PRD 0028 RF10.1: the evidence behind an account's model listing. A
+/// listing without one is `Unsupported`; there is no embedded fallback list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct ModelEvidence {
+    pub basis: EvidenceBasis,
+    pub evidence: crate::access::Evidence,
+    /// ISO date of the last check of `evidence`.
+    pub verified_on: &'static str,
+}
+
+const MODELS_VERIFIED_ON: &str = "2026-10-20";
+
+/// Evidence behind `account`'s model listing; `Some` exactly when
+/// [`support`] is `Ok`.
+pub fn evidence(account: &Account) -> Option<ModelEvidence> {
+    contract(account).ok().map(|(_, evidence)| evidence)
+}
+
 /// Catalog source of `account`, or why it cannot be listed (no network).
 /// The published matrix lives in `docs/providers.md`.
 ///
-/// Every provider tries: either a live query with the credential the account already stores, or
-/// (where the provider publishes no listing endpoint at all) a built-in list whose source text
-/// says it is not a query of the account.
+/// A provider lists models only where the listing interface is documented
+/// or was verified live (PRD 0028 RF10.1); otherwise the capability is
+/// `Unsupported` and nothing is queried or invented.
 pub fn support(account: &Account) -> Result<Localized, Localized> {
+    contract(account).map(|(source, _)| source)
+}
+
+fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> {
+    use crate::access::Evidence::Documentation;
     let provider = account.provider;
     let product = |value: &str| account.params.get("product").is_some_and(|v| v == value);
-    let source = |id: &'static str, text: &'static str| Ok(Localized::fixed(id, text));
+    let documented = |url: &'static str| ModelEvidence {
+        basis: EvidenceBasis::Documented,
+        evidence: Documentation(url),
+        verified_on: MODELS_VERIFIED_ON,
+    };
+    let verified_live = || ModelEvidence {
+        basis: EvidenceBasis::VerifiedLive,
+        // The model listing of a Cursor account uses the personal session, not
+        // the Teams admin key the default quota mode cites.
+        evidence: if provider == Provider::Cursor {
+            crate::access::classify(provider, true, &Default::default()).evidence
+        } else {
+            crate::access::describe(account).evidence
+        },
+        verified_on: MODELS_VERIFIED_ON,
+    };
+    let source = |id: &'static str, text: &'static str, evidence: ModelEvidence| {
+        Ok((Localized::fixed(id, text), evidence))
+    };
     let provider_param = || params([("provider", provider_l10n(provider).into())]);
     // Live query; `undocumented` marks interfaces the vendor does not document for this credential.
-    let live = |endpoint: &'static str, undocumented: bool| {
+    let live = |endpoint: &'static str, undocumented: bool, evidence: ModelEvidence| {
         let (id, tail) = if undocumented {
             (
                 "models.source.undocumented",
@@ -137,23 +189,16 @@ pub fn support(account: &Account) -> Result<Localized, Localized> {
         };
         let mut values = provider_param();
         values.insert("endpoint".into(), ParamValue::from(endpoint));
-        Ok(Localized::with_params(
-            id,
-            values,
-            format!(
-                "{} {endpoint} com a credencial da conta ({tail}); também não comprova preço nem disponibilidade atual.",
-                provider.label()
+        Ok((
+            Localized::with_params(
+                id,
+                values,
+                format!(
+                    "{} {endpoint} com a credencial da conta ({tail}); também não comprova preço nem disponibilidade atual.",
+                    provider.label()
+                ),
             ),
-        ))
-    };
-    let builtin = || {
-        Ok(Localized::with_params(
-            "models.source.builtin",
-            provider_param(),
-            format!(
-                "{}: nenhum endpoint lista os modelos da conta; esta é a lista embutida do 9router, não uma consulta à sua conta.",
-                provider.label()
-            ),
+            evidence,
         ))
     };
     let reason = |id: &'static str, text: &str| {
@@ -163,77 +208,154 @@ pub fn support(account: &Account) -> Result<Localized, Localized> {
             format!("{}: {text} Nenhuma consulta é feita.", provider.label()),
         ))
     };
+    let no_evidence = || {
+        reason(
+            "models.unsupported_no_evidence",
+            "a interface que lista os modelos não é documentada nem foi verificada com uma conta real para esta credencial.",
+        )
+    };
     match provider {
         Provider::Groq => source(
             "models.source.groq",
             "Groq GET /openai/v1/models com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+            documented("https://console.groq.com/docs/api-reference#models-list"),
         ),
         Provider::AwsBedrock => source(
             "models.source.aws_bedrock",
             "AWS CLI bedrock list-foundation-models no perfil da conta, em params.region ou na região padrão do perfil; não usa Cost Explorer nem comprova acesso ao modelo.",
+            documented("https://docs.aws.amazon.com/cli/latest/reference/bedrock/list-foundation-models.html"),
         ),
         Provider::Antigravity => source(
             "models.source.antigravity",
             "Antigravity fetchAvailableModels com a sessão da conta (planos pagos); não comprova quota, preço ou disponibilidade atual.",
+            verified_live(),
         ),
         Provider::Poolside => source(
             "models.source.poolside",
             "Poolside GET /v1/models com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+            documented("https://docs.poolside.ai/"),
         ),
         Provider::Claude => source(
             "models.source.claude",
             "Claude GET /v1/models com o token OAuth da assinatura (interface não documentada para esse token); não comprova quota, preço ou disponibilidade atual.",
+            verified_live(),
         ),
         Provider::ChatGpt => source(
             "models.source.chat_gpt",
             "Codex GET /codex/models com o token da sessão ChatGPT (interface interna do Codex CLI, não documentada); não comprova quota, preço ou disponibilidade atual.",
+            verified_live(),
         ),
         Provider::GeminiAi if account.oauth.is_none() && !product("cli") => source(
             "models.source.gemini_ai",
             "Gemini API models.list paginado com a chave AI Studio da conta; não comprova quota, preço ou disponibilidade atual.",
+            documented("https://ai.google.dev/api/models#method:-models.list"),
         ),
-        Provider::GeminiAi => live("GET /v1beta/models", true),
+        Provider::GeminiAi => no_evidence(),
         Provider::Kimi if account.oauth.is_none() && !product("coding") => source(
             "models.source.kimi",
             "Kimi GET /v1/models (api.moonshot.ai) com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+            documented("https://platform.kimi.ai/docs"),
         ),
-        Provider::Kimi => live("GET /coding/v1/models", true),
+        Provider::Kimi => live("GET /coding/v1/models", true, verified_live()),
         Provider::AlibabaModelStudio if providers::alibaba_plans::model_studio_lists(account) => {
             source(
                 "models.source.alibaba_model_studio",
                 "Model Studio GET /api/v1/models (Singapura) paginado com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+                documented("https://www.alibabacloud.com/help/en/model-studio/"),
             )
         }
-        Provider::AlibabaModelStudio => live("GET /compatible-mode/v1/models", true),
-        Provider::OpenAiApi => live("GET /v1/models", false),
-        Provider::AnthropicApi => live("GET /v1/models", false),
-        Provider::Mistral => live("GET /v1/models", false),
-        Provider::Perplexity => live("GET /v1/models", false),
-        Provider::NvidiaNim => live("GET /v1/models", false),
-        Provider::Grok if product("cli") || account.oauth.is_some() => {
-            live("GET /models (CLI)", true)
-        }
-        Provider::Grok => live("GET /v1/models", false),
-        Provider::Cline => live("GET /api/v1/models", false),
-        Provider::MiniMax => live("GET /v1/models", false),
-        Provider::OpenCodeGo => live("GET /zen/go/v1/models", true),
-        Provider::OllamaCloud => live("GET /v1/models", false),
-        Provider::Kimchi => live("GET /v1/models/metadata", true),
-        Provider::AlibabaCodingPlan => live("GET /v1/models", false),
-        Provider::Qwen => live("GET /v1/models", true),
-        Provider::Cursor => live("GetUsableModels", true),
-        Provider::Copilot => live("GET /models", true),
-        Provider::Kiro => live("ListAvailableModels", true),
-        Provider::Zed => live("GET /models", true),
-        Provider::GeminiApi => live("GET /v1beta/models", false),
-        Provider::VertexAi => live("GET /v1beta1/publishers/google/models", false),
-        Provider::AzureOpenAi => live("GET …/accounts/{recurso}/models", false),
-        Provider::CloudflareAi => live("GET /ai/models/search", false),
-        Provider::CodeBuddy
+        Provider::AlibabaModelStudio => no_evidence(),
+        Provider::OpenAiApi => live(
+            "GET /v1/models",
+            false,
+            documented("https://platform.openai.com/docs/api-reference/models/list"),
+        ),
+        Provider::AnthropicApi => live(
+            "GET /v1/models",
+            false,
+            documented("https://docs.anthropic.com/en/api/models-list"),
+        ),
+        Provider::Mistral => live(
+            "GET /v1/models",
+            false,
+            documented("https://docs.mistral.ai/api/"),
+        ),
+        Provider::Perplexity => live(
+            "GET /v1/models",
+            false,
+            documented("https://docs.perplexity.ai/"),
+        ),
+        Provider::NvidiaNim => live(
+            "GET /v1/models",
+            false,
+            documented("https://docs.api.nvidia.com/nim/reference/llm-apis"),
+        ),
+        Provider::Grok if product("cli") || account.oauth.is_some() => no_evidence(),
+        Provider::Grok => live(
+            "GET /v1/models",
+            false,
+            documented("https://docs.x.ai/docs/api-reference"),
+        ),
+        Provider::Cline => live(
+            "GET /api/v1/models",
+            false,
+            documented("https://docs.cline.bot/"),
+        ),
+        Provider::MiniMax => live(
+            "GET /v1/models",
+            false,
+            documented("https://platform.minimax.io/docs"),
+        ),
+        Provider::OpenCodeGo => live("GET /zen/go/v1/models", true, verified_live()),
+        Provider::OllamaCloud => live(
+            "GET /v1/models",
+            false,
+            documented("https://docs.ollama.com/api/openai-compatibility"),
+        ),
+        Provider::AlibabaCodingPlan => live(
+            "GET /v1/models",
+            false,
+            documented("https://www.alibabacloud.com/help/en/model-studio/"),
+        ),
+        Provider::Cursor => live("GetUsableModels", true, verified_live()),
+        Provider::Kiro => live("ListAvailableModels", true, verified_live()),
+        Provider::Zed => live("GET /models", true, verified_live()),
+        Provider::GeminiApi => live(
+            "GET /v1beta/models",
+            false,
+            documented("https://ai.google.dev/api/models#method:-models.list"),
+        ),
+        Provider::VertexAi => live(
+            "GET /v1beta1/publishers/google/models",
+            false,
+            documented(
+                "https://cloud.google.com/vertex-ai/docs/reference/rest/v1beta1/publishers.models/list",
+            ),
+        ),
+        Provider::AzureOpenAi => live(
+            "GET …/accounts/{recurso}/models",
+            false,
+            documented(
+                "https://learn.microsoft.com/en-us/rest/api/aiservices/accountmanagement/models/list",
+            ),
+        ),
+        Provider::CloudflareAi => live(
+            "GET /ai/models/search",
+            false,
+            documented(
+                "https://developers.cloudflare.com/api/resources/ai/subresources/models/methods/search/",
+            ),
+        ),
+        // PRD 0028 RF10.2/RF10.3: no embedded static lists and no Copilot
+        // token exchange; these providers have no evidenced listing.
+        Provider::Qwen
+        | Provider::Kimchi
+        | Provider::Copilot
+        | Provider::CodeBuddy
         | Provider::Windsurf
         | Provider::XiaomiMimo
         | Provider::Qoder
-        | Provider::AlibabaTokenPlan => builtin(),
+        | Provider::AlibabaTokenPlan => no_evidence(),
         Provider::ElevenLabs => reason(
             "models.unsupported",
             "a ElevenLabs não oferece catálogo de modelos para consulta de quota; nenhuma requisição é feita.",
@@ -815,15 +937,6 @@ impl Monitor {
                 let url = providers::alibaba_plans::MODEL_STUDIO_MODELS_URL;
                 providers::alibaba_plans::model_studio_models(account, ctx, url).await
             }
-            Provider::AlibabaModelStudio => {
-                providers::catalog::bearer_models(
-                    account,
-                    ctx,
-                    "https://dashscope.aliyuncs.com/compatible-mode/v1/models".into(),
-                    "DASHSCOPE_API_KEY",
-                )
-                .await
-            }
             Provider::OpenAiApi => {
                 providers::catalog::bearer_models(
                     account,
@@ -901,18 +1014,6 @@ impl Monitor {
                 )
                 .await
             }
-            Provider::Kimchi => {
-                providers::catalog::bearer_models(
-                    account,
-                    ctx,
-                    format!(
-                        "{}/v1/models/metadata?include_in_cli=true",
-                        providers::catalog::KIMCHI_BASE
-                    ),
-                    "KIMCHI_API_KEY",
-                )
-                .await
-            }
             Provider::AlibabaCodingPlan => {
                 providers::catalog::alibaba_coding_plan_models(
                     account,
@@ -922,26 +1023,9 @@ impl Monitor {
                 )
                 .await
             }
-            Provider::Qwen => {
-                let url = if account.oauth.is_some() {
-                    "https://portal.qwen.ai/v1/models"
-                } else {
-                    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models"
-                };
-                providers::catalog::bearer_models(account, ctx, url.into(), "QWEN_API_KEY").await
-            }
             Provider::Cursor => {
                 providers::catalog::cursor_models(account, ctx, providers::catalog::CURSOR_BASE)
                     .await
-            }
-            Provider::Copilot => {
-                providers::catalog::copilot_models(
-                    account,
-                    ctx,
-                    providers::catalog::GITHUB_BASE,
-                    providers::catalog::COPILOT_BASE,
-                )
-                .await
             }
             Provider::Kiro => providers::catalog::kiro_models(account, ctx, None).await,
             Provider::Zed => {
@@ -966,21 +1050,6 @@ impl Monitor {
                 )
                 .await
             }
-            Provider::CodeBuddy => Ok(providers::catalog::builtin(
-                providers::builtin_models::CODEBUDDY,
-            )),
-            Provider::Windsurf => Ok(providers::catalog::builtin(
-                providers::builtin_models::WINDSURF,
-            )),
-            Provider::XiaomiMimo => Ok(providers::catalog::builtin(
-                providers::builtin_models::XIAOMI_MIMO,
-            )),
-            Provider::Qoder => Ok(providers::catalog::builtin(
-                providers::builtin_models::QODER,
-            )),
-            Provider::AlibabaTokenPlan => Ok(providers::catalog::builtin(
-                providers::builtin_models::ALIBABA_TOKEN_PLAN,
-            )),
             other => unreachable!("{other:?} has no model source"),
         }
     }
@@ -1277,8 +1346,19 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
     #[tokio::test]
     async fn support_matches_published_matrix_and_unsupported_never_queries() {
         use Provider::*;
-        let builtin = [CodeBuddy, Windsurf, XiaomiMimo, Qoder, AlibabaTokenPlan];
-        let unsupported = [AlibabaCloud, ElevenLabs];
+        // PRD 0028 RF10: no embedded lists and no listing without evidence.
+        let unsupported = [
+            AlibabaCloud,
+            CodeBuddy,
+            Windsurf,
+            XiaomiMimo,
+            Qoder,
+            AlibabaTokenPlan,
+            Qwen,
+            Kimchi,
+            Copilot,
+            ElevenLabs,
+        ];
         let server = MockServer::start().await;
         let dir = tempfile::tempdir().unwrap();
         let config = Config::default();
@@ -1296,13 +1376,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
                 unsupported.contains(&provider),
                 "{provider:?}"
             );
-            if let Ok(source) = &source {
-                assert_eq!(
-                    &*source.id == "models.source.builtin",
-                    builtin.contains(&provider),
-                    "{provider:?}"
-                );
-            } else {
+            if let Err(_reason) = &source {
                 for state in [all.load_models(index).await, all.sync_models(index).await] {
                     assert!(matches!(state.unwrap(), ModelState::Unsupported { .. }));
                 }
@@ -1318,9 +1392,14 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         };
         let oauth =
             Some(serde_json::from_value(serde_json::json!({ "credential_id": "c" })).unwrap());
-        for undocumented in [
+        let verified = variant(Kimi, "product", "coding");
+        assert_eq!(
+            &*support(&verified).unwrap().id,
+            "models.source.undocumented"
+        );
+        // Undocumented variants never confirmed against a real account list nothing.
+        for unverified in [
             variant(GeminiAi, "product", "cli"),
-            variant(Kimi, "product", "coding"),
             variant(AlibabaModelStudio, "region", "cn"),
             variant(Grok, "product", "cli"),
             Account {
@@ -1330,15 +1409,195 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
                 ..Default::default()
             },
         ] {
-            let source = support(&undocumented).unwrap();
-            assert_eq!(
-                &*source.id, "models.source.undocumented",
-                "{undocumented:?}"
-            );
+            let reason = support(&unverified).unwrap_err();
+            assert_eq!(&*reason.id, "models.unsupported_no_evidence");
+            assert_eq!(evidence(&unverified), None);
         }
         assert_eq!(
             &*support(&variant(Grok, "x", "y")).unwrap().id,
             "models.source.live"
+        );
+    }
+
+    /// Every account variant that lists has an evidence entry, and only
+    /// those; the entry is documented, or verified live with the public
+    /// contract of the quota interface.
+    #[test]
+    fn every_listing_has_evidence_and_no_static_list_remains() {
+        for account in matrix_accounts() {
+            let at = format!(
+                "{:?} {:?} {}",
+                account.provider,
+                account.params,
+                account.oauth.is_some()
+            );
+            let listed = support(&account).is_ok();
+            let found = evidence(&account);
+            assert_eq!(found.is_some(), listed, "{at}");
+            if let Some(found) = found {
+                let url = found.evidence.url();
+                assert!(url.starts_with("https://") && !url.contains('@'), "{at}");
+                assert_eq!(found.verified_on.len(), 10, "{at}");
+                if found.basis == EvidenceBasis::Documented {
+                    assert!(
+                        matches!(found.evidence, crate::access::Evidence::Documentation(_)),
+                        "{at}"
+                    );
+                }
+            }
+        }
+        for source in [
+            include_str!("models.rs"),
+            include_str!("providers/catalog.rs"),
+            include_str!("providers/mod.rs"),
+            include_str!("lib.rs"),
+        ] {
+            assert!(!source.contains(concat!("builtin", "_models::")));
+        }
+        assert!(!std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/providers/builtin_models.rs")
+            .exists());
+        // RF10.3: the Copilot token exchange is never requested.
+        assert!(!include_str!("providers/catalog.rs")
+            .contains(concat!("copilot_internal", "/v2/token")));
+    }
+
+    /// RF10.3: Copilot lists nothing, and nothing is requested.
+    #[tokio::test]
+    async fn copilot_is_unsupported_and_never_queries() {
+        let server = MockServer::start().await;
+        let dir = tempfile::tempdir().unwrap();
+        let toml = "[[accounts]]\nname = \"gh\"\nprovider = \"copilot\"\ncredential_env = \"GITHUB_TOKEN\"\n";
+        let monitor = monitor_with(
+            &server,
+            &dir.path().join("models.sqlite3"),
+            &ConfigIdentity::Explicit("copilot".into()),
+            toml,
+        );
+        for state in [monitor.load_models(0).await, monitor.sync_models(0).await] {
+            let ModelState::Unsupported { reason } = state.unwrap() else {
+                panic!("Copilot is unsupported");
+            };
+            assert_eq!(&*reason.id, "models.unsupported_no_evidence");
+        }
+        assert_eq!(requests(&server).await, 0);
+    }
+
+    /// Accounts for every provider and interface-switching mode.
+    fn matrix_accounts() -> Vec<Account> {
+        let modes: [&[(&str, &str)]; 5] = [
+            &[],
+            &[("product", "cli")],
+            &[("product", "coding")],
+            &[("region", "cn")],
+            &[("region", "intl")],
+        ];
+        let oauth = serde_json::from_value(serde_json::json!({ "credential_id": "c" })).ok();
+        Provider::ALL
+            .into_iter()
+            .flat_map(|provider| {
+                let oauth = oauth.clone();
+                modes.into_iter().flat_map(move |params| {
+                    [None, oauth.clone()].map(|oauth| Account {
+                        provider,
+                        params: params
+                            .iter()
+                            .map(|(k, v)| (k.to_string(), v.to_string()))
+                            .collect(),
+                        oauth,
+                        ..Default::default()
+                    })
+                })
+            })
+            .collect()
+    }
+
+    const MODELS_MATRIX_START: &str = "<!-- models-matrix:start -->";
+    const MODELS_MATRIX_END: &str = "<!-- models-matrix:end -->";
+
+    fn models_matrix() -> String {
+        let mut out = String::from(
+            "| Identifier | Mode | Listing | Evidence | Verified on |\n|---|---|---|---|---|\n",
+        );
+        for provider in Provider::ALL {
+            let mut rows: Vec<(Vec<String>, String)> = Vec::new();
+            for account in matrix_accounts()
+                .into_iter()
+                .filter(|a| a.provider == provider)
+            {
+                let label = if account.oauth.is_some() {
+                    "native login".to_string()
+                } else if account.params.is_empty() {
+                    "default".to_string()
+                } else {
+                    account
+                        .params
+                        .iter()
+                        .map(|(k, v)| format!("{k} = {v}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                if account.oauth.is_some() && !account.params.is_empty() {
+                    continue;
+                }
+                let cells = match evidence(&account) {
+                    None => "none: `Unsupported`".to_string() + " | — | —",
+                    Some(found) => {
+                        let basis = match found.basis {
+                            EvidenceBasis::Documented => "documented",
+                            EvidenceBasis::VerifiedLive => "verified live",
+                        };
+                        format!(
+                            "{basis} | [reference]({}) | {}",
+                            found.evidence.url(),
+                            found.verified_on
+                        )
+                    }
+                };
+                match rows.iter_mut().find(|(_, row)| *row == cells) {
+                    Some((labels, _)) => labels.push(label),
+                    None => rows.push((vec![label], cells)),
+                }
+            }
+            // The default row stands for a provider whose modes all agree.
+            let all_agree = rows.len() == 1;
+            for (labels, cells) in rows {
+                let mode = if all_agree {
+                    "any".to_string()
+                } else if labels.iter().any(|l| l == "default") {
+                    "default".to_string()
+                } else {
+                    labels.join(" or ")
+                };
+                out.push_str(&format!("| `{}` | {mode} | {cells} |\n", provider.slug()));
+            }
+        }
+        out
+    }
+
+    /// RF10.1: `docs/providers.md` shows the evidence of every listing.
+    #[test]
+    fn providers_doc_models_matrix_matches_the_evidence() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/providers.md");
+        let doc = std::fs::read_to_string(&path)
+            .unwrap()
+            .replace("\r\n", "\n");
+        let (head, rest) = doc
+            .split_once(MODELS_MATRIX_START)
+            .expect("models matrix start");
+        let (current, tail) = rest
+            .split_once(MODELS_MATRIX_END)
+            .expect("models matrix end");
+        let expected = format!("\n{}", models_matrix());
+        if std::env::var_os("CUOTAI_REGENERATE_DOCS").is_some() {
+            let updated = format!("{head}{MODELS_MATRIX_START}{expected}{MODELS_MATRIX_END}{tail}");
+            std::fs::write(&path, updated).unwrap();
+            return;
+        }
+        assert_eq!(
+            current, expected,
+            "docs/providers.md is out of date with models::evidence. Regenerate it with \
+             `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_models_matrix` and commit the result."
         );
     }
 

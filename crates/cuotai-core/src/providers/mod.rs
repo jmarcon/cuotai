@@ -3,7 +3,6 @@ pub(crate) mod alibaba_plans;
 pub(crate) mod antigravity;
 pub(crate) mod api;
 pub(crate) mod asia;
-pub(crate) mod builtin_models;
 pub(crate) mod catalog;
 pub(crate) mod cloud;
 pub(crate) mod cloud_keys;
