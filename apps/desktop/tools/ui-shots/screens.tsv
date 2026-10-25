@@ -26,6 +26,7 @@
 20-detail	index.html	1200	900	dracula	dark	en-US	[data-details]
 40-extensions	index.html	1200	700	dracula	dark	en-US	[data-extensions]
 50-settings-general	settings.html?page=general	860	640	dracula	dark	en-US
+50-settings-about	settings.html?page=about	860	700	dracula	dark	en-US
 50-settings-dashboard	settings.html?page=dashboard	860	640	dracula	dark	en-US
 50-settings-alerts	settings.html?page=alerts	860	900	dracula	dark	en-US
 07c-report-problem	settings.html?page=about	860	640	dracula	dark	en-US	[data-report-problem]
