@@ -8,7 +8,9 @@
 //! notified once even across restarts, suspension or clock changes.
 
 mod timeline;
-pub use timeline::{timeline, AccountView, Lane, ShareLevel, Timeline, TimelineRange};
+pub use timeline::{
+    timeline, timeline_of_config, AccountView, Lane, ShareLevel, Timeline, TimelineRange,
+};
 
 use crate::alerts::AlertState;
 use crate::metrics::{classify_metric, window_param, MetricState};

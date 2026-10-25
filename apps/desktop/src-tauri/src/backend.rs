@@ -32,6 +32,8 @@ use cuotai_core::{
     pace::{self, Pace, Point},
     tray,
     refresh::{Edit, RefreshCycle},
+    resets::TimelineRange,
+    stats::{StatsRange, StatsSummary},
     user_session, Config, EnvironmentCredentials, Metric, MetricKind, MetricWindow, Monitor,
     Provider, Report, Status,
 };
@@ -3245,6 +3247,110 @@ impl Backend {
         ))
     }
 
+    /// PRD 0026 RF4.6: the usage statistics of `account` (every account with
+    /// `None`) over `range`, with the recent journal events, read from the
+    /// history store off the UI thread. A result for another generation
+    /// before or after the read is [`STALE`], like `account_history`; an
+    /// unknown index or a storage failure is the core's typed error.
+    pub async fn stats(
+        &self,
+        range: StatsRange,
+        account: Option<usize>,
+        generation: u64,
+    ) -> Result<StatsView, String> {
+        let (monitor, accounts) = {
+            let g = self.inner.lock().await;
+            let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+            if l.generation != generation {
+                return Err(STALE.into());
+            }
+            let all = &l.file.config.accounts;
+            let accounts = match account {
+                Some(index) => vec![all
+                    .get(index)
+                    .cloned()
+                    .ok_or_else(|| l10n_to_json(&ModelError::InvalidIndex.l10n()))?],
+                None => all.clone(),
+            };
+            (Arc::clone(&l.monitor), accounts)
+        };
+        let storage = || l10n_to_json(&HistoryError::Storage.l10n());
+        let store = monitor.history().ok_or_else(storage)?;
+        let read = tauri::async_runtime::spawn_blocking(move || {
+            monitor.flush_history(HISTORY_FLUSH);
+            let recording = monitor.history_recording();
+            let now = chrono::Utc::now();
+            let summary = cuotai_core::stats::summarize(&store, &accounts, range, now, &chrono::Local)?;
+            let since = now - chrono::TimeDelta::days(i64::from(range.days()));
+            let entries = store.journal(since..=now, &accounts, JOURNAL_LIMIT * 4)?;
+            Ok::<_, HistoryError>((summary, entries, recording, account.is_some()))
+        })
+        .await
+        .map_err(|_| storage())?;
+        let live = self
+            .inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .map(|l| l.generation);
+        if live != Some(generation) {
+            return Err(STALE.into());
+        }
+        let (summary, entries, recording, scoped) = read.map_err(|error| l10n_to_json(&error.l10n()))?;
+        let events = entries
+            .into_iter()
+            // A scoped view lists that account only, never entries of removed ones.
+            .filter(|entry| !scoped || entry.account_index.is_some())
+            .take(JOURNAL_LIMIT)
+            .map(|entry| JournalView {
+                occurred_at: entry.occurred_at,
+                kind: entry.kind.name(),
+                account: entry.account,
+                summary: serde_json::to_value(&entry.summary).unwrap_or_default(),
+            })
+            .collect();
+        Ok(StatsView {
+            history_kept: serde_json::to_value(summary.history_kept()).unwrap_or_default(),
+            not_enough: serde_json::to_value(StatsSummary::not_enough()).unwrap_or_default(),
+            removed_account: serde_json::to_value(cuotai_core::history::removed_account())
+                .unwrap_or_default(),
+            summary,
+            events,
+            recording,
+        })
+    }
+
+    /// PRD 0026 RF5: when each account's tightest limit comes back within
+    /// `range`, from the readings the app already holds (no query, no
+    /// history), for the configuration `generation`.
+    pub async fn reset_timeline(
+        &self,
+        range: TimelineRange,
+        generation: u64,
+    ) -> Result<cuotai_core::resets::Timeline, String> {
+        let g = self.inner.lock().await;
+        let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+        if l.generation != generation {
+            return Err(STALE.into());
+        }
+        let readings: Vec<Option<Report>> = (0..l.file.config.accounts.len())
+            .map(|index| {
+                l.cycle
+                    .account_report(index)
+                    .filter(|report| report.status == Status::Ready)
+                    .or_else(|| l.cycle.last_good_report(index))
+                    .cloned()
+            })
+            .collect();
+        Ok(cuotai_core::resets::timeline_of_config(
+            &l.file.config,
+            &readings,
+            range,
+            chrono::Utc::now(),
+        ))
+    }
+
     /// Persist a shared configuration-order move. `Edit::Move` carries every
     /// report and deadline to the account's new slot and returns no refresh
     /// targets, so this command deliberately never calls a provider.
@@ -3853,6 +3959,36 @@ pub const STALE: &str = "stale";
 const HISTORY_CHART_CELLS: usize = 96;
 /// How long a history read waits for the readings already queued.
 const HISTORY_FLUSH: Duration = Duration::from_millis(500);
+/// PRD 0026 RF4.4: journal entries on the Stats view.
+const JOURNAL_LIMIT: usize = 20;
+
+/// PRD 0026 RF4: the statistics view of one scope. Numbers, account names the
+/// TOML already holds, and the core's localized texts: never a credential, a
+/// URL or provider text.
+#[derive(Serialize, Debug)]
+pub struct StatsView {
+    summary: StatsSummary,
+    /// The core's `stats.history_kept` and `stats.not_enough`, localized by
+    /// the UI from their ids.
+    history_kept: serde_json::Value,
+    not_enough: serde_json::Value,
+    /// "Removed account", for an event whose account left the configuration.
+    removed_account: serde_json::Value,
+    /// The newest journal events, newest first.
+    events: Vec<JournalView>,
+    /// New readings enter the history (and the journal).
+    recording: bool,
+}
+
+#[derive(Serialize, Debug)]
+pub struct JournalView {
+    occurred_at: chrono::DateTime<chrono::Utc>,
+    kind: &'static str,
+    /// The account's current name; `None` once it was removed.
+    account: Option<String>,
+    /// The core's `Event::summary`.
+    summary: serde_json::Value,
+}
 
 /// The recorded history of one account over a span, as the details draw
 /// it. Only numbers, metric labels and times: never a credential, an
@@ -6575,6 +6711,106 @@ mod tests {
                 .metrics
                 .len(),
             1
+        );
+    }
+
+    // PRD 0026 RF4.6/RF5: statistics and the reset timeline are served for
+    // the live generation only, from the stored history and the held
+    // readings; scoped to one account the journal lists that account only.
+    #[tokio::test(flavor = "current_thread")]
+    async fn stats_and_timeline_are_served_for_the_live_generation_only() {
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("alpha"), plain_account("beta")],
+        )
+        .await;
+        let b = &backend.inner;
+        // Without a history store: a typed storage error, never "no data".
+        let err = b.stats(StatsRange::Days7, None, 1).await.unwrap_err();
+        assert!(err.contains("history.error.storage"), "{err}");
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = HistoryStore::new(
+            dir.path().join("history.sqlite3"),
+            &cuotai_core::config_file::ConfigIdentity::Explicit("stats".into()),
+        );
+        let (alpha, beta) = {
+            let mut g = b.inner.lock().await;
+            let l = g.loaded.as_mut().unwrap();
+            let monitor = l.monitor.with_config(l.file.config.clone()).unwrap();
+            l.monitor = Arc::new(monitor.with_history(store.clone()));
+            (
+                l.file.config.accounts[0].clone(),
+                l.file.config.accounts[1].clone(),
+            )
+        };
+        let now = chrono::Utc::now();
+        for (hours, used) in [(30, 40.0), (3, 100.0), (1, 60.0)] {
+            store
+                .record(
+                    &alpha,
+                    now - chrono::Duration::hours(hours),
+                    &[quota("Sessão", used, MetricWindow::Window5h, 1)],
+                )
+                .unwrap();
+        }
+        let event = |account: &cuotai_core::Account, kind| cuotai_core::events::Event {
+            schema: cuotai_core::events::SCHEMA,
+            event: kind,
+            occurred_at: now - chrono::Duration::hours(2),
+            account_key: account.key(),
+            account_id: account.state_key(),
+            account_name: account.name.clone(),
+            provider: account.provider,
+            accounts: Vec::new(),
+            metric: None,
+            current: Default::default(),
+            previous: None,
+            sample: false,
+        };
+        store
+            .journal_record(&[
+                event(&alpha, cuotai_core::events::EventKind::RefreshFailed),
+                event(&beta, cuotai_core::events::EventKind::AuthRequired),
+            ])
+            .unwrap();
+
+        let all = b.stats(StatsRange::Days7, None, 1).await.unwrap();
+        assert_eq!(all.summary.accounts.len(), 2);
+        assert_eq!(all.summary.hits, 1, "the 100% window");
+        assert_eq!(all.events.len(), 2);
+        assert!(all.recording);
+        let only = b.stats(StatsRange::Days30, Some(0), 1).await.unwrap();
+        assert_eq!(only.summary.accounts.len(), 1);
+        assert_eq!(only.events.len(), 1);
+        assert_eq!(only.events[0].kind, "refresh_failed");
+        // No credential or provider text crosses the IPC.
+        let json = serde_json::to_string(&all).unwrap();
+        assert!(!json.contains("ALPHA_KEY"), "{json}");
+        let err = b.stats(StatsRange::Days7, Some(9), 1).await.unwrap_err();
+        assert!(err.contains("models.error.invalid_index"), "{err}");
+        assert_eq!(
+            b.stats(StatsRange::Days7, None, 0).await.unwrap_err(),
+            STALE
+        );
+
+        // The timeline reads the held readings (none yet) for this generation.
+        let timeline = b
+            .reset_timeline(cuotai_core::resets::TimelineRange::Hours24, 1)
+            .await
+            .unwrap();
+        assert!(timeline.lanes.is_empty() && timeline.unknown.is_empty());
+        assert_eq!(
+            b.reset_timeline(cuotai_core::resets::TimelineRange::Days7, 0)
+                .await
+                .unwrap_err(),
+            STALE
+        );
+        // After a removal the old view's token is stale.
+        b.drive_delete_account(1, false).await.unwrap();
+        assert_eq!(
+            b.stats(StatsRange::Days7, None, 1).await.unwrap_err(),
+            STALE
         );
     }
 

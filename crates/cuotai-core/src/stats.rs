@@ -29,7 +29,7 @@ use serde::Serialize;
 /// belong to a window that ends inside it.
 const LOOKBACK: TimeDelta = TimeDelta::days(31);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StatsRange {
     Days7,

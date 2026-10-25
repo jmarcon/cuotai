@@ -11,9 +11,8 @@ use crate::ui::{local_time, safe};
 use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, Utc};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use cuotai_core::{
-    freshness::{self, Freshness},
     history::{HistoryError, HistoryStore, JournalEntry},
-    resets::{timeline, AccountView, Lane, ShareLevel, Timeline, TimelineRange},
+    resets::{timeline_of_config, Lane, ShareLevel, Timeline, TimelineRange},
     stats::{self, Coverage, StatsRange, StatsSummary},
     text, Config, Report,
 };
@@ -84,26 +83,7 @@ pub(crate) fn timeline_of(
     range: TimelineRange,
     now: DateTime<Utc>,
 ) -> Timeline {
-    let views: Vec<AccountView<'_>> = config
-        .accounts
-        .iter()
-        .enumerate()
-        .map(|(index, account)| {
-            let report = reports.get(index).and_then(Option::as_ref);
-            let interval = std::time::Duration::from_secs(
-                account.effective_refresh_seconds(config.refresh_seconds),
-            );
-            AccountView {
-                name: &account.name,
-                provider: account.provider,
-                report,
-                stale: report.is_some_and(|report| {
-                    freshness::assess(report.checked_at, interval, now) == Freshness::Stale
-                }),
-            }
-        })
-        .collect();
-    timeline(&views, range, now)
+    timeline_of_config(config, reports, range, now)
 }
 
 fn percent(share: f64) -> String {

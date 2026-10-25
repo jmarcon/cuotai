@@ -1210,6 +1210,32 @@ async fn account_history(
         .await
 }
 
+/// PRD 0026 RF4.6: the usage statistics over `range` (`days7`, `days30`) of
+/// one account (`account`) or all (`null`) and the recent journal events, as
+/// the core computed them from the stored history. Guarded by the
+/// `generation` of the `View` the UI read: another generation fails with
+/// `"stale"` and must be discarded. No secret crosses the IPC.
+#[tauri::command]
+async fn stats(
+    b: Shared<'_>,
+    range: cuotai_core::stats::StatsRange,
+    account: Option<usize>,
+    generation: u64,
+) -> Result<backend::StatsView, String> {
+    b.stats(range, account, generation).await
+}
+
+/// PRD 0026 RF5: the reset timeline (`hours24`, `days7`) of the readings the
+/// app holds, guarded by `generation` like `stats`.
+#[tauri::command]
+async fn reset_timeline(
+    b: Shared<'_>,
+    range: cuotai_core::resets::TimelineRange,
+    generation: u64,
+) -> Result<cuotai_core::resets::Timeline, String> {
+    b.reset_timeline(range, generation).await
+}
+
 /// RF1.2: `path = None` volta ao `cuotai.toml` padrão do SO. Recarrega pelo core e só então
 /// grava a escolha em `desktop.json`. Erros: códigos de `settings` ou o JSON tipado do core.
 #[tauri::command]
@@ -1790,6 +1816,8 @@ pub fn run() {
             cost_erase,
             history_size,
             account_history,
+            stats,
+            reset_timeline,
             set_notify_enabled,
             set_alerts_enabled,
             set_alert_options,

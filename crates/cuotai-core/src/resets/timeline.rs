@@ -19,7 +19,7 @@ use crate::{Provider, Report};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TimelineRange {
     Hours24,
@@ -118,6 +118,39 @@ fn lane(
         exhausted: binding.reason == BindingReason::Exhausted,
         stale: view.stale,
     }
+}
+
+/// [`timeline`] over the held readings of `config`'s accounts (`reports[i]`
+/// belongs to `config.accounts[i]`; a missing entry has no reading): each
+/// reading is stale when it is older than its account's refresh interval
+/// allows (PRD 0010). What the front ends call, so they agree.
+pub fn timeline_of_config(
+    config: &crate::Config,
+    reports: &[Option<Report>],
+    range: TimelineRange,
+    now: DateTime<Utc>,
+) -> Timeline {
+    use crate::freshness::{assess, Freshness};
+    let views: Vec<AccountView<'_>> = config
+        .accounts
+        .iter()
+        .enumerate()
+        .map(|(index, account)| {
+            let report = reports.get(index).and_then(Option::as_ref);
+            let interval = std::time::Duration::from_secs(
+                account.effective_refresh_seconds(config.refresh_seconds),
+            );
+            AccountView {
+                name: &account.name,
+                provider: account.provider,
+                report,
+                stale: report.is_some_and(|report| {
+                    assess(report.checked_at, interval, now) == Freshness::Stale
+                }),
+            }
+        })
+        .collect();
+    timeline(&views, range, now)
 }
 
 /// The accounts' returns within `range` of `now`.
