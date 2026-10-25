@@ -13,12 +13,11 @@ use cuotai_core::{
         self, AlertEvent, AlertKind, AlertPrefs, Lead, MissedCrossing, PaceInput, NOTICE_SPACING,
     },
     quiet::{self, Decision, QuietSchedule, QuietWindow, Subject},
-    resets::{self, Ledger, ResetEvent},
+    resets::{self, Ledger, ResetEvent, SharedLedger},
     Account, Config, Metric, Report,
 };
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::path::PathBuf;
 
 /// Language of the notices until the interface reports the one chosen (the
 /// interface's own fallback).
@@ -73,8 +72,9 @@ pub struct Notices {
     /// The core evaluator's preferences, rebuilt from `alerts` and the
     /// bells whenever either changes.
     evaluator: AlertPrefs,
-    /// Notified resets and the usage alert state (`notified.json`).
-    ledger: Ledger,
+    /// Notified resets and the usage alert state (`notified.json`), shared
+    /// with the other processes of this profile (PRD 0032 RF4).
+    ledger: SharedLedger,
     locale: Option<String>,
     store: Option<Store>,
     /// PRD 0008 RF2.2: usage alerts judged but not delivered yet (at most
@@ -90,8 +90,6 @@ pub struct Notices {
     /// was closed (the first reading of this process), until the window
     /// instance ends or the details were opened.
     missed: BTreeMap<String, Vec<MissedCrossing>>,
-    /// Modification time of `notified.json` as this process last saw it.
-    stamp: Option<SystemTime>,
     /// The time zone of the quiet hours; `None` is the system's. Tests set
     /// a fixed offset.
     zone: Option<chrono::FixedOffset>,
@@ -124,9 +122,8 @@ impl Notices {
             prefs: settings::read_notify(&store.settings),
             alerts: settings::read_alerts(&store.settings),
             quiet: settings::read_quiet(&store.settings),
-            ledger: Ledger::load(&store.ledger),
+            ledger: SharedLedger::open(Some(store.ledger.clone())),
             locale: settings::read_locale(&store.settings),
-            stamp: modified(&store.ledger),
             store: Some(store),
             ..Self::default()
         };
@@ -157,44 +154,6 @@ impl Notices {
         }
     }
 
-    fn ledger_path(&self) -> Option<PathBuf> {
-        self.store.as_ref().map(|store| store.ledger.clone())
-    }
-
-    /// PRD 0032 RF4: another process (the TUI) may have written the ledger
-    /// since this one last looked: take its version.
-    fn sync_ledger(&mut self) {
-        let Some(path) = self.ledger_path() else {
-            return;
-        };
-        let stamp = modified(&path);
-        if stamp != self.stamp {
-            self.ledger.reload(&path);
-            self.stamp = stamp;
-        }
-    }
-
-    fn remember_stamp(&mut self) {
-        self.stamp = self.ledger_path().and_then(|path| modified(&path));
-    }
-
-    /// Apply `change` to the ledger. With a store it runs on the copy on
-    /// disk under the advisory lock and is saved (only when it changed
-    /// something); without one (tests) on the in-memory ledger.
-    fn mutate_ledger(&mut self, change: impl Fn(&mut Ledger) -> bool) {
-        let mut probe = self.ledger.clone();
-        if !change(&mut probe) {
-            return;
-        }
-        match self.ledger_path() {
-            Some(path) => {
-                self.ledger.claim(&path, |ledger| change(ledger));
-                self.remember_stamp();
-            }
-            None => self.ledger = probe,
-        }
-    }
-
     /// PRD 0032 RF8.2: what the metrics of `account_key` crossed while the
     /// app was closed.
     pub fn missed(&self, account_key: &str) -> &[MissedCrossing] {
@@ -208,7 +167,8 @@ impl Notices {
             return;
         };
         let key = account_key.to_owned();
-        self.mutate_ledger(|ledger| ledger.alerts_mut().acknowledge(&key, &crossings));
+        self.ledger
+            .mutate(|ledger| ledger.alerts_mut().acknowledge(&key, &crossings));
     }
 
     pub fn prefs(&self) -> &NotifyPrefs {
@@ -363,7 +323,8 @@ impl Notices {
         I::IntoIter: Clone,
     {
         let reports: Vec<&Report> = reports.into_iter().collect();
-        self.mutate_ledger(|ledger| ledger.adopt_ids(reports.iter().copied()));
+        self.ledger
+            .mutate(|ledger| ledger.adopt_ids(reports.iter().copied()));
     }
 
     /// Forget the bells, muted metrics, alert state and pending alerts of
@@ -384,7 +345,8 @@ impl Notices {
         self.pending.retain(|event| kept(&event.account_key));
         // Marks still under a legacy key of a configured account are kept
         // until a reading moves them (`adopt_reports`).
-        self.mutate_ledger(|ledger| ledger.alerts_mut().retain_config(config));
+        self.ledger
+            .mutate(|ledger| ledger.alerts_mut().retain_config(config));
         self.missed.retain(|key, _| keys.contains(key));
         self.digest_pending
             .retain(|event| keys.contains(&event.account_key));
@@ -473,7 +435,7 @@ impl Notices {
                 !(event.kind == AlertKind::ProjectedExhaustion && event.account_key == key)
             });
         }
-        self.sync_ledger();
+        self.ledger.sync();
         let window = self.window(now);
         let (mut deliver, mut deferred) = (Vec::new(), Vec::new());
         for event in events {
@@ -484,16 +446,9 @@ impl Notices {
             }
         }
         let first = self.ledger.alerts().is_first(next);
-        let path = self.ledger_path();
-        let sent = self.ledger.claim_alerts(
-            path.as_deref(),
-            next,
-            &self.evaluator,
-            deliver,
-            deferred,
-            now,
-        );
-        self.remember_stamp();
+        let sent = self
+            .ledger
+            .claim_alerts(next, &self.evaluator, deliver, deferred, now);
         let key = next.state_key();
         if first {
             let found = self.ledger.alerts().missed(prev, next, &self.evaluator);
@@ -594,8 +549,8 @@ impl Notices {
         now: DateTime<Utc>,
         notifier: &dyn Notifier,
     ) -> Tick {
-        self.sync_ledger();
-        self.mutate_ledger(|ledger| {
+        self.ledger.sync();
+        self.ledger.mutate(|ledger| {
             let adopted = ledger.adopt_ids(readings.iter().flatten().copied());
             ledger.prune(now) | adopted
         });
@@ -629,16 +584,7 @@ impl Notices {
             }
             // Recorded even when the delivery fails: a notice is sent at
             // most once, never retried into a burst.
-            let path = self.ledger_path();
-            let sent = if deliver.is_empty() && skipped.is_empty() {
-                Vec::new()
-            } else {
-                let sent = self
-                    .ledger
-                    .claim_resets(path.as_deref(), deliver, skipped, now);
-                self.remember_stamp();
-                sent
-            };
+            let sent = self.ledger.claim_resets(deliver, skipped, now);
             for event in &sent {
                 let notice = event.notice_with(
                     expanded.display(event.account_index),
@@ -653,17 +599,12 @@ impl Notices {
             tick.next = min_of(tick.next, plan.next.map(|event| event.notify_at));
         }
         if window.is_none() {
-            let path = self.ledger_path();
             let events = self.ledger.claim_digest(
-                path.as_deref(),
                 expanded.readings().into_iter().flatten(),
                 &self.evaluator,
                 self.quiet.digest,
                 now,
             );
-            if !events.is_empty() {
-                self.remember_stamp();
-            }
             self.digest_pending.extend(events);
         }
         let (delivered, next) = self.deliver_digest(&expanded, now, notifier);
@@ -781,13 +722,6 @@ fn min_of(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime
         (Some(a), Some(b)) => Some(a.min(b)),
         (a, b) => a.or(b),
     }
-}
-
-/// The modification time of `path`, if it exists.
-fn modified(path: &Path) -> Option<SystemTime> {
-    std::fs::metadata(path)
-        .and_then(|meta| meta.modified())
-        .ok()
 }
 
 #[cfg(test)]

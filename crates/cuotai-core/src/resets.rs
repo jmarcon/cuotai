@@ -8,8 +8,10 @@
 //! notified once even across restarts, suspension or clock changes.
 
 mod lock;
+mod shared;
 mod timeline;
 pub use lock::{lock_path, LedgerLock};
+pub use shared::SharedLedger;
 pub use timeline::{
     timeline, timeline_of_config, AccountView, Lane, ShareLevel, Timeline, TimelineRange,
 };
