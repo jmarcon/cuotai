@@ -1410,5 +1410,17 @@
   "detect.consent.cursor_import": "Cuotai leggerà una volta il token di accesso dal database locale di Cursor per consultare il tuo utilizzo. Viene salvato nel portachiavi delle credenziali del sistema.",
   "detect.consent.native_login": "Cuotai aprirà l'accesso a {provider}; non viene letto nulla dalla cartella di {tool}.",
   "detect.consent.aws_profile": "Cuotai leggerà solo i nomi dei profili in ~/.aws/config quando scegli il profilo; nessuna chiave viene letta.",
-  "detect.consent.key_step": "Incolla la tua chiave; Cuotai non legge nulla dalla cartella di {tool}."
+  "detect.consent.key_step": "Incolla la tua chiave; Cuotai non legge nulla dalla cartella di {tool}.",
+  "tray.item.left": "{name} {pct} rimanente",
+  "tray.item.left_resets": "{name} {pct} rimanente, si rinnova alle {at}",
+  "tray.item.exhausted": "{name} esaurito",
+  "tray.item.exhausted_until": "{name} esaurito, torna alle {at}",
+  "tray.item.unknown": "{name}: nessun dato",
+  "tray.item.stale": "{item} (lettura vecchia)",
+  "tray.item.alert": "{item}, avviso attivo",
+  "tray.item.extra": "{item}, in uso extra",
+  "tray.join": "{first}; {rest}",
+  "tray.empty": "Nessun account nella barra dei menu",
+  "tray.outage": "{item}; incidente del fornitore",
+  "tray.tooltip": "Cuotai — {label}"
 }

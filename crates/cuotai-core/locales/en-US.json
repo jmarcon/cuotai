@@ -1410,5 +1410,17 @@
   "detect.consent.cursor_import": "Cuotai will read the sign-in token from Cursor's local database once, to query your usage. It is stored in your system's credential vault.",
   "detect.consent.native_login": "Cuotai will open the {provider} sign-in; nothing is read from {tool}'s folder.",
   "detect.consent.aws_profile": "Cuotai will read only the profile names in ~/.aws/config when you choose the profile; no key is read.",
-  "detect.consent.key_step": "Paste your key; Cuotai reads nothing from {tool}'s folder."
+  "detect.consent.key_step": "Paste your key; Cuotai reads nothing from {tool}'s folder.",
+  "tray.item.left": "{name} {pct} left",
+  "tray.item.left_resets": "{name} {pct} left, resets {at}",
+  "tray.item.exhausted": "{name} exhausted",
+  "tray.item.exhausted_until": "{name} exhausted, returns {at}",
+  "tray.item.unknown": "{name}: no data",
+  "tray.item.stale": "{item} (old reading)",
+  "tray.item.alert": "{item}, alert active",
+  "tray.item.extra": "{item}, using extra usage",
+  "tray.join": "{first}; {rest}",
+  "tray.empty": "No accounts in the menu bar",
+  "tray.outage": "{item}; provider incident",
+  "tray.tooltip": "Cuotai — {label}"
 }

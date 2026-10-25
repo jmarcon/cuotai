@@ -44,6 +44,7 @@ pub mod stats;
 pub mod support;
 pub mod text;
 mod transport;
+pub mod tray;
 pub mod user_session;
 pub mod watch;
 pub mod widget_snapshot;
