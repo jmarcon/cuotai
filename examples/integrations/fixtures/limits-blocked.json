@@ -28,6 +28,7 @@
   "summary": {
     "worst_class": "exhausted",
     "tightest": {
+      "id": "acc_000000000001",
       "key": "claude:Personal",
       "name": "Personal",
       "used_ratio": 1.0,

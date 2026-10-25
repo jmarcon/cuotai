@@ -144,8 +144,9 @@
             { "type": "null" },
             {
               "type": "object",
-              "required": ["key", "name", "used_ratio", "resets_at"],
+              "required": ["id", "key", "name", "used_ratio", "resets_at"],
               "properties": {
+                "id": { "type": "string", "description": "The stable account id (PRD 0029)." },
                 "key": { "type": "string" },
                 "name": { "type": "string" },
                 "used_ratio": { "type": "number", "minimum": 0 },

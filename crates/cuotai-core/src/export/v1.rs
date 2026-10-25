@@ -668,6 +668,8 @@ pub struct LimitsSummary {
 /// [`LimitsSummary::tightest`].
 #[derive(Debug, Clone, Serialize)]
 pub struct TightestAccount {
+    /// The stable account id (PRD 0029), as in [`AccountLimit::id`].
+    pub id: String,
     pub key: String,
     pub name: String,
     pub used_ratio: f64,
@@ -770,6 +772,7 @@ impl LimitsSummary {
                 },
             )
             .map(|(account, binding)| TightestAccount {
+                id: account.id.clone(),
                 key: account.key.clone(),
                 name: account.name.clone(),
                 used_ratio: binding.used_ratio,
@@ -1991,6 +1994,11 @@ mod tests {
             .filter_map(|account| account["binding"]["used_ratio"].as_f64())
             .fold(f64::MIN, f64::max);
         assert_eq!(summary["tightest"]["used_ratio"].as_f64(), Some(max_ratio));
+        // PRD 0029: the digest names the account by its stable id too.
+        let tightest_id = summary["tightest"]["id"].as_str().expect("tightest id");
+        assert!(accounts
+            .iter()
+            .any(|account| account["id"].as_str() == Some(tightest_id)));
         assert!(accounts
             .iter()
             .any(|account| account["incident"].is_object()));
