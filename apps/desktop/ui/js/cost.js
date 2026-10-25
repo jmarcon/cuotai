@@ -51,6 +51,15 @@ export function costText(e) {
   return sum(e.unknown_tokens) ? t("cost.partial", { cost: amount }) : amount;
 }
 
+/** PRD 0022 RF6.1 (DS-CMP-HON-2): `costText` with "≈" before a priced amount (every local cost is an estimate);
+ *  "no usage", "cost unknown" and "< $0.01" stay as they are. */
+export function approxText(e) {
+  const text = costText(e);
+  const priced = sum(e.tokens) && (e.total === undefined ? e.cost != null : e.total != null);
+  return priced && !text.startsWith("<") ? `≈${text}` : text;
+}
+const approxUsd = (amount) => (amount > 0 && amount < 0.005 ? fmtUsd(amount) : `≈${fmtUsd(amount)}`);
+
 /** RF4.1: the source the accounts of `provider` show, if the summary has one. */
 export const sourceFor = (summary, provider) => summary?.sources.find((s) => s.providers.includes(provider)) ?? null;
 
@@ -58,7 +67,7 @@ const TONES = { partial: "warn", no_logs: "warn", no_access: "bad" };
 const noteHtml = (sc) => (sc.note ? `<p class="lc-note ${TONES[sc.state] ?? ""}" data-cost-note>${esc(tl(sc.note))}</p>` : "");
 
 const tile = (label, e, display) => `<div class="lc-tile"><span class="lc-label">${esc(label)}</span>
-  <b class="lc-cost${e.total == null && sum(e.tokens) ? " dim" : ""}">${esc(costText(e))}</b>${display && e.total != null ? `<span class="lc-fx-amount">≈ ${esc(convertedText(e.total, display))}</span>` : ""}
+  <b class="lc-cost${e.total == null && sum(e.tokens) ? " dim" : ""}">${esc(approxText(e))}</b>${display && e.total != null ? `<span class="lc-fx-amount">≈ ${esc(convertedText(e.total, display))}</span>` : ""}
   <span class="lc-tokens">${te("cost.tokens", { amount: fmtTokens(sum(e.tokens)) })}</span></div>`;
 
 const tilesHtml = (sc, summary) => `<div class="lc-tiles">${tile(t("cost.today"), sc.usage.today, summary.display)}${tile(t("cost.yesterday"), sc.usage.yesterday, summary.display)}${tile(tl(summary.span.label), sc.usage.period, summary.display)}</div>${displayLine(sc.usage.period.total, summary.display)}${planHtml(sc, summary)}`;
@@ -106,10 +115,10 @@ function chartHtml(sc, summary) {
   const value = (d) => (priced ? d.cost ?? 0 : sum(d.tokens));
   const top = Math.max(...days.map(value), 0);
   const peak = days.reduce((best, d) => (value(d) > value(best) ? d : best), days[0]);
-  const shown = (d) => (priced ? fmtUsd(value(d)) : t("cost.tokens", { amount: fmtTokens(value(d)) }));
+  const shown = (d) => (priced ? (value(d) ? approxUsd(value(d)) : fmtUsd(0)) : t("cost.tokens", { amount: fmtTokens(value(d)) }));
   const label = t(priced ? "cost.detail.chartCost" : "cost.detail.chartTokens", {
     first: date(days[0].day), last: date(days.at(-1).day),
-    peak: priced ? fmtUsd(value(peak)) : t("cost.tokens", { amount: fmtTokens(value(peak)) }),
+    peak: priced ? approxUsd(value(peak)) : t("cost.tokens", { amount: fmtTokens(value(peak)) }),
     day: date(peak.day),
   });
   // DS-CHT-3/-5: neutral bars, today in the accent and labelled; a day with use but no price is a hatched bar at its

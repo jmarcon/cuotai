@@ -111,4 +111,21 @@ await lib.costSetDisplay(null, 0);
 ({ summary, plans } = await load());
 assert.equal(plans.values.length, 0);
 assert.equal(plans.display, null);
+// PRD 0022 RF6.1 (DS-CMP-HON-2): a priced local cost is an estimate and carries "≈" on the card tiles and the daily
+// bars; no usage, an unknown price and "< $0.01" do not.
+const { approxText } = await import("../apps/desktop/ui/js/cost.js");
+await i18n.setLocale("en-US");
+const tok = (n) => ({ input: n, output: 0, cache_read: 0, cache_write: 0, cache_write_1h: 0 });
+const none = tok(0);
+assert.equal(approxText({ tokens: tok(10), unknown_tokens: none, total: 1.5 }), "≈$1.50");
+assert.equal(approxText({ tokens: tok(10), unknown_tokens: none, total: null }), "cost unknown");
+assert.equal(approxText({ tokens: none, unknown_tokens: none, total: 0 }), "no usage");
+assert.equal(approxText({ tokens: tok(10), unknown_tokens: none, total: 0.001 }), "< $0.01");
+assert.equal(approxText({ tokens: tok(10), unknown_tokens: none, cost: 2 }), "≈$2.00", "a day");
+{ const tilesHtml = costCardHtml(source(), summary);
+for (const m of tilesHtml.matchAll(/class="lc-cost[^"]*">([^<]*)</g)) assert.ok(/^(≈|<|no usage|cost unknown)/.test(m[1]), `tile ${m[1]}`);
+const daysHtml = costDetailHtml(source(), summary);
+for (const m of daysHtml.matchAll(/class="lc-bar[^"]*"[^>]*title="([^"]*)"/g)) assert.ok(!/: \$(?!0\.00)/.test(m[1]), `bar tip without ≈: ${m[1]}`); }
+assert.match(costDetailHtml(source(), summary), /title="[^"]*: ≈\$/, "a priced day carries ≈");
+
 console.log("PASS: plan price and display currency (PRD 0030 RF1/RF6): lines, converted amounts, add link, Settings rows and refusals");
