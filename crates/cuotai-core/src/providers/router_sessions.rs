@@ -1019,6 +1019,29 @@ fn format_zed_plan_label(raw: Option<&str>) -> String {
     }
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records. Add a case when the adapter learns a new metric.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let body = serde_json::json!({
+        "overageConfiguration": {"overageStatus": "ENABLED"},
+        "usageBreakdownList": [{
+            "resourceType": "CREDIT",
+            "currentUsageWithPrecision": 12.0,
+            "currentOveragesWithPrecision": 2.0,
+            "usageLimitWithPrecision": 50.0,
+            "overageCapWithPrecision": 20.0,
+            "overageCharges": 0.5,
+            "currency": "USD",
+            "nextDateReset": 1_790_000_000
+        }]
+    });
+    vec![(
+        "router_sessions.kiro",
+        kiro_data(body).expect("fixture decodes").metrics,
+    )]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

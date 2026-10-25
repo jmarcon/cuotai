@@ -649,6 +649,19 @@ async fn fetch_grpc_credits(
     decode_grok_credits_frame(&response.bytes().await.ok()?)
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records. Add a case when the adapter learns a new metric.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let billing = serde_json::json!({"config": {
+        "monthlyLimit": {"val": 100}, "includedUsed": {"val": 10},
+        "onDemandCap": {"val": 20}, "onDemandUsed": {"val": 1},
+        "prepaidBalance": {"val": 5},
+        "billingPeriodEnd": "2026-10-01T00:00:00+00:00"
+    }});
+    vec![("router_grok", parse_billing(&billing, None).metrics)]
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

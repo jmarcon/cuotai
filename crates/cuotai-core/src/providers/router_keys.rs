@@ -880,6 +880,16 @@ fn mimo_data_from_body(
 
 // -------------------------------------------------------------------- testes
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records. Add a case when the adapter learns a new metric.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let body = serde_json::json!({"code": 0, "data": {"percent": 80, "resetAt": 1_790_000_000}});
+    let data =
+        mimo_data_from_body(&body, "fixture", "https://example.com").expect("fixture decodes");
+    vec![("router_keys.xiaomi_mimo", data.metrics)]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

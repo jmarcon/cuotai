@@ -23,6 +23,7 @@
 //! refresh results off the refresh's critical path (RF2) and prunes by
 //! [`Retention`] (RF4), which also owns export and erasure.
 
+pub mod aliases;
 mod journal;
 mod recorder;
 mod retention;
@@ -540,6 +541,7 @@ impl HistoryStore {
         db.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT)?;
         migrate(&mut db, &MIGRATIONS)?;
         db.execute_batch(ALIASES)?;
+        aliases::apply(&db, aliases::METRIC_ALIASES)?;
         Ok(db)
     }
 

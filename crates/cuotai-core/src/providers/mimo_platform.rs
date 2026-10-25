@@ -337,6 +337,20 @@ fn parse_platform_datetime(s: &str) -> Option<DateTime<Utc>> {
         .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc))
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records. Add a case when the adapter learns a new metric.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let balance = serde_json::json!({"data": {"balance": "10.5", "currency": "USD"}});
+    let detail = serde_json::json!({"data": {"planCode": "lite"}});
+    let usage = serde_json::json!({"data": {"monthUsage": {"items": [
+        {"limit": 100.0, "used": 10.0, "percent": 0.1}
+    ]}}});
+    let data = build_data(&balance, Some(&detail), Some(&usage), "https://example.com")
+        .expect("fixture decodes");
+    vec![("mimo_platform", data.metrics)]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

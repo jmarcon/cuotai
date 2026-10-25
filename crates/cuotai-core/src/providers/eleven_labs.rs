@@ -379,6 +379,22 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
     Ok(Data::new(metrics, notes, source))
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records. Add a case when the adapter learns a new metric.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let body = serde_json::json!({
+        "tier": "starter", "status": "active",
+        "character_count": 100, "character_limit": 1000,
+        "next_character_count_reset_unix": 1_790_000_000,
+        "character_refresh_period": "monthly_period",
+        "max_credit_limit_extension": 5000,
+        "can_extend_character_limit": true,
+    });
+    let data = parse(&body, "fixture".into()).expect("fixture decodes");
+    vec![("eleven_labs", data.metrics)]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

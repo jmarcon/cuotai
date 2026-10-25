@@ -420,6 +420,24 @@ fn scope_label(scope: &str) -> Option<&'static str> {
     }
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records. Add a case when the adapter learns a new metric.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let budget = serde_json::json!({
+        "period": {"startTime": "2026-09-01T00:00:00Z", "endTime": "2026-10-01T00:00:00Z"},
+        "budgets": [{
+            "scope": "TEAM_POOLED", "scopeId": "team", "budgetLimitUsd": "50.0",
+            "totalSpendUsd": "5.0",
+            "providerBudgets": [{
+                "provider": "anthropic", "usageUsd": "2.0",
+                "limitType": "CAPPED", "budgetLimitUsd": "10.0"
+            }]
+        }]
+    });
+    vec![("kimchi", parse_budget(&budget).expect("fixture decodes"))]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

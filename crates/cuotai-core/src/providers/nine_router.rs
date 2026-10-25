@@ -1450,6 +1450,23 @@ pub(crate) async fn test_connection_at(
     }
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records. Add a case when the adapter learns a new metric.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let body = serde_json::json!({
+        "plan": "Pro",
+        "quotas": {"Session": {
+            "total": 100, "used": 10, "remaining": 90, "resetAt": "2026-10-01T00:00:00Z"
+        }}
+    });
+    let metrics = match parse_usage(&body).expect("fixture decodes") {
+        UsageOutcome::Usage(usage) => usage.metrics,
+        UsageOutcome::Message { .. } => Vec::new(),
+    };
+    vec![("nine_router", metrics)]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
