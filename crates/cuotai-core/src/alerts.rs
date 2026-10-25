@@ -48,6 +48,9 @@ pub const PROJECTED_MIN_MARGIN: TimeDelta = TimeDelta::minutes(5);
 pub const PROJECTED_MIN_USED: f64 = 0.25;
 /// The exhaustion level: 100% consumed.
 const EXHAUSTED: u8 = 100;
+/// PRD 0032 RF9.1: a metric without `resets_at` recovers once consumption
+/// is at most this share (100% minus 20 points).
+const RECOVERY_BELOW: f64 = 80.0;
 /// Absorbs `f64` rounding in `used × 100 / limit` (29% must reach 29).
 const EPSILON: f64 = 1e-9;
 
@@ -295,6 +298,18 @@ impl PoolAlerts {
     }
 }
 
+/// PRD 0032 RF8.1: a level a metric reached while Cuotai was closed and
+/// nobody was told about.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct MissedCrossing {
+    pub label: String,
+    pub window: Option<MetricWindow>,
+    /// The highest level reached, in percent (100 = exhausted).
+    pub threshold: u8,
+    /// The window instance it belongs to.
+    pub resets_at: Option<DateTime<Utc>>,
+}
+
 /// One notice about one metric of one account.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AlertEvent {
@@ -347,6 +362,18 @@ struct Mark {
     resets_at: Option<DateTime<Utc>>,
     notified: bool,
     at: DateTime<Utc>,
+    /// PRD 0032 RF9: an `Exhausted` mark of a metric without `resets_at`
+    /// whose hysteresis re-armed it (consumption fell below the level) but
+    /// whose recovery was not told yet: it no longer counts as a level.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    lapsed: bool,
+    /// PRD 0032 RF3.2: the level was reached while quiet hours held its
+    /// notice; the digest at this instant sends it (or drops it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    deferred_until: Option<DateTime<Utc>>,
+    /// PRD 0032 RF8.2: the person saw the "crossed while closed" marker.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    acknowledged: bool,
 }
 
 /// One eligible metric's consumption.
@@ -478,7 +505,7 @@ pub fn evaluate_with(
             continue;
         }
         if state
-            .awaiting_recovery(&digest, metric.resets_at)
+            .awaiting_recovery(&digest, metric.resets_at, consumption.percent)
             .is_some_and(|exhausted| exhausted.notified)
         {
             events.push(event(AlertKind::Recovered, EXHAUSTED));
@@ -791,6 +818,21 @@ impl AlertState {
         events: &[AlertEvent],
         now: DateTime<Utc>,
     ) -> bool {
+        self.update_with(next, prefs, events, &[], now)
+    }
+
+    /// [`Self::update`], plus PRD 0032 RF3.2: the `deferred` events (held
+    /// by quiet hours until `until`) are recorded as not notified but
+    /// `Deferred`, so a restart keeps them for the digest
+    /// ([`Self::take_deferred`]) instead of treating them as seen.
+    pub fn update_with(
+        &mut self,
+        next: &Report,
+        prefs: &AlertPrefs,
+        events: &[AlertEvent],
+        deferred: &[(AlertEvent, DateTime<Utc>)],
+        now: DateTime<Utc>,
+    ) -> bool {
         if next.status != Status::Ready {
             return false;
         }
@@ -802,11 +844,16 @@ impl AlertState {
         }
         // PRD 0016 RF3.2: a near expiry seen once is not noticed again.
         if let Some(event) = session_expiring(next, self, now) {
-            let notified = events.iter().any(|delivered| {
-                delivered.account_key == account_key
-                    && delivered.kind == AlertKind::SessionExpiring
-                    && delivered.resets_at == event.resets_at
-            });
+            let same = |other: &AlertEvent| {
+                other.account_key == account_key
+                    && other.kind == AlertKind::SessionExpiring
+                    && other.resets_at == event.resets_at
+            };
+            let notified = events.iter().any(same);
+            let deferred_until = deferred
+                .iter()
+                .find(|(held, _)| same(held))
+                .map(|(_, until)| *until);
             self.marks.push(Mark {
                 account: account.clone(),
                 metric: key_digest(&account_key, SESSION_MARK),
@@ -815,6 +862,9 @@ impl AlertState {
                 resets_at: event.resets_at,
                 notified,
                 at: now,
+                lapsed: false,
+                deferred_until: deferred_until.filter(|_| !notified),
+                acknowledged: false,
             });
             changed = true;
         }
@@ -864,13 +914,39 @@ impl AlertState {
                         && event.threshold == threshold
                 })
             };
+            let held = |kind: AlertKind, threshold: u8| {
+                deferred
+                    .iter()
+                    .find(|(event, _)| {
+                        event.account_key == account_key
+                            && event.label == metric.label
+                            && event.kind == kind
+                            && event.threshold == threshold
+                    })
+                    .map(|(_, until)| *until)
+            };
             let before = self.marks.len();
-            self.marks.retain(|mark| {
-                !(mark.metric == digest
+            self.marks.retain_mut(|mark| {
+                let rearmed = mark.metric == digest
                     && mark.kind.is_level()
+                    && !mark.lapsed
                     && same_instance(mark.resets_at, at)
                     && consumption.percent
-                        <= f64::from(mark.threshold) - HYSTERESIS_POINTS + EPSILON)
+                        <= f64::from(mark.threshold) - HYSTERESIS_POINTS + EPSILON;
+                // PRD 0032 RF9: the notified exhaustion of a metric without
+                // `resets_at` is remembered until consumption falls enough
+                // for `Recovered`.
+                if rearmed
+                    && mark.kind == AlertKind::Exhausted
+                    && mark.notified
+                    && mark.resets_at.is_none()
+                    && at.is_none()
+                    && consumption.percent > RECOVERY_BELOW
+                {
+                    mark.lapsed = true;
+                    return true;
+                }
+                !rearmed
             });
             changed |= self.marks.len() != before;
             if let Some(at) = at {
@@ -893,6 +969,9 @@ impl AlertState {
                 resets_at: at,
                 notified: notified(kind, threshold),
                 at: now,
+                lapsed: false,
+                deferred_until: held(kind, threshold).filter(|_| !notified(kind, threshold)),
+                acknowledged: false,
             };
             let before = self.marks.len();
             // PRD 0024 RF2.3: a projection delivered once per instance.
@@ -901,9 +980,15 @@ impl AlertState {
             }
             if consumption.exhausted {
                 if !self.has_level(&digest, at, EXHAUSTED) {
+                    self.marks.retain(|old| {
+                        !(old.metric == digest && old.kind == AlertKind::Exhausted && old.lapsed)
+                    });
                     self.marks.push(mark(AlertKind::Exhausted, EXHAUSTED));
                 }
-            } else if self.awaiting_recovery(&digest, at).is_some() {
+            } else if self
+                .awaiting_recovery(&digest, at, consumption.percent)
+                .is_some()
+            {
                 self.marks.push(mark(AlertKind::Recovered, EXHAUSTED));
             }
             for threshold in prefs.thresholds() {
@@ -935,6 +1020,200 @@ impl AlertState {
             }
         }
         changed
+    }
+
+    /// PRD 0032 RF8.1: the highest level per metric of `next` that its
+    /// window instance reached without any notice, no digest waiting for it
+    /// and no earlier acknowledgement: what happened while Cuotai was
+    /// closed. Call it with the state **after** [`Self::update`] on the
+    /// first reading of the account in a process; it sends nothing (PRD
+    /// 0008 RF1.7 still applies). Empty without a `prev` reading of the
+    /// same account (a first run knows nothing about a past) and for what
+    /// `prefs` would not notify (alerts off, a muted account or metric).
+    pub fn missed(
+        &self,
+        prev: Option<&Report>,
+        next: &Report,
+        prefs: &AlertPrefs,
+    ) -> Vec<MissedCrossing> {
+        if next.status != Status::Ready
+            || !prev.is_some_and(|prev| {
+                prev.provider == next.provider
+                    && prev.account == next.account
+                    && prev.status == Status::Ready
+                    && prev.checked_at < next.checked_at
+            })
+        {
+            return Vec::new();
+        }
+        let account_key = next.state_key();
+        next.metrics
+            .iter()
+            .filter_map(|metric| {
+                let consumption = consumption(metric)?;
+                let threshold = level(consumption, prefs)?;
+                let kind = if threshold == EXHAUSTED {
+                    AlertKind::Exhausted
+                } else {
+                    AlertKind::Threshold
+                };
+                let wanted = prefs.wants(&AlertEvent {
+                    account_key: account_key.clone(),
+                    label: metric.label.clone(),
+                    window: metric.window,
+                    kind,
+                    threshold,
+                    consumed: consumption.percent / 100.0,
+                    resets_at: metric.resets_at,
+                    projection: None,
+                });
+                let digest = key_digest(&account_key, &metric.label);
+                let handled = self.marks.iter().any(|mark| {
+                    mark.metric == digest
+                        && mark.kind.is_level()
+                        && mark.threshold == threshold
+                        && same_instance(mark.resets_at, metric.resets_at)
+                        && (mark.notified || mark.deferred_until.is_some() || mark.acknowledged)
+                });
+                (wanted && !handled).then(|| MissedCrossing {
+                    label: metric.label.clone(),
+                    window: metric.window,
+                    threshold,
+                    resets_at: metric.resets_at,
+                })
+            })
+            .collect()
+    }
+
+    /// PRD 0032 RF8.2: the person saw the marker of `missed` crossings:
+    /// they count as seen and [`Self::missed`] no longer lists them.
+    /// `true` when a mark changed.
+    pub fn acknowledge(&mut self, account_key: &str, crossings: &[MissedCrossing]) -> bool {
+        let mut changed = false;
+        for crossing in crossings {
+            let digest = key_digest(account_key, &crossing.label);
+            for mark in &mut self.marks {
+                if mark.metric == digest
+                    && mark.kind.is_level()
+                    && mark.threshold == crossing.threshold
+                    && same_instance(mark.resets_at, crossing.resets_at)
+                    && !mark.acknowledged
+                {
+                    mark.acknowledged = true;
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
+    /// PRD 0032 RF3.2: some crossing waits for the digest.
+    pub fn has_deferred(&self) -> bool {
+        self.marks.iter().any(|mark| mark.deferred_until.is_some())
+    }
+
+    /// PRD 0032 RF3.3: the earliest instant a deferred crossing is due.
+    pub fn next_deferred(&self) -> Option<DateTime<Utc>> {
+        self.marks
+            .iter()
+            .filter_map(|mark| mark.deferred_until)
+            .min()
+    }
+
+    /// PRD 0032 RF3.3: settle the deferred crossings due at `now`. With
+    /// `digest` on, the ones that **still hold** in `reports` (the metric is
+    /// still at or above the level in the same window instance; the
+    /// recovery still stands; the session still ends soon) come back as
+    /// events with their current state, one per metric and kind (the highest
+    /// level; an exhaustion replaces the thresholds below it) and are marked
+    /// notified; with it off, or when they no longer hold, they are only
+    /// marked seen. Nothing is returned for what `prefs` no longer wants.
+    /// `reports` hold the latest reading of each account (a crossing whose
+    /// account has none stays deferred).
+    pub fn take_deferred<'r>(
+        &mut self,
+        reports: impl IntoIterator<Item = &'r Report>,
+        prefs: &AlertPrefs,
+        digest: bool,
+        now: DateTime<Utc>,
+    ) -> Vec<AlertEvent> {
+        let reports: Vec<&Report> = reports.into_iter().collect();
+        let mut events: Vec<AlertEvent> = Vec::new();
+        for mark in &mut self.marks {
+            if mark.deferred_until.is_none_or(|until| until > now) {
+                continue;
+            }
+            let Some(report) = reports
+                .iter()
+                .find(|report| account_digest(&report.state_key()) == mark.account)
+            else {
+                continue;
+            };
+            mark.deferred_until = None;
+            if !digest {
+                continue;
+            }
+            let account_key = report.state_key();
+            let event = match mark.kind {
+                AlertKind::SessionExpiring => report
+                    .session_expires_at
+                    .filter(|at| Some(*at) == mark.resets_at)
+                    .filter(|at| crate::user_session::expiry(*at, now).soon)
+                    .map(|at| AlertEvent {
+                        account_key: account_key.clone(),
+                        label: String::new(),
+                        window: None,
+                        kind: AlertKind::SessionExpiring,
+                        threshold: mark.threshold,
+                        consumed: 0.0,
+                        resets_at: Some(at),
+                        projection: None,
+                    }),
+                kind => report
+                    .metrics
+                    .iter()
+                    .filter(|metric| key_digest(&account_key, &metric.label) == mark.metric)
+                    .filter(|metric| same_instance(mark.resets_at, metric.resets_at))
+                    .find_map(|metric| {
+                        let consumption = consumption(metric)?;
+                        let holds = match kind {
+                            AlertKind::Exhausted => consumption.exhausted,
+                            AlertKind::Recovered => !consumption.exhausted,
+                            _ => reached(consumption.percent, f64::from(mark.threshold)),
+                        };
+                        holds.then(|| AlertEvent {
+                            account_key: account_key.clone(),
+                            label: metric.label.clone(),
+                            window: metric.window,
+                            kind,
+                            threshold: mark.threshold,
+                            consumed: consumption.percent / 100.0,
+                            resets_at: metric.resets_at,
+                            projection: None,
+                        })
+                    }),
+            };
+            if let Some(event) = event.filter(|event| prefs.wants(event)) {
+                mark.notified = true;
+                events.push(event);
+            }
+        }
+        // Newest state per metric: the highest level of a metric, with an
+        // exhaustion above any threshold. The marks of the levels below
+        // stay notified (they were folded into the one line).
+        let mut kept: Vec<AlertEvent> = Vec::new();
+        for event in events {
+            match kept.iter_mut().find(|other| {
+                other.account_key == event.account_key
+                    && other.label == event.label
+                    && other.kind.is_level() == event.kind.is_level()
+            }) {
+                Some(other) if event.threshold > other.threshold => *other = event,
+                Some(_) => {}
+                None => kept.push(event),
+            }
+        }
+        kept
     }
 
     /// Forget every account whose state key is not in `keys` (removed from
@@ -1030,6 +1309,7 @@ impl AlertState {
                 mark.notified
                     && mark.metric == digest
                     && mark.kind.is_level()
+                    && !mark.lapsed
                     && same_instance(mark.resets_at, metric.resets_at)
             })
         })
@@ -1065,6 +1345,7 @@ impl AlertState {
         self.marks.iter().filter(move |mark| {
             mark.metric == metric
                 && mark.kind.is_level()
+                && !mark.lapsed
                 && same_instance(mark.resets_at, resets_at)
         })
     }
@@ -1072,8 +1353,29 @@ impl AlertState {
     /// The exhaustion a reading in the instance of `resets_at` recovers
     /// from: the metric's latest exhaustion or recovery is an exhaustion of
     /// an earlier, known instance.
-    fn awaiting_recovery(&self, metric: &str, resets_at: Option<DateTime<Utc>>) -> Option<&Mark> {
-        let resets_at = resets_at?;
+    fn awaiting_recovery(
+        &self,
+        metric: &str,
+        resets_at: Option<DateTime<Utc>>,
+        percent: f64,
+    ) -> Option<&Mark> {
+        let Some(resets_at) = resets_at else {
+            // PRD 0032 RF9.1: without a reset date, consumption falling at
+            // least 20 points below 100% is the recovery.
+            return self
+                .marks
+                .iter()
+                .filter(|mark| {
+                    mark.metric == metric
+                        && matches!(mark.kind, AlertKind::Exhausted | AlertKind::Recovered)
+                })
+                .max_by_key(|mark| mark.at)
+                .filter(|mark| {
+                    mark.kind == AlertKind::Exhausted
+                        && mark.resets_at.is_none()
+                        && percent <= RECOVERY_BELOW + EPSILON
+                });
+        };
         self.marks
             .iter()
             .filter(|mark| {
@@ -2888,3 +3190,7 @@ mod tests {
 #[cfg(test)]
 #[path = "alerts_projected_tests.rs"]
 mod projected_tests;
+
+#[cfg(test)]
+#[path = "alerts_policy_tests.rs"]
+mod policy_tests;
