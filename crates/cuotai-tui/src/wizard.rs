@@ -11,6 +11,7 @@ use crossterm::event::{
 };
 use cuotai_core::access::UsageAccess;
 use cuotai_core::account_edit as edit;
+use cuotai_core::detect;
 use cuotai_core::login::{self, LoginCredentialStore, LoginMode, LoginOption, LoginRequest};
 use cuotai_core::oauth::OAuthConfig;
 use cuotai_core::user_session::{self, ReducedSession};
@@ -280,8 +281,22 @@ pub(crate) struct Wizard {
     step: Step,
     provider: Provider,
     provider_sel: usize,
-    /// Providers offered by the picker, from `edit::picker_providers`.
+    /// Providers listed by the picker for `filter`, from
+    /// `edit::picker_search` (parallel to `picker_entries`).
     picker: Vec<Provider>,
+    /// PRD 0027 RF4.1: the catalog entries behind `picker` and the typed
+    /// filter. An empty filter groups the entries by sign-in method.
+    picker_entries: Vec<edit::CatalogEntry>,
+    filter: String,
+    /// PRD 0027 RF6/RF7: sources found by the consented presence check,
+    /// and the consent line of the offer the person chose (shown on the
+    /// credential step before the existing flow reads anything).
+    detected: Vec<detect::Detected>,
+    offer_consent: Option<String>,
+    /// RF6.5: `None` until the person answers the check prompt.
+    detect_consent: Option<bool>,
+    /// RF7.3: source kinds whose badge was dismissed this session.
+    dismissed: Vec<detect::SourceKind>,
     provider_offset: u16,
     name: String,
     /// PRD 0029 RF3.3: name typed for the existing, unnamed account of the
@@ -342,7 +357,8 @@ impl Wizard {
         let existing = editing.and_then(|i| config.accounts.get(i));
         let provider = existing.map(|a| a.provider).unwrap_or(Provider::OpenAiApi);
         // Core decides which providers the picker offers and their order.
-        let picker = edit::picker_providers(existing.map(|a| a.provider));
+        let picker_entries = picker_entries("", existing.map(|a| a.provider));
+        let picker: Vec<Provider> = picker_entries.iter().map(|e| e.provider).collect();
         let provider_sel = picker.iter().position(|p| *p == provider).unwrap_or(0);
         let name = existing.map(|a| a.name.clone()).unwrap_or_default();
         let credential = match existing {
@@ -368,13 +384,19 @@ impl Wizard {
                 .collect::<Vec<_>>()
                 .join("\n")
         });
-        Self {
+        let mut wizard = Self {
             base: config.clone(),
             editing,
             step: Step::Provider,
             provider,
             provider_sel,
             picker,
+            picker_entries,
+            filter: String::new(),
+            detected: Vec::new(),
+            offer_consent: None,
+            detect_consent: session_consent(),
+            dismissed: session_dismissed(),
             provider_offset: 0,
             name,
             peer_name: provider.label().to_string(),
@@ -407,7 +429,13 @@ impl Wizard {
             session_test: None,
             test_then_save: false,
             confirm_untested: None,
+        };
+        // RF6.2: detection runs only when the Add-account wizard starts,
+        // and only after the session's consent (RF6.5).
+        if wizard.editing.is_none() && wizard.detect_consent == Some(true) {
+            wizard.scan();
         }
+        wizard
     }
 
     /// SES-01: the editor of the account at `index` opened straight on its
@@ -628,7 +656,110 @@ impl Wizard {
     }
 
     fn provider_at_sel(&self) -> Provider {
-        self.picker[self.provider_sel]
+        self.picker
+            .get(self.provider_sel)
+            .copied()
+            .unwrap_or(self.provider)
+    }
+
+    /// Provider of the account being edited (kept listed by the picker).
+    fn editing_provider(&self) -> Option<Provider> {
+        self.editing
+            .and_then(|index| self.base.accounts.get(index))
+            .map(|account| account.provider)
+    }
+
+    /// RF4.1: recompute the picker for the current filter.
+    fn refilter(&mut self) {
+        self.picker_entries = picker_entries(&self.filter, self.editing_provider());
+        self.picker = self.picker_entries.iter().map(|e| e.provider).collect();
+        self.provider_sel = if self.filter.is_empty() {
+            self.picker
+                .iter()
+                .position(|p| *p == self.provider)
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        self.provider_offset = 0;
+    }
+
+    /// RF6.1/RF6.2: the consented presence check, skipping providers that
+    /// already have an account.
+    fn scan(&mut self) {
+        let configured: Vec<Provider> = self.base.accounts.iter().map(|a| a.provider).collect();
+        self.detected = scan_sources(&configured);
+    }
+
+    /// The not-dismissed detected source of `provider`, if any.
+    fn detected_for(&self, provider: Provider) -> Option<&detect::Detected> {
+        self.detected
+            .iter()
+            .find(|d| d.provider == provider && !self.dismissed.contains(&d.kind))
+    }
+
+    /// RF6.5: the check prompt shows until the session answers it.
+    fn detect_prompt_pending(&self) -> bool {
+        self.editing.is_none() && self.detect_consent.is_none()
+    }
+
+    /// Lines of the picker body after the header: a heading per sign-in
+    /// method with an empty filter (RF4.1), otherwise the ranked results.
+    fn picker_rows(&self) -> Vec<PickerRow> {
+        let mut rows = Vec::new();
+        let mut last = None;
+        for (index, entry) in self.picker_entries.iter().enumerate() {
+            if self.filter.is_empty() && last != Some(entry.method) {
+                rows.push(PickerRow::Heading(entry.method));
+                last = Some(entry.method);
+            }
+            rows.push(PickerRow::Entry(index));
+        }
+        rows
+    }
+
+    /// Header lines of the picker (instructions, optional check prompt,
+    /// search field); `handle_mouse` skips the same count.
+    fn picker_header_len(&self) -> u16 {
+        2 + u16::from(self.detect_prompt_pending())
+    }
+
+    /// RF4.1/RF6.5/RF7.3: keys of the provider step's filter and offers.
+    fn handle_picker_key(&mut self, key: KeyEvent) -> Option<Action> {
+        let plain = !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        match key.code {
+            KeyCode::Tab => self.models_pick = Some(0),
+            KeyCode::Esc if !self.filter.is_empty() => {
+                self.filter.clear();
+                self.refilter();
+            }
+            KeyCode::Backspace => {
+                self.filter.pop();
+                self.refilter();
+            }
+            KeyCode::Char(c) if plain => {
+                self.filter.push(c);
+                self.refilter();
+            }
+            KeyCode::F(6) if self.detect_prompt_pending() => {
+                self.detect_consent = Some(true);
+                set_session_consent(true);
+                self.scan();
+            }
+            KeyCode::F(7) if self.detect_prompt_pending() => {
+                self.detect_consent = Some(false);
+                set_session_consent(false);
+            }
+            KeyCode::F(8) => {
+                let kind = self.detected_for(self.provider_at_sel())?.kind;
+                self.dismissed.push(kind);
+                dismiss_for_session(kind);
+            }
+            _ => return None,
+        }
+        Some(Action::Continue)
     }
 
     /// Campos visíveis: decisão única no core via `edit::visible_field_indices`,
@@ -694,7 +825,16 @@ impl Wizard {
     fn advance(&mut self) {
         match self.step {
             Step::Provider => {
-                let selected = self.provider_at_sel();
+                let Some(entry) = self.picker_entries.get(self.provider_sel).cloned() else {
+                    return;
+                };
+                let selected = entry.provider;
+                let offer = self
+                    .editing
+                    .is_none()
+                    .then(|| self.detected_for(selected).cloned())
+                    .flatten();
+                self.offer_consent = offer.as_ref().map(|d| crate::ui::resolve_l10n(&d.consent));
                 if selected != self.provider {
                     // Troca de provedor: parâmetros incompatíveis são descartados e a
                     // credencial volta ao padrão do novo provedor (nunca reutiliza a anterior).
@@ -702,7 +842,13 @@ impl Wizard {
                     self.field_idx = 0;
                     self.credential = edit::suggested_credential(selected).to_string();
                     self.login = login::login_modes(selected);
-                    self.auth_mode = initial_auth_mode(selected, &self.login, false);
+                    // RF5.1: open the recommended mode (or the detected
+                    // source's mode, RF7.1) when this wizard offers it.
+                    let wanted = offer.as_ref().and_then(|d| d.mode).or(entry.mode);
+                    self.auth_mode = wanted
+                        .filter(|mode| offers_mode(selected, &self.login, mode))
+                        .map(str::to_string)
+                        .unwrap_or_else(|| initial_auth_mode(selected, &self.login, false));
                     let (fields, notices) = default_fields(selected, &self.auth_mode, None);
                     self.fields = fields;
                     self.notice = (!notices.is_empty()).then(|| {
@@ -1118,9 +1264,10 @@ impl Wizard {
         if let Some(action) = self.handle_models_pick(key.code) {
             return action;
         }
-        if self.step == Step::Provider && key.code == KeyCode::Char('m') {
-            self.models_pick = Some(0);
-            return Action::Continue;
+        if self.step == Step::Provider {
+            if let Some(action) = self.handle_picker_key(key) {
+                return action;
+            }
         }
         if key.code == KeyCode::Esc {
             return Action::Cancel;
@@ -1296,7 +1443,8 @@ impl Wizard {
             },
             (KeyCode::Down, _) => match self.step {
                 Step::Provider => {
-                    self.provider_sel = (self.provider_sel + 1).min(self.picker.len() - 1);
+                    self.provider_sel =
+                        (self.provider_sel + 1).min(self.picker.len().saturating_sub(1));
                 }
                 Step::Params => {
                     if self.current_is_choice() {
@@ -1443,18 +1591,19 @@ impl Wizard {
             // draw_provider: linha 0 é o cabeçalho; provedores começam na linha 1
             // a partir de `provider_offset`, no máximo `visible` (mínimo 1).
             Step::Provider => {
-                if row == 0 {
+                let header = self.picker_header_len();
+                if row < header {
                     return Action::Continue;
                 }
-                let visible = inner.height.saturating_sub(2).max(1) as usize;
-                let idx = self.provider_offset as usize + (row as usize - 1);
-                if idx
-                    < self
-                        .picker
-                        .len()
-                        .min(self.provider_offset as usize + visible)
-                {
-                    self.provider_sel = idx;
+                let visible = inner.height.saturating_sub(header + 2).max(1) as usize;
+                let offset = (row - header) as usize;
+                if offset < visible {
+                    if let Some(PickerRow::Entry(i)) = self
+                        .picker_rows()
+                        .get(self.provider_offset as usize + offset)
+                    {
+                        self.provider_sel = *i;
+                    }
                 }
             }
             // draw_params: cada campo ocupa 1 linha + 1 linha de ajuda quando focado.
@@ -2202,7 +2351,10 @@ impl Wizard {
             Step::Provider if self.models_pick.is_some() => {
                 " ↑↓ conta  Enter abrir Modelos  Esc voltar aos provedores"
             }
-            Step::Provider => " ↑↓ navegar  Enter selecionar  m Modelos  Esc cancelar",
+            Step::Provider if !self.filter.is_empty() => {
+                " digite para filtrar  ↑↓ navegar  Enter selecionar  Backspace editar  Esc limpar"
+            }
+            Step::Provider => " digite para filtrar  ↑↓ navegar  Enter selecionar  Tab Modelos  Esc cancelar",
             Step::Params => {
                 " Enter próximo  Shift+Tab voltar  ↑↓/←→ opções  Ctrl+U limpar  Esc cancelar"
             }
@@ -2329,50 +2481,129 @@ impl Wizard {
     }
 
     fn draw_provider(&mut self, frame: &mut Frame, area: ratatui::layout::Rect) {
-        let visible = area.height.saturating_sub(2) as usize;
-        let total = self.picker.len();
-        if self.provider_sel < self.provider_offset as usize {
-            self.provider_offset = self.provider_sel as u16;
-        }
-        if self.provider_sel >= self.provider_offset as usize + visible {
-            self.provider_offset = (self.provider_sel + 1 - visible) as u16;
-        }
-        let mut lines = vec![Line::from(Span::styled(
-            "Setas navegam; Enter seleciona o provedor da conta.",
-            Style::default().fg(DRACULA_COMMENT),
-        ))];
-        for (i, provider) in self
-            .picker
+        let header = self.picker_header_len();
+        // Header, rows, then the hint of the highlighted entry (RF4.1).
+        let visible = area.height.saturating_sub(header + 2).max(1) as usize;
+        let rows = self.picker_rows();
+        let sel_row = rows
             .iter()
-            .enumerate()
+            .position(|row| *row == PickerRow::Entry(self.provider_sel))
+            .unwrap_or(0);
+        // Keep the heading above the first entry of a group in view.
+        let top = if sel_row > 0 && matches!(rows[sel_row - 1], PickerRow::Heading(_)) {
+            sel_row - 1
+        } else {
+            sel_row
+        };
+        if top < self.provider_offset as usize {
+            self.provider_offset = top as u16;
+        }
+        if sel_row >= self.provider_offset as usize + visible {
+            self.provider_offset = (sel_row + 1 - visible) as u16;
+        }
+        let muted = Style::default().fg(DRACULA_COMMENT);
+        let mut lines = vec![Line::from(Span::styled(
+            "Digite para buscar; setas navegam; Enter seleciona o provedor da conta.",
+            muted,
+        ))];
+        if self.detect_prompt_pending() {
+            lines.push(Line::from(Span::styled(
+                "[F6] Verificar  [F7] Agora não · Procurar neste dispositivo ferramentas de IA que você já usa? O Cuotai só confere se as pastas existem e não lê nada.",
+                Style::default().fg(DRACULA_YELLOW),
+            )));
+        }
+        lines.push(Line::from(vec![
+            Span::raw("Buscar: "),
+            Span::styled(
+                format!("{}_", crate::ui::safe(&self.filter)),
+                Style::default().fg(DRACULA_CYAN),
+            ),
+        ]));
+        if rows.is_empty() {
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "Nenhum provedor corresponde a \"{}\". Peça um novo provedor no GitHub (modelo de issue \"New provider\").",
+                    crate::ui::safe(&self.filter)
+                ),
+                Style::default().fg(DRACULA_YELLOW),
+            )));
+        }
+        for row in rows
+            .iter()
             .skip(self.provider_offset as usize)
-            .take(visible.max(1))
+            .take(visible)
         {
-            let marker = if i == self.provider_sel { "▶ " } else { "  " };
-            let style = if i == self.provider_sel {
-                Style::default()
-                    .fg(DRACULA_CYAN)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
+            match *row {
+                PickerRow::Heading(method) => lines.push(Line::from(Span::styled(
+                    crate::ui::resolve_l10n(&method.label()),
+                    Style::default()
+                        .fg(DRACULA_GREEN)
+                        .add_modifier(Modifier::BOLD),
+                ))),
+                PickerRow::Entry(i) => {
+                    let entry = &self.picker_entries[i];
+                    let current = i == self.provider_sel;
+                    let marker = if current { "▶ " } else { "  " };
+                    let style = if current {
+                        Style::default()
+                            .fg(DRACULA_CYAN)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    // Clean names only: how each integration works lives in the docs.
+                    let mut spans = vec![Span::styled(
+                        format!("{marker}{}", entry.provider.label()),
+                        style,
+                    )];
+                    if self.detected_for(entry.provider).is_some() {
+                        spans.push(Span::styled(
+                            "  · encontrado neste dispositivo",
+                            Style::default().fg(DRACULA_GREEN),
+                        ));
+                    }
+                    lines.push(Line::from(spans));
+                }
+            }
+        }
+        if self.provider_offset as usize + visible < rows.len() {
+            lines.push(Line::from(Span::styled("  …", muted)));
+        }
+        if let Some(entry) = self.picker_entries.get(self.provider_sel) {
+            let mut hint = crate::ui::resolve_l10n(&entry.hint);
+            if let Some(found) = self.detected_for(entry.provider) {
+                hint = format!(
+                    "{hint} · {} ([F8] não sugerir de novo)",
+                    crate::ui::resolve_l10n(&found.hint)
+                );
+            }
+            let body = (lines.len() as u16).min(area.height.saturating_sub(1));
+            frame.render_widget(Paragraph::new(lines), area);
+            let hint_area = Rect {
+                y: area.y + body,
+                height: area.height.saturating_sub(body),
+                ..area
             };
-            // Clean names only: how each integration works lives in the docs.
-            lines.push(Line::from(Span::styled(
-                format!("{marker}{}", provider.label()),
-                style,
-            )));
+            frame.render_widget(
+                Paragraph::new(Span::styled(format!("  {hint}"), muted)).wrap(Wrap { trim: false }),
+                hint_area,
+            );
+        } else {
+            frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
         }
-        if self.provider_offset as usize + visible < total {
-            lines.push(Line::from(Span::styled(
-                "  …",
-                Style::default().fg(DRACULA_COMMENT),
-            )));
-        }
-        frame.render_widget(Paragraph::new(lines), area);
     }
 
     fn draw_credential(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
         let mut lines: Vec<Line> = Vec::new();
+        // RF7.2: what the offered flow reads, before anything is read; Esc
+        // cancels and reads nothing.
+        if let Some(consent) = &self.offer_consent {
+            lines.push(Line::from(Span::styled(
+                consent.clone(),
+                Style::default().fg(DRACULA_YELLOW),
+            )));
+            lines.push(Line::default());
+        }
         lines.push(Line::from(
             "Modo de autenticação (Tab alterna; Enter/F2 confirma):",
         ));
@@ -2398,6 +2629,18 @@ impl Wizard {
                     " "
                 },
                 mode.label
+            )));
+        }
+        // RF5.1: the other ways to connect, each with its core hint.
+        let others: Vec<String> = edit::catalog()
+            .into_iter()
+            .filter(|e| e.provider == self.provider && e.mode.is_some_and(|m| m != self.auth_mode))
+            .map(|e| crate::ui::resolve_l10n(&e.hint))
+            .collect();
+        if !others.is_empty() {
+            lines.push(Line::from(Span::styled(
+                format!("Outras formas de conectar (Tab): {}", others.join(" · ")),
+                Style::default().fg(DRACULA_COMMENT),
             )));
         }
         lines.push(Line::default());
@@ -2692,6 +2935,89 @@ impl Wizard {
     }
 }
 
+/// One body line of the provider picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PickerRow {
+    Heading(edit::SignInMethod),
+    Entry(usize),
+}
+
+/// RF4.1: the picker's entries for `filter` from the core search; the
+/// provider of the account being edited stays listed with an empty filter.
+fn picker_entries(filter: &str, current: Option<Provider>) -> Vec<edit::CatalogEntry> {
+    let mut entries: Vec<_> = edit::picker_search(filter, crate::ui::tui_locale())
+        .into_iter()
+        .map(|m| m.entry)
+        .collect();
+    if let Some(current) = current {
+        if filter.trim().is_empty() && !entries.iter().any(|e| e.provider == current) {
+            entries.extend(
+                edit::catalog()
+                    .into_iter()
+                    .filter(|e| e.provider == current && e.recommended),
+            );
+        }
+    }
+    entries
+}
+
+/// Whether `mode` (a catalog `auth_mode`) is offered by this provider now.
+fn offers_mode(provider: Provider, login: &login::ProviderLogin, mode: &str) -> bool {
+    if mode == "credential" {
+        return edit::credential_kind(provider) != edit::CredentialKind::None;
+    }
+    login
+        .modes
+        .iter()
+        .any(|m| m.id == mode && m.unavailable_reason.is_none())
+}
+
+// RF6.5/RF7.3: the TUI asks once per session and keeps dismissals for the
+// session. Tests never touch the process-wide state (nor the real home).
+static DETECT_CONSENT: std::sync::Mutex<Option<bool>> = std::sync::Mutex::new(None);
+static DETECT_DISMISSED: std::sync::Mutex<Vec<detect::SourceKind>> =
+    std::sync::Mutex::new(Vec::new());
+
+#[cfg(not(test))]
+fn session_consent() -> Option<bool> {
+    *DETECT_CONSENT.lock().unwrap_or_else(|e| e.into_inner())
+}
+#[cfg(test)]
+fn session_consent() -> Option<bool> {
+    None
+}
+
+fn set_session_consent(value: bool) {
+    if cfg!(not(test)) {
+        *DETECT_CONSENT.lock().unwrap_or_else(|e| e.into_inner()) = Some(value);
+    }
+}
+
+fn session_dismissed() -> Vec<detect::SourceKind> {
+    DETECT_DISMISSED
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+fn dismiss_for_session(kind: detect::SourceKind) {
+    if cfg!(not(test)) {
+        DETECT_DISMISSED
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(kind);
+    }
+}
+
+#[cfg(not(test))]
+fn scan_sources(configured: &[Provider]) -> Vec<detect::Detected> {
+    detect::local_sources_here(configured)
+}
+#[cfg(test)]
+fn scan_sources(_configured: &[Provider]) -> Vec<detect::Detected> {
+    Vec::new()
+}
+
 fn initial_auth_mode(provider: Provider, login: &login::ProviderLogin, has_oauth: bool) -> String {
     if has_oauth
         && login.modes.iter().any(|mode| {
@@ -2846,7 +3172,7 @@ mod tests {
         };
         // OpenAI highlighted: picker lists A and C (indices 0 and 2).
         let mut wizard = Wizard::new(&config, None);
-        press(&mut wizard, KeyCode::Char('m'));
+        press(&mut wizard, KeyCode::Tab);
         press(&mut wizard, KeyCode::Down);
         assert!(matches!(
             press(&mut wizard, KeyCode::Enter),
@@ -2858,7 +3184,7 @@ mod tests {
             ..Config::default()
         };
         let mut wizard = Wizard::new(&empty, None);
-        press(&mut wizard, KeyCode::Char('m'));
+        press(&mut wizard, KeyCode::Tab);
         assert!(matches!(
             press(&mut wizard, KeyCode::Enter),
             Action::Continue
@@ -2868,22 +3194,147 @@ mod tests {
         assert_eq!(wizard.step, Step::Provider);
     }
 
-    /// The provider picker offers clean names only, sorted by name, and
+    fn screen_of(wiz: &mut Wizard, width: u16, height: u16) -> String {
+        use ratatui::{backend::TestBackend, Terminal};
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| wiz.draw(frame, Path::new("cuotai.toml")))
+            .unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        (0..height)
+            .map(|y| {
+                (0..width)
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// PRD 0027 RF4.1: typing filters through the core search, Backspace
+    /// edits, Esc clears before it cancels, Enter chooses.
+    #[test]
+    fn typing_filters_the_picker_and_esc_clears_first() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut wiz = Wizard::new(&Config::default(), None);
+        let screen = screen_of(&mut wiz, 100, 40);
+        // Empty filter: sign-in method headings.
+        assert!(
+            screen.contains("Browser sign-in") || screen.contains("Entrar pelo navegador"),
+            "{screen}"
+        );
+        for c in "codex".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        assert_eq!(wiz.filter, "codex");
+        assert_eq!(wiz.provider_at_sel(), Provider::ChatGpt);
+        let screen = screen_of(&mut wiz, 100, 40);
+        assert!(screen.contains("ChatGPT"), "{screen}");
+        press(&mut wiz, KeyCode::Backspace);
+        assert_eq!(wiz.filter, "code");
+        assert!(matches!(press(&mut wiz, KeyCode::Esc), Action::Continue));
+        assert!(wiz.filter.is_empty());
+        assert_eq!(wiz.step, Step::Provider);
+        for c in "zzzz".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        assert!(wiz.picker.is_empty());
+        let screen = screen_of(&mut wiz, 100, 40);
+        assert!(screen.contains("Nenhum provedor"), "{screen}");
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(
+            wiz.step,
+            Step::Provider,
+            "Enter with no result chooses nothing"
+        );
+        assert!(matches!(press(&mut wiz, KeyCode::Esc), Action::Continue));
+        assert!(matches!(press(&mut wiz, KeyCode::Esc), Action::Cancel));
+    }
+
+    /// PRD 0027 RF5.1: choosing a provider opens its recommended mode, and
+    /// editing keeps the saved `auth_mode`.
+    #[test]
+    fn choosing_a_provider_opens_its_recommended_mode() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut wiz = Wizard::new(&Config::default(), None);
+        for c in "cursor".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        assert_eq!(wiz.provider_at_sel(), Provider::Cursor);
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.provider, Provider::Cursor);
+        assert_eq!(
+            Some(wiz.auth_mode.as_str()),
+            edit::recommended_mode(Provider::Cursor)
+        );
+        let mut cursor = account("C", "CURSOR_KEY");
+        cursor.provider = Provider::Cursor;
+        let config = Config {
+            accounts: vec![cursor],
+            ..Config::default()
+        };
+        let wiz = Wizard::new(&config, Some(0));
+        assert_eq!(wiz.auth_mode, "credential");
+        assert!(wiz.picker.contains(&Provider::Cursor));
+    }
+
+    /// PRD 0027 RF6.5/RF7: nothing is checked before consent; a detected
+    /// source shows its badge, its consent line before the flow, and F8
+    /// dismisses it.
+    #[test]
+    fn detection_waits_for_consent_and_offers_the_existing_flow() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut wiz = Wizard::new(&Config::default(), None);
+        assert!(wiz.detected.is_empty());
+        assert!(wiz.detect_prompt_pending());
+        assert!(screen_of(&mut wiz, 100, 40).contains("[F6]"));
+        press(&mut wiz, KeyCode::F(6));
+        assert_eq!(wiz.detect_consent, Some(true));
+        assert!(!wiz.detect_prompt_pending());
+        // Tests never check the real device: the result stands in for it.
+        wiz.detected = vec![detect::Detected {
+            provider: Provider::Claude,
+            kind: detect::SourceKind::ClaudeCode,
+            mode: Some("oauth"),
+            hint: cuotai_core::text::Localized::fixed("detect.hint", "Claude Code está instalado"),
+            consent: cuotai_core::text::Localized::fixed("detect.consent.native_login", "Consent"),
+        }];
+        for c in "claude".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        assert_eq!(wiz.provider_at_sel(), Provider::Claude);
+        assert!(screen_of(&mut wiz, 120, 40).contains("encontrado neste dispositivo"));
+        press(&mut wiz, KeyCode::Enter);
+        assert!(wiz.offer_consent.is_some());
+        press(&mut wiz, KeyCode::BackTab);
+        assert_eq!(wiz.step, Step::Provider);
+        press(&mut wiz, KeyCode::F(8));
+        assert!(wiz.detected_for(Provider::Claude).is_none());
+        assert!(!screen_of(&mut wiz, 120, 40).contains("encontrado neste dispositivo"));
+        // "Not now" answers the prompt without checking anything.
+        let mut wiz = Wizard::new(&Config::default(), None);
+        press(&mut wiz, KeyCode::F(7));
+        assert_eq!(wiz.detect_consent, Some(false));
+        assert!(wiz.detected.is_empty());
+    }
+
+    #[test]
+    fn the_picker_renders_in_a_narrow_terminal() {
+        let mut wiz = Wizard::new(&Config::default(), None);
+        let screen = screen_of(&mut wiz, 60, 20);
+        assert!(screen.contains("Buscar"), "{screen}");
+    }
+
+    /// The provider picker offers clean names only, grouped by sign-in method, and
     /// leaves out providers without any usage query (core decides).
     #[test]
-    fn the_provider_picker_shows_clean_sorted_names_without_access_labels() {
+    fn the_provider_picker_shows_clean_names_without_access_labels() {
         use ratatui::{backend::TestBackend, Terminal};
         let mut wiz = Wizard::new(&Config::default(), None);
-        assert_eq!(wiz.picker, edit::picker_providers(None));
+        let mut offered = wiz.picker.clone();
+        offered.sort_by_key(|p| p.label().to_lowercase());
+        assert_eq!(offered, edit::picker_providers(None));
         assert!(!wiz.picker.contains(&Provider::Poolside));
-        let names: Vec<_> = wiz
-            .picker
-            .iter()
-            .map(|p| p.label().to_lowercase())
-            .collect();
-        let mut sorted = names.clone();
-        sorted.sort();
-        assert_eq!(names, sorted);
         assert_eq!(wiz.provider_at_sel(), Provider::OpenAiApi);
         let mut terminal = Terminal::new(TestBackend::new(100, 60)).unwrap();
         terminal
