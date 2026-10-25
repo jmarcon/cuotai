@@ -319,6 +319,9 @@ pub struct Backend {
     hooks: Mutex<Hooks>,
     /// The hooks' switch is on: every state change goes to them.
     hooks_on: AtomicBool,
+    /// PRD 0026 RF3.2: fills the event journal from the same state changes
+    /// while the history records. Never held together with `inner`.
+    journal: Mutex<cuotai_core::watch::JournalTap>,
     /// PRD 0014 RF1.4: the widget snapshot publisher. Lock-free by design:
     /// a state change only marks it dirty and its own task writes.
     widgets: widgets::Publisher,
@@ -1561,7 +1564,7 @@ impl Backend {
     /// state (PRD 0013 RF4) and the widget snapshot is marked for its own
     /// task (PRD 0014 RF1.4, which writes without waiting for anybody).
     async fn emit(&self, app: &AppHandle) {
-        let (mut view, watched) = {
+        let (mut view, watched, journaled) = {
             let g = self.inner.lock().await;
             // PRD 0012 RF5.1: the local server serves this same state.
             if self.serving.load(Ordering::Relaxed) {
@@ -1572,8 +1575,25 @@ impl Backend {
                 .load(Ordering::Relaxed)
                 .then(|| g.hooks_input(chrono::Utc::now()))
                 .flatten();
-            (g.view(), watched)
+            // PRD 0026 RF3.2: the journal sees the state while history records.
+            let journaled = g
+                .loaded
+                .as_ref()
+                .filter(|l| l.monitor.history_recording())
+                .and_then(|l| l.monitor.history())
+                .and_then(|store| {
+                    g.hooks_input(chrono::Utc::now())
+                        .map(|(_, export)| (store, export))
+                });
+            (g.view(), watched, journaled)
         };
+        if let Some((store, export)) = journaled {
+            let _ = self
+                .journal
+                .lock()
+                .await
+                .observe(&store, &export, export.generated_at);
+        }
         if let Some((path, export)) = watched {
             let mut hooks = self.hooks.lock().await;
             if hooks.observe(&path, &export, export.generated_at) {

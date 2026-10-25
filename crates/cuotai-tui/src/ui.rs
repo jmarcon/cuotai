@@ -230,6 +230,33 @@ pub(crate) fn pace_input(
     Some((interval, recent))
 }
 
+/// PRD 0026 RF3.2: append the transitions of the cycle to the event journal
+/// while the history records. Failures are ignored: the journal is for
+/// display and must never disturb the dashboard.
+fn journal_cycle(
+    tap: &mut cuotai_core::watch::JournalTap,
+    monitor: &Monitor,
+    config: &Config,
+    cycle: &RefreshCycle,
+) {
+    if !monitor.history_recording() {
+        return;
+    }
+    let Some(store) = monitor.history() else {
+        return;
+    };
+    let now = chrono::Utc::now();
+    let export = cuotai_core::export::v1::Export::from_cycle(
+        config,
+        &cuotai_core::config_file::ConfigIdentity::Explicit(String::new()),
+        cycle,
+        &monitor.incident_statuses(),
+        now,
+        cuotai_core::export::v1::Options::default(),
+    );
+    let _ = tap.observe(&store, &export, now);
+}
+
 pub async fn run(
     mut file: ConfigFile,
     session: Arc<OAuthSession>,
@@ -244,6 +271,8 @@ pub async fn run(
     let incidents = IncidentMonitor::new();
     incidents.set_enabled(status);
     let mut monitor = new_monitor(&file, &session, retention, &incidents)?;
+    // PRD 0026 RF3.2: the event journal follows the cycle shown here.
+    let mut journal_tap = cuotai_core::watch::JournalTap::new();
     let mut auth_task: Option<LoginTask> = None;
     let mut authorized: Option<CompletedLogin> = None;
     let mut saving_config: Option<(Config, Option<usize>)> = None;
@@ -1051,6 +1080,7 @@ pub async fn run(
         if last_tick.elapsed() >= Duration::from_secs(1) {
             dirty = true;
             last_tick = Instant::now();
+            journal_cycle(&mut journal_tap, &monitor, &file.config, &refresh_cycle);
             // PRD 0003 RF4 and PRD 0008 RF4: reset notices over the
             // readings already shown and the usage alerts of the refreshes.
             if let Some(notices) = &mut state.notices {

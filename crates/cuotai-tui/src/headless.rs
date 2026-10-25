@@ -82,10 +82,18 @@ pub(crate) async fn run(
         eprintln!("{}", watch.started(config.accounts.len()));
     }
 
+    // PRD 0026 RF3.2: the event journal follows this cycle too.
+    let mut journal = cuotai_core::watch::JournalTap::new();
     loop {
         // The first step starts the full sweep at once (the cycle's
         // deadlines are for the next readings).
         if driver.step(Instant::now()).await {
+            if monitor.history_recording() {
+                if let Some(store) = monitor.history() {
+                    let now = Utc::now();
+                    let _ = journal.observe(&store, &driver.export(&config, &identity, now), now);
+                }
+            }
             if let Some(watch) = watch.as_mut() {
                 let now = Utc::now();
                 let pace = |index, report: &cuotai_core::Report| {
