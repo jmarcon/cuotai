@@ -17,10 +17,15 @@ mkdirSync(out, { recursive: true });
 
 const ui = await launch();
 try {
-  for (const [name, page, w, h, theme, mode, locale, clicks = "", storage = ""] of screens) {
+  for (const [name, page, w, h, theme, mode, locale, clicks = "", storage = "", scroll = ""] of screens) {
     const preset = Object.fromEntries(storage.split(";").filter(Boolean).map((kv) => kv.split("=")));
     await ui.open(page, { w: +w, h: +h, theme, mode, locale, storage: preset });
     if (clicks) await ui.click(...clicks.split("|"));
+    if (scroll) { // "selector:px": scrolls that element, for the scrolled mockups (70b)
+      const [sel, px] = scroll.split(":");
+      await ui.evaluate(`document.querySelector(${JSON.stringify(sel)}).scrollTop = ${Number(px)}`);
+      await new Promise((r) => setTimeout(r, 200));
+    }
     await ui.shot(join(out, `${name}.png`));
     console.log(`${name}.png ${w}x${h}`);
   }

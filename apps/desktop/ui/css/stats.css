@@ -60,7 +60,7 @@
   gap: var(--sp-4);
   padding-top: var(--sp-4);
 }
-.stats.compact {
+.stats.tray {
   gap: var(--sp-3);
   padding-top: 0;
 }
@@ -130,6 +130,10 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+  white-space: nowrap;
+}
+.kpi-figure.long {
+  font-size: calc(var(--text-figure) * 0.72); /* "US$ 6,25" must fit a third of the popover */
 }
 .kpi.unknown .kpi-figure {
   color: var(--fg-muted);
@@ -150,30 +154,39 @@
 /* Daily bars (DS-CHT-5, DS-CHT-4: 0-100 axis, dashed lines at 50 and 100). */
 .bars {
   position: relative;
-  height: 148px;
-  padding: var(--space-2) var(--space-8) var(--space-5) 0;
-}
-.bars.compact {
-  height: 112px;
+  height: 170px;
+  padding: 20px 0 var(--space-5) 30px; /* room for the value over a bar and the 0/50/100 axis */
 }
 .bars .grid-line {
   position: absolute;
-  left: 0;
+  left: 30px;
   right: 0;
   border-top: 1px dashed var(--border);
 }
 .bars .g100 {
-  top: 8px;
+  top: 20px;
 }
 .bars .g50 {
-  top: calc(8px + (100% - 28px) / 2);
+  top: calc(20px + (100% - 40px) / 2);
+}
+.bars .g0 {
+  top: calc(100% - 20px);
+  border-top-style: solid;
 }
 .bars .grid-line em {
   position: absolute;
-  right: 0;
+  right: calc(100% + 6px);
   top: -7px;
   color: var(--fg-muted);
-  font: normal 10px var(--font-mono);
+  font: normal 11px var(--font-mono);
+}
+.bars .x-val {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--fg);
+  font: 11px/14px var(--font-mono);
+  white-space: nowrap;
 }
 .bars ul {
   position: relative;
@@ -286,9 +299,6 @@
   font-size: var(--text-sm);
   text-align: right;
   font-variant-numeric: tabular-nums;
-}
-.st-sum.bad {
-  color: var(--bad);
 }
 .st-day-head {
   padding: var(--sp-2) var(--sp-3) var(--sp-1);
@@ -476,15 +486,109 @@
   padding-top: 0;
 }
 
-/* The popover drill-in already names itself in its header: the heading stays for assistive technology only. */
-.stats.compact .st-head h2 {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+/* The popover shows the Stats view under its own header, which names it and holds the scope select. */
+.stats.tray .st-head {
+  display: none;
+}
+.pop-head [data-stats-scope-slot] {
+  flex: 0 1 150px;
+  min-width: 0;
+}
+.pop-head .st-scope {
+  display: block;
+}
+.pop-head .st-scope select {
+  width: 100%;
+  height: 30px;
+  text-overflow: ellipsis;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+.pop-head .st-scope select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* The chart card: title, subtitle and range toggle over the bars. */
+.st-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.st-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.st-card-head > div:first-child {
+  min-width: 0;
+}
+.st-card-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 650;
+}
+.st-card-head p {
+  margin: 0;
+}
+.st-sec-head .micro:last-child {
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+.stats.tray .mini-bars {
+  width: 64px;
+}
+.st-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.st-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.st-sum {
+  display: flex;
+  flex-direction: column;
+}
+.st-sum b {
+  color: var(--fg);
+  font-weight: 650;
   white-space: nowrap;
 }
-.stats.compact .st-head {
-  justify-content: flex-end;
+.st-sum .sub {
+  white-space: nowrap;
+}
+.st-ev-ico {
+  display: inline-flex;
+  flex: none;
+  width: 20px;
+  justify-content: center;
+  color: var(--fg-muted);
+}
+.st-ev-ico svg {
+  width: 16px;
+  height: 16px;
+}
+.st-ev-ico.good { color: var(--good); }
+.st-ev-ico.warn { color: var(--warn); }
+.st-ev-ico.bad { color: var(--bad); }
+.st-event-main {
+  flex: 1;
+}
+.st-time {
+  flex: none;
+  white-space: nowrap;
 }

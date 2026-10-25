@@ -3748,6 +3748,8 @@ impl Backend {
                 occurred_at: entry.occurred_at,
                 kind: entry.kind.name(),
                 account: entry.account,
+                parent: entry.parent,
+                is_connection: entry.is_connection,
                 summary: serde_json::to_value(&entry.summary).unwrap_or_default(),
             })
             .collect();
@@ -4432,6 +4434,12 @@ pub struct JournalView {
     kind: &'static str,
     /// The account's current name; `None` once it was removed.
     account: Option<String>,
+    /// PRD 0036 RF7.3: the aggregator's current name for an event of one of
+    /// its connections; `None` for a direct account or a removed aggregator.
+    parent: Option<String>,
+    /// The event belongs to an aggregator's connection (even when the
+    /// aggregator left the configuration).
+    is_connection: bool,
     /// The core's `Event::summary`.
     summary: serde_json::Value,
 }

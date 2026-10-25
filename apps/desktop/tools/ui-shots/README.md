@@ -17,7 +17,7 @@ repository root.
 | `node apps/desktop/tools/ui-shots/check.mjs --selftest` | Forces a long string into a tray figure and passes only if the check catches it |
 
 `screens.tsv` columns: name, page (with its query), width, height, theme, mode, language, clicks
-(`|`-separated selectors) and storage presets (`key=value;…`, for example `cuotai.trayView=rings`).
+(`|`-separated selectors) and storage presets (`key=value;…`, for example `cuotai.trayView=rings`) and an optional `selector:px` to scroll an element before the shot (the scrolled mockups).
 
 How it works: [`driver.mjs`](driver.mjs) serves the repository root with `python3 -m http.server`,
 starts headless Chrome with a throwaway profile and drives it over the DevTools protocol (window
@@ -35,5 +35,5 @@ The checker reports, per page and language: (a) text wider than its box with an 
 overflow, (b) text or controls outside the window, (c) text clipped by an ancestor, (d) text
 spilling out of a chip, button, tab, option card or figure, (e) overlapping text, (f) a status line
 taller than one line, and a horizontal scroll. What may truncate by design (DS-MSG-15: account
-labels and names, the status label after its fitting, one-line notices and access lines, the
+labels and names, the status label after its fitting, account names in the Stats rows, one-line notices and access lines, the
 Settings sidebar labels in its icon-rail width) is listed as allowed in `ALLOWED`.

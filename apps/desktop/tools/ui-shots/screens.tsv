@@ -34,6 +34,14 @@
 50-settings-menubar	settings.html?page=menubar	860	640	dracula	dark	en-US
 50-settings-advanced	settings.html?page=integrations	860	800	dracula	dark	en-US
 50-settings-general-language	settings.html?page=general	860	640	dracula	dark	en-US	[data-lang-toggle]
-70-stats	index.html	1200	820	dracula	dark	en-US	[data-stats-toggle]
+70-stats	tray.html	380	600	dracula	dark	en-US	[data-open-stats]
+70b-stats-scrolled	tray.html	380	600	dracula	dark	en-US	[data-open-stats]		.pop-body:9999
+71-stats-main	index.html	1200	820	dracula	dark	en-US	[data-stats-toggle]
+70-stats.pt-BR	tray.html	380	600	dracula	dark	pt-BR	[data-open-stats]
+70-stats.es	tray.html	380	600	dracula	dark	es	[data-open-stats]
+70-stats.it	tray.html	380	600	dracula	dark	it	[data-open-stats]
+70-stats.cuotai	tray.html	380	600	cuotai	dark	en-US	[data-open-stats]
+70-stats.cuotai-light	tray.html	380	600	cuotai	light	en-US	[data-open-stats]
+70-stats.dracula-light	tray.html	380	600	dracula	light	en-US	[data-open-stats]
 01-tray-stats	tray.html	380	600	dracula	dark	en-US	[data-open-stats]
 40b-extensions-controls	index.html	1200	900	dracula	dark	en-US	[data-extensions]	cuotai.demoExtras=1

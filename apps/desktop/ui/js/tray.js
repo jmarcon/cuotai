@@ -49,7 +49,7 @@ function openFullStats() {
   openMainWindow();
 }
 let statsMount = null, timelineMount = null;
-const statsHost = () => (statsMount ??= mountStats({ compact: true, onOpenFull: openFullStats }));
+const statsHost = () => (statsMount ??= mountStats({ tray: true, onOpenFull: openFullStats }));
 // PRD 0025 RF2.3: the popover's timeline follows the menu-bar selection (every account in Auto). A lane opens its account.
 let timelineOnly = null;
 const timelineHost = () => (timelineMount ??= mountTimeline({ compact: true, only: () => timelineOnly, onSelect: (key) => { expanded = key; statsOpen = false; render(); } }));
@@ -259,11 +259,11 @@ function render() {
   // DS-CMP-HEAD-2 and PRD 0022 RF7.3: the overview header holds only the filter tabs (no logotype); a drill-in
   // header has the back control, the title, the logotype and the esc keycap.
   const drillTitle = drill ? (!isAggregator(cur) && ctx.repeated.has(cur.provider) ? accountLabel(cur) : brand(cur.provider).label)
-    : showStats ? t("stats.title") : "";
+    : showStats ? t("tray.stats") : "";
   const header = drill || showStats
     ? `<header class="pop-head drill"><button class="icon back" data-back aria-label="${te("common.back")}" title="${te("common.back")}">${icon("back")}</button>
         <h1>${esc(drillTitle)}</h1><span class="grow"></span>
-        <span class="wordmark sm">${wordmark()}</span><kbd aria-hidden="true">esc</kbd></header>`
+        ${showStats ? `<span data-stats-scope-slot></span>` : `<span class="wordmark sm">${wordmark()}</span>`}<kbd aria-hidden="true">esc</kbd></header>`
     : `<header class="pop-head">${all.length ? filterTabsHtml(all, { selected: filter, moreOpen, maxTabs: tabFit }) : `<h1 class="wordmark">${wordmark()}</h1>`}</header>`;
   root.innerHTML = `<div class="pop">${header}
     <div class="pop-body">${body}</div>
@@ -276,6 +276,7 @@ function render() {
   if (statsSlot) {
     statsHost().update(view);
     statsMount.attach(statsSlot, statsFocus);
+    statsMount.attachScope(root.querySelector("[data-stats-scope-slot]"));
   } else if (timelineSlot) {
     timelineOnly = rest.length ? new Set(inBar.map((r) => r.index)) : null;
     timelineHost().update(view);

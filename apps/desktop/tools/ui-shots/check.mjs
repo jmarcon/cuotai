@@ -30,7 +30,7 @@ const PAGES = [
 // DS-MSG-15: what may truncate (with its full text in a tooltip or the accessible name).
 export const ALLOWED = [".r1 .nm", ".r1 .ac", ".crow .nm", ".tile-name b", ".tile-st span", ".who h2", ".who p", ".stl.truncated .lbl",
   ".xline span", ".pop-notice span", ".sum-top .lt", ".set-path", ".lc-title", ".models-meta", ".access-line", ".win .reset", ".pop-head h1",
-  ".set-nav-item span", ".sum-note", ".tl-name", ".set-row-desc", "option", "select"].join(", ");
+  ".set-nav-item span", ".sum-note", ".tl-name", ".st-name", ".set-row-desc", "option", "select"].join(", ");
 
 const PAGE_JS = `(() => {
   const allowed = ${JSON.stringify(ALLOWED)};

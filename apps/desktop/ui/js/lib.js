@@ -1436,6 +1436,7 @@ const demoStats = async ({ range, account, generation }) => {
   const now = Date.now(), at = (hoursAgo) => new Date(now - hoursAgo * 36e5).toISOString();
   const events = erased ? [] : [
     { occurred_at: at(2), kind: "quota_threshold_crossed", account: demoReports[0].account, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "Gemini (5h)", threshold: 90 }, fallback: "Gemini (5h): 90% usado" } },
+    { occurred_at: at(4), kind: "quota_threshold_crossed", account: "work@example.com", parent: demoReports[0].account, is_connection: true, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "weekly (7d)", threshold: 80 }, fallback: "weekly (7d): 80% usado" } },
     { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): janela renovada" } },
     { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): cota esgotada" } },
     { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: {}, fallback: "Falha na consulta: erro do provedor" } },
