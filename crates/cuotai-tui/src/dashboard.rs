@@ -619,6 +619,9 @@ pub(crate) struct View<'a> {
     pub(crate) sub_cards: &'a [Vec<SubCard>],
     /// PRD 0036 RF9.1: `g` folds every aggregator's connections away.
     pub(crate) aggregators_collapsed: bool,
+    /// PRD 0036 RF4.4: the connection card in focus (account index, card
+    /// index), the target of `R`.
+    pub(crate) connection_focus: Option<(usize, usize)>,
     /// The account whose usage access the cards name instead of their own
     /// (a connection card reads through its aggregator).
     pub(crate) access_account: Option<&'a Account>,
@@ -629,6 +632,8 @@ pub(crate) struct View<'a> {
 /// the aggregator account).
 #[derive(Debug, Clone)]
 pub(crate) struct SubCard {
+    /// The connection's id in the aggregator (for a single refresh).
+    pub(crate) id: String,
     /// "<aggregator> · <label>" with the mapped provider (the aggregator's
     /// for an upstream Cuotai does not know).
     pub(crate) account: Account,
@@ -691,6 +696,7 @@ pub(crate) fn sub_cards_of<'r>(
                 (sub.status == Status::Ready).then_some(sub)
             };
             cards.push(SubCard {
+                id: sub.id.clone(),
                 report: current.map(|report| sub_as_report(report, sub)),
                 last_good: preserved.map(|good| sub_as_report(source, good)),
                 upstream: sub.upstream.clone(),
@@ -760,19 +766,51 @@ fn card_slots(view: &View<'_>) -> Vec<Slot> {
             continue;
         }
         let account = &view.accounts[index];
-        let parent_matches = needle.is_empty()
-            || account.name.to_lowercase().contains(&needle)
-            || account.provider.label().to_lowercase().contains(&needle);
-        for (sub, card) in view.sub_cards.get(index).into_iter().flatten().enumerate() {
-            if parent_matches
-                || card.account.name.to_lowercase().contains(&needle)
-                || card.upstream.to_lowercase().contains(&needle)
-            {
-                slots.push(Slot::Sub(index, sub));
-            }
+        for sub in matching_cards(account, view.sub_cards.get(index), &needle) {
+            slots.push(Slot::Sub(index, sub));
         }
     }
     slots
+}
+
+/// The indices of the connection cards of `account` the lowercase filter
+/// `needle` keeps: all of them when the aggregator itself matches.
+pub(crate) fn matching_cards(
+    account: &Account,
+    cards: Option<&Vec<SubCard>>,
+    needle: &str,
+) -> Vec<usize> {
+    let parent_matches = needle.is_empty()
+        || account.name.to_lowercase().contains(needle)
+        || account.provider.label().to_lowercase().contains(needle);
+    cards
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter(|(_, card)| {
+            parent_matches
+                || card.account.name.to_lowercase().contains(needle)
+                || card.upstream.to_lowercase().contains(needle)
+        })
+        .map(|(sub, _)| sub)
+        .collect()
+}
+
+/// PRD 0036 RF2.3/RF2.4: the standing warnings of an aggregator instance
+/// ("No password · Unencrypted"), `None` when it has none.
+pub(crate) fn warning_chips(report: &Report) -> Option<String> {
+    let warnings = cuotai_core::aggregators::ConnectionWarnings::of(report);
+    if warnings.is_empty() {
+        return None;
+    }
+    Some(
+        warnings
+            .chips()
+            .iter()
+            .map(resolve_l10n)
+            .collect::<Vec<_>>()
+            .join(" · "),
+    )
 }
 
 /// A connection card: the account card of its reading, naming its
@@ -783,6 +821,7 @@ fn render_sub_card(
     view: &View<'_>,
     parent: &Account,
     card: &SubCard,
+    focused: bool,
     now: DateTime<Utc>,
 ) {
     let accounts = std::slice::from_ref(&card.account);
@@ -802,7 +841,7 @@ fn render_sub_card(
         access_account: Some(parent),
         ..*view
     };
-    render_card(frame, area, &mini, 0, false, now);
+    render_card(frame, area, &mini, 0, focused, now);
     if card.muted {
         // "Off in 9router" or "also direct": dimmed, never counted.
         frame
@@ -983,6 +1022,7 @@ pub(crate) fn render_for_test(
         local_cost: None,
         sub_cards: &[],
         aggregators_collapsed: false,
+        connection_focus: None,
         access_account: None,
         now,
     };
@@ -1240,6 +1280,16 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
             },
             Some(FooterAction::ToggleAggregators),
         ));
+        actions.push(separator());
+        actions.push(plain(
+            tr("dashboard.footer.next_connection", "n connection"),
+            None,
+        ));
+        actions.push(separator());
+        actions.push(plain(
+            tr("dashboard.footer.aggregator_filter", "f aggregator"),
+            None,
+        ));
     }
     actions.push(separator());
     actions.push(plain(&count, None));
@@ -1383,6 +1433,7 @@ fn render_cards(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Ta
                         view,
                         &view.accounts[account_index],
                         card,
+                        view.connection_focus == Some((account_index, sub)),
                         now,
                     );
                     // A click selects its aggregator.
@@ -1483,6 +1534,15 @@ fn render_card(
             if title.chars().count() + chip.chars().count() + 4 <= usize::from(area.width) =>
         {
             format!("{title}· {} ", safe(&chip))
+        }
+        _ => title,
+    };
+    // PRD 0036 RF2.3/RF2.4: the aggregator's standing warnings, while they fit.
+    let title = match report.and_then(warning_chips) {
+        Some(chips)
+            if title.chars().count() + chips.chars().count() + 4 <= usize::from(area.width) =>
+        {
+            format!("{title}· {} ", safe(&chips))
         }
         _ => title,
     };
@@ -2446,6 +2506,13 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         lines.push(Line::from(Span::styled(
             safe(&resolve_l10n(explanation)).into_owned(),
             Style::default().fg(YELLOW),
+        )));
+    }
+    // PRD 0036 RF2.3/RF2.4: the instance's standing warnings.
+    if let Some(chips) = warning_chips(report) {
+        lines.push(Line::from(Span::styled(
+            format!("  ⚠ {}", safe(&chips)),
+            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
         )));
     }
     // PRD 0006 RF6.1: the span picker, then one history line per metric.
@@ -3456,6 +3523,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now: Utc::now(),
                     },
@@ -3488,6 +3556,12 @@ mod tests {
     /// A direct OpenAI account and a 9router instance with a Claude
     /// connection (`work`) and an unmapped `glm` one that failed.
     fn aggregator_fixture() -> (Vec<Account>, Vec<Option<Report>>) {
+        aggregator_fixture_with(Vec::new())
+    }
+
+    fn aggregator_fixture_with(
+        notes: Vec<cuotai_core::text::Localized>,
+    ) -> (Vec<Account>, Vec<Option<Report>>) {
         let direct = Account {
             name: "OpenAI".into(),
             provider: Provider::OpenAiApi,
@@ -3528,6 +3602,7 @@ mod tests {
                 ),
                 sub("zhipu", "glm", None, Status::Error, Vec::new()),
             ],
+            notes_l10n: notes,
             ..report(Status::Ready, Vec::new())
         };
         let mut plain = report(
@@ -3550,6 +3625,17 @@ mod tests {
 
     fn draw_aggregators(collapsed: bool, filter: &str, width: u16) -> (String, Targets) {
         let (accounts, reports) = aggregator_fixture();
+        draw_aggregators_of(accounts, reports, collapsed, filter, width, None)
+    }
+
+    fn draw_aggregators_of(
+        accounts: Vec<Account>,
+        reports: Vec<Option<Report>>,
+        collapsed: bool,
+        filter: &str,
+        width: u16,
+        focus: Option<(usize, usize)>,
+    ) -> (String, Targets) {
         let visible = visible_indices(&accounts, &reports, filter, true);
         let sub_cards: Vec<Vec<SubCard>> = accounts
             .iter()
@@ -3587,6 +3673,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &sub_cards,
                         aggregators_collapsed: collapsed,
+                        connection_focus: focus,
                         access_account: None,
                         now: Utc.with_ymd_and_hms(2026, 1, 1, 0, 5, 0).unwrap(),
                     },
@@ -3603,6 +3690,65 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         (text, targets)
+    }
+
+    fn exposure_notes() -> Vec<cuotai_core::text::Localized> {
+        ["note.nine_router.exposed", "note.nine_router.private_http"]
+            .into_iter()
+            .map(|id| cuotai_core::text::Localized::fixed(id, "x"))
+            .collect()
+    }
+
+    /// PRD 0036 RF2.3/RF2.4: the card names the standing warnings.
+    #[test]
+    fn aggregator_card_shows_the_exposure_and_private_http_chips() {
+        let (accounts, reports) = aggregator_fixture();
+        let (plain, _) = draw_aggregators_of(accounts, reports, false, "", 120, None);
+        assert!(!plain.contains("No password") && !plain.contains("Unencrypted"));
+        let (accounts, reports) = aggregator_fixture_with(exposure_notes());
+        let (text, _) = draw_aggregators_of(accounts, reports, false, "", 120, None);
+        let chips = warning_chips(reports_ref(&aggregator_fixture_with(exposure_notes()).1));
+        assert!(text.contains(chips.as_deref().unwrap()), "{text}");
+        assert!(chips.unwrap().contains(" · "));
+    }
+
+    fn reports_ref(reports: &[Option<Report>]) -> &Report {
+        reports[0].as_ref().unwrap()
+    }
+
+    #[test]
+    fn warning_chips_are_absent_without_the_notes() {
+        let (_, reports) = aggregator_fixture();
+        assert_eq!(warning_chips(reports_ref(&reports)), None);
+    }
+
+    /// PRD 0036 RF4.4: the focused connection card is drawn selected, the
+    /// filter narrows which cards can take the focus.
+    #[test]
+    fn focused_connection_card_is_highlighted_and_the_filter_narrows_cards() {
+        let (accounts, reports) = aggregator_fixture();
+        let cards: Vec<Vec<SubCard>> = accounts
+            .iter()
+            .enumerate()
+            .map(|(i, a)| sub_cards_of(a, reports[i].as_ref(), None, |_| None))
+            .collect();
+        assert_eq!(
+            cards[0].iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            ["work", "zhipu"]
+        );
+        assert_eq!(
+            matching_cards(&accounts[0], Some(&cards[0]), ""),
+            vec![0, 1]
+        );
+        assert_eq!(
+            matching_cards(&accounts[0], Some(&cards[0]), "zhipu"),
+            vec![1]
+        );
+        let (plain, _) =
+            draw_aggregators_of(accounts.clone(), reports.clone(), false, "", 120, None);
+        let (focused, _) = draw_aggregators_of(accounts, reports, false, "", 120, Some((0, 1)));
+        // The text is identical; only the border colour changes.
+        assert_eq!(plain, focused);
     }
 
     /// PRD 0036 RF9.1: the aggregator comes after the direct accounts with
@@ -3681,6 +3827,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now: Utc::now(),
                     },
@@ -3739,6 +3886,7 @@ mod tests {
                             local_cost: None,
                             sub_cards: &[],
                             aggregators_collapsed: false,
+                            connection_focus: None,
                             access_account: None,
                             now: Utc::now(),
                         },
@@ -3790,6 +3938,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now: Utc::now(),
                     },
@@ -3840,6 +3989,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now: Utc::now(),
                     },
@@ -3897,6 +4047,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now: Utc::now(),
                     },
@@ -3945,6 +4096,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now: Utc::now(),
                     },
@@ -3992,6 +4144,7 @@ mod tests {
                         local_cost: None,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now: Utc::now(),
                     },
@@ -4046,6 +4199,7 @@ mod tests {
                             local_cost: None,
                             sub_cards: &[],
                             aggregators_collapsed: false,
+                            connection_focus: None,
                             access_account: None,
                             now: Utc::now(),
                         },
@@ -4115,6 +4269,7 @@ mod tests {
                             local_cost: None,
                             sub_cards: &[],
                             aggregators_collapsed: false,
+                            connection_focus: None,
                             access_account: None,
                             now: Utc::now(),
                         },
@@ -4271,6 +4426,7 @@ mod tests {
                         local_cost,
                         sub_cards: &[],
                         aggregators_collapsed: false,
+                        connection_focus: None,
                         access_account: None,
                         now,
                     },

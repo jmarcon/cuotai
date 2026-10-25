@@ -337,6 +337,8 @@ pub async fn run(
         detail_scroll: 0,
         show_unmeasured: true,
         aggregators_collapsed: false,
+        connection_focus: None,
+        aggregator_filter: None,
         details: false,
         targets: dashboard::Targets::default(),
         model_counts: ModelCounts::default(),
@@ -414,6 +416,11 @@ pub async fn run(
         ToggleUnmeasured,
         /// PRD 0036 RF9.1: fold or unfold the aggregators' connections.
         ToggleAggregators,
+        /// PRD 0036 RF4.4: focus the next connection card of the selected
+        /// aggregator (`R` then refreshes only that connection).
+        NextConnection,
+        /// PRD 0036 RF9.1: show one aggregator at a time, cycling.
+        CycleAggregator,
         ScrollDetailDown,
         ScrollDetailUp,
         Quit,
@@ -479,6 +486,8 @@ pub async fn run(
             KeyCode::Char('x') => Command::Extensions,
             KeyCode::Char('u') => Command::ToggleUnmeasured,
             KeyCode::Char('g') => Command::ToggleAggregators,
+            KeyCode::Char('n') => Command::NextConnection,
+            KeyCode::Char('f') => Command::CycleAggregator,
             KeyCode::Down if details => Command::ScrollDetailDown,
             KeyCode::Up if details => Command::ScrollDetailUp,
             KeyCode::Char('q') | KeyCode::Esc => Command::Quit,
@@ -886,6 +895,36 @@ pub async fn run(
                 }
                 Command::ToggleAggregators => {
                     state.aggregators_collapsed = !state.aggregators_collapsed;
+                    state.connection_focus = None;
+                }
+                Command::NextConnection => {
+                    let reports = cycle_slot_reports(&refresh_cycle);
+                    if let Some(index) = state.selected_account(&reports) {
+                        let cards = state.connection_cards(&refresh_cycle, &reports, index);
+                        let matching = dashboard::matching_cards(
+                            &state.accounts[index],
+                            Some(&cards),
+                            &state.filter.to_lowercase(),
+                        );
+                        state.connection_focus = if state.aggregators_collapsed {
+                            None
+                        } else {
+                            next_focus(state.connection_focus, &matching)
+                        };
+                    }
+                }
+                Command::CycleAggregator => {
+                    let aggregators: Vec<usize> = state
+                        .accounts
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, account)| account.provider.is_aggregator())
+                        .map(|(index, _)| index)
+                        .collect();
+                    state.aggregator_filter = next_focus(state.aggregator_filter, &aggregators);
+                    state.connection_focus = None;
+                    state.selection.select(Some(0));
+                    state.detail_scroll = 0;
                 }
                 Command::ScrollDetailDown => {
                     state.detail_scroll = state.detail_scroll.saturating_add(1);
@@ -1033,15 +1072,19 @@ pub async fn run(
                     }
                 }
                 Command::RefreshSelected => {
-                    if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))
-                    {
+                    let reports = cycle_slot_reports(&refresh_cycle);
+                    if let Some(index) = state.selected_account(&reports) {
+                        // PRD 0036 RF4.4: a focused connection refreshes alone.
+                        let connection = state.focused_connection(&refresh_cycle, &reports, index);
                         if account_refresh.slot(index).is_none() && refresh.0.is_none() {
                             if let Some(token) = refresh_cycle.begin(index) {
-                                account_refresh.install(
-                                    index,
-                                    start_account_refresh(&monitor, index),
-                                    token,
-                                );
+                                let job = match connection {
+                                    Some((sub_id, previous)) => {
+                                        start_connection_refresh(&monitor, index, sub_id, previous)
+                                    }
+                                    None => start_account_refresh(&monitor, index),
+                                };
+                                account_refresh.install(index, job, token);
                             }
                         }
                     }
@@ -3191,6 +3234,26 @@ fn start_account_refresh(monitor: &Arc<Monitor>, index: usize) -> JoinHandle<cuo
     tokio::spawn(async move { monitor.refresh_account(index).await })
 }
 
+/// PRD 0036 RF4.4: one connection of an aggregator, merged into `previous`.
+fn start_connection_refresh(
+    monitor: &Arc<Monitor>,
+    index: usize,
+    sub_id: String,
+    previous: cuotai_core::Report,
+) -> JoinHandle<cuotai_core::Report> {
+    let monitor = Arc::clone(monitor);
+    tokio::spawn(async move { monitor.refresh_connection(index, &sub_id, &previous).await })
+}
+
+/// The next entry of `items` after `current` (the first when none), and
+/// `None` after the last, so repeated presses cycle through "all".
+fn next_focus(current: Option<usize>, items: &[usize]) -> Option<usize> {
+    match current {
+        None => items.first().copied(),
+        Some(current) => items.iter().copied().find(|item| *item > current),
+    }
+}
+
 fn start_refresh(monitor: &Arc<Monitor>) -> JoinHandle<Snapshot> {
     let monitor = Arc::clone(monitor);
     tokio::spawn(async move { monitor.refresh().await })
@@ -3211,6 +3274,11 @@ struct State {
     show_unmeasured: bool,
     /// PRD 0036 RF9.1: the aggregators' connections are folded (`g`).
     aggregators_collapsed: bool,
+    /// PRD 0036 RF4.4: the focused connection card of the selected
+    /// aggregator (`n`); `R` refreshes only it.
+    connection_focus: Option<usize>,
+    /// PRD 0036 RF9.1: the only aggregator shown (`f` cycles).
+    aggregator_filter: Option<usize>,
     details: bool,
     targets: dashboard::Targets,
     model_counts: ModelCounts,
@@ -3357,7 +3425,46 @@ impl State {
     }
 
     fn visible(&self, reports: &[Option<cuotai_core::Report>]) -> Vec<usize> {
-        dashboard::visible_indices(&self.accounts, reports, &self.filter, self.show_unmeasured)
+        let mut visible =
+            dashboard::visible_indices(&self.accounts, reports, &self.filter, self.show_unmeasured);
+        if let Some(only) = self.aggregator_filter {
+            visible.retain(|index| *index == only);
+        }
+        visible
+    }
+
+    /// The connection cards of the aggregator `index` from its current
+    /// reading (empty for any other account).
+    fn connection_cards(
+        &self,
+        cycle: &RefreshCycle,
+        reports: &[Option<cuotai_core::Report>],
+        index: usize,
+    ) -> Vec<dashboard::SubCard> {
+        dashboard::sub_cards_of(
+            &self.accounts[index],
+            reports.get(index).and_then(Option::as_ref),
+            cycle.last_good_report(index),
+            |_| None,
+        )
+    }
+
+    /// The focused connection's id and the aggregator's current reading,
+    /// when the aggregator is ready and the focus is still valid.
+    fn focused_connection(
+        &self,
+        cycle: &RefreshCycle,
+        reports: &[Option<cuotai_core::Report>],
+        index: usize,
+    ) -> Option<(String, cuotai_core::Report)> {
+        let focus = self.connection_focus?;
+        let previous = reports
+            .get(index)
+            .and_then(Option::as_ref)
+            .filter(|report| report.status == cuotai_core::Status::Ready)?;
+        let cards = self.connection_cards(cycle, reports, index);
+        let card = cards.get(focus)?;
+        Some((card.id.clone(), previous.clone()))
     }
 
     fn selected_account(&self, reports: &[Option<cuotai_core::Report>]) -> Option<usize> {
@@ -3379,6 +3486,7 @@ impl State {
 
     fn move_selection(&mut self, delta: isize, reports: &[Option<cuotai_core::Report>]) {
         self.detail_scroll = 0;
+        self.connection_focus = None;
         let max = self.visible(reports).len().saturating_sub(1);
         self.selection.select(Some(
             self.selection
@@ -3387,6 +3495,12 @@ impl State {
                 .saturating_add_signed(delta)
                 .min(max),
         ));
+    }
+
+    /// The (account index, card index) the view highlights.
+    fn focus_target(&self, visible: &[usize]) -> Option<(usize, usize)> {
+        let index = *visible.get(self.selection.selected()?)?;
+        Some((index, self.connection_focus?))
     }
 
     fn draw(
@@ -3483,6 +3597,7 @@ impl State {
                     now,
                     sub_cards: &sub_cards,
                     aggregators_collapsed: self.aggregators_collapsed,
+                    connection_focus: self.focus_target(&visible),
                     access_account: None,
                 },
             );
@@ -3941,6 +4056,8 @@ mod tests {
             detail_scroll: 0,
             show_unmeasured: true,
             aggregators_collapsed: false,
+            connection_focus: None,
+            aggregator_filter: None,
             details: true,
             targets: dashboard::Targets::default(),
             model_counts: ModelCounts::default(),
@@ -4019,6 +4136,29 @@ mod tests {
         assert_eq!(state.selection.selected(), Some(1));
         assert_eq!(state.selected_account(&[]), Some(2));
         assert_eq!(state.detail_scroll, 0);
+    }
+
+    /// PRD 0036 RF4.4/RF9.1: `n` and `f` cycle through their items and back
+    /// to "none"; moving the selection drops the connection focus.
+    #[test]
+    fn next_focus_cycles_through_items_then_back_to_none() {
+        assert_eq!(next_focus(None, &[]), None);
+        assert_eq!(next_focus(None, &[1, 3]), Some(1));
+        assert_eq!(next_focus(Some(1), &[1, 3]), Some(3));
+        assert_eq!(next_focus(Some(3), &[1, 3]), None);
+        assert_eq!(next_focus(Some(0), &[2]), Some(2));
+    }
+
+    #[test]
+    fn aggregator_filter_shows_one_aggregator_and_selection_drops_the_focus() {
+        let mut state = state_with(three_accounts());
+        state.accounts[1].provider = cuotai_core::Provider::NineRouter;
+        assert_eq!(state.visible(&[]), vec![0, 1, 2]);
+        state.aggregator_filter = Some(1);
+        assert_eq!(state.visible(&[]), vec![1]);
+        state.connection_focus = Some(1);
+        state.move_selection(1, &[]);
+        assert_eq!(state.connection_focus, None);
     }
 
     #[test]

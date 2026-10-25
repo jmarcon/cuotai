@@ -104,6 +104,8 @@
   "dashboard.footer.edit": "e modifica",
   "dashboard.footer.extensions": "x estensioni",
   "dashboard.footer.filter": "/ filtra",
+  "dashboard.footer.next_connection": "n connessione",
+  "dashboard.footer.aggregator_filter": "f aggregatore",
   "dashboard.footer.fold_connections": "g comprimi connessioni",
   "dashboard.footer.hide_unmeasured": "u nascondi senza dati",
   "dashboard.footer.history": "1/2/3 cronologia",
