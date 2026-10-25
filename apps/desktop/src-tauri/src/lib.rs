@@ -673,8 +673,25 @@ fn set_motion(motion: String) -> Result<(), String> {
 #[tauri::command]
 fn set_preference(app: AppHandle, key: String, value: serde_json::Value) -> Result<(), String> {
     settings::save_preference(&key, &value).map_err(str::to_owned)?;
+    if key == "show_in_dock" {
+        apply_dock_policy(&app);
+    }
     let _ = app.emit("settings-changed", serde_json::json!({ "key": key }));
     Ok(())
+}
+
+/// macOS "Show in Dock" (mockup 50-settings-general): a regular app with a
+/// Dock icon, or an accessory that lives in the menu bar only. Other
+/// systems have no Dock; the row is hidden there.
+fn apply_dock_policy(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(if settings::show_in_dock() {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    });
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
 }
 
 /// PRD 0020 RF7.2: the one-time copy of the old `localStorage` values (keys `theme`,
@@ -2084,8 +2101,7 @@ pub fn run() {
             quit_app
         ])
         .setup(move |app| {
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Regular);
+            apply_dock_policy(app.handle());
 
             let icon = tray_icon()?;
             TrayIconBuilder::with_id("cuotai")

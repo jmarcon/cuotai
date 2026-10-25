@@ -290,6 +290,21 @@ function plain(html) {
     const catalog = JSON.parse(await readFile(ui(`locales/${code}.json`), "utf8"));
     for (const k of ["settings.autostart.label", "settings.autostart.desc", "settings.startup", "settings.error.autostart_failed", "report.intro"]) assert.ok(catalog[k], `${code}: ${k}`);
   }
+  // "Show in Dock" (mockup 50-settings-general): only on macOS, beside Start at login, searchable, on by default.
+  assert.ok(!general.html({ settings: { motion: "system" } }).includes('id="dock"'), "no Dock row off macOS");
+  document.documentElement.dataset.platform = "mac";
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    const html = general.html({ settings: { motion: "system" } });
+    assert.match(html, /data-row="autostart"[\s\S]*data-row="dock" data-kw="[^"]{12,}"/, `${code}: Dock row after Start at login`);
+    assert.match(html, /<input id="dock" type="checkbox" role="switch" class="sw" checked/, `${code}: shown by default`);
+    assert.ok(!general.html({ settings: { motion: "system", show_in_dock: false } }).match(/id="dock"[^>]*checked/), `${code}: hidden choice`);
+  }
+  delete document.documentElement.dataset.platform;
+  await lib.setPreference("show_in_dock", false);
+  assert.equal((await lib.getSettings()).show_in_dock, false);
+  await assert.rejects(lib.setPreference("show_in_dock", "no"));
+  await lib.setPreference("show_in_dock", true);
   await i18n.setLocale("en-US");
   // The demo answers like the shell: the system's state comes back from the write.
   assert.equal(await lib.autostartStatus(), false);

@@ -1,8 +1,11 @@
 // Settings › General (PRD 0020 RF2.5): appearance (theme, light/dark mode, animations) and language, as rows (RF3).
 import { t, te } from "../i18n.js";
-import { autostartSet, autostartStatus, firstRunRecord, langMenuHtml, MOTIONS, setMotion, themeSwitchHtml } from "../lib.js";
+import { autostartSet, autostartStatus, firstRunRecord, setPreference, langMenuHtml, MOTIONS, setMotion, themeSwitchHtml } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { buttons, row, rowError, seg, sw, toast } from "./rows.js";
+
+/** The Dock exists only on macOS; the Settings window marks the platform on its root. */
+const isMac = () => (globalThis.document?.documentElement?.dataset?.platform ?? "") === "mac";
 
 export function html({ settings: s }) {
   // The shared switch draws the mode choice and the theme list; each goes in its own row (mockup 50-settings-general).
@@ -17,7 +20,10 @@ export function html({ settings: s }) {
     + group("language", te("lang.label"), row({ key: "lang", label: te("lang.label"), info: te("settings.lang.desc"), control: () => langMenuHtml({ field: true }) }))
     // Audit #37: the system owns this state; the switch is drawn off and disabled until the system has answered.
     + group("startup", te("settings.startup"), row({ key: "autostart", label: te("settings.autostart.label"), desc: te("settings.autostart.desc"),
-      control: (a) => sw("autostart", false, a, "disabled") }))
+      control: (a) => sw("autostart", false, a, "disabled") })
+      // Mockup 50-settings-general: macOS only (other systems have no Dock); saved in desktop.json, applied by the shell.
+      + (isMac() ? row({ key: "dock", label: te("settings.dock.label"), desc: te("settings.dock.desc"),
+        control: (a) => sw("dock", s.show_in_dock !== false, a) }) : ""))
     // PRD 0025 RF6.4: the first-run step shows again on the next launch of the main window.
     + group("setup", "", row({ key: "setup-again", label: te("settings.setup.again"), info: te("settings.setup.again.help"),
       control: () => buttons(`<button type="button" class="btn sm" data-setup-again>${te("settings.setup.again.button")}</button>`) }));
@@ -43,6 +49,11 @@ export function bind(root, ctx) {
       (x) => { login.checked = !login.checked; rowError(login, errorText(x)); }
     ).finally(() => { login.disabled = false; });
   });
+  // "Show in Dock": the shell switches the activation policy as it saves (regular or menu-bar only).
+  const dock = root.querySelector("#dock");
+  dock?.addEventListener("change", () => setPreference("show_in_dock", dock.checked).then(
+    () => { rowError(dock, ""); toast(); ctx.changed("show_in_dock"); },
+    (x) => { dock.checked = !dock.checked; rowError(dock, errorText(x)); }));
   const motion = root.querySelector("#motion");
   let saved = ctx.settings.motion;
   motion.addEventListener("change", () => setMotion(motion.value).then(

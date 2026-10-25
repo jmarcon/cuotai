@@ -11,7 +11,8 @@ const root = new URL("../", import.meta.url);
 const ui = (path) => fileURLToPath(new URL(`apps/desktop/ui/${path}`, root));
 const storage = new Map();
 globalThis.window = { open: () => {} };
-globalThis.document = { hidden: false, body: { append: () => {} }, documentElement: { lang: "", dataset: {}, toggleAttribute: () => {} }, addEventListener: () => {} };
+// The rows of every system render: macOS adds Show in Dock (mockup 50-settings-general).
+globalThis.document = { hidden: false, body: { append: () => {} }, documentElement: { lang: "", dataset: { platform: "mac" }, toggleAttribute: () => {} }, addEventListener: () => {} };
 globalThis.MutationObserver = class { observe() {} disconnect() {} };
 globalThis.matchMedia = () => ({ matches: false, addEventListener: () => {} });
 globalThis.addEventListener = () => {};

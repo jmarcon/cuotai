@@ -107,6 +107,10 @@ struct Stored {
     /// 0020 RF7.2 preference); absent = `grouped`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     aggregators_in_all: Option<String>,
+    /// macOS "Show in Dock" (mockup 50-settings-general); absent = shown.
+    /// Only `false` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    show_in_dock: Option<bool>,
     /// One-time migrations already done, e.g. `{"local_storage": 1}` (PRD 0020 RF7.2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     migrations: Option<serde_json::Value>,
@@ -875,6 +879,16 @@ fn recording_of(stored: &Stored) -> bool {
     stored.history_recording != Some(false)
 }
 
+/// On unless `desktop.json` says `false`.
+fn show_in_dock_of(stored: &Stored) -> bool {
+    stored.show_in_dock != Some(false)
+}
+
+/// macOS "Show in Dock": applied at startup and on every change.
+pub fn show_in_dock() -> bool {
+    show_in_dock_of(&load())
+}
+
 /// PRD 0006 RF5.3: whether this device records new readings.
 pub fn history_recording() -> bool {
     recording_of(&load())
@@ -1083,6 +1097,10 @@ fn apply_preference(
             Some(on) => s.group_recharging = on.then_some(true),
             None => return Err("invalid_preference"),
         },
+        "show_in_dock" => match value.as_bool() {
+            Some(on) => s.show_in_dock = (!on).then_some(false),
+            None => return Err("invalid_preference"),
+        },
         "aggregators_in_all" => match text {
             Some(v) if AGGREGATOR_MODES.contains(&v) => {
                 s.aggregators_in_all = (v != "grouped").then(|| v.to_owned())
@@ -1095,7 +1113,7 @@ fn apply_preference(
 }
 
 /// Saves one interface preference (`theme`, `theme_mode`, `sort`,
-/// `group_recharging`, `aggregators_in_all`).
+/// `group_recharging`, `aggregators_in_all`, `show_in_dock`).
 pub fn save_preference(key: &str, value: &serde_json::Value) -> Result<(), &'static str> {
     let file = settings_file().ok_or("unwritable")?;
     apply_preference(&mut Stored::default(), key, value)?;
@@ -1275,6 +1293,8 @@ pub struct SettingsView {
     group_recharging: bool,
     /// PRD 0036 RF8.3: `grouped`, `listed` or `hidden`.
     aggregators_in_all: &'static str,
+    /// macOS: the app keeps a Dock icon (regular activation policy).
+    show_in_dock: bool,
     locale: Option<String>,
     local_storage_migrated: bool,
     /// PRD 0024 RF1.3: `points` or `percent`.
@@ -1341,6 +1361,7 @@ pub fn view() -> SettingsView {
             .find(|m| stored.sort.as_deref() == Some(m))
             .unwrap_or("custom"),
         group_recharging: stored.group_recharging == Some(true),
+        show_in_dock: show_in_dock_of(&stored),
         aggregators_in_all: AGGREGATOR_MODES
             .into_iter()
             .find(|m| stored.aggregators_in_all.as_deref() == Some(m))
@@ -2185,5 +2206,20 @@ mod tests {
             fs::write(&file, odd).unwrap();
             assert!(advice_of(&read(&file)), "{odd}");
         }
+    }
+
+    #[test]
+    fn show_in_dock_stores_only_the_hidden_choice() {
+        let mut s = Stored::default();
+        assert!(show_in_dock_of(&s));
+        apply_preference(&mut s, "show_in_dock", &false.into()).unwrap();
+        assert_eq!(s.show_in_dock, Some(false));
+        assert!(!show_in_dock_of(&s));
+        assert_eq!(
+            apply_preference(&mut s, "show_in_dock", &"no".into()),
+            Err("invalid_preference")
+        );
+        apply_preference(&mut s, "show_in_dock", &true.into()).unwrap();
+        assert_eq!(s.show_in_dock, None);
     }
 }
