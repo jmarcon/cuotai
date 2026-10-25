@@ -22,6 +22,7 @@
 //! ([`TokenSource`], [`resolve_token`]). With a token, whoever can read it
 //! (your own user's programs) can still read the data.
 
+pub mod client;
 mod http;
 mod token;
 

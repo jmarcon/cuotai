@@ -3,9 +3,12 @@
 //! marks and width budget are the core's; this module only picks the style
 //! and the accounts, and optionally paints the line.
 
+use std::path::Path;
+
 use chrono::{DateTime, Utc};
 use cuotai_core::{
     freshness::Freshness,
+    serve::{self, client},
     tray::{self, AccountView, Level, TraySelection, TrayStyle},
     Config, Snapshot, Status,
 };
@@ -38,12 +41,25 @@ pub(crate) fn render(
             AccountView::from_report(account, Some(report), freshness)
         })
         .collect();
+    render_views(&views, style, ids, color, now, at)
+}
+
+/// The one line for `views`, already in order (the same rules as
+/// [`render`]).
+pub(crate) fn render_views(
+    views: &[AccountView],
+    style: TrayStyle,
+    ids: &[String],
+    color: bool,
+    now: DateTime<Utc>,
+    at: impl Fn(DateTime<Utc>) -> String,
+) -> String {
     let selection = if ids.is_empty() {
         TraySelection::Auto
     } else {
         TraySelection::Custom(ids.to_vec())
     };
-    let summary = tray::summary(&views, style, &selection, now, at);
+    let summary = tray::summary(views, style, &selection, now, at);
     let title = summary.title.unwrap_or_default();
     let level = summary
         .items
@@ -58,6 +74,43 @@ pub(crate) fn render(
         }
         _ => title,
     }
+}
+
+/// PRD 0031 RF2.1: the line from a running server's `/v1/limits` (`url`
+/// empty: the default address), without querying a provider. The token is
+/// `token_file`'s, or the `--serve` default file's when it exists (never
+/// created here). Exit code `0`, or `2` when a selected account's reading
+/// is stale or failing, like `--once`; a server that cannot be read is a
+/// local error.
+pub(crate) async fn from_server(
+    url: &str,
+    token_file: Option<&Path>,
+    style: TrayStyle,
+    ids: &[String],
+    color: bool,
+) -> Result<(String, u8), String> {
+    let locale = crate::ui::tui_locale();
+    let token = match token_file {
+        Some(path) => Some(path.to_path_buf()),
+        None => serve::default_token_file().filter(|path| path.is_file()),
+    }
+    .map(|path| serve::read_token_file(&path))
+    .transpose()
+    .map_err(|error| error.l10n().resolve(locale))?;
+    let url = if url.is_empty() {
+        client::default_url()
+    } else {
+        url.to_owned()
+    };
+    let views = client::limits_views(&url, token.as_ref())
+        .await
+        .map_err(|error| error.l10n().resolve(locale))?;
+    let line = render_views(&views, style, ids, color, Utc::now(), crate::ui::local_time);
+    let failing = views
+        .iter()
+        .filter(|view| ids.is_empty() || ids.contains(&view.key))
+        .any(|view| view.stale);
+    Ok((line, if failing { 2 } else { 0 }))
 }
 
 /// ANSI foreground of a level: the theme roles good, warn and bad.

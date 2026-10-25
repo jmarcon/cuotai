@@ -115,6 +115,18 @@ struct Args {
     /// NO_COLOR não está definido.
     #[arg(long, requires = "status_line")]
     color: bool,
+    /// Com --status-line, lê o /v1/limits de um cuotai --serve em execução
+    /// (padrão http://127.0.0.1 na porta padrão) em vez de consultar os
+    /// provedores; só endereços de loopback. O token vem de --token-file ou
+    /// do arquivo padrão do --serve.
+    #[arg(
+        long,
+        value_name = "URL",
+        num_args = 0..=1,
+        default_missing_value = "",
+        requires = "status_line"
+    )]
+    from_server: Option<String>,
     /// Consulta uma vez e emite o Snapshot em JSON (sem credenciais); com
     /// --history, emite o histórico em JSON.
     #[arg(long)]
@@ -352,13 +364,10 @@ struct Args {
     /// Arquivo com o token que o --serve exige em Authorization: Bearer (16
     /// a 512 caracteres, sem espaços). Sem ele, o --serve cria (na primeira
     /// vez) e exige o token guardado no diretório de dados, só legível pelo
-    /// seu usuário, e diz onde ele está.
-    #[arg(
-        long,
-        value_name = "ARQUIVO",
-        requires = "serve",
-        conflicts_with = "no_token"
-    )]
+    /// seu usuário, e diz onde ele está. Com --status-line --from-server, o
+    /// token enviado ao servidor (sem ela: o do diretório de dados, se
+    /// existir).
+    #[arg(long, value_name = "ARQUIVO", conflicts_with = "no_token")]
     token_file: Option<PathBuf>,
     /// Serve sem token: qualquer usuário ou programa deste computador pode
     /// ler o seu uso (páginas web e outros computadores seguem recusados).
@@ -753,6 +762,28 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             )?;
         }
         return Ok(history_exit_code(&found));
+    }
+    if args.token_file.is_some() && !args.serve && args.from_server.is_none() {
+        return Err("--token-file exige --serve ou --status-line --from-server.".into());
+    }
+    if let Some(url) = args.from_server.take() {
+        // PRD 0031 RF2.1: the running server's readings, without a query.
+        let style = cuotai_core::tray::TrayStyle::parse(&args.style).unwrap_or_default();
+        let color = status_line::use_color(
+            args.color,
+            io::stdout().is_terminal(),
+            std::env::var("NO_COLOR").ok().as_deref(),
+        );
+        let (line, code) = status_line::from_server(
+            &url,
+            args.token_file.as_deref(),
+            style,
+            &args.status_accounts,
+            color,
+        )
+        .await?;
+        println!("{line}");
+        return Ok(code);
     }
     if args.vault_audit || args.vault_prune {
         let file = ConfigFile::load(args.config, false)?;

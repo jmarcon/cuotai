@@ -1577,3 +1577,32 @@ async fn stats_without_history_is_503_and_a_peer_gets_six_a_minute() {
         StatusCode::OK
     );
 }
+
+/// PRD 0031 RF2.1: `client::limits_views` reads a running server back, with
+/// and without its token, and reports a closed port as unreachable.
+#[tokio::test]
+async fn the_client_reads_limits_from_a_running_server() {
+    let token = Token::generate().unwrap();
+    let server = start(
+        ServeConfig {
+            token: Some(token.clone()),
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    let base = server.url();
+    let views = client::limits_views(&base, Some(&token)).await.unwrap();
+    assert_eq!(views.len(), 3);
+    assert_eq!(views[0].name, "Personal Max");
+    assert!((views[0].remaining.unwrap() - 0.7).abs() < 1e-9);
+    assert_eq!(
+        client::limits_views(&base, None).await,
+        Err(client::ClientError::Unauthorized)
+    );
+    server.shutdown().await;
+    assert_eq!(
+        client::limits_views(&base, Some(&token)).await,
+        Err(client::ClientError::Unreachable)
+    );
+}

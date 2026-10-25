@@ -102,3 +102,88 @@ fn style_must_be_supported_and_modes_do_not_combine() {
     );
     assert_eq!(sandbox.run("dev", &["--once"]).status.code(), Some(1));
 }
+
+/// A one-shot HTTP server that answers `/v1/limits` with `body` when the
+/// request carries `token`, `401` otherwise, and returns the request line.
+fn fake_server(
+    token: &'static str,
+    body: &'static str,
+) -> (String, std::thread::JoinHandle<String>) {
+    use std::io::{BufRead, BufReader, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = format!("http://{}", listener.local_addr().unwrap());
+    let job = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        let mut reader = BufReader::new(stream.try_clone().unwrap());
+        let mut head = Vec::new();
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            if line.trim().is_empty() {
+                break;
+            }
+            head.push(line.trim().to_owned());
+        }
+        let authorized = head
+            .iter()
+            .any(|line| line.eq_ignore_ascii_case(&format!("authorization: Bearer {token}")));
+        let mut stream = stream;
+        if authorized {
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        } else {
+            write!(
+                stream,
+                "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            .unwrap();
+        }
+        head[0].clone()
+    });
+    (addr, job)
+}
+
+const LIMITS: &str = r#"{"schema":1,"generated_at":"2026-10-25T12:00:00Z","accounts":[{"index":0,"id":"acc_one","key":"claude:Main","name":"Main","provider":"claude","class":"available","stale":false,"binding":{"used_ratio":0.78}}],"summary":{}}"#;
+const TOKEN: &str = "cuotai_test-token-0123456789abcdef";
+
+/// PRD 0031 RF2.1: `--from-server` reads `/v1/limits` with the token file
+/// instead of querying (the fake `aws` is never needed) and exits 0.
+#[test]
+fn from_server_reads_the_running_servers_limits() {
+    let sandbox = Sandbox::new("from-server");
+    let token = sandbox.0.join("token");
+    fs::write(&token, format!("{TOKEN}\n")).unwrap();
+    let (addr, job) = fake_server(TOKEN, LIMITS);
+    let output = sandbox.run(
+        "broken",
+        &[
+            "--from-server",
+            &addr,
+            "--token-file",
+            token.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "22% · Main"
+    );
+    assert_eq!(job.join().unwrap(), "GET /v1/limits HTTP/1.1");
+}
+
+#[test]
+fn from_server_refuses_other_hosts_and_a_missing_token() {
+    let sandbox = Sandbox::new("from-server-errors");
+    let output = sandbox.run("dev", &["--from-server", "http://192.0.2.1:7878"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("loopback"));
+    let (addr, job) = fake_server(TOKEN, LIMITS);
+    let output = sandbox.run("dev", &["--from-server", &addr]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("token"));
+    job.join().unwrap();
+}
