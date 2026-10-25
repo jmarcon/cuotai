@@ -184,7 +184,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Antigravity | `antigravity` | `oauth` | Browser sign-in | Coding tool | google | Sign in with your browser |
 | Antigravity | `antigravity` | `credential` | API key | Coding tool | google | Account access token |
 | Kimchi | `kimchi` | — | API key | API platform | — | API key |
-| ElevenLabs | `eleven_labs` | — | API key | API platform | eleven labs, 11labs | API key |
+| ElevenLabs | `eleven_labs` | — | API key | API platform | elevenlabs, eleven labs, 11labs, tts, text to speech, voice, voice agents | API key |
 | 9router | `nine_router` | — | Self-hosted gateway | Router | 9router, nine router, router, aggregator | Dashboard password (optional) |
 | OpenRouter | `open_router` | `oauth` | Browser sign-in | Router | openrouter, open router, router, or | Sign in with your browser |
 | OpenRouter | `open_router` | `credential` | API key | Router | openrouter, open router, router, or | API key |

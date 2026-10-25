@@ -208,7 +208,15 @@ fn aliases(provider: Provider) -> &'static [&'static str] {
         Provider::AlibabaCloud => &["aliyun", "alibaba"],
         Provider::Antigravity => &["google"],
         Provider::Kimchi => &[],
-        Provider::ElevenLabs => &["eleven labs", "11labs"],
+        Provider::ElevenLabs => &[
+            "elevenlabs",
+            "eleven labs",
+            "11labs",
+            "tts",
+            "text to speech",
+            "voice",
+            "voice agents",
+        ],
         Provider::NineRouter => &["9router", "nine router", "router", "aggregator"],
         Provider::OpenRouter => &["openrouter", "open router", "router", "or"],
         Provider::LiteLlm => &["litellm", "lite llm", "proxy", "gateway", "aggregator"],
@@ -762,6 +770,26 @@ mod tests {
             search_with_extensions("codex", "en-US", &found),
             search("codex", "en-US")
         );
+    }
+
+    /// PRD 0037 RF2.3: the ElevenLabs aliases find it.
+    #[test]
+    fn eleven_labs_is_found_by_its_aliases() {
+        for query in [
+            "elevenlabs",
+            "11labs",
+            "tts",
+            "text to speech",
+            "voice",
+            "voice agents",
+        ] {
+            assert!(
+                search(query, "en-US")
+                    .iter()
+                    .any(|m| m.entry.provider == Provider::ElevenLabs),
+                "{query}"
+            );
+        }
     }
 
     #[test]
