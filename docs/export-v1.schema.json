@@ -17,7 +17,7 @@
       "type": "object",
       "required": [
         "index", "key", "name", "provider", "class", "report", "age_seconds", "freshness",
-        "clock_adjusted", "stale", "last_good", "binding", "pace", "access", "incident"
+        "clock_adjusted", "stale", "showing_last_good", "last_good", "binding", "pace", "access", "incident"
       ],
       "properties": {
         "index": { "type": "integer", "minimum": 0, "description": "Position in the configuration." },
@@ -25,12 +25,13 @@
         "name": { "type": "string" },
         "provider": { "$ref": "#/$defs/Provider" },
         "email": { "type": ["string", "null"], "description": "Present only when the producer includes identity; null when unknown." },
-        "class": { "enum": ["available", "exhausted", "unmeasured"] },
+        "class": { "anyOf": [{ "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }] },
         "report": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Report" }], "description": "Current report; null until the account has one." },
         "age_seconds": { "type": ["integer", "null"], "minimum": 0, "description": "Age of report.checked_at; null without a report." },
-        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }], "description": "report.checked_at against the account's effective interval; null without a report." },
+        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }, { "type": "string" }], "description": "report.checked_at against the account's effective interval; null without a report." },
         "clock_adjusted": { "type": "boolean", "description": "report.checked_at is in the future; the age reads zero." },
         "stale": { "type": "boolean", "description": "true exactly when last_good is present." },
+        "showing_last_good": { "type": "boolean", "description": "Alias of stale with the same value: a preserved reading is shown instead of a current one." },
         "last_good": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/LastGood" }] },
         "binding": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Binding" }] },
         "pace": {
@@ -61,10 +62,10 @@
         "key": { "type": "string" },
         "name": { "type": "string" },
         "provider": { "$ref": "#/$defs/Provider" },
-        "class": { "enum": ["available", "exhausted", "unmeasured"] },
+        "class": { "anyOf": [{ "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }] },
         "binding": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Binding" }] },
         "age_seconds": { "type": ["integer", "null"], "minimum": 0 },
-        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }] },
+        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }, { "type": "string" }] },
         "stale": { "type": "boolean" }
       }
     },
@@ -76,7 +77,7 @@
         "account": { "type": "string" },
         "provider": { "$ref": "#/$defs/Provider" },
         "checked_at": { "type": "string", "format": "date-time" },
-        "status": { "enum": ["ready", "needs_configuration", "unsupported", "authentication_error", "rate_limited", "error"] },
+        "status": { "anyOf": [{ "enum": ["ready", "needs_configuration", "unsupported", "authentication_error", "rate_limited", "error"] }, { "type": "string" }] },
         "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" } },
         "notes": { "type": "array", "items": { "type": "string" }, "description": "Portuguese texts, redacted." },
         "notes_l10n": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "Same length and order as notes; absent when empty." },
@@ -92,8 +93,8 @@
         "limit": { "type": ["number", "null"] },
         "remaining": { "type": ["number", "null"] },
         "unit": { "type": "string" },
-        "kind": { "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] },
-        "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }] },
+        "kind": { "anyOf": [{ "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] }, { "type": "string" }] },
+        "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }, { "type": "string" }] },
         "period": { "type": ["string", "null"] },
         "resets_at": { "type": ["string", "null"], "format": "date-time" }
       }
@@ -113,11 +114,11 @@
       "properties": {
         "index": { "type": "integer", "minimum": 0, "description": "Position in report.metrics." },
         "label": { "type": "string" },
-        "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }] },
+        "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }, { "type": "string" }] },
         "used_ratio": { "type": "number", "minimum": 0 },
         "remaining": { "type": "number" },
         "resets_at": { "type": ["string", "null"], "format": "date-time" },
-        "reason": { "enum": ["exhausted", "tightest"] },
+        "reason": { "anyOf": [{ "enum": ["exhausted", "tightest"] }, { "type": "string" }] },
         "blocked_until": { "type": ["string", "null"], "format": "date-time" }
       }
     },
@@ -132,9 +133,9 @@
         "expected_used_fraction": { "type": "number", "minimum": 0 },
         "used_fraction": { "type": "number", "minimum": 0 },
         "delta_points": { "type": "number" },
-        "stage": { "enum": ["reserve", "on_pace", "ahead", "exhausted"] },
-        "tone": { "enum": ["good", "neutral", "warn", "bad"] },
-        "source": { "enum": ["average", "recent"] },
+        "stage": { "anyOf": [{ "enum": ["reserve", "on_pace", "ahead", "exhausted"] }, { "type": "string" }] },
+        "tone": { "anyOf": [{ "enum": ["good", "neutral", "warn", "bad"] }, { "type": "string" }] },
+        "source": { "anyOf": [{ "enum": ["average", "recent"] }, { "type": "string" }] },
         "resets_at": { "type": "string", "format": "date-time" },
         "projected_exhaustion_at": { "type": ["string", "null"], "format": "date-time" },
         "lasts_until_reset": { "type": "boolean" }
@@ -147,16 +148,16 @@
         "summary", "credential_hint", "risk", "reason"
       ],
       "properties": {
-        "level": { "enum": ["official", "undocumented", "derived", "unavailable", "extension"] },
-        "credential": { "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session"] },
+        "level": { "anyOf": [{ "enum": ["official", "undocumented", "derived", "unavailable", "extension"] }, { "type": "string" }] },
+        "credential": { "anyOf": [{ "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session"] }, { "type": "string" }] },
         "plan_requirement": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
-        "scope": { "enum": ["account", "organization", "whole_cloud", "product"] },
+        "scope": { "anyOf": [{ "enum": ["account", "organization", "whole_cloud", "product"] }, { "type": "string" }] },
         "metered": { "type": "boolean", "description": "Every query is billed." },
         "evidence": {
           "type": "object",
           "required": ["kind", "url"],
           "properties": {
-            "kind": { "enum": ["documentation", "reference"] },
+            "kind": { "anyOf": [{ "enum": ["documentation", "reference"] }, { "type": "string" }] },
             "url": { "type": "string", "description": "Public page; never an authenticated URL." }
           }
         },
@@ -171,7 +172,7 @@
       "type": "object",
       "required": ["state", "label", "event", "page_url", "read_at", "stale", "expired"],
       "properties": {
-        "state": { "enum": ["operational", "degraded", "partial_outage", "major_outage", "maintenance", "unknown"] },
+        "state": { "anyOf": [{ "enum": ["operational", "degraded", "partial_outage", "major_outage", "maintenance", "unknown"] }, { "type": "string" }] },
         "label": { "$ref": "#/$defs/Localized" },
         "event": {
           "anyOf": [
@@ -224,7 +225,7 @@
       "type": "object",
       "required": ["period", "days", "label", "first_day", "last_day"],
       "properties": {
-        "period": { "anyOf": [{ "type": "null" }, { "enum": ["today", "last_7_days", "last_30_days", "current_month", "all"] }], "description": "The saved period; null with a number of days." },
+        "period": { "anyOf": [{ "type": "null" }, { "enum": ["today", "last_7_days", "last_30_days", "current_month", "all"] }, { "type": "string" }], "description": "The saved period; null with a number of days." },
         "days": { "type": ["integer", "null"], "minimum": 1, "description": "The last N local days; null with a period." },
         "label": { "$ref": "#/$defs/Localized" },
         "first_day": { "type": ["string", "null"], "format": "date", "description": "First local day; null for everything the index holds." },
@@ -235,10 +236,10 @@
       "type": "object",
       "required": ["source", "label", "providers", "state", "note", "usage"],
       "properties": {
-        "source": { "enum": ["claude_code", "codex_cli"], "description": "New sources add values." },
+        "source": { "anyOf": [{ "enum": ["claude_code", "codex_cli"] }, { "type": "string" }], "description": "New sources add values." },
         "label": { "type": "string" },
         "providers": { "type": "array", "items": { "$ref": "#/$defs/Provider" }, "description": "The accounts of these providers show this source." },
-        "state": { "enum": ["off", "ready", "partial", "no_logs", "no_access", "not_read"] },
+        "state": { "anyOf": [{ "enum": ["off", "ready", "partial", "no_logs", "no_access", "not_read"] }, { "type": "string" }] },
         "note": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Why there are no numbers or what limits them; null when they are complete." },
         "usage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/CostUsage" }], "description": "null while the source is off." }
       }
@@ -292,7 +293,7 @@
                     "required": ["entry", "origin", "rates"],
                     "properties": {
                       "entry": { "type": "string", "description": "The table entry that matched." },
-                      "origin": { "enum": ["embedded", "user"] },
+                      "origin": { "anyOf": [{ "enum": ["embedded", "user"] }, { "type": "string" }] },
                       "rates": { "$ref": "#/$defs/Rates" }
                     }
                   }
@@ -307,7 +308,7 @@
             "type": "object",
             "required": ["origin", "effective", "source"],
             "properties": {
-              "origin": { "enum": ["embedded", "user"] },
+              "origin": { "anyOf": [{ "enum": ["embedded", "user"] }, { "type": "string" }] },
               "effective": { "type": "string", "format": "date" },
               "source": { "type": ["string", "null"] }
             }

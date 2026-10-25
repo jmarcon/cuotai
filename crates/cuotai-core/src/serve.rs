@@ -5,8 +5,8 @@
 //! The server never queries a provider: every data route asks a [`Source`]
 //! for the [`Export`] the front end builds from the `RefreshCycle` it already
 //! maintains, and answers `503` with `Retry-After` while there is no reading
-//! yet. Routes are `GET`-only: `/health`, `/v1/snapshot`, `/v1/accounts/{key}`
-//! and `/v1/limits`; any other method gets `405`, any other path `404`. Every
+//! yet. Routes are `GET` (and `HEAD`, without a body): `/health`, `/v1/snapshot`, `/v1/accounts/{key}`
+//! and `/v1/limits`; any other method gets `405` with `Allow: GET, HEAD`, any other path `404`. Every
 //! response is `application/json` with `Cache-Control: no-store`, and each
 //! connection carries one request (`Connection: close`).
 //!
@@ -70,6 +70,10 @@ const PROBE_MAX_BYTES: u64 = 4 * 1024;
 /// that a server needing a token is Cuotai's.
 const BEARER_CHALLENGE: &str = "Bearer realm=\"cuotai\"";
 
+/// The schema numbers `/health` lists (RF5.3): the current one, plus the
+/// previous ones still served during their support window.
+const SCHEMAS: &[u32] = &[SCHEMA];
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The body of `/health`, in its documented field order.
@@ -78,6 +82,9 @@ struct Health {
     status: &'static str,
     version: &'static str,
     schema: u32,
+    /// PRD 0031 RF5.3: every `export::v1`-style schema number served, so a
+    /// client can tell that a newer one is available next to `schema`.
+    schemas: &'static [u32],
 }
 
 /// Where the server reads the last known state. Building the export must
@@ -170,6 +177,7 @@ pub struct ServeConfig {
     /// [`DEFAULT_PORT`] by default; `0` lets the system pick one.
     pub port: u16,
     /// When the port is taken, try the next ones ([`PORT_ATTEMPTS`] in all).
+    /// Off by default (PRD 0031 RF9.1): the address never moves silently.
     pub port_fallback: bool,
     /// RF3.1: the explicit flag a non-loopback `bind` needs; without it such
     /// an address is a configuration error. It also requires `token`.
@@ -189,7 +197,7 @@ impl Default for ServeConfig {
         Self {
             bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
             port: DEFAULT_PORT,
-            port_fallback: true,
+            port_fallback: false,
             allow_non_loopback: false,
             token: None,
             allow_browsers: false,
@@ -708,7 +716,7 @@ impl State {
         if config.allow_browsers && head.method == "OPTIONS" {
             // A CORS preflight carries no credentials.
             return Response::empty(204)
-                .header("Access-Control-Allow-Methods", "GET")
+                .header("Access-Control-Allow-Methods", "GET, HEAD")
                 .header("Access-Control-Allow-Headers", "Authorization")
                 .header("Access-Control-Max-Age", "600");
         }
@@ -721,8 +729,10 @@ impl State {
                     .header("WWW-Authenticate", BEARER_CHALLENGE);
             }
         }
-        if head.method != "GET" {
-            return Response::error(405, "method_not_allowed").header("Allow", "GET");
+        // PRD 0031 RF9.2: `HEAD` answers like `GET`, without the body
+        // (`serve_connection` drops it when writing).
+        if head.method != "GET" && head.method != "HEAD" {
+            return Response::error(405, "method_not_allowed").header("Allow", "GET, HEAD");
         }
         let Some(path) = head.target.split('?').next().filter(|p| p.starts_with('/')) else {
             return Response::error(400, "bad_request");
@@ -734,6 +744,7 @@ impl State {
                     status: "ok",
                     version: VERSION,
                     schema: SCHEMA,
+                    schemas: SCHEMAS,
                 },
             ),
             "/v1/snapshot" => self.with_export(|export| Response::json(200, &export), snapshot),

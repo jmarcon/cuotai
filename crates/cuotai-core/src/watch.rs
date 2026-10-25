@@ -119,6 +119,12 @@ impl Watcher {
             out.extend(
                 events::diff(prev, next, &mut self.state, now)
                     .into_iter()
+                    .map(|mut event| {
+                        if event.event == EventKind::ProviderIncident {
+                            event.accounts = incident_accounts(export, next);
+                        }
+                        event
+                    })
                     .filter(|event| {
                         self.selected
                             .as_ref()
@@ -135,6 +141,26 @@ impl Watcher {
             .retain_accounts(export.accounts.iter().map(|account| account.key.as_str()));
         out
     }
+}
+
+/// PRD 0031 RF8.1: the keys, in configuration order, of the accounts that
+/// read the same provider status as `of` (same provider and source, a
+/// current reading), the first being the one the event names.
+fn incident_accounts(export: &Export, of: &AccountExport) -> Vec<String> {
+    let source = |account: &AccountExport| {
+        account
+            .incident
+            .as_ref()
+            .filter(|incident| !incident.stale)
+            .map(|incident| (account.provider.slug(), incident.page_url.clone()))
+    };
+    let wanted = source(of);
+    export
+        .accounts
+        .iter()
+        .filter(|account| wanted.is_some() && source(account) == wanted)
+        .map(|account| account.key.clone())
+        .collect()
 }
 
 #[cfg(test)]

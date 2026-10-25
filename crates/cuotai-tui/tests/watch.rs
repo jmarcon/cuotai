@@ -208,24 +208,36 @@ fn watch_with_serve_shares_the_cycle_and_exits_0_on_sighup() {
     assert!(sandbox.stderr().contains("acompanhamento encerrado."));
 }
 
-/// RF2.4: an account whose latest reading failed ends the run with 2, and
-/// the provider's raw failure never reaches the streams.
-#[test]
-fn exits_2_on_sigterm_when_an_account_ends_in_failure() {
-    let sandbox = Sandbox::new("failing", "fail");
+/// RF2.4 and PRD 0031 RF10: an account whose latest reading failed still
+/// ends a signal stop with 0, or with 2 under `--strict-exit`; the
+/// provider's raw failure never reaches the streams.
+fn failing_watch_exit(strict: bool) -> Option<i32> {
+    let name = if strict { "failing-strict" } else { "failing" };
+    let sandbox = Sandbox::new(name, "fail");
     let config = sandbox.config();
-    let child = sandbox
-        .command(&["--config", &config, "--watch"])
-        .spawn()
-        .unwrap();
+    let mut args = vec!["--config", &config, "--watch"];
+    if strict {
+        args.push("--strict-exit");
+    }
+    let child = sandbox.command(&args).spawn().unwrap();
     sandbox.until("no query", |s| s.calls() == 1);
     // The reading lands on the next tick (250 ms).
     std::thread::sleep(Duration::from_secs(1));
     let (status, stdout) = stop(child, "-TERM");
-    assert_eq!(status.code(), Some(2), "{}", sandbox.stderr());
     assert_eq!(stdout, "", "a failed first reading is a baseline too");
     assert!(sandbox.stderr().contains("contas em falha"));
     assert!(!sandbox.stderr().contains("secret-marker-7"));
+    status.code()
+}
+
+#[test]
+fn exits_0_on_sigterm_even_when_an_account_ends_in_failure() {
+    assert_eq!(failing_watch_exit(false), Some(0));
+}
+
+#[test]
+fn strict_exit_keeps_2_when_an_account_ends_in_failure() {
+    assert_eq!(failing_watch_exit(true), Some(2));
 }
 
 /// RF2.1: a short interval is rejected (never adjusted), as are unknown
@@ -251,6 +263,7 @@ fn local_errors_exit_1_before_any_query() {
         vec!["--config", config, "--jsonl"],
         vec!["--config", config, "--events", "quota_exhausted"],
         vec!["--config", config, "--hooks"],
+        vec!["--config", config, "--strict-exit"],
         vec!["--config", config, "--watch", "--once"],
     ] {
         let mut child = sandbox.command(&args).spawn().unwrap();

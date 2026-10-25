@@ -299,22 +299,24 @@ fn requires_a_generated_token_by_default() {
     assert_eq!(server.get("/health", "").0, 401);
 }
 
-#[test]
-fn exits_2_on_sigint_when_no_account_was_healthy() {
-    let sandbox = Sandbox::new("failing");
+/// PRD 0031 RF10: a signal stop exits 0 whatever the accounts' state;
+/// `--strict-exit` keeps the 2 of "no account was healthy".
+fn failing_serve_exit(strict: bool) -> Option<i32> {
+    let sandbox = Sandbox::new(if strict { "failing-strict" } else { "failing" });
     let config = sandbox.config("broken");
     // INT-04: `--no-token` is the explicit opt-out, with a warning.
-    let server = Server::start(
-        &sandbox,
-        &[
-            "--config",
-            arg(&config),
-            "--serve",
-            "--port",
-            "0",
-            "--no-token",
-        ],
-    );
+    let mut args = vec![
+        "--config",
+        arg(&config),
+        "--serve",
+        "--port",
+        "0",
+        "--no-token",
+    ];
+    if strict {
+        args.push("--strict-exit");
+    }
+    let server = Server::start(&sandbox, &args);
     assert!(
         sandbox
             .stderr()
@@ -326,7 +328,17 @@ fn exits_2_on_sigint_when_no_account_was_healthy() {
     let snapshot = server.first_snapshot("");
     assert_eq!(snapshot["accounts"][0]["report"]["status"], "error");
     let (status, _) = server.stop("-INT");
-    assert_eq!(status.code(), Some(2), "{}", sandbox.stderr());
+    status.code()
+}
+
+#[test]
+fn exits_0_on_sigint_even_when_no_account_was_healthy() {
+    assert_eq!(failing_serve_exit(false), Some(0));
+}
+
+#[test]
+fn strict_exit_keeps_2_when_no_account_was_healthy() {
+    assert_eq!(failing_serve_exit(true), Some(2));
 }
 
 #[test]
@@ -341,7 +353,9 @@ fn local_errors_exit_1() {
         &["--config", arg(&config), "--serve", "--port", &port],
     );
     assert_eq!(status.code(), Some(1));
+    // PRD 0031 RF9.1: it names the port and suggests `--port`.
     assert!(sandbox.stderr().contains(&port), "{}", sandbox.stderr());
+    assert!(sandbox.stderr().contains("--port"), "{}", sandbox.stderr());
 
     let short = sandbox.file("short-token", "short\n");
     let missing = sandbox.0.join("missing-token");
@@ -365,6 +379,7 @@ fn local_errors_exit_1() {
         vec!["--config", arg(&config), "--serve", "--port", "65536"],
         vec!["--config", arg(&config), "--port", "6738"],
         vec!["--config", arg(&config), "--no-token"],
+        vec!["--config", arg(&config), "--strict-exit"],
         vec![
             "--config",
             arg(&config),

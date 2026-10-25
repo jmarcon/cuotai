@@ -28,8 +28,10 @@ println!("{}", serde_json::to_string(&export)?);
 
 ## Stability and deprecation policy
 
-- `schema` is `1`. Within version 1 the contract is **additive**: new fields, new objects and new enum values may appear (`incident` joined in 0.49.0 with PRD 0011). Consumers must ignore properties they do not know and handle unknown enum values gracefully.
-- Removing a field, renaming it, changing its type or changing its meaning requires `schema: 2`. When version 2 exists, the producers keep offering version 1 for at least one minor release, and the changelog announces the removal in advance.
+- `schema` is `1`. Within version 1 the contract is **additive**: new fields, new objects and new enum values may appear (`incident` joined in 0.49.0 with PRD 0011). Consumers must ignore properties they do not know and treat an enum value they do not know as **"other"**.
+- **Enums are open.** In [`export-v1.schema.json`](export-v1.schema.json) every enum is `anyOf` its known values and any `string`: the listed values are the ones documented today, not a closed set, so a strict validator accepts a value added later. The value lists in this document are the known values.
+- Removing a field, renaming it, changing its type or changing its meaning requires `schema: 2` (a new number; the old meaning is never changed in place).
+- **Support window (PRD 0031 RF5.1):** when schema 2 ships, schema 1 is still served for **at least 90 days** after that release: `/v1/...` stays while `/v2/...` exists and `cuotai --json-v1` keeps printing schema 1. `/health` lists the numbers served in `schemas` (today `[1]`), next to `schema`. The changelog announces the release of the new schema and the end of the old one's window in advance. The events payload ([`events.md`](events.md#contract-policy)) follows the same policy.
 - The schema and the reference file change together with the code. The reference test fails on any difference; regenerate it with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core export_v1_reference` only after checking that the change is additive. The schema test fails when the export emits a field that the schema does not declare.
 
 ## Top level
@@ -56,6 +58,7 @@ println!("{}", serde_json::to_string(&export)?);
 | `freshness` | `fresh` / `aging` / `stale` or `null` | `report.checked_at` against the account's effective refresh interval: `fresh` up to 1.5 times, `aging` up to 3 times, `stale` above. |
 | `clock_adjusted` | boolean | `report.checked_at` is in the future (the system clock went backwards); the age then reads `0`. |
 | `stale` | boolean | `true` exactly when `last_good` is present: the current query failed (or is pending) and what is known of the account is an earlier reading. |
+| `showing_last_good` | boolean | Alias of `stale` with the same value and a name that says what it means (additive). Prefer it in new code; `stale` is not going away within schema 1. |
 | `last_good` | object or `null` | The last successful reading (`checked_at`, its original time; `age_seconds`; `metrics`), offered only while `report` is missing or failed. It is never current data and never feeds `class`, `binding` or `pace`. An authentication failure discards it. |
 | `binding` | object or `null` | The metric that restricts the account most (`index` into `report.metrics`, `label`, `window`, `used_ratio`, `remaining`, `resets_at`, `reason` `exhausted`/`tightest`, `blocked_until`). `null` for a failed or unmeasured report. |
 | `pace` | array | One entry per `report.metrics` item, in the same order: the consumption pace until the reset (`elapsed_fraction`, `expected_used_fraction`, `used_fraction`, `delta_points`, `stage`, `tone`, `source`, `resets_at`, `projected_exhaustion_at`, `lasts_until_reset`), or `null` for a metric without one (not a quota, no window, no cap, the window just opened, or reset since the reading). It is computed at the reading's `checked_at`, not at `generated_at`, and every entry is `null` while `freshness` is not `fresh`: an aging or stale reading has an age, never a pace. The shape is unchanged; since 0.80.0 a non-fresh reading reports `null` where earlier versions projected an old value against the current clock. Empty without a report. |
@@ -67,6 +70,18 @@ Localized texts are objects `{ "id", "params", "fallback" }`: resolve `id` in yo
 ## Limits summary (`Limits`)
 
 `Limits::from_export(&export)` is the body of the local server's `/v1/limits`: `schema`, `generated_at` and, per account in configuration order, `index`, `key`, `name`, `provider`, `class`, `binding`, `age_seconds`, `freshness` and `stale`, with the same meaning as in `AccountExport`. It is part of version 1 under the same additive policy and is declared as `$defs/Limits` in the schema (checked by `export::v1::tests::limits_summary_follows_its_schema`).
+
+## The three "stale" fields
+
+Three different fields are called `stale`, or mean it; they are not interchangeable.
+
+| Field | Where | Exact meaning |
+|---|---|---|
+| `accounts[].stale` (alias `showing_last_good`) | `AccountExport`, `Limits` accounts | A preserved earlier reading (`last_good`) is shown instead of a current one: the latest query failed or is still pending. It says nothing about how old the reading is. |
+| `accounts[].freshness` = `stale` | `AccountExport`, `Limits` accounts | The age of `report.checked_at` is above 3 times the account's effective refresh interval (`fresh` up to 1.5, `aging` up to 3). It is about time only, whatever the status of the report. |
+| `accounts[].incident.stale` | `AccountExport` | The latest query of the provider's **public status page** failed: `incident.state` is the previous status reading (or `unknown` without one). It is about the provider status, not the account's usage. |
+
+No meaning changes within schema 1.
 
 ## Missing values
 

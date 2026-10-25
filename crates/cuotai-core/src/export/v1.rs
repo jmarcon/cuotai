@@ -88,6 +88,10 @@ pub struct AccountExport {
     /// `true` exactly when `last_good` is present: what is known of the
     /// account comes from an earlier reading, not from `report`.
     pub stale: bool,
+    /// PRD 0031 RF5.4: the same value as `stale`, under a name that says
+    /// what it means (a preserved reading is shown instead of a current
+    /// one). Additive; `stale` keeps its name and meaning.
+    pub showing_last_good: bool,
     /// The last `Ready` reading, offered only while `report` is missing or
     /// failed ([`RefreshCycle::last_good_report`]). Never current data.
     pub last_good: Option<LastGood>,
@@ -278,6 +282,7 @@ fn account_export(
         clock_adjusted: report
             .is_some_and(|report| freshness::clock_adjusted(report.checked_at, now)),
         stale: last_good.is_some(),
+        showing_last_good: last_good.is_some(),
         last_good: last_good.map(|reading| LastGood {
             checked_at: reading.checked_at,
             age_seconds: age(reading.checked_at),
@@ -1138,6 +1143,74 @@ mod tests {
         let mut errors = Vec::new();
         validate(&schema, &schema, &broken, "$", &mut errors);
         assert_eq!(errors.len(), 3, "{errors:#?}");
+    }
+
+    /// PRD 0031 RF5.2: every enum of the schema is open (`anyOf` the known
+    /// values and any string), so a value added within schema 1 validates;
+    /// a type mismatch is still rejected.
+    #[test]
+    fn schema_enums_are_open() {
+        fn closed(at: &str, schema: &Value, inside_any_of: bool, found: &mut Vec<String>) {
+            match schema {
+                Value::Object(map) => {
+                    if map.contains_key("enum") && !inside_any_of {
+                        found.push(at.to_owned());
+                    }
+                    for (key, value) in map {
+                        closed(&format!("{at}/{key}"), value, false, found);
+                    }
+                }
+                Value::Array(items) => {
+                    let open = items
+                        .iter()
+                        .any(|item| item == &serde_json::json!({ "type": "string" }));
+                    for (index, item) in items.iter().enumerate() {
+                        let in_open_any_of = at.ends_with("/anyOf") && open;
+                        closed(&format!("{at}/{index}"), item, in_open_any_of, found);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let schema: Value =
+            serde_json::from_str(&std::fs::read_to_string(doc_path(SCHEMA_DOC)).unwrap())
+                .expect("docs/export-v1.schema.json is JSON");
+        let mut found = Vec::new();
+        closed("#", &schema, false, &mut found);
+        assert!(found.is_empty(), "closed enums: {found:#?}");
+
+        let (config, cycle) = reference();
+        let mut json = export(&config, &cycle, Options::default());
+        let first = &mut json["accounts"][0];
+        first["class"] = "future_class".into();
+        first["freshness"] = "future_freshness".into();
+        first["report"]["status"] = "future_status".into();
+        first["report"]["metrics"][0]["kind"] = "future_kind".into();
+        first["report"]["metrics"][0]["window"] = "future_window".into();
+        first["binding"]["reason"] = "future_reason".into();
+        first["pace"][0]["stage"] = "future_stage".into();
+        first["access"]["level"] = "future_level".into();
+        first["access"]["scope"] = "future_scope".into();
+        let mut errors = Vec::new();
+        validate(&schema, &schema, &json, "$", &mut errors);
+        assert!(errors.is_empty(), "{errors:#?}");
+        json["accounts"][0]["class"] = Value::from(7);
+        let mut errors = Vec::new();
+        validate(&schema, &schema, &json, "$", &mut errors);
+        assert_eq!(errors.len(), 1, "{errors:#?}");
+    }
+
+    /// PRD 0031 RF5.4: `showing_last_good` is the documented alias of
+    /// `stale`, on every account.
+    #[test]
+    fn showing_last_good_mirrors_stale() {
+        let (config, cycle) = reference();
+        let json = export(&config, &cycle, Options::default());
+        let accounts = json["accounts"].as_array().unwrap();
+        assert!(accounts.iter().any(|account| account["stale"] == true));
+        for account in accounts {
+            assert_eq!(account["showing_last_good"], account["stale"]);
+        }
     }
 
     /// PRD 0012 RF2.2: the `/v1/limits` summary is declared in the same

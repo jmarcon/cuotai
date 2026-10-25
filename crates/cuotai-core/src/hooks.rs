@@ -222,6 +222,7 @@ impl Rule {
             account_key: format!("{}:{account_name}", provider.slug()),
             account_name,
             provider,
+            accounts: Vec::new(),
             metric: about_metric.then(|| MetricRef {
                 label: SAMPLE_METRIC.into(),
                 window: Some(MetricWindow::Window5h),

@@ -221,6 +221,7 @@ mod tests {
             occurred_at: Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap(),
             account_key: format!("claude:{name}"),
             account_name: name.into(),
+            accounts: Vec::new(),
             provider: Provider::Claude,
             metric: Some(MetricRef {
                 label: "Semanal".into(),

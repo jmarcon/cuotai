@@ -52,6 +52,12 @@ const HISTORY_SPARK_CELLS: usize = 60;
         clap::ArgGroup::new("cost_action")
             .multiple(false)
             .conflicts_with_all(["once", "json_v1", "history", "notify", "serve", "watch"])
+    ),
+    // PRD 0031 RF10.2: `--strict-exit` belongs to the foreground modes.
+    group(
+        clap::ArgGroup::new("headless")
+            .args(["serve", "watch"])
+            .multiple(true)
     )
 )]
 struct Args {
@@ -179,13 +185,13 @@ struct Args {
     /// Servidor HTTP local somente leitura em 127.0.0.1, sem abrir a TUI e
     /// sem exigir terminal: mantém o ciclo de atualização e serve o export
     /// v1 (/health, /v1/snapshot, /v1/accounts/{chave}, /v1/limits) sem
-    /// consultar provedores por requisição. SIGINT/SIGTERM encerram. Saída
-    /// 0; 2 se nenhuma conta ficou saudável até o encerramento; 1 em erro
-    /// local (porta, configuração, token).
+    /// consultar provedores por requisição. SIGINT/SIGTERM encerram, com
+    /// saída 0 (com --strict-exit: 2 se nenhuma conta ficou saudável até o
+    /// encerramento); 1 em erro local (porta ocupada, configuração, token).
     #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
     serve: bool,
-    /// Porta do --serve, e só ela (ocupada: erro). Sem --port: 6738 ou, se
-    /// ocupada, uma das 9 seguintes.
+    /// Porta do --serve, e só ela (ocupada: erro, saída 1). Sem --port: 6738,
+    /// também sem recuo para outra porta.
     #[arg(long, value_name = "PORTA", requires = "serve")]
     port: Option<u16>,
     /// Arquivo com o token que o --serve exige em Authorization: Bearer (16
@@ -209,8 +215,8 @@ struct Args {
     /// ou voltou, autenticação necessária, status do provedor, uso
     /// atualizado no máximo a cada 10 min). A primeira leitura de cada
     /// conta é só a base. Combina com --serve no mesmo ciclo.
-    /// SIGINT/SIGTERM/SIGHUP encerram. Saída 0; 2 se alguma conta terminou
-    /// em falha; 1 em erro local.
+    /// SIGINT/SIGTERM/SIGHUP encerram, com saída 0 (com --strict-exit: 2 se
+    /// alguma conta terminou em falha); 1 em erro local.
     #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
     watch: bool,
     /// Intervalo do --watch em segundos (60 a 86400; menor é erro, nunca
@@ -223,6 +229,12 @@ struct Args {
     /// p. ex. quota_threshold_crossed,refresh_failed.
     #[arg(long, value_name = "LISTA", value_delimiter = ',', requires = "watch")]
     events: Option<Vec<String>>,
+    /// Com --serve ou --watch, devolve a saída 2 ao encerrar por sinal quando
+    /// alguma conta terminou em falha (--watch) ou nenhuma ficou saudável
+    /// (--serve), para supervisores que querem isso; sem a opção, o
+    /// encerramento por SIGINT/SIGTERM sai com 0.
+    #[arg(long, requires = "headless")]
+    strict_exit: bool,
     /// Com --watch, um evento JSON por linha (NDJSON) no stdout;
     /// mensagens e diagnósticos vão ao stderr.
     #[arg(long, requires = "watch")]
@@ -532,8 +544,16 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             // PRD 0015 RF4.3: the server publishes `local_cost`, kept
             // current by the background scan while it runs.
             let local_cost = args.serve.then(cost::LocalCost::start).flatten();
-            return headless::run(config, file.identity()?, monitor, serve, watch, local_cost)
-                .await;
+            return headless::run(
+                config,
+                file.identity()?,
+                monitor,
+                serve,
+                watch,
+                local_cost,
+                args.strict_exit,
+            )
+            .await;
         }
         // PRD 0010 RF2.3: read before this query's readings are recorded.
         let restored = if args.json_v1 {
