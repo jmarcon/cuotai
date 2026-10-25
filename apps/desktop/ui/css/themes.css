@@ -407,3 +407,8 @@ svg.i.sel-tick {
 .lang-list button {
   border: 1px solid var(--border);
 }
+
+/* First paint of an app window with empty web storage waits for the shell's theme answer (at most 600 ms). */
+:root[data-theme-pending] body {
+  visibility: hidden;
+}

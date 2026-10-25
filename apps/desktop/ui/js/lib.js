@@ -219,7 +219,9 @@ export async function syncPreferences({ boot = false } = {}) {
       try { await call("set_preference", { key: "theme", value: "dracula" }); s = await getSettings(); } catch { /* keeps the default */ }
     }
     return await applyPreferences(s, { boot });
-  } catch { return new Set(); }
+  } catch { return new Set(); } finally {
+    document.documentElement.removeAttribute?.("data-theme-pending");
+  }
 }
 export const openUserDir = () => call("open_user_dir");
 // PRD 0006 RF4: measurement history retention (desktop.json), export and erasure; the core does the work.

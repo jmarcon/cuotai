@@ -54,6 +54,13 @@
             if ((localStorage.key(k) || "").indexOf("cuotai.") === 0) { theme = "dracula"; localStorage.setItem("cuotai.theme", theme); break; }
           }
           localStorage.setItem("cuotai.themeDefaultMigrated", "1");
+          // Empty web storage in the app: a new install or a profile whose storage was cleared. Only the shell
+          // (desktop.json) can tell them apart, so the first paint waits for it, hidden for at most 600 ms, instead
+          // of flashing the new-install theme over an existing profile's Dracula.
+          if (!theme && typeof window !== "undefined" && window.__TAURI__) {
+            document.documentElement.setAttribute("data-theme-pending", "");
+            setTimeout(function () { document.documentElement.removeAttribute("data-theme-pending"); }, 600);
+          }
         }
         document.documentElement.dataset.theme = theme || "cuotai";
         document.documentElement.dataset.mode = d ? "dark" : "light";
