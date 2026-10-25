@@ -464,6 +464,31 @@ fn secrets_are_declared_by_name_variable_and_description() {
     assert_eq!(rejection(root.path()), "extensions.error.toml");
 }
 
+/// PRD 0028 RF7.1: `overrides` names a built-in provider by its slug.
+#[test]
+fn overrides_names_a_builtin_provider() {
+    let root = tempfile::tempdir().unwrap();
+    extension(
+        root.path(),
+        "p",
+        &with("p", "overrides", Some("\"claude\"")),
+    );
+    let discovery = discover(root.path());
+    assert_eq!(
+        discovery.extensions[0].overrides,
+        Some(crate::Provider::Claude)
+    );
+    for value in ["\"extension\"", "\"nope\"", "\"\""] {
+        let root = tempfile::tempdir().unwrap();
+        extension(root.path(), "p", &with("p", "overrides", Some(value)));
+        assert_eq!(
+            rejection(root.path()),
+            "extensions.error.overrides",
+            "{value}"
+        );
+    }
+}
+
 #[test]
 fn each_field_is_validated() {
     for (key, value, reason) in [

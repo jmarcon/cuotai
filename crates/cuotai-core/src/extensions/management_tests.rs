@@ -737,3 +737,121 @@ async fn an_extension_secret_reaches_only_the_child_environment() {
         "the vault entry is gone"
     );
 }
+
+/// PRD 0028 RF7.1–RF7.3: an approved extension with `overrides` replaces
+/// the built-in query of the account that chose it, never receives that
+/// account's credential (the parent holds it; the program reports ready
+/// only when its environment lacks it), shows as "Extension (override)" in
+/// the descriptor, the export and the problem report, and revocation hands
+/// the account back to the built-in adapter.
+#[tokio::test]
+async fn an_override_never_sees_the_account_credential_and_revocation_restores_the_builtin() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    fs::create_dir_all(&root).unwrap();
+    let mut parent: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+    parent.push((
+        "CUOTAI_TEST_OVERRIDE_KEY".into(),
+        "seed-credential-91".into(),
+    ));
+    let rig = Rig {
+        manager: Arc::new(Manager::at_with_parent_env(&root, parent)),
+        root,
+        _dir: dir,
+    };
+    let error = r#"{"schema":1,"status":"error"}"#;
+    rig.extension_with_source(
+        "proxy",
+        &format!(
+            "fn main() {{ let leaked = std::env::var_os(\"CUOTAI_TEST_OVERRIDE_KEY\").is_some(); \
+             print!(\"{{}}\", if leaked {{ {error:?} }} else {{ {READY:?} }}); }}\n"
+        ),
+    );
+    let manifest_file = rig.root.join("proxy").join(MANIFEST_FILE);
+    let mut manifest = fs::read_to_string(&manifest_file).unwrap();
+    manifest.push_str("overrides = \"open_ai_api\"\n");
+    fs::write(&manifest_file, &manifest).unwrap();
+
+    let mut config = base();
+    config.accounts.push(Account {
+        id: Some(crate::AccountId::random()),
+        name: "Work".into(),
+        provider: Provider::OpenAiApi,
+        credential_env: Some("CUOTAI_TEST_OVERRIDE_KEY".into()),
+        oauth: None,
+        session: None,
+        params: BTreeMap::new(),
+        refresh_seconds: None,
+    });
+
+    // Not offered before approval; enabling creates no account of its own.
+    assert!(item(&rig.manager.list(&config), "proxy")
+        .override_targets
+        .is_empty());
+    assert!(rig.manager.set_override(&config, 0, "proxy", true).is_err());
+    let disclosure = rig.manager.disclosure("proxy").unwrap();
+    let enabled = rig
+        .manager
+        .enable(&disclosure.candidate, true, &config)
+        .unwrap();
+    rig.manager.confirm_commit("proxy");
+    assert!(enabled.action.account.is_none());
+    assert_eq!(enabled.config.accounts.len(), 1);
+    let listed = rig.manager.list(&config);
+    let row = item(&listed, "proxy");
+    assert_eq!(row.overrides, Some(Provider::OpenAiApi));
+    assert!(!row.actions.enable, "already enabled, nothing to create");
+    assert_eq!(row.override_targets.len(), 1);
+    assert!(!row.override_targets[0].active);
+
+    let config = rig.manager.set_override(&config, 0, "proxy", true).unwrap();
+    assert_eq!(config.accounts[0].extension_override(), Some("proxy"));
+    assert!(item(&rig.manager.list(&config), "proxy").override_targets[0].active);
+    let monitor = crate::Monitor::new(config.clone())
+        .unwrap()
+        .with_extensions(Arc::clone(&rig.manager));
+    let report = monitor.refresh_account(0).await;
+    assert_eq!(report.provider, Provider::OpenAiApi);
+    assert_eq!(report.source, "extension:proxy");
+    assert_eq!(
+        report.status,
+        Status::Ready,
+        "the credential never reached it"
+    );
+    assert!(report
+        .notes_l10n
+        .iter()
+        .any(|note| note.id.as_ref() == "extensions.override.active"));
+    let access = crate::access::describe_reading(&config.accounts[0], Some(&report));
+    assert_eq!(access.level, crate::access::Level::Extension);
+    assert_eq!(access.overrides, Some(Provider::OpenAiApi));
+    assert_eq!(access.label().id, "access.level.extension_override");
+    let exported = serde_json::to_value(&access).unwrap();
+    assert_eq!(exported["level"], "extension");
+    assert_eq!(exported["overrides"], "open_ai_api");
+    let draft = crate::support::issue_draft(
+        &crate::support::AccountView {
+            account: &config.accounts[0],
+            report: &report,
+            last_good_age: None,
+            incident_active: None,
+        },
+        &crate::support::AppInfo::current("unknown"),
+    );
+    assert!(draft.body.contains("extension override is active"));
+
+    // Revocation: the built-in adapter answers again.
+    rig.manager.disable("proxy").unwrap();
+    let after = monitor.refresh_account(0).await;
+    assert_ne!(after.source, "extension:proxy");
+    assert_eq!(
+        crate::access::describe_reading(&config.accounts[0], Some(&after)).overrides,
+        None
+    );
+    // Turning it off is always allowed.
+    let off = rig
+        .manager
+        .set_override(&config, 0, "proxy", false)
+        .unwrap();
+    assert_eq!(off.accounts[0].extension_override(), None);
+}

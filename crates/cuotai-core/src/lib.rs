@@ -297,6 +297,12 @@ impl Config {
             {
                 return Err(ConfigError::Extension);
             }
+            if account
+                .extension_override()
+                .is_some_and(|id| !extensions::valid_id(id))
+            {
+                return Err(ConfigError::Extension);
+            }
             // One extension is one account: two rows for the same id would
             // race over one consent record and one schedule.
             if let Some(id) = account.extension_id() {
@@ -930,6 +936,30 @@ impl Monitor {
         account: &Account,
         pasted: &[user_session::ReducedSession],
     ) -> Report {
+        // PRD 0028 RF7.1/RF7.2: an approved override extension replaces the
+        // built-in query of the account that chose it. It receives only its
+        // own declared `env` and secrets, never this account's credentials;
+        // when it is missing, revoked, changed or does not override this
+        // provider, the built-in adapter answers as before.
+        if let (Some(id), Some(manager)) = (account.extension_override(), &self.extensions) {
+            let checked_at = self.now();
+            if let Some(result) = manager
+                .run_override(account.provider, id, Some(self.oauth.token_store()))
+                .await
+            {
+                let checked = match result {
+                    Ok(checked) => checked,
+                    Err(note) => extensions::output::Checked {
+                        source: format!("extension:{id}"),
+                        status: Status::NeedsConfiguration,
+                        metrics: Vec::new(),
+                        notes: vec![note],
+                        violations: Vec::new(),
+                    },
+                };
+                return checked.into_report(account.name.clone(), account.provider, checked_at);
+            }
+        }
         if account.provider == Provider::Extension {
             let checked_at = self.now();
             let unavailable = |note: crate::text::Localized| {

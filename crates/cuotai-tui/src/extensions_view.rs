@@ -31,6 +31,13 @@ pub(crate) enum Action {
     Remove(usize),
     /// PRD 0028 RF7.4: ask core for the extension's declared secrets.
     Secrets(String),
+    /// PRD 0028 RF7.1: use (`on`) or stop using the override extension `id`
+    /// for the account at `index`.
+    SetOverride {
+        id: String,
+        index: usize,
+        on: bool,
+    },
     /// Keep one secret's value in the vault through core.
     SaveSecret {
         id: String,
@@ -56,6 +63,8 @@ pub(crate) struct ExtensionsView {
     scroll: u16,
     message: Option<(String, bool)>,
     secret: Option<SecretPrompt>,
+    /// PRD 0028 RF7.1: the extension whose override targets are listed.
+    overriding: Option<String>,
 }
 
 /// The pending disclosure: the lines to review and the core's opaque
@@ -74,6 +83,7 @@ impl ExtensionsView {
             scroll: 0,
             message: None,
             secret: None,
+            overriding: None,
         }
     }
 
@@ -160,6 +170,32 @@ impl ExtensionsView {
                 _ => Action::Stay,
             };
         }
+        if let Some(id) = &self.overriding {
+            let id = id.clone();
+            return match code {
+                KeyCode::Char(c @ '1'..='9') => {
+                    let position = c as usize - '1' as usize;
+                    let target = self
+                        .items
+                        .iter()
+                        .find(|item| item.id == id)
+                        .and_then(|item| item.override_targets.get(position));
+                    match target {
+                        Some(target) => Action::SetOverride {
+                            id,
+                            index: target.index,
+                            on: !target.active,
+                        },
+                        None => Action::Stay,
+                    }
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.overriding = None;
+                    Action::Stay
+                }
+                _ => Action::Stay,
+            };
+        }
         if let Some(pending) = &self.disclosure {
             return match code {
                 KeyCode::Esc | KeyCode::Char('n' | 'N') => {
@@ -222,6 +258,17 @@ impl ExtensionsView {
                 .filter(|item| item.actions.test)
                 .map(|item| Action::Test(item.id.clone()))
                 .unwrap_or(Action::Stay),
+            // RF7.1: the accounts an enabled override extension can replace.
+            KeyCode::Char('o' | 'O') => {
+                if let Some(item) = self
+                    .selected_item()
+                    .filter(|item| !item.override_targets.is_empty())
+                {
+                    self.overriding = Some(item.id.clone());
+                    self.message = None;
+                }
+                Action::Stay
+            }
             // RF7.4: secrets are entered only for an approved extension.
             KeyCode::Char('v' | 'V') => self
                 .selected_item()
@@ -265,7 +312,35 @@ impl ExtensionsView {
         let block = Block::default().borders(Borders::ALL);
         let inner = block.inner(areas[1]);
         let inner_height = inner.height;
-        let lines = if let Some(prompt) = &self.secret {
+        let overriding = self
+            .overriding
+            .as_ref()
+            .and_then(|id| self.items.iter().find(|item| &item.id == id));
+        let lines = if let Some(item) = overriding {
+            let mut lines = vec![
+                Line::styled(
+                    format!(
+                        "Substituição pela extensão {}: escolha as contas",
+                        safe(&item.name)
+                    ),
+                    Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+                ),
+                Line::styled(
+                    "A extensão recebe só as próprias variáveis e segredos, nunca as credenciais da conta.",
+                    Style::default().fg(MUTED),
+                ),
+                Line::default(),
+            ];
+            for (position, target) in item.override_targets.iter().enumerate().take(9) {
+                lines.push(Line::from(format!(
+                    "  {}  [{}] {}",
+                    position + 1,
+                    if target.active { "x" } else { " " },
+                    safe(&target.name)
+                )));
+            }
+            lines
+        } else if let Some(prompt) = &self.secret {
             let item = &prompt.items[prompt.index];
             vec![
                 Line::styled(
@@ -421,12 +496,14 @@ impl ExtensionsView {
         }
         paragraph = paragraph.scroll((self.scroll, 0));
         frame.render_widget(paragraph, areas[1]);
-        let footer = if self.secret.is_some() {
+        let footer = if overriding.is_some() {
+            "1–9 liga/desliga a substituição da conta · Esc volta"
+        } else if self.secret.is_some() {
             "digite o valor (oculto) · Enter guarda no cofre · Backspace apaga · Esc cancela"
         } else if self.disclosure.is_some() {
             "↑↓/jk PgUp/PgDn rolam (sem aprovar) · s aprova e ativa · n/Esc cancela · risco residual permanece"
         } else {
-            "↑↓ seleciona · e ativa · d desativa · t testa · v segredos · x/Delete remove a conta · Esc volta"
+            "↑↓ seleciona · e ativa · d desativa · t testa · v segredos · o substitui · x/Delete remove a conta · Esc volta"
         };
         let mut footer_lines = vec![Line::styled(footer, Style::default().fg(YELLOW))];
         if let Some((message, error)) = &self.message {
@@ -480,6 +557,8 @@ mod tests {
                 name: name.to_owned(),
                 key: format!("extension:{name}:{name}"),
             }),
+            overrides: None,
+            override_targets: Vec::new(),
         }
     }
 
@@ -605,6 +684,31 @@ mod tests {
             _ => panic!("Enter hands the value to core"),
         }
         view.secret_saved("ok".into());
+        assert!(matches!(view.key(KeyCode::Char('q')), Action::Close));
+    }
+
+    #[test]
+    fn an_override_toggles_the_numbered_account() {
+        let mut row = item(ExtensionState::Enabled, false, true);
+        row.overrides = Some(cuotai_core::Provider::Claude);
+        row.override_targets = vec![cuotai_core::extensions::management::OverrideTarget {
+            index: 3,
+            name: "Work".into(),
+            active: false,
+        }];
+        let mut view = ExtensionsView::new(vec![row]);
+        assert!(matches!(view.key(KeyCode::Char('o')), Action::Stay));
+        assert!(render(&mut view, 80, 20).contains("[ ] Work"));
+        assert!(matches!(view.key(KeyCode::Char('2')), Action::Stay));
+        assert!(matches!(
+            view.key(KeyCode::Char('1')),
+            Action::SetOverride {
+                index: 3,
+                on: true,
+                ..
+            }
+        ));
+        assert!(matches!(view.key(KeyCode::Esc), Action::Stay));
         assert!(matches!(view.key(KeyCode::Char('q')), Action::Close));
     }
 

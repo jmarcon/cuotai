@@ -72,7 +72,7 @@ const ENV_MAX_NAMES: usize = 32;
 const ENV_NAME_MAX_CHARS: usize = 128;
 
 /// The keys a schema-1 manifest accepts, as the errors list them.
-const KEYS: [&str; 12] = [
+const KEYS: [&str; 13] = [
     "id",
     "name",
     "version",
@@ -85,6 +85,7 @@ const KEYS: [&str; 12] = [
     "env",
     "min_cuotai",
     "secrets",
+    "overrides",
 ];
 
 /// PRD 0028 RF7.4: the most `[[secrets]]` a manifest may declare.
@@ -129,6 +130,9 @@ pub struct Manifest {
     /// PRD 0028 RF7.4: the secrets the extension asks for. Their values live
     /// only in the OS vault and reach only the child's environment.
     pub secrets: Vec<Secret>,
+    /// PRD 0028 RF7.1: the built-in provider whose query this extension can
+    /// replace, account by account, when the user chooses it.
+    pub overrides: Option<crate::Provider>,
     /// The extension's folder, with symbolic links resolved.
     pub dir: PathBuf,
     /// The program `command[0]` names, resolved inside [`Self::dir`].
@@ -375,6 +379,7 @@ struct RawManifest {
     min_cuotai: Option<String>,
     #[serde(default)]
     secrets: Vec<RawSecret>,
+    overrides: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -441,6 +446,25 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         .transpose()?;
     let env = valid_env(raw.env)?;
     let secrets = valid_secrets(raw.secrets, &env)?;
+    let overrides = raw
+        .overrides
+        .map(|slug| {
+            crate::Provider::from_slug(slug.trim())
+                .filter(|provider| *provider != crate::Provider::Extension)
+                .ok_or_else(|| {
+                    Localized::with_param(
+                        "extensions.error.overrides",
+                        "provider",
+                        quoted(&slug),
+                        format!(
+                            "O overrides {} não é o identificador de uma integração embutida \
+                             (veja cuotai --list-providers).",
+                            quoted(&slug)
+                        ),
+                    )
+                })
+        })
+        .transpose()?;
     let (dir, program) = resolve_program(dir, &raw.command)?;
     // FIX-04/FIX-05: the whole folder must be hashable, and on Unix
     // nobody else may change it, before it is ever offered for approval.
@@ -458,6 +482,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
         homepage,
         env,
         secrets,
+        overrides,
         dir,
         program,
         interpreter,

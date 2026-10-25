@@ -238,6 +238,12 @@ fn build(view: &AccountView<'_>, app: &AppInfo, canary: Option<(&str, &str)>) ->
     ));
     if account.provider == crate::Provider::Extension {
         line("An extension reports this account.".to_string());
+    } else if report.source.starts_with("extension:") {
+        // PRD 0028 RF7.3: the built-in adapter did not answer.
+        line(
+            "An extension override is active: an extension replaced the built-in query."
+                .to_string(),
+        );
     }
     body.push_str(
         "\nNo account name, e-mail, organization, credential, URL or response value is included.\n",

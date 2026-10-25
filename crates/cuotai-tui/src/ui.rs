@@ -1835,6 +1835,19 @@ pub async fn run(
                                             view.set_message(resolve_l10n(&note), true);
                                         }
                                     }
+                                    // PRD 0028 RF7.1: an override extension
+                                    // creates no account; only the approval
+                                    // changed.
+                                    Ok(enabled) if enabled.action.account.is_none() => {
+                                        manager.confirm_commit(&enabled.action.id);
+                                        if let Some(view) = &mut extensions {
+                                            view.replace(manager.list(&file.config));
+                                            view.set_message(
+                                                resolve_l10n(&enabled.action.message),
+                                                false,
+                                            );
+                                        }
+                                    }
                                     Ok(enabled) => {
                                         let message = resolve_l10n(&enabled.action.message);
                                         let id = enabled.action.id.clone();
@@ -1956,6 +1969,50 @@ pub async fn run(
                                     if let Some(view) = &mut extensions {
                                         view.set_message("Testando extensão…".into(), false);
                                     }
+                                }
+                            }
+                        }
+                        ExtensionAction::SetOverride { id, index, on } => {
+                            if let Some(manager) = monitor.extension_manager().cloned() {
+                                match manager.set_override(&file.config, index, &id, on) {
+                                    Err(note) => {
+                                        if let Some(view) = &mut extensions {
+                                            view.set_message(resolve_l10n(&note), true);
+                                        }
+                                    }
+                                    Ok(updated) => match apply_edit_to_config(
+                                        &mut file,
+                                        &monitor,
+                                        &mut refresh_cycle,
+                                        &mut account_refresh,
+                                        &mut state,
+                                        updated,
+                                        Some(index),
+                                        None,
+                                    ) {
+                                        Ok((new_monitor, _)) => {
+                                            monitor = new_monitor;
+                                            if let Some(view) = &mut extensions {
+                                                view.replace(manager.list(&file.config));
+                                            }
+                                            if index < account_refresh.len()
+                                                && account_refresh.slot(index).is_none()
+                                            {
+                                                if let Some(token) = refresh_cycle.begin(index) {
+                                                    account_refresh.install(
+                                                        index,
+                                                        start_account_refresh(&monitor, index),
+                                                        token,
+                                                    );
+                                                }
+                                            }
+                                        }
+                                        Err(error) => {
+                                            if let Some(view) = &mut extensions {
+                                                view.set_message(error.message(), true);
+                                            }
+                                        }
+                                    },
                                 }
                             }
                         }

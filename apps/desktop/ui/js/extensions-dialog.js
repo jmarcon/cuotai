@@ -2,7 +2,8 @@
 // integrity, consent, account and execution decisions come from core.
 import {
   disableExtension, enableExtension, errText, extensionDisclosure,
-  extensionSecrets, listExtensions, setExtensionSecret, testExtension,
+  extensionSecrets, listExtensions, setExtensionOverride, setExtensionSecret,
+  testExtension,
 } from "./lib.js";
 import { t, te, tl } from "./i18n.js";
 import { showDialog } from "./motion.js";
@@ -83,6 +84,37 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
       }));
     }
     article.append(title, version, description, runtime, actions);
+    // PRD 0028 RF7.1: an enabled override extension lists the accounts of
+    // its provider; each checkbox is "Use extension override" for that one.
+    if (row.override_targets?.length) {
+      const box = el("fieldset", "extension-overrides");
+      box.append(el("legend", "", t("extensions.overrideTitle")));
+      box.append(el("p", "help", t("extensions.overrideHelp")));
+      for (const target of row.override_targets) {
+        const label = el("label", "extension-confirm");
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.checked = !!target.active;
+        check.addEventListener("change", async () => {
+          check.disabled = true;
+          try {
+            await setExtensionOverride(target.index, row.id, check.checked);
+            status.textContent = check.checked
+              ? t("extensions.overrideOn", { account: target.name })
+              : t("extensions.overrideOff", { account: target.name });
+            onChanged();
+          } catch (error) {
+            check.checked = !check.checked;
+            status.textContent = errText(error);
+          } finally {
+            check.disabled = false;
+          }
+        });
+        label.append(check, document.createTextNode(t("extensions.overrideUse", { account: target.name })));
+        box.append(label);
+      }
+      article.append(box);
+    }
     return article;
   }
 

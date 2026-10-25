@@ -383,6 +383,7 @@
       "properties": {
         "overage": { "anyOf": [{ "enum": ["money", "provider_units", "not_reported"] }, { "type": "string" }], "description": "Whether the interface reports paid extra usage, and in what." },
         "level": { "anyOf": [{ "enum": ["official", "undocumented", "derived", "unavailable", "extension"] }, { "type": "string" }] },
+        "overrides": { "$ref": "#/$defs/Provider", "description": "Present only when an extension override answered this account (PRD 0028 RF7.3): the built-in provider it replaced; level is then extension." },
         "credential": { "anyOf": [{ "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session", "aggregator_login"] }, { "type": "string" }] },
         "plan_requirement": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
         "scope": { "anyOf": [{ "enum": ["account", "organization", "whole_cloud", "product", "instance"] }, { "type": "string" }] },

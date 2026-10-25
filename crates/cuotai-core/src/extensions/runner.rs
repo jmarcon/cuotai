@@ -233,7 +233,7 @@ impl Runner {
     /// [`Self::with_consent`] reading the parent environment from `parent`
     /// instead of the process environment.
     #[cfg(test)]
-    fn with_parent_env(
+    pub(crate) fn with_parent_env(
         parent: impl IntoIterator<Item = (OsString, OsString)>,
         consent: &Consent,
     ) -> Self {

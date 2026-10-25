@@ -45,6 +45,7 @@ timeout_seconds = 15 # optional; default 15
 | `env` | Optional array of at most 32 environment-variable names. Each matches `[A-Za-z_][A-Za-z0-9_]*` and is at most 128 bytes. Repeated names are deduplicated in first-seen order. |
 | `min_cuotai` | Optional `X.Y.Z` text: the oldest Cuotai the extension works with. A newer requirement than the running Cuotai is refused first, before any other validation error, with a reason naming both versions. |
 | `[[secrets]]` | Optional, at most 8 tables with `name` (slug of lowercase letters, digits and `_`, at most 32), `env` (the variable that receives the value; not `PATH`, `HOME`, `LANG`, `SystemRoot`, a name already in `env` or another secret's) and `description` (one line, at most 200 characters). Unknown keys inside an entry are rejected. See "Extension secrets" below. |
+| `overrides` | Optional slug of a built-in provider (as `cuotai --list-providers` prints it, never `extension`). See "Overriding a built-in integration" below. |
 
 A manifest larger than 64 KiB is rejected. Top-level tables whose names start with `x-` (for example `[x-vendor]`) are ignored: they are reserved for extension authors and future fields. Every other unknown manifest field is rejected, including an `x-` key that is not a table; an unsupported schema is rejected. A folder whose manifest cannot be read is still listed by both frontends with the reason (state `Invalid`) and can never be enabled; one bad folder does not prevent other extensions or built-in accounts from loading. Two valid folders sharing an `id` are both rejected, and the row says so. When a configured account's folder stops parsing, that account's own row becomes `Invalid` with the reason instead of appearing twice or as missing. One extension maps to exactly one account: two accounts pointing at the same `extension_id` are refused as a configuration error.
 
@@ -175,6 +176,18 @@ Make it executable on Unix with `chmod +x quota.py`. Requested values are inheri
 **Windows.** There is no shebang and no `PATH` lookup: `command[0]` must be a file the OS executes directly. Use a packaged executable — `quota.exe` built with PyInstaller, Go, Rust, .NET or similar, placed in the folder with `command = ["./quota.exe"]`, or a program distributed as a self-contained executable for the interpreter it needs. It runs as one direct process, with no shell parsing in between.
 
 The two examples above are Unix-only as written. On Windows, ship an executable.
+
+## Overriding a built-in integration
+
+When a built-in adapter breaks, an extension can stand in for it until a release ships:
+
+```toml
+overrides = "claude"
+```
+
+Such an extension replaces nothing by itself, and enabling it creates no account of its own. Once it is approved, the Extensions screen lists the accounts of that provider: tick **Use extension override for {account}** on the desktop, or press `o` in the TUI extensions screen and toggle an account with its number. The account's TOML gains `extension_override = "<extension id>"`.
+
+The extension then answers that account's refresh instead of the built-in query. It receives only its own approved `env` and its own secrets, **never the account's credentials**. Cards and details note "Read by the extension {name} instead of the built-in integration", the access label reads "Extension (override)", `export::v1` shows `access.level = "extension"` with `access.overrides` set to the replaced provider, and a problem report says an override is active. Disabling (revoking) the extension, a change to any of its files, or removing its folder hands the account back to the built-in adapter at the next refresh; untick the account to drop the setting.
 
 ## Extension secrets
 

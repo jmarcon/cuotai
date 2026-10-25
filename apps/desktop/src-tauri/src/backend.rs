@@ -724,10 +724,11 @@ pub struct ReportAccess {
 }
 
 fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAccess {
-    let descriptor = cuotai_core::access::describe(account);
+    // PRD 0028 RF7.3: "Extension (override)" when an override answered.
+    let descriptor = cuotai_core::access::describe_reading(account, Some(report));
     let verification = descriptor.verification(chrono::Utc::now().date_naive());
     ReportAccess {
-        label: descriptor.level.label(),
+        label: descriptor.label(),
         explanation: descriptor.explain(report),
         session: user_session::notice(account),
         verification_stale: verification.id == "access.verification_stale",
@@ -2676,6 +2677,14 @@ impl Backend {
             // persistence loses. A rollback that itself fails (a newer
             // approval landed meanwhile) is reported with the original
             // error, never swallowed.
+            // PRD 0028 RF7.1: an override extension creates no account; only
+            // the approval changed, and it is already committed.
+            if enabled.action.account.is_none() {
+                manager.confirm_commit(&id);
+                drop(g);
+                self.emit(app).await;
+                return Ok(enabled.action);
+            }
             let mut consent_rollback = Some(enabled.consent_rollback);
             let index = enabled
                 .action
@@ -2784,6 +2793,56 @@ impl Backend {
             .map_err(|note| l10n_to_json(&note))?;
         self.emit(app).await;
         Ok(checked)
+    }
+
+    /// PRD 0028 RF7.1: use (`on`) or stop using the override extension `id`
+    /// for the account at `index` ("Use extension override"), saved like any
+    /// other account edit.
+    pub async fn set_extension_override(
+        &self,
+        app: &AppHandle,
+        index: usize,
+        id: &str,
+        on: bool,
+    ) -> Result<(), String> {
+        self.ensure_loaded().await;
+        {
+            let mut g = self.inner.lock().await;
+            let Inner {
+                loaded: Some(loaded),
+                generation,
+                ..
+            } = &mut *g
+            else {
+                return Err("config_unavailable".into());
+            };
+            let manager = loaded
+                .monitor
+                .extension_manager()
+                .cloned()
+                .ok_or("extensions_unavailable")?;
+            let prev = loaded.file.config.clone();
+            let updated = manager
+                .set_override(&prev, index, id, on)
+                .map_err(|note| l10n_to_json(&note))?;
+            let mut cycle = loaded.cycle.clone();
+            cycle
+                .apply_edit(&prev, &updated, Edit::Upsert(index), Instant::now())
+                .map_err(|error| l10n_to_json(&refresh_edit_error(&error)))?;
+            let monitor = loaded
+                .monitor
+                .with_config(updated.clone())
+                .map(Arc::new)
+                .map_err(|error| l10n_to_json(&config_error_note(&error)))?;
+            loaded.file.save(updated).map_err(|e| edit_error_to_json(&e))?;
+            loaded.cycle = cycle;
+            loaded.monitor = monitor;
+            loaded.generation += 1;
+            *generation = loaded.generation;
+        }
+        self.emit(app).await;
+        self.refresh_account(app, index).await?;
+        Ok(())
     }
 
     /// PRD 0028 RF7.4: the secrets an extension declares, each with whether

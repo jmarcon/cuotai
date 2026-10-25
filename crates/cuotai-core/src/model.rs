@@ -439,6 +439,18 @@ impl Account {
     }
 
     /// The dynamic extension id for an extension-backed account.
+    /// PRD 0028 RF7.1: the extension the user chose to replace this
+    /// built-in account's query (`extension_override = "<id>"`).
+    pub fn extension_override(&self) -> Option<&str> {
+        (self.provider != Provider::Extension)
+            .then(|| {
+                self.params
+                    .get(crate::extensions::management::EXTENSION_OVERRIDE_PARAM)
+                    .map(String::as_str)
+            })
+            .flatten()
+    }
+
     pub fn extension_id(&self) -> Option<&str> {
         (self.provider == Provider::Extension)
             .then(|| self.params.get("extension_id").map(String::as_str))

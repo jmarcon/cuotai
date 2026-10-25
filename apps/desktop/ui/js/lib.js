@@ -76,6 +76,8 @@ export const enableExtension = (candidate) => call("enable_extension", { candida
 export const disableExtension = (id) => call("disable_extension", { id });
 export const testExtension = (id) => call("test_extension", { id });
 export const extensionSecrets = (id) => call("extension_secrets", { id });
+export const setExtensionOverride = (index, id, on) =>
+  call("set_extension_override", { index, id, on });
 export const setExtensionSecret = (id, name, value) =>
   call("set_extension_secret", { id, name, value });
 export const formSchema = (provider) => call("form_schema", { provider });

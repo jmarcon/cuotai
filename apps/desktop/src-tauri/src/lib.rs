@@ -138,6 +138,17 @@ async fn extension_secrets(
 }
 
 #[tauri::command]
+async fn set_extension_override(
+    app: AppHandle,
+    b: Shared<'_>,
+    index: usize,
+    id: String,
+    on: bool,
+) -> Result<(), String> {
+    b.set_extension_override(&app, index, &id, on).await
+}
+
+#[tauri::command]
 async fn set_extension_secret(
     b: Shared<'_>,
     id: String,
@@ -1892,6 +1903,7 @@ pub fn run() {
             test_extension,
             extension_secrets,
             set_extension_secret,
+            set_extension_override,
             form_schema,
             visible_fields,
             field_choices,

@@ -23,6 +23,19 @@ use crate::{Account, Config, Provider, Status};
 /// The account parameter carrying a dynamic extension identity.
 pub const EXTENSION_ID_PARAM: &str = "extension_id";
 
+/// PRD 0028 RF7.1: the parameter of a built-in account that chose an
+/// extension override ("Use extension override").
+pub const EXTENSION_OVERRIDE_PARAM: &str = "extension_override";
+
+/// PRD 0028 RF7.1: one account an override extension can replace.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OverrideTarget {
+    pub index: usize,
+    pub name: String,
+    /// Whether the account already uses this extension.
+    pub active: bool,
+}
+
 /// The disclosures awaiting a confirmation, behind one lock: issuance and
 /// consumption never take it in different orders, and nothing else is
 /// remembered, so a spent or invented token is simply absent.
@@ -248,6 +261,11 @@ pub struct ExtensionItem {
     pub error: Option<Localized>,
     pub catalog: Option<CatalogEntry>,
     pub account: Option<AccountIdentity>,
+    /// PRD 0028 RF7.1: the built-in provider this extension can replace.
+    pub overrides: Option<Provider>,
+    /// The accounts of that provider, each with whether it uses this
+    /// extension; offered only while the extension is enabled.
+    pub override_targets: Vec<OverrideTarget>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -305,6 +323,18 @@ impl Manager {
         let root = normalized_root(root.into());
         let consent = Consent::for_root(&root);
         Self::build(root, consent)
+    }
+
+    /// [`Self::at`] whose runner inherits `parent` instead of the process
+    /// environment.
+    #[cfg(test)]
+    pub(crate) fn at_with_parent_env(
+        root: impl Into<PathBuf>,
+        parent: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+    ) -> Self {
+        let mut manager = Self::at(root);
+        manager.runner = Runner::with_parent_env(parent, &manager.consent);
+        manager
     }
 
     fn build(root: PathBuf, consent: Consent) -> Self {
@@ -406,6 +436,8 @@ impl Manager {
                     error: run.and_then(|state| state.error.clone()),
                     catalog: catalog.get(&id).cloned(),
                     account,
+                    overrides: manifest.and_then(|m| m.overrides),
+                    override_targets: Vec::new(),
                     id,
                 }
             })
@@ -460,6 +492,8 @@ impl Manager {
                 error: Some(reason),
                 catalog: None,
                 account: None,
+                overrides: None,
+                override_targets: Vec::new(),
             });
         }
         for item in &mut items {
@@ -470,14 +504,92 @@ impl Manager {
             item.approved = self.consent.has_approval(&item.id);
             item.actions = ExtensionActions {
                 enable: item.state.can_enable()
-                    && (item.state != ExtensionState::Enabled || item.account.is_none()),
+                    && (item.state != ExtensionState::Enabled
+                        || (item.account.is_none() && item.overrides.is_none())),
                 disable: item.approved,
                 test: item.state == ExtensionState::Enabled,
                 remove: item.account.is_some(),
             };
         }
+        for item in &mut items {
+            let (Some(provider), ExtensionState::Enabled) = (item.overrides, item.state) else {
+                continue;
+            };
+            item.override_targets = config
+                .accounts
+                .iter()
+                .enumerate()
+                .filter(|(_, account)| account.provider == provider)
+                .map(|(index, account)| OverrideTarget {
+                    index,
+                    name: account.name.clone(),
+                    active: account.extension_override() == Some(item.id.as_str()),
+                })
+                .collect();
+        }
         items.sort_by(|a, b| a.id.cmp(&b.id));
         items
+    }
+
+    /// PRD 0028 RF7.1: `config` with the account at `index` using (`on`) or
+    /// no longer using the override extension `id`. Only an enabled
+    /// extension that overrides that account's provider can be chosen;
+    /// turning it off is always allowed. The frontend persists the result.
+    pub fn set_override(
+        &self,
+        config: &Config,
+        index: usize,
+        id: &str,
+        on: bool,
+    ) -> Result<Config, Localized> {
+        let account = config.accounts.get(index).ok_or_else(invalid_account)?;
+        let mut updated = account.clone();
+        if on {
+            let manifest = self.manifest(id)?;
+            if manifest.overrides != Some(account.provider) {
+                return Err(not_an_override(id, account.provider));
+            }
+            if self.consent.status(&manifest) != consent::Status::Approved {
+                return Err(consent::not_approved(id));
+            }
+            updated
+                .params
+                .insert(EXTENSION_OVERRIDE_PARAM.to_owned(), id.to_owned());
+        } else {
+            updated.params.remove(EXTENSION_OVERRIDE_PARAM);
+        }
+        config
+            .upsert_account(updated, Some(index))
+            .map_err(|error| Localized::fixed("extensions.action.account_invalid", error.message()))
+    }
+
+    /// PRD 0028 RF7.2: the reading of the override extension `id` for an
+    /// account of `provider`, or `None` when the built-in adapter must
+    /// answer: the extension is missing, does not override `provider`, was
+    /// never approved, was revoked or changed since its approval.
+    pub async fn run_override(
+        &self,
+        provider: Provider,
+        id: &str,
+        store: Option<Arc<dyn TokenStore>>,
+    ) -> Option<Result<Checked, Localized>> {
+        let manifest = discover(&self.root).get(id).cloned()?;
+        if manifest.overrides != Some(provider) {
+            return None;
+        }
+        let name = manifest.name.clone();
+        let approved = self.consent.check(manifest).ok()?;
+        let note = Localized::with_param(
+            "extensions.override.active",
+            "name",
+            name.as_str(),
+            format!("Lido pela extensão {name} no lugar da integração embutida."),
+        );
+        let result = self.run_approved(id, approved, store).await;
+        Some(result.map(|mut checked| {
+            checked.notes.insert(0, note);
+            checked
+        }))
     }
 
     /// RF5.3: what the user must see before approving, plus the opaque
@@ -544,6 +656,29 @@ impl Manager {
         let snapshot = self.consume(candidate.token())?;
         let id = snapshot.id.clone();
         let manifest = snapshot.manifest.clone();
+        // PRD 0028 RF7.1: an override extension creates no account of its
+        // own; the user picks, account by account, where it replaces the
+        // built-in query.
+        if manifest.overrides.is_some() {
+            let rollback = self.commit(&snapshot)?;
+            return Ok(EnableResult {
+                config: config.clone(),
+                action: ActionResult {
+                    id: id.clone(),
+                    message: Localized::with_param(
+                        "extensions.action.enabled_override",
+                        "id",
+                        id.as_str(),
+                        format!(
+                            "Extensão {id} ativada; escolha em quais contas ela substitui a \
+                             integração embutida."
+                        ),
+                    ),
+                    account: None,
+                },
+                consent_rollback: rollback,
+            });
+        }
         let editing = config
             .accounts
             .iter()
@@ -779,6 +914,17 @@ impl Manager {
                 }
             }
         })?;
+        self.run_approved(id, approved, store).await
+    }
+
+    /// One scheduled run of an already approved extension: the cached
+    /// reading between due runs, otherwise a new run with its secrets.
+    async fn run_approved(
+        &self,
+        id: &str,
+        approved: consent::Approved,
+        store: Option<Arc<dyn TokenStore>>,
+    ) -> Result<Checked, Localized> {
         if !self.runner.next_run_in(id, Instant::now()).is_zero() {
             if let Some(checked) = self
                 .runtime
@@ -982,6 +1128,17 @@ fn secret_storage() -> Localized {
     Localized::fixed(
         "extensions.action.secret_storage",
         "Não foi possível acessar o cofre do sistema para os segredos da extensão.",
+    )
+}
+
+fn not_an_override(id: &str, provider: Provider) -> Localized {
+    Localized::with_params(
+        "extensions.action.not_an_override",
+        crate::text::params([("id", id.into()), ("provider", provider.label().into())]),
+        format!(
+            "A extensão {id} não substitui a integração {}.",
+            provider.label()
+        ),
     )
 }
 

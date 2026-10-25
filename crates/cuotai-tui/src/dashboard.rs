@@ -1328,7 +1328,7 @@ fn render_card(
     // PRD 0005 RF4.2: with nothing to draw, the core's explanation (the
     // reason of an Unavailable account, a changed undocumented interface)
     // takes the place of the generic failure and may use every free row.
-    let access = access::describe(view.access_account.unwrap_or(account));
+    let access = access::describe_reading(view.access_account.unwrap_or(account), report);
     let explanation = report
         .and_then(|report| access.explain(report))
         .map(|note| resolve_l10n(&note));
@@ -2213,7 +2213,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     // descriptor explains the failure, that explanation leading the quotas
     // in place of the generic "no metrics" line; the adapter's notes stay
     // listed below.
-    let access = access::describe(account);
+    let access = access::describe_reading(account, Some(report));
     // PRD 0016 RF4.1: the web session's level and warning, in full.
     if let Some(notice) = cuotai_core::user_session::notice(account) {
         lines.push(Line::from(vec![

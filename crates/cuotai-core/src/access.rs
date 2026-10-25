@@ -167,6 +167,11 @@ pub struct UsageAccess {
     pub reason: Option<Localized>,
     /// PRD 0023 RF2.7: whether this interface reports paid extra usage.
     pub overage: OverageReporting,
+    /// PRD 0028 RF7.3: the built-in provider an extension override replaced
+    /// for this reading (`level` is then [`Level::Extension`]); absent
+    /// otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overrides: Option<Provider>,
 }
 
 /// How an interface reports paid extra usage (overage).
@@ -314,6 +319,7 @@ fn entry(
         risk: level.risk(),
         reason: None,
         overage: OverageReporting::NotReported,
+        overrides: None,
     }
 }
 
@@ -337,6 +343,16 @@ fn unavailable(
 }
 
 impl UsageAccess {
+    /// The level's label, or "Extension (override)" when an extension
+    /// override answered (PRD 0028 RF7.3).
+    pub fn label(&self) -> Localized {
+        if self.overrides.is_some() {
+            Localized::fixed("access.level.extension_override", "Extensão (substituição)")
+        } else {
+            self.level.label()
+        }
+    }
+
     fn requires(mut self, plan: &str, pt: &str) -> Self {
         self.plan_requirement = Some(Localized::fixed(format!("access.plan.{plan}"), pt));
         self
@@ -456,6 +472,22 @@ impl UsageAccess {
 /// How `account`'s usage is obtained. Pure: reads only the provider, the
 /// authentication type and the `params` that switch the queried interface;
 /// a session slot held in the vault (PRD 0016) counts as a set parameter.
+/// PRD 0028 RF7.3: [`describe`] of `account` as `report` was read: when an
+/// extension override answered (the report's `source` is `extension:<id>`
+/// on a built-in account), the extension's descriptor with `overrides` set
+/// to the replaced provider; otherwise [`describe`].
+pub fn describe_reading(account: &Account, report: Option<&crate::Report>) -> UsageAccess {
+    let overridden = account.provider != Provider::Extension
+        && report.is_some_and(|report| report.source.starts_with("extension:"));
+    if !overridden {
+        return describe(account);
+    }
+    let mut access = classify(Provider::Extension, false, &BTreeMap::new());
+    access.metered = false;
+    access.overrides = Some(account.provider);
+    access
+}
+
 pub fn describe(account: &Account) -> UsageAccess {
     let slots = account.session.iter().flat_map(|s| s.slots.iter());
     classify(

@@ -958,7 +958,7 @@ fn account_export(
                 })
                 .collect()
         }),
-        access: access::describe(account),
+        access: access::describe_reading(account, report),
         failure: report.and_then(|report| {
             Some(Failure {
                 category: crate::events::FailureCategory::of(report)?,
