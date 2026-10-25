@@ -24,6 +24,7 @@ pub mod identity;
 pub mod incidents;
 pub mod install_source;
 pub mod last_config;
+mod metered_record;
 pub mod metrics;
 mod model;
 pub mod models;
@@ -289,6 +290,9 @@ pub struct Monitor {
     /// PRD 0017 RF5: discovery/consent/runtime state and the one shared
     /// extension Runner used by recurring refreshes and explicit tests.
     extensions: Option<Arc<extensions::management::Manager>>,
+    /// PRD 0033 RF5.3: the last-query record shared by processes for
+    /// metered accounts; `None` queries every time.
+    metered: Option<metered_record::Store>,
     /// Test-only fixed clock for `checked_at`, so recording tests control
     /// the time between readings.
     #[cfg(test)]
@@ -338,6 +342,10 @@ impl Monitor {
             incidents: incidents::IncidentMonitor::new(),
             extensions: extensions::management::Manager::default_shared(),
             #[cfg(test)]
+            metered: None,
+            #[cfg(not(test))]
+            metered: metered_record::Store::default_dir().map(metered_record::Store::new),
+            #[cfg(test)]
             clock: None,
         })
     }
@@ -382,9 +390,17 @@ impl Monitor {
             history: self.history.clone(),
             incidents: self.incidents.clone(),
             extensions: self.extensions.clone(),
+            metered: self.metered.clone(),
             #[cfg(test)]
             clock: self.clock.clone(),
         })
+    }
+
+    /// PRD 0033 RF5.3: keep the metered last-query records in `dir`
+    /// instead of the OS local data directory.
+    pub fn with_metered_dir(mut self, dir: std::path::PathBuf) -> Self {
+        self.metered = Some(metered_record::Store::new(dir));
+        self
     }
 
     /// Attach the model catalog store for this configuration (see
@@ -681,7 +697,27 @@ impl Monitor {
             "refresh_account index is out of bounds"
         );
         let account = &self.config.accounts[index];
-        let report = self.query_report(account, &[]).await;
+        let report = match self
+            .metered
+            .as_ref()
+            .filter(|_| account.provider.is_metered())
+        {
+            Some(store) => {
+                let interval = chrono::TimeDelta::seconds(
+                    account.effective_refresh_seconds(self.config.refresh_seconds) as i64,
+                );
+                match store.begin(account, interval, self.now()) {
+                    // Another process paid for this interval's query.
+                    metered_record::Decision::Reuse(report) => return report,
+                    metered_record::Decision::Query => {
+                        let report = self.query_report(account, &[]).await;
+                        store.finish(account, &report, self.now());
+                        report
+                    }
+                }
+            }
+            None => self.query_report(account, &[]).await,
+        };
         // RF2.2/RF2.4: only enqueued; the disk never delays the refresh.
         if let Some(recorder) = &self.history {
             recorder.submit(account, &report);
@@ -1760,6 +1796,55 @@ credential_env = "OPENAI_ADMIN_KEY"
         };
         account.params.insert("profile".into(), "S".into());
         account
+    }
+
+    #[tokio::test]
+    async fn metered_monitors_share_one_query_per_interval() {
+        let dir = tempfile::tempdir().unwrap();
+        let account = aws_account(None);
+        let config = Config {
+            accounts: vec![account.clone()],
+            ..Config::default()
+        };
+        // Another process already paid for this interval's query.
+        let cached = Report {
+            account: account.name.clone(),
+            provider: Provider::AwsBedrock,
+            checked_at: Utc::now() - chrono::TimeDelta::minutes(5),
+            status: Status::Ready,
+            metrics: Vec::new(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: "cost-explorer".into(),
+            session_expires_at: None,
+        };
+        let store = metered_record::Store::new(dir.path().to_path_buf());
+        store.finish(
+            &account,
+            &cached,
+            Utc::now() - chrono::TimeDelta::minutes(5),
+        );
+        let monitor = Monitor::new(config)
+            .unwrap()
+            .with_metered_dir(dir.path().to_path_buf());
+        let reused = monitor.refresh_account(0).await;
+        // No AWS CLI ran: the report is the recorded one, with its time.
+        assert_eq!(reused.status, Status::Ready);
+        assert_eq!(reused.checked_at, cached.checked_at);
+        let file = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .find(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .unwrap();
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(!text.contains("http"), "no URL in the record");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&file).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
     }
 
     fn metered_floor_error(
