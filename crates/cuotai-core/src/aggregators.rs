@@ -96,6 +96,7 @@ pub fn sub_account_name(parent: &str, sub_id: &str) -> String {
 /// The keyed account of `sub` (see [`SubUnit::account`]).
 pub fn sub_account(parent: &Account, sub: &SubReport) -> Account {
     Account {
+        group: Default::default(),
         // PRD 0029: the connection's state follows the aggregator's id.
         id: Some(crate::AccountId::connection(&parent.state_key(), &sub.id)),
         name: sub_account_name(&parent.name, &sub.id),
@@ -559,6 +560,7 @@ mod tests {
 
     fn router_account() -> Account {
         Account {
+            group: Default::default(),
             id: None,
             name: "home".into(),
             provider: Provider::NineRouter,
@@ -619,6 +621,7 @@ mod tests {
             ..router_account()
         };
         let config = Config {
+            groups: Default::default(),
             refresh_seconds: 60,
             concurrency: 2,
             timeout_seconds: 5,

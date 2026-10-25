@@ -2129,6 +2129,7 @@ impl Wizard {
             credential_params,
             fields: &draft_fields,
             interval_text: &self.interval,
+            group_text: None,
         };
         // PRD 0029 RF3.3: name the existing account first, so the pair is
         // saved in one go.
@@ -3311,6 +3312,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 
@@ -4096,6 +4098,7 @@ mod tests {
                 oauth: None,
                 params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
                 refresh_seconds: None,
+                group: None,
             }],
             ..Config::default()
         };
@@ -4141,6 +4144,7 @@ mod tests {
                 oauth: Some(oauth),
                 params: BTreeMap::new(),
                 refresh_seconds: None,
+                group: None,
             }],
             ..Config::default()
         };
@@ -4255,6 +4259,7 @@ mod tests {
                     oauth: None,
                     params: BTreeMap::new(),
                     refresh_seconds: Some(45),
+                    group: None,
                 },
                 Account {
                     id: None,
@@ -4265,6 +4270,7 @@ mod tests {
                     oauth: None,
                     params: BTreeMap::new(),
                     refresh_seconds: Some(60),
+                    group: None,
                 },
             ],
             ..Config::default()
@@ -4291,6 +4297,7 @@ mod tests {
                 oauth: None,
                 params: BTreeMap::from([("profile".into(), "default".into())]),
                 refresh_seconds: None,
+                group: None,
             }],
             ..Config::default()
         };
@@ -4322,6 +4329,7 @@ mod tests {
                 oauth: None,
                 params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
                 refresh_seconds: None,
+                group: None,
             }],
             ..Config::default()
         };
@@ -4345,6 +4353,7 @@ mod tests {
                     oauth: None,
                     params: BTreeMap::new(),
                     refresh_seconds: None,
+                    group: None,
                 }],
                 ..Config::default()
             };
@@ -4379,6 +4388,7 @@ mod tests {
                 oauth: Some(OAuthConfig::new(String::new())),
                 params: BTreeMap::from([("auth_method".into(), "builder-id".into())]),
                 refresh_seconds: None,
+                group: None,
             }],
             ..Config::default()
         };
@@ -4418,6 +4428,7 @@ mod tests {
                 oauth: None,
                 params: BTreeMap::new(),
                 refresh_seconds: None,
+                group: None,
             }],
             ..Config::default()
         };

@@ -19,6 +19,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use crate::access::{self, UsageAccess};
+use crate::advice;
 use crate::config_file::ConfigIdentity;
 use crate::cost::CostSummary;
 use crate::freshness::{self, Freshness};
@@ -58,6 +59,10 @@ pub struct Export {
     pub config_identity: String,
     /// In configuration order.
     pub accounts: Vec<AccountExport>,
+    /// PRD 0024 RF7.4: the best account now of each group with two or more
+    /// comparable accounts ([`crate::advice::best`]), in configuration
+    /// order; empty when no group qualifies. Advisory. Additive.
+    pub best: Vec<BestExport>,
     /// PRD 0015 RF4.3: the estimated cost at API prices from this
     /// computer's local logs, separate from the providers' reports (never
     /// summed with them); `null` while every local cost source is off or
@@ -81,6 +86,9 @@ pub struct AccountExport {
     /// provider's name).
     pub named: bool,
     pub provider: Provider,
+    /// PRD 0024 RF7.4: the account's `group` (accounts that can replace one
+    /// another); `null` when it has none. Additive.
+    pub group: Option<String>,
     /// Present only with [`Options::include_identity`]; `null` when unknown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<Option<String>>,
@@ -233,6 +241,7 @@ impl SubAccountExport {
     /// provider (the aggregator's when unknown) and no sub-accounts.
     pub fn as_account(&self, parent: &AccountExport) -> AccountExport {
         AccountExport {
+            group: Default::default(),
             index: parent.index,
             id: self.id.clone(),
             key: self.key.clone(),
@@ -419,11 +428,13 @@ impl Export {
                 export
             })
             .collect();
+        let best = best_of(config, cycle, now);
         Self {
             schema: SCHEMA,
             generated_at: now,
             config_identity: identity.digest(),
             accounts,
+            best,
             local_cost: None,
         }
     }
@@ -565,6 +576,61 @@ fn aggregator_export(report: Option<&Report>, last_good: Option<&Report>) -> Agg
     }
 }
 
+/// One group's best account (PRD 0024 RF7.4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BestExport {
+    /// The group's `group` value, or `provider:<slug>` for the ungrouped
+    /// accounts of one provider.
+    pub group: String,
+    /// The best account's `id`.
+    pub account: String,
+    /// PRD 0036 RF6.5: the aggregator account's `id` when the best account
+    /// is one of its connections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+}
+
+/// PRD 0024 RF7.4 with PRD 0036 RF6.5: the best account now of each group
+/// ([`advice::best`]) among the direct accounts and the active connections
+/// of aggregators. A connection competes under its mapped provider (an
+/// unknown upstream never does) and an aggregator account itself never
+/// competes; connections off in the aggregator or duplicating a direct
+/// account are not candidates ([`aggregators::expand`]).
+fn best_of(config: &Config, cycle: &RefreshCycle, now: DateTime<Utc>) -> Vec<BestExport> {
+    let readings: Vec<Option<&Report>> = (0..config.accounts.len())
+        .map(|index| cycle.account_report(index))
+        .collect();
+    let expanded = aggregators::expand(config, &readings);
+    let mut candidates = expanded.config.clone();
+    for (index, origin) in expanded.origin.iter().enumerate() {
+        if let Some(unit) = origin {
+            candidates.accounts[index].provider = unit.display.provider;
+        }
+    }
+    let views = advice::views(
+        &candidates,
+        |index| expanded.readings.get(index).and_then(Option::as_ref),
+        |index| !candidates.accounts[index].provider.is_aggregator(),
+        now,
+    );
+    advice::best(&views, now)
+        .into_iter()
+        .filter_map(|group| {
+            let parent = expanded
+                .origin
+                .get(group.best)
+                .and_then(Option::as_ref)
+                .and_then(|unit| config.accounts.get(unit.parent_index))
+                .map(Account::state_key);
+            Some(BestExport {
+                group: group.group,
+                account: expanded.config.accounts.get(group.best)?.state_key(),
+                parent,
+            })
+        })
+        .collect()
+}
+
 /// The summary of `/v1/limits` (PRD 0012 RF2.2): per account, only what a
 /// status bar shows (class, binding metric and age of the reading), taken
 /// from an [`Export`] as it is.
@@ -578,11 +644,8 @@ pub struct Limits {
     pub accounts: Vec<AccountLimit>,
     /// PRD 0031 RF4.2: what a status bar needs without walking `accounts`.
     pub summary: LimitsSummary,
-    /// PRD 0036 RF6.5: per provider, the account with the most room now
-    /// among the available ones (a connection of an aggregator may win);
-    /// omitted when no account is available.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub best: Vec<BestAccount>,
+    /// PRD 0024 RF7.4 and PRD 0036 RF6.5: [`Export::best`]. Additive.
+    pub best: Vec<BestExport>,
 }
 
 /// The cross-account digest of [`Limits`] (PRD 0031 RF4.2).
@@ -609,19 +672,6 @@ pub struct TightestAccount {
     pub name: String,
     pub used_ratio: f64,
     pub resets_at: Option<DateTime<Utc>>,
-}
-
-/// One entry of [`Limits::best`].
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct BestAccount {
-    pub provider: Provider,
-    /// [`AccountLimit::key`] of the winner.
-    pub key: String,
-    /// The aggregator's key when the winner is one of its connections.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent: Option<String>,
-    /// Remaining fraction of the winner's binding metric, `0.0..=1.0`.
-    pub remaining_ratio: f64,
 }
 
 /// One account of [`Limits`]; every field means what it means in
@@ -679,6 +729,7 @@ impl Limits {
             schema: export.schema,
             generated_at: export.generated_at,
             summary: LimitsSummary::from_export(export),
+            best: export.best.clone(),
             accounts: export
                 .units()
                 .into_iter()
@@ -701,70 +752,8 @@ impl Limits {
                     parent,
                 })
                 .collect(),
-            best: best_accounts(export),
         }
     }
-}
-
-/// PRD 0036 RF6.5 ("best account now", decision C): per provider, among
-/// the `Available` direct accounts and active connections (on in the
-/// aggregator, not duplicates) with a binding metric, the one with the
-/// largest remaining fraction; ties keep configuration order. Providers
-/// are listed in order of first appearance. An aggregator account itself
-/// never competes: its connections do, under their mapped provider
-/// (unknown upstreams are left out).
-pub fn best_accounts(export: &Export) -> Vec<BestAccount> {
-    /// Provider, key, parent key, binding and class of one competitor.
-    type Candidate<'a> = (
-        Provider,
-        &'a str,
-        Option<&'a str>,
-        Option<&'a Binding>,
-        AccountClass,
-    );
-    let mut best: Vec<BestAccount> = Vec::new();
-    for account in &export.accounts {
-        let mut candidates: Vec<Candidate<'_>> = Vec::new();
-        if account.aggregator.is_none() {
-            candidates.push((
-                account.provider,
-                &account.key,
-                None,
-                account.binding.as_ref(),
-                account.class,
-            ));
-        }
-        for sub in &account.sub_accounts {
-            let active = sub.enabled_upstream != Some(false) && sub.duplicate_of.is_none();
-            if let (true, Some(provider)) = (active, sub.provider) {
-                candidates.push((
-                    provider,
-                    &sub.key,
-                    Some(&account.key),
-                    sub.binding.as_ref(),
-                    sub.class,
-                ));
-            }
-        }
-        for (provider, key, parent, binding, class) in candidates {
-            let (AccountClass::Available, Some(binding)) = (class, binding) else {
-                continue;
-            };
-            let ratio = (1.0 - binding.used_ratio).clamp(0.0, 1.0);
-            let entry = BestAccount {
-                provider,
-                key: key.to_owned(),
-                parent: parent.map(str::to_owned),
-                remaining_ratio: ratio,
-            };
-            match best.iter_mut().find(|known| known.provider == provider) {
-                Some(known) if ratio > known.remaining_ratio => *known = entry,
-                Some(_) => {}
-                None => best.push(entry),
-            }
-        }
-    }
-    best
 }
 
 impl LimitsSummary {
@@ -832,6 +821,7 @@ fn account_export(
         name: account.display_name().into_owned(),
         named: account.named(),
         provider: account.provider,
+        group: account.group.clone(),
         email: options
             .include_identity
             .then(|| identity::email(account).map(str::to_owned)),
@@ -1359,6 +1349,47 @@ mod tests {
         );
         finish(&mut cycle, 2, missing);
         (config, cycle)
+    }
+
+    /// PRD 0024 RF7.4: `group` per account and `best` per group with two
+    /// candidates, also in the `/v1/limits` summary; an ungrouped pair of
+    /// different providers is never compared.
+    #[test]
+    fn best_names_the_account_with_more_headroom_per_group() {
+        let mut work = account("Work", Provider::Claude);
+        work.group = Some("coding".into());
+        let mut personal = account("Personal", Provider::Claude);
+        personal.group = Some("coding".into());
+        let chat = account("Chat", Provider::ChatGpt);
+        let config = Config {
+            accounts: vec![work, personal, chat],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        for (index, used) in [(0usize, 80.0), (1, 30.0), (2, 5.0)] {
+            let mut ready = report(&config.accounts[index], Status::Ready, minutes_ago(1));
+            ready.metrics = vec![quota("Sessão (5h)", used, MetricWindow::Window5h, 3)];
+            finish(&mut cycle, index, ready);
+        }
+        let export = build(&config, &cycle, Options::default());
+        assert_eq!(export.accounts[0].group.as_deref(), Some("coding"));
+        assert_eq!(export.accounts[2].group, None);
+        assert_eq!(
+            export.best,
+            [BestExport {
+                parent: Default::default(),
+                group: "coding".into(),
+                account: export.accounts[1].id.clone(),
+            }]
+        );
+        let limits = serde_json::to_value(Limits::from_export(&export)).unwrap();
+        assert_eq!(limits["best"][0]["group"], "coding");
+        assert_eq!(limits["best"][0]["account"], export.accounts[1].id.as_str());
+        // One of the two fails: a group of one has no best.
+        let mut failed = report(&config.accounts[1], Status::Error, minutes_ago(0));
+        failed.metrics.clear();
+        finish(&mut cycle, 1, failed);
+        assert!(build(&config, &cycle, Options::default()).best.is_empty());
     }
 
     fn doc_path(relative: &str) -> PathBuf {
@@ -2173,17 +2204,14 @@ mod tests {
             limits.accounts[2].parent.as_deref(),
             Some("nine_router:home")
         );
-        // Personal has 50% left, the connection a1 70%: a1 wins for Claude.
+        // Personal has 50% left, the connection a1 70%: a1 wins for Claude
+        // (one best, PRD 0024 RF7.4 with PRD 0036 RF6.5), keyed by ids.
+        let parent = config.accounts[1].state_key();
+        assert_eq!(limits.best, built.best);
         assert_eq!(limits.best.len(), 1);
-        assert_eq!(limits.best[0].provider, Provider::Claude);
-        assert_eq!(limits.best[0].key, "nine_router:home/a1");
-        assert_eq!(limits.best[0].parent.as_deref(), Some("nine_router:home"));
-        // A duplicate connection never competes.
-        let mut built = built;
-        built.accounts[1].sub_accounts[0].duplicate_of = Some("claude:Personal".into());
-        let best = best_accounts(&built);
-        assert_eq!(best[0].key, "claude:Personal");
-        assert_eq!(best[0].parent, None);
+        assert_eq!(limits.best[0].group, "provider:claude");
+        assert_eq!(limits.best[0].account, format!("{parent}/a1"));
+        assert_eq!(limits.best[0].parent.as_deref(), Some(parent.as_str()));
     }
 
     /// PRD 0036 RF7.3: connections have events of their own, with

@@ -5,6 +5,7 @@ pub mod about;
 pub mod access;
 pub mod account_edit;
 pub mod account_id;
+pub mod advice;
 pub mod aggregators;
 pub mod alerts;
 pub mod canary;
@@ -118,6 +119,10 @@ pub enum ConfigError {
     BaseUrl,
     #[error("Conta 9router com TLS inválido: tls_pin_sha256 deve ter 64 dígitos hexadecimais, e tls_ca_file e tls_pin_sha256 não podem ser usados juntos nem sem HTTPS.")]
     Tls,
+    /// PRD 0024 RF7.1: a `group` that is not a slug of at most 32 characters,
+    /// or a `[[groups]]` table with an invalid or repeated id.
+    #[error("O grupo de uma conta e o id de cada [[groups]] devem ter de 1 a 32 letras minúsculas, números, - ou _, e os ids de [[groups]] não podem se repetir.")]
+    Group,
 }
 
 fn metered_refresh_floor_error(
@@ -188,6 +193,23 @@ impl Config {
         });
         if invalid_names {
             return Err(ConfigError::AccountNames);
+        }
+        // PRD 0024 RF7.1: group values are slugs; the named groups are unique.
+        let mut group_ids = HashSet::new();
+        let bad_group =
+            self.accounts
+                .iter()
+                .filter_map(|account| account.group.as_deref())
+                .any(|group| !model::is_group_slug(group))
+                || self.groups.iter().any(|group| {
+                    !model::is_group_slug(&group.id)
+                        || !group_ids.insert(group.id.as_str())
+                        || group.label.as_ref().is_some_and(|label| {
+                            label.trim().is_empty() || label.chars().count() > 40
+                        })
+                });
+        if bad_group {
+            return Err(ConfigError::Group);
         }
         let mut identities = HashSet::new();
         for (index, account) in self.accounts.iter().enumerate() {

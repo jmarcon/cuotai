@@ -4532,6 +4532,7 @@ fn input_account(
         credential_params,
         fields: &fields,
         interval_text: &input.interval,
+        group_text: None,
     };
     build_account(&draft, config, input.index).map_err(|e| l10n_to_json(&e.l10n()))
 }
@@ -6008,6 +6009,7 @@ mod tests {
             oauth: Some(oauth_config_for(provider)),
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 
@@ -6025,6 +6027,7 @@ mod tests {
             oauth: Some(oauth.clone()),
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         })
         .expect("OAuth config is valid; the storage key is derivable");
         store.entries.lock().insert(
@@ -6220,6 +6223,7 @@ mod tests {
                     oauth: Some(oauth.clone()),
                     params: BTreeMap::new(),
                     refresh_seconds: None,
+                    group: None,
                 })
                 .unwrap()
             ),
@@ -6241,6 +6245,7 @@ mod tests {
             concurrency: 4,
             timeout_seconds: 30,
             accounts,
+            groups: Vec::new(),
         };
         file.save(config.clone()).unwrap();
         let session = Arc::new(
@@ -7120,6 +7125,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 

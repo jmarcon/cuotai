@@ -993,6 +993,7 @@ mod tests {
             oauth: None,
             params,
             refresh_seconds: None,
+            group: None,
         }
     }
 

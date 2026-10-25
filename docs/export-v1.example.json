@@ -10,6 +10,7 @@
       "name": "Personal",
       "named": true,
       "provider": "claude",
+      "group": null,
       "class": "available",
       "report": {
         "account": "Personal",
@@ -170,6 +171,7 @@
       "name": "Work",
       "named": true,
       "provider": "open_ai_api",
+      "group": null,
       "class": "unmeasured",
       "report": {
         "account": "Work",
@@ -256,6 +258,7 @@
       "name": "Groq",
       "named": true,
       "provider": "groq",
+      "group": null,
       "class": "unmeasured",
       "report": {
         "account": "Groq",
@@ -336,6 +339,7 @@
       "name": "Kimi",
       "named": true,
       "provider": "kimi",
+      "group": null,
       "class": "unmeasured",
       "report": null,
       "age_seconds": null,
@@ -376,6 +380,7 @@
       "incident": null
     }
   ],
+  "best": [],
   "local_cost": {
     "currency": "USD",
     "notice": {

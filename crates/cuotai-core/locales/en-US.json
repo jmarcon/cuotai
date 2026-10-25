@@ -1442,5 +1442,10 @@
   "tray.empty": "No accounts in the menu bar",
   "tray.outage": "{item}; provider incident",
   "tray.tooltip": "Cuotai — {label}",
-  "journal.removed_account": "Removed account"
+  "journal.removed_account": "Removed account",
+  "edit_error.config_group": "An account group and each [[groups]] id must be 1 to 32 lowercase letters, digits, - or _, and the [[groups]] ids cannot repeat.",
+  "edit_error.group_invalid": "The group must be 1 to {max} lowercase letters, digits, - or _.",
+  "advice.best": "Best now",
+  "advice.switch": "{from} runs out ≈{at} · {to} has {pct}% left",
+  "advice.switch.exhausted": "{from} is exhausted · {to} has {pct}% left"
 }

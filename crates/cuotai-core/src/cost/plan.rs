@@ -407,6 +407,7 @@ mod tests {
 
     fn account(name: &str, provider: Provider) -> Account {
         Account {
+            group: Default::default(),
             id: None,
             name: name.into(),
             provider,

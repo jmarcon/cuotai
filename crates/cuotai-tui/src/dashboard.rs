@@ -2685,6 +2685,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2695,6 +2696,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2705,6 +2707,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
         ];
         let ready = report(
@@ -2733,6 +2736,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2743,6 +2747,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
         ];
         let snapshot = Snapshot {
@@ -2775,6 +2780,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2785,6 +2791,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2795,6 +2802,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
         ];
         let snapshot = Snapshot {
@@ -2846,6 +2854,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2856,6 +2865,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2866,6 +2876,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2876,6 +2887,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
         ];
         let base = Snapshot {
@@ -2926,6 +2938,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2936,6 +2949,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
             Account {
                 id: None,
@@ -2946,6 +2960,7 @@ mod tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             },
         ]
     }
@@ -4149,6 +4164,7 @@ mod tests {
             oauth: None,
             params: Default::default(),
             refresh_seconds: None,
+            group: None,
         };
         let failed = |provider, status, id: &'static str, text: &str| Report {
             provider,

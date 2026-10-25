@@ -361,6 +361,7 @@ mod tests {
             oauth: None,
             params: Default::default(),
             refresh_seconds: None,
+            group: None,
         }]
     }
 

@@ -1442,5 +1442,10 @@
   "tray.empty": "Nessun account nella barra dei menu",
   "tray.outage": "{item}; incidente del fornitore",
   "tray.tooltip": "Cuotai — {label}",
-  "journal.removed_account": "Account rimosso"
+  "journal.removed_account": "Account rimosso",
+  "edit_error.config_group": "Il gruppo di un account e ogni id di [[groups]] devono avere da 1 a 32 lettere minuscole, cifre, - o _, e gli id di [[groups]] non possono ripetersi.",
+  "edit_error.group_invalid": "Il gruppo deve avere da 1 a {max} lettere minuscole, cifre, - o _.",
+  "advice.best": "Migliore ora",
+  "advice.switch": "{from} si esaurisce ≈{at} · {to} ha il {pct}% disponibile",
+  "advice.switch.exhausted": "{from} è esaurito · {to} ha il {pct}% disponibile"
 }

@@ -302,6 +302,38 @@ pub struct Account {
     /// additional configured and effective boundaries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refresh_seconds: Option<u64>,
+    /// PRD 0024 RF7.1: accounts with the same `group` are comparable (they
+    /// can replace one another); a slug of at most [`GROUP_MAX_LEN`]
+    /// characters. Without one an account is compared only with the other
+    /// ungrouped accounts of its provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+}
+
+/// Longest `group` value (PRD 0024 RF7.1).
+pub const GROUP_MAX_LEN: usize = 32;
+
+/// Whether `value` is a valid group id: 1 to [`GROUP_MAX_LEN`] ASCII
+/// lowercase letters, digits, `-` or `_`, starting with a letter or digit.
+pub fn is_group_slug(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= GROUP_MAX_LEN
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+        && !value.starts_with(['-', '_'])
+}
+
+/// PRD 0024 RF7.1: the display name and position of a group of comparable
+/// accounts (`[[groups]]`); membership stays on the account's `group`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GroupDef {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<u32>,
 }
 
 /// Account fields accepted from configuration; `deny_unknown_fields` keeps
@@ -324,6 +356,8 @@ struct AccountConfig {
     params: BTreeMap<String, String>,
     #[serde(default)]
     refresh_seconds: Option<u64>,
+    #[serde(default)]
+    group: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for Account {
@@ -341,6 +375,7 @@ impl<'de> Deserialize<'de> for Account {
             session: account.session,
             params: account.params,
             refresh_seconds: account.refresh_seconds,
+            group: account.group,
         })
     }
 }
@@ -532,6 +567,9 @@ pub struct Config {
     #[serde(default = "default_timeout")]
     pub timeout_seconds: u64,
     pub accounts: Vec<Account>,
+    /// PRD 0024 RF7.1: optional names and order of the account groups.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<GroupDef>,
 }
 
 impl Config {
@@ -586,6 +624,7 @@ impl Default for Account {
             session: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 }
@@ -607,8 +646,10 @@ impl Default for Config {
                     session: None,
                     params: BTreeMap::new(),
                     refresh_seconds: None,
+                    group: None,
                 })
                 .collect(),
+            groups: Vec::new(),
         }
     }
 }

@@ -371,6 +371,7 @@ fn planned_accounts(plans: &std::collections::BTreeMap<String, cost::PlanSetting
         .filter_map(|key| {
             let (provider, name) = key.split_once(':')?;
             Some(Account {
+                group: Default::default(),
                 id: None,
                 name: name.to_owned(),
                 provider: Provider::from_slug(provider)?,

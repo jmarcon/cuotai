@@ -1551,6 +1551,7 @@ mod tests {
             concurrency: 2,
             timeout_seconds: 10,
             accounts: vec![],
+            groups: Vec::new(),
         }
     }
 
@@ -1571,6 +1572,7 @@ mod tests {
             oauth: Some(config),
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 

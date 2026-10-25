@@ -10,6 +10,7 @@
     "generated_at": { "type": "string", "format": "date-time" },
     "config_identity": { "type": "string", "description": "Lowercase hex SHA-256 of the configuration identity; never the file path." },
     "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountExport" }, "description": "In configuration order." },
+    "best": { "type": "array", "items": { "$ref": "#/$defs/BestExport" }, "description": "PRD 0024 RF7.4: the best account now of each group of comparable accounts with two or more candidates, in configuration order; empty when no group qualifies. Advisory. Additive." },
     "local_cost": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/LocalCost" }], "description": "Estimated cost from this computer's local CLI logs (PRD 0015 RF4.3), separate from the providers' reports; null while every local cost source is off or when the producer does not read the cost index." }
   },
   "$defs": {
@@ -26,6 +27,7 @@
         "name": { "type": "string", "description": "Display name: the configured name, or the provider's name when the account has none (see named). Not unique across providers." },
         "named": { "type": "boolean", "description": "Whether name was configured (PRD 0029); false when name is the provider's name." },
         "provider": { "$ref": "#/$defs/Provider" },
+        "group": { "type": ["string", "null"], "description": "PRD 0024 RF7.1: the account's group of comparable accounts; null when it has none. Additive." },
         "email": { "type": ["string", "null"], "description": "Present only when the producer includes identity; null when unknown." },
         "class": { "anyOf": [{ "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }] },
         "report": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Report" }], "description": "Current report; null until the account has one." },
@@ -109,6 +111,16 @@
         "summary": { "$ref": "#/$defs/Localized" }
       }
     },
+    "BestExport": {
+      "type": "object",
+      "description": "PRD 0024 RF7.4: the best account of one group.",
+      "required": ["group", "account"],
+      "properties": {
+        "group": { "type": "string", "description": "The group value, or provider:<slug> for the ungrouped accounts of one provider." },
+        "account": { "type": "string", "description": "The best account's id." },
+        "parent": { "type": "string", "description": "PRD 0036 RF6.5: the aggregator account's id when the best account is one of its connections." }
+      }
+    },
     "Limits": {
       "type": "object",
       "description": "Body of the local server's /v1/limits (PRD 0012 RF2.2): a per-account summary of the export.",
@@ -117,18 +129,7 @@
         "schema": { "const": 1 },
         "generated_at": { "type": "string", "format": "date-time" },
         "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountLimit" }, "description": "In configuration order; each aggregator account is followed by its connections (with parent)." },
-        "best": { "type": "array", "items": { "$ref": "#/$defs/BestAccount" }, "description": "PRD 0036 RF6.5: per provider, the available account with the most room now; omitted when none is available." },
-        "summary": { "$ref": "#/$defs/LimitsSummary" }
-      }
-    },
-    "BestAccount": {
-      "type": "object",
-      "required": ["provider", "key", "remaining_ratio"],
-      "properties": {
-        "provider": { "$ref": "#/$defs/Provider" },
-        "key": { "type": "string" },
-        "parent": { "type": "string", "description": "The aggregator's key when the winner is one of its connections." },
-        "remaining_ratio": { "type": "number", "minimum": 0, "description": "Remaining fraction of the binding metric, at most 1." },
+        "best": { "type": "array", "items": { "$ref": "#/$defs/BestExport" }, "description": "PRD 0024 RF7.4 and PRD 0036 RF6.5: the same as the export's best." },
         "summary": { "$ref": "#/$defs/LimitsSummary" }
       }
     },

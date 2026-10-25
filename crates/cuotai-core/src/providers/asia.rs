@@ -387,6 +387,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 

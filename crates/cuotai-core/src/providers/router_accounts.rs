@@ -525,6 +525,7 @@ mod tests {
                 .map(|(k, v)| ((*k).into(), (*v).into()))
                 .collect::<BTreeMap<_, _>>(),
             refresh_seconds: None,
+            group: None,
         }
     }
 

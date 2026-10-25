@@ -491,6 +491,25 @@ pub fn parse_refresh_seconds(text: &str) -> Result<Option<u64>, crate::text::Loc
     Ok(Some(seconds))
 }
 
+/// PRD 0024 RF7.1: parses the optional group text. Blank means no group;
+/// anything else must be a slug of at most 32 characters (the error is the
+/// `edit_error.group_invalid` text and never echoes the input).
+pub fn parse_group(text: &str) -> Result<Option<String>, crate::text::Localized> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if !crate::model::is_group_slug(trimmed) {
+        return Err(crate::text::Localized::with_param(
+            "edit_error.group_invalid",
+            "max",
+            crate::model::GROUP_MAX_LEN.to_string().as_str(),
+            "O grupo deve ter de 1 a 32 letras minúsculas, números, - ou _.",
+        ));
+    }
+    Ok(Some(trimmed.to_owned()))
+}
+
 /// `bl` profile names accept letters, digits, hyphen and underscore; up to
 /// 32 chars; no leading hyphen.
 pub fn is_valid_cli_profile(name: &str) -> bool {
@@ -1673,6 +1692,10 @@ pub struct AccountDraft<'a> {
     pub credential_params: Option<BTreeMap<String, String>>,
     pub fields: &'a [DraftField],
     pub interval_text: &'a str,
+    /// PRD 0024 RF7.1: the optional group of comparable accounts. `None`
+    /// leaves the edited account's group as it is (a new account has none);
+    /// `Some("")` clears it; any other text must be a group slug.
+    pub group_text: Option<&'a str>,
 }
 
 /// Sanitize the account name and confirm it does not collide with another
@@ -2222,6 +2245,7 @@ pub fn build_account(
         credential_params,
         fields,
         interval_text,
+        group_text,
     } = draft;
 
     let name = validate_name(name, *provider, config, editing)
@@ -2291,6 +2315,14 @@ pub fn build_account(
 
     let refresh_seconds = parse_refresh_seconds(interval_text)
         .map_err(|message| build_account_field_error("interval", message))?;
+    let group = match group_text {
+        Some(text) => {
+            parse_group(text).map_err(|message| build_account_field_error("group", message))?
+        }
+        None => editing
+            .and_then(|i| config.accounts.get(i))
+            .and_then(|a| a.group.clone()),
+    };
 
     // PRD 0016 RF1: the vault reference stays with its account; the form
     // never edits it and a provider switch starts without one. FIX-06: the
@@ -2318,6 +2350,7 @@ pub fn build_account(
         session,
         params,
         refresh_seconds,
+        group,
     })
 }
 
@@ -2992,6 +3025,7 @@ mod tests {
             concurrency: 4,
             timeout_seconds: 30,
             accounts,
+            groups: Vec::new(),
         }
     }
 
@@ -3005,6 +3039,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 
@@ -3142,6 +3177,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: Some(120),
+            group: None,
         };
         let updated = config.upsert_account(new_account.clone(), Some(0)).unwrap();
         assert_eq!(updated.accounts.len(), 1);
@@ -3165,6 +3201,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         let updated = config.upsert_account(new_account.clone(), None).unwrap();
         assert_eq!(updated.accounts.len(), 2);
@@ -3187,6 +3224,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         assert!(config.upsert_account(dup, None).is_err());
     }
@@ -3237,6 +3275,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let built = build_account(&draft, &config, Some(0)).unwrap();
         assert_eq!(built.oauth.unwrap().credential_id, original_id);
@@ -3267,6 +3306,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let built = build_account(&draft, &config, None).unwrap();
         let saved = built.oauth.unwrap();
@@ -3293,6 +3333,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let config = config_with(Vec::new());
         let err = build_account(&draft, &config, None).unwrap_err();
@@ -3375,6 +3416,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "60",
+            group_text: None,
         };
         let account = build_account(&draft, &config, Some(0)).unwrap();
         let updated = config.upsert_account(account, Some(0)).unwrap();
@@ -3400,6 +3442,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config, Some(0)).unwrap();
         assert_eq!(account.refresh_seconds, None);
@@ -3418,6 +3461,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::from([("project_ids".into(), "kept".into())]),
             refresh_seconds: None,
+            group: None,
         };
         let config = config_with(vec![existing]);
         let draft = AccountDraft {
@@ -3434,6 +3478,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config, Some(0)).unwrap();
         assert_eq!(account.provider, Provider::Mistral);
@@ -3456,6 +3501,7 @@ mod tests {
                 ("project_ids".into(), "old".into()),
             ]),
             refresh_seconds: None,
+            group: None,
         };
         let config = config_with(vec![existing.clone()]);
         let draft = AccountDraft {
@@ -3471,6 +3517,7 @@ mod tests {
             credential_params: None,
             fields: &[text_field("kept", "kept", "yes")],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config, Some(0)).unwrap();
         assert_eq!(account.params.get("kept").unwrap(), "yes");
@@ -3495,6 +3542,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config_with(Vec::new()), None).unwrap();
         assert!(account.credential_env.is_none());
@@ -3521,6 +3569,7 @@ mod tests {
             )])),
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config_with(Vec::new()), None).unwrap();
         assert!(account.credential_env.is_none());
@@ -3547,6 +3596,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         assert!(build_account(&draft, &config, None).is_err());
     }
@@ -3569,6 +3619,7 @@ mod tests {
                 value: DraftValue::Text(String::new()),
             }],
             interval_text: "",
+            group_text: None,
         };
         let err = build_account(&draft, &config_with(Vec::new()), None).unwrap_err();
         assert!(err.is_validation(), "expected Validation, got {err:?}");
@@ -3602,6 +3653,7 @@ mod tests {
                 ),
             ],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config_with(Vec::new()), None).unwrap();
         assert_eq!(account.params.get("subscription_id").unwrap(), "sub-1");
@@ -3651,6 +3703,7 @@ mod tests {
                 ),
             ]),
             refresh_seconds: None,
+            group: None,
         };
         let config = config_with(vec![existing_account.clone()]);
         let draft = AccountDraft {
@@ -3666,6 +3719,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config, Some(0)).unwrap();
         assert_eq!(account.params.get("auth_method").unwrap(), "idc");
@@ -3885,6 +3939,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::from([("profile".into(), "default".into())]),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(stored_credential(&account), "default");
 
@@ -3898,6 +3953,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(stored_credential(&account), "");
     }
@@ -3916,6 +3972,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(stored_credential(&account), "qwen-personal");
 
@@ -3928,6 +3985,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(stored_credential(&empty), "");
     }
@@ -3946,6 +4004,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(stored_credential(&account), "OPENAI_ADMIN_KEY");
 
@@ -3959,6 +4018,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(stored_credential(&empty), default_env(Provider::OpenAiApi));
 
@@ -3973,6 +4033,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(
             stored_credential(&missing),
@@ -3994,6 +4055,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::from([("profile".into(), "stale".into())]),
             refresh_seconds: None,
+            group: None,
         };
         assert_eq!(stored_credential(&account), "OPENAI_ADMIN_KEY");
     }
@@ -4079,6 +4141,7 @@ mod tests {
                 value: DraftValue::Choice(42),
             }],
             interval_text: "",
+            group_text: None,
         };
         let err = build_account(&draft, &config_with(Vec::new()), None).unwrap_err();
         assert!(err.is_validation(), "expected Validation, got {err:?}");
@@ -4111,6 +4174,7 @@ mod tests {
                 value: DraftValue::Text("leaked".into()),
             }],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config_with(Vec::new()), None).unwrap();
         assert!(!account.params.contains_key("totally_secret_key"));
@@ -4149,6 +4213,7 @@ mod tests {
                 },
             ],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&draft, &config_with(Vec::new()), None).unwrap();
         assert!(!account.params.contains_key("mode"));
@@ -4177,6 +4242,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         // PRD 0029 RF3.1: the only account of its provider needs no name.
         let built = build_account(&draft, &config_with(Vec::new()), None).unwrap();
@@ -4290,6 +4356,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "not-a-number",
+            group_text: None,
         };
         let err = build_account(&draft, &config_with(Vec::new()), None).unwrap_err();
         assert_eq!(err.field(), Some("interval"));
@@ -4356,6 +4423,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         };
         let err = config.upsert_account(sneaky, None).unwrap_err();
         let msg = err.message();
@@ -4443,6 +4511,7 @@ mod tests {
             oauth: Some(oauth_config_for(provider)),
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 
@@ -4897,6 +4966,7 @@ mod tests {
                     oauth: Some(original_oauth.clone()),
                     params: BTreeMap::new(),
                     refresh_seconds: None,
+                    group: None,
                 },
                 None,
             )
@@ -5016,6 +5086,7 @@ mod tests {
                             credential_params: None,
                             fields: &draft_fields,
                             interval_text: "",
+                            group_text: None,
                         };
                         let result = build_account(&draft, &config_with(Vec::new()), None);
                         if option.applies_to(auth_mode) {
@@ -5114,6 +5185,7 @@ mod tests {
             credential_params: None,
             fields: &[],
             interval_text: "",
+            group_text: None,
         };
         let account = build_account(&base, &config, None).expect("new Kiro env account");
         assert_eq!(
@@ -5137,5 +5209,106 @@ mod tests {
         for key in ["field", "value", "auth_mode", "reason"] {
             assert!(note.params.contains_key(key), "missing error param {key}");
         }
+    }
+}
+
+/// PRD 0024 RF7.1: the optional group of comparable accounts.
+#[cfg(test)]
+mod group_tests {
+    use super::*;
+
+    fn draft<'a>(group_text: Option<&'a str>) -> AccountDraft<'a> {
+        AccountDraft {
+            provider: Provider::OpenAiApi,
+            name: "Work",
+            credential: "WORK_KEY",
+            auth_mode: "credential",
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &[],
+            interval_text: "",
+            group_text,
+        }
+    }
+
+    #[test]
+    fn the_group_is_blank_a_slug_or_an_error_that_never_echoes_it() {
+        assert_eq!(parse_group("  ").unwrap(), None);
+        assert_eq!(parse_group(" coding ").unwrap().as_deref(), Some("coding"));
+        assert_eq!(parse_group("a-b_9").unwrap().as_deref(), Some("a-b_9"));
+        for bad in ["Coding", "-x", "a b", "ação", &"x".repeat(33)] {
+            let error = parse_group(bad).unwrap_err();
+            assert_eq!(error.id, "edit_error.group_invalid");
+            assert!(!error.fallback.contains(bad), "{}", error.fallback);
+        }
+    }
+
+    #[test]
+    fn building_an_account_sets_keeps_or_clears_its_group() {
+        let config = Config::default();
+        let fresh = build_account(&draft(Some("coding")), &config, None).unwrap();
+        assert_eq!(fresh.group.as_deref(), Some("coding"));
+        assert_eq!(
+            build_account(&draft(None), &config, None).unwrap().group,
+            None
+        );
+        let mut with_group = config.clone();
+        with_group.accounts = vec![fresh];
+        // An edit that does not mention the group keeps it...
+        let kept = build_account(&draft(None), &with_group, Some(0)).unwrap();
+        assert_eq!(kept.group.as_deref(), Some("coding"));
+        // ...a blank clears it and a bad one is a field error.
+        assert_eq!(
+            build_account(&draft(Some("")), &with_group, Some(0))
+                .unwrap()
+                .group,
+            None
+        );
+        let error = build_account(&draft(Some("No Good")), &with_group, Some(0)).unwrap_err();
+        assert_eq!(error.field(), Some("group"));
+    }
+
+    #[test]
+    fn groups_validate_round_trip_and_keep_the_comments_around_them() {
+        use crate::config_file::ConfigFile;
+        let text = "# header\nrefresh_seconds = 300\n\n[[accounts]]\nname = \"A\"\nprovider = \"open_ai_api\"\ngroup = \"coding\" # mine\n\n[[accounts]]\nname = \"B\"\nprovider = \"anthropic_api\"\ngroup = \"coding\"\n\n# named\n[[groups]]\nid = \"coding\"\nlabel = \"Coding\"\norder = 1\n";
+        let config = Config::from_toml(text).unwrap();
+        assert_eq!(config.accounts[0].group.as_deref(), Some("coding"));
+        assert_eq!(config.groups[0].label.as_deref(), Some("Coding"));
+        for bad in [
+            "accounts = [{ name = \"A\", provider = \"open_ai_api\", group = \"Bad Group\" }]",
+            "accounts = []\ngroups = [{ id = \"x\" }, { id = \"x\" }]",
+            "accounts = []\ngroups = [{ id = \"X\" }]",
+            "accounts = []\ngroups = [{ id = \"x\", label = \"  \" }]",
+            "accounts = []\ngroups = [{ id = \"x\", color = \"red\" }]",
+        ] {
+            assert!(Config::from_toml(bad).is_err(), "{bad}");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        std::fs::write(&path, text).unwrap();
+        let mut file = ConfigFile::load(Some(path.clone()), false).unwrap();
+        let mut edited = file.config.clone();
+        edited.accounts[1].group = None;
+        file.save(edited).unwrap();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(saved.starts_with("# header\n"), "{saved}");
+        assert!(saved.contains("group = \"coding\" # mine"), "{saved}");
+        assert!(saved.contains("# named\n[[groups]]"), "{saved}");
+        let again = Config::from_toml(&saved).unwrap();
+        assert_eq!(again.accounts[1].group, None);
+        assert_eq!(again.groups, config.groups);
+        // Dropping the named groups removes the tables.
+        let mut file = ConfigFile::load(Some(path.clone()), false).unwrap();
+        let mut edited = file.config.clone();
+        edited.groups.clear();
+        file.save(edited).unwrap();
+        assert!(!std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("[[groups]]"));
     }
 }

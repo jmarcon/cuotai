@@ -206,6 +206,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::Session => "edit_error.config_session",
         crate::ConfigError::Extension => "edit_error.config_extension",
         crate::ConfigError::Region => "edit_error.config_region",
+        crate::ConfigError::Group => "edit_error.config_group",
         crate::ConfigError::MeteredRefreshFloor { .. } | crate::ConfigError::AccountIds { .. } => {
             unreachable!()
         }

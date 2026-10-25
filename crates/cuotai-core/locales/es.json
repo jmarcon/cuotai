@@ -1442,5 +1442,10 @@
   "tray.empty": "Ninguna cuenta en la barra de menús",
   "tray.outage": "{item}; incidente del proveedor",
   "tray.tooltip": "Cuotai — {label}",
-  "journal.removed_account": "Cuenta eliminada"
+  "journal.removed_account": "Cuenta eliminada",
+  "edit_error.config_group": "El grupo de una cuenta y cada id de [[groups]] deben tener de 1 a 32 letras minúsculas, números, - o _, y los id de [[groups]] no pueden repetirse.",
+  "edit_error.group_invalid": "El grupo debe tener de 1 a {max} letras minúsculas, números, - o _.",
+  "advice.best": "Mejor ahora",
+  "advice.switch": "{from} se agota ≈{at} · {to} tiene {pct}% disponible",
+  "advice.switch.exhausted": "{from} está agotada · {to} tiene {pct}% disponible"
 }

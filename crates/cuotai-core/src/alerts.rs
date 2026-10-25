@@ -351,10 +351,10 @@ struct Mark {
 
 /// One eligible metric's consumption.
 #[derive(Debug, Clone, Copy)]
-struct Consumption {
+pub(crate) struct Consumption {
     /// `0.0..=100.0`; exactly 100 when exhausted.
-    percent: f64,
-    exhausted: bool,
+    pub(crate) percent: f64,
+    pub(crate) exhausted: bool,
 }
 
 /// Notices `next` deserves after `prev` (the account's previous reading).
@@ -1123,7 +1123,7 @@ fn level(consumption: Consumption, prefs: &AlertPrefs) -> Option<u8> {
 /// credits, spend, usage, rate limits, uncapped and unmeasured metrics are
 /// not eligible. Follows [`classify_metric`]: a finite `used` wins over
 /// `remaining`.
-fn consumption(metric: &Metric) -> Option<Consumption> {
+pub(crate) fn consumption(metric: &Metric) -> Option<Consumption> {
     if !crate::metrics::is_plan_limit(metric) {
         return None;
     }

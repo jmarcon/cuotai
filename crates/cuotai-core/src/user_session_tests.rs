@@ -405,6 +405,7 @@ fn editing_an_account_keeps_its_vault_reference_and_a_provider_switch_drops_it()
         credential_params: None,
         fields: &[],
         interval_text: "",
+        group_text: None,
     };
     let edited =
         crate::account_edit::build_account(&draft(Provider::XiaomiMimo), &base, Some(0)).unwrap();

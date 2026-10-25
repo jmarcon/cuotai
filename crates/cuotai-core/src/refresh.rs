@@ -1206,6 +1206,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds,
+            group: None,
         }
     }
 
@@ -1241,6 +1242,7 @@ mod tests {
             concurrency: 2,
             timeout_seconds: 5,
             accounts,
+            groups: Vec::new(),
         }
     }
 
@@ -1262,6 +1264,7 @@ mod tests {
             concurrency: 2,
             timeout_seconds: 5,
             accounts: vec![account("global", None), account("override", Some(30))],
+            groups: Vec::new(),
         };
         let now = Instant::now();
         let cycle = RefreshCycle::new(&config, now);
@@ -1280,6 +1283,7 @@ mod tests {
                 concurrency: 1,
                 timeout_seconds: 5,
                 accounts: vec![metered_account("bedrock", override_seconds)],
+                groups: Vec::new(),
             };
             let now = Instant::now();
             let mut cycle = RefreshCycle::new(&config, now);
@@ -1324,6 +1328,7 @@ mod tests {
             concurrency: 1,
             timeout_seconds: 5,
             accounts: vec![account("first", None), account("second", Some(30))],
+            groups: Vec::new(),
         };
         let now = Instant::now();
         let mut cycle = RefreshCycle::new(&config, now);
@@ -1364,6 +1369,7 @@ mod tests {
             concurrency: 1,
             timeout_seconds: 5,
             accounts: vec![account("only", None)],
+            groups: Vec::new(),
         };
         let now = Instant::now();
         let mut cycle = RefreshCycle::new(&config, now);
@@ -2828,6 +2834,7 @@ mod prd0033_rf2_tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                group: None,
             }],
             ..Config::default()
         };
@@ -2866,6 +2873,7 @@ mod prd0033_rf2_tests {
     fn cycle_with(provider: Provider, seconds: u64) -> (RefreshCycle, Instant) {
         let now = Instant::now();
         let acct = crate::Account {
+            group: Default::default(),
             id: None,
             name: "a".into(),
             provider,

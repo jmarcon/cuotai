@@ -494,6 +494,7 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
                 }
             } else {
                 update_accounts(&mut doc, &config.accounts)?;
+                update_groups(&mut doc, &config.groups)?;
                 doc.to_string()
             }
         }
@@ -595,6 +596,46 @@ fn table_param<'a>(table: &'a toml_edit::Table, key: &str) -> Option<&'a str> {
                 .and_then(|params| params.get(key))
                 .and_then(|value| value.as_str())
         })
+}
+
+/// PRD 0024 RF7.1: keep the `[[groups]]` of the document as they are while
+/// they describe `groups`; otherwise replace them (no table at all when
+/// there are none), so unrelated comments survive.
+fn update_groups(
+    doc: &mut toml_edit::DocumentMut,
+    groups: &[crate::model::GroupDef],
+) -> Result<(), EditError> {
+    let current: Option<Vec<crate::model::GroupDef>> = doc
+        .get("groups")
+        .and_then(|item| item.as_array_of_tables())
+        .map(|tables| {
+            tables
+                .iter()
+                .filter_map(|table| toml_edit::de::from_str(&table.to_string()).ok())
+                .collect()
+        });
+    if current.as_deref().unwrap_or_default() == groups && current.is_some() == !groups.is_empty() {
+        return Ok(());
+    }
+    doc.remove("groups");
+    if groups.is_empty() {
+        return Ok(());
+    }
+    let mut array = toml_edit::ArrayOfTables::new();
+    for group in groups {
+        let table = toml_edit::ser::to_document(group)
+            .map_err(|_| {
+                validation(
+                    Some("groups"),
+                    "edit_error.config_serialize",
+                    "falha ao serializar grupo",
+                )
+            })?
+            .into_table();
+        array.push(table);
+    }
+    doc["groups"] = toml_edit::Item::ArrayOfTables(array);
+    Ok(())
 }
 
 fn update_accounts(
@@ -738,6 +779,10 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
     if account.refresh_seconds.is_none() {
         table.remove("refresh_seconds");
     }
+    // PRD 0024 RF7.1: the optional group of comparable accounts.
+    if account.group.is_none() {
+        table.remove("group");
+    }
     Ok(())
 }
 
@@ -758,6 +803,7 @@ mod tests {
             oauth: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            group: None,
         }
     }
 
@@ -767,6 +813,7 @@ mod tests {
             concurrency: 2,
             timeout_seconds: 10,
             accounts,
+            groups: Vec::new(),
         }
     }
 

@@ -617,6 +617,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect::<BTreeMap<_, _>>(),
             refresh_seconds: None,
+            group: None,
         }
     }
 

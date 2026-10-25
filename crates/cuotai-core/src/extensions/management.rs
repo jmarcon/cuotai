@@ -748,6 +748,7 @@ fn extension_account(manifest: &Manifest, config: &Config, editing: Option<usize
         session: None,
         params: BTreeMap::from([(EXTENSION_ID_PARAM.to_owned(), manifest.id.clone())]),
         refresh_seconds: Some(manifest.interval_seconds),
+        group: None,
     }
 }
 
