@@ -400,17 +400,21 @@ impl HistoryStore {
                     },
                 )?
                 .collect::<rusqlite::Result<_>>()?;
-            {
-                let mut delete = tx.prepare_cached(
+            // One statement per series: the rows of the span not among the
+            // keepers go, instead of one DELETE per dropped row.
+            let kept: Vec<i64> = samples
+                .iter()
+                .zip(hourly_keepers(&samples))
+                .filter_map(|((at, _), keep)| keep.then_some(*at))
+                .collect();
+            if kept.len() < samples.len() {
+                let kept = serde_json::to_string(&kept).map_err(|_| HistoryError::Storage)?;
+                reduced += tx.execute(
                     "DELETE FROM samples WHERE config_key = ?1 AND account_digest = ?2
-                       AND metric_key = ?3 AND taken_at = ?4",
+                       AND metric_key = ?3 AND taken_at >= ?4 AND taken_at < ?5
+                       AND taken_at NOT IN (SELECT value FROM json_each(?6))",
+                    rusqlite::params![config, account, metric, from, until, kept],
                 )?;
-                for ((at, _), keep) in samples.iter().zip(hourly_keepers(&samples)) {
-                    if !keep {
-                        reduced +=
-                            delete.execute(rusqlite::params![config, account, metric, at])?;
-                    }
-                }
             }
             tx.commit()?;
         }
