@@ -1369,7 +1369,8 @@ fn next_notice_view(
 /// The recorded points a view reads for a reading: account index, its
 /// metrics and the instant the lookback ends at (see
 /// [`Monitor::recent_points`]).
-type RecentReader<'a> = dyn Fn(usize, &[Metric], chrono::DateTime<chrono::Utc>) -> Vec<Vec<Point>> + 'a;
+type RecentReader<'a> =
+    dyn Fn(usize, &[Metric], chrono::DateTime<chrono::Utc>) -> Vec<Vec<Point>> + 'a;
 
 /// A [`RecentReader`] over `monitor` that reads each (account, instant) pair
 /// once: one emit builds the view, the hooks' export and the journal's pace
