@@ -23,7 +23,7 @@ export function bind(root, ctx) {
 export function costHtml(cv, prices) {
   const state = { starting: "settings.cost.state.starting", scanning: "settings.cost.state.scanning", paused: "settings.cost.state.paused" }[cv.state];
   const dirs = (s) => `${te("settings.cost.dirs", { pattern: s.disclosure.pattern })} ${s.disclosure.directories.map((d) => `<code>${esc(d)}</code>`).join(", ")}${s.disclosure.custom ? ` (${te("settings.cost.pathsChosen")})` : ""}`;
-  const sources = cv.sources.map((s) => row({ key: `cost-src-${esc(s.source)}`, label: te("settings.cost.read", { source: s.label }), attrs: `data-cost-source="${esc(s.source)}"`,
+  const sources = cv.sources.map((s) => row({ key: `cost-src-${esc(s.source)}`, kw: "cost-src", label: te("settings.cost.read", { source: s.label }), attrs: `data-cost-source="${esc(s.source)}"`,
     desc: `<span data-cost-state>${s.enabled ? te("settings.cost.since", { at: fmtReset(s.consented_at) ?? "—" }) : te("settings.cost.off")}</span>`,
     info: `${te("settings.cost.help")}<br />${dirs(s)}${s.enabled ? `<br /><span data-cost-indexed>${te("settings.cost.indexed", { files: s.indexed.files, invalid: s.indexed.invalid_lines })}</span>` : ""}`,
     msg: `cost-src-${esc(s.source)}-msg`, control: (a) => sw(`cost-toggle-${esc(s.source)}`, s.enabled, a, `data-cost-toggle="${esc(s.source)}"`),
@@ -167,6 +167,11 @@ function confirmDisclosure(d) {
       <p>${tle(d.extracted)}</p>
       <p class="hint">${tle(d.never)}</p>
       <p class="hint">${tle(d.off)}</p>`, te("settings.cost.confirm.yes"));
+}
+
+/** RF6.3: what the search indexes for this page: the rows drawn from the core's state, by the same function. */
+export async function searchHtml() {
+  return costHtml(await costStatus(), await costPrices());
 }
 
 /** RF2.4: turning a source off erases everything derived from it; resolves to the user's answer. */

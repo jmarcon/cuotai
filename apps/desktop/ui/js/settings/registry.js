@@ -132,8 +132,18 @@ export function nextEntry(entries, focused, key) {
   return entries[(at + step + entries.length) % entries.length];
 }
 
+// `title` is the tooltip the icon rail needs when the labels are hidden (RF8.4).
 const entryHtml = (p, current) => `<li><button type="button" class="set-nav-item${p.id === current ? " on" : ""}" data-page="${esc(p.id)}"
-    ${p.id === current ? 'aria-current="page"' : ""}>${icon(p.icon)}<span>${te(p.label)}</span></button></li>`;
+    ${p.id === current ? 'aria-current="page"' : ""} title="${te(p.label)}">${icon(p.icon)}<span>${te(p.label)}</span></button></li>`;
+
+/** RF8.4: below 560 px the sidebar becomes this page selector above the content (CSS shows one or the other). */
+const selectHtml = (current) => {
+  const option = (p) => `<option value="${esc(p.id)}" ${p.id === current ? "selected" : ""}>${te(p.label)}</option>`;
+  return `<select class="set-select set-nav-select" data-page-select aria-label="${te("settings.nav.label")}">
+    ${PAGES.filter((p) => !p.group && !p.bottom).map(option).join("")}
+    <optgroup label="${te("settings.page.advanced")}">${PAGES.filter((p) => p.group === ADVANCED).map(option).join("")}</optgroup>
+    ${PAGES.filter((p) => p.bottom).map(option).join("")}</select>`;
+};
 
 /** RF2.5: the sidebar (a navigation landmark, DS-CMP-SEG-4) with the current page marked and the Advanced group as
  *  a disclosure whose open state the caller remembers. */
@@ -142,7 +152,7 @@ export function sidebarHtml(current, advancedOpen) {
   const top = shown.filter((p) => !p.group && !p.bottom);
   const advanced = shown.filter((p) => p.group === ADVANCED);
   const bottom = shown.filter((p) => p.bottom);
-  return `<nav class="set-nav" aria-label="${te("settings.nav.label")}">
+  return `${selectHtml(current)}<nav class="set-nav" aria-label="${te("settings.nav.label")}">
     <ul class="set-nav-list">${top.map((p) => entryHtml(p, current)).join("")}</ul>
     <div class="set-nav-group">
       <button type="button" class="set-nav-item set-nav-toggle" data-advanced-toggle aria-expanded="${advancedOpen}" aria-controls="set-nav-advanced">

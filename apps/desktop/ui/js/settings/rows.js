@@ -12,13 +12,18 @@ const DISC_KEY = (key) => `cuotai.settings.disc.${key}`;
 /** The aria attributes that tie a control to its row's label and description (RF8.2). */
 const aria = (key, desc) => `aria-labelledby="${key}-label"${desc ? ` aria-describedby="${key}-desc"` : ""}`;
 
+/** RF6.1: the search keywords of a row, in the active language (`settings.kw.<key>`); none when the catalog has none. */
+const keywords = (key) => { const k = `settings.kw.${key}`; const v = t(k); return v === k ? "" : v; };
+
 /** RF3.1: one setting. Label (and one short description) on the left, the control on the right, an optional
  *  ⓘ popover (RF5.3), an optional full-width `body` under it, and the row's own error line (RF4.3).
  *  `control(aria)` receives the attributes that label it. `dep`: a dependent row (RF3.3), indented under its parent
- *  and disabled with it. `msg`/`msgRole`: the id and role of the error line the page binding writes to. */
-export function row({ key, label, desc = "", info = "", control = () => "", body = "", dep = false, danger = false, msg = `${key}-msg`, msgRole = "alert", attrs = "" }) {
+ *  and disabled with it. `msg`/`msgRole`: the id and role of the error line the page binding writes to. `kw`: the
+ *  catalog key of the row's search keywords (default the row key); `find`: the text search shows for a row with no
+ *  label of its own. */
+export function row({ key, label, desc = "", info = "", control = () => "", body = "", dep = false, danger = false, msg = `${key}-msg`, msgRole = "alert", attrs = "", kw = key, find = "" }) {
   const a = aria(key, desc);
-  return `<div class="set-row${dep ? " dep" : ""}${danger ? " danger" : ""}" data-row="${esc(key)}" ${attrs}>
+  return `<div class="set-row${dep ? " dep" : ""}${danger ? " danger" : ""}" data-row="${esc(key)}" data-kw="${esc(keywords(kw))}"${find ? ` data-find="${esc(find)}"` : ""} ${attrs}>
     <div class="set-row-text"><span class="set-row-label" id="${key}-label">${label}</span>${info ? infoHtml(key, info) : ""}
       ${desc ? `<span class="set-row-desc" id="${key}-desc">${desc}</span>` : ""}</div>
     <div class="set-row-ctl">${control(a)}</div>

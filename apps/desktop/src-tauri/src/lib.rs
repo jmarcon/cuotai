@@ -1119,6 +1119,15 @@ fn set_settings_title(window: WebviewWindow, title: String) -> Result<(), String
     window.set_title(&title).map_err(|e| e.to_string())
 }
 
+/// PRD 0020 RF8.3: `Ctrl+W` closes the Settings window (macOS also has the menu item's `⌘W`).
+#[tauri::command]
+fn close_settings_window(window: WebviewWindow) -> Result<(), String> {
+    if window.label() != settings_window::LABEL {
+        return Err("not_settings".into());
+    }
+    window.close().map_err(|e| e.to_string())
+}
+
 /// macOS: the "Settings…" item (`⌘,`) of the app menu, kept so its text
 /// follows the interface language.
 #[cfg(target_os = "macos")]
@@ -1603,6 +1612,7 @@ pub fn run() {
             open_settings,
             settings_target,
             set_settings_title,
+            close_settings_window,
             show_main_window,
             quit_app
         ])

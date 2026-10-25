@@ -3,10 +3,11 @@
 // anchor the shell asked for, and tells the other windows what changed. It has no page of its own (RF2.4).
 import { boot } from "../boot.js";
 import { t, te } from "../i18n.js";
-import { bindThemeSwitch, emitSettingsChanged, getSettings, getView, initOrderSync, initTheme, isDesktop, updaterStatus } from "../lib.js";
+import { bindThemeSwitch, emitSettingsChanged, getSettings, getView, icon, initOrderSync, initTheme, isDesktop, updaterStatus } from "../lib.js";
 import { initUpdates, updateState } from "../updater.js";
 import { canLeave, initRows, resetPage } from "./rows.js";
 import { ADVANCED, nextEntry, pageById, pageOfAnchor, resolvePage, sidebarHtml } from "./registry.js";
+import { buildIndex, forget, resultsHtml, reveal, search } from "./search.js";
 
 const T = window.__TAURI__;
 document.documentElement.dataset.platform = /Mac/i.test(navigator.platform || navigator.userAgent || "") ? "mac" : "other";
@@ -39,9 +40,12 @@ const ctx = {
 
 function paintFrame() {
   root.innerHTML = `<div class="set-window">
-    <aside class="set-side"><div class="set-titlebar" data-tauri-drag-region></div><div data-nav></div></aside>
+    <aside class="set-side"><div class="set-titlebar" data-tauri-drag-region></div>
+      <div class="set-search" role="search">${icon("search")}<input type="search" id="set-search" data-search autocomplete="off" spellcheck="false"
+        placeholder="${te("settings.search.placeholder")}" aria-label="${te("settings.search.label")}" aria-controls="set-body" /></div>
+      <div data-nav></div></aside>
     <div class="set-main"><div class="set-titlebar" data-tauri-drag-region></div>
-      <main class="set-content" data-page-body aria-labelledby="set-page-title"></main></div>
+      <main class="set-content" id="set-body" data-page-body aria-labelledby="set-page-title"></main></div>
   </div>`;
   initRows(root.querySelector("[data-page-body]"));
   paintNav();
@@ -53,10 +57,10 @@ function paintNav() {
   nav.innerHTML = sidebarHtml(current, advancedOpen);
   if (focused) nav.querySelector(focused)?.focus();
 }
-const focusKey = (el) => (el.dataset.page ? `[data-page="${el.dataset.page}"]` : el.matches("[data-advanced-toggle]") ? "[data-advanced-toggle]" : null);
+const focusKey = (el) => (el.dataset.page ? `[data-page="${el.dataset.page}"]` : el.matches("[data-advanced-toggle]") ? "[data-advanced-toggle]" : el.matches("[data-page-select]") ? "[data-page-select]" : null);
 
 /** Paints the current page from fresh shell state; a later paint wins over one still loading. */
-async function paintPage({ anchor = null, focusTitle = false } = {}) {
+async function paintPage({ anchor = null, focusTitle = false, find = null } = {}) {
   const token = ++paintToken;
   for (const fn of leaving.splice(0)) { try { fn(); } catch {} }
   const page = resolvePage(current);
@@ -72,6 +76,14 @@ async function paintPage({ anchor = null, focusTitle = false } = {}) {
   if (focusTitle || anchor) scroller.scrollTop = 0;
   // RF8.1: after a page change, focus moves to its title.
   if (focusTitle) body.querySelector("#set-page-title").focus({ preventScroll: true });
+  // RF9.3: a page change cross-fades (instant when motion is reduced or off, through the motion tokens).
+  if (focusTitle) { body.classList.remove("page-in"); void body.offsetWidth; body.classList.add("page-in"); }
+  // RF6.2: landing from a search result: the page's own state is drawn first, then the row is opened and highlighted.
+  if (find) {
+    await Promise.resolve(drawn).catch(() => {});
+    if (token === paintToken) reveal(body, find);
+    return;
+  }
   if (!anchor) return;
   // Land on the anchor now and again once the groups that read their state have drawn it, unless the user
   // scrolled meanwhile.
@@ -91,17 +103,18 @@ function anchorIn(body, anchor) {
 }
 
 /** RF1.3/RF2.2: show `id` (an anchor alone finds its page); the choice is remembered for the next opening. */
-async function go(id, { anchor = null, focusTitle = true } = {}) {
+async function go(id, { anchor = null, focusTitle = true, find = null } = {}) {
   const page = (id && pageById(id)) || (anchor && pageOfAnchor(anchor)) || pageById(current);
   // RF4.4: an unsaved draft (the hook rules) asks before its page or sub-page is left.
   if (!(await canLeave())) return;
   resetPage();
+  clearSearch();
   current = page.id;
   put(PAGE_KEY, current);
   // A link or a restored page inside Advanced opens the group, so the sidebar shows where the user is.
   if (page.group === ADVANCED && !advancedOpen) { advancedOpen = true; put(ADVANCED_KEY, "open"); }
   paintNav();
-  return paintPage({ anchor, focusTitle });
+  return paintPage({ anchor, focusTitle, find });
 }
 
 const syncTitle = () => {
@@ -109,6 +122,7 @@ const syncTitle = () => {
   if (isDesktop) T.core.invoke("set_settings_title", { title: document.title }).catch(() => {});
 };
 
+root.addEventListener("change", (e) => { if (e.target.matches("[data-page-select]")) go(e.target.value); });
 root.addEventListener("click", (e) => {
   const entry = e.target.closest("[data-page]");
   if (entry) return go(entry.dataset.page);
@@ -128,6 +142,61 @@ root.addEventListener("keydown", (e) => {
   next.focus();
 });
 
+// ---------- search (RF6) ----------
+let searching = false;
+let searchToken = 0;
+const field = () => root.querySelector("[data-search]");
+/** The context the page modules draw their rows with, so the index sees the rows the pages draw. */
+const indexCtx = async () => ({ ...ctx, settings: await getSettings(), update: updateState() ?? (await updaterStatus().catch(() => null)) });
+function clearSearch() {
+  searching = false;
+  searchToken++;
+  if (field()) field().value = "";
+}
+/** Draws the results for the field's text in place of the page; an empty field returns to the page. */
+async function runSearch() {
+  const query = field().value.trim();
+  const token = ++searchToken;
+  if (!query) {
+    if (searching) { searching = false; await paintPage(); }
+    return;
+  }
+  // RF4.4: unsaved rules ask before the page is replaced; staying keeps the page and clears the field.
+  if (!searching) {
+    if (!(await canLeave())) { field().value = ""; return; }
+    resetPage();
+    for (const fn of leaving.splice(0)) { try { fn(); } catch {} }
+  }
+  const rows = await buildIndex(await indexCtx());
+  if (token !== searchToken) return;
+  searching = true;
+  paintToken++;
+  root.querySelector("[data-page-body]").innerHTML = resultsHtml(search(rows, query));
+}
+root.addEventListener("input", (e) => { if (e.target.matches("[data-search]")) runSearch(); });
+root.addEventListener("click", (e) => {
+  const hit = e.target.closest("[data-result]");
+  if (hit) return go(hit.dataset.result, { find: hit.dataset.rowKey, focusTitle: false });
+  if (e.target.closest("[data-search-clear]")) { clearSearch(); paintPage(); field().focus(); }
+});
+// RF6.1: `/` and Ctrl/Cmd+F focus the search; Esc clears it, then leaves it. RF8.3: Ctrl/Cmd+W closes the window.
+const typing = (el) => el?.matches?.("input, textarea, select, [contenteditable]");
+const editing = (el) => el?.matches?.("textarea, select, [contenteditable], input:not([type=checkbox], [type=radio], [type=button])");
+addEventListener("keydown", (e) => {
+  const mod = /Mac/i.test(navigator.platform || "") ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  if ((e.key === "/" && !typing(e.target) && !mod && !e.altKey) || (mod && !e.altKey && e.key.toLowerCase() === "f")) {
+    e.preventDefault();
+    field()?.focus();
+    field()?.select();
+  } else if (mod && !e.altKey && e.key.toLowerCase() === "w") {
+    e.preventDefault();
+    if (isDesktop) T.core.invoke("close_settings_window").catch(() => {});
+  } else if (e.key === "Escape" && e.target === field() && !document.querySelector("dialog[open]")) {
+    e.preventDefault();
+    if (field().value) { clearSearch(); paintPage(); } else field().blur();
+  }
+});
+
 /** The request the window was opened with: from the shell, or from the query string in the browser demo. */
 async function takeTarget() {
   if (isDesktop) return T.core.invoke("settings_target").catch(() => null);
@@ -139,7 +208,7 @@ const applyTarget = (target) => (target?.page || target?.anchor
   : null);
 
 // Theme, mode and language (with cross-fade) repaint the whole window; the other windows follow the shell event.
-const repaintAll = () => { syncTitle(); paintNav(); return paintPage(); };
+const repaintAll = () => { syncTitle(); paintNav(); forget(); return searching ? runSearch() : paintPage(); };
 bindThemeSwitch(root, repaintAll);
 initTheme(repaintAll);
 initOrderSync(() => paintPage());
@@ -162,3 +231,9 @@ paintFrame();
 const first = await takeTarget();
 if (first?.page || first?.anchor) await applyTarget(first);
 else await go(current, { focusTitle: false });
+// RF8.3: Esc closes a popover first (rows.js), then the sub-page, and the window last; registered after the rows'
+// own handler so it only sees an Esc nothing took. A field being edited keeps its Esc.
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented || editing(e.target) || document.querySelector("dialog[open]")) return;
+  if (isDesktop) T.core.invoke("close_settings_window").catch(() => {});
+});

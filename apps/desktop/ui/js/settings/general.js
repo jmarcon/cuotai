@@ -12,7 +12,7 @@ export function html({ settings: s }) {
     + row({ key: "mode", label: te("theme.mode.label"), control: () => themeSwitchHtml() })
     + row({ key: "motion", label: te("settings.motion.label"), info: te("settings.motion.help"), msg: "motion-msg",
       control: (a) => seg("motion", MOTIONS.map((m) => [m, te(`settings.motion.${m}`)]), s.motion, a) }))
-    + group("language", te("lang.label"), row({ key: "lang", label: "", body: langMenuHtml({ inline: true }) }));
+    + group("language", te("lang.label"), row({ key: "lang", label: "", find: te("lang.label"), body: langMenuHtml({ inline: true }) }));
 }
 
 /** Theme, mode and language go through the shell's shared switch (`bindThemeSwitch`, with cross-fade); they are

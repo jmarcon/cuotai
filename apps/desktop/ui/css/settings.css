@@ -148,7 +148,7 @@
   flex-direction: column;
   padding: 0;
   border: var(--border-w) solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   scroll-margin-top: 56px;
 }
@@ -167,18 +167,92 @@
   scroll-margin-top: 56px;
 }
 
-/* Below 560 px (browser demo only; the window's minimum is 640): the pages go above the content. */
-@media (max-width: 559px) {
-  .set-window {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .set-side {
-    border-right: 0;
-    border-bottom: var(--border-w) solid var(--border);
-  }
-  .set-nav-bottom {
-    margin-top: 0;
+/* RF6.1: the search field at the top of the sidebar. */
+.set-search {
+  position: relative;
+  margin: 0 8px 8px;
+}
+.set-search > svg.i {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  color: var(--fg-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.set-search input {
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px 4px 32px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg, var(--bg));
+  color: var(--fg);
+}
+.set-search input::placeholder {
+  color: var(--fg-muted);
+}
+.set-search input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+/* RF6.2/RF6.3: results grouped by page, one button per row; the empty state suggests clearing the field. */
+.set-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  text-align: start;
+}
+.set-result + .set-result {
+  border-top: var(--border-w) solid var(--border);
+}
+.set-result:hover {
+  background: var(--surface-2);
+}
+.set-result:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.set-result-desc {
+  color: var(--fg-muted);
+  font-size: var(--text-sm, 12px);
+}
+.set-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.set-empty-title {
+  font-weight: 600;
+}
+/* RF6.2: the row a result lands on is highlighted for about 1.5 s; the fade follows the motion tokens. */
+.set-row {
+  transition: background var(--motion-base) var(--ease-out);
+}
+.set-row.found {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+/* RF9.3: short motion from the tokens (0 ms when reduced or off). */
+.set-content.page-in {
+  animation: set-page-in var(--motion-base) var(--ease-out);
+}
+.set-disc[open] > .set-disc-body {
+  animation: set-page-in var(--motion-fast) var(--ease-out);
+}
+@keyframes set-page-in {
+  from {
+    opacity: 0;
   }
 }
 
@@ -560,4 +634,121 @@
 :root[data-motion="off"] .set-toast,
 :root[data-motion="reduced"] .set-toast {
   animation: none;
+}
+
+/* RF8.4: below 720 px the sidebar is an icon rail with tooltips (the labels stay in the accessibility tree); below
+   560 px it becomes a page selector above the content. The window's own minimum is 640 px; narrower sizes come from
+   200% text zoom and the browser demo. */
+.set-nav-select {
+  display: none;
+}
+@media (max-width: 719px) {
+  .set-window {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+  .set-nav-item span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .set-nav-item,
+  .set-nav-toggle {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .set-nav-toggle .set-nav-chev {
+    display: none;
+  }
+  .set-nav-sub .set-nav-item {
+    padding-inline-start: 0;
+  }
+  .set-nav {
+    padding-inline: 8px;
+  }
+  /* The search shrinks to its icon and opens over the content while it has focus. */
+  .set-search {
+    position: relative;
+    z-index: 2;
+    width: 40px;
+    margin-inline: 8px;
+  }
+  .set-search input {
+    width: 40px;
+    padding-inline: 0;
+    color: transparent;
+  }
+  .set-search input::placeholder {
+    color: transparent;
+  }
+  .set-search:focus-within {
+    width: 240px;
+  }
+  .set-search:focus-within input {
+    width: 240px;
+    padding-inline: 32px 8px;
+    color: var(--fg);
+  }
+}
+@media (max-width: 559px) {
+  .set-window {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .set-side {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: var(--border-w) solid var(--border);
+  }
+  .set-side .set-titlebar {
+    display: none;
+  }
+  .set-search,
+  .set-search:focus-within {
+    flex: 1 1 140px;
+    width: auto;
+    margin: 0;
+  }
+  .set-search input,
+  .set-search:focus-within input {
+    width: 100%;
+    padding-inline: 32px 8px;
+    color: var(--fg);
+  }
+  .set-search input::placeholder {
+    color: var(--fg-muted);
+  }
+  .set-side > [data-nav] {
+    flex: 1 1 160px;
+  }
+  .set-nav {
+    padding: 0;
+  }
+  .set-nav-select {
+    display: block;
+    width: 100%;
+    min-height: 32px;
+  }
+  .set-nav-list,
+  .set-nav-group {
+    display: none;
+  }
+  /* A switch stays beside its label; wider controls drop below it. */
+  .set-row:not(:has(> .set-row-ctl > .sw)) {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+  .set-row:not(:has(> .set-row-ctl > .sw)) > .set-row-ctl {
+    justify-self: start;
+  }
+}
+
+/* RF8.5: a row's error is never carried by color alone: an icon and the text. */
+.set-row-err:not(:empty)::before {
+  content: "\26A0\FE0E\00a0";
 }
