@@ -298,6 +298,8 @@ pub struct UpdateView {
     pub disabled_reason: Option<&'static str>,
     pub channel: &'static str,
     pub current_version: String,
+    /// PRD 0039 RF10: `dev abc1234` for a build between releases; display-only, never compared.
+    pub build: Option<String>,
     pub last_check: Option<String>,
     /// Whether the one-time answer is still required before any request.
     pub consent_pending: bool,
@@ -483,6 +485,7 @@ impl Service {
             disabled_reason: reason,
             channel: CHANNEL,
             current_version: env!("CARGO_PKG_VERSION").to_string(),
+            build: cuotai_core::build_info::build_suffix(),
             last_check: prefs.last_check.clone(),
             consent_pending: reason.is_none() && !prefs.consent_answered,
             phase: name,

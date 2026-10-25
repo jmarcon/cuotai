@@ -26,7 +26,7 @@
 | RF7 | — | Documented in `docs/releasing.md` ("Branch and tag protection") with the exact `gh api` commands; applying the rulesets and the merge settings is an owner action. Agent rules in `AGENTS.md` ("How to deliver a change"). |
 | RF8 | 0.80.0 | `ci.yml` triggers (pull requests, `main` pushes, dispatch, merge groups; no tags, no other branches), `release_tooling` output and `release-preflight` job, the gate on `main` pushes, the next-version job summary, `cargo fmt` once on Linux, `CI result` aggregating the preflight; `workflow-check` enforces the triggers and the aggregate. The optional `root`/`desktop` split of RF8.2(b) is not done. |
 | RF9 | 0.80.0 | Cutover: `AGENTS.md` rewritten ("How to deliver a change" and "Versioning, Commits & Changelog", with the dated notice), `docs/releasing.md`, `docs/release-policy.md`, `CONTRIBUTING.md`, `docs/architecture.md`, amendment notes in PRDs 0019 and 0021; the footer links of 0.66.0–0.79.0 compare commits and `changelog-check` validates them; no tag at cutover. |
-| RF10 | — | Deferred until after the first release (D12). |
+| RF10 | vNEXT | Delivered (D12 lifted by the owner on 2026-10-25, before the first release): `crates/cuotai-core/build.rs` sets `CUOTAI_BUILD_DESCRIBE` from `git describe --tags --long --dirty --always` (empty outside the workspace checkout, so crates.io builds, source archives and a missing Git show the plain version); `cuotai_core::build_info` formats it (`dev_suffix`, `display_version`); `cuotai --version` and the TUI About print `0.80.0 (dev abc1234)` (`, modified` with uncommitted edits) unless the build is exactly at a tag (an rc tag counts); the desktop `UpdateView.build` and `AboutView.build` carry the suffix and Settings › Updates shows it after the version. Comparisons keep `CARGO_PKG_VERSION`. Release workflows are unchanged: their shallow checkouts have no tag history to describe, so they stay plain. |
 | RF11 | 0.80.0 | `changelog-check` compares the §2 strong dependencies, the §4 solid edges and the "What each plan unblocks" table of `0000_control.md` (`plan_links::plan_graph_problems`), with fixture tests; it runs in the always-on `changelog-check` CI job. |
 
 ## 1. Context
@@ -290,7 +290,7 @@ Conventional commits stay the source of truth; a commit's message carries everyt
 3. **RF2 + RF8 + RF9** — the cutover PR: the new gate, the CI triggers and jobs, and the documentation rewrite land together, so there is never a window in which neither rule set is enforced.
 4. **RF7** — the owner applies the rulesets and the merge strategy right after the cutover merges.
 5. **RF5** — `release tag`, the `release.yml` check additions, and the first release PR → `v0.80.0-rc.1` (expected; computed at cutover) → final tag (D9, adjusted).
-6. **RF10** — when the owner wants it.
+6. **RF10** — delivered on 2026-10-25 (D12 lifted).
 
 Verification: `cargo test -p xtask` (unit and temp-repo tests on three OSes), `cargo xtask workflow-check`, a fork rehearsal of RF5.1 end to end, and the owner checks of RF7.
 
@@ -320,7 +320,7 @@ Verification: `cargo test -p xtask` (unit and temp-repo tests on three OSes), `c
 | D9 | First release | Cutover first; then an RC of the next computed version, then the final tag. Alternative: tag the current release commit now under the old rules. |
 | D10 | Retroactive tags (PRD 0021 RF1.3) | Decline; commit-comparison links for internal versions. |
 | D11 | Meaning of pre-cutover versions in plans | Keep them as "internal versions", documented in the `CHANGELOG.md` preface. |
-| D12 | Dev build identity (RF10) | Yes, low priority, after the first release. |
+| D12 | Dev build identity (RF10) | Yes, low priority, after the first release. **Lifted 2026-10-25 (owner): implemented before the first release.** |
 | D13 | CodeQL blocks merges | Not at first; enable code-scanning merge protection for high/critical alerts once the PR flow has run for a few weeks. |
 
 **Pre-release history (owner decision, 2026-10-23).** D11 is refined: the internal versions 0.1.0–0.79.0 no longer have one `CHANGELOG.md` section each. One last section, `## Pre-release history (0.1.0–0.79.0, internal builds, never published)`, summarizes them by area, and their footer links are gone, so the first published version, v0.80.0, is the first versioned section. The shared parser reads that section as a distinct entry, not a version. `changelog-check` accepts plan and §3 rows for internal versions through its range and rejects a range past 0.79.0. `release-check` accepts the internal workspace version before the first release but never tags it. The commit gate lets a `Changelog-Edit` commit fold internal versions into it, but never remove it, re-range it or fold a published version. `release prepare` still takes the internal 0.79.0 baseline as its base (RF3.1) and writes the next section above it. The What's new screen shows it last, and `cuotai --changelog 0.5.0` prints it after a note (exit 0). The §3 rows of `0000_control.md` stay the per-version detail.

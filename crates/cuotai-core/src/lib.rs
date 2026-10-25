@@ -8,6 +8,7 @@ pub mod account_id;
 pub mod advice;
 pub mod aggregators;
 pub mod alerts;
+pub mod build_info;
 pub mod canary;
 pub mod catalog;
 pub mod changelog;

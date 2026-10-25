@@ -50,9 +50,16 @@ const HISTORY_DEFAULT_DAYS: u32 = 7;
 /// Sparkline cells of each `--history` metric.
 const HISTORY_SPARK_CELLS: usize = 60;
 
+/// PRD 0039 RF10: `--version` says `0.80.0 (dev abc1234)` for a build that
+/// is not exactly a release tag, and the plain version for a release.
+fn build_version() -> &'static str {
+    static SHOWN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    SHOWN.get_or_init(cuotai_core::build_info::display_version)
+}
+
 #[derive(Parser)]
 #[command(
-    version,
+    version = build_version(),
     about = "Quota e consumo de AI: APIs e assinaturas, sem gerar tokens.",
     // PRD 0015: one local cost action at a time, never with a query mode.
     group(

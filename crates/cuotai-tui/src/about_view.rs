@@ -86,7 +86,11 @@ fn entry(library: &Library) -> [Line<'static>; 2] {
 fn lines() -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::styled(
-            format!("{} {}", about::PROJECT_NAME, env!("CARGO_PKG_VERSION")),
+            format!(
+                "{} {}",
+                about::PROJECT_NAME,
+                cuotai_core::build_info::display_version()
+            ),
             Style::default().fg(FG).add_modifier(Modifier::BOLD),
         ),
         Line::from(format!("Licença {}", about::PROJECT_LICENSE)),

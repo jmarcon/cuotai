@@ -101,6 +101,19 @@ public partial one. The channel jobs run last, are independent of each
 other, and nothing depends on them: a channel failure never affects the
 GitHub Release (RF5.7).
 
+## Which build is this? (PRD 0039 RF10)
+
+The version moves only when a release is prepared, so a build of `main` after
+`v0.80.0` still says `0.80.0`. `crates/cuotai-core/build.rs` therefore records
+`git describe --tags --long --dirty --always` of the workspace checkout, and
+`cuotai --version`, the TUI About screen and the desktop Settings › Updates
+line show `0.80.0 (dev abc1234)` for a build that is not exactly at a tag
+(`, modified` when the working tree had uncommitted edits). A build exactly at
+`v0.80.0` or `v0.80.0-rc.N`, a crates.io build and a source archive without
+Git show the plain `0.80.0`. The suffix is display-only: the updater, What's
+new and `export::v1` compare `CARGO_PKG_VERSION`, and the release workflows
+need no change (their checkouts have no tag history to describe).
+
 ## Artifact smoke tests (RF6)
 
 Between `assemble` and `publish`, four secret-free jobs test the artifacts

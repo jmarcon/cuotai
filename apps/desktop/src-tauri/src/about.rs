@@ -12,6 +12,8 @@ use serde::Serialize;
 pub struct AboutView {
     pub name: &'static str,
     pub version: &'static str,
+    /// PRD 0039 RF10: `dev abc1234` for a build between releases (display-only).
+    pub build: Option<String>,
     pub license: &'static str,
     pub repository: &'static str,
     pub libraries: &'static [Library],
@@ -21,6 +23,7 @@ pub fn view() -> AboutView {
     AboutView {
         name: about::PROJECT_NAME,
         version: env!("CARGO_PKG_VERSION"),
+        build: cuotai_core::build_info::build_suffix(),
         license: about::PROJECT_LICENSE,
         repository: about::PROJECT_REPOSITORY,
         libraries: about::libraries(),

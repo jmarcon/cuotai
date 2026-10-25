@@ -1542,7 +1542,7 @@ const demoUpdateView = () => {
   const enabled = demoUpdate.consentAnswered && !demoUpdate.disabledReason;
   return {
     enabled, automatic: demoUpdate.automatic, disabled_reason: demoUpdate.disabledReason,
-    channel: "stable", current_version: "0.71.1", last_check: demoUpdate.lastCheck,
+    channel: "stable", current_version: "0.71.1", build: null, last_check: demoUpdate.lastCheck,
     consent_pending: !demoUpdate.consentAnswered && !demoUpdate.disabledReason,
     phase: demoUpdate.phase, version: demoUpdate.phase === "idle" || demoUpdate.phase === "failed" ? null : demoUpdate.version,
     notes: demoUpdate.phase === "available" ? DEMO_NOTES : null, date: demoUpdate.phase === "available" ? demoUpdate.date : null,

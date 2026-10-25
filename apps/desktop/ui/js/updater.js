@@ -196,7 +196,7 @@ export function updatesSectionHtml(s, message = "") {
       ${privacyNoteHtml()}
       ${row({ key: "update-auto", label: te("update.automatic"), msg: "update-auto-msg", control: (a) => sw("update-automatic", s?.automatic, a, switchLocked ? "disabled" : "") })}
       ${off ? `<p class="hint warn-txt" data-update-off>${offText}</p>` : ""}
-      <p class="hint">${te("update.version", { version: s?.current_version ?? "—" })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
+      <p class="hint">${te("update.version", { version: `${s?.current_version ?? "—"}${s?.build ? ` (${s.build})` : ""}` })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
       <p class="hint" id="update-last-check">${last}</p>
       <div class="dlg-actions left">
         <button class="btn" data-update-check ${off ? "disabled" : ""}>${te("update.checkNow")}</button>
