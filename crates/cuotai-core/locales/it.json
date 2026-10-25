@@ -1441,5 +1441,6 @@
   "tray.join": "{first}; {rest}",
   "tray.empty": "Nessun account nella barra dei menu",
   "tray.outage": "{item}; incidente del fornitore",
-  "tray.tooltip": "Cuotai — {label}"
+  "tray.tooltip": "Cuotai — {label}",
+  "journal.removed_account": "Account rimosso"
 }

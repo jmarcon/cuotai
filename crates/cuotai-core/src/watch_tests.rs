@@ -71,6 +71,10 @@ struct Rig {
     start: Instant,
     /// PRD 0013 RF3: runs the events of `all`, when set.
     hooks: Option<crate::hooks::Runner>,
+    /// PRD 0026 RF3.2: the journal filled from the same exports.
+    tap: JournalTap,
+    journal: crate::history::HistoryStore,
+    _dir: tempfile::TempDir,
 }
 
 impl Rig {
@@ -95,7 +99,15 @@ impl Rig {
         let start = Instant::now();
         let driver = Driver::new(&config, Arc::new(monitor), start);
         let failures = parse_events(["refresh_failed"]).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let journal = crate::history::HistoryStore::new(
+            dir.path().join("history.sqlite3"),
+            &ConfigIdentity::Explicit("watch".into()),
+        );
         Self {
+            tap: JournalTap::new(),
+            journal,
+            _dir: dir,
             server,
             answer,
             config,
@@ -125,6 +137,7 @@ impl Rig {
         }
         let export = self.driver.export(&self.config, &self.identity, wall);
         let names = |events: Vec<Event>| events.into_iter().map(|e| e.event.name()).collect();
+        self.tap.observe(&self.journal, &export, wall).unwrap();
         let all = self.all.observe(&export, wall);
         if let Some(hooks) = &self.hooks {
             for event in &all {
@@ -189,6 +202,21 @@ async fn one_event_per_real_transition_over_an_accelerated_clock() {
         )
     );
     assert!(rig.driver.failing(), "the account ends in failure");
+
+    // PRD 0026 RF3: the journal holds the real transitions, newest first,
+    // and never the usage updates.
+    let entries = rig.journal.journal(.., &rig.config.accounts, 20).unwrap();
+    let kinds: Vec<_> = entries.iter().map(|entry| entry.kind.name()).collect();
+    assert_eq!(
+        kinds,
+        [
+            "auth_required",
+            "refresh_failed",
+            "refresh_recovered",
+            "refresh_failed"
+        ]
+    );
+    assert_eq!(entries[0].account.as_deref(), Some("alpha"));
 
     // One query per due reading, none for watching (rounds at 0, 60 … 900
     // except 30).

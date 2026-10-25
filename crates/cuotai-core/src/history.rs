@@ -23,10 +23,12 @@
 //! refresh results off the refresh's critical path (RF2) and prunes by
 //! [`Retention`] (RF4), which also owns export and erasure.
 
+mod journal;
 mod recorder;
 mod retention;
 mod trend;
 
+pub use journal::{removed_account, JournalEntry};
 pub use recorder::{HistoryRecorder, HistoryStatus};
 pub use retention::{CeilingPrune, ExportFormat, PruneReport, Retention, RetentionError};
 pub use trend::{Chart, ChartPoint, ChartReset, HistoryRange, MetricHistory, Trend};
@@ -91,7 +93,7 @@ const WAL_SIZE_LIMIT: i64 = 4 << 20;
 /// Times are UTC unix milliseconds. Version 2 indexes samples by age (the
 /// file-wide retention and size pruning, RF4) and adds `meta` (the
 /// resolution reduction's progress).
-const MIGRATIONS: [&str; 3] = [
+const MIGRATIONS: [&str; 4] = [
     "CREATE TABLE series (
     config_key TEXT NOT NULL,
     account_digest TEXT NOT NULL,
@@ -122,6 +124,8 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;"
     // Version 3 (PRD 0026 RF1.5): whether a metric is part of the plan or
     // paid extra usage, so statistics tell plan limits from overage.
     "ALTER TABLE series ADD COLUMN billing TEXT NOT NULL DEFAULT 'included';",
+    // Version 4 (PRD 0026 RF3): the event journal.
+    journal::MIGRATION,
 ];
 
 /// PRD 0029 RF2.2: `legacy_digest` (the pre-0029 series identity,

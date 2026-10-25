@@ -172,6 +172,41 @@ impl Watcher {
     }
 }
 
+/// PRD 0026 RF3.2: a front end's way to fill the event journal from the
+/// exports of the cycle it already runs. Keeps its own baselines in memory
+/// (the first export is the baseline and writes nothing); `usage_updated`
+/// never reaches the journal and the history's duplicate rule makes two
+/// processes on one profile safe.
+#[derive(Debug)]
+pub struct JournalTap {
+    watcher: Watcher,
+}
+
+impl Default for JournalTap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl JournalTap {
+    pub fn new() -> Self {
+        Self {
+            watcher: Watcher::new(EventState::default(), None),
+        }
+    }
+
+    /// Observe `export` and append its transitions to `store`'s journal.
+    /// Call only while the history records. Returns the rows written.
+    pub fn observe(
+        &mut self,
+        store: &crate::history::HistoryStore,
+        export: &Export,
+        now: DateTime<Utc>,
+    ) -> Result<usize, crate::history::HistoryError> {
+        store.journal_record(&self.watcher.observe(export, now))
+    }
+}
+
 /// PRD 0031 RF8.1: the keys, in configuration order, of the accounts that
 /// read the same provider status as `of` (same provider and source, a
 /// current reading), the first being the one the event names.
