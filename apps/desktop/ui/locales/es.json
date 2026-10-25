@@ -919,5 +919,14 @@
   "timeline.exhausted": "agotado",
   "timeline.left": "{pct}% restante",
   "timeline.stale": "lectura desactualizada",
-  "tray.stats": "Estadísticas"
+  "tray.stats": "Estadísticas",
+  "settings.alerts.projected": "Avisar antes de agotarse",
+  "settings.alerts.projectedHelp": "Un aviso del sistema poco antes de que una cuota se agote antes de renovarse, una vez por ventana y solo con un consumo reciente constante. Funciona por sí solo, con las alertas de uso desactivadas. Desactivado por defecto.",
+  "settings.alerts.projectedHonesty": "Estimación lineal de las lecturas recientes",
+  "settings.kw.projected": "previsión ritmo proyección agotarse aviso anticipado",
+  "settings.alerts.projectedLead": "Con cuánta antelación",
+  "settings.alerts.projectedLead15": "15 min",
+  "settings.alerts.projectedLead30": "30 min",
+  "settings.alerts.projectedLead60": "1 h",
+  "settings.error.invalid_lead": "Elige 15 minutos, 30 minutos o 1 hora."
 }

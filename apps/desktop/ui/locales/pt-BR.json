@@ -926,5 +926,14 @@
   "timeline.exhausted": "esgotado",
   "timeline.left": "{pct}% restante",
   "timeline.stale": "leitura desatualizada",
-  "tray.stats": "Estatísticas"
+  "tray.stats": "Estatísticas",
+  "settings.alerts.projected": "Avisar antes de acabar",
+  "settings.alerts.projectedHelp": "Um aviso do sistema pouco antes de uma cota acabar antes de renovar, uma vez por janela e só com consumo recente constante. Funciona sozinho, com os alertas de uso desligados. Desligado por padrão.",
+  "settings.alerts.projectedHonesty": "Estimativa linear das leituras recentes",
+  "settings.kw.projected": "previsão ritmo projeção acabar esgotar aviso antecipado",
+  "settings.alerts.projectedLead": "Com que antecedência",
+  "settings.alerts.projectedLead15": "15 min",
+  "settings.alerts.projectedLead30": "30 min",
+  "settings.alerts.projectedLead60": "1 h",
+  "settings.error.invalid_lead": "Escolha 15 minutos, 30 minutos ou 1 hora."
 }

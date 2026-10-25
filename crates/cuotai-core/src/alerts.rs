@@ -1392,9 +1392,6 @@ where
     Tz::Offset: Display,
 {
     let label = event.label.as_str();
-    let at = local_time(projection.projected_at, now, tz);
-    let margin = crate::text::duration(TimeDelta::seconds(projection.margin_seconds));
-    let margin_pt = margin.fallback.to_string();
     Notice {
         title: Localized::with_params(
             "alerts.title.projected",
@@ -1408,14 +1405,12 @@ where
                 account.name
             ),
         ),
-        body: Localized::with_params(
-            "alerts.body.projected",
-            params([
-                ("metric", label.into()),
-                ("at", at.as_str().into()),
-                ("margin", margin.into()),
-            ]),
-            format!("Neste ritmo {label} acaba ≈{at}, {margin_pt} antes da renovação"),
+        body: projected_body(
+            label,
+            projection.projected_at,
+            TimeDelta::seconds(projection.margin_seconds),
+            now,
+            tz,
         ),
     }
 }
@@ -1530,6 +1525,55 @@ fn amount_plain(amount: &crate::text::ParamValue) -> String {
         crate::text::ParamValue::Text(text) => text.clone(),
         crate::text::ParamValue::L10n(text) => text.fallback.to_string(),
     }
+}
+
+/// PRD 0024 RF4.3 (DS-CMP-CALL-3): the in-app forecast of `metric_label`,
+/// "At this rate Session (5h) runs out ≈18:53, 37 min before the reset", from
+/// a [`forecast`]ed `pace`; `None` without a projection. The same text as
+/// the notification body.
+pub fn forecast_text<Tz>(
+    metric_label: &str,
+    pace: &Pace,
+    now: DateTime<Utc>,
+    tz: &Tz,
+) -> Option<Localized>
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let projected_at = pace.projected_exhaustion_at?;
+    Some(projected_body(
+        metric_label,
+        projected_at,
+        pace.resets_at - projected_at,
+        now,
+        tz,
+    ))
+}
+
+fn projected_body<Tz>(
+    label: &str,
+    projected_at: DateTime<Utc>,
+    margin: TimeDelta,
+    now: DateTime<Utc>,
+    tz: &Tz,
+) -> Localized
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let at = local_time(projected_at, now, tz);
+    let margin = crate::text::duration(margin);
+    let margin_pt = margin.fallback.to_string();
+    Localized::with_params(
+        "alerts.body.projected",
+        params([
+            ("metric", label.into()),
+            ("at", at.as_str().into()),
+            ("margin", margin.into()),
+        ]),
+        format!("Neste ritmo {label} acaba ≈{at}, {margin_pt} antes da renovação"),
+    )
 }
 
 /// "Session (5h) 90%", "… at the limit", "… available again", "… runs

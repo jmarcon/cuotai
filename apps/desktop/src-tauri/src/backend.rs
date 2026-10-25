@@ -348,6 +348,10 @@ pub struct MetricView {
     /// `None` for ineligible metrics, for a reading that is not fresh (PRD
     /// 0024 FIX-11) and for the preserved reading.
     pace: Option<PaceView>,
+    /// PRD 0024 RF4.3: while the projected-exhaustion conditions hold
+    /// (whether or not the warning is on), the callout text and the outlook
+    /// chip; `None` otherwise.
+    forecast: Option<ForecastView>,
     /// PRD 0008 RF3.2/RF3.4: while usage alerts are on and the metric can
     /// alert, whether it is muted in the details and has an active alert.
     alert: Option<MetricAlertView>,
@@ -356,6 +360,29 @@ pub struct MetricView {
     /// "Renewed at 14:30; waiting for a reading" in the viewer's local time.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     expired: bool,
+}
+
+/// PRD 0024 RF4.3: the in-app forecast, from the core's texts.
+#[derive(Serialize, Clone)]
+pub struct ForecastView {
+    /// "At this rate Session (5h) runs out at 18:53, 37 min before the reset".
+    callout: cuotai_core::text::Localized,
+    /// The outlook chip: "Runs out at 18:53".
+    chip: cuotai_core::pace::Chip,
+}
+
+fn forecast_view(
+    metric: &Metric,
+    checked_at: chrono::DateTime<chrono::Utc>,
+    interval: Duration,
+    now: chrono::DateTime<chrono::Utc>,
+    recent: &[Point],
+) -> Option<ForecastView> {
+    let pace = alerts::forecast(metric, checked_at, interval, now, recent)?;
+    Some(ForecastView {
+        callout: alerts::forecast_text(&metric.label, &pace, now, &chrono::Local)?,
+        chip: pace.outlook_chip(local_at)?,
+    })
 }
 
 #[derive(Serialize, Clone)]
@@ -779,6 +806,7 @@ fn metric_view(metric: &Metric) -> MetricView {
         metric: metric.clone(),
         state: classify_metric(metric),
         pace: None,
+        forecast: None,
         alert: None,
         expired: false,
     }
@@ -810,6 +838,13 @@ fn report_view(
                 // PRD 0024 FIX-11: at the reading's time, only while fresh.
                 pace: pace::assess_reading(metric, report.checked_at, interval, now, points)
                     .map(pace_view),
+                forecast: forecast_view(
+                    metric,
+                    report.checked_at,
+                    interval,
+                    now,
+                    points.unwrap_or_default(),
+                ),
                 ..metric_view(metric)
             }
         })

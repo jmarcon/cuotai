@@ -191,6 +191,9 @@ export const sendTestNotification = (title, body) => call("send_test_notificatio
 // PRD 0008 RF3: usage alerts (desktop.json; the backend judges each reading and sends them). `setAlertsEnabled` asks
 // the same system permission as reset notices and resolves to `granted`, `denied`, `prompt` or `off`.
 export const setAlertsEnabled = (on) => call("set_alerts_enabled", { on });
+/** PRD 0024 RF4.1: the projected-exhaustion warning, `minutes` (15, 30 or 60) before the stop; resolves to the
+ *  permission like `setAlertsEnabled` (turning it on stays off unless `granted`). */
+export const setProjectedAlert = (on, minutes) => call("set_projected_alert", { on, minutes });
 export const setAlertOptions = (thresholds, exhaustion, recovery, overage) => call("set_alert_options", { thresholds, exhaustion, recovery, overage });
 export const setMetricAlert = (accountKey, label, on) => call("set_metric_alert", { accountKey, label, on });
 export const setPoolAlerts = (accountKey, each) => call("set_pool_alerts", { accountKey, each });
@@ -1831,6 +1834,13 @@ const demo = {
     demoSettings.alerts.enabled = permission === "granted";
     return permission;
   },
+  set_projected_alert: async ({ on, minutes }) => {
+    const permission = demoPermission(on);
+    if (on && ![15, 30, 60].includes(minutes)) throw "invalid_lead";
+    if (permission === "granted") demoSettings.alerts.projected_lead_minutes = minutes;
+    else delete demoSettings.alerts.projected_lead_minutes;
+    return permission;
+  },
   set_alert_options: async ({ thresholds, exhaustion, recovery, overage }) => {
     if (!thresholds.every((t) => Number.isInteger(t) && t >= 10 && t <= 99)) throw "invalid_threshold";
     Object.assign(demoSettings.alerts, { thresholds: [...new Set(thresholds)].sort((a, b) => a - b), exhaustion, recovery });
@@ -1950,6 +1960,18 @@ const PACE_ICON = { good: "check", neutral: "clock", warn: "warn", bad: "xcircle
 export function paceHtml(p, opts) {
   const text = paceText(p, opts);
   return `<p class="pace-line" data-pace="${esc(p.stage)}" title="${esc(`${text}. ${t("card.pace.estimate")}`)}">${icon(PACE_ICON[p.tone] ?? "clock", p.tone)}<span>${esc(text)}</span></p>`;
+}
+/** PRD 0024 RF4.3 (DS-CMP-CALL-3): the forecast callout of a metric, from the core's text; icon and border carry the
+ *  tone, not color alone. Empty unless the core projects a stop before the reset and pace is shown. */
+export function forecastHtml(m) {
+  if (!m.forecast || !showPace) return "";
+  return `<p class="call warn" role="note">${icon("warn")}<span>${esc(tl(m.forecast.callout))}</span></p>`;
+}
+/** PRD 0024 RF4.3: the card's outlook chip ("↑ Runs out ≈18:53") from the core chip, text as tooltip and name. */
+export function forecastChipHtml(m) {
+  if (!m.forecast || !showPace) return "";
+  const text = tl(m.forecast.chip.text);
+  return `<span class="mini time warn" title="${esc(text)}" aria-label="${esc(text)}"><span aria-hidden="true">${esc(m.forecast.chip.glyph)}</span>${esc(text)}</span>`;
 }
 export function initOrderSync(onChange) {
   onPreferencesChanged((changed) => {

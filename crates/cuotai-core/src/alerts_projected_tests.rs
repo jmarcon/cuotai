@@ -490,3 +490,30 @@ fn the_projection_comes_first_and_has_its_own_notice() {
         "{body}"
     );
 }
+
+/// RF4.3: the in-app callout is the notification body for the same pace,
+/// and only a forecast pace has one.
+#[test]
+fn the_callout_reads_like_the_notification_body() {
+    let steps = steep();
+    let points: Vec<Point> = steps[..4]
+        .iter()
+        .map(|(at, used, _)| Point {
+            taken_at: *at,
+            used: *used,
+        })
+        .collect();
+    let (at, used, resets_at) = steps[3];
+    let metric = quota(used, resets_at);
+    let pace = forecast(&metric, at, INTERVAL, at, &points).expect("steep and fresh");
+    let text = forecast_text("Session (5h)", &pace, at, &chrono::Utc).unwrap();
+    assert_eq!(text.id, "alerts.body.projected");
+    assert!(text.fallback.contains("Session (5h)"), "{}", text.fallback);
+    // A pace that lasts until the reset has no callout.
+    let calm = quota(10.0, resets_at);
+    let calm_points = [Point {
+        taken_at: at,
+        used: 10.0,
+    }];
+    assert!(forecast(&calm, at, INTERVAL, at, &calm_points).is_none());
+}

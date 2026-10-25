@@ -1,15 +1,21 @@
 // Settings › Alerts (PRD 0020 RF2.5): quota-reset notices and usage alerts, with the test notice.
 // PRD 0003 RF3.1: reset notices of this device (desktop.json), off by default; the backend schedules them.
 // PRD 0008 RF3.1: usage alerts in the same group (off by default), sharing its permission guidance and test.
+// PRD 0024 RF4.1: "Warn before running out", its own switch (off by default) with the lead as a dependent control.
 import { t, te } from "../i18n.js";
-import { esc, icon, sendTestNotification, setAlertOptions, setAlertsEnabled, setNotifyEnabled, setNotifyOptions } from "../lib.js";
+import { esc, icon, sendTestNotification, setAlertOptions, setAlertsEnabled, setNotifyEnabled, setNotifyOptions, setProjectedAlert } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { buttons, disc, row, rowError, select, seg, sw, toast } from "./rows.js";
+
+/** PRD 0024 RF2.7: the leads the core accepts, in minutes; the switch turns on with 60 (RF4.1). */
+const PROJECTED_LEADS = [15, 30, 60];
 
 export function html({ settings: s }) {
   const n = s.notify;
   const a = s.alerts;
   const leads = s.notify_leads.map((m) => [m, m ? te("settings.notify.leadMin", { min: m }) : te("settings.notify.leadNow")]);
+  const lead = a.projected_lead_minutes ?? null;
+  const projectedLeads = PROJECTED_LEADS.map((m) => [m, te(`settings.alerts.projectedLead${m}`)]);
   const whens = s.notify_whens.map((w) => [w, te(`settings.notify.when.${w}`)]);
   return group("notify", te("settings.notify.title"),
     row({ key: "notify", label: te("settings.notify.on"), info: te("settings.notify.help"),
@@ -28,8 +34,12 @@ export function html({ settings: s }) {
       + row({ key: "recovery", label: te("settings.alerts.recovery"), dep: true, control: (x) => sw("alerts-recovery", a.recovery, x) })
       // PRD 0023 RF7.4: paid extra usage starting (and, with exhaustion, its budget running out).
       + row({ key: "overage", label: te("settings.alerts.overage"), dep: true, info: te("settings.alerts.overageHelp"), control: (x) => sw("alerts-overage", a.overage !== false, x) }))
+    + row({ key: "projected", label: te("settings.alerts.projected"), info: te("settings.alerts.projectedHelp"),
+      desc: te("settings.alerts.projectedHonesty"),
+      control: (x) => sw("projected-on", lead != null, x),
+      body: `<div class="projected-lead"><span id="projected-lead-label">${te("settings.alerts.projectedLead")}</span>${seg("projected-lead", projectedLeads, lead ?? 60, 'aria-labelledby="projected-lead-label"')}</div>` })
     + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msg: "notify-msg", msgRole: "status",
-      control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled ? "" : "disabled"}>${icon("bell")}</button>`) }), "data-notify");
+      control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled || lead != null ? "" : "disabled"}>${icon("bell")}</button>`) }), "data-notify");
 }
 
 /** RF3.3 (PRD 0003): turning either switch on asks the system permission first; anything but `granted` keeps that
@@ -45,7 +55,10 @@ export function bind(root, ctx) {
   const lead = root.querySelector("#notify-lead");
   const when = root.querySelector("#notify-when");
   const other = root.querySelector("#notify-other");
+  const projectedOn = root.querySelector("#projected-on");
+  const projectedLead = root.querySelector("#projected-lead");
   const deps = () => {
+    for (const el of projectedLead.querySelectorAll("button")) el.disabled = !projectedOn.checked;
     for (const el of [lead, other, ...when.querySelectorAll("button")]) el.disabled = !on.checked;
     for (const el of root.querySelectorAll("#alert-new, [data-alert-add], #alert-chips button, #alerts-exhaustion, #alerts-recovery, #alerts-overage")) el.disabled = !alertsOn.checked;
   };
@@ -55,7 +68,7 @@ export function bind(root, ctx) {
     try {
       const permission = await enable(want);
       box.checked = permission === "granted";
-      test.disabled = !(on.checked || alertsOn.checked);
+      test.disabled = !(on.checked || alertsOn.checked || projectedOn.checked);
       denied.hidden = !want || permission === "granted";
       rowError(box, "");
       if (box.checked === want) toast();
@@ -81,12 +94,43 @@ export function bind(root, ctx) {
   lead.onchange = options(lead);
   when.addEventListener("change", options(when));
   other.onchange = options(other);
+  bindProjected(projectedOn, projectedLead, test, ctx, deps);
   bindAlertOptions(root, ctx, s, deps);
   test.onclick = () =>
     sendTestNotification(t("notify.test.title"), t("notify.test.body")).then(
       () => { rowError(test, ""); toast(t("settings.notify.testSent")); },
       () => rowError(test, t("settings.notify.testFailed")));
   deps();
+}
+
+/** PRD 0024 RF4.1: the switch asks the system permission like the other notices (anything but `granted` keeps it
+ *  off and shows the guidance of the reset notices); the lead is saved at once while the switch is on, and a
+ *  refused change is put back with the reason in its row. */
+function bindProjected(box, leadControl, test, ctx, deps) {
+  const denied = ctx.root?.querySelector?.("#notify-denied") ?? document.querySelector("#notify-denied");
+  let saved = Number(leadControl.value) || 60;
+  const save = async (want, minutes, el) => {
+    el.disabled = true;
+    try {
+      const permission = await setProjectedAlert(want, minutes);
+      box.checked = permission === "granted";
+      if (box.checked) saved = minutes;
+      leadControl.value = String(saved);
+      test.disabled = !(box.checked || document.querySelector("#notify-on")?.checked || document.querySelector("#alerts-on")?.checked);
+      if (denied) denied.hidden = !want || permission === "granted";
+      rowError(el, "");
+      if (box.checked === want) toast();
+      ctx.changed("alerts");
+    } catch (x) {
+      box.checked = !want;
+      leadControl.value = String(saved);
+      rowError(el, errorText(x));
+    } finally { el.disabled = false; deps(); }
+  };
+  box.onchange = () => save(box.checked, saved, box);
+  leadControl.addEventListener("change", () => {
+    if (box.checked) save(true, Number(leadControl.value), leadControl);
+  });
 }
 
 /** PRD 0008 RF3.1: the thresholds as chips (removed by a click, added from the field, 10 to 99), plus the

@@ -3,7 +3,7 @@
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  fmtMetricExtra, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  fmtMetricExtra, forecastHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
 /** `eye`: the quota's hide/show button and, PRD 0008 RF3.2, its usage alert mute (dialog only). */
@@ -38,6 +38,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
     </div>
     ${gauge}
     ${pace ? paceHtml(pace, { expected: true }) : ""}
+    ${forecastHtml(m)}
     ${reset && !renewed ? `<div class="resets">${te("metric.resetsAt", { when: reset })}</div>` : ""}
   </div>`;
 }

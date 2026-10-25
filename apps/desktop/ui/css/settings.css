@@ -932,3 +932,12 @@
   margin: 0;
   padding: 8px 16px;
 }
+/* PRD 0024 RF4.1: the lead of the projected warning, a dependent segmented control under its switch (DS-CMP-DEP-1). */
+.projected-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 16px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}

@@ -190,6 +190,37 @@
   height: 13px;
   margin-top: 1px;
 }
+/* PRD 0024 RF4.3, DS-CMP-CALL-1: a toned callout; the border carries the tone, the fill stays light. */
+.call {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: var(--border-w) solid var(--border);
+  color: var(--fg);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.call.warn {
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--warn) 60%, transparent);
+}
+.call svg.i {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--warn);
+}
+.mini.time {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.mini.time.warn {
+  color: var(--warn);
+}
 .metric-right {
   display: flex;
   align-items: center;

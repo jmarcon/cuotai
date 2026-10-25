@@ -62,6 +62,8 @@ export const CONTROLS = [
   { section: "notifications", page: "alerts", selector: 'id="notify-when"' },
   { section: "notifications", page: "alerts", selector: 'id="notify-other"' },
   { section: "notifications", page: "alerts", selector: 'id="alerts-on"' },
+  { section: "notifications", page: "alerts", selector: 'id="projected-on"' },
+  { section: "notifications", page: "alerts", selector: 'id="projected-lead"' },
   { section: "notifications", page: "alerts", selector: 'id="alert-new"' },
   { section: "notifications", page: "alerts", selector: "data-alert-add" },
   { section: "notifications", page: "alerts", selector: 'id="alerts-exhaustion"' },

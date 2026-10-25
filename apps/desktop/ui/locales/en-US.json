@@ -919,5 +919,14 @@
   "timeline.exhausted": "exhausted",
   "timeline.left": "{pct}% left",
   "timeline.stale": "reading is out of date",
-  "tray.stats": "Stats"
+  "tray.stats": "Stats",
+  "settings.alerts.projected": "Warn before running out",
+  "settings.alerts.projectedHelp": "A system notice shortly before a quota is projected to run out before it resets, once per window and only from steady recent use. It works on its own, with the usage alerts off. Off by default.",
+  "settings.alerts.projectedHonesty": "Linear estimate from recent readings",
+  "settings.kw.projected": "forecast pace projection run out exhaustion early warning",
+  "settings.alerts.projectedLead": "How early",
+  "settings.alerts.projectedLead15": "15 min",
+  "settings.alerts.projectedLead30": "30 min",
+  "settings.alerts.projectedLead60": "1 h",
+  "settings.error.invalid_lead": "Choose 15 minutes, 30 minutes or 1 hour."
 }
