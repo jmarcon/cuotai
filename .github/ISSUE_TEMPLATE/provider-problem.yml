@@ -53,6 +53,7 @@ body:
         - eleven_labs
         - nine_router
         - open_router
+        - litellm
         # providers:end
     validations:
       required: true

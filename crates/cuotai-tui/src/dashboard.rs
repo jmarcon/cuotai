@@ -706,7 +706,8 @@ fn aggregator_summary(report: &Report) -> Option<String> {
     let total: usize = pools.iter().map(|pool| pool.total).sum();
     let mut parts = vec![format!("{available}/{total} disponíveis")];
     if let Some(version) = instance_version(report) {
-        parts.push(format!("9router {version}"));
+        let kind = cuotai_core::aggregators::shape(report.provider).map_or("9router", |s| s.kind());
+        parts.push(format!("{kind} {version}"));
     }
     parts.extend(pools.iter().map(|pool| resolve_l10n(&pool.summary())));
     Some(parts.join(" · "))

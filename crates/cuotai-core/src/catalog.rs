@@ -205,6 +205,7 @@ fn aliases(provider: Provider) -> &'static [&'static str] {
         Provider::ElevenLabs => &["eleven labs", "11labs"],
         Provider::NineRouter => &["9router", "nine router", "router", "aggregator"],
         Provider::OpenRouter => &["openrouter", "open router", "router", "or"],
+        Provider::LiteLlm => &["litellm", "lite llm", "proxy", "gateway", "aggregator"],
         Provider::Extension => &[],
     }
 }
@@ -248,8 +249,7 @@ fn category(provider: Provider) -> Category {
         | Provider::AlibabaCodingPlan
         | Provider::AlibabaTokenPlan
         | Provider::Antigravity => Category::CodingTool,
-        Provider::NineRouter => Category::Router,
-        Provider::OpenRouter => Category::Router,
+        Provider::NineRouter | Provider::OpenRouter | Provider::LiteLlm => Category::Router,
         Provider::Extension => Category::Extension,
     }
 }

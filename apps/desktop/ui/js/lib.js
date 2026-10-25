@@ -733,6 +733,7 @@ const brands = {
   antigravity: B("Antigravity", "#7c6cf0", "Ag"), kimchi: B("Kimchi", "#ef4444", "Km"),
   nine_router: B("9router", "#0ea5e9", "9r"),
   open_router: B("OpenRouter", "#6467f2", "OR"),
+  nine_router: B("9router", "#0ea5e9", "9r"), litellm: B("LiteLLM proxy", "#14b8a6", "LL"),
   extension: B("Extension", "#8b5cf6", "Ex"),
 };
 export const brand = (p) => brands[p] ?? B(p, "#888888");

@@ -45,6 +45,7 @@ const VERIFIED: &[(&str, &str)] = &[
     ("kimi", "2026-10-20"),
     ("kimi_coding", "2026-10-20"),
     ("kiro", "2026-10-20"),
+    ("litellm", "2026-10-25"),
     ("mini_max", "2026-10-20"),
     ("mistral", "2026-10-20"),
     ("nine_router", "2026-10-25"),
@@ -694,6 +695,9 @@ pub(crate) fn classify(
             }
             access
         }
+        Provider::LiteLlm => entry(Official, AdminKey, Scope::Instance,
+            doc("https://docs.litellm.ai/docs/proxy/provider_budget_routing"),
+            "litellm", "Orçamento e gasto em USD por provedor do seu proxy LiteLLM, pela rota documentada de orçamentos por provedor."),
         Provider::Extension => entry(Extension, LocalCli, Scope::Account,
             doc("https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md"),
             "extension", "Uso informado por uma extensão local aprovada pelo usuário."),
@@ -894,6 +898,7 @@ mod tests {
             (ElevenLabs, Official, C::InferenceKey),
             (NineRouter, Undocumented, C::AggregatorLogin),
             (OpenRouter, Official, C::InferenceKey),
+            (LiteLlm, Official, C::AdminKey),
         ];
         let mut seen: Vec<_> = base.iter().map(|row| row.0).collect();
         seen.dedup();

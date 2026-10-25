@@ -271,6 +271,11 @@ impl Config {
             {
                 return Err(ConfigError::BaseUrl);
             }
+            if account.provider == Provider::LiteLlm
+                && providers::litellm::account_base(account).is_err()
+            {
+                return Err(ConfigError::BaseUrl);
+            }
             if account.provider == Provider::NineRouter {
                 let base = providers::nine_router::account_base(account)
                     .map_err(|_| ConfigError::BaseUrl)?;
@@ -926,7 +931,12 @@ impl Monitor {
             .with_access(
                 account,
                 async |account: &Account, ctx: &providers::Context<'_>| {
-                    Ok(providers::nine_router::test_connection(account, ctx).await)
+                    Ok(match account.provider {
+                        Provider::LiteLlm => {
+                            providers::litellm::test_connection(account, ctx).await
+                        }
+                        _ => providers::nine_router::test_connection(account, ctx).await,
+                    })
                 },
             )
             .await
@@ -1342,6 +1352,7 @@ impl Monitor {
             Provider::ElevenLabs => providers::eleven_labs::fetch(account, ctx).await,
             Provider::NineRouter => providers::nine_router::fetch(account, ctx).await,
             Provider::OpenRouter => providers::open_router::fetch(account, ctx).await,
+            Provider::LiteLlm => providers::litellm::fetch(account, ctx).await,
             Provider::Extension => {
                 unreachable!("extension dispatch is handled before provider dispatch")
             }

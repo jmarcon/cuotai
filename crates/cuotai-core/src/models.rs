@@ -369,6 +369,10 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             "models.unsupported",
             "a ElevenLabs não oferece catálogo de modelos para consulta de quota; nenhuma requisição é feita.",
         ),
+        Provider::LiteLlm => reason(
+            "models.unsupported",
+            "o LiteLLM é monitorado pelos orçamentos por provedor; nenhuma lista de modelos é consultada.",
+        ),
         Provider::NineRouter => reason(
             "models.unsupported",
             "o 9router é monitorado pelas quotas das conexões dele; nenhuma lista de modelos é consultada.",
@@ -1375,6 +1379,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             Copilot,
             ElevenLabs,
             NineRouter,
+            LiteLlm,
         ];
         let server = MockServer::start().await;
         let dir = tempfile::tempdir().unwrap();

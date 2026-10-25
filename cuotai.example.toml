@@ -333,3 +333,12 @@ credential_env = "OPENROUTER_API_KEY"
 # provider = "open_router"
 # credential_env = "OPENROUTER_MANAGEMENT_KEY"
 # params = { product = "account" }  # optional: breakdown = "provider" | "model", low_balance = "5"
+
+# LiteLLM proxy: the USD budget and spend per provider of your own proxy
+# (provider_budget_config), one sub-account per provider. Only the documented
+# GET /provider/budgets is read.
+# [[accounts]]
+# name = "litellm"
+# provider = "litellm"
+# credential_env = "LITELLM_API_KEY"   # name of the variable with the master or virtual key
+# params = { base_url = "http://127.0.0.1:4000" }

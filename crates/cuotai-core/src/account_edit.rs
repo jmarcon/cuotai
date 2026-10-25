@@ -79,6 +79,7 @@ pub fn default_env(provider: Provider) -> &'static str {
         Provider::ElevenLabs => "ELEVENLABS_API_KEY",
         Provider::NineRouter => "NINEROUTER_PASSWORD",
         Provider::OpenRouter => "OPENROUTER_API_KEY",
+        Provider::LiteLlm => "LITELLM_API_KEY",
         Provider::Extension => "",
     }
 }
@@ -145,6 +146,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::Antigravity => "Sessão Google do Antigravity, distinta da API key Gemini. Pressione Tab para login nativo; o projeto Code Assist e as janelas de quota serão consultados automaticamente.",
         Provider::Kimchi => "KIMCHI_API_KEY da conta Kimchi; consulta créditos e orçamentos em llm.kimchi.dev, sem geração.",
         Provider::ElevenLabs => "Use uma chave de API da ElevenLabs. Restrinja-a à permissão que lê a assinatura da conta (ela não precisa de acesso a text-to-speech) e, se usar vários workspaces, escolha a chave do workspace que quer acompanhar. O Cuotai guarda apenas o nome da variável.",
+        Provider::LiteLlm => "Chave mestra ou virtual do seu proxy LiteLLM: informe apenas o NOME da variável que a guarda; o valor nunca entra no TOML. Só a rota de orçamentos por provedor é lida.",
         Provider::NineRouter => "Deixe vazio quando o login do painel do 9router está desligado. Com senha, informe apenas o NOME da variável que a guarda; o valor nunca entra no TOML. Ler o uso pode fazer o 9router renovar os logins que ele guarda.",
         Provider::OpenRouter => "Visão padrão: chave de inferência da OpenRouter (OPENROUTER_API_KEY); mostra apenas os números dessa chave. Saldo da conta: chave de GERENCIAMENTO (OPENROUTER_MANAGEMENT_KEY), que não faz chamadas de inferência; crie-a em openrouter.ai/settings/management-keys.",
         _ => "API key/PAT: informe apenas o nome da variável exportada. A chave de geração pode não permitir consultar consumo; confira a limitação do relatório.",
@@ -259,6 +261,13 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
             "tls_pin_sha256",
         ],
         Provider::OpenRouter => &["product", "breakdown", "low_balance"],
+        Provider::LiteLlm => &[
+            "base_url",
+            "allow_private_http",
+            "hidden",
+            "dedup",
+            "show_both",
+        ],
         Provider::Zed => &["user_id", "system_id"],
         Provider::Antigravity => &["project_id"],
         Provider::AlibabaModelStudio => &["region"],
@@ -1465,7 +1474,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
                 ChoiceOptionDescriptor::new("auto", "Mostrar só a conta direta (padrão)"),
                 ChoiceOptionDescriptor::new("off", "Mostrar as duas"),
             ],
-            false,
+            true,
         ),
         FieldDescriptor::text(
             "show_both",
@@ -1512,6 +1521,46 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "low_balance",
             "Aviso de saldo baixo (opcional)",
             "Somente com saldo da conta: mostra um aviso quando o saldo de créditos fica igual ou abaixo deste valor. Vazio usa 5; 0 desliga.",
+            false,
+        ),
+    ];
+    const LITELLM: [FieldDescriptor; 5] = [
+        FieldDescriptor::text(
+            "base_url",
+            "Endereço do LiteLLM",
+            "Padrão http://127.0.0.1:4000. Use http(s)://host[:porta][/prefixo], sem usuário, consulta ou fragmento. Fora desta máquina é preciso HTTPS.",
+            false,
+        ),
+        FieldDescriptor::choice(
+            "allow_private_http",
+            "Conexão sem criptografia na rede privada",
+            "Só vale para endereços de rede privada (192.168.x.x, 10.x.x.x, Tailscale, .local). Não = exige HTTPS fora desta máquina.",
+            &[
+                ChoiceOptionDescriptor::new("false", "Não (padrão)"),
+                ChoiceOptionDescriptor::new("true", "Sim, na minha rede privada"),
+            ],
+            true,
+        ),
+        FieldDescriptor::text(
+            "hidden",
+            "Provedores ocultos (opcional)",
+            "Lista separada por vírgula dos identificadores dos provedores a ocultar (o identificador aparece nos detalhes).",
+            false,
+        ),
+        FieldDescriptor::choice(
+            "dedup",
+            "Provedores que repetem uma conta direta",
+            "O LiteLLM não informa e-mails, então nenhum provedor é tomado por uma conta direta; a opção existe para manter a mesma regra das outras centrais.",
+            &[
+                ChoiceOptionDescriptor::new("auto", "Mostrar só a conta direta (padrão)"),
+                ChoiceOptionDescriptor::new("off", "Mostrar as duas"),
+            ],
+            true,
+        ),
+        FieldDescriptor::text(
+            "show_both",
+            "Mostrar nos dois lugares (opcional)",
+            "Lista separada por vírgula dos identificadores que continuam aparecendo também fora da seção do LiteLLM.",
             false,
         ),
     ];
@@ -1658,6 +1707,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::CodeBuddy => &CODEBUDDY,
         Provider::Zed => &ZED,
         Provider::NineRouter => &NINE_ROUTER,
+        Provider::LiteLlm => &LITELLM,
         Provider::XiaomiMimo => &XIAOMI_MIMO,
         Provider::Antigravity => &ANTIGRAVITY,
         Provider::ElevenLabs => &ELEVEN_LABS,

@@ -1025,7 +1025,8 @@ fn aggregator_views(
     }
     let pools = source.map(pools).unwrap_or_default();
     let summary = AggregatorView {
-        kind: "9router",
+        kind: cuotai_core::aggregators::shape(parent.provider)
+            .map_or("9router", |shape| shape.kind()),
         version: source.and_then(instance_version),
         host: instance_host(parent),
         available: pools.iter().map(|pool| pool.available).sum(),

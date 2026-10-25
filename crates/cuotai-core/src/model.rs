@@ -45,6 +45,9 @@ pub enum Provider {
     /// PRD 0036: a user's own 9router instance (an aggregator).
     NineRouter,
     OpenRouter,
+    /// PRD 0036 RF10.1: a user's own LiteLLM proxy (an aggregator).
+    #[serde(rename = "litellm")]
+    LiteLlm,
     /// A locally installed script extension. Dynamic identity lives in
     /// `Account::params["extension_id"]`; this variant is intentionally not
     /// part of [`Provider::ALL`], so a blank extension is never offered or
@@ -93,6 +96,7 @@ impl Provider {
         Self::ElevenLabs,
         Self::NineRouter,
         Self::OpenRouter,
+        Self::LiteLlm,
     ];
 
     pub fn label(self) -> &'static str {
@@ -136,6 +140,7 @@ impl Provider {
             Self::ElevenLabs => "ElevenLabs",
             Self::NineRouter => "9router",
             Self::OpenRouter => "OpenRouter",
+            Self::LiteLlm => "LiteLLM proxy",
             Self::Extension => "Extension",
         }
     }
@@ -154,7 +159,7 @@ impl Provider {
     /// PRD 0036 RF1.1: true for providers that hold credentials for several
     /// upstream providers and relay their readings (today only 9router).
     pub fn is_aggregator(self) -> bool {
-        matches!(self, Self::NineRouter)
+        matches!(self, Self::NineRouter | Self::LiteLlm)
     }
 
     /// PRD 0036 RF4.1: an aggregator account cannot be polled faster than
@@ -217,6 +222,7 @@ impl Provider {
             Self::ElevenLabs => "eleven_labs",
             Self::NineRouter => "nine_router",
             Self::OpenRouter => "open_router",
+            Self::LiteLlm => "litellm",
             Self::Extension => "extension",
         }
     }
@@ -266,6 +272,7 @@ impl Provider {
         Self::ElevenLabs,
         Self::NineRouter,
         Self::OpenRouter,
+        Self::LiteLlm,
         Self::Extension,
     ];
 

@@ -303,6 +303,7 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         | Provider::Kimchi
         | Provider::NineRouter
         | Provider::OpenRouter
+        | Provider::LiteLlm
         | Provider::Extension => return None,
     })
 }

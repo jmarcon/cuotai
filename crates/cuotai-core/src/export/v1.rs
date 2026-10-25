@@ -557,7 +557,11 @@ fn aggregator_export(report: Option<&Report>, last_good: Option<&Report>) -> Agg
         .filter(|report| report.status == Status::Ready)
         .or(last_good);
     AggregatorExport {
-        kind: Provider::NineRouter.label().to_string(),
+        kind: report
+            .or(last_good)
+            .and_then(|report| aggregators::shape(report.provider))
+            .map_or(Provider::NineRouter.label(), |shape| shape.kind())
+            .to_string(),
         version: source.and_then(aggregators::instance_version),
         pools: source.map_or_else(Vec::new, |report| {
             aggregators::pools(report)

@@ -11,7 +11,7 @@ For parameters, default variables and limitations of each provider, use the tabl
 | **Assistants and subscriptions** | **Claude** (`claude`), **OpenAI Codex / ChatGPT** (`chat_gpt`), **GitHub Copilot** (`copilot`), **Cursor** (`cursor` — personal and Teams), **Windsurf** (`windsurf`), **Kiro / AWS** (`kiro`), **Antigravity** (`antigravity`), **Cline** (`cline`), **Zed** (`zed`), **CodeBuddy** (`code_buddy`), **Qoder** (`qoder`), **OpenCode Go** (`open_code_go`) |
 | **CLIs and coding plans** | **Gemini CLI** (`gemini_ai`), **Grok CLI / xAI** (`grok`), **Kimi Coding & API** (`kimi`), **MiniMax Token/Coding Plan** (`mini_max`), **Alibaba Coding Plan** (`alibaba_coding_plan`), **Alibaba Token Plan / Qwen Cloud** (`alibaba_token_plan`), **Xiaomi MiMo** (`xiaomi_mimo`), **Ollama Cloud** (`ollama_cloud`), **Qwen Code** (`qwen`) |
 | **Cloud billing and admin APIs** | **OpenAI Admin API** (`open_ai_api`), **Anthropic Admin API** (`anthropic_api`), **Google Gemini API Monitoring** (`gemini_api`), **Google Vertex AI** (`vertex_ai`), **AWS Bedrock Cost Explorer** (`aws_bedrock`), **Azure OpenAI Cost Management** (`azure_open_ai`), **Alibaba Cloud BSS** (`alibaba_cloud`), **Mistral Admin** (`mistral`), **Perplexity Computer Analytics** (`perplexity`), **Kimchi** (`kimchi`), **Groq** (`groq`), **ElevenLabs** (`eleven_labs`) |
-| **Aggregators** | **9router** (`nine_router`) |
+| **Aggregators** | **9router** (`nine_router`), **LiteLLM proxy** (`litellm`) |
 | **Additional catalog** | **Alibaba Model Studio** (`alibaba_model_studio`), **Cloudflare AI** (`cloudflare_ai`), **NVIDIA NIM** (`nvidia_nim`), **Poolside** (`poolside`) |
 
 ## Main integrations and credentials
@@ -115,6 +115,7 @@ The table is generated: a core test compares it with `access::describe` and fail
 | `nine_router` | default | Undocumented | Aggregator login | — | Instance | reference [`dashboardGuard.js`](https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js) | 2026-10-25 | not reported |
 | `open_router` | default | Official | Inference key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key) | 2026-10-23 | not reported |
 | `open_router` | `product = "account"` | Official | Admin key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/credits/get-credits) | 2026-10-23 | not reported |
+| `litellm` | default | Official | Admin key | — | Instance | [documentation](https://docs.litellm.ai/docs/proxy/provider_budget_routing) | 2026-10-25 | not reported |
 
 Billed per query (`metered`): `aws_bedrock`.
 <!-- access-matrix:end -->
@@ -187,6 +188,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | 9router | `nine_router` | — | API key | Router | 9router, nine router, router, aggregator | Dashboard password (optional) |
 | OpenRouter | `open_router` | `oauth` | Browser sign-in | Router | openrouter, open router, router, or | Sign in with your browser |
 | OpenRouter | `open_router` | `credential` | API key | Router | openrouter, open router, router, or | API key |
+| LiteLLM proxy | `litellm` | — | API key | Router | litellm, lite llm, proxy, gateway, aggregator | Admin API key |
 <!-- catalog-table:end -->
 
 ## Option applicability by authentication
@@ -304,7 +306,25 @@ params = { base_url = "http://127.0.0.1:20128", include = "claude,codex,github" 
 - **Never called.** The module can only build `GET /api/health`, `/api/version`, `/api/providers/client`, `/api/usage/{id}` and the login `POST`. `GET /api/providers` (it keeps unsanitized provider data), the `claude-reset` and `codex-reset-credits` routes, settings, keys and `/v1/*` cannot be built. Fields outside the allow-list (`lastError`, proxy URLs, tokens, unknown fields) are dropped at deserialization.
 - **Honesty.** 9router itself turns some missing fields into 0 (for example in its Codex and Claude handlers) and may serve a cached reading without saying how old it is. Sub-account readings carry both notes ("via 9router"). A quota label 9router writes as free text keeps its text; a window (5 h, weekly, monthly, daily) is assigned only when the label says so, and an unknown label has no window and therefore no pace. Upstreams without a Cuotai provider keep a generic tile and 9router's provider name. `Metric` values are as normalized by 9router; Cuotai adds no zeros of its own.
 - **Connections as accounts.** Each active connection gets the engines of a direct account of its mapped provider: binding metric, pace, usage alerts, reset notices, history and events, with a freshness and a preserved last reading of its own (a failed connection stays stale with its previous reading while the others update). By default an aggregator alerts only when **every** connection of one upstream is exhausted ("9router · Claude: all accounts exhausted") and when one returns; the desktop offers "each connection" per aggregator account. Connections are listed under their aggregator in `export::v1` (`sub_accounts`, `aggregator`), `/v1/limits` (with `parent`), events (`parent`, `pool_exhausted`, `pool_recovered`) and widgets.
-- **Not delivered yet.** Detecting a connection that is also a direct Cuotai account (so it is not counted twice) waits for stable account identity (PRD 0036 RF5, PRD 0029): until then every connection is listed and counted. Pasted SSO sessions, the vault-stored password and the minimum tested 9router version are also still open.
+- **Duplicates.** A connection is the same account as a direct Cuotai account when its mapped provider matches and its e-mail (9router's `email`, or `githubEmail` for Copilot) equals the direct account's e-mail exactly, after trimming and case-folding; never by name or by guess, and a connection or account without an e-mail is never a duplicate. The direct account wins: the connection stays in the 9router section marked "also monitored directly" and leaves the "All" view, the best-account ranking, alerts and history. `params.dedup = "off"` turns the detection off; `params.show_both = "<id>,…"` keeps single connections in both places. The e-mail is compared in memory only and never exported.
+- **Groups.** A `group` set on the aggregator account applies to every connection for "best account now"; without one a connection ranks with the direct accounts of its mapped provider.
+- **Refresh.** "Refresh now" on the instance reads every connection; on one connection (desktop) it reads the connection list and that connection's usage only. A connection's plan reset brings the instance's next refresh to 30 s after it, within the 120-s floor and at most once per reset.
+- **Not delivered yet.** Pasted SSO sessions, the vault-stored password, the consent-gated presence probe and the minimum tested 9router version are still open.
+
+### LiteLLM proxy (`litellm`)
+
+Shows the USD budget and spend of each upstream provider that your own [LiteLLM proxy](https://docs.litellm.ai/docs/proxy/provider_budget_routing) has in `provider_budget_config`, one sub-account per provider.
+
+```toml
+[[accounts]]
+provider = "litellm"
+credential_env = "LITELLM_API_KEY"   # master or virtual key of the proxy
+params = { base_url = "http://127.0.0.1:4000" }
+```
+
+- **What is read.** Only `GET /provider/budgets` with `Authorization: Bearer <key>`, a documented route (access level *Official*; read from the public documentation on 2026-10-25, not yet checked against a live proxy). Each provider becomes a `Spend` metric: `spend` used of `budget_limit`, its window from `time_period` (`1d` daily, `7d` weekly, `1mo`/`30d` monthly, others without a window) and `budget_reset_at` as the reset when it is a timestamp. A budget below one cent (the docs use `1e-12` to block a provider) is shown as no cap, and an absent spend stays unknown.
+- **Mapping.** `openai`, `anthropic`, `azure`, `vertex_ai`, `gemini`, `bedrock`, `groq`, `mistral`, `perplexity` and `xai` map to their Cuotai providers; any other name keeps a generic tile and LiteLLM's name.
+- **Rules shared with 9router.** The same base-URL rules (HTTP only on loopback, or a private network with `allow_private_http`), Test connection before the first save, `params.hidden`, the pools, alerts and export of sub-accounts. LiteLLM reports no e-mail, so no provider is ever taken for a direct account. Inference, key and team routes are never called.
 
 ## Compatibility with 9router
 
@@ -412,6 +432,7 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `eleven_labs` | any | none: `Unsupported` | — | — |
 | `nine_router` | any | none: `Unsupported` | — | — |
 | `open_router` | any | documented | [reference](https://openrouter.ai/docs/api/api-reference/models/get-models) | 2026-10-20 |
+| `litellm` | any | none: `Unsupported` | — | — |
 <!-- models-matrix:end -->
 
 ## Public incident source registry

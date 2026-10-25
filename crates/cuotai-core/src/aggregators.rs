@@ -285,25 +285,78 @@ pub fn mark_duplicates(config: &Config, parent: &Account, report: &mut Report) {
     }
 }
 
-/// PRD 0036 RF8.2: the usage page of the aggregator's own dashboard
-/// (`<base_url>/dashboard/usage`), from the validated base address; `None`
-/// for another provider or an invalid address. Front ends open it in the
-/// browser ("Open dashboard"); Cuotai never requests it.
-pub fn dashboard_url(account: &Account) -> Option<String> {
-    if account.provider != Provider::NineRouter {
-        return None;
+/// PRD 0036 RF1/RF10.3: what differs between aggregator adapters. Every
+/// view in this module (units, pools, dedup, the dashboard link) works on
+/// any shape; an adapter adds only its contract, mapping table, access arm
+/// and fixtures.
+pub trait AggregatorShape: Sync {
+    /// Display name of the aggregator kind ("9router", "LiteLLM proxy").
+    fn kind(&self) -> &'static str;
+    /// The validated base address of an account of this kind.
+    fn base(&self, account: &Account) -> Option<url::Url>;
+    /// Path of the aggregator's own usage page under the base address, if
+    /// it has one ("Open dashboard").
+    fn dashboard_path(&self) -> Option<&'static str>;
+    /// Note id carrying the instance's version, if the adapter reads one.
+    fn version_note(&self) -> Option<&'static str>;
+}
+
+struct NineRouterShape;
+impl AggregatorShape for NineRouterShape {
+    fn kind(&self) -> &'static str {
+        Provider::NineRouter.label()
     }
-    let base = crate::providers::nine_router::account_base(account).ok()?;
-    base.join("dashboard/usage").ok().map(String::from)
+    fn base(&self, account: &Account) -> Option<url::Url> {
+        crate::providers::nine_router::account_base(account).ok()
+    }
+    fn dashboard_path(&self) -> Option<&'static str> {
+        Some("dashboard/usage")
+    }
+    fn version_note(&self) -> Option<&'static str> {
+        Some("note.nine_router.version")
+    }
+}
+
+struct LiteLlmShape;
+impl AggregatorShape for LiteLlmShape {
+    fn kind(&self) -> &'static str {
+        Provider::LiteLlm.label()
+    }
+    fn base(&self, account: &Account) -> Option<url::Url> {
+        crate::providers::litellm::account_base(account).ok()
+    }
+    fn dashboard_path(&self) -> Option<&'static str> {
+        // The LiteLLM admin UI is served under `/ui`.
+        Some("ui")
+    }
+    fn version_note(&self) -> Option<&'static str> {
+        None
+    }
+}
+
+/// The shape of an aggregator provider; `None` for every other provider.
+pub fn shape(provider: Provider) -> Option<&'static dyn AggregatorShape> {
+    match provider {
+        Provider::NineRouter => Some(&NineRouterShape),
+        Provider::LiteLlm => Some(&LiteLlmShape),
+        _ => None,
+    }
+}
+
+/// PRD 0036 RF8.2: the usage page of the aggregator's own dashboard
+/// (`<base_url>/dashboard/usage` for 9router), from the validated base
+/// address; `None` for another provider or an invalid address. Front ends
+/// open it in the browser ("Open dashboard"); Cuotai never requests it.
+pub fn dashboard_url(account: &Account) -> Option<String> {
+    let shape = shape(account.provider)?;
+    let base = shape.base(account)?;
+    base.join(shape.dashboard_path()?).ok().map(String::from)
 }
 
 /// PRD 0036 RF8.5: the host (and port) of the aggregator's address, the only
 /// part of it the details show.
 pub fn instance_host(account: &Account) -> Option<String> {
-    if account.provider != Provider::NineRouter {
-        return None;
-    }
-    let base = crate::providers::nine_router::account_base(account).ok()?;
+    let base = shape(account.provider)?.base(account)?;
     let host = base.host_str()?.to_owned();
     Some(match base.port() {
         Some(port) => format!("{host}:{port}"),
@@ -316,7 +369,9 @@ pub fn instance_version(report: &Report) -> Option<String> {
     report
         .notes_l10n
         .iter()
-        .find(|note| note.id == "note.nine_router.version")
+        .find(|note| {
+            Some(note.id.as_ref()) == shape(report.provider).and_then(|s| s.version_note())
+        })
         .and_then(|note| match note.params.get("version")? {
             ParamValue::Text(text) => Some(text.clone()),
             ParamValue::L10n(_) => None,

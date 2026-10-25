@@ -14,6 +14,7 @@ pub(crate) mod inference;
 pub(crate) mod kimchi;
 #[cfg(test)]
 mod label_snapshot;
+pub(crate) mod litellm;
 pub(crate) mod mimo_platform;
 pub(crate) mod nine_router;
 pub(crate) mod nine_router_tls;
