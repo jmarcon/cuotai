@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en-US" data-theme="dracula" data-mode="dark">
+<html lang="en-US" data-theme="cuotai" data-mode="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -46,7 +46,16 @@
       try {
         var m = localStorage.getItem("cuotai.themeMode") || "system";
         var d = m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.dataset.theme = localStorage.getItem("cuotai.theme") || "dracula";
+        // PRD 0022 RF15.1: Cuotai is the default for new installs only. A profile that already has cuotai.* keys
+        // but never chose a theme keeps the old default (Dracula), written once before the first paint.
+        var theme = localStorage.getItem("cuotai.theme") || localStorage.getItem("cuotai.darkTheme");
+        if (!theme && !localStorage.getItem("cuotai.themeDefaultMigrated")) {
+          for (var k = 0; k < localStorage.length; k++) {
+            if ((localStorage.key(k) || "").indexOf("cuotai.") === 0) { theme = "dracula"; localStorage.setItem("cuotai.theme", theme); break; }
+          }
+          localStorage.setItem("cuotai.themeDefaultMigrated", "1");
+        }
+        document.documentElement.dataset.theme = theme || "cuotai";
         document.documentElement.dataset.mode = d ? "dark" : "light";
         document.documentElement.dataset.motion = localStorage.getItem("cuotai.motion") || "system";
       } catch (e) {}

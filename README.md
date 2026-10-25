@@ -121,9 +121,9 @@ Fifteen built-in themes, every one with a dark and a light mode. The picker is i
 
 <table>
   <tr>
-    <td align="center"><img src="docs/assets/screenshots/theme-cuotai-dark.png" alt="Cuotai theme, dark" /><br /><sub>Cuotai, dark (the app's own theme)</sub></td>
+    <td align="center"><img src="docs/assets/screenshots/theme-cuotai-dark.png" alt="Cuotai theme, dark" /><br /><sub>Cuotai, dark (the app's own theme, default for new installs)</sub></td>
     <td align="center"><img src="docs/assets/screenshots/theme-cuotai-light.png" alt="Cuotai theme, light" /><br /><sub>Cuotai, light</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/theme-dracula-dark.png" alt="Dracula theme, dark" /><br /><sub>Dracula (default)</sub></td>
+    <td align="center"><img src="docs/assets/screenshots/theme-dracula-dark.png" alt="Dracula theme, dark" /><br /><sub>Dracula</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="docs/assets/screenshots/theme-github-light.png" alt="GitHub theme, light" /><br /><sub>GitHub, light</sub></td>

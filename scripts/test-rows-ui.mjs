@@ -80,3 +80,4 @@ const css = await readFile(new URL("../apps/desktop/ui/css/components.css", impo
 assert.match(css, /\.stl \{[^}]*height: 20px;[^}]*white-space: nowrap;/);
 
 console.log("PASS: rows, figure block, monograms, status line fitting, state ring and honest marks");
+process.exit(0); // the shared modules keep a BroadcastChannel open

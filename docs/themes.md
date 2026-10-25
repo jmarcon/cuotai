@@ -12,13 +12,13 @@ Cuotai's own theme: a gray that leans to blue, a calm lilac accent and pastel st
 
 | Theme | Dark | Light |
 |---|---|---|
-| **Cuotai** | <img src="assets/screenshots/theme-cuotai-dark.png" alt="Cuotai dark" width="420" /> | <img src="assets/screenshots/theme-cuotai-light.png" alt="Cuotai light" width="420" /> |
+| **Cuotai** (default for new installs; existing profiles keep their theme, Dracula if they never chose one; switch in Settings › General) | <img src="assets/screenshots/theme-cuotai-dark.png" alt="Cuotai dark" width="420" /> | <img src="assets/screenshots/theme-cuotai-light.png" alt="Cuotai light" width="420" /> |
 
 ### Editors
 
 | Theme | Dark | Light |
 |---|---|---|
-| **Dracula** (default) | <img src="assets/screenshots/theme-dracula-dark.png" alt="Dracula dark" width="420" /> | <img src="assets/screenshots/theme-dracula-light.png" alt="Dracula light" width="420" /> |
+| **Dracula** | <img src="assets/screenshots/theme-dracula-dark.png" alt="Dracula dark" width="420" /> | <img src="assets/screenshots/theme-dracula-light.png" alt="Dracula light" width="420" /> |
 | **One Dark** | <img src="assets/screenshots/theme-onedark-dark.png" alt="One Dark dark" width="420" /> | <img src="assets/screenshots/theme-onedark-light.png" alt="One Dark light" width="420" /> |
 | **GitHub** | <img src="assets/screenshots/theme-github-dark.png" alt="GitHub dark" width="420" /> | <img src="assets/screenshots/theme-github-light.png" alt="GitHub light" width="420" /> |
 | **Catppuccin** | <img src="assets/screenshots/theme-catppuccin-dark.png" alt="Catppuccin dark" width="420" /> | <img src="assets/screenshots/theme-catppuccin-light.png" alt="Catppuccin light" width="420" /> |

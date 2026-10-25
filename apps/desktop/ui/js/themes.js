@@ -20,7 +20,8 @@ export const THEMES = [
   { id: "tron", label: "TRON", group: "retro", modes: ["dark", "light"] },
 ];
 
-export const DEFAULT_THEME = "dracula";
+/** PRD 0022 RF15.1: the default for new installs; existing profiles keep Dracula (see the pre-paint scripts). */
+export const DEFAULT_THEME = "cuotai";
 /** Ordem dos grupos no seletor; grupos desconhecidos (do usuário) vêm depois, em ordem alfabética. */
 export const GROUP_ORDER = ["cuotai", "editors", "systems", "retro", "custom"];
 export const themeById = (id) => THEMES.find((t) => t.id === id) ?? THEMES.find((t) => t.id === DEFAULT_THEME);

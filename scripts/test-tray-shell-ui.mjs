@@ -47,3 +47,4 @@ assert.match(topbar, /wordmark\(/, "the logotype stays in the main topbar (RF7.3
 assert.match(topbar, /btn outline tb-add/, "Add account is outlined");
 
 console.log("PASS: tray header holds the tabs only, footer and notices follow DS-CMP-FOOT, list is the default view");
+process.exit(0); // the shared modules keep a BroadcastChannel open

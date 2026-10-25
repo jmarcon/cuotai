@@ -190,7 +190,7 @@ design intent, not shipped behavior). "none" means the screen only restyles what
 
 ## What was intentionally kept for identity
 
-- Dracula as the default theme and every token coming from the theme files, so the 14 themes keep working (DS-ID-1); light is shown in `09`.
+- Dracula as the mockups' theme (Cuotai is the default for new installs since PRD 0022 RF15.1; existing profiles keep Dracula) and every token coming from the theme files, so the 14 themes keep working (DS-ID-1); light is shown in `09`.
 - The logo (colored arcs) in the main topbar, and its open "C" echoed by the ring.
 - The tray **ring** (decision 1): a static four-arc "C", single value (the tightest limit), used only as the "All" tab icon and as the "Icon only" menu-bar style. It is not a per-account donut any more and has no fill animation.
 - Brand-colored provider tiles with a white glyph (decision 3), including the dark tiles of Codex and Cursor.

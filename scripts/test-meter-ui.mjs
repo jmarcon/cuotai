@@ -52,3 +52,4 @@ await i18n.setLocale("pt-BR");
 assert.match(meterHtml(22), /aria-valuetext="22% disponível"/);
 
 console.log("PASS: continuous meters, corridor geometry, honest unknown and stale states");
+process.exit(0); // the shared modules keep a BroadcastChannel open
