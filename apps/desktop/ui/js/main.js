@@ -4,7 +4,7 @@ import { skippedMessage, userContent } from "./usercontent.js";
 import { confirmDelete, offerExternalReload, openAccountDialog } from "./account-dialog.js";
 import { openExtensionsDialog } from "./extensions-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
-import { costCardHtml, costSoloCardHtml, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
+import { costCardHtml, costSoloCardHtml, costSummary, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import { mountStats } from "./stats.js";
 import { mountTimeline } from "./timeline.js";
@@ -14,7 +14,7 @@ import {
   fmtNext, fmtAge, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  accountLabel, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
+  accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
 import { patch } from "./util.js";
@@ -56,48 +56,53 @@ const costContext = { summary: () => localCost, onSettings: openCostSettings };
 /** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
 const cardMeter = (m, pct, stale) =>
   meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m) });
-/** The reset of a window: the absolute time with the returns glyph, the countdown in the tooltip (DS-MSG-8). */
-const resetHtml = (m) => {
-  const at = fmtAt(m.resets_at);
-  const full = resetsText(m);
-  return at ? `<span class="reset" title="${esc(full ?? "")}">${icon("returns")}${esc(at)}</span>` : `<span class="reset">${full ? esc(full) : `<em>${te("quota.na")}</em>`}</span>`;
-};
-/** One window of the card (5 h or weekly), as a figure block (DS-CMP-ROW-1b: the unit word below the figure,
- *  left-aligned in the column) over its meter. A missing window keeps its slot with "—" (DS-CMP-CARD-2). */
+/** One limit of a card (mockup 10): the micro label with the "Binding" tag, the figure with its unit below, the
+ *  meter, then "Resets 20:32 · in 2h 11m" once, under the bar. Counts ("15 / 1,000") are in the tooltip. */
+function limitColumn(r, label, m, pct, stale) {
+  const binding = isBindingMetric(r, m);
+  const exhausted = m.state === "exhausted";
+  const reset = resetsText(m);
+  return `<div class="win${binding ? " binding" : ""}" title="${esc(`${m.label} · ${fmtAmount(m)}`)}">
+    <div class="win-top"><span class="win-name">${esc(label)}</span>${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
+    ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(`${Math.round(pct)}%`, t("card.available"), { cls: "left", dim: stale })}
+    ${cardMeter(m, pct, stale)}
+    <div class="win-reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</div></div>`;
+}
+/** PRD 0023 (mockup 10): paid extra usage as a column beside the exhausted limit: the money, a budget meter only
+ *  when the cap is known (never a pace mark), and the core's sentence. */
+function extraColumn(r) {
+  const o = billingOverage(r);
+  if (!o) return "";
+  const cap = o.cap > 0 ? o.cap : null;
+  const left = cap != null && o.spent != null ? Math.max(0, ((cap - o.spent) / cap) * 100) : null;
+  return `<div class="win extra" data-overage-row title="${esc(tl(o.text))}">
+    <div class="win-top"><span class="win-name">${te("card.extra.title")}</span></div>
+    ${figureHtml(o.spent == null ? "—" : fmtExtra(o.spent, o.unit, o.currency), t("figure.extra"), { role: "warn", cls: "left" })}
+    ${left != null ? meterHtml(left, { state: "overage", role: o.state === "cap_reached" ? "bad" : "warn" }) : ""}
+    <div class="win-reset">${esc(overageLineText(o))}</div></div>`;
+}
+/** One window of the card (5 h or weekly); a missing window keeps its slot with "—" (DS-CMP-CARD-2). */
 function windowSlot(r, name, w, stale = false) {
-  const label = te(`card.window.${name}`);
+  const label = t(`card.window.long.${name}`);
   if (!w) {
-    return `<div class="win none" aria-label="${label}"><div class="win-top"><span class="win-name">${label}</span></div>
+    return `<div class="win none" aria-label="${esc(label)}"><div class="win-top"><span class="win-name">${esc(label)}</span></div>
       ${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown" })}</div>`;
   }
-  const binding = isBindingMetric(r, w.m) ? " binding" : "";
-  const exhausted = w.m.state === "exhausted";
-  return `<div class="win${binding}" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>${resetHtml(w.m)}</div>
-    ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(`${Math.round(w.pct)}%`, t("card.available"), { cls: "left", dim: stale })}
-    ${cardMeter(w.m, w.pct, stale)}
-    <div class="sum-amount">${esc(fmtAmount(w.m))}</div></div>`;
+  return limitColumn(r, label, w.m, w.pct, stale);
 }
 
 /** Summary: the 5 h and weekly windows (most providers); without them, the tightest quota (or the text of an
- *  uncapped metric, a renewed window waiting for its reading, or the reason there is none). */
+ *  uncapped metric, a renewed window waiting for its reading, or the reason there is none). Extra usage, when it
+ *  is being billed, takes the second column. */
 function summaryHtml(r, stale = false) {
   const win = windowsOf(r);
   if (win.h5 || win.week) return `<div class="wins">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}</div>`;
   const s = summaryOf(r);
-  if (s.kind === "bar") {
-    const exhausted = s.m.state === "exhausted";
-    return `<div class="sum-bar${isBindingMetric(r, s.m) ? " binding" : ""}">
-      ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig big", dim: stale }) : figureHtml(`${Math.round(s.pct)}%`, t("card.available"), { cls: "left big", dim: stale })}
-      <div class="sum-meter">
-        <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span>${resetHtml(s.m)}</div>
-        ${cardMeter(s.m, s.pct, stale)}
-        <div class="sum-amount">${esc(fmtAmount(s.m))}</div>
-      </div></div>`;
-  }
+  if (s.kind === "bar") return `<div class="wins">${limitColumn(r, s.m.label, s.m, s.pct, stale)}${stale ? "" : extraColumn(r)}</div>`;
   if (s.kind === "text") {
     return `<div class="sum-text">
-      <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span>${s.m.resets_at ? resetHtml(s.m) : ""}</div>
-      <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div></div>`;
+      <div class="win-top"><span class="win-name">${esc(s.m.label)}</span></div>
+      <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div>${resetsText(s.m) ? `<div class="win-reset">${esc(resetsText(s.m))}</div>` : ""}</div>`;
   }
   if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;
   if (s.kind === "renewed") return `<p class="sum-note" data-renewed-waiting>${icon("clock")}<span>${esc(renewedText(s.m))}</span></p>`;
@@ -106,13 +111,6 @@ function summaryHtml(r, stale = false) {
 
 /** PRD 0022 RF3.5 (DS-TOK-BRD-3): one state stripe at most: critical > warning. */
 const stripeOf = (r, alert) => (alert?.tone === "bad" || isRecharging(r) ? "stripe-bad" : r.usage_alerts?.length ? "stripe-warn" : "");
-
-/** The pace forecast and the best-account advice (PRD 0024) as chips under the status line. */
-function adviceChips(r) {
-  const m = cardPace(r);
-  const html = (m ? forecastChipHtml(m) : "") + bestChipHtml(r);
-  return html ? `<div class="card-chips">${html}</div>` : "";
-}
 
 function card(r, ctx, recharging = false, { connection = false } = {}) {
   const index = r.index;
@@ -140,9 +138,8 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     (r.status === "ready" && r.freshness !== "fresh") || stale ? ageHtml(r) : "",
     isBusy ? `<span class="next"><span class="nt">${te("card.refreshing")}</span></span>` : "",
   ].filter(Boolean);
-  const counts = [n ? `<span class="count">${te("quota.count", { count: n })}</span>` : "",
-    r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""].filter(Boolean);
-  const foot = [...counts, ...chips].slice(0, 4 + counts.length).join("");
+  const counts = [n ? te("card.limits", { count: n }) : "", r.model_count != null ? (r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")) : ""].filter(Boolean);
+  const foot = (counts.length ? `<span class="count">${counts.join(" · ")}</span>` : "") + chips.slice(0, 4).join("");
   // DS-CMP-ROW-1/CARD-1: with several accounts of a provider the account label is the title, the provider below.
   const repeated = ctx.repeated.has(r.provider);
   const title = repeated ? accountLabel(r) : brand(r.provider).label;
@@ -156,15 +153,21 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
       <div class="who"><h2 title="${esc(title)}">${esc(title)}</h2>${sub ? `<p title="${esc(sub)}">${esc(sub)}</p>` : ""}</div>
       <div class="actions">
         ${connection ? "" : `<button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""} ${isBusy ? 'aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>`}
-        ${bellHtml(store.view, r)}
+        <span class="card-more">
+          <button class="icon" data-card-more="${esc(key)}" aria-haspopup="menu" aria-expanded="${moreFor === key}" title="${te("card.more")}" aria-label="${te("card.more")}">${icon("more")}</button>
+          <span class="menu" role="menu" ${moreFor === key ? "" : "hidden"}>
+            <button role="menuitem" data-details="${esc(key)}">${icon("search")}<span>${te("card.details")}</span></button>
+            ${bellHtml(store.view, r)}
+          </span>
+        </span>
         ${connection ? "" : `<button class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" aria-label="${te(on ? "account.disable" : "account.enable")}" title="${te(on ? "account.disable" : "account.enable")}" data-toggle="${esc(key)}"><span></span></button>`}
       </div>
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${statusLineHtml(r, st)}${adviceChips(r)}${stale ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${statusLineHtml(r, st, { compact: false, reset: false })}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
-      ${changeMarkHtml(key)}<button class="btn ghost sm" data-details="${esc(key)}">${te("card.details")}</button>
+      ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>
   </section>`;
 }
@@ -175,7 +178,8 @@ function costFoldHtml(r) {
   const html = costCardHtml(sourceFor(localCost, r.provider), localCost);
   if (!html) return "";
   const key = reportKey(r);
-  return `<details class="cost-fold" data-cost-fold="${esc(key)}" ${costOpen.has(key) ? "open" : ""}><summary>${icon("dollar")}<span>${te("cost.fold")}</span><span class="schip">${te("cost.estimateChip")}</span></summary>${html}</details>`;
+  const v = costSummary(sourceFor(localCost, r.provider), localCost);
+  return `<details class="cost-fold" data-cost-fold="${esc(key)}" ${costOpen.has(key) ? "open" : ""}><summary>${icon("chev", "fold-chev")}<span class="cf-t">${te("cost.fold")}</span><span class="cf-e">· ${te("cost.estimateChip")}</span><span class="grow"></span>${v ? `<span class="cf-v">${te("cost.fold.summary", v)}</span>` : ""}</summary>${html}</details>`;
 }
 
 /** PRD 0036 RF8.4: one section per aggregator below the direct accounts: the instance's header (micro label, hint,
@@ -229,6 +233,7 @@ const rechargingGroup = (list, ctx) => `<details class="recharging" data-recharg
 let filterText = "";
 let providerFilter = "all"; // PRD 0022 RF7.4 (DS-CMP-TAB-5): the selected filter tab, remembered for this window
 let tabsMoreOpen = false;
+let moreFor = null; // the card whose "…" menu is open
 /** DS-CMP-TAB-4: provider tabs shown before "More"; measured after each render (tabs never wrap or scroll). */
 let tabFit = 14;
 const tabsThatFit = () => tabFit;
@@ -424,8 +429,8 @@ function render() {
         ${filterText ? `<button class="icon" data-clear-filter title="${te("filter.clear")}" aria-label="${te("filter.clear")}">${icon("x")}</button>` : '<kbd aria-hidden="true">/</kbd>'}</div>
       <div class="tb-sort">${sortMenuHtml()}</div>
       <div class="tb-actions">
-        ${view?.finished_at ? `<span class="tb-age" title="${esc(t("tray.footer.age", { age: fmtAge(view.finished_at) }))}">${esc(fmtAge(view.finished_at))}</span>` : ""}
         <button class="icon" data-refresh-all title="${esc(loading ? t("tray.refreshing") : t("common.refreshAll"))}" aria-label="${esc(loading ? t("tray.refreshing") : t("common.refreshAll"))}" ${loading ? 'disabled aria-busy="true"' : ""}>${icon("refresh", loading ? "spin" : "")}</button>
+        ${view?.finished_at ? `<span class="tb-age" title="${esc(t("tray.footer.age", { age: fmtAge(view.finished_at) }))}">${esc(fmtAge(view.finished_at))}</span>` : ""}
         <button class="btn outline tb-add" data-add>${icon("plus")}<span>${te("common.add")}</span></button>
         <button class="icon tb-add-icon" data-add title="${te("common.add")}" aria-label="${te("common.add")}">${icon("plus")}</button>
         <button class="icon" data-stats-toggle aria-pressed="${statsPage}" title="${te("stats.title")}" aria-label="${te("stats.title")}">${icon("chartBar")}</button>
@@ -480,6 +485,9 @@ root.addEventListener("click", (e) => {
   const tab = t.closest("[data-tab]");
   if (tab) { providerFilter = tab.dataset.tab; tabsMoreOpen = false; render(); return root.querySelector(`[role="tab"][data-tab="${CSS.escape(providerFilter)}"]`)?.focus(); }
   if (t.closest("[data-more]")) { tabsMoreOpen = !tabsMoreOpen; return render(); }
+  const more = t.closest("[data-card-more]");
+  if (more) { moreFor = moreFor === more.dataset.cardMore ? null : more.dataset.cardMore; return render(); }
+  if (moreFor && !t.closest(".card-more .menu")) { moreFor = null; render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
   if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
   if (t.closest("[data-retry-delete]")) return retryDelete();

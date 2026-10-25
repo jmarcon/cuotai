@@ -1037,5 +1037,32 @@
   "settings.trayView.rings": "Rings",
   "settings.trayView.compact": "Compact",
   "settings.kw.trayview": "tray popover view list rings compact donut grid layout",
-  "settings.notify.preview": "Preview"
+  "settings.notify.preview": "Preview",
+  "stage.ahead": "Ahead of pace",
+  "stage.on_pace": "On pace",
+  "stage.reserve": "In reserve",
+  "stage.exhausted": "Limit hit",
+  "state.auth": "Auth needed",
+  "figure.extra": "extra",
+  "binding.tag": "Binding",
+  "card.window.long.h5": "5-hour session",
+  "card.window.long.week": "Weekly",
+  "card.limits": {
+    "one": "{count} limit",
+    "other": "{count} limits"
+  },
+  "card.more": "More actions",
+  "cost.fold.summary": "≈{today} today · {span} ≈{period}",
+  "cost.line": "Local cost · ≈{today} today · {span} ≈{period} (estimate)",
+  "common.details": "Details",
+  "credential_help.demo": "Name of the environment variable that holds the credential (demo).",
+  "login.demo.oauth.label": "OAuth sign-in (demo)",
+  "login.demo.oauth.help": "The browser demo does not run the sign-in.",
+  "login.demo.oauth.completion": "Sign-in authorized (demo).",
+  "login.demo.oauth.unavailable_reason": "Sign-in is not available in the demo.",
+  "field.demo.project_id.help": "Optional.",
+  "field.demo.mode.label": "Mode",
+  "field.demo.mode.option.personal": "Personal",
+  "field.demo.mode.option.org": "Organization",
+  "demo.login_unavailable": "Sign-in is not available in the browser demo."
 }

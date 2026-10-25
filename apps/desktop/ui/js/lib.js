@@ -546,7 +546,7 @@ export const billingOverage = (r) => {
 };
 /** One amount: money with the locale's currency format, provider units as the core words them, anything else with
  *  its unit. A missing amount is "—", never zero (DS-MSG-5). */
-function fmtExtra(value, unit, currency) {
+export function fmtExtra(value, unit, currency) {
   if (value == null) return "—";
   if (currency) {
     try { return new Intl.NumberFormat(currentLocale(), { style: "currency", currency }).format(value); } catch { /* unknown code */ }
@@ -977,7 +977,7 @@ const demoReports = [
       summary: { id: "overage.limit_hit_on_extra", params: { amount: "$6.25" }, fallback: "Limite atingido · no extra $6.25" }, caveat: null } },
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
   { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging" },
-  { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("premium_interactions", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
+  { ...dr("jmarcon", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("Premium requests", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
   dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
@@ -1064,8 +1064,32 @@ const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
   const outlook = stage === "exhausted" ? null : at
     ? { id: "pace.runs_out_at", params: { at: hhmm(at), margin }, fallback: `acaba às ${hhmm(at)}, ${margin} antes da renovação` }
     : { id: "pace.lasts_until_reset", fallback: "dura até a renovação" };
+  // PRD 0024 RF1: the core's stage chip in both units, as `PaceView.chips` carries it (demo values).
+  const pct = String(Math.min(999, Math.round((Math.abs(used - expected) / Math.max(expected, 0.01)) * 100)));
+  const chip = (glyph, id, params, compact) => ({ glyph, text: { id, params, fallback: id }, compact, hint: null });
+  const chips = {
+    exhausted: { points: chip("✕", "pace.chip.exhausted", {}, null), percent: chip("✕", "pace.chip.exhausted", {}, null) },
+    on_pace: { points: chip("→", "pace.chip.on_pace", {}, null), percent: chip("→", "pace.chip.on_pace", {}, null) },
+    ahead: { points: chip("↑", "pace.chip.ahead", { d: points }, `${points} pts`), percent: chip("↑", "pace.chip.ahead_pct", { p: pct }, `${pct}%`) },
+    reserve: { points: chip("↓", "pace.chip.reserve", { d: points }, `${points} pts`), percent: chip("↓", "pace.chip.reserve_pct", { p: pct }, `${pct}%`) },
+  }[stage];
   return { elapsed_fraction: expected, expected_used_fraction: expected, used_fraction: used, delta_points: delta, stage, tone, source: "average",
-    resets_at: h(resetH), projected_exhaustion_at: at, lasts_until_reset: stage !== "exhausted" && !at, label, outlook };
+    resets_at: h(resetH), projected_exhaustion_at: at, lasts_until_reset: stage !== "exhausted" && !at, label, outlook, chips };
+};
+/** The local time the shell sends with a projection ("18:53", or the weekday and time when not today). */
+const demoAt = (iso) => {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(currentLocale(), { weekday: "short" })} ${time}`;
+};
+/** PRD 0024 RF4.3: the forecast the shell adds to a metric whose pace runs out before the reset (demo values). */
+const demoForecast = (m, pace) => {
+  if (!pace?.projected_exhaustion_at) return null;
+  const at = demoAt(pace.projected_exhaustion_at);
+  const margin = legacyCountdown(new Date(new Date(m.resets_at).getTime() - new Date(pace.projected_exhaustion_at).getTime() + Date.now()).toISOString())?.replace(/^(\d+d \d+h) \d+m$/, "$1") ?? "";
+  return { at,
+    callout: { id: "alerts.body.projected", params: { metric: m.label, at, margin }, fallback: `No ritmo atual ${m.label} acaba ≈${at}, ${margin} antes da renovação` },
+    chip: { glyph: "↑", text: { id: "pace.chip.runs_out", params: { at }, fallback: `Acaba às ≈${at}` }, compact: `≈${at}`, hint: null } };
 };
 // report index → [pace_index, { metric index: pace }]; windows that just opened (or not yet) have none, as in the core.
 const DEMO_PACES = new Map([
@@ -1090,7 +1114,7 @@ const demoView = () => {
   const reports = demoReports.map((r, index) => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
     const notify = !demoSettings.notify.off_accounts.includes(demoKey(r));
-    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, alert: demoMetricAlert(r, m, notify) }));
+    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, forecast: demoForecast(m, paces[i]), resets_label: m.resets_at && legacyCountdown(m.resets_at) ? { id: "resets.pair", params: { at: demoAt(m.resets_at), in: t("quota.resetsIn", { time: legacyCountdown(m.resets_at) }) }, fallback: `Renova ${demoAt(m.resets_at)}` } : null, alert: demoMetricAlert(r, m, notify) }));
     const incident = demoIncident(r);
     // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
     const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;
@@ -1731,7 +1755,7 @@ const demo = {
     setTimeout(() => demoEmit({ attempt, type: "finished", params: {} }), 500);
     return attempt;
   },
-  login_submit_code: async () => { throw "Login indisponível na demonstração do navegador."; },
+  login_submit_code: async () => { throw { id: "demo.login_unavailable", params: {}, fallback: "Login indisponível na demonstração do navegador." }; },
   login_cancel: async () => {},
   delete_account: async ({ index, purge }) => {
     const oauth = demoReports[index]?.provider === "kiro" || demoReports[index]?.uses_oauth;
@@ -2094,7 +2118,7 @@ export async function initTrayView() {
   try {
     const s = await getSettings();
     if (s.tray?.popover_view) followTrayView(s.tray.popover_view);
-    else if (legacy) await setTrayView(legacy === "list" ? "list" : "rings");
+    else if (legacy) await setTrayView(trayViewOf(legacy));
     try { localStorage.removeItem(TRAY_VIEW_KEY); } catch {}
   } catch {}
   if (isDesktop) T.event.listen("tray-prefs-changed", (e) => followTrayView(e.payload?.popover_view));
@@ -2284,7 +2308,7 @@ export function sortMenuHtml() {
   const label = (m) => (m === "custom" ? t("sort.custom") : t(`sort.${m}`));
   const items = SORT_MODES.map((m) => `<button role="menuitemradio" aria-checked="${m === sortMode}" class="${m === sortMode ? "on" : ""}" data-sort="${m}"><span>${label(m)}</span>${m === sortMode ? icon("tick", "sel-tick") : ""}</button>`).join("");
   return `<div class="sortmenu lang">
-    <button class="icon" data-sort-toggle title="${te("sort.label")}: ${esc(label(sortMode))}" aria-label="${te("sort.label")}" aria-haspopup="menu" aria-expanded="${sortOpen}">${icon("sort")}</button>
+    <button class="btn outline sort-btn" data-sort-toggle title="${te("sort.label")}: ${esc(label(sortMode))}" aria-label="${te("sort.label")}: ${esc(label(sortMode))}" aria-haspopup="menu" aria-expanded="${sortOpen}">${icon("sort")}${icon("chevDown")}</button>
     <div class="lang-menu" role="menu" ${sortOpen ? "" : "hidden"}>${items}</div>
   </div>`;
 }

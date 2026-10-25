@@ -5,7 +5,7 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import {
-  ALERTS, bindingPct, brand, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
+  ALERTS, billingOverage, bindingPct, brand, fmtExtra, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
   shownAt, staleView, statusLabel, summaryOf,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
@@ -185,19 +185,20 @@ export function statusParts(r, st = accountState(r)) {
   const pace = binding ? paceOf(binding) : null;
   let label = "", role = st.role, detail = "", reset = null, resetFull = null;
   if (st.kind === "stale") {
-    label = t(`freshness.stale`);
+    label = t("freshness.stale");
     role = "warn";
     detail = fmtAge(shownAt(r));
   } else if (st.kind === "status") {
-    label = statusLabel(r.status);
+    label = r.status === "authentication_error" ? t("state.auth") : statusLabel(r.status);
   } else if (st.kind === "exhausted") {
-    label = t("tray.cat.exhausted"); // the figure already reads "Exhausted"; the reset carries the return time
+    label = t("stage.exhausted"); // the figure already reads "Exhausted"; the reset carries the return time
     role = "bad";
     reset = isBlocked(r) ? r.binding.blocked_until : binding?.resets_at ?? null;
   } else if (pace) {
-    label = tl(pace.label);
+    // DS-CMP-STL-3: the pace stage names the line; the core's sentence stays in the tooltip.
+    label = t(`stage.${pace.stage}`);
     role = { good: "good", warn: "warn", bad: "bad", neutral: "muted" }[pace.tone] ?? "muted";
-    detail = pace.outlook ? tl(pace.outlook) : "";
+    detail = [tl(pace.label), pace.outlook ? tl(pace.outlook) : ""].filter(Boolean).join(" · ");
     reset = binding.resets_at;
   } else if (binding) {
     const w = r.binding.window;
@@ -211,17 +212,47 @@ export function statusParts(r, st = accountState(r)) {
   const at = fmtAt(reset);
   if (at) resetFull = t("stl.resets", { time: at });
   const full = [label, detail, resetFull].filter(Boolean).join(" · ");
-  return { label, role, detail, reset: at, resetFull, full };
+  return { label, role, detail, reset: at, resetFull, full, pace, binding };
 }
-/** One-line status line (DS-CMP-STL-1): glyph, label, detail and the right-aligned reset; `fitStatusLines`
- *  applies the overflow order after layout. */
-export function statusLineHtml(r, st = accountState(r), { glyph = true } = {}) {
+
+// ---------- DS-CMP-TIME: time chips (core texts, TUI shapes) ----------
+const CHIP_ROLE = { "↑": "warn", "↓": "good", "→": "good", "✕": "bad", "↺": "muted" };
+/** A time chip: glyph + text from the core (`Chip`), compact form when asked (DS-CMP-TIME-3); the full text is
+ *  the tooltip and the accessible name. */
+export function timeChipHtml(chip, { compact = false, role = null } = {}) {
+  if (!chip) return "";
+  const full = tl(chip.text);
+  const text = compact && chip.compact ? chip.compact : full;
+  return `<span class="tchip ${role ?? CHIP_ROLE[chip.glyph] ?? "muted"}" title="${esc(full)}" aria-label="${esc(full)}"><span aria-hidden="true">${esc(chip.glyph)}</span><span>${esc(text)}</span></span>`;
+}
+/** The stage chip in the user's unit (points by default, DS-CMP-TIME-6). */
+export const stageChip = (pace) => pace?.chips?.[paceUnit()] ?? null;
+/** The outlook chip: "↑ Runs out ≈18:53" when the core projects a stop before the reset, else "↓ Lasts to reset". */
+export function outlookChip(m, pace) {
+  if (m?.forecast?.chip) return m.forecast.chip;
+  if (pace?.lasts_until_reset) return { glyph: "↓", text: { id: "pace.chip.lasts", params: {}, fallback: t("pace.chip.lasts") }, compact: null };
+  return null;
+}
+/** The chips of a card's status line (mockup 10): the stage when it is not "on pace" and nothing projects, then the
+ *  outlook. */
+export function paceChipsHtml(m, pace) {
+  if (!pace || pace.stage === "exhausted") return "";
+  const outlook = outlookChip(m, pace);
+  const stage = pace.stage !== "on_pace" && !m?.forecast ? timeChipHtml(stageChip(pace)) : "";
+  return stage + timeChipHtml(outlook);
+}
+
+/** One-line status line (DS-CMP-STL-1): glyph, label, chips, detail and the right-aligned reset; `fitStatusLines`
+ *  applies the overflow order after layout. `compact`: the tray row form (the projected run-out as a compact chip);
+ *  `reset: false` leaves the reset to the card's windows. */
+export function statusLineHtml(r, st = accountState(r), { glyph = true, compact = true, reset = true } = {}) {
   const p = statusParts(r, st);
   if (!p.label && !p.reset) return "";
   const lbl = p.label ? `<span class="lbl ${p.role}">${esc(p.label)}</span>` : "";
-  const det = p.detail ? `<span class="det">· ${esc(p.detail)}</span>` : "";
-  const rst = p.reset ? `<span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>` : "";
-  return `<span class="stl" title="${esc(p.full)}"><span class="stl-l">${glyph ? stateGlyph(st) : ""}${lbl}${det}</span>${rst}</span>`;
+  const chips = !p.pace ? "" : compact ? timeChipHtml(p.binding?.forecast?.chip, { compact: true }) : paceChipsHtml(p.binding, p.pace);
+  const det = st.kind === "stale" && p.detail ? `<span class="det">· ${esc(p.detail)}</span>` : "";
+  const rst = reset && p.reset ? `<span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>` : "";
+  return `<span class="stl" title="${esc(p.full)}"><span class="stl-l">${glyph ? stateGlyph(st) : ""}${lbl}${chips}${det}</span>${rst}</span>`;
 }
 
 /**
@@ -243,14 +274,15 @@ export function fitStatusLines(root) {
   for (const line of root.querySelectorAll(".stl")) {
     const left = line.querySelector(".stl-l");
     if (!left) continue;
-    const lbl = left.querySelector(".lbl"), det = left.querySelector(".det");
+    const lbl = left.querySelector(".lbl"), det = left.querySelector(".det"), chips = [...left.querySelectorAll(".tchip")];
     const avail = left.clientWidth;
     const width = (parts) => {
       if (det) det.hidden = !parts.detail;
+      for (const c of chips) c.hidden = !parts.detail;
       if (lbl && parts.label !== lbl.textContent) lbl.textContent = parts.label;
       return left.scrollWidth;
     };
-    const steps = planFit(avail, { label: lbl?.textContent ?? "", compact: lbl?.dataset.c ?? "", detail: det?.textContent ?? "" }, width);
+    const steps = planFit(avail, { label: lbl?.textContent ?? "", compact: lbl?.dataset.c ?? "", detail: [det?.textContent, ...chips.map((c) => c.textContent)].filter(Boolean).join(" ") }, width);
     line.classList.toggle("truncated", steps.includes("truncate"));
     if (steps.length) line.dataset.fit = steps.join(" ");
     else delete line.dataset.fit;
@@ -368,7 +400,12 @@ export function filterTabsHtml(reports, { selected: filter = "all", moreOpen = f
 /** The figure of an account (DS-CMP-ROW-1a/-2): neutral "22%" with "left" below; a word in its role otherwise. */
 export function figureOf(r, st = accountState(r)) {
   if (st.kind === "status") return { fig: statusLabel(r.status), unit: "", role: st.role, word: true };
-  if (st.kind === "exhausted") return { fig: t("metric.exhausted"), unit: "", role: "bad", word: true };
+  if (st.kind === "exhausted") {
+    // DS-CMP-ROW-2, DS-COL-3: on extra balance the figure is the money being charged ("$6.25 extra").
+    const o = billingOverage(r);
+    if (o?.spent != null) return { fig: fmtExtra(o.spent, o.unit, o.currency), unit: t("figure.extra"), role: "warn" };
+    return { fig: t("metric.exhausted"), unit: "", role: "bad", word: true };
+  }
   if (st.pct != null) return { fig: `${Math.round(st.pct)}%`, unit: t("card.available"), role: "", dim: st.kind === "stale" };
   const s = summaryOf(r);
   if (s.kind === "text") return { fig: s.text, unit: "", role: "", word: true };

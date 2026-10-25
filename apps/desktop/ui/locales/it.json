@@ -1037,5 +1037,32 @@
   "settings.trayView.rings": "Anelli",
   "settings.trayView.compact": "Compatta",
   "settings.kw.trayview": "vassoio popover vista elenco anelli compatta ciambella griglia layout",
-  "settings.notify.preview": "Anteprima"
+  "settings.notify.preview": "Anteprima",
+  "stage.ahead": "Sopra il ritmo",
+  "stage.on_pace": "In linea",
+  "stage.reserve": "In riserva",
+  "stage.exhausted": "Limite raggiunto",
+  "state.auth": "Accesso richiesto",
+  "figure.extra": "extra",
+  "binding.tag": "Vincolante",
+  "card.window.long.h5": "Sessione di 5 ore",
+  "card.window.long.week": "Settimanale",
+  "card.limits": {
+    "one": "{count} limite",
+    "other": "{count} limiti"
+  },
+  "card.more": "Altre azioni",
+  "cost.fold.summary": "≈{today} oggi · {span} ≈{period}",
+  "cost.line": "Costo locale · ≈{today} oggi · {span} ≈{period} (stima)",
+  "common.details": "Dettagli",
+  "credential_help.demo": "Nome della variabile d'ambiente con la credenziale (demo).",
+  "login.demo.oauth.label": "Accesso OAuth (demo)",
+  "login.demo.oauth.help": "La demo nel browser non esegue l'accesso.",
+  "login.demo.oauth.completion": "Accesso autorizzato (demo).",
+  "login.demo.oauth.unavailable_reason": "L'accesso non è disponibile nella demo.",
+  "field.demo.project_id.help": "Facoltativo.",
+  "field.demo.mode.label": "Modalità",
+  "field.demo.mode.option.personal": "Personale",
+  "field.demo.mode.option.org": "Organizzazione",
+  "demo.login_unavailable": "L'accesso non è disponibile nella demo del browser."
 }

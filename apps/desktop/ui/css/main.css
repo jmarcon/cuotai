@@ -801,3 +801,138 @@
   height: 14px;
   flex: 0 0 auto;
 }
+
+/* PRD 0022 (mockup 10): limit columns, the Binding tag, one reset line under the bar, the "…" menu */
+.card-head {
+  border-bottom: 0;
+}
+.win-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+.win-name {
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.win.binding .win-name::after {
+  content: none;
+}
+.win.binding .win-name {
+  color: var(--fg-muted);
+}
+.win-reset {
+  margin-top: calc(var(--space-1) + var(--space-0));
+  overflow: hidden;
+  color: var(--fg-muted);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card .summary > .stl {
+  height: auto;
+  min-height: 24px;
+}
+.card .summary .stl .stl-l {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+  overflow: visible;
+}
+.card .summary .stl .lbl {
+  font-size: var(--text-base);
+}
+.card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+.card-more {
+  position: relative;
+}
+.card-more .menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: var(--space-1);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.card-more .menu[hidden] {
+  display: none;
+}
+.card-more .menu > button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.card-more .menu > button:hover {
+  background: var(--surface-2);
+}
+.details-link svg.i {
+  width: 14px;
+  height: 14px;
+}
+.card-foot .count {
+  color: var(--fg-muted);
+}
+/* the folded local cost (mockup 10): one bordered row, values on the right */
+.cost-fold {
+  margin-top: var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-top: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.cost-fold > summary {
+  padding: 0 var(--space-3);
+  min-height: 40px;
+}
+.cost-fold > summary::after {
+  content: none;
+}
+.cost-fold .fold-chev {
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.cost-fold[open] .fold-chev {
+  transform: rotate(90deg);
+}
+.cost-fold .cf-t {
+  color: var(--fg);
+}
+.cost-fold .cf-v {
+  font-variant-numeric: tabular-nums;
+}
+.cost-fold > .local-cost {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* PRD 0022 (mockup 10): sort is an outlined button with its chevron */
+.sort-btn {
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+.sort-btn svg.i {
+  width: 16px;
+  height: 16px;
+}
+.win-top {
+  justify-content: flex-start;
+}

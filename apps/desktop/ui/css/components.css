@@ -176,7 +176,7 @@ svg.i.sg { width: 12px; height: 12px; }
   gap: 3px;
   margin-left: auto;
   color: var(--fg-muted);
-  font: var(--text-sm) var(--font-mono), var(--font-script);
+  font: var(--text-sm) var(--font-ui), var(--font-script);
   font-variant-numeric: tabular-nums;
 }
 .stl .rst svg.i { width: 12px; height: 12px; }
@@ -454,3 +454,24 @@ kbd {
 dialog:focus-visible {
   outline: none;
 }
+
+/* ---- DS-CMP-TIME: time chips (glyph + core text), UI font, tinted by role ---- */
+.tchip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: var(--fg-muted);
+  font: 600 var(--text-sm) var(--font-ui), var(--font-script);
+  white-space: nowrap;
+}
+.tchip[hidden] { display: none; }
+.tchip.good { color: var(--good); }
+.tchip.warn { color: var(--warn); }
+.tchip.bad { color: var(--bad); }
+.tchip.info { color: var(--info); }
+.fig b.warn { color: var(--warn); }

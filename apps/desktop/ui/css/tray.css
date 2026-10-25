@@ -265,16 +265,39 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* fixed columns, so bars line up whatever the figure (mockup 01d) */
+.crow .cg {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+}
 .crow .cb {
   flex: none;
   width: 72px;
 }
-.crow .fig {
-  min-width: 56px;
+.crow .cf {
+  flex: none;
+  width: 92px;
+  overflow: hidden;
+  text-align: right;
+  white-space: nowrap;
 }
-.crow .fig b {
+.crow .cf b {
   font-size: var(--text-base);
+  font-weight: 700;
 }
+.crow .cf b.bad { color: var(--bad); }
+.crow .cf b.warn { color: var(--warn); }
+.crow .cf b.accent { color: var(--accent); font-weight: 600; }
+.crow .cf small {
+  margin-left: 3px;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.crow .cf.stale b { opacity: 0.5; }
+.donut .center .long { font-size: var(--text-md); }
+.donut .center .warn { color: var(--warn); }
 .crow > svg.chev {
   flex: none;
   width: 16px;
@@ -442,4 +465,19 @@ body {
 [data-timeline-slot] {
   position: relative;
   padding: var(--space-3);
+}
+
+/* PRD 0022 (mockup 03): the local cost as one muted line in the expanded row */
+.cost-line {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-1) + var(--space-0));
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.cost-line svg.i {
+  flex: none;
+  width: 14px;
+  height: 14px;
 }

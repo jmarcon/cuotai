@@ -29,22 +29,24 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     : text != null
     ? `<div class="balance ${m.state === "exhausted" && !extra ? "bad" : ""}">${esc(text)}</div>`
     : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), text: valueText })}</div>`;
-  // PRD 0009 RF2.2: the core's binding metric gets a highlight and a chip; every other metric stays listed.
+  // PRD 0009 RF2.2: the core's binding metric gets the "Binding" tag; every other metric stays listed.
   const binding = isBindingMetric(r, m);
-  // PRD 0008 RF3.4: a metric with an active usage alert is highlighted too.
-  return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${m.alert?.active ? "usage-alert" : ""}">
+  // DS-CMP-SUB-1 (mockup 03): label + tag, the figure with its unit inline; the meter; the pace stage on the left and
+  // "Resets 20:32 · in 2h 11m" (mono, muted) on the right. Counts and the expected share live in the tooltips.
+  const paceTip = pace ? [tl(pace.label), t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) }), pace.outlook ? tl(pace.outlook) : "", t("card.pace.estimate")].filter(Boolean).join(". ") : "";
+  const resetText = reset && !renewed ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: reset })) : "";
+  return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${m.alert?.active ? "usage-alert" : ""}" title="${esc(fmtAmount(m))}">
     <div class="metric-top">
-      <div><h3>${esc(m.label)}${binding ? ` <span class="mini binding" data-binding-chip title="${te("card.binding.title")}">${esc(bindingChipText(r))}</span>` : ""}</h3><span class="sub">${esc(fmtAmount(m))}</span></div>
+      <h3>${esc(m.label)}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
       <div class="metric-right">
-        ${text == null && pct != null ? `<span class="pct ${lv}" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${icon(lv === "good" ? "check" : "warn")}${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
+        ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}
         ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "common.show" : "common.hide")}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
       </div>
     </div>
     ${gauge}
-    ${pace ? paceHtml(pace, { expected: true }) : ""}
+    ${pace || resetText ? `<div class="metric-meta">${pace ? `<span class="pace-line" data-pace="${esc(pace.stage)}" title="${esc(paceTip)}">${icon({ good: "check", neutral: "clock", warn: "warn", bad: "xcircle" }[pace.tone] ?? "clock", pace.tone)}<span>${esc(tl(pace.label))}</span></span>` : "<span></span>"}${resetText ? `<span class="resets">${esc(resetText)}</span>` : ""}</div>` : ""}
     ${forecastHtml(m)}
-    ${reset && !renewed ? `<div class="resets">${m.resets_label ? esc(tl(m.resets_label)) : te("metric.resetsAt", { when: reset })}</div>` : ""}
     ${m.alert?.missed ? `<div class="resets missed" data-missed>${icon("clock")}<span>${te("alerts.missed", { percent: m.alert.missed })}</span></div>` : ""}
   </div>`;
 }

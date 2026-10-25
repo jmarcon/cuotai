@@ -63,6 +63,18 @@ const tile = (label, e, display) => `<div class="lc-tile"><span class="lc-label"
 
 const tilesHtml = (sc, summary) => `<div class="lc-tiles">${tile(t("cost.today"), sc.usage.today, summary.display)}${tile(t("cost.yesterday"), sc.usage.yesterday, summary.display)}${tile(tl(summary.span.label), sc.usage.period, summary.display)}</div>${displayLine(sc.usage.period.total, summary.display)}${planHtml(sc, summary)}`;
 
+/** PRD 0022 (mockups 03, 10): the values of the folded local-cost row: today and the period, with "≈" (always an
+ *  estimate, DS-CMP-HON-2); null while the source is off. */
+export function costSummary(sc, summary) {
+  if (!sc?.usage) return null;
+  return { today: costText(sc.usage.today), period: costText(sc.usage.period), span: tl(summary.span.label) };
+}
+/** One muted line for the tray's expanded row: "Local cost · ≈$0.11 today · Last 7 days ≈$1.41 (estimate)". */
+export function costLineHtml(sc, summary) {
+  const v = costSummary(sc, summary);
+  return v ? `<p class="cost-line" data-local-cost="${esc(sc.source)}">${icon("dollar")}<span>${te("cost.line", v)}</span></p>` : "";
+}
+
 /** The block inside an account card; nothing while the source is off. */
 export function costCardHtml(sc, summary) {
   if (!sc?.usage) return "";

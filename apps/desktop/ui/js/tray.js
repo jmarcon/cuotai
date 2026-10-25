@@ -9,8 +9,9 @@ import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu, trayUpdateLine } from "./tray-menu.js";
 import { mountStats } from "./stats.js";
 import { mountTimeline } from "./timeline.js";
+import { costLineHtml, sourceFor } from "./cost.js";
 import {
-  accountLabel, bestChipHtml, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
+  accountLabel, bestChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
   initOrderSync, initTheme, initTrayView, level, nextNoticeText, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, sortReports, statusLabel, trayViewPref, wordmark,
 } from "./lib.js";
@@ -89,10 +90,12 @@ function ringTile(r, ctx) {
   const f = figureOf(r, st);
   const p = statusParts(r, st);
   const name = rowName(r, st);
-  const glyph = st.icon ?? (st.kind === "exhausted" ? "xcircle" : f.word ? "info" : null);
-  const center = glyph ? icon(glyph, `sg ${st.icon ? st.role : st.kind === "exhausted" ? "bad" : "muted"}`) : `<span>${esc(f.fig)}</span>`;
+  // DS-CMP-RING-2: a figure or a state icon inside the ring, never a word; long figures step down a size.
+  const glyph = st.icon ?? (f.word ? (st.kind === "exhausted" ? "xcircle" : "info") : null);
+  const center = glyph ? icon(glyph, `sg ${st.icon ? st.role : st.kind === "exhausted" ? "bad" : "muted"}`)
+    : `<span class="${[...f.fig].length > 3 ? "long" : ""}${f.role ? ` ${f.role}` : ""}">${esc(f.fig)}</span>`;
   return `<button class="tile" data-open="${esc(reportKey(r))}" aria-label="${esc(name)}" title="${esc(name)}">
-    <span class="donut${st.stale ? " stale" : ""}">${ringHtml(st.kind === "status" ? "unknown" : st.kind, st.pct, 64)}<span class="center">${center}</span></span>
+    <span class="donut${st.stale ? " stale" : ""}">${ringHtml(st.kind === "status" ? "unknown" : st.kind === "exhausted" ? "pct" : st.kind, st.pct, 64)}<span class="center">${center}</span></span>
     <span class="tile-name">${tileHtml(r.provider, 14)}<b>${esc(ctx.repeated.has(r.provider) ? accountLabel(r) : brand(r.provider).label)}</b></span>
     <span class="tile-st lbl ${p.role}">${stateGlyph(st)}<span>${esc(p.label)}</span></span></button>`;
 }
@@ -105,8 +108,8 @@ function compactRow(r, ctx) {
   return `<button class="crow" data-open="${esc(reportKey(r))}" aria-label="${esc(name)}" title="${esc(name)}">
     ${tileHtml(r.provider, 24, ctx.monos.get(reportKey(r)) ?? "")}
     <span class="nm">${esc(ctx.repeated.has(r.provider) ? accountLabel(r) : brand(r.provider).label)}</span>
-    <span class="cb">${accountMeterHtml(r, st, { thin: true })}</span>${stateGlyph(st)}
-    ${figureHtml(f.fig, "", { role: f.role, dim: f.dim, cls: f.word ? "wordfig" : "" })}${icon("chev", "chev")}</button>`;
+    <span class="cg">${stateGlyph(st)}</span><span class="cb">${accountMeterHtml(r, st, { thin: true })}</span>
+    <span class="cf${f.dim ? " stale" : ""}"><b class="${f.role}">${esc(f.word && st.kind === "status" ? statusParts(r, st).label : f.fig)}</b>${f.unit ? `<small>${esc(f.unit)}</small>` : ""}</span>${icon("chev", "chev")}</button>`;
 }
 
 // ---------- PRD 0036: aggregators (9router) ----------
@@ -202,11 +205,18 @@ function footerHtml(view, statsShown) {
   </footer>`;
 }
 
-/** The expanded account's body: the shared details (with the best-account action), the models and the actions. */
+// PRD 0015 RF4.1: the local cost summary, read like the main window does (every 30 s and when the popover shows).
+let localCost = null;
+const loadLocalCost = () => costUsage().then((next) => { if (JSON.stringify(next) !== JSON.stringify(localCost)) { localCost = next; render(); } }, () => {});
+setInterval(loadLocalCost, 30_000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLocalCost(); });
+
+/** The expanded account's body (mockup 03): the shared details (with the best-account action), the local-cost line,
+ *  the models and the actions (Details opens the account in the main window). */
 const openBody = (r) => isConnection(r)
   ? `${detailHtml(r)}${connectionInfoHtml(r, r.index)}`
-  : `${detailHtml(r, { action: true })}<div data-models-slot></div>
-  <div class="acts"><button class="link" data-refresh-one="${r.index}">${icon("refresh")}<span>${te("common.refresh")}</span></button></div>`;
+  : `${detailHtml(r, { action: true })}${costLineHtml(sourceFor(localCost, r.provider), localCost)}<div data-models-slot></div>
+  <div class="acts"><button class="link" data-open-main>${te("common.details")}</button><button class="link" data-refresh-one="${r.index}">${icon("refresh")}<span>${te("common.refresh")}</span></button></div>`;
 
 function render() {
   const { view, error } = store;
@@ -358,6 +368,7 @@ bindThemeSwitch(root, render);
 initTheme(render);
 render();
 initTrayView();
+loadLocalCost();
 // PRD 0020 RF1.3/RF7.1: Cmd/Ctrl+, opens Settings; its changes repaint the popover.
 bindSettingsShortcut();
 onSettingsChanged(() => render());

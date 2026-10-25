@@ -788,3 +788,63 @@
 .metric .pct.good svg.i { color: var(--good); }
 .metric .pct.warn svg.i { color: var(--warn); }
 .metric .pct.bad svg.i { color: var(--bad); }
+
+/* PRD 0022 (DS-CMP-SUB-1, mockup 03): sub-limit rows */
+.metric .metric-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: calc(var(--space-1) + var(--space-0));
+}
+.metric .metric-right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.metric .pct small {
+  margin-left: var(--space-1);
+}
+.metric-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-0) var(--space-2);
+  margin-top: calc(var(--space-1) + var(--space-0));
+  font-size: var(--text-sm);
+}
+.metric-meta .pace-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+.metric-meta .pace-line svg.i {
+  width: 14px;
+  height: 14px;
+}
+.metric-meta .pace-line .good, .metric-meta .pace-line svg.good { color: var(--good); }
+.metric-meta .pace-line svg.warn { color: var(--warn); }
+.metric-meta .pace-line svg.bad { color: var(--bad); }
+.metric-meta .resets {
+  margin: 0 0 0 auto;
+  color: var(--fg-muted);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  font-weight: 400;
+  text-align: right;
+}
+/* the "Binding" tag (mockups 03, 10): accent-tinted, not a level */
+.btag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: middle;
+}

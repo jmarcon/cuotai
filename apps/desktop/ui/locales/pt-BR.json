@@ -1044,5 +1044,32 @@
   "settings.trayView.rings": "Anéis",
   "settings.trayView.compact": "Compacta",
   "settings.kw.trayview": "bandeja popover vista lista anéis compacta rosca grade layout",
-  "settings.notify.preview": "Prévia"
+  "settings.notify.preview": "Prévia",
+  "stage.ahead": "Acima do ritmo",
+  "stage.on_pace": "No ritmo",
+  "stage.reserve": "Com reserva",
+  "stage.exhausted": "Limite atingido",
+  "state.auth": "Entrar de novo",
+  "figure.extra": "extra",
+  "binding.tag": "Limitante",
+  "card.window.long.h5": "Sessão de 5 horas",
+  "card.window.long.week": "Semanal",
+  "card.limits": {
+    "one": "{count} limite",
+    "other": "{count} limites"
+  },
+  "card.more": "Mais ações",
+  "cost.fold.summary": "≈{today} hoje · {span} ≈{period}",
+  "cost.line": "Custo local · ≈{today} hoje · {span} ≈{period} (estimativa)",
+  "common.details": "Detalhes",
+  "credential_help.demo": "Nome da variável de ambiente com a credencial (demo).",
+  "login.demo.oauth.label": "Login OAuth (demo)",
+  "login.demo.oauth.help": "No navegador de demonstração o login não executa.",
+  "login.demo.oauth.completion": "Login autorizado (demo).",
+  "login.demo.oauth.unavailable_reason": "Login indisponível na demonstração.",
+  "field.demo.project_id.help": "Opcional.",
+  "field.demo.mode.label": "Modo",
+  "field.demo.mode.option.personal": "Pessoal",
+  "field.demo.mode.option.org": "Organização",
+  "demo.login_unavailable": "Login indisponível na demonstração do navegador."
 }
