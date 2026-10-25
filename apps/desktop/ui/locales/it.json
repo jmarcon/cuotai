@@ -223,7 +223,7 @@
   "settings.hooks.leave.text": "Le modifiche alle regole non sono ancora salvate.",
   "settings.appearance": "Aspetto",
   "settings.startup": "Avvio",
-  "settings.autostart.label": "Avvia all'accesso",
+  "settings.autostart.label": "Apri all'accesso",
   "settings.autostart.desc": "Parte nella barra di sistema, senza finestra.",
   "settings.kw.autostart": "avviare accesso login avvio aprire automaticamente sistema",
   "settings.dock.label": "Mostra nel Dock",

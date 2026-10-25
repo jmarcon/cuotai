@@ -98,7 +98,7 @@ Notices come while the window is hidden in the menu bar, but not after you Quit.
 
 ## Launch at login
 
-Turn on **Settings › General › Startup › Start at login**. Cuotai then adds a login item (a LaunchAgent) and starts in the menu bar, without opening its window. The switch shows what macOS reports, so removing the item under **System Settings → General → Login Items & Extensions** turns it off here too. If you move the app, turn the switch off and on again so the item points at the new location.
+Turn on **Settings › General › Startup › Open at login**. Cuotai then adds a login item (a LaunchAgent) and starts in the menu bar, without opening its window. The switch shows what macOS reports, so removing the item under **System Settings → General → Login Items & Extensions** turns it off here too. If you move the app, turn the switch off and on again so the item points at the new location.
 
 ## Updates
 

@@ -225,8 +225,8 @@ for (const { code } of i18n.LOCALES) {
     assert.ok(words <= 150, `${code}/${page.id}: ${words} words shown before any disclosure`);
     total += words;
   }
-  // Budget 450 -> 465: the Startup group of mockup 50-settings-general (audit #37) adds one heading and one row.
-  assert.ok(total <= 465, `${code}: ${total} words shown across the pages`);
+  // Budget 450 -> 490 (audit #16: helper lines show as text; the setup row moved to About): the Startup group of mockup 50-settings-general (audit #37) adds one heading and one row.
+  assert.ok(total <= 490, `${code}: ${total} words shown across the pages`);
   // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
   // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
   const alertsPage = rendered.get("alerts");
@@ -273,7 +273,7 @@ function plain(html) {
 }
 
 // Mockups 50-*: Advanced is a collapsible group label (not a page entry), General has the sliders icon, the
-// "Start at login" row (audit #37) sits in General with search keywords in every catalog.
+// "Open at login" row (audit #37) sits in General with search keywords in every catalog.
 {
   const side = registry.sidebarHtml("general", false);
   assert.match(side, /class="set-nav-item set-nav-toggle set-nav-grouplabel"/, "Advanced is a group label");
@@ -290,13 +290,13 @@ function plain(html) {
     const catalog = JSON.parse(await readFile(ui(`locales/${code}.json`), "utf8"));
     for (const k of ["settings.autostart.label", "settings.autostart.desc", "settings.startup", "settings.error.autostart_failed", "report.intro"]) assert.ok(catalog[k], `${code}: ${k}`);
   }
-  // "Show in Dock" (mockup 50-settings-general): only on macOS, beside Start at login, searchable, on by default.
+  // "Show in Dock" (mockup 50-settings-general): only on macOS, beside Open at login, searchable, on by default.
   assert.ok(!general.html({ settings: { motion: "system" } }).includes('id="dock"'), "no Dock row off macOS");
   document.documentElement.dataset.platform = "mac";
   for (const { code } of i18n.LOCALES) {
     await i18n.setLocale(code);
     const html = general.html({ settings: { motion: "system" } });
-    assert.match(html, /data-row="autostart"[\s\S]*data-row="dock" data-kw="[^"]{12,}"/, `${code}: Dock row after Start at login`);
+    assert.match(html, /data-row="autostart"[\s\S]*data-row="dock" data-kw="[^"]{12,}"/, `${code}: Dock row after Open at login`);
     assert.match(html, /<input id="dock" type="checkbox" role="switch" class="sw" checked/, `${code}: shown by default`);
     assert.ok(!general.html({ settings: { motion: "system", show_in_dock: false } }).match(/id="dock"[^>]*checked/), `${code}: hidden choice`);
   }

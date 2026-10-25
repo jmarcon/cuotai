@@ -876,26 +876,30 @@ export function initTheme(onChange = () => {}) {
 }
 const groupLabel = (g) => (GROUP_ORDER.includes(g) ? t(`theme.group.${g}`) : g);
 /** Aparência rápida (auto/claro/escuro). `themeSelect` acrescenta a escolha do tema (só na tela de configurações). */
-export function themeSwitchHtml({ themeSelect = false, labels = false } = {}) {
+export function themeSwitchHtml({ themeSelect = false, labels = false, selectOnly = false } = {}) {
   const th = themeById(theme.id);
   const modes = [["system", "monitor"], ["light", "sun"], ["dark", "moon"]];
   const groups = [...new Set(THEMES.map((x) => x.group))].sort((a, b) => {
     const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
-  const options = groups.map((g) =>
-    `<optgroup label="${esc(groupLabel(g))}">${THEMES.filter((x) => x.group === g)
-      .map((x) => `<option value="${esc(x.id)}" ${x.id === th.id ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</optgroup>`).join("");
+  const field = `<div class="theme-select theme-field">
+      <button type="button" class="lang-field-btn theme-field-btn" data-theme-toggle aria-haspopup="menu" aria-expanded="${themeOpen}" aria-label="${te("theme.label")}: ${esc(th.label)}"><span class="swatch" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>${esc(th.label)}</span>${icon("chevDown")}</button>
+      <div class="lang-menu theme-menu" role="menu" aria-label="${te("theme.label")}" ${themeOpen ? "" : "hidden"}>${groups.map((g) => `<div class="theme-menu-group" role="presentation">${esc(groupLabel(g))}</div>${THEMES.filter((x) => x.group === g)
+        .map((x) => `<button type="button" role="menuitemradio" aria-checked="${x.id === th.id}" class="${x.id === th.id ? "on" : ""}" data-theme-pick="${esc(x.id)}"><span>${esc(x.label)}</span>${x.id === th.id ? icon("tick", "sel-tick") : ""}</button>`).join("")}`).join("")}</div>
+    </div>`;
+  if (selectOnly) return field;
   return `<div class="theme-switch">
     <div class="segmented" role="radiogroup" aria-label="${te("theme.mode.label")}">${modes.map(([id, ic]) => {
       const off = id !== "system" && !th.modes.includes(id);
       const label = t(`theme.mode.${id}`) + (off ? ` (${t("theme.mode.unavailable")})` : "");
       return `<button role="radio" aria-checked="${theme.mode === id}" class="${theme.mode === id ? "on" : ""}" title="${esc(label)}" data-theme-mode="${id}" ${off ? "disabled" : ""}>${icon(ic)}${labels ? `<span>${esc(t(`theme.mode.${id}`))}</span>` : ""}</button>`;
     }).join("")}</div>
-    ${themeSelect ? `<span class="theme-select"><span class="swatch" aria-hidden="true"><i></i><i></i><i></i><i></i></span><select aria-label="${te("theme.label")}" title="${te("theme.label")}" data-theme-id>${options}</select></span>` : ""}
+    ${themeSelect ? field : ""}
   </div>`;
 }
 let langOpen = false;
+let themeOpen = false;
 const flagOf = (l) => flagSvg(flagCountry(l.code, l.flag));
 /** Botão com a bandeira do idioma atual e menu (bandeira + nome). `inline` mostra a lista aberta (tela de configurações). */
 export function langMenuHtml({ inline = false, field = false } = {}) {
@@ -933,12 +937,18 @@ export function bindThemeSwitch(root, rerender) {
     if (e.target.closest("[data-sort-toggle]")) { sortOpen = !sortOpen; langOpen = false; return rerender(); }
     const sortItem = e.target.closest("[data-sort]");
     if (sortItem) { setSort(sortItem.dataset.sort); sortOpen = false; return rerender(); }
-    if (e.target.closest("[data-lang-toggle]")) { langOpen = !langOpen; sortOpen = false; return rerender(); }
+    if (e.target.closest("[data-lang-toggle]")) { langOpen = !langOpen; sortOpen = false; themeOpen = false; return rerender(); }
+    if (e.target.closest("[data-theme-toggle]")) { themeOpen = !themeOpen; langOpen = false; sortOpen = false; return rerender(); }
+    const pick = e.target.closest("[data-theme-pick]");
+    if (pick) {
+      themeOpen = false; theme.id = themeById(pick.dataset.themePick).id; setPreference("theme", theme.id).catch(() => {});
+      return crossFade(() => { applyTheme(); return rerender(); });
+    }
     const item = e.target.closest("[data-locale]");
     if (item) { langOpen = false; await setLocale(item.dataset.locale); return crossFade(rerender); } // carrega antes: a transição não congela a tela
-    if ((langOpen || sortOpen) && !e.target.closest(".lang")) { langOpen = false; sortOpen = false; rerender(); }
+    if ((langOpen || sortOpen || themeOpen) && !e.target.closest(".lang, .theme-field")) { langOpen = false; sortOpen = false; themeOpen = false; rerender(); }
   });
-  addEventListener("keydown", (e) => { if (e.key === "Escape" && (langOpen || sortOpen)) { langOpen = false; sortOpen = false; rerender(); } });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && (langOpen || sortOpen || themeOpen)) { langOpen = false; sortOpen = false; themeOpen = false; rerender(); } });
   // DS-A11Y-4: the inline language list is one radio group; arrow keys move between languages.
   root.addEventListener("keydown", (e) => {
     const item = e.target.closest?.(".lang-list [role=radio]");

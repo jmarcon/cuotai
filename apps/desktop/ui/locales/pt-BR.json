@@ -229,7 +229,7 @@
   "settings.hooks.leave.text": "As alterações nas regras ainda não foram salvas.",
   "settings.appearance": "Aparência",
   "settings.startup": "Inicialização",
-  "settings.autostart.label": "Iniciar ao entrar",
+  "settings.autostart.label": "Abrir ao entrar",
   "settings.autostart.desc": "Inicia na bandeja, sem janela.",
   "settings.kw.autostart": "iniciar entrar login inicialização abrir automaticamente sistema",
   "settings.dock.label": "Mostrar no Dock",

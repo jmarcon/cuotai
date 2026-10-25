@@ -223,7 +223,7 @@
   "settings.hooks.leave.text": "Your changes to the rules are not saved.",
   "settings.appearance": "Appearance",
   "settings.startup": "Startup",
-  "settings.autostart.label": "Start at login",
+  "settings.autostart.label": "Open at login",
   "settings.autostart.desc": "Starts in the tray, without a window.",
   "settings.kw.autostart": "start login startup boot launch automatically sign in open",
   "settings.dock.label": "Show in Dock",

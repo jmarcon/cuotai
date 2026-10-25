@@ -48,7 +48,7 @@ export const LEGACY_SECTIONS = {
  *  page loads (the state comes from a command), so the smoke renders that part from the same function. */
 export const CONTROLS = [
   { section: "appearance", page: "general", selector: "data-theme-mode" },
-  { section: "appearance", page: "general", selector: "data-theme-id" },
+  { section: "appearance", page: "general", selector: "data-theme-toggle" },
   { section: "appearance", page: "general", selector: 'id="motion"' },
   { section: "appearance", page: "dashboard", selector: 'id="group-recharging"' },
   { section: "appearance", page: "dashboard", selector: 'id="show-pace"' },

@@ -92,7 +92,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Launch at sign-in
 
-Turn on **Settings › General › Startup › Start at login**. Cuotai then adds itself to your user's startup entries (the `Run` key of the registry; no administrator rights) and starts in the notification area, without opening its window. The switch shows what Windows reports, so turning Cuotai off under **Settings → Apps → Startup** turns it off here too.
+Turn on **Settings › General › Startup › Open at login**. Cuotai then adds itself to your user's startup entries (the `Run` key of the registry; no administrator rights) and starts in the notification area, without opening its window. The switch shows what Windows reports, so turning Cuotai off under **Settings → Apps → Startup** turns it off here too.
 
 ## Updates
 
