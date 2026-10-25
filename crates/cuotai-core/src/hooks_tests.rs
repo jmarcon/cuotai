@@ -19,6 +19,7 @@ fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
         account_name: account.into(),
         provider: Provider::Claude,
         accounts: Vec::new(),
+        parent: None,
         metric: Some(MetricRef {
             label: "Sessão (5h)".into(),
             window: Some(MetricWindow::Window5h),
@@ -1076,4 +1077,27 @@ fn a_rule_can_filter_by_account_id() {
     assert!(!rule.matches(&other));
     let now = Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap();
     assert!(rule.matches(&rule.sample(now)));
+}
+
+/// PRD 0036 RF7.3: a rule on an aggregator account also runs on the events
+/// of its connections (`parent`), and on nothing else.
+#[test]
+fn a_rule_on_an_aggregator_covers_its_connections() {
+    let rule = Rule {
+        name: "pool".into(),
+        events: vec![EventKind::QuotaExhausted, EventKind::PoolExhausted],
+        provider: None,
+        account: Some("home".into()),
+        min_threshold: None,
+        command: vec!["true".into()],
+        timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
+    };
+    let mut connection = event(EventKind::QuotaExhausted, "home · a1", None);
+    connection.parent = Some("nine_router:home".into());
+    assert!(rule.matches(&connection));
+    connection.parent = Some("nine_router:office".into());
+    assert!(!rule.matches(&connection));
+    connection.parent = None;
+    assert!(!rule.matches(&connection));
+    assert!(rule.matches(&event(EventKind::PoolExhausted, "home", None)));
 }

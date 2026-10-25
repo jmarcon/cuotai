@@ -28,7 +28,10 @@ use crate::overage::{self, OverageExport};
 use crate::pace::{self, Pace};
 use crate::refresh::RefreshCycle;
 use crate::text::{Localized, ParamValue};
-use crate::{account_edit, identity, Account, Config, Metric, Provider, Report};
+use crate::{
+    account_edit, aggregators, identity, Account, Config, Metric, Provider, Report, Status,
+    SubReport,
+};
 
 /// Version of this contract; removing a field or changing its meaning needs 2.
 pub const SCHEMA: u32 = 1;
@@ -128,6 +131,105 @@ pub struct AccountExport {
     /// while status queries are off or when the provider has no verified
     /// source (never "operational" without a reading).
     pub incident: Option<IncidentExport>,
+    /// PRD 0036 RF7.1: the sub-accounts of an aggregator account (one per
+    /// upstream connection), omitted when empty. They are never appended
+    /// to [`Export::accounts`], so `index` and counts keep their meaning.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sub_accounts: Vec<SubAccountExport>,
+    /// PRD 0036 RF7.1: the instance of an aggregator account; omitted for
+    /// every other account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aggregator: Option<AggregatorExport>,
+}
+
+/// One upstream connection of an aggregator account (PRD 0036 RF7.1); each
+/// field means what it means in [`AccountExport`], evaluated on the
+/// connection's own reading.
+#[derive(Debug, Clone, Serialize)]
+pub struct SubAccountExport {
+    /// `<aggregator key>/<sub id>`.
+    pub key: String,
+    /// The connection's label (masked by the aggregator, redacted here).
+    pub name: String,
+    /// The mapped Cuotai provider; `null` for an upstream Cuotai does not
+    /// know.
+    pub provider: Option<Provider>,
+    /// The aggregator's own provider slug, verbatim.
+    pub upstream: String,
+    pub class: AccountClass,
+    /// The connection's current reading as a report (its `account` is
+    /// `<aggregator name>/<sub id>`); `null` while the instance failed.
+    pub report: Option<Report>,
+    pub age_seconds: Option<u64>,
+    pub freshness: Option<Freshness>,
+    pub clock_adjusted: bool,
+    pub stale: bool,
+    pub last_good: Option<LastGood>,
+    pub binding: Option<Binding>,
+    pub pace: Vec<Option<Pace>>,
+    /// The aggregator's own on/off flag for the connection.
+    pub enabled_upstream: Option<bool>,
+    /// Key of the direct account this connection duplicates (PRD 0036
+    /// RF5; `null` until duplicate detection exists).
+    pub duplicate_of: Option<String>,
+    pub plan: Option<String>,
+    /// Public file that defines the upstream reading in the aggregator.
+    pub via: Option<String>,
+    /// PRD 0036 RF6.6: the public status of the mapped provider.
+    pub incident: Option<IncidentExport>,
+}
+
+/// The instance of an aggregator account (PRD 0036 RF7.1).
+#[derive(Debug, Clone, Serialize)]
+pub struct AggregatorExport {
+    /// The aggregator's display name ("9router").
+    pub kind: String,
+    /// The instance's version, when it answered it.
+    pub version: Option<String>,
+    /// Per upstream, over active connections only.
+    pub pools: Vec<PoolExport>,
+}
+
+/// One pool of [`AggregatorExport::pools`].
+#[derive(Debug, Clone, Serialize)]
+pub struct PoolExport {
+    pub upstream: String,
+    pub provider: Option<Provider>,
+    pub available: usize,
+    pub exhausted: usize,
+    pub total: usize,
+    /// When every connection is exhausted: the earliest return.
+    pub returns_at: Option<DateTime<Utc>>,
+    /// "Claude · 2 of 3 available".
+    pub summary: Localized,
+}
+
+impl SubAccountExport {
+    /// This connection as an [`AccountExport`] of the aggregator `parent`,
+    /// for the engines that take one ([`crate::events::diff`]): the mapped
+    /// provider (the aggregator's when unknown) and no sub-accounts.
+    pub fn as_account(&self, parent: &AccountExport) -> AccountExport {
+        AccountExport {
+            index: parent.index,
+            key: self.key.clone(),
+            name: self.name.clone(),
+            provider: self.provider.unwrap_or(parent.provider),
+            email: None,
+            class: self.class,
+            report: self.report.clone(),
+            age_seconds: self.age_seconds,
+            freshness: self.freshness,
+            clock_adjusted: self.clock_adjusted,
+            stale: self.stale,
+            last_good: self.last_good.clone(),
+            binding: self.binding.clone(),
+            pace: self.pace.clone(),
+            access: parent.access.clone(),
+            incident: self.incident.clone(),
+            sub_accounts: Vec::new(),
+            aggregator: None,
+        }
+    }
 }
 
 /// The failure of [`AccountExport::failure`]: a category and, when a
@@ -259,6 +361,28 @@ impl Export {
                     .iter()
                     .find(|status| status.provider == account.provider)
                     .map(IncidentExport::from);
+                if account.provider.is_aggregator() {
+                    let report = cycle.account_report(index);
+                    let last_good = cycle.last_good_report(index);
+                    let scope = SubScope {
+                        account,
+                        parent_key: &export.key,
+                        interval,
+                        now,
+                        options,
+                    };
+                    export.sub_accounts =
+                        scope.exports(report, last_good, |id| cycle.last_good_sub(index, id));
+                    for sub in &mut export.sub_accounts {
+                        sub.incident = sub.provider.and_then(|provider| {
+                            incidents
+                                .iter()
+                                .find(|status| status.provider == provider)
+                                .map(IncidentExport::from)
+                        });
+                    }
+                    export.aggregator = Some(aggregator_export(report, last_good));
+                }
                 export
             })
             .collect();
@@ -271,10 +395,139 @@ impl Export {
         }
     }
 
+    /// Every account and, after each aggregator account, its connections
+    /// as accounts ([`SubAccountExport::as_account`]) with the aggregator's
+    /// key: the units the event engine diffs (PRD 0036 RF1.4, RF7.3).
+    pub fn units(&self) -> Vec<(AccountExport, Option<String>)> {
+        let mut units = Vec::with_capacity(self.accounts.len());
+        for account in &self.accounts {
+            units.push((account.clone(), None));
+            for sub in &account.sub_accounts {
+                units.push((sub.as_account(account), Some(account.key.clone())));
+            }
+        }
+        units
+    }
+
     /// RF4.3 of PRD 0015: the export with `local_cost` (see
     /// [`Export::local_cost`]).
     pub fn with_local_cost(self, local_cost: Option<CostSummary>) -> Self {
         Self { local_cost, ..self }
+    }
+}
+
+/// What the sub-account exports of one aggregator account share.
+struct SubScope<'a> {
+    account: &'a Account,
+    parent_key: &'a str,
+    interval: Duration,
+    now: DateTime<Utc>,
+    options: Options,
+}
+
+impl SubScope<'_> {
+    /// The connections of the current report when it is `Ready` (each with
+    /// its own `last_good` while its reading failed, PRD 0036 RF4.2);
+    /// while the instance failed, the connections of its last good reading,
+    /// all stale with no current report.
+    fn exports<'r>(
+        &self,
+        report: Option<&'r Report>,
+        last_good: Option<&'r Report>,
+        last_good_sub: impl Fn(&str) -> Option<&'r SubReport>,
+    ) -> Vec<SubAccountExport> {
+        let scrub = Scrub::new(self.account, self.options.include_identity);
+        if let Some(report) = report.filter(|report| report.status == Status::Ready) {
+            return report
+                .sub_reports
+                .iter()
+                .map(|sub| {
+                    let reading = aggregators::sub_as_report(report, sub);
+                    self.export(sub, Some(&reading), last_good_sub(&sub.id), &scrub)
+                })
+                .collect();
+        }
+        last_good.map_or_else(Vec::new, |good| {
+            good.sub_reports
+                .iter()
+                .map(|sub| {
+                    let kept = (sub.status == Status::Ready).then_some(sub);
+                    self.export(sub, None, kept, &scrub)
+                })
+                .collect()
+        })
+    }
+
+    fn export(
+        &self,
+        sub: &SubReport,
+        reading: Option<&Report>,
+        last_good: Option<&SubReport>,
+        scrub: &Scrub<'_>,
+    ) -> SubAccountExport {
+        let (interval, now) = (self.interval, self.now);
+        let age = |at| freshness::age(at, now).as_secs();
+        SubAccountExport {
+            key: format!("{}/{}", self.parent_key, sub.id),
+            name: scrub.text(&sub.label),
+            provider: sub.provider,
+            upstream: sub.upstream.clone(),
+            class: if reading.is_some() {
+                aggregators::sub_class(sub)
+            } else {
+                AccountClass::Unmeasured
+            },
+            report: reading.map(|report| scrub.report(report)),
+            age_seconds: reading.map(|report| age(report.checked_at)),
+            freshness: reading.map(|report| freshness::assess(report.checked_at, interval, now)),
+            clock_adjusted: reading
+                .is_some_and(|report| freshness::clock_adjusted(report.checked_at, now)),
+            stale: last_good.is_some(),
+            last_good: last_good.map(|good| LastGood {
+                checked_at: good.checked_at,
+                age_seconds: age(good.checked_at),
+                metrics: good.metrics.clone(),
+            }),
+            binding: reading.and_then(metrics::binding),
+            pace: reading.map_or_else(Vec::new, |report| {
+                report
+                    .metrics
+                    .iter()
+                    .map(|metric| {
+                        pace::assess_reading(metric, report.checked_at, interval, now, None)
+                    })
+                    .collect()
+            }),
+            enabled_upstream: sub.enabled_upstream,
+            duplicate_of: sub.duplicate_of.clone(),
+            plan: sub.plan.clone(),
+            via: sub.via.clone(),
+            incident: None,
+        }
+    }
+}
+
+fn aggregator_export(report: Option<&Report>, last_good: Option<&Report>) -> AggregatorExport {
+    let source = report
+        .filter(|report| report.status == Status::Ready)
+        .or(last_good);
+    AggregatorExport {
+        kind: Provider::NineRouter.label().to_string(),
+        version: source.and_then(aggregators::instance_version),
+        pools: source.map_or_else(Vec::new, |report| {
+            aggregators::pools(report)
+                .into_iter()
+                .map(|pool| PoolExport {
+                    summary: pool.summary(),
+                    upstream: pool.upstream,
+                    provider: pool.provider,
+                    available: pool.available,
+                    exhausted: pool.exhausted,
+                    total: pool.total,
+                    returns_at: pool.returns_at,
+                })
+                .collect()
+        }),
     }
 }
 
@@ -286,10 +539,16 @@ pub struct Limits {
     /// Always [`SCHEMA`].
     pub schema: u32,
     pub generated_at: DateTime<Utc>,
-    /// In configuration order.
+    /// In configuration order; PRD 0036 RF7.2: each aggregator account is
+    /// followed by its connections, marked with `parent`.
     pub accounts: Vec<AccountLimit>,
     /// PRD 0031 RF4.2: what a status bar needs without walking `accounts`.
     pub summary: LimitsSummary,
+    /// PRD 0036 RF6.5: per provider, the account with the most room now
+    /// among the available ones (a connection of an aggregator may win);
+    /// omitted when no account is available.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub best: Vec<BestAccount>,
 }
 
 /// The cross-account digest of [`Limits`] (PRD 0031 RF4.2).
@@ -318,6 +577,19 @@ pub struct TightestAccount {
     pub resets_at: Option<DateTime<Utc>>,
 }
 
+/// One entry of [`Limits::best`].
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct BestAccount {
+    pub provider: Provider,
+    /// [`AccountLimit::key`] of the winner.
+    pub key: String,
+    /// The aggregator's key when the winner is one of its connections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    /// Remaining fraction of the winner's binding metric, `0.0..=1.0`.
+    pub remaining_ratio: f64,
+}
+
 /// One account of [`Limits`]; every field means what it means in
 /// [`AccountExport`].
 #[derive(Debug, Clone, Serialize)]
@@ -336,6 +608,9 @@ pub struct AccountLimit {
     /// PRD 0031 RF4.1: the provider status as in [`AccountExport::incident`],
     /// reduced to `state` and `stale`.
     pub incident: Option<AccountIncident>,
+    /// PRD 0036 RF7.2: the aggregator account's key, for a connection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
 }
 
 /// The subset of [`IncidentExport`] kept by [`AccountLimit`].
@@ -371,17 +646,19 @@ impl Limits {
             generated_at: export.generated_at,
             summary: LimitsSummary::from_export(export),
             accounts: export
-                .accounts
-                .iter()
-                .map(|account| AccountLimit {
+                .units()
+                .into_iter()
+                .map(|(account, parent)| AccountLimit {
                     index: account.index,
                     id: account.id.clone(),
                     key: account.key.clone(),
                     name: account.name.clone(),
                     named: account.named,
+                    key: account.key,
+                    name: account.name,
                     provider: account.provider,
                     class: account.class,
-                    binding: account.binding.clone(),
+                    binding: account.binding,
                     age_seconds: account.age_seconds,
                     freshness: account.freshness,
                     stale: account.stale,
@@ -389,10 +666,73 @@ impl Limits {
                         state: incident.state,
                         stale: incident.stale,
                     }),
+                    parent,
                 })
                 .collect(),
+            best: best_accounts(export),
         }
     }
+}
+
+/// PRD 0036 RF6.5 ("best account now", decision C): per provider, among
+/// the `Available` direct accounts and active connections (on in the
+/// aggregator, not duplicates) with a binding metric, the one with the
+/// largest remaining fraction; ties keep configuration order. Providers
+/// are listed in order of first appearance. An aggregator account itself
+/// never competes: its connections do, under their mapped provider
+/// (unknown upstreams are left out).
+pub fn best_accounts(export: &Export) -> Vec<BestAccount> {
+    /// Provider, key, parent key, binding and class of one competitor.
+    type Candidate<'a> = (
+        Provider,
+        &'a str,
+        Option<&'a str>,
+        Option<&'a Binding>,
+        AccountClass,
+    );
+    let mut best: Vec<BestAccount> = Vec::new();
+    for account in &export.accounts {
+        let mut candidates: Vec<Candidate<'_>> = Vec::new();
+        if account.aggregator.is_none() {
+            candidates.push((
+                account.provider,
+                &account.key,
+                None,
+                account.binding.as_ref(),
+                account.class,
+            ));
+        }
+        for sub in &account.sub_accounts {
+            let active = sub.enabled_upstream != Some(false) && sub.duplicate_of.is_none();
+            if let (true, Some(provider)) = (active, sub.provider) {
+                candidates.push((
+                    provider,
+                    &sub.key,
+                    Some(&account.key),
+                    sub.binding.as_ref(),
+                    sub.class,
+                ));
+            }
+        }
+        for (provider, key, parent, binding, class) in candidates {
+            let (AccountClass::Available, Some(binding)) = (class, binding) else {
+                continue;
+            };
+            let ratio = (1.0 - binding.used_ratio).clamp(0.0, 1.0);
+            let entry = BestAccount {
+                provider,
+                key: key.to_owned(),
+                parent: parent.map(str::to_owned),
+                remaining_ratio: ratio,
+            };
+            match best.iter_mut().find(|known| known.provider == provider) {
+                Some(known) if ratio > known.remaining_ratio => *known = entry,
+                Some(_) => {}
+                None => best.push(entry),
+            }
+        }
+    }
+    best
 }
 
 impl LimitsSummary {
@@ -521,6 +861,8 @@ fn account_export(
             .and_then(overage::assess)
             .map(|state| OverageExport::from(&state)),
         incident: None,
+        sub_accounts: Vec::new(),
+        aggregator: None,
     }
 }
 
@@ -1620,6 +1962,295 @@ mod tests {
 
     /// The subset of JSON Schema 2020-12 the document uses, strict about
     /// undeclared properties so the schema cannot fall behind the code.
+    fn connection(id: &str, upstream: &str, status: Status, metrics: Vec<Metric>) -> SubReport {
+        SubReport {
+            id: id.into(),
+            upstream: upstream.into(),
+            provider: crate::providers::nine_router::map_upstream(upstream),
+            label: id.into(),
+            status,
+            metrics,
+            notes_l10n: Vec::new(),
+            checked_at: minutes_ago(1),
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+        }
+    }
+
+    /// An aggregator account with three connections (one available, one
+    /// exhausted, one failed after a good reading) after a direct Claude
+    /// account.
+    fn aggregator_fixture() -> (Config, RefreshCycle) {
+        let direct = account("Personal", Provider::Claude);
+        let router = account("home", Provider::NineRouter);
+        let config = Config {
+            accounts: vec![direct, router],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut ready = report(&config.accounts[0], Status::Ready, minutes_ago(2));
+        ready.metrics = vec![quota("Semana", 50.0, MetricWindow::Weekly, 48)];
+        finish(&mut cycle, 0, ready);
+        let instance = |subs| Report {
+            sub_reports: subs,
+            ..report(&config.accounts[1], Status::Ready, minutes_ago(1))
+        };
+        let mut first = instance(vec![
+            connection(
+                "a1",
+                "claude",
+                Status::Ready,
+                vec![quota("weekly (7d)", 20.0, MetricWindow::Weekly, 24)],
+            ),
+            connection(
+                "b2",
+                "claude",
+                Status::Ready,
+                vec![quota("weekly (7d)", 100.0, MetricWindow::Weekly, 5)],
+            ),
+            connection(
+                "c3",
+                "glm",
+                Status::Ready,
+                vec![quota("monthly", 10.0, MetricWindow::Monthly, 100)],
+            ),
+        ]);
+        first.checked_at = minutes_ago(10);
+        for sub in &mut first.sub_reports {
+            sub.checked_at = minutes_ago(10);
+        }
+        finish(&mut cycle, 1, first);
+        let mut c3 = connection("c3", "glm", Status::Error, Vec::new());
+        c3.label = "me@example.com".into();
+        let mut b2 = connection(
+            "b2",
+            "claude",
+            Status::Ready,
+            vec![quota("weekly (7d)", 100.0, MetricWindow::Weekly, 5)],
+        );
+        b2.label = "Work".into();
+        let mut second = instance(vec![
+            connection(
+                "a1",
+                "claude",
+                Status::Ready,
+                vec![quota("weekly (7d)", 30.0, MetricWindow::Weekly, 24)],
+            ),
+            b2,
+            c3,
+        ]);
+        note(
+            &mut second,
+            Localized::with_params(
+                "note.nine_router.version",
+                params([("version", ParamValue::from("0.5.109"))]),
+                "9router 0.5.109.",
+            ),
+        );
+        finish(&mut cycle, 1, second);
+        (config, cycle)
+    }
+
+    /// PRD 0036 RF7.1: connections are nested under their aggregator,
+    /// never added to `accounts`; each carries its own class, binding and
+    /// stale treatment; the aggregator block has the version and pools;
+    /// labels go through the same redaction; the schema accepts it all.
+    #[test]
+    fn aggregator_accounts_export_their_connections_additively() {
+        let (config, cycle) = aggregator_fixture();
+        let built = Export::from_cycle(
+            &config,
+            &ConfigIdentity::Explicit("reference".into()),
+            &cycle,
+            &statuses(),
+            now(),
+            Options::default(),
+        );
+        let json = serde_json::to_value(&built).unwrap();
+        assert_eq!(json["accounts"].as_array().unwrap().len(), 2);
+        // A direct account keeps its exact shape.
+        assert!(json["accounts"][0].get("sub_accounts").is_none());
+        assert!(json["accounts"][0].get("aggregator").is_none());
+        let router = &json["accounts"][1];
+        let subs = router["sub_accounts"].as_array().unwrap();
+        assert_eq!(subs.len(), 3);
+        assert_eq!(subs[0]["key"], "nine_router:home/a1");
+        assert_eq!(subs[0]["provider"], "claude");
+        assert_eq!(subs[0]["class"], "available");
+        assert_eq!(subs[0]["binding"]["label"], "weekly (7d)");
+        assert_eq!(subs[0]["stale"], false);
+        // RF6.6: the mapped provider's public status.
+        assert_eq!(subs[0]["incident"]["state"], "partial_outage");
+        assert_eq!(subs[1]["class"], "exhausted");
+        // RF4.2: the failed connection keeps its last good reading.
+        assert_eq!(subs[2]["provider"], Value::Null);
+        assert_eq!(subs[2]["upstream"], "glm");
+        assert_eq!(subs[2]["stale"], true);
+        assert_eq!(subs[2]["last_good"]["age_seconds"], 600);
+        assert_eq!(subs[2]["name"], REDACTED);
+        let aggregator = &router["aggregator"];
+        assert_eq!(aggregator["kind"], "9router");
+        assert_eq!(aggregator["version"], "0.5.109");
+        assert_eq!(aggregator["pools"][0]["upstream"], "claude");
+        assert_eq!(aggregator["pools"][0]["available"], 1);
+        assert_eq!(aggregator["pools"][0]["total"], 2);
+        let text = json.to_string();
+        assert!(!text.contains("me@example.com"));
+
+        let schema: Value =
+            serde_json::from_str(&std::fs::read_to_string(doc_path(SCHEMA_DOC)).unwrap()).unwrap();
+        let mut errors = Vec::new();
+        validate(&schema, &schema, &json, "$", &mut errors);
+        assert!(errors.is_empty(), "{errors:#?}");
+
+        // The instance fails: every connection is stale with no report.
+        let mut cycle = cycle;
+        finish(
+            &mut cycle,
+            1,
+            report(&config.accounts[1], Status::Error, minutes_ago(0)),
+        );
+        let failed = Export::from_cycle(
+            &config,
+            &ConfigIdentity::Explicit("reference".into()),
+            &cycle,
+            &[],
+            now(),
+            Options::default(),
+        );
+        let subs = &failed.accounts[1].sub_accounts;
+        assert_eq!(subs.len(), 3);
+        assert!(subs.iter().all(|sub| sub.report.is_none()));
+        assert!(subs[0].stale && subs[1].stale);
+        // c3 had a good reading before failing: it is still offered.
+        assert!(subs[2].stale);
+        assert_eq!(
+            failed.accounts[1].aggregator.as_ref().unwrap().pools.len(),
+            2
+        );
+    }
+
+    /// PRD 0036 RF7.2 and RF6.5: `/v1/limits` lists each connection after
+    /// its aggregator with `parent`, and "best now" may name a connection.
+    #[test]
+    fn limits_list_connections_with_parent_and_best_may_name_one() {
+        let (config, cycle) = aggregator_fixture();
+        let built = build_with(&config, &cycle, &[], Options::default());
+        let limits = Limits::from_export(&built);
+        let keys: Vec<_> = limits.accounts.iter().map(|a| a.key.as_str()).collect();
+        assert_eq!(
+            keys,
+            [
+                "claude:Personal",
+                "nine_router:home",
+                "nine_router:home/a1",
+                "nine_router:home/b2",
+                "nine_router:home/c3"
+            ]
+        );
+        assert_eq!(limits.accounts[0].parent, None);
+        assert_eq!(
+            limits.accounts[2].parent.as_deref(),
+            Some("nine_router:home")
+        );
+        // Personal has 50% left, the connection a1 70%: a1 wins for Claude.
+        assert_eq!(limits.best.len(), 1);
+        assert_eq!(limits.best[0].provider, Provider::Claude);
+        assert_eq!(limits.best[0].key, "nine_router:home/a1");
+        assert_eq!(limits.best[0].parent.as_deref(), Some("nine_router:home"));
+        // A duplicate connection never competes.
+        let mut built = built;
+        built.accounts[1].sub_accounts[0].duplicate_of = Some("claude:Personal".into());
+        let best = best_accounts(&built);
+        assert_eq!(best[0].key, "claude:Personal");
+        assert_eq!(best[0].parent, None);
+    }
+
+    /// PRD 0036 RF7.3: connections have events of their own, with
+    /// `parent`; a whole pool running out is `pool_exhausted` on the
+    /// aggregator.
+    #[test]
+    fn connection_events_carry_parent_and_pools_have_their_own() {
+        use crate::events::{EventKind, EventState};
+        use crate::watch::Watcher;
+        let (config, mut cycle) = aggregator_fixture();
+        let identity = ConfigIdentity::Explicit("reference".into());
+        let mut watcher = Watcher::new(EventState::new([75, 90]).unwrap(), None);
+        let first = Export::from_cycle(&config, &identity, &cycle, &[], now(), Options::default());
+        assert!(watcher.observe(&first, now()).is_empty(), "baseline");
+        let mut all_out = report(&config.accounts[1], Status::Ready, now());
+        all_out.sub_reports = ["a1", "b2"]
+            .into_iter()
+            .map(|id| SubReport {
+                checked_at: now(),
+                ..connection(
+                    id,
+                    "claude",
+                    Status::Ready,
+                    vec![quota("weekly (7d)", 100.0, MetricWindow::Weekly, 5)],
+                )
+            })
+            .collect();
+        finish(&mut cycle, 1, all_out);
+        let next = Export::from_cycle(&config, &identity, &cycle, &[], now(), Options::default());
+        let events = watcher.observe(&next, now());
+        let pool = events
+            .iter()
+            .find(|event| event.event == EventKind::PoolExhausted)
+            .expect("pool_exhausted");
+        assert_eq!(pool.account_key, "nine_router:home");
+        assert_eq!(pool.parent, None);
+        assert_eq!(pool.metric.as_ref().unwrap().label, "Claude");
+        let exhausted = events
+            .iter()
+            .find(|event| event.event == EventKind::QuotaExhausted)
+            .expect("a1 ran out");
+        assert_eq!(exhausted.account_key, "nine_router:home/a1");
+        assert_eq!(exhausted.parent.as_deref(), Some("nine_router:home"));
+        assert_eq!(exhausted.provider, Provider::Claude);
+        let json = serde_json::to_value(exhausted).unwrap();
+        assert_eq!(json["parent"], "nine_router:home");
+        // A direct account's event has no `parent` at all.
+        assert!(events
+            .iter()
+            .filter(|event| event.account_key == "claude:Personal")
+            .all(|event| serde_json::to_value(event).unwrap().get("parent").is_none()));
+    }
+
+    /// PRD 0036 RF7.4: connections are widget items marked with `parent`.
+    #[test]
+    fn widget_items_include_connections_with_parent() {
+        let (config, cycle) = aggregator_fixture();
+        let built = build_with(&config, &cycle, &[], Options::default());
+        let widgets = crate::widget_snapshot::WidgetSnapshot::from_export(&built, 10);
+        let item = widgets
+            .accounts
+            .iter()
+            .find(|item| item.key == "nine_router:home/a1")
+            .expect("a1 is an item");
+        assert_eq!(item.parent.as_deref(), Some("nine_router:home"));
+        assert_eq!(item.provider, Provider::Claude);
+        let direct = widgets
+            .accounts
+            .iter()
+            .find(|item| item.key == "claude:Personal")
+            .unwrap();
+        assert!(serde_json::to_value(direct)
+            .unwrap()
+            .get("parent")
+            .is_none());
+        // The failed connection shows its preserved reading as stale.
+        let c3 = widgets
+            .accounts
+            .iter()
+            .find(|item| item.key == "nine_router:home/c3")
+            .unwrap();
+        assert_eq!(c3.state, crate::widget_snapshot::WidgetState::Stale);
+    }
+
     fn validate(root: &Value, schema: &Value, value: &Value, at: &str, errors: &mut Vec<String>) {
         if let Some(reference) = schema.get("$ref").and_then(Value::as_str) {
             let name = reference

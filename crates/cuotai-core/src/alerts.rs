@@ -11,6 +11,7 @@
 //! ([`crate::resets::Ledger::alerts`]) and [`notice`] writes the text of
 //! one notification.
 
+use crate::aggregators::{pools, sub_as_report, sub_is_active, Pool};
 use crate::metrics::{classify_metric, window_param, MetricState};
 use crate::model::{Account, Metric, MetricWindow, Report, Status};
 use crate::overage::{self, OverageExport, OverageState};
@@ -180,8 +181,8 @@ impl AlertPrefs {
                 .is_some_and(|labels| labels.contains(&event.label))
             && match event.kind {
                 AlertKind::Threshold | AlertKind::SessionExpiring => true,
-                AlertKind::Exhausted => self.exhaustion,
-                AlertKind::Recovered => self.recovery,
+                AlertKind::Exhausted | AlertKind::PoolExhausted => self.exhaustion,
+                AlertKind::Recovered | AlertKind::PoolRecovered => self.recovery,
                 AlertKind::ProjectedExhaustion => self.projected.is_some(),
                 AlertKind::OverageStarted => self.overage,
                 AlertKind::OverageCapReached => self.overage && self.exhaustion,
@@ -214,6 +215,13 @@ pub enum AlertKind {
     OverageStarted,
     /// PRD 0023 RF4.3: the extra budget (a positive cap) is used up.
     OverageCapReached,
+    /// PRD 0036 RF6.4: every active connection of one upstream of an
+    /// aggregator is exhausted. `account_key` is the aggregator's, `label`
+    /// the pool's name, `threshold` 100 and `resets_at` the earliest time
+    /// one connection returns.
+    PoolExhausted,
+    /// PRD 0036 RF6.4: an exhausted pool has a connection available again.
+    PoolRecovered,
 }
 
 impl AlertKind {
@@ -255,6 +263,35 @@ impl PaceInput<'_> {
             .position(|metric| metric.label == label)
             .and_then(|index| self.recent.get(index))
             .map_or(&[], Vec::as_slice)
+    }
+}
+
+/// PRD 0036 RF6.4: how an aggregator account alerts.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PoolAlerts {
+    /// Only when a whole pool (every connection of one upstream) runs out
+    /// and when it returns; the connections themselves stay silent.
+    #[default]
+    WholePool,
+    /// Each connection alerts like a direct account; no pool notice.
+    EachConnection,
+}
+
+impl PoolAlerts {
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::WholePool => "whole_pool",
+            Self::EachConnection => "each_connection",
+        }
+    }
+
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        match slug {
+            "whole_pool" => Some(Self::WholePool),
+            "each_connection" => Some(Self::EachConnection),
+            _ => None,
+        }
     }
 }
 
@@ -620,6 +657,89 @@ pub fn cancels(pending: &AlertEvent, next: &Report, pace: &PaceInput, now: DateT
     }
 }
 
+/// [`evaluate`] over the units of `next` (PRD 0036 RF1.4, RF6.4): the
+/// account's own events and, for an aggregator, its sub-accounts' (each
+/// against the same connection in `prev`) with [`PoolAlerts::EachConnection`],
+/// or one [`AlertKind::PoolExhausted`] / [`AlertKind::PoolRecovered`] per pool
+/// that changed since `prev` with [`PoolAlerts::WholePool`]. A connection off
+/// in the aggregator or duplicating a direct account never alerts; a first
+/// reading (no usable `prev`) sets no pool notice.
+pub fn evaluate_units(
+    prev: Option<&Report>,
+    next: &Report,
+    prefs: &AlertPrefs,
+    state: &AlertState,
+    now: DateTime<Utc>,
+    mode: PoolAlerts,
+    pace: Option<&PaceInput>,
+) -> Vec<AlertEvent> {
+    let mut events = evaluate_with(prev, next, prefs, state, now, pace);
+    if !next.provider.is_aggregator()
+        || !prefs.enabled
+        || next.status != Status::Ready
+        || now - next.checked_at > CROSSING_GRACE
+    {
+        return events;
+    }
+    let prev = prev.filter(|prev| {
+        prev.provider == next.provider
+            && prev.account == next.account
+            && prev.status == Status::Ready
+            && prev.checked_at < next.checked_at
+    });
+    match mode {
+        PoolAlerts::EachConnection => {
+            for sub in next.sub_reports.iter().filter(|sub| sub_is_active(sub)) {
+                let before = prev.and_then(|prev| {
+                    prev.sub_reports
+                        .iter()
+                        .find(|old| old.id == sub.id)
+                        .map(|old| sub_as_report(prev, old))
+                });
+                let now_sub = sub_as_report(next, sub);
+                events.extend(evaluate(before.as_ref(), &now_sub, prefs, state, now));
+            }
+        }
+        PoolAlerts::WholePool => {
+            let Some(prev) = prev else {
+                return events;
+            };
+            let before = pools(prev);
+            let account_key = next.state_key();
+            for pool in pools(next) {
+                let was = before
+                    .iter()
+                    .find(|old| old.upstream == pool.upstream)
+                    .is_some_and(Pool::is_exhausted);
+                let kind = match (was, pool.is_exhausted()) {
+                    (false, true) => AlertKind::PoolExhausted,
+                    (true, false) if pool.available > 0 => AlertKind::PoolRecovered,
+                    _ => continue,
+                };
+                let event = AlertEvent {
+                    account_key: account_key.clone(),
+                    label: pool.name(),
+                    window: None,
+                    kind,
+                    threshold: EXHAUSTED,
+                    consumed: if kind == AlertKind::PoolExhausted {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                    resets_at: pool.returns_at,
+                    projection: None,
+                    overage: None,
+                };
+                if prefs.wants(&event) {
+                    events.push(event);
+                }
+            }
+        }
+    }
+    events
+}
+
 /// Mark of the session expiry in [`AlertState`]: never a metric label.
 const SESSION_MARK: &str = "\u{0}user_session";
 
@@ -794,6 +914,25 @@ impl AlertState {
                 }
             }
             changed |= self.marks.len() != before;
+        }
+        changed
+    }
+
+    /// [`Self::update`] for `next` and each of its active sub-accounts
+    /// (PRD 0036 RF1.4), so a connection's levels are known whatever the
+    /// [`PoolAlerts`] mode: switching modes never notifies the past.
+    pub fn update_units(
+        &mut self,
+        next: &Report,
+        prefs: &AlertPrefs,
+        events: &[AlertEvent],
+        now: DateTime<Utc>,
+    ) -> bool {
+        let mut changed = self.update(next, prefs, events, now);
+        if next.provider.is_aggregator() && next.status == Status::Ready {
+            for sub in next.sub_reports.iter().filter(|sub| sub_is_active(sub)) {
+                changed |= self.update(&sub_as_report(next, sub), prefs, events, now);
+            }
         }
         changed
     }
@@ -1138,6 +1277,12 @@ where
     ) {
         return overage_notice(account, event, tz);
     }
+    if matches!(
+        event.kind,
+        AlertKind::PoolExhausted | AlertKind::PoolRecovered
+    ) {
+        return pool_notice(account, event, now, tz);
+    }
     let provider_pt = account.provider.label();
     let percent = event.threshold.to_string();
     let label = event.label.as_str();
@@ -1200,6 +1345,9 @@ where
             ]),
             format!("{provider_pt}: {percent}% usado em {label}"),
         ),
+        (AlertKind::PoolExhausted | AlertKind::PoolRecovered, _) => {
+            unreachable!("pool notices return early")
+        }
         (AlertKind::OverageStarted | AlertKind::OverageCapReached, _) => {
             unreachable!("overage notices return early")
         }
@@ -1329,6 +1477,54 @@ where
     Notice { title, body }
 }
 
+/// PRD 0036 RF6.4: "9router · Claude: all accounts exhausted" with "Home:
+/// one returns 19:30", or "… available again".
+fn pool_notice<Tz>(account: &Account, event: &AlertEvent, now: DateTime<Utc>, tz: &Tz) -> Notice
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let provider = provider_l10n(account.provider);
+    let provider_pt = account.provider.label();
+    let pool = event.label.as_str();
+    let title = if event.kind == AlertKind::PoolExhausted {
+        Localized::with_params(
+            "alerts.title.pool_exhausted",
+            params([("provider", provider.into()), ("pool", pool.into())]),
+            format!("{provider_pt} · {pool}: todas as contas esgotadas"),
+        )
+    } else {
+        Localized::with_params(
+            "alerts.title.pool_recovered",
+            params([("provider", provider.into()), ("pool", pool.into())]),
+            format!("{provider_pt} · {pool}: conta disponível de novo"),
+        )
+    };
+    let body = match event
+        .resets_at
+        .filter(|_| event.kind == AlertKind::PoolExhausted)
+    {
+        Some(at) => {
+            let at = local_time(at, now, tz);
+            Localized::with_params(
+                "alerts.body.pool_returns",
+                params([
+                    ("account", account.name.as_str().into()),
+                    ("at", at.as_str().into()),
+                ]),
+                format!("{}: uma conta volta {at}", account.name),
+            )
+        }
+        None => Localized::with_param(
+            "alerts.body.pool",
+            "account",
+            account.name.as_str(),
+            account.name.clone(),
+        ),
+    };
+    Notice { title, body }
+}
+
 fn amount_plain(amount: &crate::text::ParamValue) -> String {
     match amount {
         crate::text::ParamValue::Text(text) => text.clone(),
@@ -1395,6 +1591,18 @@ where
         AlertKind::OverageCapReached => {
             Localized::fixed("alerts.item.overage_cap", "orçamento extra esgotado")
         }
+        AlertKind::PoolExhausted => Localized::with_param(
+            "alerts.item.pool_exhausted",
+            "pool",
+            label,
+            format!("{label}: todas esgotadas"),
+        ),
+        AlertKind::PoolRecovered => Localized::with_param(
+            "alerts.item.pool_recovered",
+            "pool",
+            label,
+            format!("{label} disponível de novo"),
+        ),
     }
 }
 
@@ -1484,6 +1692,143 @@ mod tests {
             as_of: None,
             overage_hint: None,
         }
+    }
+
+    /// A 9router instance read at `at` whose connections `a` and `b` (both
+    /// Claude) have consumed `used_a` and `used_b` of a window that resets
+    /// at `window()`.
+    fn router(at: DateTime<Utc>, used_a: f64, used_b: f64) -> Report {
+        let sub = |id: &str, used| crate::SubReport {
+            id: id.into(),
+            upstream: "claude".into(),
+            provider: Some(Provider::Claude),
+            label: id.into(),
+            status: Status::Ready,
+            metrics: vec![quota(Some(used), window())],
+            notes_l10n: Vec::new(),
+            checked_at: at,
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+        };
+        Report {
+            provider: Provider::NineRouter,
+            sub_reports: vec![sub("a", used_a), sub("b", used_b)],
+            ..report("home", at, Vec::new())
+        }
+    }
+
+    /// PRD 0036 RF6.4: by default only a whole pool alerts; with
+    /// `EachConnection` every connection alerts like a direct account; a
+    /// duplicate never does.
+    #[test]
+    fn aggregator_alerts_follow_the_pool_mode() {
+        let prefs = on();
+        let mut state = AlertState::default();
+        let first = router(t0(), 50.0, 60.0);
+        let none = evaluate_units(None, &first, &prefs, &state, t0(), PoolAlerts::WholePool);
+        assert!(none.is_empty(), "a first reading sets no pool notice");
+        state.update_units(&first, &prefs, &none, t0());
+
+        // One connection runs out: the pool still has `b`.
+        let one = router(t0() + mins(5), 100.0, 60.0);
+        let at = t0() + mins(5);
+        let pool = evaluate_units(
+            Some(&first),
+            &one,
+            &prefs,
+            &state,
+            at,
+            PoolAlerts::WholePool,
+        );
+        assert!(pool.is_empty(), "{pool:?}");
+        let each = evaluate_units(
+            Some(&first),
+            &one,
+            &prefs,
+            &state,
+            at,
+            PoolAlerts::EachConnection,
+        );
+        assert_eq!(fired(&each), [(AlertKind::Exhausted, 100)]);
+        assert_eq!(each[0].account_key, "nine_router:home/a");
+        state.update_units(&one, &prefs, &pool, at);
+
+        // Both run out: one pool notice on the aggregator's key.
+        let both = router(t0() + mins(10), 100.0, 100.0);
+        let at = t0() + mins(10);
+        let pool = evaluate_units(Some(&one), &both, &prefs, &state, at, PoolAlerts::WholePool);
+        assert_eq!(fired(&pool), [(AlertKind::PoolExhausted, 100)]);
+        assert_eq!(pool[0].account_key, "nine_router:home");
+        assert_eq!(pool[0].label, "Claude");
+        assert_eq!(pool[0].resets_at, Some(window()));
+        // Its text names the aggregator and the pool.
+        let account = Account {
+            name: "home".into(),
+            provider: Provider::NineRouter,
+            ..Account::default()
+        };
+        let text = notice(&[(&account, pool.clone())], at, &Utc).unwrap();
+        assert_eq!(text.title.id, "alerts.title.pool_exhausted");
+        assert_eq!(
+            text.title.resolve("en-US"),
+            "9router · Claude: all accounts exhausted"
+        );
+        state.update_units(&both, &prefs, &pool, at);
+        // Still exhausted: no repeat.
+        let again = router(t0() + mins(15), 100.0, 100.0);
+        let at = t0() + mins(15);
+        assert!(evaluate_units(
+            Some(&both),
+            &again,
+            &prefs,
+            &state,
+            at,
+            PoolAlerts::WholePool
+        )
+        .is_empty());
+        // One returns: the pool recovers.
+        let back = router(t0() + mins(20), 100.0, 0.0);
+        let at = t0() + mins(20);
+        let pool = evaluate_units(
+            Some(&again),
+            &back,
+            &prefs,
+            &state,
+            at,
+            PoolAlerts::WholePool,
+        );
+        assert_eq!(fired(&pool), [(AlertKind::PoolRecovered, 100)]);
+
+        // A duplicate connection never alerts, whatever the mode.
+        let mut dup_before = router(t0(), 50.0, 50.0);
+        let mut dup_after = router(t0() + mins(5), 100.0, 50.0);
+        dup_before.sub_reports[0].duplicate_of = Some("claude:work".into());
+        dup_after.sub_reports[0].duplicate_of = Some("claude:work".into());
+        let fresh = AlertState::default();
+        assert!(evaluate_units(
+            Some(&dup_before),
+            &dup_after,
+            &prefs,
+            &fresh,
+            t0() + mins(5),
+            PoolAlerts::EachConnection
+        )
+        .is_empty());
+        // Muting the aggregator mutes its pools.
+        let mut muted = on();
+        muted.muted_accounts.insert("nine_router:home".into());
+        assert!(evaluate_units(
+            Some(&one),
+            &both,
+            &muted,
+            &AlertState::default(),
+            t0() + mins(10),
+            PoolAlerts::WholePool
+        )
+        .is_empty());
     }
 
     type Fired = Vec<(AlertKind, u8)>;

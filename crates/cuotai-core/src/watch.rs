@@ -120,7 +120,8 @@ impl Watcher {
         pace: impl Fn(usize, &crate::Report) -> Option<(std::time::Duration, Vec<Vec<Point>>)>,
     ) -> Vec<Event> {
         let mut out = Vec::new();
-        for next in &export.accounts {
+        let units = export.units();
+        for (next, parent) in &units {
             let blank;
             let prev = match self.previous.get(&next.id) {
                 Some(prev) => prev,
@@ -137,6 +138,8 @@ impl Watcher {
                     let input = next
                         .report
                         .as_ref()
+                        // A connection of an aggregator has no recorded pace of its own.
+                        .filter(|_| parent.is_none())
                         .and_then(|report| pace(next.index, report));
                     let input = input.as_ref().map(|(interval, recent)| PaceInput {
                         interval: *interval,
@@ -146,6 +149,7 @@ impl Watcher {
                 }
                 .into_iter()
                 .map(|mut event| {
+                    event.parent.clone_from(parent);
                     if event.event == EventKind::ProviderIncident {
                         event.accounts = incident_accounts(export, next);
                     }
@@ -158,13 +162,12 @@ impl Watcher {
                 }),
             );
         }
-        self.previous = export
-            .accounts
-            .iter()
-            .map(|account| (account.id.clone(), account.clone()))
-            .collect();
         self.state
-            .retain_accounts(export.accounts.iter().map(|account| account.id.as_str()));
+            .retain_accounts(units.iter().map(|(account, _)| account.id.as_str()));
+        self.previous = units
+            .into_iter()
+            .map(|(account, _)| (account.id.clone(), account))
+            .collect();
         out
     }
 }

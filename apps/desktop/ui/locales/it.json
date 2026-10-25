@@ -30,6 +30,8 @@
   "card.noModels": "nessun modello",
   "quota.resetsIn": "tra {time}",
   "quota.na": "N/D",
+  "settings.hooks.event.pool_exhausted": "tutti gli account di un provider in 9router sono esauriti",
+  "settings.hooks.event.pool_recovered": "è tornato un account di un provider esaurito in 9router",
   "time.now": "adesso",
   "time.today": "Oggi {time}",
   "metric.resetsAt": "Si azzera {when}",

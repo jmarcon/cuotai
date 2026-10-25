@@ -184,6 +184,7 @@ export const sendTestNotification = (title, body) => call("send_test_notificatio
 export const setAlertsEnabled = (on) => call("set_alerts_enabled", { on });
 export const setAlertOptions = (thresholds, exhaustion, recovery, overage) => call("set_alert_options", { thresholds, exhaustion, recovery, overage });
 export const setMetricAlert = (accountKey, label, on) => call("set_metric_alert", { accountKey, label, on });
+export const setPoolAlerts = (accountKey, each) => call("set_pool_alerts", { accountKey, each });
 // PRD 0011 RF4.3: public provider status queries (desktop.json, off by default; the backend asks the core).
 export const setStatusEnabled = (on) => call("set_status_enabled", { on });
 // PRD 0012 RF5: the local server (desktop.json, off by default); the backend runs the core's server over this app's
@@ -1046,7 +1047,8 @@ function demoWidgetsView() {
 // to what the screen needs; nothing runs in the browser: a test logs a made-up successful run after a moment.
 // `?hooks=changed` starts with the hooks on and a rule changed since its confirmation (the main-window banner).
 const DEMO_HOOK_EVENTS = ["quota_threshold_crossed", "quota_exhausted", "quota_recovered", "quota_reset", "account_blocked",
-  "account_unblocked", "refresh_failed", "refresh_recovered", "auth_required", "provider_incident", "usage_updated", "overage_started", "overage_ended", "session_expiring", "quota_reset_soon"];
+  "account_unblocked", "refresh_failed", "refresh_recovered", "auth_required", "provider_incident", "usage_updated", "overage_started", "overage_ended", "session_expiring", "quota_reset_soon",
+  "pool_exhausted", "pool_recovered"];
 const DEMO_HOOKS_CHANGED = new URLSearchParams(location.search).get("hooks") === "changed";
 const demoHooks = { enabled: DEMO_HOOKS_CHANGED, path: "~/.config/cuotai/hooks.toml (demo)", revision: null, confirmed: null, runs: [],
   rules: DEMO_HOOKS_CHANGED ? [{ name: "sound", events: ["quota_exhausted"], command: ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"] }] : null };
@@ -1729,6 +1731,12 @@ const demo = {
     if (!on) muted.push(label);
     if (muted.length) demoSettings.alerts.muted[accountKey] = muted;
     else delete demoSettings.alerts.muted[accountKey];
+  },
+  set_pool_alerts: async ({ accountKey, each }) => {
+    const keys = new Set(demoSettings.alerts.pool_each ?? []);
+    if (each) keys.add(accountKey);
+    else keys.delete(accountKey);
+    demoSettings.alerts.pool_each = [...keys].sort();
   },
   set_notify_options: async ({ leadMinutes, when, includeOther }) => {
     if (![0, 5, 15, 60].includes(leadMinutes) || !["used", "exhausted", "always"].includes(when)) throw "invalid_notify";

@@ -53,7 +53,59 @@
           "description": "Present only when the current reading failed (PRD 0028 RF1.3)."
         },
         "overage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Overage" }], "description": "Paid extra usage of the current report (PRD 0023); null when the provider exposes no overage data or there is no report." },
-        "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." }
+        "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." },
+        "sub_accounts": { "type": "array", "items": { "$ref": "#/$defs/SubAccountExport" }, "description": "PRD 0036 RF7.1: the connections of an aggregator account; omitted when empty. Never repeated in the top-level accounts array." },
+        "aggregator": { "$ref": "#/$defs/AggregatorExport", "description": "PRD 0036 RF7.1: the instance of an aggregator account; omitted for every other account." }
+      }
+    },
+    "SubAccountExport": {
+      "type": "object",
+      "description": "One upstream connection of an aggregator account; fields mean what they mean in AccountExport, evaluated on the connection's own reading.",
+      "required": [
+        "key", "name", "provider", "upstream", "class", "report", "age_seconds", "freshness", "clock_adjusted",
+        "stale", "last_good", "binding", "pace", "enabled_upstream", "duplicate_of", "plan", "via", "incident"
+      ],
+      "properties": {
+        "key": { "type": "string", "description": "<aggregator key>/<sub id>." },
+        "name": { "type": "string", "description": "Connection label; an e-mail is redacted unless identity is included." },
+        "provider": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Provider" }], "description": "The mapped Cuotai provider; null for an upstream Cuotai does not know." },
+        "upstream": { "type": "string", "description": "The aggregator's provider slug, verbatim." },
+        "class": { "enum": ["available", "exhausted", "unmeasured"] },
+        "report": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Report" }], "description": "The connection's current reading; null while the instance failed." },
+        "age_seconds": { "type": ["integer", "null"], "minimum": 0 },
+        "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }] },
+        "clock_adjusted": { "type": "boolean" },
+        "stale": { "type": "boolean", "description": "true exactly when last_good is present." },
+        "last_good": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/LastGood" }] },
+        "binding": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Binding" }] },
+        "pace": { "type": "array", "items": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Pace" }] } },
+        "enabled_upstream": { "type": ["boolean", "null"], "description": "The aggregator's own on/off flag." },
+        "duplicate_of": { "type": ["string", "null"], "description": "Key of the direct account this connection duplicates." },
+        "plan": { "type": ["string", "null"] },
+        "via": { "type": ["string", "null"], "description": "Public file that defines the upstream reading in the aggregator." },
+        "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The public status of the mapped provider." }
+      }
+    },
+    "AggregatorExport": {
+      "type": "object",
+      "required": ["kind", "version", "pools"],
+      "properties": {
+        "kind": { "type": "string", "description": "The aggregator's display name, for example 9router." },
+        "version": { "type": ["string", "null"], "description": "The instance's version, when it answered it." },
+        "pools": { "type": "array", "items": { "$ref": "#/$defs/Pool" }, "description": "Per upstream, over active connections only." }
+      }
+    },
+    "Pool": {
+      "type": "object",
+      "required": ["upstream", "provider", "available", "exhausted", "total", "returns_at", "summary"],
+      "properties": {
+        "upstream": { "type": "string" },
+        "provider": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Provider" }] },
+        "available": { "type": "integer", "minimum": 0 },
+        "exhausted": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 },
+        "returns_at": { "type": ["string", "null"], "format": "date-time", "description": "When every connection is exhausted: the earliest return." },
+        "summary": { "$ref": "#/$defs/Localized" }
       }
     },
     "Limits": {
@@ -63,7 +115,18 @@
       "properties": {
         "schema": { "const": 1 },
         "generated_at": { "type": "string", "format": "date-time" },
-        "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountLimit" }, "description": "In configuration order." },
+        "accounts": { "type": "array", "items": { "$ref": "#/$defs/AccountLimit" }, "description": "In configuration order; each aggregator account is followed by its connections (with parent)." },
+        "best": { "type": "array", "items": { "$ref": "#/$defs/BestAccount" }, "description": "PRD 0036 RF6.5: per provider, the available account with the most room now; omitted when none is available." }
+      }
+    },
+    "BestAccount": {
+      "type": "object",
+      "required": ["provider", "key", "remaining_ratio"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/Provider" },
+        "key": { "type": "string" },
+        "parent": { "type": "string", "description": "The aggregator's key when the winner is one of its connections." },
+        "remaining_ratio": { "type": "number", "minimum": 0, "description": "Remaining fraction of the binding metric, at most 1." },
         "summary": { "$ref": "#/$defs/LimitsSummary" }
       }
     },
@@ -122,7 +185,8 @@
             }
           ],
           "description": "PRD 0031 RF4.1: the provider status, reduced to state and stale."
-        }
+        },
+        "parent": { "type": "string", "description": "The aggregator account's key, for one of its connections." }
       }
     },
     "Provider": { "type": "string", "description": "Provider slug (docs/providers.md); new providers add values." },
@@ -269,9 +333,9 @@
       "properties": {
         "overage": { "anyOf": [{ "enum": ["money", "provider_units", "not_reported"] }, { "type": "string" }], "description": "Whether the interface reports paid extra usage, and in what." },
         "level": { "anyOf": [{ "enum": ["official", "undocumented", "derived", "unavailable", "extension"] }, { "type": "string" }] },
-        "credential": { "anyOf": [{ "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session"] }, { "type": "string" }] },
+        "credential": { "anyOf": [{ "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session", "aggregator_login"] }, { "type": "string" }] },
         "plan_requirement": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
-        "scope": { "anyOf": [{ "enum": ["account", "organization", "whole_cloud", "product"] }, { "type": "string" }] },
+        "scope": { "anyOf": [{ "enum": ["account", "organization", "whole_cloud", "product", "instance"] }, { "type": "string" }] },
         "metered": { "type": "boolean", "description": "Every query is billed." },
         "evidence": {
           "type": "object",

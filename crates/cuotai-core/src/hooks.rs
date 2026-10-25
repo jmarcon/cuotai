@@ -89,7 +89,8 @@ pub struct Rule {
     pub events: Vec<EventKind>,
     /// Only events of this provider.
     pub provider: Option<Provider>,
-    /// Only events of the account with this name.
+    /// Only events of the account with this name (for an aggregator
+    /// account, also those of its connections).
     pub account: Option<String>,
     /// PRD 0029 RF4.3: only events of the account with this stable id
     /// (survives renames; display names are not unique across providers).
@@ -103,6 +104,16 @@ pub struct Rule {
     pub timeout_seconds: u64,
 }
 
+/// PRD 0036 RF7.3: `event` belongs to a connection of the aggregator
+/// account named `account`, so a rule on the aggregator covers them.
+fn parent_is(event: &Event, account: &str) -> bool {
+    event
+        .parent
+        .as_deref()
+        .and_then(|key| key.split_once(':'))
+        .is_some_and(|(_, name)| name == account)
+}
+
 impl Rule {
     /// Whether `event` passes this rule's events and filters.
     pub fn matches(&self, event: &Event) -> bool {
@@ -113,7 +124,7 @@ impl Rule {
             && self
                 .account
                 .as_ref()
-                .is_none_or(|account| *account == event.account_name)
+                .is_none_or(|account| *account == event.account_name || parent_is(event, account))
             && self
                 .account_id
                 .as_ref()
@@ -187,7 +198,9 @@ impl Rule {
                 };
                 (true, current, quota(50.0))
             }
-            EventKind::QuotaExhausted => (true, quota(100.0), quota(90.0)),
+            EventKind::QuotaExhausted | EventKind::PoolExhausted => {
+                (true, quota(100.0), quota(90.0))
+            }
             EventKind::AccountBlocked => {
                 let current = Values {
                     blocked_until: resets_at,
@@ -195,7 +208,7 @@ impl Rule {
                 };
                 (true, current, quota(90.0))
             }
-            EventKind::QuotaRecovered | EventKind::AccountUnblocked => {
+            EventKind::QuotaRecovered | EventKind::AccountUnblocked | EventKind::PoolRecovered => {
                 (true, quota(0.0), quota(100.0))
             }
             EventKind::QuotaReset => {
@@ -276,6 +289,7 @@ impl Rule {
             account_name,
             provider,
             accounts: Vec::new(),
+            parent: None,
             metric: about_metric.then(|| MetricRef {
                 label: SAMPLE_METRIC.into(),
                 window: Some(MetricWindow::Window5h),

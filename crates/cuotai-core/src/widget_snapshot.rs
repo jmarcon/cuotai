@@ -114,6 +114,10 @@ pub struct WidgetAccount {
     /// while history is off or has no samples.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub history: Vec<HistoryPoint>,
+    /// PRD 0036 RF7.4: the aggregator account's key, for a connection of
+    /// it; absent for every direct account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
 }
 
 /// One metric a widget can draw a bar for: a percentage exists, so the
@@ -155,7 +159,16 @@ impl WidgetSnapshot {
     /// binding order keeps the most restrictive accounts when some must be
     /// dropped. Pure: reads the export and never queries anything.
     pub fn from_export(export: &Export, max_accounts: usize) -> Self {
-        let mut accounts: Vec<WidgetAccount> = export.accounts.iter().map(project).collect();
+        // PRD 0036 RF7.4: an aggregator's connections are items of their
+        // own, marked with `parent`.
+        let mut accounts: Vec<WidgetAccount> = export
+            .units()
+            .iter()
+            .map(|(account, parent)| WidgetAccount {
+                parent: parent.clone(),
+                ..project(account)
+            })
+            .collect();
         accounts.sort_by(cmp_accounts);
         let truncated = accounts.len() > max_accounts;
         accounts.truncate(max_accounts);
@@ -326,6 +339,7 @@ fn project(account: &AccountExport) -> WidgetAccount {
             _ => None,
         },
         history: Vec::new(),
+        parent: None,
     }
 }
 

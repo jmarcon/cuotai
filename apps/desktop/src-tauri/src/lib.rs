@@ -974,6 +974,20 @@ async fn set_metric_alert(
         .await
 }
 
+/// PRD 0036 RF6.4: whether the aggregator account `account_key` alerts on
+/// each connection (`each = true`) or only when a whole pool runs out.
+/// Error: `unwritable`.
+#[tauri::command]
+async fn set_pool_alerts(
+    app: AppHandle,
+    b: Shared<'_>,
+    account_key: String,
+    each: bool,
+) -> Result<(), String> {
+    b.update_notices(&app, |n| n.set_pool_alerts(&account_key, each))
+        .await
+}
+
 /// PRD 0003 RF3.1: lead time (0, 5, 15 or 60 min), filter (`used`,
 /// `exhausted`, `always`) and "other" windows, saved in `desktop.json`.
 /// Errors: `invalid_notify`, `unwritable`.
@@ -1760,6 +1774,7 @@ pub fn run() {
             set_alerts_enabled,
             set_alert_options,
             set_metric_alert,
+            set_pool_alerts,
             set_notify_options,
             set_account_notify,
             set_locale,

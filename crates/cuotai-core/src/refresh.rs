@@ -285,12 +285,52 @@ impl RefreshCycle {
         }
     }
 
+    /// PRD 0036 RF4.2: the last `Ready` reading of sub-account `sub_id` of
+    /// the aggregator at `index`, offered only while its current reading is
+    /// missing or not `Ready` (the instance failed, or that connection did).
+    /// It keeps its original `checked_at`: label it stale.
+    pub fn last_good_sub(&self, index: usize, sub_id: &str) -> Option<&crate::SubReport> {
+        let current = self
+            .account_report(index)
+            .filter(|report| report.status == Status::Ready)
+            .and_then(|report| report.sub_reports.iter().find(|sub| sub.id == sub_id));
+        if current.is_some_and(|sub| sub.status == Status::Ready) {
+            return None;
+        }
+        self.last_good
+            .get(index)?
+            .as_ref()?
+            .sub_reports
+            .iter()
+            .find(|sub| sub.id == sub_id && sub.status == Status::Ready)
+    }
+
     /// Keep or drop the preserved reading after a new report: `Ready`
     /// replaces it, an authentication failure invalidates it (the data
     /// belongs to a credential that no longer works), anything else keeps it.
     fn remember(&mut self, index: usize, report: &Report) {
         match report.status {
-            Status::Ready => self.last_good[index] = Some(report.clone()),
+            Status::Ready => {
+                let mut kept = report.clone();
+                // PRD 0036 RF4.2: a sub-account whose own reading failed
+                // keeps its last `Ready` one while its siblings update (an
+                // authentication failure drops it, as for an account).
+                if let Some(before) = self.last_good[index].as_ref() {
+                    for sub in &mut kept.sub_reports {
+                        if matches!(sub.status, Status::Ready | Status::AuthenticationError) {
+                            continue;
+                        }
+                        if let Some(good) = before
+                            .sub_reports
+                            .iter()
+                            .find(|old| old.id == sub.id && old.status == Status::Ready)
+                        {
+                            *sub = good.clone();
+                        }
+                    }
+                }
+                self.last_good[index] = Some(kept);
+            }
             Status::AuthenticationError => self.last_good[index] = None,
             Status::RateLimited
             | Status::NeedsConfiguration
@@ -2521,6 +2561,83 @@ mod tests {
     }
 
     const READY: Status = Status::Ready;
+
+    fn sub(id: &str, second: i64, status: Status) -> crate::SubReport {
+        crate::SubReport {
+            id: id.into(),
+            upstream: "claude".into(),
+            provider: Some(Provider::Claude),
+            label: id.into(),
+            status,
+            metrics: Vec::new(),
+            notes_l10n: Vec::new(),
+            checked_at: Utc.timestamp_opt(second, 0).unwrap(),
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+        }
+    }
+
+    #[test]
+    fn a_failed_sub_account_keeps_its_last_good_reading_while_siblings_update() {
+        let config = config_with(vec![account("a", None)]);
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let router = |second, subs| Report {
+            provider: Provider::NineRouter,
+            sub_reports: subs,
+            ..report("a", second)
+        };
+        finish(
+            &mut cycle,
+            0,
+            router(10, vec![sub("x", 10, READY), sub("y", 10, READY)]),
+        );
+        assert!(cycle.last_good_sub(0, "x").is_none(), "current is Ready");
+        // Connection `x` fails, `y` updates.
+        finish(
+            &mut cycle,
+            0,
+            router(20, vec![sub("x", 20, Status::Error), sub("y", 20, READY)]),
+        );
+        let kept = cycle.last_good_sub(0, "x").expect("x keeps its reading");
+        assert_eq!(kept.checked_at.timestamp(), 10);
+        assert!(cycle.last_good_sub(0, "y").is_none());
+        // Still failing one refresh later: the reading survives the merge.
+        finish(
+            &mut cycle,
+            0,
+            router(30, vec![sub("x", 30, Status::Error), sub("y", 30, READY)]),
+        );
+        assert_eq!(
+            cycle.last_good_sub(0, "x").unwrap().checked_at.timestamp(),
+            10
+        );
+        // The instance fails: every sub-account is stale with its reading.
+        finish(&mut cycle, 0, failed("a", 40, Status::Error));
+        assert_eq!(
+            cycle.last_good_sub(0, "y").unwrap().checked_at.timestamp(),
+            30
+        );
+        assert_eq!(
+            cycle.last_good_sub(0, "x").unwrap().checked_at.timestamp(),
+            10
+        );
+        // An authentication failure of the connection drops its reading.
+        finish(
+            &mut cycle,
+            0,
+            router(
+                50,
+                vec![
+                    sub("x", 50, Status::AuthenticationError),
+                    sub("y", 50, READY),
+                ],
+            ),
+        );
+        assert!(cycle.last_good_sub(0, "x").is_none());
+    }
 
     #[test]
     fn last_good_survives_failures_until_success_or_authentication_error() {

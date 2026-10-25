@@ -725,6 +725,10 @@ impl Monitor {
         // RF2.2/RF2.4: only enqueued; the disk never delays the refresh.
         if let Some(recorder) = &self.history {
             recorder.submit(account, &report);
+            // PRD 0036 RF1.4: each active sub-account has its own series.
+            for unit in aggregators::sub_units(index, account, &report) {
+                recorder.submit(&unit.account, &unit.report);
+            }
         }
         report
     }

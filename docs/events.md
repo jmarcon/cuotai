@@ -30,7 +30,7 @@ Hooks run commands of your own when events happen: play a sound, write to a file
 name = "sound"                                    # unique, up to 64 characters
 events = ["quota_exhausted", "quota_threshold_crossed"]
 provider = "claude"                               # optional: only this provider (slug, as in --list-providers)
-account = "Work"                                  # optional: only the account with this name
+account = "Work"                                  # optional: only the account with this name (an aggregator's name also covers its connections)
 # account_id = "acc_0123456789ab"                 # optional: only the account with this id (survives renames)
 min_threshold = 90                                # optional: crossings at or above 90% (other events pass)
 command = ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"]
@@ -122,6 +122,10 @@ for (prev, next) in previous.accounts.iter().zip(&current.accounts) {
 | `overage_ended` | An active extra usage went back to `armed` or `disabled`, which is also what a new billing cycle with nothing spent reads. An unreadable amount (`unknown`) is no end. | `null` | The same overage fields |
 | `session_expiring` | An account that uses a pasted session (PRD 0016) is within 3 days of the session's expiry; once per account and expiry date (a session pasted again with a new date is noticed again). The first reading of a run only records it, so a restart repeats nothing. Never carries the session value. | `null` | `expires_at` and `days_left` (whole days, from 0) |
 | `quota_reset_soon` | A quota window with some consumption is within the reset lead (`--reset-lead MIN`, default 15; `0` turns it off) of its `resets_at`; once per window instance (a `resets_at` drifting by up to 2 minutes is the same instance). A window already inside the lead at the first reading is not reported. Readings further apart than the lead can miss it. Hooks pick their own events; they do not get a separate lead. | The quota | The metric's values; `current.resets_at` is the reset to come |
+| `pool_exhausted` | Every active connection of one upstream of an aggregator account (PRD 0036) is exhausted. Sent on the aggregator account. | `label` is the pool's name (`Claude`), `window` is `null` | `resets_at`: the earliest time one connection returns, when known |
+| `pool_recovered` | An exhausted pool has a connection available again. | As above | — |
+
+**Aggregators.** Each connection of an aggregator account (for example every connection of a 9router instance) is diffed like an account of its own: its events carry `account_key` = `<aggregator key>/<sub id>`, `account_name` = the connection's label, `provider` = the mapped provider (the aggregator's when the upstream is unknown) and `parent` = the aggregator account's key. Connections that are off in the aggregator or duplicate a direct account have no events. A hook rule with `account = "<aggregator name>"` also runs on its connections' events.
 
 One reading can fire several events; they come in this order: refresh events, `quota_reset`, threshold/exhaustion/recovery events, blocking events, `overage_ended`, `quota_reset_soon`, `usage_updated`, `provider_incident`. `overage_started` and `session_expiring` come with the threshold events. A reset after an exhaustion, for example, fires `quota_reset`, `quota_recovered` and `account_unblocked` together.
 
@@ -146,6 +150,7 @@ The event payload follows the same policy as [`export::v1`](export-v1.md#stabili
 | `account_name` | string | The account's display name: its configured name, or the provider's name when it has none (`name` in `export::v1`). |
 | `provider` | string | Provider slug. |
 | `accounts` | array of strings, or absent | `provider_incident` only: the `account_key` of every account that reads the same provider status, in configuration order, the first being `account_key` (additive; PRD 0029 will add account ids beside the keys). |
+| `parent` | string, or absent | Only for an event of an aggregator's connection: the aggregator account's key. |
 | `metric` | object or `null` | `label` and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`). |
 | `current` | object | The values after the transition. |
 | `previous` | object or `null` | The same values before it; `null` when nothing earlier is known. |

@@ -718,6 +718,7 @@ fn every_summary_reads_in_each_catalog() {
             account_name: "Work".into(),
             provider: Provider::Claude,
             accounts: Vec::new(),
+            parent: None,
             metric: Some(MetricRef {
                 label: LABEL.into(),
                 window: Some(MetricWindow::Window5h),
@@ -750,6 +751,7 @@ fn every_summary_reads_in_each_catalog() {
             account_name: "Work".into(),
             provider: Provider::Claude,
             accounts: Vec::new(),
+            parent: None,
             metric: None,
             current: Values {
                 metrics: vec![reading],

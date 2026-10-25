@@ -9,6 +9,7 @@ use crate::settings::{self, AlertSettings, NotifyPrefs};
 use chrono::{DateTime, Utc};
 use cuotai_core::{
     account_id,
+    aggregators,
     alerts::{self, AlertEvent, AlertPrefs, NOTICE_SPACING},
     resets::{self, Ledger, ResetEvent},
     Config, Metric, Report,
@@ -176,6 +177,17 @@ impl Notices {
         self.set_alerts(self.alerts.with_metric(account_key, label, on))
     }
 
+    /// PRD 0036 RF6.4: alert on each connection of the aggregator
+    /// `account_key` (`each`) or only when a whole pool runs out.
+    pub fn set_pool_alerts(&mut self, account_key: &str, each: bool) -> Result<(), &'static str> {
+        let mode = if each {
+            alerts::PoolAlerts::EachConnection
+        } else {
+            alerts::PoolAlerts::WholePool
+        };
+        self.set_alerts(self.alerts.with_pool_mode(account_key, mode))
+    }
+
     /// Whether the metric `label` of `account_key` is muted in the details.
     pub fn metric_muted(&self, account_key: &str, label: &str) -> bool {
         self.alerts
@@ -237,20 +249,28 @@ impl Notices {
     pub fn keep_accounts(&mut self, config: &Config) -> Result<(), &'static str> {
         self.adopt_config(config)?;
         let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
-        self.pending
-            .retain(|event| keys.contains(&event.account_key));
+        // PRD 0036: a connection's choices live under its aggregator's id.
+        let kept = |key: &String| {
+            keys.contains(key)
+                || keys.iter().any(|parent| {
+                    key.strip_prefix(parent.as_str())
+                        .is_some_and(|rest| rest.starts_with('/'))
+                })
+        };
+        self.pending.retain(|event| kept(&event.account_key));
         // Marks still under a legacy key of a configured account are kept
         // until a reading moves them (`adopt_reports`).
         if self.ledger.alerts_mut().retain_config(config) {
             self.save_ledger();
         }
         let mut alerts = self.alerts.clone();
-        alerts.muted.retain(|key, _| keys.contains(key));
+        alerts.muted.retain(|key, _| kept(key));
+        alerts.pool_each.retain(|key| keys.contains(key));
         if alerts != self.alerts {
             self.set_alerts(alerts)?;
         }
         let mut prefs = self.prefs.clone();
-        prefs.off_accounts.retain(|key| keys.contains(key));
+        prefs.off_accounts.retain(|key| kept(key));
         if prefs == self.prefs {
             return Ok(());
         }
@@ -272,7 +292,10 @@ impl Notices {
         next: &Report,
         now: DateTime<Utc>,
     ) -> Vec<AlertEvent> {
-        alerts::evaluate(prev, next, &self.evaluator, self.ledger.alerts(), now)
+        // PRD 0036 RF6.4: an aggregator alerts per pool unless the user
+        // chose each connection for it.
+        let mode = self.alerts.pool_mode(&next.account_key());
+        alerts::evaluate_units(prev, next, &self.evaluator, self.ledger.alerts(), now, mode)
     }
 
     /// Remember `next`, the reading the cycle applied, with the `events`
@@ -287,7 +310,7 @@ impl Notices {
         if self
             .ledger
             .alerts_mut()
-            .update(next, &self.evaluator, &events, now)
+            .update_units(next, &self.evaluator, &events, now)
         {
             self.save_ledger();
         }
@@ -350,7 +373,15 @@ impl Notices {
             return None;
         }
         let prefs = self.prefs.planner();
-        resets::plan(config, readings.iter().copied(), now, &prefs, &self.ledger).next
+        let expanded = aggregators::expand(config, readings);
+        resets::plan(
+            &expanded.config,
+            expanded.readings(),
+            now,
+            &prefs,
+            &self.ledger,
+        )
+        .next
     }
 
     /// One pass of the timer at `now`: deliver the reset notices that are
@@ -367,15 +398,24 @@ impl Notices {
     ) -> Tick {
         let mut changed = self.ledger.adopt_ids(readings.iter().flatten().copied());
         changed |= self.ledger.prune(now);
+        // PRD 0036 RF1.4: an aggregator's connections are planned and
+        // notified as accounts after the configured ones.
+        let expanded = aggregators::expand(config, readings);
         let mut tick = Tick {
             delivered: 0,
             next: None,
         };
         if self.prefs.enabled {
             let prefs = self.prefs.planner();
-            let plan = resets::plan(config, readings.iter().copied(), now, &prefs, &self.ledger);
+            let plan = resets::plan(
+                &expanded.config,
+                expanded.readings(),
+                now,
+                &prefs,
+                &self.ledger,
+            );
             for event in &plan.due {
-                let notice = event.notice(&config.accounts[event.account_index], now);
+                let notice = event.notice(expanded.display(event.account_index), now);
                 let locale = self.locale();
                 // Recorded even when the delivery failed: a notice is sent
                 // at most once, never retried into a burst.
@@ -387,7 +427,7 @@ impl Notices {
             tick.delivered = plan.due.len();
             tick.next = plan.next.map(|event| event.notify_at);
         }
-        let (delivered, next) = self.deliver_alerts(config, now, notifier);
+        let (delivered, next) = self.deliver_alerts(&expanded, now, notifier);
         tick.delivered += delivered;
         tick.next = match (tick.next, next) {
             (Some(a), Some(b)) => Some(a.min(b)),
@@ -407,10 +447,11 @@ impl Notices {
     /// Like reset notices, a delivery the system refused is not retried.
     fn deliver_alerts(
         &mut self,
-        config: &Config,
+        expanded: &aggregators::Expanded,
         now: DateTime<Utc>,
         notifier: &dyn Notifier,
     ) -> (usize, Option<DateTime<Utc>>) {
+        let config = &expanded.config;
         let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
         let evaluator = &self.evaluator;
         self.pending
@@ -425,7 +466,8 @@ impl Notices {
         }
         let mut pending = std::mem::take(&mut self.pending);
         let mut groups = Vec::new();
-        for (account, key) in config.accounts.iter().zip(&keys) {
+        for (index, key) in keys.iter().enumerate() {
+            let account = expanded.display(index);
             let (mine, rest): (Vec<_>, Vec<_>) = pending
                 .into_iter()
                 .partition(|event| event.account_key == *key);
@@ -836,6 +878,105 @@ mod tests {
         assert!(after.metric_muted(&id, "5h"));
         assert_eq!(after.prefs().off_accounts.len(), 1);
         assert_eq!(after.alerts().muted.len(), 1);
+    }
+
+    /// A 9router instance `home` whose two Claude connections used
+    /// `used_a`% and `used_b`% of the 5h window at `at`.
+    fn router(at: DateTime<Utc>, used_a: f64, used_b: f64) -> Report {
+        let sub = |id: &str, used| {
+            let mut metric = quota("5h", MetricWindow::Window5h, w());
+            metric.used = Some(used);
+            cuotai_core::SubReport {
+                id: id.into(),
+                upstream: "claude".into(),
+                provider: Some(Provider::Claude),
+                label: id.into(),
+                status: Status::Ready,
+                metrics: vec![metric],
+                notes_l10n: Vec::new(),
+                checked_at: at,
+                as_of: None,
+                enabled_upstream: Some(true),
+                duplicate_of: None,
+                plan: None,
+                via: None,
+            }
+        };
+        Report {
+            provider: Provider::NineRouter,
+            checked_at: at,
+            sub_reports: vec![sub("a", used_a), sub("b", used_b)],
+            ..report("home", Vec::new())
+        }
+    }
+
+    fn router_config() -> Config {
+        Config {
+            accounts: vec![Account {
+                name: "home".into(),
+                provider: Provider::NineRouter,
+                ..Account::default()
+            }],
+            ..Config::default()
+        }
+    }
+
+    /// PRD 0036 RF6.4: an aggregator notifies once when a whole pool runs
+    /// out (the default), or per connection when the user chose it; a
+    /// save keeps the choices of its connections.
+    #[test]
+    fn an_aggregator_alerts_per_pool_by_default_or_per_connection_by_choice() {
+        let cfg = router_config();
+        let fake = FakeNotifier::default();
+        let mut notices = alerting(None);
+        let a = router(t0(), 50.0, 50.0);
+        let b = router(t0() + mins(5), 100.0, 50.0);
+        assert_eq!(
+            observe(&mut notices, &cfg, Some(&a), &b, &fake).delivered,
+            0
+        );
+        let c = router(t0() + mins(10), 100.0, 100.0);
+        let readings = [Some(&c)];
+        let events = notices.assess(Some(&b), &c, c.checked_at);
+        notices.record(&c, events, c.checked_at);
+        assert_eq!(
+            notices
+                .tick(&cfg, &readings, c.checked_at + NOTICE_SPACING, &fake)
+                .delivered,
+            1
+        );
+        assert_eq!(fake.titles(), ["9router · Claude: all accounts exhausted"]);
+
+        let fake = FakeNotifier::default();
+        let mut notices = alerting(None);
+        notices.set_pool_alerts("nine_router:home", true).unwrap();
+        let events = notices.assess(Some(&a), &b, b.checked_at);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].account_key, "nine_router:home/a");
+        notices.record(&b, events, b.checked_at);
+        let readings = [Some(&b)];
+        assert_eq!(
+            notices.tick(&cfg, &readings, b.checked_at, &fake).delivered,
+            1
+        );
+        // The notice names the connection's provider and label.
+        assert!(
+            fake.titles()[0].starts_with("Claude: "),
+            "{:?}",
+            fake.titles()
+        );
+        assert!(fake.0.borrow()[0].1.starts_with("home · a"));
+
+        // A save keeps the connection's muted metric and the mode.
+        notices
+            .set_metric_alert("nine_router:home/a", "5h", false)
+            .unwrap();
+        notices.keep_accounts(&cfg).unwrap();
+        assert!(notices.metric_muted("nine_router:home/a", "5h"));
+        assert!(notices.alerts().pool_each.contains("nine_router:home"));
+        notices.keep_accounts(&config(&["Work"])).unwrap();
+        assert!(!notices.metric_muted("nine_router:home/a", "5h"));
+        assert!(notices.alerts().pool_each.is_empty());
     }
 
     /// A system that refuses every notice (permission denied).

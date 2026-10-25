@@ -7,7 +7,7 @@
 //! queries: these are pure functions over a snapshot.
 
 use crate::metrics::{classify_parts, AccountClass};
-use crate::model::{Metric, Provider, Report, Snapshot, Status, SubReport};
+use crate::model::{Account, Config, Metric, Provider, Report, Snapshot, Status, SubReport};
 use crate::text::{params, Localized, ParamValue};
 use chrono::{DateTime, Utc};
 
@@ -63,6 +63,166 @@ impl Snapshot {
         }
         units
     }
+}
+
+/// One sub-account presented as a direct account (PRD 0036 RF1.4), so the
+/// engines that take an `(Account, Report)` pair (binding, pace, alerts,
+/// resets, history, events) evaluate it without knowing about nesting.
+#[derive(Debug, Clone)]
+pub struct SubUnit {
+    /// Position of the aggregator account in the configuration.
+    pub parent_index: usize,
+    /// [`Account::key`] of the aggregator account.
+    pub parent_key: String,
+    /// The sub-account's own SubReport id.
+    pub sub_id: String,
+    /// Keyed form: the provider of the aggregator and the name
+    /// `<aggregator name>/<sub id>`, so `account.key()` and
+    /// `report.account_key()` are `<aggregator key>/<sub id>`, like
+    /// [`Unit::key`]. Never carries a credential or a parameter.
+    pub account: Account,
+    /// Display form for notices: the mapped provider (the aggregator's
+    /// when the upstream is unknown) and "<aggregator name> · <label>".
+    pub display: Account,
+    /// The sub-account's reading as a report of [`Self::account`].
+    pub report: Report,
+}
+
+/// `<aggregator name>/<sub id>`: the name of a sub-account's keyed account.
+pub fn sub_account_name(parent: &str, sub_id: &str) -> String {
+    format!("{parent}/{sub_id}")
+}
+
+/// The keyed account of `sub` (see [`SubUnit::account`]).
+pub fn sub_account(parent: &Account, sub: &SubReport) -> Account {
+    Account {
+        name: sub_account_name(&parent.name, &sub.id),
+        provider: parent.provider,
+        credential_env: None,
+        oauth: None,
+        session: None,
+        params: std::collections::BTreeMap::new(),
+        refresh_seconds: parent.refresh_seconds,
+    }
+}
+
+/// The reading of `sub` as a report of [`sub_account`]: same status,
+/// metrics, notes and time; never any sub-report of its own.
+pub fn sub_as_report(parent: &Report, sub: &SubReport) -> Report {
+    Report {
+        account: sub_account_name(&parent.account, &sub.id),
+        provider: parent.provider,
+        checked_at: sub.checked_at,
+        status: sub.status,
+        metrics: sub.metrics.clone(),
+        notes: sub
+            .notes_l10n
+            .iter()
+            .map(|note| note.fallback.to_string())
+            .collect(),
+        notes_l10n: sub.notes_l10n.clone(),
+        source: parent.source.clone(),
+        session_expires_at: None,
+        sub_reports: Vec::new(),
+    }
+}
+
+/// The active sub-accounts of `report` (the reading of `parent`, at
+/// `parent_index`) as [`SubUnit`]s, in report order. Connections off in the
+/// aggregator and duplicates of direct accounts are left out: they never
+/// alert nor enter the history twice (RF5.3).
+pub fn sub_units(parent_index: usize, parent: &Account, report: &Report) -> Vec<SubUnit> {
+    let parent_key = parent.key();
+    report
+        .sub_reports
+        .iter()
+        .filter(|sub| sub_is_active(sub))
+        .map(|sub| {
+            let account = sub_account(parent, sub);
+            let display = Account {
+                name: format!("{} · {}", parent.name, sub.label),
+                provider: sub.provider.unwrap_or(parent.provider),
+                ..account.clone()
+            };
+            SubUnit {
+                parent_index,
+                parent_key: parent_key.clone(),
+                sub_id: sub.id.clone(),
+                account,
+                display,
+                report: sub_as_report(report, sub),
+            }
+        })
+        .collect()
+}
+
+/// A configuration whose accounts are followed by every active
+/// sub-account of the readings given (PRD 0036 RF1.4), for the engines
+/// indexed by configuration position (`resets::plan`, the alert loops of
+/// the front ends). Index `i < config.accounts.len()` of the original is
+/// unchanged; [`Expanded::origin`] maps the extra ones back.
+#[derive(Debug, Clone)]
+pub struct Expanded {
+    pub config: Config,
+    /// One per `config.accounts`: the original readings, then each
+    /// sub-account's own.
+    pub readings: Vec<Option<Report>>,
+    /// One per `config.accounts`: `None` for an original account, the
+    /// sub-unit for an appended one (its `report` is also in `readings`).
+    pub origin: Vec<Option<SubUnit>>,
+}
+
+impl Expanded {
+    /// The readings as borrowed options, the shape the engines take.
+    pub fn readings(&self) -> Vec<Option<&Report>> {
+        self.readings.iter().map(Option::as_ref).collect()
+    }
+
+    /// The account a notice names: the display form for a sub-account.
+    pub fn display(&self, index: usize) -> &Account {
+        match self.origin.get(index).and_then(Option::as_ref) {
+            Some(unit) => &unit.display,
+            None => &self.config.accounts[index],
+        }
+    }
+}
+
+/// [`Expanded`] of `config` with `readings` (one per account, `None` for
+/// an account without a reading).
+pub fn expand(config: &Config, readings: &[Option<&Report>]) -> Expanded {
+    let mut expanded = Expanded {
+        config: config.clone(),
+        readings: readings.iter().map(|r| r.cloned()).collect(),
+        origin: vec![None; readings.len()],
+    };
+    expanded.readings.resize(config.accounts.len(), None);
+    expanded.origin.resize(config.accounts.len(), None);
+    for (index, account) in config.accounts.iter().enumerate() {
+        let Some(report) = readings.get(index).copied().flatten() else {
+            continue;
+        };
+        if !account.provider.is_aggregator() || report.provider != account.provider {
+            continue;
+        }
+        for unit in sub_units(index, account, report) {
+            expanded.config.accounts.push(unit.account.clone());
+            expanded.readings.push(Some(unit.report.clone()));
+            expanded.origin.push(Some(unit));
+        }
+    }
+    expanded
+}
+
+/// The instance's version an aggregator report noted ("0.5.109"), if any.
+pub fn instance_version(report: &Report) -> Option<String> {
+    report
+        .notes_l10n
+        .iter()
+        .find(|note| note.id == "note.nine_router.version")
+        .and_then(|note| match note.params.get("version")? {
+            ParamValue::Text(text) => Some(text.clone()),
+            ParamValue::L10n(_) => None,
+        })
 }
 
 /// True for a sub-account that takes part in rankings: on in the aggregator
@@ -350,6 +510,88 @@ mod tests {
         assert_eq!(units[3].provider, None);
         // A failed sub-account keeps its own status.
         assert_eq!(units[3].status, Status::Error);
+    }
+
+    fn router_account() -> Account {
+        Account {
+            name: "home".into(),
+            provider: Provider::NineRouter,
+            credential_env: Some("NINEROUTER_PASSWORD".into()),
+            oauth: None,
+            session: None,
+            params: [("base_url".to_string(), "http://127.0.0.1:20128".to_string())]
+                .into_iter()
+                .collect(),
+            refresh_seconds: Some(300),
+        }
+    }
+
+    #[test]
+    fn sub_units_present_active_connections_as_direct_accounts() {
+        let mut off = sub("c3", "claude", Status::Ready, vec![quota(10.0, None)]);
+        off.enabled_upstream = Some(false);
+        let mut dup = sub("d4", "claude", Status::Ready, vec![quota(10.0, None)]);
+        dup.duplicate_of = Some("claude:work".into());
+        let router = report(
+            Status::Ready,
+            vec![
+                sub("a1", "claude", Status::Ready, vec![quota(50.0, None)]),
+                sub("b2", "glm", Status::Error, Vec::new()),
+                off,
+                dup,
+            ],
+        );
+        let units = sub_units(3, &router_account(), &router);
+        let keys: Vec<_> = units.iter().map(|unit| unit.account.key()).collect();
+        assert_eq!(keys, ["nine_router:home/a1", "nine_router:home/b2"]);
+        let unit = &units[0];
+        // Report and account keys agree with `Snapshot::units()`.
+        assert_eq!(unit.report.account_key(), unit.account.key());
+        assert_eq!(unit.parent_key, "nine_router:home");
+        assert_eq!(unit.parent_index, 3);
+        // No credential or parameter is carried over.
+        assert!(unit.account.credential_env.is_none());
+        assert!(unit.account.params.is_empty());
+        assert!(unit.report.sub_reports.is_empty());
+        // Notices name the mapped provider and the connection label.
+        assert_eq!(unit.display.provider, Provider::Claude);
+        assert_eq!(unit.display.name, "home · a1");
+        // An unknown upstream keeps the aggregator as provider.
+        assert_eq!(units[1].display.provider, Provider::NineRouter);
+        // Engines see the same binding a direct account would have.
+        assert_eq!(
+            crate::metrics::binding(&unit.report).map(|b| b.label),
+            Some("weekly (7d)".to_string())
+        );
+    }
+
+    #[test]
+    fn expand_appends_sub_accounts_after_the_configuration() {
+        let direct = Account {
+            name: "work".into(),
+            provider: Provider::Claude,
+            ..router_account()
+        };
+        let config = Config {
+            refresh_seconds: 60,
+            concurrency: 2,
+            timeout_seconds: 5,
+            accounts: vec![direct, router_account()],
+        };
+        let router = report(
+            Status::Ready,
+            vec![sub("a1", "claude", Status::Ready, vec![quota(50.0, None)])],
+        );
+        let expanded = expand(&config, &[None, Some(&router)]);
+        assert_eq!(expanded.config.accounts.len(), 3);
+        assert_eq!(expanded.readings().len(), 3);
+        assert!(expanded.readings[0].is_none());
+        assert!(expanded.origin[1].is_none());
+        assert_eq!(expanded.config.accounts[2].key(), "nine_router:home/a1");
+        assert_eq!(expanded.display(2).name, "home · a1");
+        assert_eq!(expanded.display(0).name, "work");
+        // Without readings nothing is appended.
+        assert_eq!(expand(&config, &[]).config.accounts.len(), 2);
     }
 
     #[test]

@@ -505,6 +505,10 @@ pub struct AlertSettings {
     pub overage: bool,
     /// Account key → muted metric labels.
     pub muted: BTreeMap<String, BTreeSet<String>>,
+    /// PRD 0036 RF6.4: aggregator accounts whose connections alert one by
+    /// one; every other aggregator alerts only when a whole pool runs out.
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub pool_each: BTreeSet<String>,
 }
 
 impl Default for AlertSettings {
@@ -518,6 +522,7 @@ impl Default for AlertSettings {
             recovery: core.recovery,
             overage: core.overage,
             muted: BTreeMap::new(),
+            pool_each: BTreeSet::new(),
         }
     }
 }
@@ -560,7 +565,38 @@ impl AlertSettings {
                         .collect()
                 })
                 .unwrap_or_default(),
+            pool_each: value["pool_each"]
+                .as_array()
+                .map(|keys| {
+                    keys.iter()
+                        .filter_map(|key| key.as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
+    }
+
+    /// PRD 0036 RF6.4: how the aggregator `account_key` alerts.
+    pub fn pool_mode(&self, account_key: &str) -> cuotai_core::alerts::PoolAlerts {
+        if self.pool_each.contains(account_key) {
+            cuotai_core::alerts::PoolAlerts::EachConnection
+        } else {
+            cuotai_core::alerts::PoolAlerts::WholePool
+        }
+    }
+
+    /// The same settings with `account_key` alerting by `mode`.
+    pub fn with_pool_mode(&self, account_key: &str, mode: cuotai_core::alerts::PoolAlerts) -> Self {
+        let mut next = self.clone();
+        match mode {
+            cuotai_core::alerts::PoolAlerts::EachConnection => {
+                next.pool_each.insert(account_key.to_owned());
+            }
+            cuotai_core::alerts::PoolAlerts::WholePool => {
+                next.pool_each.remove(account_key);
+            }
+        }
+        next
     }
 
     /// Thresholds (each 10 to 99; repeats collapse) and the exhaustion and

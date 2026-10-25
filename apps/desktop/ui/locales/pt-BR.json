@@ -19,6 +19,8 @@
   "common.showHidden": "Mostrar ocultas",
   "common.copyLabel": "Copiar {label}",
   "common.unexpected": "Falha inesperada.",
+  "settings.hooks.event.pool_exhausted": "todas as contas de um provedor no 9router esgotaram",
+  "settings.hooks.event.pool_recovered": "uma conta de um provedor esgotado no 9router voltou",
   "status.ready": "Atualizado",
   "status.needs_configuration": "Configurar",
   "status.unsupported": "Indisponível",

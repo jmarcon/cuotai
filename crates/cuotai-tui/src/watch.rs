@@ -243,6 +243,7 @@ mod tests {
             account_name: name.into(),
             accounts: Vec::new(),
             provider: Provider::Claude,
+            parent: None,
             metric: Some(MetricRef {
                 label: "Semanal".into(),
                 window: Some(MetricWindow::Weekly),

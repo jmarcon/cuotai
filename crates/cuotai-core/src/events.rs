@@ -88,11 +88,16 @@ pub enum EventKind {
     SessionExpiring,
     /// PRD 0031 RF7.2: a quota window resets within the reset lead.
     QuotaResetSoon,
+    /// PRD 0036 RF7.3: every active connection of one upstream of an
+    /// aggregator is exhausted (`metric.label` is the pool's name).
+    PoolExhausted,
+    /// PRD 0036 RF7.3: an exhausted pool has a connection available again.
+    PoolRecovered,
 }
 
 impl EventKind {
     /// Every event, in the documented order.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 18] = [
         Self::QuotaThresholdCrossed,
         Self::QuotaExhausted,
         Self::QuotaRecovered,
@@ -109,6 +114,8 @@ impl EventKind {
         Self::OverageEnded,
         Self::SessionExpiring,
         Self::QuotaResetSoon,
+        Self::PoolExhausted,
+        Self::PoolRecovered,
     ];
 
     /// The stable name, as serialized in the payload's `event`.
@@ -130,6 +137,8 @@ impl EventKind {
             Self::OverageEnded => "overage_ended",
             Self::SessionExpiring => "session_expiring",
             Self::QuotaResetSoon => "quota_reset_soon",
+            Self::PoolExhausted => "pool_exhausted",
+            Self::PoolRecovered => "pool_recovered",
         }
     }
 
@@ -231,6 +240,10 @@ pub struct Event {
     /// order, the first being `account_key`. Absent for other events.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub accounts: Vec<String>,
+    /// PRD 0036 RF7.3: the aggregator account's key, for an event of one of
+    /// its connections; absent for every direct account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
     /// The metric the event is about; `null` for account-wide events
     /// (refresh, authentication, incident, usage).
     pub metric: Option<MetricRef>,
@@ -331,6 +344,8 @@ impl Event {
                 let pt = format!("Uso atualizado: {usage}");
                 Localized::with_param(id, "usage", usage, pt)
             }
+            EventKind::PoolExhausted => with_metric(format!("{metric}: todas as contas esgotadas")),
+            EventKind::PoolRecovered => with_metric(format!("{metric}: conta disponível de novo")),
         }
     }
 }
@@ -707,6 +722,7 @@ impl Emit<'_> {
             account_name: self.next.name.clone(),
             provider: self.next.provider,
             accounts: Vec::new(),
+            parent: None,
             metric,
             current,
             previous,
@@ -794,7 +810,17 @@ impl EventState {
             };
             out.push(EventKind::QuotaReset, Some(metric), current, previous);
         }
-        let crossed = alerts::evaluate_with(Some(&last), report, prefs, alerts, now, pace);
+        // PRD 0036 RF7.3: an aggregator adds its pool transitions; its
+        // connections have events of their own (`Export::units`).
+        let crossed = alerts::evaluate_units(
+            Some(&last),
+            report,
+            prefs,
+            alerts,
+            now,
+            alerts::PoolAlerts::WholePool,
+            pace,
+        );
         for alert in &crossed {
             let mut current = find(report, &alert.label).unwrap_or_default();
             let kind = match alert.kind {
@@ -850,6 +876,11 @@ impl EventState {
                 }
                 // The cap is an alert only; the event is `overage_started`.
                 AlertKind::OverageCapReached => continue,
+                AlertKind::PoolExhausted => {
+                    current.resets_at = alert.resets_at;
+                    EventKind::PoolExhausted
+                }
+                AlertKind::PoolRecovered => EventKind::PoolRecovered,
             };
             let metric = MetricRef {
                 label: alert.label.clone(),

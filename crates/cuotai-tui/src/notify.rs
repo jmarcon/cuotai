@@ -13,7 +13,8 @@
 use crate::ui::{local_time, safe};
 use chrono::{DateTime, TimeDelta, Utc};
 use cuotai_core::{
-    alerts::{self, AlertEvent, AlertPrefs, AlertState, Lead, PaceInput, NOTICE_SPACING},
+    aggregators,
+    alerts::{self, AlertEvent, AlertPrefs, AlertState, Lead, PaceInput, PoolAlerts, NOTICE_SPACING},
     pace::Point,
     refresh::{Generation, RefreshCycle},
     resets::{self, Ledger, Prefs},
@@ -89,12 +90,15 @@ impl Notices {
             interval: *interval,
             recent,
         });
-        alerts::evaluate_with(
+        // PRD 0036 RF6.4: an aggregator alerts when a whole pool runs out
+        // (the default mode); its connections' levels are still tracked.
+        alerts::evaluate_units(
             prev,
             next,
             &self.alert_prefs,
             &self.alerts,
             now,
+            PoolAlerts::WholePool,
             input.as_ref(),
         )
     }
@@ -109,7 +113,8 @@ impl Notices {
         now: DateTime<Utc>,
         pace: Option<&(Duration, Vec<Vec<Point>>)>,
     ) {
-        self.alerts.update(next, &self.alert_prefs, &events, now);
+        self.alerts
+            .update_units(next, &self.alert_prefs, &events, now);
         if let Some((interval, recent)) = pace {
             let input = PaceInput {
                 interval: *interval,
@@ -145,9 +150,12 @@ impl Notices {
     ) -> Vec<u8> {
         self.ledger.prune(now);
         self.alerts.prune(now);
+        // PRD 0036 RF1.4: the connections of an aggregator have resets of
+        // their own, planned as accounts after the configured ones.
+        let expanded = aggregators::expand(config, readings);
         let plan = resets::plan(
-            config,
-            readings.iter().copied(),
+            &expanded.config,
+            expanded.readings(),
             now,
             &self.prefs,
             &self.ledger,
@@ -167,7 +175,7 @@ impl Notices {
             };
             event.resets_at = first.resets_at;
             event.notify_at = event.resets_at - lead;
-            let account = &config.accounts[event.account_index];
+            let account = expanded.display(event.account_index);
             let notice = event.notice(account, now);
             let title = notice.title.resolve(locale);
             lines.push(format!(
@@ -182,7 +190,7 @@ impl Notices {
                 );
             }
         }
-        self.deliver_alerts(config, now, locale, &mut out, &mut lines);
+        self.deliver_alerts(&expanded, now, locale, &mut out, &mut lines);
         if lines.is_empty() {
             return out;
         }
@@ -198,7 +206,7 @@ impl Notices {
     /// configured are dropped.
     fn deliver_alerts(
         &mut self,
-        config: &Config,
+        expanded: &aggregators::Expanded,
         now: DateTime<Utc>,
         locale: &str,
         out: &mut Vec<u8>,
@@ -212,8 +220,9 @@ impl Notices {
             return;
         }
         let mut pending = std::mem::take(&mut self.pending);
-        for account in &config.accounts {
+        for (index, account) in expanded.config.accounts.iter().enumerate() {
             let key = account.state_key();
+            let account = expanded.display(index);
             let (mine, rest): (Vec<_>, Vec<_>) = pending
                 .into_iter()
                 .partition(|event| event.account_key == key);
