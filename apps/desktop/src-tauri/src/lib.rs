@@ -807,6 +807,51 @@ async fn set_locale(app: AppHandle, b: Shared<'_>, locale: String) -> Result<(),
     b.update_notices(&app, |n| n.set_locale(&locale)).await
 }
 
+/// The browser page after a sign-in callback follows the interface language
+/// and the active theme. `colors` holds `#rgb`/`#rrggbb` values for `bg`,
+/// `surface`, `border`, `fg`, `fg_muted` and `bad`; without it (or when one
+/// is invalid) the page keeps the browser's own light/dark preference.
+#[tauri::command]
+fn set_callback_style(
+    locale: String,
+    scheme: String,
+    colors: Option<std::collections::HashMap<String, String>>,
+) {
+    use cuotai_core::oauth::callback_page::{
+        set_callback_style, CallbackPalette, CallbackScheme, CallbackStyle,
+    };
+    let scheme = match scheme.as_str() {
+        "dark" => Some(CallbackScheme::Dark),
+        "light" => Some(CallbackScheme::Light),
+        _ => None,
+    };
+    let theme = scheme.zip(colors).and_then(|(scheme, c)| {
+        let get = |k: &str| c.get(k).cloned();
+        Some((
+            scheme,
+            CallbackPalette {
+                bg: get("bg")?,
+                surface: get("surface")?,
+                border: get("border")?,
+                fg: get("fg")?,
+                fg_muted: get("fg_muted")?,
+                bad: get("bad")?,
+            },
+        ))
+    });
+    let style = CallbackStyle {
+        locale: locale.clone(),
+        theme,
+    };
+    if !set_callback_style(style) {
+        // An invalid palette must not lose the language.
+        set_callback_style(CallbackStyle {
+            locale,
+            theme: None,
+        });
+    }
+}
+
 /// PRD 0003 RF3.3: send one notice now, with the texts the interface
 /// translated, to check the permission and the notification center. Only
 /// while reset notices or usage alerts are on: on desktop the first notice
@@ -1523,6 +1568,7 @@ pub fn run() {
             set_notify_options,
             set_account_notify,
             set_locale,
+            set_callback_style,
             send_test_notification,
             open_settings,
             settings_target,

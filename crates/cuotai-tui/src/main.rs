@@ -480,6 +480,14 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         );
     }
     let locale = ui::tui_locale();
+    // The browser page after a sign-in callback speaks the TUI's language
+    // and follows the browser's light/dark preference.
+    cuotai_core::oauth::callback_page::set_callback_style(
+        cuotai_core::oauth::callback_page::CallbackStyle {
+            locale: locale.to_string(),
+            theme: None,
+        },
+    );
     let events = args
         .events
         .as_ref()

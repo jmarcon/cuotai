@@ -1282,5 +1282,11 @@
   "catalog.hint.local_cli": "Uses the {cli} CLI",
   "catalog.hint.web_session": "Paste a web session",
   "stats.history_kept": "History kept {days} days on this device",
-  "stats.not_enough": "Not enough history"
+  "stats.not_enough": "Not enough history",
+  "oauth.page.success.title": "Authorization received",
+  "oauth.page.success.body": "You can close this window and go back to Cuotai.",
+  "oauth.page.denied.title": "Authorization denied",
+  "oauth.page.denied.body": "Nothing was connected. You can close this window and try again in Cuotai.",
+  "oauth.page.failed.title": "Could not complete",
+  "oauth.page.failed.body": "Close this window and start the sign-in again in Cuotai."
 }

@@ -1,5 +1,6 @@
 //! Native OAuth authorization and secure, refreshable credentials. No UI dependencies.
 mod bailian;
+pub mod callback_page;
 mod flows;
 pub mod login;
 pub(crate) mod session;

@@ -1282,5 +1282,11 @@
   "catalog.hint.local_cli": "Usa la CLI {cli}",
   "catalog.hint.web_session": "Pega una sesión web",
   "stats.history_kept": "Historial guardado {days} días en este dispositivo",
-  "stats.not_enough": "Historial insuficiente"
+  "stats.not_enough": "Historial insuficiente",
+  "oauth.page.success.title": "Autorización recibida",
+  "oauth.page.success.body": "Puedes cerrar esta ventana y volver a Cuotai.",
+  "oauth.page.denied.title": "Autorización denegada",
+  "oauth.page.denied.body": "No se conectó nada. Puedes cerrar esta ventana e intentarlo de nuevo en Cuotai.",
+  "oauth.page.failed.title": "No se pudo completar",
+  "oauth.page.failed.body": "Cierra esta ventana e inicia sesión de nuevo en Cuotai."
 }
