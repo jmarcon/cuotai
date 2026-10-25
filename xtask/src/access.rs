@@ -130,6 +130,89 @@ pub fn run(repo: &Path, today: &str, days: i64, fail_after: Option<i64>) -> Res<
     Ok(out)
 }
 
+/// One interface that answered with no drift, as `verified_on.json` of the
+/// local canary lists it (PRD 0028 RF4.4).
+#[derive(Debug, serde::Deserialize)]
+struct Verified {
+    provider: String,
+    verified_on: String,
+}
+
+const VERIFIED_FILE: &str = "crates/cuotai-core/src/access.rs";
+const VERIFIED_TABLE: &str = "const VERIFIED: &[(&str, &str)] = &[";
+
+/// Raise the `VERIFIED` dates of `crates/cuotai-core/src/access.rs` from the
+/// canary's `list` (PRD 0028 RF4.4/RF6.1). A date is only ever raised, never
+/// lowered and never set after `today`; a provider with no entry named like
+/// its slug is reported, not guessed. Returns what changed and the command
+/// that regenerates the matrix of `docs/providers.md`.
+pub fn apply_verified(repo: &Path, list: &str, today: &str) -> Res<String> {
+    let entries: Vec<Verified> = serde_json::from_str(list).map_err(|_| {
+        crate::Error::Msg("the evidence list is not the canary's verified_on.json".into())
+    })?;
+    let today_number = day_number(today)?;
+    let path = repo.join(VERIFIED_FILE);
+    let source = std::fs::read_to_string(&path)?;
+    if !source.contains(VERIFIED_TABLE) {
+        return err(format!("{VERIFIED_FILE} has no VERIFIED table"));
+    }
+    let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
+    let (mut raised, mut kept, mut missing) = (Vec::new(), Vec::new(), Vec::new());
+    for item in &entries {
+        let date = &item.verified_on;
+        if day_number(date)? > today_number {
+            return err(format!("'{date}' for {} is in the future", item.provider));
+        }
+        let needle = format!("(\"{}\", \"", item.provider);
+        let Some(line) = lines
+            .iter_mut()
+            .skip_while(|l| !l.starts_with("const VERIFIED"))
+            .take_while(|l| l.as_str() != "];")
+            .find(|l| l.trim_start().starts_with(&needle))
+        else {
+            missing.push(item.provider.clone());
+            continue;
+        };
+        let old = line
+            .trim_start()
+            .trim_start_matches(&needle)
+            .split('"')
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        if day_number(&old)? >= day_number(date)? {
+            kept.push(item.provider.clone());
+            continue;
+        }
+        *line = line.replace(&format!("{needle}{old}\""), &format!("{needle}{date}\""));
+        raised.push(format!("{} {old} -> {date}", item.provider));
+    }
+    if !raised.is_empty() {
+        let mut text = lines.join("\n");
+        if source.ends_with('\n') {
+            text.push('\n');
+        }
+        std::fs::write(&path, text)?;
+    }
+    let mut out = String::new();
+    for line in &raised {
+        out.push_str(&format!("raised {line}\n"));
+    }
+    if !kept.is_empty() {
+        out.push_str(&format!("already as recent: {}\n", kept.join(", ")));
+    }
+    if !missing.is_empty() {
+        out.push_str(&format!(
+            "no VERIFIED entry named like the provider (edit by hand): {}\n",
+            missing.join(", ")
+        ));
+    }
+    if !raised.is_empty() {
+        out.push_str("now regenerate the matrix: CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix\n");
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,6 +248,37 @@ mod tests {
         assert_eq!(names, ["claude", "alibaba_token_plan"]);
         assert_eq!(old[0].age_days, 297);
         assert!(stale(&rows, "2026-02-01", 90).unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_canary_list_raises_dates_but_never_lowers_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join(VERIFIED_FILE);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(
+            &file,
+            "x\nconst VERIFIED: &[(&str, &str)] = &[\n    (\"claude\", \"2026-10-20\"),\n    (\"groq\", \"2026-10-25\"),\n];\nfn y() {}\n",
+        )
+        .unwrap();
+        let list = r#"[
+            {"provider":"claude","mode":"environment_variable","verified_on":"2026-10-24"},
+            {"provider":"groq","mode":"environment_variable","verified_on":"2026-10-24"},
+            {"provider":"mystery","mode":"native_login","verified_on":"2026-10-24"}
+        ]"#;
+        let out = apply_verified(dir.path(), list, "2026-10-25").unwrap();
+        assert!(out.contains("raised claude 2026-10-20 -> 2026-10-24"));
+        assert!(out.contains("already as recent: groq"));
+        assert!(out.contains("edit by hand): mystery"));
+        assert!(out.contains("providers_doc_matrix"));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("(\"claude\", \"2026-10-24\")"));
+        assert!(text.contains("(\"groq\", \"2026-10-25\")"));
+        assert!(text.ends_with("fn y() {}\n"));
+        assert!(
+            apply_verified(dir.path(), list, "2026-10-01").is_err(),
+            "no future dates"
+        );
+        assert!(apply_verified(dir.path(), "{}", "2026-10-25").is_err());
     }
 
     #[test]

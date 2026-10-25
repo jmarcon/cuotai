@@ -92,6 +92,11 @@ SUBCOMMANDS:
     --fail-after N          also fail past N days (the non-required job; e.g. 180)
     --today YYYY-MM-DD      date to compare against (default: today, UTC)
 
+  access-verified     Raise access evidence dates from the canary's list (PRD 0028 RF4.4)
+    --apply FILE            the canary's verified_on.json; review the diff, then commit
+    --repo PATH             repository root (default: .)
+    --today YYYY-MM-DD      newest date accepted (default: today, UTC)
+
   anonymize-fixture   Make a captured response safe to commit as a fixture (PRD 0028 RF5)
     --provider SLUG         provider the response came from
     --perturb FACTOR        scale numbers by FACTOR (default: keep them)
@@ -165,6 +170,7 @@ fn run(args: &[String]) -> Res<()> {
         "changelog-gate" => changelog_gate(&opts),
         "changelog-draft" => changelog_draft(&opts),
         "access-staleness" => access_staleness(&opts),
+        "access-verified" => access_verified(&opts),
         "package-manifests" => package_manifests(&opts),
         "workflow-check" => workflow_check(&opts),
         "external-rules-check" => external_rules_check(&opts),
@@ -447,6 +453,21 @@ fn access_staleness(opts: &Opts) -> Res<()> {
         "{}",
         xtask::access::run(&repo, &today, days, number("fail-after")?)?
     );
+    Ok(())
+}
+
+/// `access-verified --apply FILE` (PRD 0028 RF4.4): raise `VERIFIED` dates
+/// from the local canary's `verified_on.json`.
+fn access_verified(opts: &Opts) -> Res<()> {
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let Some(file) = opts.path("apply") else {
+        return err("access-verified needs --apply FILE (the canary's verified_on.json)");
+    };
+    let today = opts
+        .get("today")
+        .unwrap_or_else(xtask::release::prepare::today_utc);
+    let list = std::fs::read_to_string(file)?;
+    print!("{}", xtask::access::apply_verified(&repo, &list, &today)?);
     Ok(())
 }
 
