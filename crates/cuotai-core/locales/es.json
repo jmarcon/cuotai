@@ -1405,5 +1405,10 @@
   "events.summary.overage_ended": "Terminó el uso extra",
   "overage.units_caveat": "Los importes están en unidades del proveedor, no en dinero.",
   "edit_notice.provider_switch_oauth": "Al guardar, la credencial OAuth de la cuenta de {provider} se borra del almacén.",
-  "edit_error.config_extension": "La cuenta de extensión no tiene un extension_id válido, repite el id de otra extensión o contiene campos de credencial incompatibles."
+  "edit_error.config_extension": "La cuenta de extensión no tiene un extension_id válido, repite el id de otra extensión o contiene campos de credencial incompatibles.",
+  "detect.hint": "{tool} está instalado en este dispositivo",
+  "detect.consent.cursor_import": "Cuotai leerá una vez el token de inicio de sesión de la base de datos local de Cursor para consultar tu uso. Se guarda en el almacén de credenciales del sistema.",
+  "detect.consent.native_login": "Cuotai abrirá el inicio de sesión de {provider}; no se lee nada de la carpeta de {tool}.",
+  "detect.consent.aws_profile": "Cuotai leerá solo los nombres de los perfiles de ~/.aws/config cuando elijas el perfil; no se lee ninguna clave.",
+  "detect.consent.key_step": "Pega tu clave; Cuotai no lee nada de la carpeta de {tool}."
 }

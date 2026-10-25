@@ -2066,6 +2066,38 @@ pub fn picker_providers(current: Option<Provider>) -> Vec<Provider> {
     providers
 }
 
+/// PRD 0027 RF3/RF4: the Add-account picker's results for `query`, from
+/// [`search`] restricted to [`picker_providers`]. An empty query keeps the
+/// core's grouping by sign-in method (one entry per provider, its
+/// recommended mode); a non-empty query keeps the core's ranking.
+pub fn picker_search(query: &str, locale: &str) -> Vec<CatalogMatch> {
+    let offered = picker_providers(None);
+    let empty = query.trim().is_empty();
+    search(query, locale)
+        .into_iter()
+        .filter(|m| offered.contains(&m.entry.provider))
+        .filter(|m| !empty || m.entry.recommended)
+        .collect()
+}
+
+/// PRD 0027 RF5.1: the mode a provider opens with (`None` when it has a
+/// single mode).
+pub fn recommended_mode(provider: Provider) -> Option<&'static str> {
+    catalog()
+        .into_iter()
+        .find(|entry| entry.provider == provider && entry.recommended)
+        .and_then(|entry| entry.mode)
+}
+
+/// PRD 0027 RF5.1: the provider's other ways to connect ("Other ways to
+/// connect"), each with its hint, in catalog order.
+pub fn other_modes(provider: Provider) -> Vec<CatalogEntry> {
+    catalog()
+        .into_iter()
+        .filter(|entry| entry.provider == provider && !entry.recommended)
+        .collect()
+}
+
 pub fn credential_kind(provider: Provider) -> CredentialKind {
     match provider {
         Provider::AwsBedrock => CredentialKind::AwsProfile,
@@ -2888,6 +2920,38 @@ mod tests {
     use crate::oauth::OAuthConfig;
     use crate::{Config, Provider};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn picker_search_hides_providers_without_a_query_and_groups_by_method() {
+        let all = picker_search("", "en-US");
+        assert!(all.iter().all(|m| m.entry.provider != Provider::Poolside));
+        assert!(all.iter().all(|m| m.entry.recommended));
+        let offered = picker_providers(None);
+        for provider in &offered {
+            assert_eq!(
+                all.iter().filter(|m| m.entry.provider == *provider).count(),
+                1,
+                "{provider:?}"
+            );
+        }
+        let methods: Vec<_> = all.iter().map(|m| m.entry.method).collect();
+        let mut sorted = methods.clone();
+        sorted.sort_by_key(|m| SignInMethod::ALL.iter().position(|x| x == m));
+        assert_eq!(methods, sorted);
+        let codex = picker_search("codex", "en-US");
+        assert_eq!(codex[0].entry.provider, Provider::ChatGpt);
+        assert!(picker_search("poolside", "en-US").is_empty());
+    }
+
+    #[test]
+    fn recommended_mode_prefers_native_login_and_lists_the_others() {
+        assert_eq!(recommended_mode(Provider::Cursor), Some("oauth"));
+        let others = other_modes(Provider::Cursor);
+        assert_eq!(others.len(), 1);
+        assert_eq!(others[0].mode, Some(AUTH_MODE_CREDENTIAL));
+        assert_eq!(recommended_mode(Provider::OpenAiApi), None);
+        assert!(other_modes(Provider::OpenAiApi).is_empty());
+    }
 
     #[test]
     fn picker_is_sorted_by_name_and_hides_providers_without_a_query() {

@@ -12,6 +12,7 @@ pub mod catalog;
 pub mod changelog;
 pub mod config_file;
 pub mod cost;
+pub mod detect;
 pub mod diagnostic;
 pub mod edit_error;
 pub mod events;
