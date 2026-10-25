@@ -107,6 +107,7 @@
   "settings.kw.alerts": "avvisi di utilizzo soglia allarme notifica",
   "settings.kw.thresholds": "percentuale limite allarme livello",
   "settings.kw.overage": "uso extra eccedenza on-demand pagamento fatturazione avviso",
+  "settings.kw.vault": "credenziali portachiavi segreti token salvati orfane pulizia",
   "settings.kw.exhaustion": "esaurita vuota senza quota avviso",
   "settings.kw.recovery": "recuperata di nuovo disponibile avviso",
   "settings.kw.test": "provare notifica permesso inviare",

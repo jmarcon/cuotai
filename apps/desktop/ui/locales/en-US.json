@@ -107,6 +107,7 @@
   "settings.kw.alerts": "usage alerts threshold warning notification",
   "settings.kw.thresholds": "percent limit warning level",
   "settings.kw.overage": "extra usage overage on-demand paid billing alert",
+  "settings.kw.vault": "credentials vault keychain secrets tokens stored orphan cleanup",
   "settings.kw.exhaustion": "exhausted empty out of quota alert",
   "settings.kw.recovery": "recovered back available again alert",
   "settings.kw.test": "test notification permission send",

@@ -28,14 +28,11 @@ export function html({ settings: s, view }) {
       `<button class="btn sm" data-open-dir>${te("settings.folder.open")}</button>`),
     body: `${s.env_locked ? warn(te("settings.folder.env")) : ""}${userContent.errors.map((e) => warn(esc(skippedMessage(e)))).join("")}
       ${disc("folder-path", te("settings.config.path"), pathHtml(s.user_dir))}` });
-  return group("config", "", configRow + folderRow)
-    // PRD 0029 RF6.2: what Cuotai stored in the system vault, filled in by `bind` (never a value).
-    + group("credentials", te("settings.vault.title"), `
-      <p class="hint">${te("settings.vault.help")}</p>
-      <div data-vault aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>
-      <p class="err" role="alert">${esc(take("credentials"))}</p>`);
+  // PRD 0029 RF6.2: what Cuotai stored in the system vault, filled in by `bind` (never a value).
+  const vaultRowHtml = row({ key: "vault", attrs: 'data-section="credentials"', label: te("settings.vault.title"), info: te("settings.vault.help"), msg: "vault-msg",
+    body: `<div data-vault aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>` });
+  return group("config", "", configRow + folderRow + vaultRowHtml);
 }
-
 
 /** One indexed entry: what uses it (or that nothing does) and since when. */
 function vaultRow(e) {
@@ -62,7 +59,7 @@ export function vaultHtml(entries) {
 export function bind(root, ctx) {
   const s = ctx.settings;
   // A failure is shown in its row after the repaint (RF4.3).
-  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"]]) root.querySelector(id).textContent = take(key);
+  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"], ["credentials", "#vault-msg"]]) root.querySelector(id).textContent = take(key);
   const fail = (key, text) => { flash[key] = text; ctx.rerender(); };
   root.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => fail("folder", errorText(e)));
   const apply = async (path) => {
