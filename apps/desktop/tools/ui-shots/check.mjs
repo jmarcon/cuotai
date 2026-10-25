@@ -5,16 +5,27 @@
 // outside the window, (c) text clipped by an ancestor, (d) text spilling out of a chip, button, tab or card, (e)
 // overlapping text, and (f) a status line taller than one line. Elements that may truncate by design (account labels
 // and names, the status label after its fitting, one-line notices) are reported as allowed.
-// Usage: node apps/desktop/tools/ui-shots/check.mjs [--json] [--selftest] [locale ...]   Exit: 0 clean, 1 with problems.
+// Usage: node apps/desktop/tools/ui-shots/check.mjs [--json] [--selftest] [--zoom] [locale ...]   Exit: 0 clean, 1 with problems.
 // `--selftest` forces a long string into a figure and a tab of the tray and passes only when the check catches it.
 import { launch } from "./driver.mjs";
 
 const args = process.argv.slice(2);
 const json = args.includes("--json");
 const selftest = args.includes("--selftest");
+// `--zoom` (PRD 0020 RNF): the 200 % zoom pass. At 200 % a 1280×820 screen offers a 640×410 CSS viewport, so the main
+// window and Settings are checked there (the tray is a fixed 380 px popover whose content does not reflow).
+const zoom = args.includes("--zoom");
 const locales = args.filter((a) => !a.startsWith("--"));
 const LOCALES = locales.length ? locales : selftest ? ["en-US"] : ["en-US", "pt-BR", "es", "it", "en-XA"];
-const PAGES = [
+const ZOOM_PAGES = [
+  ["zoom200-main", "index.html", 640, 410, {}],
+  ["zoom200-main-stats", "index.html", 640, 410, { "cuotai.openView": "stats" }],
+  ["zoom200-settings-general", "settings.html?page=general", 640, 360, {}],
+  ["zoom200-settings-dashboard", "settings.html?page=dashboard", 640, 360, {}],
+  ["zoom200-settings-alerts", "settings.html?page=alerts", 640, 360, {}],
+  ["zoom200-settings-menubar", "settings.html?page=menubar", 640, 360, {}],
+];
+const PAGES = zoom ? ZOOM_PAGES : [
   ["tray", "tray.html", 380, 600, {}],
   ["tray-rings", "tray.html", 380, 600, { "cuotai.trayView": "rings" }],
   ["tray-compact", "tray.html", 380, 600, { "cuotai.trayView": "compact" }],

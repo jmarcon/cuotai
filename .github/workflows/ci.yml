@@ -362,6 +362,35 @@ jobs:
             exit 1
           fi
 
+  # Browser-demo checks of the desktop UI (PRD 0022 RF14.2, PRD 0020 RNF), on
+  # macOS where Chrome is preinstalled. The overflow check (every language and
+  # the 200 % zoom sizes) is stable and blocks. The axe-core pass and the
+  # render/open-time probes depend on a CDN download and on runner speed, so
+  # they report without failing the job (advisory). The demo binds to
+  # 127.0.0.1 only and reads no credential.
+  ui-checks:
+    name: ui checks (overflow, 200 % zoom, accessibility, timing)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Overflow check (all languages)
+        run: node apps/desktop/tools/ui-shots/check.mjs
+      - name: Overflow check at 200 % zoom
+        run: node apps/desktop/tools/ui-shots/check.mjs --zoom en-US pt-BR
+      - name: Overflow check self-test
+        run: node apps/desktop/tools/ui-shots/check.mjs --selftest
+      - name: Accessibility pass (axe-core, advisory)
+        continue-on-error: true
+        run: node apps/desktop/tools/ui-shots/a11y.mjs
+      - name: Settings open time and render time (advisory)
+        continue-on-error: true
+        run: node apps/desktop/tools/ui-shots/perf.mjs --strict
+
   # Dependency licenses, advisories and sources (PRD 0019, RF1.3). cargo-deny
   # finds the root `deny.toml` by walking up from either manifest.
   deny:
@@ -565,7 +594,7 @@ jobs:
   # succeeded.
   ci-result:
     name: CI result
-    needs: [changes, test, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-preflight]
+    needs: [changes, test, ui-checks, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-preflight]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

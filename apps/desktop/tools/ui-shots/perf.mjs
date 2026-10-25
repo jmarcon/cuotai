@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+// PRD 0020 RNF (performance) and PRD 0022 (render budget): two probes against the real UI in the browser demo.
+//   * Settings open time: from the start of the navigation to the first Settings page rendered (sidebar and the
+//     first row present), budget 300 ms (PRD 0020 RNF: "opens in under 300 ms on the reference machine").
+//   * Render time: from an interaction (expanding an account, opening Stats) to the next presented frame,
+//     budget 16 ms (one frame at 60 Hz).
+// A browser demo on a CI runner is slower and noisier than the reference machine, so each probe takes the median of
+// several runs and the script is advisory by default: it prints the numbers and exits 0 unless `--strict` is given.
+// Usage: node apps/desktop/tools/ui-shots/perf.mjs [--json] [--strict] [--runs N] [--open-budget MS] [--frame-budget MS]
+import { launch } from "./driver.mjs";
+
+const args = process.argv.slice(2);
+const flag = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? Number(args[i + 1]) : dflt; };
+const json = args.includes("--json");
+const strict = args.includes("--strict");
+const RUNS = flag("--runs", 5);
+const OPEN_BUDGET = flag("--open-budget", 300);
+const FRAME_BUDGET = flag("--frame-budget", 16);
+const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+
+const ui = await launch();
+const results = [];
+try {
+  // Settings open time: poll inside the page (performance.now() counts from the start of the navigation).
+  const openTimes = [];
+  for (let i = 0; i < RUNS; i++) {
+    await ui.open("settings.html?page=general", { w: 760, h: 560, scale: 1, wait: 0 });
+    const t = await ui.evaluate(`new Promise((res) => {
+      const done = () => document.querySelector(".set-nav-item") && document.querySelector(".set-row") ? res(performance.now()) : requestAnimationFrame(done);
+      done();
+    })`);
+    if (typeof t === "number") openTimes.push(t);
+  }
+  results.push({ probe: "settings-open", unit: "ms", budget: OPEN_BUDGET, runs: openTimes.map((t) => Math.round(t)), median: openTimes.length ? Math.round(median(openTimes)) : null });
+
+  // Render time: interaction to the next presented frame (two rAFs: the first runs before paint, the second after it).
+  const frame = async (name, page, w, h, selector) => {
+    const times = [];
+    for (let i = 0; i < RUNS; i++) {
+      await ui.open(page, { w, h, scale: 1, motion: "reduce" });
+      const t = await ui.evaluate(`new Promise((res) => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return res(null);
+        const t0 = performance.now();
+        el.click();
+        requestAnimationFrame(() => requestAnimationFrame(() => res(performance.now() - t0)));
+      })`);
+      if (typeof t === "number") times.push(t);
+    }
+    results.push({ probe: name, unit: "ms", budget: FRAME_BUDGET, runs: times.map((t) => Math.round(t * 10) / 10), median: times.length ? Math.round(median(times) * 10) / 10 : null });
+  };
+  await frame("tray-expand-account", "tray.html", 380, 600, "[data-open]");
+  await frame("tray-open-stats", "tray.html", 380, 600, "[data-open-stats]");
+} finally {
+  ui.close();
+}
+let over = 0;
+for (const r of results) {
+  const bad = r.median == null || r.median > r.budget;
+  if (bad) over++;
+  if (!json) console.log(`${bad ? "OVER" : "ok  "} ${r.probe}: median ${r.median} ${r.unit} (budget ${r.budget}; runs ${r.runs.join(", ")})`);
+}
+if (json) console.log(JSON.stringify(results, null, 1));
+console.error(`ui-shots perf: ${over} probe(s) over budget${strict ? "" : " (advisory)"}`);
+process.exit(strict && over ? 1 : 0);
