@@ -26,6 +26,36 @@ pub mod history;
 pub mod hooks;
 pub mod identity;
 pub mod incidents;
+
+/// RNF performance budgets in tests: the PRD figure in an optimized build,
+/// twenty times it in a debug build (CI runs the debug suite on shared
+/// runners), and the fastest of `runs` measurements so one slow scheduler
+/// slice does not fail the suite.
+#[cfg(test)]
+pub(crate) fn assert_within_budget(
+    what: &str,
+    release: std::time::Duration,
+    runs: usize,
+    mut f: impl FnMut(),
+) {
+    let budget = if cfg!(debug_assertions) {
+        release * 20
+    } else {
+        release
+    };
+    let best = (0..runs.max(1))
+        .map(|_| {
+            let started = std::time::Instant::now();
+            f();
+            started.elapsed()
+        })
+        .min()
+        .unwrap_or_default();
+    assert!(
+        best <= budget,
+        "{what}: {best:?} over the budget of {budget:?}"
+    );
+}
 pub mod install_source;
 pub mod last_config;
 mod metered_record;

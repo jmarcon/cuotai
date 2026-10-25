@@ -772,6 +772,17 @@ mod tests {
         );
     }
 
+    /// PRD 0027 RNF: a catalog search answers in under 5 ms.
+    #[test]
+    fn a_search_answers_within_the_budget() {
+        let _warm = search("claude", "en-US");
+        for query in ["claude code", "api key", "x", "voice agents", "zzzz"] {
+            crate::assert_within_budget(query, std::time::Duration::from_millis(5), 5, || {
+                let _ = search(query, "pt-BR");
+            });
+        }
+    }
+
     /// PRD 0037 RF2.3: the ElevenLabs aliases find it.
     #[test]
     fn eleven_labs_is_found_by_its_aliases() {

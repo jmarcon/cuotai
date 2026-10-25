@@ -634,6 +634,46 @@ credential_env = "GROQ_KEY_BETA"
         assert!(s.daily[6].is_today);
     }
 
+    /// PRD 0026 RNF: 30 days of 20 accounts summarize in under 100 ms.
+    #[test]
+    fn thirty_days_of_twenty_accounts_summarize_within_the_budget() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(dir.path());
+        let toml: String = (0..20)
+            .map(|i| {
+                format!(
+                    "[[accounts]]\nname = \"a{i}\"\nprovider = \"groq\"\ncredential_env = \"GROQ_KEY_{i}\"\n"
+                )
+            })
+            .collect();
+        let accounts = Config::from_toml(&toml).unwrap().accounts;
+        let start = at(1, 0);
+        for account in &accounts {
+            // One reading every 3 hours over 30 days.
+            for step in 0..(30 * 8) {
+                let when = start + TimeDelta::hours(3 * step);
+                let resets = Utc
+                    .from_utc_datetime(&when.date_naive().and_hms_opt(0, 0, 0).unwrap())
+                    + TimeDelta::days(1);
+                let used = (step % 9) as f64 * 12.5;
+                history
+                    .record(account, when, &[metric("daily", used, Some(100.0), resets)])
+                    .unwrap();
+            }
+        }
+        let now = start + TimeDelta::days(30);
+        crate::assert_within_budget(
+            "stats::summarize (30 days, 20 accounts)",
+            std::time::Duration::from_millis(100),
+            3,
+            || {
+                let summary =
+                    summarize(&history, &accounts, StatsRange::Days30, now, &utc()).unwrap();
+                assert!(summary.hits > 0);
+            },
+        );
+    }
+
     #[test]
     fn hourly_reduction_keeps_every_figure() {
         let dir = tempfile::tempdir().unwrap();

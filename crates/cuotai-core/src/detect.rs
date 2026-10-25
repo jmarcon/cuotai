@@ -494,6 +494,26 @@ mod probe_tests {
 mod tests {
     use super::*;
 
+    /// PRD 0027 RNF: the presence check finishes in under 50 ms (the
+    /// network probe of 9router is separate and has its own timeout).
+    #[test]
+    fn detection_finishes_within_the_budget() {
+        let home = tempfile::tempdir().unwrap();
+        for dir in [".claude", ".codex", ".aws", ".gemini", ".kiro"] {
+            std::fs::create_dir_all(home.path().join(dir)).unwrap();
+        }
+        for os in [Os::Linux, Os::MacOs, Os::Windows] {
+            crate::assert_within_budget(
+                "detect::local_sources",
+                std::time::Duration::from_millis(50),
+                3,
+                || {
+                    let _ = local_sources(home.path(), os, &no_env, &[]);
+                },
+            );
+        }
+    }
+
     /// RF6.5 (owner decision 2026-10-25): the consent names folders,
     /// environment variables (presence only) and the 127.0.0.1 9router check
     /// in every catalog.
