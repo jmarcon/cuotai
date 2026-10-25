@@ -30,12 +30,23 @@
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.45);
   --card-bg: var(--surface);
   --head-bg: transparent;
-  --topbar-bg: color-mix(in srgb, var(--bg) 88%, transparent);
+  --topbar-bg: var(--bg);
   --btn-bg: var(--surface);
   --btn-fg: var(--fg);
   --input-bg: var(--bg);
   --switch-knob: #ffffff;
   --body-bg: var(--bg);
+  /* PRD 0022 RF1.5/RF15.3 (DS-TOK-ELV-4): the one soft shadow of level-0 surfaces (main-window cards only). */
+  --shadow-card: 0 1px 3px color-mix(in srgb, #000 22%, transparent);
+  /* PRD 0022 RF1.6 (DS §3.1): derived roles; a theme may override them, none has to. */
+  --scrim: color-mix(in srgb, #000 50%, transparent);
+  --bad-fg: var(--accent-fg);
+  --focus: var(--accent);
+  --chart-neutral: color-mix(in srgb, var(--fg-muted) 55%, transparent);
+  /* DS-CMP-HON-1: unknown hatch; `none` (retro themes) leaves the plain 40 % track. */
+  --hatch: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px);
+  /* DS-ID-3: the glyph on provider brand tiles stays white in every theme (a named exception, not a role). */
+  --tile-fg: #ffffff;
   /* movimento (PRD 0004 RF1.1) */
   --motion-fast: 150ms;
   --motion-base: 250ms;
@@ -43,6 +54,39 @@
   --motion-spin: 900ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* fallback sem linear() */
+}
+/* PRD 0022 RF1 (DS section 2): layout tokens. Themes never redefine these (DS-TOK-SPC-2, DS-GOV-3). */
+:root {
+  --space-0: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-xs: 4px;
+  --text-2xs: 10px;
+  --text-micro: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-figure: 24px;
+  --text-hero: 30px;
+  /* DS-TOK-TYP-7: per-script system stacks join here under :root:lang(...) (PRD 0035 RF8). */
+  --font-script: sans-serif;
+  --dialog-sm: 440px;
+  --dialog-md: 560px;
+  --dialog-lg: 680px;
+}
+/* DS-TOK-TYP-9: CJK and Devanagari never go below 11 px. */
+:root:lang(zh),
+:root:lang(ja),
+:root:lang(ko),
+:root:lang(hi) {
+  --text-2xs: 11px;
 }
 @supports (transition-timing-function: linear(0, 1)) {
   :root {
@@ -84,7 +128,8 @@ body,
 body {
   background: var(--body-bg);
   color: var(--fg);
-  font: 14px/1.4 var(--font-ui);
+  font: var(--text-base)/1.4 var(--font-ui), var(--font-script);
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
@@ -111,7 +156,7 @@ p {
   flex: none;
   overflow: hidden;
   border-radius: var(--logo-radius);
-  color: #fff;
+  color: var(--tile-fg);
   font-weight: 700;
   letter-spacing: -0.02em;
   background: var(--c);
@@ -127,7 +172,7 @@ p {
 .logo .glyph {
   position: absolute;
   inset: 19%;
-  background: var(--fg, #fff);
+  background: var(--fg, var(--tile-fg));
   -webkit-mask-position: center;
   mask-position: center;
   -webkit-mask-size: contain;
@@ -202,11 +247,11 @@ p {
 .theme-switch {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .segmented {
   display: inline-flex;
-  padding: 2px;
+  padding: var(--space-0);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
@@ -227,7 +272,7 @@ p {
 }
 .theme-switch select {
   height: 28px;
-  padding: 0 6px;
+  padding: 0 calc(var(--space-1) + var(--space-0));
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -299,15 +344,18 @@ svg.i {
 /* bandeiras e menu de idioma */
 .flag {
   display: block;
-  border-radius: 3px;
-  box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.45);
+  border-radius: var(--radius-xs);
+}
+/* DS-CMP-SEL-3: only flags with a white field get a hairline, so they stay visible on light surfaces. */
+.flag.white-field {
+  box-shadow: 0 0 0 var(--border-w) var(--border);
 }
 .lang {
   position: relative;
 }
 .lang-btn {
   width: auto;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
 }
 .lang-menu {
   position: absolute;
@@ -317,7 +365,7 @@ svg.i {
   display: flex;
   flex-direction: column;
   min-width: 210px;
-  padding: 4px;
+  padding: var(--space-1);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -330,8 +378,8 @@ svg.i {
 .lang-list button {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -350,7 +398,7 @@ svg.i {
 .lang-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .lang-list button {
   border: 1px solid var(--border);

@@ -23,6 +23,7 @@
   --logo-radius: 0%;
   --border-w: 1px;
   --shadow: none;
+  --shadow-card: var(--shadow);
   --shadow-dialog: 1px 1px 0 #000000, 2px 2px 0 rgba(0, 0, 0, 0.4);
   --card-bg: #c0c0c0;
   --head-bg: linear-gradient(90deg, #000080, #1084d0);
@@ -58,6 +59,7 @@
   --logo-radius: 0%;
   --border-w: 1px;
   --shadow: none;
+  --shadow-card: var(--shadow);
   --shadow-dialog: 1px 1px 0 #000000, 2px 2px 0 rgba(0, 0, 0, 0.6);
   --card-bg: #2b2b2b;
   --head-bg: linear-gradient(90deg, #000080, #1084d0);

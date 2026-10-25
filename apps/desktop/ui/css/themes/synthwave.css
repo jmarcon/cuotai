@@ -23,6 +23,7 @@
   --logo-radius: 10%;
   --border-w: 1px;
   --shadow: 0 0 0 1px rgba(91, 42, 158, 0.35), 0 8px 24px rgba(5, 217, 232, 0.06);
+  --shadow-card: var(--shadow);
   --shadow-dialog: 0 0 0 1px #5b2a9e, 0 0 32px rgba(255, 42, 109, 0.18), 0 24px 64px rgba(0, 0, 0, 0.55);
   --body-bg: linear-gradient(180deg, #120a24 0%, #1f0f3d 100%);
   --switch-knob: #f2e9ff;
@@ -53,6 +54,7 @@
   --logo-radius: 10%;
   --border-w: 1px;
   --shadow: 0 0 0 1px rgba(138, 92, 240, 0.25), 0 8px 24px rgba(138, 92, 240, 0.1);
+  --shadow-card: var(--shadow);
   --shadow-dialog: 0 0 0 1px #8a5cf0, 0 0 24px rgba(194, 24, 91, 0.12), 0 24px 64px rgba(28, 15, 58, 0.25);
   --body-bg: linear-gradient(180deg, #f3ecff 0%, #ffe6f1 100%);
   --switch-knob: #ffffff;

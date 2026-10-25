@@ -14,20 +14,20 @@ body {
 .pop-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 12px 10px 16px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .pop-head .back {
-  margin-left: -8px;
+  margin-left: calc(-1 * var(--space-2));
 }
 .pop-title {
   flex: 1;
   min-width: 0;
 }
 .pop-title h1 {
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 650;
 }
 .brand-link {
@@ -49,7 +49,7 @@ body {
 .brand-link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--radius-sm);
 }
 .alerts {
   display: flex;
@@ -57,17 +57,17 @@ body {
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 .alert-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
   height: 28px;
-  padding: 0 9px;
+  padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, currentColor 16%, transparent);
-  font-size: 12px;
+  font-size: var(--text-sm);
   cursor: help;
 }
 .alert-chip b {
@@ -103,13 +103,13 @@ body {
 .pop-body {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .empty {
-  padding: 40px 0;
+  padding: calc(var(--space-8) + var(--space-2)) 0;
   text-align: center;
   color: var(--fg-muted);
 }
@@ -117,9 +117,9 @@ body {
 .row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   width: 100%;
-  padding: 10px 12px;
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -135,15 +135,15 @@ body {
 .row-top {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .row-sub {
-  margin-bottom: 6px;
+  margin-bottom: calc(var(--space-1) + var(--space-0));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .chev {
   color: var(--fg-muted);
@@ -159,15 +159,15 @@ body {
 .pop-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
   border-top: 1px solid var(--border);
   background: var(--surface);
 }
 .foot-actions {
   display: flex;
   flex: 0 0 auto;
-  gap: 2px;
+  gap: var(--space-0);
 }
 .pop-head .lang-menu {
   min-width: 200px;
@@ -175,8 +175,8 @@ body {
 .link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: calc(var(--space-1) + var(--space-0));
+  padding: var(--space-1) var(--space-2);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -193,15 +193,15 @@ body {
 .tiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-2);
 }
 .tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
-  padding: 10px 6px 8px;
+  padding: var(--space-3) calc(var(--space-1) + var(--space-0)) var(--space-2);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -237,7 +237,7 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -253,9 +253,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: var(--space-1);
   max-width: 100%;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .tile-name b {
   min-width: 0;
@@ -271,7 +271,7 @@ body {
   max-width: 100%;
   overflow: hidden;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -280,11 +280,11 @@ body {
 .pop-notice {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   margin: 0;
-  padding: 6px 12px;
+  padding: calc(var(--space-1) + var(--space-0)) var(--space-3);
   border-top: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 .pop-notice .i { width: 14px; height: 14px; color: var(--accent); flex: 0 0 auto; }
@@ -298,8 +298,8 @@ body {
 .row-alert {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
+  gap: var(--space-1);
+  font-size: var(--text-micro);
   color: var(--warn);
 }
 .row-alert .i { width: 12px; height: 12px; flex: 0 0 auto; }
@@ -307,8 +307,8 @@ body {
 
 /* PRD 0011 RF4.2: a provider incident on a row (one line) and on a tile (a bottom stripe in its tone). */
 .row .incident-line {
-  margin: 2px 0 0;
-  font-size: 11px;
+  margin: var(--space-0) 0 0;
+  font-size: var(--text-micro);
 }
 .row .incident-line svg.i { width: 12px; height: 12px; }
 .row .incident-line .incident-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -321,7 +321,7 @@ body {
 
 /* PRD 0025 RF2.3 (DS-CMP-LIST-3): the accounts left out of the menu bar, under an inset muted label. */
 .pop-sub {
-  margin: 8px 4px 4px;
+  margin: var(--space-2) var(--space-1) var(--space-1);
   color: var(--fg-muted);
   font-size: var(--text-sm, 12px);
 }
@@ -336,8 +336,8 @@ body {
 .agg-view {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 0 8px 12px;
+  gap: var(--space-2);
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
 }
 .agg-view {
   padding-left: 0;
@@ -345,14 +345,14 @@ body {
 .agg-view .agg-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .agg-view .who {
   flex: 1;
   min-width: 0;
 }
 .agg-micro {
-  font-size: 11px;
+  font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -361,12 +361,12 @@ body {
 .agg-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .agg-pool {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   margin: 0;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -382,6 +382,6 @@ body {
 .row-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
 }

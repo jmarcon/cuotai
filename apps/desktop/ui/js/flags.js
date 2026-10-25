@@ -38,7 +38,10 @@ export function flagCountry(code, explicit) {
   return LANG_FLAG[lang.toLowerCase()] ?? "";
 }
 
+/** DS-CMP-SEL-3: flags whose field is white get a 1 px `--border` hairline (jp; kr and id join with PRD 0035). */
+const WHITE_FIELD = new Set(["jp", "kr", "id"]);
+
 export function flagSvg(country, width = 24) {
   const art = FLAGS[country] ?? GLOBE;
-  return `<svg class="flag" viewBox="0 0 30 20" width="${width}" height="${Math.round((width * 2) / 3)}" aria-hidden="true">${art}</svg>`;
+  return `<svg class="flag${WHITE_FIELD.has(country) ? " white-field" : ""}" viewBox="0 0 30 20" width="${width}" height="${Math.round((width * 2) / 3)}" aria-hidden="true">${art}</svg>`;
 }

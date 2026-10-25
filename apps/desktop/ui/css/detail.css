@@ -1,22 +1,22 @@
 /* Detalhe de conta: usado no popover e no diálogo de detalhes da janela principal. */
 .sub {
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .pct {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .detail {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
 }
 .metric {
-  padding: 14px 16px;
+  padding: var(--space-4) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -25,26 +25,26 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: var(--space-2);
 }
 .metric h3 {
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 650;
 }
 .resets {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   text-align: right;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg-muted);
 }
 .note {
-  padding: 0 4px;
-  font-size: 12px;
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 .metric .pct {
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 .metric .bar {
   height: 6px;
@@ -60,10 +60,10 @@
 .mini.binding {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: var(--space-0) var(--space-2);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, currentColor 16%, transparent);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
   vertical-align: middle;
@@ -82,8 +82,8 @@
 .age {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
   white-space: nowrap;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
@@ -94,7 +94,7 @@
 }
 .age.aging { color: var(--warn); }
 .age.stale {
-  padding: 2px 8px;
+  padding: var(--space-0) var(--space-2);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--warn) 16%, transparent);
   color: var(--warn);
@@ -112,7 +112,7 @@
 .sum-note.cause {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   color: var(--bad);
 }
 .cause svg.i {
@@ -123,9 +123,9 @@
 /* PRD 0016 RF4.1: the web session notice line (the integration's access level is not shown: see docs/providers.md) */
 .access-line {
   overflow: hidden;
-  margin: 6px 0 0;
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -157,9 +157,9 @@
 .pace-line {
   display: flex;
   align-items: flex-start;
-  gap: 5px;
-  margin: 6px 0 0;
-  font-size: 12px;
+  gap: var(--space-1);
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
+  font-size: var(--text-sm);
   color: var(--fg-muted);
   overflow-wrap: anywhere;
 }
@@ -167,9 +167,9 @@
 .extra-line {
   display: flex;
   align-items: flex-start;
-  gap: 5px;
-  margin: 6px 0 0;
-  font-size: 12px;
+  gap: var(--space-1);
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--warn);
   overflow-wrap: anywhere;
@@ -194,14 +194,14 @@
 .call {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin: 8px 0 0;
-  padding: 8px 10px;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--surface-2);
   border: var(--border-w) solid var(--border);
   color: var(--fg);
-  font-size: 13px;
+  font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
 .call.warn {
@@ -215,8 +215,8 @@
   color: var(--warn);
 }
 .mini.time {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: calc(var(--space-1) + var(--space-0));
+  font-size: var(--text-sm);
 }
 .mini.time.warn {
   color: var(--warn);
@@ -224,7 +224,7 @@
 .metric-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .metric-right .icon {
   width: 28px;
@@ -232,18 +232,18 @@
 }
 .sub2 {
   color: var(--fg-muted);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .metric .pct small {
-  margin-left: 2px;
-  font-size: 11px;
+  margin-left: var(--space-0);
+  font-size: var(--text-micro);
   font-weight: 400;
   opacity: 0.8;
 }
 /* Modelos (PRD 0002 RF6): seção expansível e pesquisável, no diálogo de detalhes, no popover e no formulário. */
 .models {
-  margin-top: 10px;
-  padding: 10px 12px;
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -255,8 +255,8 @@
 .models-bar {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 .models-bar[hidden],
 .models-search[hidden] {
@@ -266,14 +266,14 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 .models-search input,
 .models-sync {
   height: 30px;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
@@ -283,7 +283,7 @@
 .models-sync {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   background: var(--btn-bg);
   color: var(--btn-fg);
 }
@@ -292,18 +292,18 @@
 }
 .models-status,
 .models-meta {
-  margin: 8px 0 0;
-  font-size: 12px;
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
 }
 .models-list {
   max-height: 240px;
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   overflow-y: auto;
   list-style: none;
 }
 .models-list li {
-  padding: 4px 6px;
+  padding: var(--space-1) calc(var(--space-1) + var(--space-0));
   border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
 }
@@ -312,8 +312,8 @@
   outline-offset: -2px;
 }
 .models-list code {
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-mono), var(--font-script);
+  font-size: var(--text-sm);
 }
 /* Visually hidden, still read by screen readers (the history table). */
 .sr-only {
@@ -326,8 +326,8 @@
 }
 /* Histórico (PRD 0006 RF5.2): um gráfico de área compacto por métrica, no diálogo de detalhes. */
 .history {
-  margin-top: 10px;
-  padding: 10px 12px;
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -337,10 +337,10 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .history-head h3 {
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 650;
 }
 .history-ranges {
@@ -350,12 +350,12 @@
   overflow: hidden;
 }
 .history-ranges button {
-  padding: 3px 10px;
+  padding: var(--space-1) var(--space-3);
   border: 0;
   background: var(--btn-bg);
   color: var(--btn-fg);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .history-ranges button + button {
@@ -371,21 +371,21 @@
   outline-offset: -2px;
 }
 .history-status {
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
 }
 .history-status:empty {
   display: none;
 }
 .hist-metric {
-  margin: 10px 0 0;
+  margin: var(--space-2) 0 0;
 }
 .hist-metric figcaption {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 4px 10px;
-  margin-bottom: 4px;
-  font-size: 13px;
+  gap: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-1);
+  font-size: var(--text-md);
 }
 .hist-label {
   font-weight: 600;
@@ -425,7 +425,7 @@
   position: absolute;
   width: 9px;
   height: 9px;
-  margin: -4.5px 0 0 -4.5px;
+  margin: calc(-1 * var(--space-1)) 0 0 calc(-1 * var(--space-1));
   border: 2px solid var(--surface);
   border-radius: 50%;
   background: var(--accent);
@@ -434,14 +434,14 @@
 .hist-axis {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 2px;
-  font-size: 11px;
+  gap: var(--space-2);
+  margin-top: var(--space-0);
+  font-size: var(--text-micro);
 }
 .hist-key {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 .hist-key i {
   height: 10px;
@@ -476,9 +476,9 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
-  gap: 2px 6px;
-  margin: 6px 0 0;
-  font-size: 12px;
+  gap: var(--space-0) calc(var(--space-1) + var(--space-0));
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 /* The icon stays beside the text; the link and its error go under the text. */
@@ -503,13 +503,13 @@
 .status-link {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-0);
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--accent);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 500;
   text-decoration: underline;
   cursor: pointer;
@@ -524,51 +524,51 @@
 }
 .status-err {
   color: var(--bad);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 .status-err:empty {
   display: none;
 }
 .incident-detail {
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm, 6px);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 .incident-detail h4 {
   margin: 0;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .incident-detail .hint {
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
 }
 .incident-link {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 4px 0 0;
+  gap: calc(var(--space-1) + var(--space-0));
+  margin: var(--space-1) 0 0;
 }
 
 /* PRD 0015 RF4.1: this computer's local usage of a tool, on its accounts' cards, in a card of its own and in the
    details (bar chart per day with its table, table per model). */
 .local-cost {
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm, 6px);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 .lc-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -586,8 +586,8 @@
 .lc-tiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 6px 0 0;
+  gap: var(--space-2);
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
 }
 .lc-tile {
   display: flex;
@@ -598,12 +598,12 @@
 .lc-tokens {
   overflow: hidden;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .lc-cost {
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
 }
 .lc-cost.dim,
@@ -612,8 +612,8 @@
   font-weight: 500;
 }
 .lc-note {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
+  font-size: var(--text-sm);
 }
 .lc-note.warn { color: var(--warn); }
 .lc-note.bad { color: var(--bad); }
@@ -630,34 +630,34 @@
   font-variant-numeric: tabular-nums;
 }
 .lc-foot {
-  margin: 6px 0 0;
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
 }
 .lc-detail {
-  margin: 14px 0 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm, 6px);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 .lc-detail h3 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .lc-detail > .sub {
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
 }
 .lc-chart {
-  margin: 12px 0 0;
+  margin: var(--space-3) 0 0;
 }
 .lc-chart figcaption,
 .lc-models caption {
-  margin: 0 0 6px;
+  margin: 0 0 calc(var(--space-1) + var(--space-0));
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   letter-spacing: 0.04em;
   text-align: left;
   text-transform: uppercase;
@@ -665,7 +665,7 @@
 .lc-bars {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: var(--space-0);
   height: 72px;
   padding: 0 0 1px;
   border-bottom: 1px solid var(--border);
@@ -673,7 +673,7 @@
 .lc-bar {
   flex: 1;
   min-width: 2px;
-  border-radius: 3px 3px 0 0;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   background: var(--accent);
 }
 .lc-bar.unknown {
@@ -682,26 +682,26 @@
 .lc-axis {
   display: flex;
   justify-content: space-between;
-  margin: 2px 0 0;
-  font-size: 11px;
+  margin: var(--space-0) 0 0;
+  font-size: var(--text-micro);
 }
 .lc-table summary {
-  margin: 6px 0 0;
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .lc-table table,
 .lc-models,
 .cost-price-table table {
   width: 100%;
-  margin: 6px 0 0;
+  margin: calc(var(--space-1) + var(--space-0)) 0 0;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 .lc-models {
-  margin: 12px 0 0;
+  margin: var(--space-3) 0 0;
 }
 .lc-table th,
 .lc-table td,
@@ -709,7 +709,7 @@
 .lc-models td,
 .cost-price-table th,
 .cost-price-table td {
-  padding: 3px 6px;
+  padding: var(--space-1) calc(var(--space-1) + var(--space-0));
   border-bottom: 1px solid var(--border);
   font-weight: 400;
   text-align: right;
@@ -723,11 +723,11 @@
 .lc-models thead th,
 .cost-price-table thead th {
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
 }
 .lc-models code,
 .cost-price-table code {
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
   word-break: break-all;
 }
 
@@ -735,8 +735,8 @@
 .agg-info dl {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 4px 12px;
-  margin: 8px 0;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0;
 }
 .agg-info dt {
   color: var(--fg-muted);
@@ -748,8 +748,8 @@
 .agg-info .agg-pool {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 4px 0;
+  gap: calc(var(--space-1) + var(--space-0));
+  margin: var(--space-1) 0;
   font-variant-numeric: tabular-nums;
 }
 .agg-info .agg-pool.bad {
@@ -760,8 +760,8 @@
   height: 14px;
 }
 .agg-info .agg-micro {
-  margin-top: 12px;
-  font-size: 11px;
+  margin-top: var(--space-3);
+  font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -769,8 +769,8 @@
 }
 /* PRD 0024 RF7.3: the best account of a group; the check icon and the words carry it, not color alone. */
 .mini.best-now {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: calc(var(--space-1) + var(--space-0));
+  font-size: var(--text-sm);
   color: var(--good);
 }
 .call .btn {
@@ -781,7 +781,7 @@
 .resets.missed {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   color: var(--info);
 }
 .resets.missed svg.i {

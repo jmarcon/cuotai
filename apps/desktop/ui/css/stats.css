@@ -14,12 +14,12 @@
 .stats .sub,
 .timeline .sub {
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .stats .micro {
   margin: 0;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -28,18 +28,18 @@
 /* Segmented control (DS-CMP-SEG-1): track surface-2, selected = surface + fg 600, no shadow. */
 .seg {
   display: inline-flex;
-  padding: 2px;
+  padding: var(--space-0);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 .seg button {
   height: 24px;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   border: 0;
   border-radius: max(0px, calc(var(--radius-sm) - 2px));
   background: transparent;
   color: var(--fg-muted);
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
 }
 .seg button[aria-pressed="true"] {
   background: var(--surface);
@@ -73,7 +73,7 @@
 .st-head h2 {
   margin: 0;
   margin-right: auto;
-  font-size: 16px;
+  font-size: var(--text-lg);
 }
 .st-scope select {
   height: 28px;
@@ -114,7 +114,7 @@
 .kpi {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
   min-width: 0;
   padding: var(--sp-3);
   border: 1px solid var(--border);
@@ -123,10 +123,10 @@
 }
 .kpi-label {
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .kpi-figure {
-  font-size: 24px;
+  font-size: var(--text-figure);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
@@ -138,7 +138,7 @@
   content: "";
   height: 4px;
   margin-top: var(--sp-1);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--hatch);
   opacity: 0.8;
 }
@@ -151,7 +151,7 @@
 .bars {
   position: relative;
   height: 148px;
-  padding: 8px 28px 20px 0;
+  padding: var(--space-2) var(--space-8) var(--space-5) 0;
 }
 .bars.compact {
   height: 112px;
@@ -179,14 +179,14 @@
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--n), minmax(0, 1fr));
-  gap: 4px;
+  gap: var(--space-1);
   height: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .bars ul[style*="--n:30"] {
-  gap: 2px;
+  gap: var(--space-0);
 }
 .bars li {
   position: relative;
@@ -196,7 +196,7 @@
   position: absolute;
   inset: auto 0 0;
   min-height: 1px; /* a real zero is a 1 px baseline tick, never a missing bar */
-  border-radius: 3px 3px 0 0;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   background: var(--bar);
 }
 .bars .today .bar {
@@ -207,7 +207,7 @@
 }
 .bars .bar.ghost {
   height: 100%;
-  border-radius: 3px 3px 0 0;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   background: var(--hatch);
   opacity: 0.55;
 }
@@ -222,7 +222,7 @@
   transform: translateX(-50%);
   white-space: nowrap;
   color: var(--fg-muted);
-  font: 10px var(--font-mono);
+  font: var(--text-2xs) var(--font-mono), var(--font-script);
 }
 .bars .today .x-label {
   color: var(--fg);
@@ -288,7 +288,7 @@
 }
 .st-sum {
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -317,7 +317,7 @@
 }
 .st-time {
   color: var(--fg-muted);
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
 }
 .st-foot {
   margin: 0;
@@ -349,7 +349,7 @@
 }
 .tl-head h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 .tl-status:empty {
   display: none;
@@ -358,8 +358,8 @@
   display: flex;
   justify-content: space-between;
   padding-left: calc(30% + var(--sp-3));
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-mono), var(--font-script);
+  font-size: var(--text-2xs);
 }
 .tl-lanes {
   margin: 0;
@@ -402,7 +402,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .tl-track {
   position: relative;
@@ -421,14 +421,14 @@
   top: calc(50% - 4px);
   width: 8px;
   height: 8px;
-  margin-left: -4px;
+  margin-left: calc(-1 * var(--space-1));
   border-radius: 50%;
   background: var(--level);
 }
 .tl-time {
   position: absolute;
   top: calc(50% - 7px);
-  margin-left: 10px;
+  margin-left: var(--space-2);
   color: var(--fg);
   font: 11px/14px var(--font-mono);
   white-space: nowrap;
@@ -446,11 +446,11 @@
 }
 .tl-text {
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .tl-text h4 {
   margin: var(--sp-2) 0 var(--sp-1);
-  font-size: 11px;
+  font-size: var(--text-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -467,7 +467,7 @@
 }
 .tl-when {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), var(--font-script);
 }
 .tl-empty {
   margin: 0;

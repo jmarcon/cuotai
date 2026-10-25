@@ -10,9 +10,7 @@ dialog.dlg {
   box-shadow: var(--shadow-dialog);
 }
 dialog.dlg::backdrop {
-  background: rgba(0, 0, 0, 0.5);
-  -webkit-backdrop-filter: blur(3px); /* sem suporte: fica só o véu escuro */
-  backdrop-filter: blur(3px);
+  background: var(--scrim); /* DS-TOK-ELV-3: no component blur */
 }
 /* Saída (motion.js `showDialog`): o diálogo já fechado volta à camada superior como popover inerte. */
 dialog.dlg:popover-open {
@@ -21,26 +19,26 @@ dialog.dlg:popover-open {
 .dlg-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 20px;
+  gap: var(--space-3);
+  padding: var(--space-5);
   user-select: text;
 }
 .dlg-body h2 {
-  font-size: 17px;
+  font-size: var(--text-xl);
 }
 .f {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--space-1);
 }
 .f > span {
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg-muted);
 }
 .f small,
 .hint {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 /* PRD 0005 RF3.2: core access notes, one per line, under the credential help
@@ -49,13 +47,13 @@ dialog.dlg:popover-open {
 .access-notes {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--space-0);
   font-weight: 400;
 }
 .f input,
 .f select {
   height: 34px;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
@@ -75,16 +73,16 @@ dialog.dlg:popover-open {
 .err {
   min-height: 1.2em;
   color: var(--bad);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .cost-advisory {
   margin: 0;
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--fg);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.4;
 }
 .cost-advisory[hidden] {
@@ -93,7 +91,7 @@ dialog.dlg:popover-open {
 .dlg-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .btn.primary {
   background: var(--accent);
@@ -104,7 +102,7 @@ dialog.dlg:popover-open {
 .btn.danger-btn {
   background: var(--bad);
   border-color: var(--bad);
-  color: #fff;
+  color: var(--bad-fg);
   font-weight: 600;
 }
 .btn:disabled {
@@ -112,24 +110,24 @@ dialog.dlg:popover-open {
 }
 fieldset.auth {
   margin: 0;
-  padding: 8px 12px 10px;
+  padding: var(--space-2) var(--space-3) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 fieldset.auth legend {
-  padding: 0 6px;
-  font-size: 12px;
+  padding: 0 calc(var(--space-1) + var(--space-0));
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg-muted);
 }
 label.mode {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--space-2);
+  font-size: var(--text-md);
   cursor: pointer;
 }
 label.mode small {
@@ -143,8 +141,8 @@ label.mode-off {
 .login-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
@@ -156,8 +154,8 @@ label.mode-off {
 .session-box {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: calc(var(--space-1) + var(--space-0));
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -166,7 +164,7 @@ label.mode-off {
 }
 .session-box h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .session-box p {
   margin: 0;
@@ -174,25 +172,25 @@ label.mode-off {
 /* PRD 0016 RF2.1: the pasted session is never shown in clear. */
 .session-paste {
   -webkit-text-security: disc;
-  font-family: var(--mono, monospace);
+  font-family: var(--font-mono), var(--font-script);
   resize: vertical;
 }
 .login-log {
   max-height: 6.5em;
   overflow-y: auto;
-  padding: 6px 8px;
+  padding: calc(var(--space-1) + var(--space-0)) var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.35;
 }
 .login-log p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-1);
 }
 .login-url-row {
   display: flex;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   align-items: stretch;
 }
 .login-url-row input {
@@ -205,15 +203,15 @@ label.mode-off {
 .login-usercode {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .login-usercode code {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: 0.05em;
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
   border: 1px solid var(--border);
@@ -224,11 +222,11 @@ label.mode-off {
 .set-content .path-row code {
   display: block;
   overflow: hidden;
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
   text-overflow: ellipsis;
   white-space: nowrap;
   user-select: text;
@@ -246,36 +244,36 @@ label.mode-off {
 .set-content [data-hooks] {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .set-content [data-hooks] h4 {
-  margin-top: 6px;
+  margin-top: calc(var(--space-1) + var(--space-0));
 }
 .set-content [data-hooks] h5 {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 .hook-rule {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
 .hook-rule legend {
-  padding: 0 4px;
-  font-size: 12px;
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 .hook-events {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 4px 12px;
+  gap: var(--space-1) var(--space-3);
 }
 .hook-events code,
 .hook-listing code {
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
 }
 .hook-events small {
   color: var(--fg-muted);
@@ -283,27 +281,27 @@ label.mode-off {
 .hook-args {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--space-5);
 }
 .hook-args li {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .hook-args input {
   flex: 1;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), var(--font-script);
 }
 .hook-runs {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .hook-runs time {
   color: var(--fg-muted);
@@ -315,17 +313,17 @@ dialog.hooks-confirm {
 .hook-listing {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   max-height: clamp(160px, calc(100dvh - 280px), 480px);
   overflow-y: auto;
 }
 .hook-listing h3 {
-  margin-top: 8px;
-  font-size: 14px;
+  margin-top: var(--space-2);
+  font-size: var(--text-base);
 }
 .hook-command {
   display: block;
-  padding: 6px 8px;
+  padding: calc(var(--space-1) + var(--space-0)) var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
@@ -336,12 +334,12 @@ dialog.hooks-confirm {
 
 /* PRD 0015: Settings → Local cost and its disclosure dialog. */
 .cost-source {
-  padding: 8px 0;
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--border);
 }
 .cost-source code,
 .cost-dirs code {
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
   word-break: break-all;
   user-select: text;
 }
@@ -352,9 +350,9 @@ dialog.cost-off {
 .cost-dirs {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--space-5);
 }
 
 dialog.details {
@@ -363,14 +361,14 @@ dialog.details {
 .det-head {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-3);
 }
 .det-head .who {
   flex: 1;
   min-width: 0;
 }
 .det-head .who h2 {
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 .det-head .who p {
   color: var(--fg-muted);
@@ -378,7 +376,7 @@ dialog.details {
 .det-body {
   max-height: min(56vh, 460px);
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: var(--space-1);
 }
 
 .btn.is-disabled {
@@ -391,10 +389,10 @@ dialog.details {
 }
 .field-err {
   color: var(--bad);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .login-hint {
-  margin: -6px 0 0;
+  margin: calc(-1 * calc(var(--space-1) + var(--space-0))) 0 0;
   color: var(--warn);
 }
 
@@ -409,13 +407,13 @@ dialog.libs {
 .lib-scroll {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
   max-height: clamp(160px, calc(100dvh - 250px), 520px);
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: var(--space-1);
 }
 .lib-sec h3 {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -426,13 +424,13 @@ dialog.libs {
 .lib-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 8px 0 0;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
   padding: 0;
   list-style: none;
 }
 .lib {
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-3);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
@@ -441,11 +439,11 @@ dialog.libs {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
 }
 .lib-lic,
 .lib-sub {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--fg-muted);
 }
 .lib-repo {
@@ -456,7 +454,7 @@ dialog.libs {
   color: var(--accent);
   cursor: pointer;
   overflow: hidden;
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -472,13 +470,13 @@ dialog.whats-new {
 .wn-scroll {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-5);
   max-height: clamp(160px, calc(100dvh - 250px), 560px);
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: var(--space-1);
 }
 .wn-sec h3 {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--fg);
   font-weight: 650;
 }
@@ -490,22 +488,22 @@ dialog.whats-new {
   color: var(--fg-muted);
 }
 .wn-cat {
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 .wn-cat h4 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 .wn-list {
-  margin: 4px 0 0;
-  padding-left: 18px;
-  font-size: 13px;
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-md);
 }
 .wn-entry {
-  margin: 2px 0;
+  margin: var(--space-0) 0;
 }
 
 /* PRD 0008 RF3.1: the usage alert thresholds as editable chips. */
@@ -513,10 +511,10 @@ dialog.whats-new {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .thresholds .chip {
-  padding: 4px 10px;
+  padding: var(--space-1) var(--space-3);
 }
 .thresholds input {
   width: 5.5em;
@@ -525,23 +523,23 @@ dialog.whats-new {
 /* PRD 0015 RF4.1: Settings → Local cost's directory editor and price table. */
 .cost-paths summary,
 .cost-price-table summary {
-  margin: 4px 0;
-  font-size: 12px;
+  margin: var(--space-1) 0;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .cost-paths textarea {
   width: 100%;
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
 }
 .cost-prices h4 {
-  margin: 12px 0 4px;
-  font-size: 12px;
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
 }
 
 /* PRD 0017 RF5: discovered executable extensions. */
 dialog.extensions-dlg {
   width: min(680px, calc(100vw - 32px));
-  padding: 20px;
+  padding: var(--space-5);
 }
 .dlg-head,
 .extension-title,
@@ -549,38 +547,38 @@ dialog.extensions-dlg {
 .extension-confirm {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .dlg-head h2 {
   flex: 1;
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 .extensions-dlg > .help,
 .extensions-dlg .ext-status {
-  margin: 8px 0;
+  margin: var(--space-2) 0;
   color: var(--fg-muted);
 }
 .extension-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
 }
 .extension-row,
 .extension-consent {
-  padding: 12px;
+  padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
 .extension-row p,
 .extension-consent p {
-  margin: 6px 0;
+  margin: calc(var(--space-1) + var(--space-0)) 0;
 }
 .extension-title strong {
   flex: 1;
 }
 .extension-title code,
 .extension-state {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .extension-state.enabled {
   color: var(--good);
@@ -599,19 +597,19 @@ dialog.extensions-dlg {
 .extension-actions {
   justify-content: flex-end;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: var(--space-2);
 }
 .extension-consent {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 8%, var(--surface));
 }
 .extension-consent p {
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-mono), var(--font-script);
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 .extension-confirm {
-  margin-top: 12px;
+  margin-top: var(--space-3);
   font-weight: 600;
 }
 
@@ -619,13 +617,13 @@ dialog.extensions-dlg {
 .report-preview {
   max-height: 240px;
   margin: 0;
-  padding: 10px 12px;
+  padding: var(--space-3) var(--space-3);
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-2, var(--bg));
   color: var(--fg);
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -636,7 +634,7 @@ dialog.dlg.dlg-catalog {
 .picker {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
 }
 .picker-search input {
   width: 100%;
@@ -646,27 +644,27 @@ dialog.dlg.dlg-catalog {
   container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
   max-height: min(56dvh, 520px);
   overflow-y: auto;
 }
 .pick-group-label {
-  margin: 10px 0 4px;
+  margin: var(--space-2) 0 var(--space-1);
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 .pick-items {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
 }
 .pick,
 .prov-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
 }
 .pick {
@@ -684,7 +682,7 @@ dialog.dlg.dlg-catalog {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
   min-width: 0;
 }
 .pick-method,
@@ -695,7 +693,7 @@ dialog.dlg.dlg-catalog {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .pick-chips:empty {
   display: none;
@@ -706,15 +704,15 @@ dialog.dlg.dlg-catalog {
 .picker .btn.sm,
 .prov-head .btn.sm {
   height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
 }
 .link-btn {
   padding: 0;
   border: 0;
   background: none;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--text-sm);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -723,7 +721,7 @@ dialog.dlg.dlg-catalog {
   .picker-list.is-grouped .pick-items {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 6px;
+    gap: calc(var(--space-1) + var(--space-0));
   }
   .picker-list.is-grouped .pick {
     flex-direction: column;
@@ -739,10 +737,10 @@ dialog.dlg.dlg-catalog {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .detect-ask {
-  padding: 10px 12px;
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-2);
@@ -753,8 +751,8 @@ dialog.dlg.dlg-catalog {
 .other-ways summary {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 6px;
+  gap: var(--space-1);
+  margin-top: calc(var(--space-1) + var(--space-0));
   cursor: pointer;
   color: var(--fg-muted);
 }
@@ -781,7 +779,7 @@ dialog.dlg.dlg-catalog {
 .form-rest {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-3);
 }
 /* PRD 0025 RF6: the first-run step (DS-CMP-DLG-1/2): what Turn on enables, then the update question on its own. */
 .first-run-list {
@@ -792,28 +790,28 @@ dialog.dlg.dlg-catalog {
 .first-run-list li {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .first-run-list svg {
   flex: none;
   width: 16px;
   height: 16px;
-  margin-top: 2px;
+  margin-top: var(--space-0);
   color: var(--accent);
 }
 .first-run-update {
-  margin-top: 8px;
-  padding-top: 12px;
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
   border-top: var(--border-w) solid var(--border);
 }
 .first-run-update h3 {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-1);
   font-size: var(--text-base, 13px);
 }
 /* PRD 0036 RF2.3: the certificate fingerprint to check before trusting it. */
 .dlg-body code.fingerprint {
   display: block;
-  font: 12px var(--font-mono);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
   overflow-wrap: anywhere;
   user-select: all;
 }

@@ -36,30 +36,30 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 8px 12px;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) var(--space-3);
 }
 .set-nav-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .set-nav-bottom {
   margin-top: auto;
-  padding-top: 8px;
+  padding-top: var(--space-2);
   border-top: var(--border-w) solid var(--border);
 }
 .set-nav-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   width: 100%;
   min-height: 32px;
-  padding: 4px 12px;
+  padding: var(--space-1) var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -107,7 +107,7 @@
   transform: rotate(90deg);
 }
 .set-nav-sub .set-nav-item {
-  padding-inline-start: 28px;
+  padding-inline-start: var(--space-8);
 }
 
 .set-main {
@@ -127,14 +127,14 @@
 .set-content {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: var(--space-8);
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
-  padding: 8px 20px 32px;
+  padding: var(--space-2) var(--space-5) var(--space-8);
 }
 .set-title {
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 650;
 }
 .set-title:focus {
@@ -156,9 +156,9 @@
   position: absolute;
   bottom: 100%;
   left: 4px;
-  margin-bottom: 6px;
+  margin-bottom: calc(var(--space-1) + var(--space-0));
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -170,7 +170,7 @@
 /* RF6.1: the search field at the top of the sidebar. */
 .set-search {
   position: relative;
-  margin: 0 8px 8px;
+  margin: 0 var(--space-2) var(--space-2);
 }
 .set-search > svg.i {
   position: absolute;
@@ -185,7 +185,7 @@
 .set-search input {
   width: 100%;
   min-height: 32px;
-  padding: 4px 8px 4px 32px;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-8);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg, var(--bg));
@@ -202,10 +202,10 @@
 .set-result {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
   width: 100%;
   min-height: 52px;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -230,7 +230,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .set-empty-title {
   font-weight: 600;
@@ -262,9 +262,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 16px;
+  column-gap: var(--space-4);
   min-height: 52px;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
 }
 .set-sec > .set-row + .set-row,
 .set-sec > * + .set-row,
@@ -282,7 +282,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px 6px;
+  gap: var(--space-0) calc(var(--space-1) + var(--space-0));
   min-width: 0;
 }
 .set-row-label {
@@ -304,16 +304,16 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 .set-row-body {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
-  padding-top: 8px;
+  padding-top: var(--space-2);
 }
 .set-row-body:has(> .lang-list:only-child) {
   padding-top: 0;
@@ -331,7 +331,7 @@
 }
 /* RF3.3: a dependent row is indented and attached to its parent; disabled with it, never hidden. */
 .set-row.dep {
-  padding-inline-start: 32px;
+  padding-inline-start: var(--space-8);
 }
 .set-row.dep:has(:disabled) .set-row-label {
   color: var(--fg-muted);
@@ -407,14 +407,14 @@
 .seg {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 2px;
-  padding: 2px;
+  gap: var(--space-0);
+  padding: var(--space-0);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 .seg [role="radio"] {
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   border: 0;
   border-radius: calc(var(--radius-sm) - 2px);
   background: transparent;
@@ -439,7 +439,7 @@
 .set-num input,
 .thresholds input {
   height: 30px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
@@ -452,7 +452,7 @@
 .set-num {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .set-num input {
   width: 88px;
@@ -464,7 +464,7 @@
 }
 .set-commit {
   display: inline-flex;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .set-commit[hidden] {
   display: none;
@@ -473,11 +473,11 @@
   display: inline-flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
 }
 .btn.sm {
   min-height: 26px;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   font-size: var(--text-sm, 12px);
 }
 .set-path {
@@ -509,7 +509,7 @@
 }
 .set-pop {
   flex-basis: 100%;
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
@@ -525,9 +525,9 @@
 .set-disc > summary {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   min-height: 40px;
-  padding: 0 16px;
+  padding: 0 var(--space-4);
   color: var(--fg-muted);
   cursor: pointer;
   list-style: none;
@@ -547,7 +547,7 @@
   border-top: var(--border-w) solid var(--border);
 }
 .set-disc-body > :not(.set-row) {
-  margin: 8px 16px;
+  margin: var(--space-2) var(--space-4);
 }
 
 /* RF2.3: a sub-page replaces the page content, with a back button; the rest of the page is hidden meanwhile. */
@@ -565,15 +565,15 @@
 .set-subpage {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 .set-subhead {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .set-subhead h2 {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 650;
 }
 .set-subhead h2:focus {
@@ -587,7 +587,7 @@
   position: sticky;
   bottom: 0;
   z-index: 1;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
   border-top: var(--border-w) solid var(--border);
   background: var(--bg);
 }
@@ -598,7 +598,7 @@
   right: 16px;
   bottom: 16px;
   z-index: 10;
-  padding: 8px 14px;
+  padding: var(--space-2) var(--space-4);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -665,14 +665,14 @@
     padding-inline-start: 0;
   }
   .set-nav {
-    padding-inline: 8px;
+    padding-inline: var(--space-2);
   }
   /* The search shrinks to its icon and opens over the content while it has focus. */
   .set-search {
     position: relative;
     z-index: 2;
     width: 40px;
-    margin-inline: 8px;
+    margin-inline: var(--space-2);
   }
   .set-search input {
     width: 40px;
@@ -687,7 +687,7 @@
   }
   .set-search:focus-within input {
     width: 240px;
-    padding-inline: 32px 8px;
+    padding-inline: var(--space-8) var(--space-2);
     color: var(--fg);
   }
 }
@@ -700,8 +700,8 @@
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    padding: 8px;
+    gap: var(--space-2);
+    padding: var(--space-2);
     border-right: 0;
     border-bottom: var(--border-w) solid var(--border);
   }
@@ -717,7 +717,7 @@
   .set-search input,
   .set-search:focus-within input {
     width: 100%;
-    padding-inline: 32px 8px;
+    padding-inline: var(--space-8) var(--space-2);
     color: var(--fg);
   }
   .set-search input::placeholder {
@@ -741,7 +741,7 @@
   /* A switch stays beside its label; wider controls drop below it. */
   .set-row:not(:has(> .set-row-ctl > .sw)) {
     grid-template-columns: minmax(0, 1fr);
-    row-gap: 8px;
+    row-gap: var(--space-2);
   }
   .set-row:not(:has(> .set-row-ctl > .sw)) > .set-row-ctl {
     justify-self: start;
@@ -757,7 +757,7 @@
 .seg.opt-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-2);
   padding: 0;
   background: none;
 }
@@ -768,16 +768,16 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   min-height: 0;
-  padding: 8px;
+  padding: var(--space-2);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--fg-muted);
 }
 .seg.opt-cards [role="radio"][aria-checked="true"] {
-  padding: 7px;
+  padding: var(--space-2);
   border: 2px solid var(--accent);
   color: var(--fg);
 }
@@ -797,9 +797,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin: 0 16px 8px;
-  padding: 8px 12px;
+  gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-2);
@@ -812,7 +812,7 @@
 .mb-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--space-1) + var(--space-0));
   color: var(--fg);
   font-size: var(--text-sm, 12px);
   font-variant-numeric: tabular-nums;
@@ -848,7 +848,7 @@
 .mb-meters {
   display: inline-flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
   width: 44px;
 }
 /* DS-CMP-MTR-2/3: continuous 4 px bars; a sliver below 1 %; unknown shows no fill; exhausted is an outline. */
@@ -882,15 +882,15 @@
 /* RF4.2: the menu-bar accounts (DS-CMP-CHK-1, DS-CMP-DRAG-1/2, DS-CMP-LIST-3). */
 .mb-list {
   margin: 0;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   list-style: none;
 }
 .mb-acc {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 36px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
 }
 .mb-acc + .mb-acc {
   border-top: var(--border-w) solid var(--border);
@@ -924,33 +924,33 @@
 }
 .mb-sub {
   margin: 0;
-  padding: 8px 16px 4px;
+  padding: var(--space-2) var(--space-4) var(--space-1);
   color: var(--fg-muted);
   font-size: var(--text-sm, 12px);
 }
 [data-tray-accounts] > .hint {
   margin: 0;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
 }
 /* PRD 0024 RF4.1: the lead of the projected warning, a dependent segmented control under its switch (DS-CMP-DEP-1). */
 .projected-lead {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-left: 16px;
+  gap: var(--space-2);
+  padding-left: var(--space-4);
   color: var(--fg-muted);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 /* PRD 0032 RF2.3: the quiet-hours weekday editor. Time fields look like the other row fields; theme roles only. */
 .q-interval {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 0;
+  gap: var(--space-2);
+  padding: var(--space-0) 0;
 }
 .q-interval input[type="time"] {
   height: 30px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--input-bg);
@@ -962,5 +962,5 @@
   color: var(--fg-muted);
 }
 .hook-quiet {
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }

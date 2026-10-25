@@ -23,6 +23,7 @@
   --logo-radius: 8%;
   --border-w: 1px;
   --shadow: 0 0 0 1px rgba(31, 107, 42, 0.45), inset 0 0 18px rgba(92, 255, 106, 0.05);
+  --shadow-card: var(--shadow);
   --shadow-dialog: 0 0 0 1px #1f6b2a, 0 0 28px rgba(92, 255, 106, 0.12), 0 24px 64px rgba(0, 0, 0, 0.7);
   --switch-knob: #050a05;
 }
@@ -51,6 +52,7 @@
   --logo-radius: 8%;
   --border-w: 1px;
   --shadow: 0 0 0 1px rgba(138, 125, 77, 0.4), 0 4px 14px rgba(60, 48, 10, 0.1);
+  --shadow-card: var(--shadow);
   --shadow-dialog: 0 0 0 1px #8a7d4d, 0 24px 56px rgba(60, 48, 10, 0.3);
   --switch-knob: #fff8e0;
 }

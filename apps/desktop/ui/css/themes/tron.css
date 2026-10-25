@@ -23,6 +23,7 @@
   --logo-radius: 10%;
   --border-w: 1px;
   --shadow: 0 0 0 1px rgba(31, 181, 214, 0.25), 0 0 14px rgba(0, 229, 255, 0.12);
+  --shadow-card: var(--shadow);
   --shadow-dialog: 0 0 0 1px #1fb5d6, 0 0 28px rgba(0, 229, 255, 0.22), 0 24px 64px rgba(0, 0, 0, 0.7);
   --body-bg:
     linear-gradient(rgba(0, 229, 255, 0.07) 1px, transparent 1px),
@@ -56,6 +57,7 @@
   --logo-radius: 10%;
   --border-w: 1px;
   --shadow: 0 0 0 1px rgba(14, 143, 176, 0.25), 0 0 12px rgba(14, 143, 176, 0.2);
+  --shadow-card: var(--shadow);
   --shadow-dialog: 0 0 0 1px #0e8fb0, 0 0 24px rgba(14, 143, 176, 0.25), 0 20px 48px rgba(6, 34, 44, 0.25);
   --body-bg:
     linear-gradient(rgba(14, 143, 176, 0.09) 1px, transparent 1px),
