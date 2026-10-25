@@ -28,7 +28,7 @@ impl Sandbox {
         fs::set_permissions(&aws, fs::Permissions::from_mode(0o755)).unwrap();
         fs::write(
             dir.join("cuotai.toml"),
-            "[[accounts]]\nname = \"Bedrock\"\nprovider = \"aws_bedrock\"\nparams = { profile = \"dev\" }\n",
+            "[[accounts]]\nname = \"Finance Team\"\nprovider = \"aws_bedrock\"\nparams = { profile = \"dev\" }\n",
         )
         .unwrap();
         Self(dir)
@@ -160,7 +160,7 @@ fn drift_report_draft_and_evidence_follow_the_mutated_fixture() {
             entry.path()
         );
         assert!(
-            !content.contains("Bedrock"),
+            !content.contains("Finance Team"),
             "{:?} holds the account name",
             entry.path()
         );
