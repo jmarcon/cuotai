@@ -17,19 +17,19 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
+| RF1 | vNEXT | `docs/integrations/` pages and `examples/integrations/` scripts (Waybar, SketchyBar, tmux, i3bar) over `/v1/limits`; a `cuotai-tui` test runs them against fixtures with a fake `curl` and a core test validates the fixtures against the schema. The `--status-line` variants wait for RF2. |
+| RF2 | — | Waiting for PRD 0025 RF1 (`tray::summary`). |
+| RF3 | vNEXT | `cuotai --completions bash\|zsh\|fish\|powershell` from the clap definition; the packaging install steps (PRD 0021) and the `--status-line` mention remain. |
+| RF4 | vNEXT | `AccountLimit.incident` (`state`, `stale`) and `Limits.summary` (`worst_class`, `tightest`, `next_reset_at`, `worst_incident`); `id` waits for PRD 0029 RF4 and `best` for PRD 0024 decision C. |
 | RF5 | vNEXT | Policy in `docs/export-v1.md` and `docs/events.md` (additive within a schema, 90-day window), every schema enum open (`anyOf` known values or string), `/health` `schemas: [1]`, the three "stale" fields in one table and `showing_last_good` alias. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
+| RF6 | vNEXT | `Source::generation`, one cached export per generation (at most 10 s), `ETag: "<build>-<route>"` and `304` for `If-None-Match`; `--serve` and the desktop publish generations. |
+| RF7 | vNEXT | `session_expiring` and `quota_reset_soon` events (`--reset-lead MIN`, default 15, 0 off), selectable in `--events` and hooks; the pace event stays PRD 0024 RF5. |
 | RF8 | vNEXT | `provider_incident` per provider and status source with `accounts` (keys until PRD 0029 RF4 adds ids); `unknown` tracked. |
 | RF9 | vNEXT | `cuotai --serve` binds exactly the port (naming a Cuotai holder, suggesting `--port`); `port_fallback` defaults to false; `HEAD` on every route with `Allow: GET, HEAD`. |
 | RF10 | vNEXT | `--watch`/`--serve` exit 0 on a signal stop; `--strict-exit` keeps 2. |
-| RF11 | — | Proposed. |
-| RF12 | — | Proposed. |
-| RF13 | — | Proposed. |
+| RF11 | — | Waiting for PRD 0026 RF1 (`stats::summarize`). |
+| RF12 | — | Proposed. Needs the Driver, Monitor and server source to be rebuilt on reload; its own delivery. |
+| RF13 | vNEXT | `Export::from_cycle_with_history` feeds the app's recent samples to the export's pace (`--serve`, `--watch`, `--json-v1`, desktop server and hooks); without history it stays `average`. |
 
 ## 1. Context
 
