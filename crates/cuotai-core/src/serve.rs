@@ -94,6 +94,68 @@ struct Health {
 /// Called on the runtime thread for every data request: keep it short.
 pub trait Source: Send + Sync + 'static {
     fn export(&self) -> Option<Export>;
+
+    /// PRD 0031 RF6: a number that changes whenever the state `export`
+    /// reads changed (a reading arrived, an edit, a provider status). While
+    /// it stays the same the server reuses the export it built for up to
+    /// [`CACHE_MAX_AGE`] instead of asking again, and answers `304` to a
+    /// matching `If-None-Match`. `None` (the default) means "unknown":
+    /// every request builds its own export and carries no `ETag`.
+    fn generation(&self) -> Option<u64> {
+        None
+    }
+}
+
+/// PRD 0031 RF6: a generation number for what an export is built from: it
+/// changes when an account's current or preserved reading, or a provider
+/// status, changes (not with the passing of time, which
+/// [`CACHE_MAX_AGE`] bounds).
+pub fn generation_of(
+    cycle: &crate::refresh::RefreshCycle,
+    incidents: &[crate::incidents::ProviderStatus],
+) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    cycle.len().hash(&mut hasher);
+    for index in 0..cycle.len() {
+        let seen = |report: Option<&crate::Report>| {
+            report.map(|report| (report.checked_at, std::mem::discriminant(&report.status)))
+        };
+        seen(cycle.account_report(index)).hash(&mut hasher);
+        seen(cycle.last_good_report(index)).hash(&mut hasher);
+    }
+    for status in incidents {
+        (status.provider.slug(), status.state, status.read_at).hash(&mut hasher);
+        (status.stale, status.expired).hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+/// How long the server reuses an export of one generation: ages and
+/// freshness are computed when the export is built, so a cache older than
+/// this would show a reading younger than it is.
+pub const CACHE_MAX_AGE: Duration = Duration::from_secs(10);
+
+/// A [`Source`] that also tells its generation (PRD 0031 RF6).
+pub fn with_generation(
+    export: impl Fn() -> Option<Export> + Send + Sync + 'static,
+    generation: impl Fn() -> u64 + Send + Sync + 'static,
+) -> impl Source {
+    struct Generational<E, G>(E, G);
+    impl<E, G> Source for Generational<E, G>
+    where
+        E: Fn() -> Option<Export> + Send + Sync + 'static,
+        G: Fn() -> u64 + Send + Sync + 'static,
+    {
+        fn export(&self) -> Option<Export> {
+            (self.0)()
+        }
+
+        fn generation(&self) -> Option<u64> {
+            Some((self.1)())
+        }
+    }
+    Generational(export, generation)
 }
 
 impl<F> Source for F
@@ -604,6 +666,20 @@ struct State {
 struct Snapshot {
     config: ServeConfig,
     source: Box<dyn Source>,
+    /// PRD 0031 RF6: the export of the current generation, if the source
+    /// tells generations.
+    cache: std::sync::Mutex<Option<Cached>>,
+    /// Exports built so far; names each one in the `ETag`.
+    builds: std::sync::atomic::AtomicU64,
+}
+
+/// An export reused while its generation holds.
+struct Cached {
+    generation: u64,
+    built: Instant,
+    /// Which build this is (the `ETag`'s first part).
+    build: u64,
+    export: Arc<Export>,
 }
 
 impl Snapshot {
@@ -611,7 +687,36 @@ impl Snapshot {
         Self {
             config,
             source: Box::new(source),
+            cache: std::sync::Mutex::new(None),
+            builds: std::sync::atomic::AtomicU64::new(0),
         }
+    }
+
+    /// The export to answer with and, when it comes from a source that tells
+    /// generations, the build number to tag the answer with.
+    fn export(&self) -> Option<(Arc<Export>, Option<u64>)> {
+        let Some(generation) = self.source.generation() else {
+            return self.source.export().map(|export| (Arc::new(export), None));
+        };
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(cached) = cache
+            .as_ref()
+            .filter(|c| c.generation == generation && c.built.elapsed() < CACHE_MAX_AGE)
+        {
+            return Some((Arc::clone(&cached.export), Some(cached.build)));
+        }
+        let export = Arc::new(self.source.export()?);
+        let build = self
+            .builds
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        *cache = Some(Cached {
+            generation,
+            built: Instant::now(),
+            build,
+            export: Arc::clone(&export),
+        });
+        Some((export, Some(build)))
     }
 }
 
@@ -747,9 +852,16 @@ impl State {
                     schemas: SCHEMAS,
                 },
             ),
-            "/v1/snapshot" => self.with_export(|export| Response::json(200, &export), snapshot),
+            "/v1/snapshot" => self.with_export(
+                head,
+                "snapshot",
+                |export| Response::json(200, export),
+                snapshot,
+            ),
             "/v1/limits" => self.with_export(
-                |export| Response::json(200, &Limits::from_export(&export)),
+                head,
+                "limits",
+                |export| Response::json(200, &Limits::from_export(export)),
                 snapshot,
             ),
             _ => match path
@@ -758,6 +870,8 @@ impl State {
                 .and_then(http::percent_decode)
             {
                 Some(key) => self.with_export(
+                    head,
+                    "account",
                     // PRD 0029 RF4.2: an id first, then the legacy key.
                     |export| match export
                         .accounts
@@ -777,20 +891,40 @@ impl State {
 
     /// RF2.3: data comes only from the source, and `503` until any
     /// account has a reading (current or preserved).
+    ///
+    /// PRD 0031 RF6: a source that tells generations gets an `ETag`
+    /// (`"<build>-<route>"`, the route being `snapshot`, `limits` or
+    /// `account`; an account's key is part of the URL the client caches
+    /// under) and a `304` for a matching `If-None-Match`.
     fn with_export(
         &self,
-        answer: impl FnOnce(Export) -> Response,
+        head: &Head,
+        route: &str,
+        answer: impl FnOnce(&Export) -> Response,
         snapshot: &Snapshot,
     ) -> Response {
-        match snapshot.source.export().filter(|export| {
+        let held = snapshot.export().filter(|(export, _)| {
             export
                 .accounts
                 .iter()
                 .any(|account| account.report.is_some() || account.last_good.is_some())
-        }) {
-            Some(export) => answer(export),
-            None => Response::error(503, "no_data")
-                .header("Retry-After", RETRY_AFTER_SECONDS.to_string()),
+        });
+        let Some((export, build)) = held else {
+            return Response::error(503, "no_data")
+                .header("Retry-After", RETRY_AFTER_SECONDS.to_string());
+        };
+        let Some(build) = build else {
+            return answer(&export);
+        };
+        let etag = format!("\"{build}-{route}\"");
+        if head.if_none_match(&etag) {
+            return Response::empty(304).header("ETag", etag);
+        }
+        let response = answer(&export);
+        if response.status == 200 {
+            response.header("ETag", etag)
+        } else {
+            response
         }
     }
 

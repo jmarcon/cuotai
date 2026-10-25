@@ -1296,7 +1296,15 @@ mod tests {
         ];
         let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 10, 0).unwrap();
         let identity = ConfigIdentity::Explicit("test".into());
-        let export = single_export(&config, &identity, recorded, snapshot, &[], now, |_, _, _| Vec::new());
+        let export = single_export(
+            &config,
+            &identity,
+            recorded,
+            snapshot,
+            &[],
+            now,
+            |_, _, _| Vec::new(),
+        );
         let json = serde_json::to_value(&export).unwrap();
         assert_eq!(json["schema"], 1);
         let (ready, failed) = (&json["accounts"][0], &json["accounts"][1]);

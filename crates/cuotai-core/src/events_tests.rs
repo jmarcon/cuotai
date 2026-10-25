@@ -973,7 +973,10 @@ fn a_session_nearing_its_expiry_fires_once_per_expiry_date() {
     let mut watch = Watch::new();
     watch.session_expires_at = Some(t0() + TimeDelta::days(10));
     assert!(transitions(&watch.read(0, ready(10.0))).is_empty());
-    assert!(transitions(&watch.read(2, ready(10.0))).is_empty(), "still far");
+    assert!(
+        transitions(&watch.read(2, ready(10.0))).is_empty(),
+        "still far"
+    );
 
     let near = t0() + TimeDelta::days(2) + TimeDelta::hours(1);
     watch.session_expires_at = Some(near);
@@ -986,7 +989,10 @@ fn a_session_nearing_its_expiry_fires_once_per_expiry_date() {
     assert_eq!(json["event"], "session_expiring");
     assert_eq!(json["current"]["days_left"], 2);
 
-    assert!(transitions(&watch.read(6, ready(10.0))).is_empty(), "same date");
+    assert!(
+        transitions(&watch.read(6, ready(10.0))).is_empty(),
+        "same date"
+    );
     watch.session_expires_at = Some(t0() + TimeDelta::days(1));
     assert_eq!(
         transitions(&watch.read(8, ready(10.0))),
@@ -1012,15 +1018,24 @@ fn a_window_about_to_reset_fires_once_per_instance() {
     let mut watch = Watch::new();
     watch.state = EventState::default().with_reset_lead(TimeDelta::minutes(15));
     // The window ends at minute 20; the lead opens at minute 5.
-    assert!(transitions(&watch.read(0, ready(30.0))).is_empty(), "baseline");
-    assert!(transitions(&watch.read(3, ready(30.0))).is_empty(), "outside the lead");
+    assert!(
+        transitions(&watch.read(0, ready(30.0))).is_empty(),
+        "baseline"
+    );
+    assert!(
+        transitions(&watch.read(3, ready(30.0))).is_empty(),
+        "outside the lead"
+    );
     let events = watch.read(6, ready(30.0));
     assert_eq!(transitions(&events), [QuotaResetSoon]);
     assert_eq!(events[0].current.resets_at, Some(first_window()));
     let metric = events[0].metric.as_ref().unwrap();
     assert_eq!(metric.label, LABEL);
     assert_eq!(metric.window, Some(MetricWindow::Window5h));
-    assert!(transitions(&watch.read(9, ready(30.0))).is_empty(), "once per instance");
+    assert!(
+        transitions(&watch.read(9, ready(30.0))).is_empty(),
+        "once per instance"
+    );
     // A drifting `resets_at` is the same instance.
     let drift = Reading::Ready(vec![quota(30.0, first_window() + TimeDelta::minutes(1))]);
     assert!(transitions(&watch.read(12, drift)).is_empty());
@@ -1028,7 +1043,10 @@ fn a_window_about_to_reset_fires_once_per_instance() {
     // The next window opens its own lead.
     assert!(transitions(&watch.read(30, renewed(0.0))).is_empty());
     let late = 20 + 5 * 60 - 10;
-    assert_eq!(transitions(&watch.read(late, renewed(5.0))), [QuotaResetSoon]);
+    assert_eq!(
+        transitions(&watch.read(late, renewed(5.0))),
+        [QuotaResetSoon]
+    );
 }
 
 /// RF7.2: a restart inside the lead and an idle quota report nothing.
@@ -1036,18 +1054,33 @@ fn a_window_about_to_reset_fires_once_per_instance() {
 fn reset_soon_ignores_a_restart_inside_the_lead_and_idle_quotas() {
     let mut watch = Watch::new();
     watch.state = EventState::default().with_reset_lead(TimeDelta::minutes(15));
-    assert!(transitions(&watch.read(10, ready(30.0))).is_empty(), "baseline inside the lead");
-    assert!(transitions(&watch.read(12, ready(30.0))).is_empty(), "not repeated");
+    assert!(
+        transitions(&watch.read(10, ready(30.0))).is_empty(),
+        "baseline inside the lead"
+    );
+    assert!(
+        transitions(&watch.read(12, ready(30.0))).is_empty(),
+        "not repeated"
+    );
 
     let mut idle = Watch::new();
     idle.state = EventState::default().with_reset_lead(TimeDelta::minutes(15));
     idle.read(0, ready(0.0));
-    assert!(transitions(&idle.read(10, ready(0.0))).is_empty(), "nothing consumed");
+    assert!(
+        transitions(&idle.read(10, ready(0.0))).is_empty(),
+        "nothing consumed"
+    );
 }
 
 #[test]
 fn the_new_events_are_known_by_name() {
-    assert_eq!(EventKind::from_name("session_expiring"), Some(SessionExpiring));
-    assert_eq!(EventKind::from_name("quota_reset_soon"), Some(QuotaResetSoon));
+    assert_eq!(
+        EventKind::from_name("session_expiring"),
+        Some(SessionExpiring)
+    );
+    assert_eq!(
+        EventKind::from_name("quota_reset_soon"),
+        Some(QuotaResetSoon)
+    );
     assert_eq!(EventKind::ALL.len(), 13);
 }

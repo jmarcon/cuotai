@@ -42,6 +42,18 @@ impl Head {
                 .any(|site| !site.eq_ignore_ascii_case(b"none"))
     }
 
+    /// PRD 0031 RF6: whether `If-None-Match` names `etag` (or `*`); weak
+    /// validators compare equal to strong ones.
+    pub fn if_none_match(&self, etag: &str) -> bool {
+        self.values("if-none-match").any(|value| {
+            std::str::from_utf8(value).is_ok_and(|value| {
+                value.split(',').map(str::trim).any(|candidate| {
+                    candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == etag
+                })
+            })
+        })
+    }
+
     /// The credentials of a single `Authorization: Bearer` header.
     pub fn bearer(&self) -> Option<&[u8]> {
         let mut values = self.values("authorization");
@@ -145,6 +157,7 @@ fn reason(status: u16) -> &'static str {
     match status {
         200 => "OK",
         204 => "No Content",
+        304 => "Not Modified",
         400 => "Bad Request",
         401 => "Unauthorized",
         403 => "Forbidden",

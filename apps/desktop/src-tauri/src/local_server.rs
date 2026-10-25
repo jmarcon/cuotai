@@ -45,11 +45,25 @@ pub struct FeedSlot {
     feed: Arc<Mutex<Option<Feed>>>,
     /// PRD 0015 RF4.3: where `local_cost` comes from, set once at start.
     cost: Arc<OnceLock<Arc<LocalCost>>>,
+    /// PRD 0031 RF6: counts publications, one per `Backend::emit`, so the
+    /// server reuses its export (and answers `304`) until the next one.
+    generation: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl FeedSlot {
     pub fn publish(&self, feed: Option<Feed>) {
         *self.feed.lock().unwrap_or_else(PoisonError::into_inner) = feed;
+        self.generation
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// What the server reads: this slot's export, tagged with its generation.
+    fn source(&self) -> impl serve::Source {
+        let (export, generation) = (self.clone(), self.clone());
+        serve::with_generation(
+            move || export.export(),
+            move || generation.generation.load(std::sync::atomic::Ordering::Relaxed),
+        )
     }
 
     /// PRD 0015 RF4.3: export `cost`'s summary as `local_cost`.
@@ -229,9 +243,8 @@ impl Integration {
 
         // Hot swap on the live listener.
         if let Some(server) = self.server.as_ref() {
-            let source = feed.clone();
             match server
-                .reconfigure(new_config.clone(), move || source.export())
+                .reconfigure(new_config.clone(), feed.source())
                 .await
             {
                 Ok(serve::Reconfigure::Replaced) => {
@@ -266,9 +279,8 @@ impl Integration {
         self.prefs = prefs;
         self.error = None;
         self.cuotai_on_port = false;
-        let feed_for_source = feed.clone();
         let config_for_start = new_config;
-        match LocalServer::start(config_for_start, move || feed_for_source.export()).await {
+        match LocalServer::start(config_for_start, feed.source()).await {
             Ok(server) => {
                 self.server = Some(server);
                 #[cfg(test)]

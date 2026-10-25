@@ -395,10 +395,13 @@ impl LimitsSummary {
             .accounts
             .iter()
             .filter_map(|account| Some((account, account.binding.as_ref()?)))
-            .fold(None::<(&AccountExport, &Binding)>, |best, candidate| match best {
-                Some(best) if best.1.used_ratio >= candidate.1.used_ratio => Some(best),
-                _ => Some(candidate),
-            })
+            .fold(
+                None::<(&AccountExport, &Binding)>,
+                |best, candidate| match best {
+                    Some(best) if best.1.used_ratio >= candidate.1.used_ratio => Some(best),
+                    _ => Some(candidate),
+                },
+            )
             .map(|(account, binding)| TightestAccount {
                 key: account.key.clone(),
                 name: account.name.clone(),
@@ -1119,7 +1122,8 @@ mod tests {
             Options::default(),
             recent,
         );
-        let without = Export::from_cycle(&config, &identity, &cycle, &[], now(), Options::default());
+        let without =
+            Export::from_cycle(&config, &identity, &cycle, &[], now(), Options::default());
         let source = |export: &Export| {
             export.accounts[0].pace[0]
                 .as_ref()
@@ -1133,7 +1137,9 @@ mod tests {
         let app = pace::assess_reading(
             &report.metrics[0],
             report.checked_at,
-            Duration::from_secs(config.accounts[0].effective_refresh_seconds(config.refresh_seconds)),
+            Duration::from_secs(
+                config.accounts[0].effective_refresh_seconds(config.refresh_seconds),
+            ),
             now(),
             Some(&points([10.0, 20.0, 30.0])),
         );
@@ -1570,7 +1576,9 @@ mod tests {
             .filter_map(|account| account["binding"]["used_ratio"].as_f64())
             .fold(f64::MIN, f64::max);
         assert_eq!(summary["tightest"]["used_ratio"].as_f64(), Some(max_ratio));
-        assert!(accounts.iter().any(|account| account["incident"].is_object()));
+        assert!(accounts
+            .iter()
+            .any(|account| account["incident"].is_object()));
 
         let mut broken = limits.clone();
         broken["accounts"][0]["report"] = Value::Null;

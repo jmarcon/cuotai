@@ -71,6 +71,14 @@ pub(crate) async fn start(
     monitor: Arc<Monitor>,
     local_cost: Option<LocalCost>,
 ) -> Result<LocalServer, Box<dyn Error>> {
+    let generation = {
+        let (monitor, cycle) = (monitor.clone(), cycle.clone());
+        move || {
+            let incidents = monitor.incident_statuses();
+            let cycle = cycle.lock().unwrap_or_else(PoisonError::into_inner);
+            cuotai_core::serve::generation_of(&cycle, &incidents)
+        }
+    };
     let source = move || {
         let incidents = monitor.incident_statuses();
         let now = Utc::now();
@@ -91,7 +99,12 @@ pub(crate) async fn start(
     };
     let config = serve_config(args, token);
     let port = config.port;
-    let server = match LocalServer::start(config, source).await {
+    let server = match LocalServer::start(
+        config,
+        cuotai_core::serve::with_generation(source, generation),
+    )
+    .await
+    {
         Ok(server) => server,
         Err(error) => {
             let text = error.l10n().resolve(crate::ui::tui_locale());

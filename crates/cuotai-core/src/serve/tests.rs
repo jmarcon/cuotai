@@ -1291,3 +1291,80 @@ fn a_linked_default_token_file_is_refused() {
     std::os::unix::fs::symlink(&target, &path).unwrap();
     assert_eq!(ensure_token_file(&path).unwrap_err(), ServeError::TokenFile);
 }
+
+/// PRD 0031 RF6: a source that tells generations is asked once per
+/// generation, answers carry `ETag`, and a matching `If-None-Match` gets
+/// `304` without a body; a new generation changes the tag.
+#[tokio::test]
+async fn a_generation_is_built_once_and_tagged_for_conditional_requests() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+
+    let (config, cycle) = fixture();
+    let identity = ConfigIdentity::Explicit("serve".into());
+    let builds = Arc::new(AtomicU64::new(0));
+    let generation = Arc::new(AtomicU64::new(1));
+    let source = {
+        let (builds, generation) = (builds.clone(), generation.clone());
+        crate::serve::with_generation(
+            move || {
+                builds.fetch_add(1, Ordering::SeqCst);
+                Some(Export::from_cycle(
+                    &config,
+                    &identity,
+                    &cycle,
+                    &[],
+                    Utc::now(),
+                    Options::default(),
+                ))
+            },
+            move || generation.load(Ordering::SeqCst),
+        )
+    };
+    let server = start(ServeConfig::default(), source).await;
+
+    let first = get(&server, "/v1/snapshot").await;
+    assert_eq!(first.status(), StatusCode::OK);
+    assert_json_no_store(&first);
+    let tag = first.headers()[header::ETAG].to_str().unwrap().to_owned();
+    assert!(tag.ends_with("-snapshot\""), "{tag}");
+    let limits = get(&server, "/v1/limits").await;
+    let limits_tag = limits.headers()[header::ETAG].to_str().unwrap().to_owned();
+    assert!(limits_tag.ends_with("-limits\""), "{limits_tag}");
+    assert_eq!(
+        builds.load(Ordering::SeqCst),
+        1,
+        "one export per generation"
+    );
+
+    let conditional = |tag: &str| {
+        request(&server, Method::GET, "/v1/snapshot").header(header::IF_NONE_MATCH, tag.to_owned())
+    };
+    let unchanged = conditional(&tag).send().await.unwrap();
+    assert_eq!(unchanged.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(unchanged.headers()[header::ETAG], tag.as_str());
+    assert_eq!(unchanged.headers()[header::CACHE_CONTROL], "no-store");
+    assert!(unchanged.bytes().await.unwrap().is_empty());
+    let other_route = conditional(&limits_tag).send().await.unwrap();
+    assert_eq!(
+        other_route.status(),
+        StatusCode::OK,
+        "the tag names its route"
+    );
+    assert_eq!(
+        conditional("*").send().await.unwrap().status(),
+        StatusCode::NOT_MODIFIED
+    );
+    assert_eq!(builds.load(Ordering::SeqCst), 1);
+
+    generation.store(2, Ordering::SeqCst);
+    let next = conditional(&tag).send().await.unwrap();
+    assert_eq!(next.status(), StatusCode::OK, "a new generation");
+    assert_ne!(next.headers()[header::ETAG].to_str().unwrap(), tag);
+    assert_eq!(builds.load(Ordering::SeqCst), 2);
+
+    // A source without generations is asked every time and has no tag.
+    let plain = start(ServeConfig::default(), fixture_source()).await;
+    let answer = get(&plain, "/v1/snapshot").await;
+    assert!(!answer.headers().contains_key(header::ETAG));
+}
