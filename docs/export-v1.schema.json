@@ -121,6 +121,52 @@
         "parent": { "type": "string", "description": "PRD 0036 RF6.5: the aggregator account's id when the best account is one of its connections." }
       }
     },
+    "StatsDay": {
+      "type": "object",
+      "required": ["day", "peak"],
+      "properties": {
+        "day": { "type": "string", "description": "Local calendar day, YYYY-MM-DD." },
+        "peak": { "type": ["number", "null"], "minimum": 0, "description": "Highest share of the tightest plan limit used that day, 0 to 1; null when no sample fell on the day (a gap, never zero)." }
+      }
+    },
+    "Stats": {
+      "type": "object",
+      "description": "Body of the local server's /v1/stats (PRD 0031 RF11.1): usage statistics over the local history. Never raw samples, notes, e-mails or URLs.",
+      "required": ["schema", "generated_at", "range", "hits", "average_peak", "coverage", "retention_days", "daily", "accounts"],
+      "properties": {
+        "schema": { "const": 1 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "range": { "anyOf": [{ "enum": ["7d", "30d"] }, { "type": "string" }] },
+        "hits": { "type": "integer", "minimum": 0, "description": "Plan-limit windows that ended at the limit within the range, all accounts." },
+        "average_peak": { "type": ["number", "null"], "minimum": 0 },
+        "coverage": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "anyOf": [{ "enum": ["full", "partial", "not_enough"] }, { "type": "string" }] },
+            "days_with_data": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "retention_days": { "type": "integer", "minimum": 0 },
+        "daily": { "type": "array", "items": { "$ref": "#/$defs/StatsDay" }, "description": "Highest peak across accounts per day, oldest first." },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "provider", "hits", "average_peak", "days_with_data", "days"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string", "description": "Display name with the export's redaction rules; the provider's label when the name carries a URL." },
+              "provider": { "$ref": "#/$defs/Provider" },
+              "hits": { "type": "integer", "minimum": 0 },
+              "average_peak": { "type": ["number", "null"], "minimum": 0 },
+              "days_with_data": { "type": "integer", "minimum": 0 },
+              "days": { "type": "array", "items": { "$ref": "#/$defs/StatsDay" } }
+            }
+          }
+        }
+      }
+    },
     "Limits": {
       "type": "object",
       "description": "Body of the local server's /v1/limits (PRD 0012 RF2.2): a per-account summary of the export.",

@@ -96,6 +96,9 @@ fn a_failed_account_exits_2_and_color_needs_a_terminal() {
 #[test]
 fn style_must_be_supported_and_modes_do_not_combine() {
     let sandbox = Sandbox::new("args");
-    assert_eq!(sandbox.run("dev", &["--style", "meters"]).status.code(), Some(1));
+    assert_eq!(
+        sandbox.run("dev", &["--style", "meters"]).status.code(),
+        Some(1)
+    );
     assert_eq!(sandbox.run("dev", &["--once"]).status.code(), Some(1));
 }

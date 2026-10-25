@@ -364,6 +364,13 @@ struct Args {
     /// ler o seu uso (páginas web e outros computadores seguem recusados).
     #[arg(long, requires = "serve")]
     no_token: bool,
+    /// Com --serve, serve também GET /v1/stats?range=7d|30d: estatísticas de
+    /// uso do histórico local (picos, vezes que um limite foi atingido, sem
+    /// amostras brutas, e-mails nem URLs). Desligado por padrão; exige o
+    /// token (não combina com --no-token), só em loopback, 6 requisições por
+    /// minuto por origem, e responde 503 history_off sem histórico gravado.
+    #[arg(long, requires = "serve", conflicts_with = "no_token")]
+    serve_stats: bool,
     /// Acompanha as contas sem abrir a TUI e sem exigir terminal: mantém o
     /// ciclo de atualização e emite um evento por transição real (cota
     /// cruzou um limiar, esgotou, renovou, conta bloqueou, consulta falhou
@@ -848,6 +855,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 port: args.port,
                 token_file: args.token_file,
                 no_token: args.no_token,
+                stats: args.serve_stats,
             });
             let watch = args.watch.then_some(watch::WatchArgs {
                 events,

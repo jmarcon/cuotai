@@ -393,3 +393,69 @@ fn local_errors_exit_1() {
     }
     assert_eq!(sandbox.aws_calls(), 0, "no query before a local error");
 }
+
+/// PRD 0031 RF11: `/v1/stats` exists only with `--serve-stats` and a token;
+/// it answers from the local history and never queries a provider.
+#[test]
+fn stats_route_needs_its_own_flag_and_a_token() {
+    let sandbox = Sandbox::new("stats");
+    let config = sandbox.config("dev");
+    let token = sandbox.file("token", &format!("{TOKEN}\n"));
+    let bearer = format!("Authorization: Bearer {TOKEN}\r\n");
+
+    let plain = Server::start(
+        &sandbox,
+        &[
+            "--config",
+            arg(&config),
+            "--serve",
+            "--port",
+            "0",
+            "--token-file",
+            arg(&token),
+        ],
+    );
+    assert_eq!(plain.get("/v1/stats", &bearer).0, 404, "off by default");
+    drop(plain);
+
+    let server = Server::start(
+        &sandbox,
+        &[
+            "--config",
+            arg(&config),
+            "--serve",
+            "--serve-stats",
+            "--port",
+            "0",
+            "--token-file",
+            arg(&token),
+        ],
+    );
+    server.first_snapshot(&bearer);
+    assert_eq!(server.get("/v1/stats", "").0, 401, "a token is required");
+    let queries = sandbox.aws_calls();
+    let (status, body) = server.get("/v1/stats?range=7d", &bearer);
+    assert_eq!(status, 200, "{body}");
+    let stats: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(stats["schema"], 1);
+    assert_eq!(stats["range"], "7d");
+    assert_eq!(stats["accounts"][0]["name"], "Bedrock");
+    assert_eq!(stats["daily"].as_array().unwrap().len(), 7);
+    assert_eq!(server.get("/v1/stats?range=1y", &bearer).0, 400);
+    assert_eq!(sandbox.aws_calls(), queries, "statistics never query");
+    let (status, _) = server.stop("-TERM");
+    assert_eq!(status.code(), Some(0), "{}", sandbox.stderr());
+
+    // Without a token there is nothing to guard it with: refused up front.
+    let mut child = sandbox
+        .command(&[
+            "--config",
+            arg(&config),
+            "--serve",
+            "--serve-stats",
+            "--no-token",
+        ])
+        .spawn()
+        .unwrap();
+    assert_eq!(wait(&mut child).code(), Some(1));
+}

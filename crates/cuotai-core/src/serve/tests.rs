@@ -1368,3 +1368,212 @@ async fn a_generation_is_built_once_and_tagged_for_conditional_requests() {
     let answer = get(&plain, "/v1/snapshot").await;
     assert!(!answer.headers().contains_key(header::ETAG));
 }
+
+/// PRD 0031 RF11: a stats source over the fixture's accounts, one of them
+/// named with an e-mail address and another with a URL.
+fn stats_source(answer: fn() -> StatsAnswer) -> impl Source {
+    with_stats(fixture_source(), move |_| answer())
+}
+
+fn leaky_stats() -> StatsAnswer {
+    use crate::stats::{AccountStats, Coverage, DayPeak, StatsSummary};
+    let mut mail = account("alice@example.com", Provider::Claude);
+    mail.credential_env = Some("CLAUDE_SECRET_ENV".into());
+    let link = account(
+        "https://user:hunter2@host.example/x?token=sk-1",
+        Provider::Kimi,
+    );
+    let accounts = [mail, link];
+    let day = chrono::NaiveDate::from_ymd_opt(2026, 10, 24).unwrap();
+    let peak = DayPeak {
+        day,
+        share: Some(0.5),
+        is_today: true,
+    };
+    let summary = StatsSummary {
+        extra_spent: Default::default(),
+        range: crate::stats::StatsRange::Days7,
+        hits: 1,
+        average_peak: Some(0.5),
+        accounts: accounts
+            .iter()
+            .enumerate()
+            .map(|(account_index, account)| AccountStats {
+                account_index,
+                name: account.name.clone(),
+                hits: 1,
+                average_peak: Some(0.5),
+                days_with_data: 1,
+                days: vec![peak],
+            })
+            .collect(),
+        daily: vec![peak],
+        unknown_limits: 0,
+        retention_days: 90,
+        first_sample_at: None,
+        coverage: Coverage::NotEnough,
+    };
+    StatsAnswer::Ready(Box::new(StatsExport::from_summary(
+        &summary,
+        &accounts,
+        Utc::now(),
+    )))
+}
+
+fn stats_config(token: Option<Token>) -> ServeConfig {
+    ServeConfig {
+        token,
+        stats: true,
+        ..ServeConfig::default()
+    }
+}
+
+async fn authorized(server: &LocalServer, token: &Token, path: &str) -> reqwest::Response {
+    request(server, Method::GET, path)
+        .header(header::AUTHORIZATION, format!("Bearer {}", token.expose()))
+        .send()
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn stats_is_off_by_default_and_hidden_without_a_token() {
+    let token = Token::generate().unwrap();
+    // Not enabled: the route does not exist, with or without a token.
+    let off = start(
+        ServeConfig {
+            token: Some(token.clone()),
+            ..ServeConfig::default()
+        },
+        stats_source(leaky_stats),
+    )
+    .await;
+    assert_eq!(
+        authorized(&off, &token, "/v1/stats").await.status(),
+        StatusCode::NOT_FOUND
+    );
+    // Enabled but run with --no-token: not exposed, never `200`.
+    let open = start(stats_config(None), stats_source(leaky_stats)).await;
+    assert_eq!(
+        get(&open, "/v1/stats").await.status(),
+        StatusCode::NOT_FOUND
+    );
+    // A source without statistics: `404` as well.
+    let bare = start(stats_config(Some(token.clone())), fixture_source()).await;
+    assert_eq!(
+        authorized(&bare, &token, "/v1/stats").await.status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn stats_needs_the_token_and_a_loopback_only_server() {
+    let token = Token::generate().unwrap();
+    let server = start(stats_config(Some(token.clone())), stats_source(leaky_stats)).await;
+    assert_eq!(
+        get(&server, "/v1/stats").await.status(),
+        StatusCode::UNAUTHORIZED
+    );
+    // A page cannot read it either, token or not.
+    let page = request(&server, Method::GET, "/v1/stats")
+        .header(header::AUTHORIZATION, format!("Bearer {}", token.expose()))
+        .header(header::ORIGIN, "https://evil.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::FORBIDDEN);
+    let wide = start(
+        ServeConfig {
+            allow_non_loopback: true,
+            ..stats_config(Some(token.clone()))
+        },
+        stats_source(leaky_stats),
+    )
+    .await;
+    let response = authorized(&wide, &token, "/v1/stats").await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        response.text().await.unwrap(),
+        r#"{"error":"stats_loopback_only"}"#
+    );
+}
+
+#[tokio::test]
+async fn stats_answers_redacted_figures_for_a_valid_range() {
+    let token = Token::generate().unwrap();
+    let server = start(stats_config(Some(token.clone())), stats_source(leaky_stats)).await;
+    let response = authorized(&server, &token, "/v1/stats?range=7d").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_json_no_store(&response);
+    let body = response.text().await.unwrap();
+    for secret in [
+        "alice@example.com",
+        "hunter2",
+        "sk-1",
+        "https://",
+        "CLAUDE_SECRET_ENV",
+    ] {
+        assert!(!body.contains(secret), "{secret} leaked: {body}");
+    }
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(value["range"], "7d");
+    assert_eq!(value["accounts"].as_array().unwrap().len(), 2);
+    assert_eq!(value["accounts"][0]["hits"], 1);
+    assert!(value["accounts"][0]["id"].as_str().is_some());
+    assert_eq!(value["accounts"][1]["name"], Provider::Kimi.label());
+    assert_eq!(value["coverage"]["kind"], "not_enough");
+    assert!(value["accounts"][0].get("email").is_none());
+    // The default range is a week; 30d is accepted; anything else is `400`.
+    assert_eq!(
+        authorized(&server, &token, "/v1/stats").await.status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        authorized(&server, &token, "/v1/stats?range=30d")
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        authorized(&server, &token, "/v1/stats?range=1y")
+            .await
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
+async fn stats_without_history_is_503_and_a_peer_gets_six_a_minute() {
+    let token = Token::generate().unwrap();
+    let off = start(
+        stats_config(Some(token.clone())),
+        stats_source(|| StatsAnswer::HistoryOff),
+    )
+    .await;
+    let response = authorized(&off, &token, "/v1/stats").await;
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.text().await.unwrap(), r#"{"error":"history_off"}"#);
+
+    let server = start(stats_config(Some(token.clone())), stats_source(leaky_stats)).await;
+    for _ in 0..STATS_PER_MINUTE - 1 {
+        assert_eq!(
+            authorized(&server, &token, "/v1/stats").await.status(),
+            StatusCode::OK
+        );
+    }
+    let limited = authorized(&server, &token, "/v1/stats").await;
+    assert_eq!(limited.status(), StatusCode::OK, "the sixth is allowed");
+    let seventh = authorized(&server, &token, "/v1/stats").await;
+    assert_eq!(seventh.status(), StatusCode::TOO_MANY_REQUESTS);
+    let wait: u64 = seventh.headers()[header::RETRY_AFTER]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!((1..=61).contains(&wait), "{wait}");
+    // The other routes are not limited.
+    assert_eq!(
+        authorized(&server, &token, "/v1/limits").await.status(),
+        StatusCode::OK
+    );
+}

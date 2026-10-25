@@ -6,7 +6,7 @@
 //! for the [`Export`] the front end builds from the `RefreshCycle` it already
 //! maintains, and answers `503` with `Retry-After` while there is no reading
 //! yet. Routes are `GET` (and `HEAD`, without a body): `/health`, `/v1/snapshot`, `/v1/accounts/{key}`
-//! and `/v1/limits`; any other method gets `405` with `Allow: GET, HEAD`, any other path `404`. Every
+//! and `/v1/limits` (plus the opt-in `/v1/stats`, PRD 0031 RF11); any other method gets `405` with `Allow: GET, HEAD`, any other path `404`. Every
 //! response is `application/json` with `Cache-Control: no-store`, and each
 //! connection carries one request (`Connection: close`).
 //!
@@ -46,7 +46,8 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{watch, RwLock, Semaphore};
 use tokio::task::{JoinHandle, JoinSet};
 
-use crate::export::v1::{Export, Limits, SCHEMA};
+use crate::export::v1::{Export, Limits, StatsExport, SCHEMA};
+use crate::stats::StatsRange;
 use crate::text::{params, Localized, ParamValue};
 use http::{Head, Read, Response};
 
@@ -104,6 +105,46 @@ pub trait Source: Send + Sync + 'static {
     fn generation(&self) -> Option<u64> {
         None
     }
+
+    /// PRD 0031 RF11: the statistics of `range` for `/v1/stats`, read from
+    /// the history (never a provider). The default offers none (`404`).
+    fn stats(&self, _range: StatsRange) -> StatsAnswer {
+        StatsAnswer::Unavailable
+    }
+}
+
+/// What a [`Source`] answers to `/v1/stats`.
+#[derive(Debug)]
+pub enum StatsAnswer {
+    /// This front end keeps no statistics: the route does not exist.
+    Unavailable,
+    /// History recording is off: `503 history_off`.
+    HistoryOff,
+    /// The history could not be read: `503 stats_unavailable`.
+    Failed,
+    Ready(Box<StatsExport>),
+}
+
+/// A [`Source`] that also answers `/v1/stats` with `stats` (PRD 0031 RF11).
+pub fn with_stats(
+    source: impl Source,
+    stats: impl Fn(StatsRange) -> StatsAnswer + Send + Sync + 'static,
+) -> impl Source {
+    struct Stats<S, F>(S, F);
+    impl<S: Source, F: Fn(StatsRange) -> StatsAnswer + Send + Sync + 'static> Source for Stats<S, F> {
+        fn export(&self) -> Option<Export> {
+            self.0.export()
+        }
+
+        fn generation(&self) -> Option<u64> {
+            self.0.generation()
+        }
+
+        fn stats(&self, range: StatsRange) -> StatsAnswer {
+            (self.1)(range)
+        }
+    }
+    Stats(source, stats)
 }
 
 /// PRD 0031 RF6: a generation number for what an export is built from: it
@@ -166,6 +207,9 @@ where
         self()
     }
 }
+
+/// PRD 0031 RF11.2.3: `/v1/stats` requests one peer may make per minute.
+pub const STATS_PER_MINUTE: usize = 6;
 
 /// Defensive limits of RF2.4.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,6 +294,10 @@ pub struct ServeConfig {
     /// answers (`Access-Control-Allow-Origin: *`); see
     /// [`allow_browsers_warning`].
     pub allow_browsers: bool,
+    /// PRD 0031 RF11: serve `/v1/stats`. Off by default; even then it needs
+    /// a token, refuses a non-loopback bind and is rate limited
+    /// ([`STATS_PER_MINUTE`]).
+    pub stats: bool,
     pub bounds: Bounds,
     pub access_log: Option<AccessLog>,
 }
@@ -263,6 +311,7 @@ impl Default for ServeConfig {
             allow_non_loopback: false,
             token: None,
             allow_browsers: false,
+            stats: false,
             bounds: Bounds::default(),
             access_log: None,
         }
@@ -278,6 +327,7 @@ impl fmt::Debug for ServeConfig {
             .field("allow_non_loopback", &self.allow_non_loopback)
             .field("token", &self.token)
             .field("allow_browsers", &self.allow_browsers)
+            .field("stats", &self.stats)
             .field("bounds", &self.bounds)
             .field("access_log", &self.access_log.is_some())
             .finish()
@@ -527,6 +577,7 @@ impl LocalServer {
         let (stop, stopped) = watch::channel(false);
         let state = Arc::new(State {
             snapshot: RwLock::new(initial),
+            stats_asked: std::sync::Mutex::new(std::collections::HashMap::new()),
         });
         let task = tokio::spawn(accept_loop(listener, state.clone(), stopped));
         Self {
@@ -657,6 +708,32 @@ async fn probe(port: u16) -> bool {
 /// owns the semaphore that gates acceptance; only a restart can change it.
 struct State {
     snapshot: RwLock<Arc<Snapshot>>,
+    /// PRD 0031 RF11.2.3: when each peer last asked for `/v1/stats`; it
+    /// outlives a [`LocalServer::reconfigure`], so changing a setting does
+    /// not reset the limit.
+    stats_asked: std::sync::Mutex<std::collections::HashMap<IpAddr, Vec<Instant>>>,
+}
+
+impl State {
+    /// Count a `/v1/stats` request of `peer`: `Ok` while it made fewer than
+    /// [`STATS_PER_MINUTE`] in the last minute, or else the seconds until
+    /// its oldest one leaves the window.
+    fn stats_allowed(&self, peer: IpAddr) -> Result<(), u64> {
+        const WINDOW: Duration = Duration::from_secs(60);
+        let now = Instant::now();
+        let mut asked = self.stats_asked.lock().unwrap_or_else(|e| e.into_inner());
+        asked.retain(|_, times| {
+            times.retain(|at| now.duration_since(*at) < WINDOW);
+            !times.is_empty()
+        });
+        let times = asked.entry(peer.to_canonical()).or_default();
+        if times.len() >= STATS_PER_MINUTE {
+            let wait = WINDOW.saturating_sub(now.duration_since(times[0]));
+            return Err(wait.as_secs() + 1);
+        }
+        times.push(now);
+        Ok(())
+    }
 }
 
 /// One immutable pair of policy and source. Replacement is atomic and lock-free
@@ -864,6 +941,7 @@ impl State {
                 |export| Response::json(200, &Limits::from_export(export)),
                 snapshot,
             ),
+            "/v1/stats" => self.stats(head, peer, snapshot),
             _ => match path
                 .strip_prefix("/v1/accounts/")
                 .filter(|key| !key.is_empty() && !key.contains('/'))
@@ -886,6 +964,46 @@ impl State {
                 ),
                 None => Response::error(404, "not_found"),
             },
+        }
+    }
+
+    /// PRD 0031 RF11: `GET /v1/stats?range=7d|30d`. The bearer token was
+    /// already checked above; here it must exist at all (`404`, so a server
+    /// run with `--no-token` does not expose the route), the server must be
+    /// loopback-only (`403`), and a peer gets [`STATS_PER_MINUTE`] requests
+    /// per minute (`429`).
+    fn stats(&self, head: &Head, peer: IpAddr, snapshot: &Snapshot) -> Response {
+        let config = &snapshot.config;
+        if !config.stats || config.token.is_none() {
+            return Response::error(404, "not_found");
+        }
+        if config.allow_non_loopback || !is_loopback(peer) {
+            return Response::error(403, "stats_loopback_only");
+        }
+        let range = match head.target.split_once('?').map(|(_, query)| query) {
+            None => StatsRange::Days7,
+            Some(query) => {
+                let mut range = StatsRange::Days7;
+                for pair in query.split('&') {
+                    match pair.split_once('=') {
+                        Some(("range", "7d")) => range = StatsRange::Days7,
+                        Some(("range", "30d")) => range = StatsRange::Days30,
+                        Some(("range", _)) => return Response::error(400, "bad_range"),
+                        _ => {}
+                    }
+                }
+                range
+            }
+        };
+        if let Err(seconds) = self.stats_allowed(peer) {
+            return Response::error(429, "too_many_requests")
+                .header("Retry-After", seconds.to_string());
+        }
+        match snapshot.source.stats(range) {
+            StatsAnswer::Unavailable => Response::error(404, "not_found"),
+            StatsAnswer::HistoryOff => Response::error(503, "history_off"),
+            StatsAnswer::Failed => Response::error(503, "stats_unavailable"),
+            StatsAnswer::Ready(stats) => Response::json(200, &*stats),
         }
     }
 

@@ -17,13 +17,14 @@ use std::{
 use chrono::Utc;
 use cuotai_core::{
     config_file::ConfigIdentity,
-    export::v1::{Export, Options},
+    export::v1::{Export, Options, StatsExport},
     refresh::RefreshCycle,
     serve::{
         default_token_file, is_cuotai_server, resolve_token, AccessEntry, LocalServer, ServeConfig,
-        ServeError, Token, TokenSource, DEFAULT_PORT,
+        ServeError, StatsAnswer, Token, TokenSource, DEFAULT_PORT,
     },
-    Config, Monitor,
+    stats::StatsRange,
+    Account, Config, Monitor,
 };
 
 use crate::cost::LocalCost;
@@ -37,6 +38,8 @@ pub(crate) struct ServeArgs {
     pub token_file: Option<PathBuf>,
     /// `--no-token`: serve without a token (INT-04 opt-out).
     pub no_token: bool,
+    /// `--serve-stats`: also serve `/v1/stats` (PRD 0031 RF11; needs a token).
+    pub stats: bool,
 }
 
 /// INT-04: the bearer token every request must carry — `--token-file`'s,
@@ -79,6 +82,8 @@ pub(crate) async fn start(
             cuotai_core::serve::generation_of(&cycle, &incidents)
         }
     };
+    let stats_monitor = monitor.clone();
+    let stats_accounts = config.accounts.clone();
     let source = move || {
         let incidents = monitor.incident_statuses();
         let now = Utc::now();
@@ -99,9 +104,12 @@ pub(crate) async fn start(
     };
     let config = serve_config(args, token);
     let port = config.port;
+    let source = cuotai_core::serve::with_generation(source, generation);
     let server = match LocalServer::start(
         config,
-        cuotai_core::serve::with_generation(source, generation),
+        cuotai_core::serve::with_stats(source, move |range| {
+            stats(&stats_monitor, &stats_accounts, range)
+        }),
     )
     .await
     {
@@ -113,6 +121,21 @@ pub(crate) async fn start(
     };
     eprintln!("cuotai: servidor local somente leitura; Ctrl+C encerra.");
     Ok(server)
+}
+
+/// PRD 0031 RF11: the statistics `/v1/stats` answers, from the local history
+/// only (never a provider): `history_off` while nothing is being recorded.
+fn stats(monitor: &Monitor, accounts: &[Account], range: StatsRange) -> StatsAnswer {
+    let Some(store) = monitor.history().filter(|_| monitor.history_recording()) else {
+        return StatsAnswer::HistoryOff;
+    };
+    let now = Utc::now();
+    match cuotai_core::stats::summarize(&store, accounts, range, now, &chrono::Local) {
+        Ok(summary) => {
+            StatsAnswer::Ready(Box::new(StatsExport::from_summary(&summary, accounts, now)))
+        }
+        Err(_) => StatsAnswer::Failed,
+    }
 }
 
 /// PRD 0031 RF9.1: a taken port is a local error that says whether the
@@ -139,6 +162,7 @@ fn serve_config(args: &ServeArgs, token: Option<Token>) -> ServeConfig {
         port: args.port.unwrap_or(DEFAULT_PORT),
         port_fallback: false,
         token,
+        stats: args.stats,
         access_log: Some(access_log),
         ..ServeConfig::default()
     }

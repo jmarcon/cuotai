@@ -6,7 +6,7 @@
 use chrono::{DateTime, Utc};
 use cuotai_core::{
     freshness::Freshness,
-    tray::{self, AccountView, Level, TrayStyle, TraySelection},
+    tray::{self, AccountView, Level, TraySelection, TrayStyle},
     Config, Snapshot, Status,
 };
 
@@ -152,7 +152,10 @@ mod tests {
     #[test]
     fn account_selection_limits_the_line() {
         let id = config(&["main", "side"]).accounts[1].id().to_string();
-        assert_eq!(line(TrayStyle::TightestPercent, &[&id], false), "80% · side");
+        assert_eq!(
+            line(TrayStyle::TightestPercent, &[&id], false),
+            "80% · side"
+        );
     }
 
     #[test]

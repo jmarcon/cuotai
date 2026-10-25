@@ -706,6 +706,108 @@ pub struct AccountIncident {
     pub stale: bool,
 }
 
+/// The body of `/v1/stats` (PRD 0031 RF11.1): the usage statistics of
+/// [`crate::stats::summarize`] reduced to what a local reader may learn:
+/// per account the id, a scrubbed display name, the provider, how often the
+/// plan limits were hit, the average and per-day tightest peaks, and how much
+/// history backs them. Never raw samples, notes or provider text, and never
+/// an e-mail address or a URL.
+#[derive(Debug, Clone, Serialize)]
+pub struct StatsExport {
+    /// Always [`SCHEMA`].
+    pub schema: u32,
+    pub generated_at: DateTime<Utc>,
+    /// `7d` or `30d`.
+    pub range: &'static str,
+    /// Limit hits of every account.
+    pub hits: u32,
+    pub average_peak: Option<f64>,
+    pub coverage: crate::stats::Coverage,
+    pub retention_days: u16,
+    /// Highest peak across accounts per day, oldest first.
+    pub daily: Vec<StatsDay>,
+    pub accounts: Vec<AccountStats>,
+}
+
+/// One day of [`StatsExport`]: a share in `[0, 1]`, or `null` for a gap.
+#[derive(Debug, Clone, Serialize)]
+pub struct StatsDay {
+    pub day: chrono::NaiveDate,
+    pub peak: Option<f64>,
+}
+
+/// One account of [`StatsExport`].
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountStats {
+    pub id: String,
+    pub name: String,
+    pub provider: Provider,
+    pub hits: u32,
+    pub average_peak: Option<f64>,
+    pub days_with_data: u32,
+    /// One entry per day of the range, oldest first.
+    pub days: Vec<StatsDay>,
+}
+
+impl StatsExport {
+    /// `summary` as computed over `accounts` (the same slice, in order).
+    pub fn from_summary(
+        summary: &crate::stats::StatsSummary,
+        accounts: &[Account],
+        generated_at: DateTime<Utc>,
+    ) -> Self {
+        let days = |days: &[crate::stats::DayPeak]| {
+            days.iter()
+                .map(|day| StatsDay {
+                    day: day.day,
+                    peak: day.share,
+                })
+                .collect()
+        };
+        Self {
+            schema: SCHEMA,
+            generated_at,
+            range: match summary.range {
+                crate::stats::StatsRange::Days7 => "7d",
+                crate::stats::StatsRange::Days30 => "30d",
+            },
+            hits: summary.hits,
+            average_peak: summary.average_peak,
+            coverage: summary.coverage,
+            retention_days: summary.retention_days,
+            daily: days(&summary.daily),
+            accounts: summary
+                .accounts
+                .iter()
+                .filter_map(|stats| {
+                    let account = accounts.get(stats.account_index)?;
+                    Some(AccountStats {
+                        id: account.state_key(),
+                        name: stats_name(account),
+                        provider: account.provider,
+                        hits: stats.hits,
+                        average_peak: stats.average_peak,
+                        days_with_data: stats.days_with_data,
+                        days: days(&stats.days),
+                    })
+                })
+                .collect(),
+        }
+    }
+}
+
+/// The display name with the export's scrub rules, hiding e-mail addresses
+/// even when identity is included elsewhere; a name that still carries a
+/// URL is replaced by the provider's label.
+fn stats_name(account: &Account) -> String {
+    let name = Scrub::new(account, false).text(&account.display_name());
+    if url_start(&name).is_some() || name.contains("://") {
+        account.provider.label().to_owned()
+    } else {
+        name
+    }
+}
+
 fn class_rank(class: AccountClass) -> u8 {
     match class {
         AccountClass::Available => 0,
@@ -1947,6 +2049,61 @@ mod tests {
         for account in accounts {
             assert_eq!(account["showing_last_good"], account["stale"]);
         }
+    }
+
+    /// PRD 0031 RF11.1: `/v1/stats` answers the schema's `$defs/Stats`, with
+    /// the account named by id, e-mails and URLs scrubbed from its name.
+    #[test]
+    fn stats_export_follows_its_schema_and_scrubs_names() {
+        use crate::stats::{AccountStats, Coverage, DayPeak, StatsRange, StatsSummary};
+        let schema: Value =
+            serde_json::from_str(&std::fs::read_to_string(doc_path(SCHEMA_DOC)).unwrap())
+                .expect("docs/export-v1.schema.json is JSON");
+        let mut mail = account("mail me: alice@example.com", Provider::Claude);
+        mail.params
+            .insert("email".into(), "alice@example.com".into());
+        let link = account("https://u:p@host.example/a?token=1", Provider::Kimi);
+        let accounts = [mail, link];
+        let day = |n: u32, share| DayPeak {
+            day: chrono::NaiveDate::from_ymd_opt(2026, 10, n).unwrap(),
+            share,
+            is_today: n == 24,
+        };
+        let days = vec![day(23, None), day(24, Some(0.4))];
+        let summary = StatsSummary {
+            extra_spent: Default::default(),
+            range: StatsRange::Days30,
+            hits: 2,
+            average_peak: Some(0.4),
+            accounts: (0..2)
+                .map(|account_index| AccountStats {
+                    account_index,
+                    name: accounts[account_index].name.clone(),
+                    hits: 1,
+                    average_peak: Some(0.4),
+                    days_with_data: 1,
+                    days: days.clone(),
+                })
+                .collect(),
+            daily: days,
+            unknown_limits: 1,
+            retention_days: 90,
+            first_sample_at: None,
+            coverage: Coverage::Partial { days_with_data: 1 },
+        };
+        let export = StatsExport::from_summary(&summary, &accounts, Utc::now());
+        let value = serde_json::to_value(&export).unwrap();
+        let mut errors = Vec::new();
+        validate(&schema, &schema["$defs"]["Stats"], &value, "$", &mut errors);
+        assert!(errors.is_empty(), "{errors:#?}");
+        let text = value.to_string();
+        for leak in ["alice@example.com", "host.example", "token=1", "u:p"] {
+            assert!(!text.contains(leak), "{leak}: {text}");
+        }
+        assert_eq!(value["range"], "30d");
+        assert_eq!(value["coverage"]["days_with_data"], 1);
+        assert_eq!(value["accounts"][1]["name"], Provider::Kimi.label());
+        assert!(value["daily"][0]["peak"].is_null(), "a gap is not zero");
     }
 
     /// PRD 0012 RF2.2: the `/v1/limits` summary is declared in the same
