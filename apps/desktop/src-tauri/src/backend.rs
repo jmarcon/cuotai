@@ -3284,7 +3284,8 @@ impl Backend {
             monitor.flush_history(HISTORY_FLUSH);
             let recording = monitor.history_recording();
             let now = chrono::Utc::now();
-            let summary = cuotai_core::stats::summarize(&store, &accounts, range, now, &chrono::Local)?;
+            let summary =
+                cuotai_core::stats::summarize(&store, &accounts, range, now, &chrono::Local)?;
             let since = now - chrono::TimeDelta::days(i64::from(range.days()));
             let entries = store.journal(since..=now, &accounts, JOURNAL_LIMIT * 4)?;
             Ok::<_, HistoryError>((summary, entries, recording, account.is_some()))
@@ -3301,7 +3302,8 @@ impl Backend {
         if live != Some(generation) {
             return Err(STALE.into());
         }
-        let (summary, entries, recording, scoped) = read.map_err(|error| l10n_to_json(&error.l10n()))?;
+        let (summary, entries, recording, scoped) =
+            read.map_err(|error| l10n_to_json(&error.l10n()))?;
         let events = entries
             .into_iter()
             // A scoped view lists that account only, never entries of removed ones.
@@ -6790,7 +6792,10 @@ mod tests {
         assert!(all.recording);
         let only = b.stats(StatsRange::Days30, Some(0), 1).await.unwrap();
         assert_eq!(only.summary.accounts.len(), 1);
-        assert_eq!((all.indexes.as_slice(), only.indexes.as_slice()), (&[0, 1][..], &[0][..]));
+        assert_eq!(
+            (all.indexes.as_slice(), only.indexes.as_slice()),
+            (&[0, 1][..], &[0][..])
+        );
         assert_eq!(only.events.len(), 1);
         assert_eq!(only.events[0].kind, "refresh_failed");
         // No credential or provider text crosses the IPC.
