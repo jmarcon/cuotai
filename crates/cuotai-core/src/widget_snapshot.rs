@@ -267,13 +267,18 @@ fn project(account: &AccountExport) -> WidgetAccount {
         .report
         .as_ref()
         .filter(|report| report.status == Status::Ready);
+    let preserved: Vec<Metric> = account
+        .last_good
+        .iter()
+        .flat_map(|last_good| last_good.metrics.iter().map(|m| m.metric.clone()))
+        .collect();
     let reading = match (&account.last_good, current) {
         (Some(last_good), _) => Reading {
             state: WidgetState::Stale,
-            metrics: Some(&last_good.metrics),
+            metrics: Some(&preserved),
             checked_at: Some(last_good.checked_at),
             freshness: Some(Freshness::Stale),
-            binding: binding_of(account, &last_good.metrics, last_good.checked_at),
+            binding: binding_of(account, &preserved, last_good.checked_at),
             pace: &[],
         },
         (None, Some(report)) => Reading {

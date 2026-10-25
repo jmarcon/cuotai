@@ -98,13 +98,30 @@
         "resets_at": { "type": ["string", "null"], "format": "date-time" }
       }
     },
+    "LastGoodMetric": {
+      "type": "object",
+      "required": ["label", "used", "limit", "remaining", "unit", "kind", "window", "period", "resets_at", "expired"],
+      "properties": {
+        "label": { "type": "string" },
+        "used": { "type": ["number", "null"] },
+        "limit": { "type": ["number", "null"] },
+        "remaining": { "type": ["number", "null"] },
+        "unit": { "type": "string" },
+        "kind": { "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] },
+        "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }] },
+        "period": { "type": ["string", "null"] },
+        "resets_at": { "type": ["string", "null"], "format": "date-time" },
+        "expired": { "type": "boolean", "description": "The window renewed after the reading; used, limit and remaining are then null (PRD 0033 RF2)." },
+        "renewed_waiting": { "type": "object", "description": "Localized text of an expired metric." }
+      }
+    },
     "LastGood": {
       "type": "object",
       "required": ["checked_at", "age_seconds", "metrics"],
       "properties": {
         "checked_at": { "type": "string", "format": "date-time", "description": "Original measurement time." },
         "age_seconds": { "type": "integer", "minimum": 0 },
-        "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" } }
+        "metrics": { "type": "array", "items": { "$ref": "#/$defs/LastGoodMetric" } }
       }
     },
     "Binding": {

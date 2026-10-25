@@ -456,6 +456,7 @@
   "login.zed.oauth.completion_notice": "Inicio de sesión autorizado; los parámetros de la cuenta se completan automáticamente.",
   "login.zed.oauth.help": "Flujo EXPERIMENTAL basado en el cliente nativo del proveedor (interfaz interna, sin soporte oficial; puede fallar o ser restringido en cualquier momento). El consentimiento ocurre en el navegador o código de dispositivo; no se escribe ninguna contraseña ni token en Cuotai.",
   "login.zed.oauth.label": "Inicio de sesión nativo en el navegador",
+  "metric.renewed_waiting": "Renovada a las {time}; esperando una lectura.",
   "metric_window.daily": "diaria",
   "metric_window.monthly": "mensual",
   "metric_window.weekly": "semanal",
