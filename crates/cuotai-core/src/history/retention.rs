@@ -134,11 +134,51 @@ struct JournalRow<'a> {
     occurred_at: DateTime<Utc>,
     event: &'a str,
     account: Option<&'a str>,
+    /// PRD 0036 RF7.3: the aggregator of a connection's event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent: Option<&'a str>,
     metric: Option<&'a str>,
     threshold: Option<u8>,
     used_ratio: Option<f64>,
     resets_at: Option<DateTime<Utc>>,
     category: Option<&'a str>,
+}
+
+const JOURNAL_CSV_HEADER: &str =
+    "occurred_at,event,account,parent,metric,threshold,used_ratio,resets_at,category";
+
+impl JournalRow<'_> {
+    fn csv(&self) -> String {
+        let text = |value: Option<&str>| value.map(csv_text).unwrap_or_default();
+        [
+            self.occurred_at.to_rfc3339(),
+            self.event.to_owned(),
+            text(self.account),
+            text(self.parent),
+            text(self.metric),
+            self.threshold.map(|v| v.to_string()).unwrap_or_default(),
+            self.used_ratio.map(|v| v.to_string()).unwrap_or_default(),
+            self.resets_at.map(|at| at.to_rfc3339()).unwrap_or_default(),
+            self.category.unwrap_or_default().to_owned(),
+        ]
+        .join(",")
+    }
+}
+
+impl<'a> JournalRow<'a> {
+    fn of(entry: &'a super::JournalEntry) -> Self {
+        Self {
+            occurred_at: entry.occurred_at,
+            event: entry.kind.name(),
+            account: entry.account.as_deref(),
+            parent: entry.parent.as_deref(),
+            metric: entry.metric.as_deref(),
+            threshold: entry.threshold,
+            used_ratio: entry.used_ratio,
+            resets_at: entry.resets_at,
+            category: entry.category.map(|category| category.name()),
+        }
+    }
 }
 
 const CSV_HEADER: &str =
@@ -485,22 +525,22 @@ impl HistoryStore {
                 }
             }
         }
+        if format == ExportFormat::Csv {
+            // RF3.3: the journal follows the samples as a second table after
+            // a blank line, with its own header.
+            let entries = self.journal_between(start, end, accounts, usize::MAX)?;
+            write(out, &format!("\n{JOURNAL_CSV_HEADER}\n"))?;
+            for entry in &entries {
+                write(out, &(JournalRow::of(entry).csv() + "\n"))?;
+            }
+        }
         if format == ExportFormat::Json {
             // RF3.3: the journal travels in its own section.
             write(out, "\n],\"journal\":[")?;
             let entries = self.journal_between(start, end, accounts, usize::MAX)?;
             for (index, entry) in entries.iter().enumerate() {
-                let json = serde_json::to_string(&JournalRow {
-                    occurred_at: entry.occurred_at,
-                    event: entry.kind.name(),
-                    account: entry.account.as_deref(),
-                    metric: entry.metric.as_deref(),
-                    threshold: entry.threshold,
-                    used_ratio: entry.used_ratio,
-                    resets_at: entry.resets_at,
-                    category: entry.category.map(|category| category.name()),
-                })
-                .map_err(|_| HistoryError::Export)?;
+                let json = serde_json::to_string(&JournalRow::of(entry))
+                    .map_err(|_| HistoryError::Export)?;
                 let comma = if index == 0 { "" } else { "," };
                 write(out, &format!("{comma}\n{json}"))?;
             }
@@ -868,7 +908,12 @@ mod tests {
         let lines: Vec<&str> = csv.lines().collect();
         assert_eq!(lines[0], CSV_HEADER);
         assert_eq!(
-            lines[1..],
+            lines[5..],
+            ["", JOURNAL_CSV_HEADER],
+            "an empty journal section follows the samples"
+        );
+        assert_eq!(
+            lines[1..5],
             [
                 format!("\"'=alpha, \"\"main\"\"\",groq,5h,{five_h},%,quota,window_5h,{},10,100,,{resets}", t0().to_rfc3339()),
                 format!("\"'=alpha, \"\"main\"\"\",groq,5h,{five_h},%,quota,window_5h,{},12.5,100,,{resets}", (t0() + hours(1)).to_rfc3339()),

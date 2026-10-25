@@ -156,3 +156,45 @@ fn retention_erase_and_export_follow_the_history() {
     history.erase_all().unwrap();
     assert_eq!(history.journal(.., &accounts, 20), Ok(Vec::new()));
 }
+
+#[test]
+fn a_connection_event_keeps_its_aggregator_and_travels_in_the_csv() {
+    let dir = tempfile::tempdir().unwrap();
+    let history = store(&dir.path().join("history.sqlite3"), "one");
+    let accounts = config(CONFIG).accounts;
+    let (router, other) = (&accounts[0], &accounts[1]);
+    let mut sub = event(router, EventKind::QuotaExhausted, 0);
+    sub.account_id = format!("{}/c1", router.state_key());
+    sub.parent = Some(router.key());
+    sub.metric = Some(MetricRef {
+        label: "=big, \"x\"".into(),
+        window: None,
+    });
+    assert_eq!(history.journal_record(&[sub]), Ok(1));
+
+    let entries = history.journal(.., &accounts, 20).unwrap();
+    assert_eq!(entries[0].account, None);
+    assert_eq!(entries[0].parent.as_deref(), Some(router.name.as_str()));
+    assert!(entries[0].is_connection);
+
+    let mut csv = Vec::new();
+    history
+        .export(&accounts, None, .., ExportFormat::Csv, &mut csv)
+        .unwrap();
+    let csv = String::from_utf8(csv).unwrap();
+    let (_, journal) = csv.split_once("\n\noccurred_at,").unwrap();
+    let mut lines = journal.lines();
+    assert_eq!(
+        lines.next(),
+        Some("event,account,parent,metric,threshold,used_ratio,resets_at,category")
+    );
+    let row = lines.next().unwrap();
+    assert!(row.contains(",quota_exhausted,,"), "{row}");
+    assert!(row.contains(&router.name), "{row}");
+    assert!(row.contains("\"'=big, \"\"x\"\"\",90,0.9"), "{row}");
+
+    // Erasing the aggregator erases its connections' events too.
+    history.erase_account(router).unwrap();
+    assert_eq!(history.journal(.., &accounts, 20), Ok(Vec::new()));
+    let _ = other;
+}

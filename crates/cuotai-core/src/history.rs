@@ -94,7 +94,7 @@ const WAL_SIZE_LIMIT: i64 = 4 << 20;
 /// Times are UTC unix milliseconds. Version 2 indexes samples by age (the
 /// file-wide retention and size pruning, RF4) and adds `meta` (the
 /// resolution reduction's progress).
-const MIGRATIONS: [&str; 4] = [
+const MIGRATIONS: [&str; 5] = [
     "CREATE TABLE series (
     config_key TEXT NOT NULL,
     account_digest TEXT NOT NULL,
@@ -127,6 +127,9 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;"
     "ALTER TABLE series ADD COLUMN billing TEXT NOT NULL DEFAULT 'included';",
     // Version 4 (PRD 0026 RF3): the event journal.
     journal::MIGRATION,
+    // Version 5 (PRD 0026 RF3.2): the digest of the aggregator account for
+    // an event of one of its 9router connections (PRD 0036 RF7.3).
+    journal::PARENT_MIGRATION,
 ];
 
 /// PRD 0029 RF2.2: `legacy_digest` (the pre-0029 series identity,

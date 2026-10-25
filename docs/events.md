@@ -184,7 +184,7 @@ Every front end that records the measurement history also keeps a journal of the
 
 - **What a row stores:** the time, the event name, a digest of the account's stable id (so renaming an account keeps its entries), the metric label, the threshold, the used share, the reset time, the failure category and the provider incident state. Never a message, note, URL, e-mail or token; the table has no column for them. A test writes every kind with credentials and addresses in the readings and checks none reaches the file.
 - **No duplicates:** a unique index on (account, event, metric, minute) lets two processes on one profile write the same transition once.
-- **Retention and erasure follow the history:** entries are pruned at the history retention (7 to 365 days), removed with "Erase this account's history" or "Erase all history", and written to the JSON history export in its own `journal` section.
+- **Retention and erasure follow the history:** entries are pruned at the history retention (7 to 365 days), removed with "Erase this account's history" or "Erase all history", and written to the history exports: the JSON export has a `journal` section, and the CSV export follows the samples with a blank line and a second table with its own header. An event of a 9router connection carries its aggregator as `parent` (the journal keeps only a digest of the aggregator and resolves its current name; the connection itself is never named).
 - **Reading it:** `cuotai --events-log [--days N] [--json]`, the `S` screen of the dashboard and the "Recent events" list of the desktop Stats view. An entry of an account no longer in the configuration reads "Removed account".
 
 ## Privacy

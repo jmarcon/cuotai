@@ -43,12 +43,21 @@ CREATE UNIQUE INDEX journal_unique
 CREATE INDEX journal_by_time ON journal (config_key, occurred_at);
 CREATE INDEX journal_by_age ON journal (occurred_at);";
 
+/// Schema step 5: the aggregator's digest for a connection's event.
+pub(super) const PARENT_MIGRATION: &str = "ALTER TABLE journal ADD COLUMN parent_digest TEXT;";
+
 const MINUTE_MS: i64 = 60_000;
 
 /// Digest of the account id alone: the journal's account identity, equal to
 /// the series digest of the same account.
 pub(super) fn account_digest(account_id: &str) -> String {
     digest(format!("cuotai.series.v2\u{1f}{account_id}").as_bytes())
+}
+
+/// The aggregator's stable id inside a connection's id
+/// (`<aggregator id>/<connection>`, PRD 0036 RF5.1).
+fn connection_parent(account_id: &str) -> &str {
+    account_id.split('/').next().unwrap_or(account_id)
 }
 
 /// One journal line, ready to show.
@@ -61,6 +70,13 @@ pub struct JournalEntry {
     pub account: Option<String>,
     /// Index of the account in the `accounts` slice given to the query.
     pub account_index: Option<usize>,
+    /// PRD 0036 RF7.3: for an event of an aggregator's connection, the
+    /// aggregator account's current name (`None` when the aggregator left
+    /// the configuration or the event is not a connection's).
+    pub parent: Option<String>,
+    /// Whether the event belongs to a connection of an aggregator, even when
+    /// the aggregator is no longer configured.
+    pub is_connection: bool,
     pub metric: Option<String>,
     pub threshold: Option<u8>,
     pub used_ratio: Option<f64>,
@@ -112,8 +128,8 @@ impl HistoryStore {
             let mut insert = tx.prepare(
                 "INSERT OR IGNORE INTO journal (config_key, account_digest, occurred_at, minute,
                     kind, metric_digest, metric_label, threshold, used_ratio, resets_at, category,
-                    incident, projected_at, spent, currency)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL, NULL)",
+                    incident, projected_at, spent, currency, parent_digest)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL, NULL, ?14)",
             )?;
             for event in events {
                 let at = millis(event.occurred_at);
@@ -136,6 +152,10 @@ impl HistoryStore {
                     values.category.map(FailureCategory::name),
                     values.incident.map(tag),
                     values.projected_at.map(millis),
+                    event
+                        .parent
+                        .as_ref()
+                        .map(|_| account_digest(connection_parent(&event.account_id))),
                 ])?;
             }
         }
@@ -170,7 +190,7 @@ impl HistoryStore {
         };
         let mut query = db.prepare(
             "SELECT account_digest, occurred_at, kind, metric_label, threshold, used_ratio,
-                    resets_at, category, incident, projected_at, spent, currency
+                    resets_at, category, incident, projected_at, spent, currency, parent_digest
              FROM journal WHERE config_key = ?1 AND occurred_at BETWEEN ?2 AND ?3
              ORDER BY occurred_at DESC, rowid DESC LIMIT ?4",
         )?;
@@ -191,6 +211,10 @@ impl HistoryStore {
             };
             let who: String = row.get(0)?;
             let account_index = digests.iter().position(|known| *known == who);
+            let parent_digest: Option<String> = row.get(12)?;
+            let parent_index = parent_digest
+                .as_deref()
+                .and_then(|wanted| digests.iter().position(|known| known == wanted));
             let category = row
                 .get::<_, Option<String>>(7)?
                 .and_then(|name| failure_category(&name));
@@ -234,6 +258,8 @@ impl HistoryStore {
                 kind,
                 account: account_index.map(|index| accounts[index].name.clone()),
                 account_index,
+                parent: parent_index.map(|index| accounts[index].name.clone()),
+                is_connection: parent_digest.is_some(),
                 metric: metric_label,
                 threshold: current.threshold,
                 used_ratio: current.used_ratio,
@@ -261,7 +287,8 @@ pub(super) fn erase_account(
     account_id: &str,
 ) -> rusqlite::Result<usize> {
     db.execute(
-        "DELETE FROM journal WHERE config_key = ?1 AND account_digest = ?2",
+        "DELETE FROM journal WHERE config_key = ?1
+           AND (account_digest = ?2 OR parent_digest = ?2)",
         rusqlite::params![config_key, account_digest(account_id)],
     )
 }

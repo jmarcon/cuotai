@@ -19,9 +19,9 @@
 |---|---|---|
 | RF1 | vNEXT | Core `stats::summarize` (hits, average peak, daily peaks, coverage, retention note) and RF1.5 "extra spent" (`Metric.billing == Overage`, stored per series since schema version 3, summed per unit). |
 | RF2 | vNEXT | Core `resets::timeline` (lanes, later, unknown, share level) and `timeline_of_config`. |
-| RF3 | vNEXT | `journal` table (schema version 4), `HistoryStore::journal_record`/`journal`, written by the desktop, the interactive TUI and `--watch`/`--serve` through `watch::JournalTap`; retention, erase and the JSON export. The CSV export has no journal section. `quota_exhaustion_projected` is not journaled by the front ends yet (they pass no pace input), and `spent`/`currency` columns exist but no event fills them until PRD 0023/0024 events do. |
+| RF3 | vNEXT | `journal` table (schema version 4), `HistoryStore::journal_record`/`journal`, written by the desktop, the interactive TUI and `--watch`/`--serve` through `watch::JournalTap`; retention, erase and the JSON and CSV exports (the CSV carries the journal as a second table after a blank line, with its own header). Schema version 5 adds `parent_digest`: an event of a 9router connection keeps its aggregator (`JournalEntry::parent`, the `parent` field of the exports, `--events-log`), and erasing the aggregator erases its connections' events. `quota_exhaustion_projected` is not journaled by the front ends yet (they pass no pace input), and `spent`/`currency` columns exist but no event fills them until PRD 0023/0024 events do. |
 | RF4 | vNEXT | Desktop Stats view in the main window and the compact popover drill-in; Tauri `stats` command guarded by the generation. |
-| RF5 | vNEXT | Reset timeline in the Stats view and under the popover accounts; a lane opens its account. Following the PRD 0025 menu-bar selection waits for 0025. |
+| RF5 | vNEXT | Reset timeline in the Stats view and under the popover accounts; a lane opens its account. The popover timeline follows the PRD 0025 menu-bar selection (every account in Auto). |
 | RF6 | vNEXT | TUI screen (`S`) and `--stats`, `--timeline`, `--events-log`. |
 | RF7 | vNEXT | `docs/tui.md`, `docs/events.md`, `docs/gui-features.md` and the README. |
 

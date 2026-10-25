@@ -279,10 +279,12 @@ pub(crate) fn event_rows(events: &[JournalEntry], locale: &str) -> Vec<Row> {
         rows.push((Tone::Muted, "Nenhum evento registrado.".to_owned()));
     }
     for entry in events {
-        let who = entry.account.as_deref().map_or_else(
-            || cuotai_core::history::removed_account().resolve(locale),
-            |name| safe(name).into_owned(),
-        );
+        let who = match (entry.account.as_deref(), entry.parent.as_deref()) {
+            (Some(name), _) => safe(name).into_owned(),
+            // PRD 0036 RF7.3: a connection is named by its aggregator.
+            (None, Some(parent)) => format!("{} › 9router", safe(parent)),
+            (None, None) => cuotai_core::history::removed_account().resolve(locale),
+        };
         let tone = match entry.kind {
             cuotai_core::events::EventKind::QuotaExhausted
             | cuotai_core::events::EventKind::AccountBlocked
@@ -326,6 +328,7 @@ pub(crate) fn events_json(events: &[JournalEntry], locale: &str) -> serde_json::
             "occurred_at": entry.occurred_at,
             "event": entry.kind.name(),
             "account": entry.account,
+            "parent": entry.parent,
             "metric": entry.metric,
             "threshold": entry.threshold,
             "used_ratio": entry.used_ratio,
