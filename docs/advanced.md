@@ -9,6 +9,7 @@ Accounts live in a TOML file; the desktop app and the terminal dashboard edit it
 - **Where it is.** The terminal and the command line look at `--config`, then `CUOTAI_CONFIG`, then an existing `./cuotai.toml`, then `<OS config dir>/cuotai/config.toml`. The desktop app uses `CUOTAI_CONFIG`, the file chosen in **Settings › Advanced › Files**, then the OS path, and never reads `./cuotai.toml`. Details and exit codes are in [`tui.md`](tui.md#configuration-precedence-and-exit-codes).
 - **Credentials are never in the file.** An account stores the **name** of an environment variable (`credential_env = "OPENAI_ADMIN_KEY"`) or a reference to an entry in the system vault (OAuth sign-ins and pasted web sessions). See [`oauth.md`](oauth.md) for the native logins and [`providers.md`](providers.md) for each provider's credential, default variable, authentication caveats and per-query cost warnings. Cuotai does not load `.env` files.
 - **Intervals.** `refresh_seconds` is the global default (300 s); an account can set its own (minimum 30 s; AWS Bedrock, which bills per query, never below 300 s).
+- **Groups and the best account.** `group = "coding"` on an account (a slug of up to 32 lowercase letters, digits, `-` or `_`) says it can replace the other accounts with the same group; an optional `[[groups]]` table (`id`, `label`, `order`) names and orders them. The best account now of each group of two or more appears as `best: [{ group, account }]` in `--json-v1` and `/v1/limits`, and each account carries its `group` ([`export-v1.md`](export-v1.md)). Accounts without a group are compared only with the other ungrouped accounts of their provider (`provider:<slug>`). Advice only.
 
 ## Quick command-line queries
 
@@ -102,6 +103,7 @@ Every successful reading (TUI, desktop app, `--once`, `--json`, `--json-v1`, `--
 |---|---|
 | `CUOTAI_CONFIG` | Accounts file to use (terminal and desktop). |
 | `CUOTAI_LANG` | Locale for the texts delivered by the core in the terminal (`en-US`, `es`, `it`, `pt-BR`...). |
+| `CUOTAI_PACE_UNIT` | `points` (default) or `percent`: how the terminal shows the pace deviation (`--pace-unit` wins). |
 | `CUOTAI_STATUS=1` | Show providers' public status in the terminal and `--once` / `--json` (`--no-status` always wins). |
 | `CUOTAI_NO_ANIMATIONS=1`, `CUOTAI_ANIMATIONS=1` | Turn terminal animations off or back on (see [`tui.md`](tui.md#animations)). |
 | `CUOTAI_USER_DIR` | Folder for user themes and languages (desktop). |

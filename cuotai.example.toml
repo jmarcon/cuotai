@@ -14,11 +14,21 @@ refresh_seconds = 300 # global default for accounts without their own interval
 concurrency = 4
 timeout_seconds = 30
 
+# Optional: accounts that can replace one another share a `group` (a slug of up to 32 lowercase letters,
+# digits, - or _). Cuotai then marks the best account now of each group, as advice only. Without a group, only
+# accounts of the same provider are compared. [[groups]] just gives a group a display name and a position;
+# membership stays on the account.
+# [[groups]]
+# id = "coding"
+# label = "Coding assistants"
+# order = 1
+
 [[accounts]]
 name = "OpenAI API"
 provider = "open_ai_api"
 credential_env = "OPENAI_ADMIN_KEY"
 # refresh_seconds = 60 # optional, for this account only (minimum 30 s)
+# group = "coding" # optional, see the note above the first account
 # params = { project_ids = "proj_1,proj_2", models = "gpt-4.1" }
 
 [[accounts]]

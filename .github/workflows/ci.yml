@@ -310,6 +310,10 @@ jobs:
       # PRD 0026 RF4/RF5: the Stats view and the reset timeline render the
       # core's answers honestly (gaps, "—", accessible names) in every locale.
       - run: node scripts/test-stats-ui.mjs
+      # PRD 0024 RF1.3/RF4.3/RF7.3: the pace chip in points and percent, the
+      # forecast callout, the reset pair and the best-account advice render
+      # from the core texts in every built-in locale.
+      - run: node scripts/test-pace-forecast-ui.mjs
       # PRD 0019 RF5.2: no-network smoke of the TUI binary on each OS.
       # `--list-providers` must exit 0; `--once` on the fixture names only
       # never-defined credential variables, so every account is classified
