@@ -1677,10 +1677,8 @@ async function applyPreferences(s, { boot = false } = {}) {
   applyPace(s.show_pace);
   if (was.pace !== showPace) changed.add("show_pace");
   for (const [key, value] of [["theme", theme.id], ["theme_mode", theme.mode], ["sort", sortMode], ["group_recharging", groupRecharging]]) mirrorPreference(key, value);
-  if (s.locale && s.locale !== currentLocale()) {
-    if (boot) mirrorPreference("locale", s.locale);
-    else { await setLocale(s.locale); changed.add("locale"); }
-  }
+  if (s.locale && boot) mirrorPreference("locale", s.locale); // the language loads right after: it picks the mirror up
+  else if (s.locale && s.locale !== currentLocale()) { await setLocale(s.locale); changed.add("locale"); }
   return changed;
 }
 const THEME_MODE_IDS = ["system", "light", "dark"];
