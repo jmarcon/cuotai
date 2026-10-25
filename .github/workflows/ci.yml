@@ -289,6 +289,12 @@ jobs:
       # PRD 0020 RF1/RF2: the Settings window's page registry, sidebar
       # navigation and the page of every control of the old dialog.
       - run: node scripts/test-settings-window-ui.mjs
+      # PRD 0020 RF6/RF8/RF9: every row is searchable in every catalog, and
+      # the responsive shell and style rules hold.
+      - run: node scripts/test-settings-search-ui.mjs
+      # PRD 0020 RF7: preferences come from the shell's settings and apply
+      # by key across windows; storage events no longer move them.
+      - run: node scripts/test-settings-sync-ui.mjs
       # PRD 0002 RF1.2: the other-config banner is dismissable and shows
       # each (TUI path, app path) pair in one session only.
       - run: node scripts/test-other-config-ui.mjs
