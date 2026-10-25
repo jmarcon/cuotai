@@ -203,7 +203,19 @@ impl JournalTap {
         export: &Export,
         now: DateTime<Utc>,
     ) -> Result<usize, crate::history::HistoryError> {
-        store.journal_record(&self.watcher.observe(export, now))
+        self.observe_with(store, export, now, |_, _| None)
+    }
+
+    /// [`Self::observe`] with each account's pace input (PRD 0024 RF5), so
+    /// `quota_exhaustion_projected` is journaled like the hooks see it.
+    pub fn observe_with(
+        &mut self,
+        store: &crate::history::HistoryStore,
+        export: &Export,
+        now: DateTime<Utc>,
+        pace: impl Fn(usize, &crate::Report) -> Option<(std::time::Duration, Vec<Vec<Point>>)>,
+    ) -> Result<usize, crate::history::HistoryError> {
+        store.journal_record(&self.watcher.observe_with(export, now, pace))
     }
 }
 

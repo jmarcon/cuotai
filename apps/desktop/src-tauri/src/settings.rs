@@ -2,7 +2,7 @@
 //! Arquivo `desktop.json` na pasta padrão de configuração: pasta de temas e idiomas e o
 //! `cuotai.toml` escolhido pelo usuário (só o caminho; nunca dentro do TOML).
 use cuotai_core::{
-    alerts::{AlertPrefs, THRESHOLD_RANGE},
+    alerts::{AlertPrefs, Lead, THRESHOLD_RANGE},
     history::Retention,
     resets::{NotifyWhen, Prefs},
     tray::{TraySelection, TrayStyle},
@@ -513,6 +513,10 @@ pub struct AlertSettings {
     /// one; every other aggregator alerts only when a whole pool runs out.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub pool_each: BTreeSet<String>,
+    /// PRD 0024 RF4.1: minutes before a projected exhaustion to warn (15,
+    /// 30 or 60); absent = off, as the core requires.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projected_lead_minutes: Option<u16>,
 }
 
 impl Default for AlertSettings {
@@ -527,6 +531,7 @@ impl Default for AlertSettings {
             overage: core.overage,
             muted: BTreeMap::new(),
             pool_each: BTreeSet::new(),
+            projected_lead_minutes: None,
         }
     }
 }
@@ -577,6 +582,10 @@ impl AlertSettings {
                         .collect()
                 })
                 .unwrap_or_default(),
+            projected_lead_minutes: value["projected_lead_minutes"]
+                .as_u64()
+                .and_then(Lead::from_minutes)
+                .map(Lead::minutes),
         }
     }
 
@@ -601,6 +610,12 @@ impl AlertSettings {
             }
         }
         next
+    }
+
+    /// The projected-exhaustion lead (PRD 0024 RF2.7), if turned on.
+    pub fn projected(&self) -> Option<Lead> {
+        self.projected_lead_minutes
+            .and_then(|minutes| Lead::from_minutes(u64::from(minutes)))
     }
 
     /// Thresholds (each 10 to 99; repeats collapse) and the exhaustion and
@@ -651,6 +666,10 @@ impl AlertSettings {
         prefs.overage = self.overage;
         prefs.muted_accounts = off_accounts.clone();
         prefs.muted_metrics = self.muted.clone();
+        prefs.projected = self.projected();
+        // The projected warning has its own switch: the evaluator runs for
+        // it too, and `Notices` keeps the other kinds to `enabled`.
+        prefs.enabled |= prefs.projected.is_some();
         prefs
     }
 }
@@ -2095,5 +2114,33 @@ mod tests {
         let old = BTreeMap::from([("aggregators_in_all".to_string(), "hidden".to_string())]);
         migrate_local(&mut fresh, &old);
         assert_eq!(fresh.aggregators_in_all.as_deref(), Some("hidden"));
+    }
+
+    /// PRD 0024 RF4.1: the projected-exhaustion lead is absent (off) by
+    /// default, stored only as 15, 30 or 60 and read leniently.
+    #[test]
+    fn the_projected_lead_is_off_by_default_and_only_15_30_or_60() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(read_alerts(&file).projected(), None);
+        assert!(!AlertSettings::default().evaluator(&BTreeSet::new()).enabled);
+        let on = AlertSettings {
+            projected_lead_minutes: Some(30),
+            ..AlertSettings::default()
+        };
+        write_alerts(&file, &on).unwrap();
+        assert_eq!(read_alerts(&file).projected(), Some(Lead::Min30));
+        let prefs = on.evaluator(&BTreeSet::new());
+        assert!(prefs.enabled, "the projected warning runs the evaluator");
+        assert_eq!(prefs.projected, Some(Lead::Min30));
+        for bad in [r#"20"#, r#""30""#, r#"0"#, r#"null"#] {
+            fs::write(
+                &file,
+                format!(r#"{{"alerts":{{"enabled":true,"projected_lead_minutes":{bad}}}}}"#),
+            )
+            .unwrap();
+            let read = read_alerts(&file);
+            assert!(read.enabled && read.projected().is_none(), "{bad}");
+        }
     }
 }

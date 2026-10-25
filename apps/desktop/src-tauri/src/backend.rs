@@ -986,6 +986,9 @@ fn pending_view(
     }
 }
 
+/// PRD 0024 RF5: the pace input of each exported account, in export order.
+type PaceTable = Vec<Option<(Duration, Vec<Vec<Point>>)>>;
+
 /// Position of each slot in the core's "most restrictive first" order; the
 /// stable sort keeps the manual order for ties and accounts without a value.
 fn binding_ranks(slots: &[Option<Report>]) -> Vec<usize> {
@@ -1024,16 +1027,19 @@ fn last_reading(cycle: &RefreshCycle, index: usize) -> Option<&Report> {
 fn finish_account(
     cycle: &mut RefreshCycle,
     notices: &mut Notices,
+    source: (&Monitor, &Config),
     index: usize,
     report: Report,
     token: cuotai_core::refresh::Generation,
     now: chrono::DateTime<chrono::Utc>,
 ) {
     notices.adopt_reports(last_reading(cycle, index).into_iter().chain([&report]));
-    let events = notices.assess(last_reading(cycle, index), &report, now);
+    let pace = notice_pace(notices, source, index, &report);
+    let input = pace.as_ref().map(NoticePace::input);
+    let events = notices.assess(last_reading(cycle, index), &report, now, input.as_ref());
     if cycle.finish_account(index, Some(report), token, Instant::now()) {
         if let Some(next) = cycle.account_report(index) {
-            notices.record(next, events, now);
+            notices.record(next, events, now, input.as_ref());
         }
     }
 }
@@ -1043,6 +1049,7 @@ fn finish_account(
 fn finish_full(
     cycle: &mut RefreshCycle,
     notices: &mut Notices,
+    source: (&Monitor, &Config),
     snapshot: cuotai_core::Snapshot,
     token: cuotai_core::refresh::Generation,
     now: chrono::DateTime<chrono::Utc>,
@@ -1051,19 +1058,64 @@ fn finish_full(
         .filter_map(|index| last_reading(cycle, index).cloned())
         .collect();
     notices.adopt_reports(previous.iter().chain(&snapshot.reports));
+    let paces: Vec<Option<NoticePace>> = snapshot
+        .reports
+        .iter()
+        .enumerate()
+        .map(|(index, report)| notice_pace(notices, source, index, report))
+        .collect();
     let events: Vec<_> = snapshot
         .reports
         .iter()
         .enumerate()
-        .map(|(index, report)| notices.assess(last_reading(cycle, index), report, now))
+        .map(|(index, report)| {
+            let input = paces[index].as_ref().map(NoticePace::input);
+            notices.assess(last_reading(cycle, index), report, now, input.as_ref())
+        })
         .collect();
     if cycle.finish_full(Some(snapshot), token, Instant::now()) {
         for (index, events) in events.into_iter().enumerate() {
             if let Some(next) = cycle.account_report(index) {
-                notices.record(next, events, now);
+                let input = paces[index].as_ref().map(NoticePace::input);
+                notices.record(next, events, now, input.as_ref());
             }
         }
     }
+}
+
+/// PRD 0024 RF3.2: what the projected warning reads beyond the reports: the
+/// account's effective refresh interval and the recorded points ending at
+/// the reading (the same lookback as its pace, FIX-11).
+struct NoticePace {
+    interval: Duration,
+    recent: Vec<Vec<Point>>,
+}
+
+impl NoticePace {
+    fn input(&self) -> cuotai_core::alerts::PaceInput<'_> {
+        cuotai_core::alerts::PaceInput {
+            interval: self.interval,
+            recent: &self.recent,
+        }
+    }
+}
+
+/// The pace input of `report` (account `index`), only while the projected
+/// warning is on: the history is not read otherwise.
+fn notice_pace(
+    notices: &Notices,
+    (monitor, config): (&Monitor, &Config),
+    index: usize,
+    report: &Report,
+) -> Option<NoticePace> {
+    if !notices.projected_on() {
+        return None;
+    }
+    let account = config.accounts.get(index)?;
+    Some(NoticePace {
+        interval: Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds)),
+        recent: monitor.recent_points(index, &report.metrics, report.checked_at),
+    })
 }
 
 fn next_notice_view(
@@ -1282,7 +1334,10 @@ impl Inner {
     /// PRD 0013 RF4: what the hooks watch: the `hooks.toml` beside the
     /// loaded TOML and the `export::v1` of the live cycle at `now` (the
     /// same state the app shows; no query).
-    fn hooks_input(&self, now: chrono::DateTime<chrono::Utc>) -> Option<(PathBuf, Export)> {
+    fn hooks_input(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Option<(PathBuf, Export, PaceTable)> {
         let l = self.loaded.as_ref()?;
         let export = Export::from_cycle_with_history(
             &l.file.config,
@@ -1293,7 +1348,27 @@ impl Inner {
             ExportOptions::default(),
             |index, metrics, at| l.monitor.recent_points(index, metrics, at),
         );
-        Some((cuotai_core::hooks::Hooks::path_beside(&l.file.path), export))
+        // PRD 0024 RF5: the pace input of each account's reading, so the
+        // hooks can see a projected exhaustion (no query; the history only).
+        let config = &l.file.config;
+        let pace = export
+            .accounts
+            .iter()
+            .map(|account| {
+                let report = account.report.as_ref()?;
+                let source = config.accounts.get(account.index)?;
+                Some((
+                    Duration::from_secs(source.effective_refresh_seconds(config.refresh_seconds)),
+                    l.monitor
+                        .recent_points(account.index, &report.metrics, report.checked_at),
+                ))
+            })
+            .collect();
+        Some((
+            cuotai_core::hooks::Hooks::path_beside(&l.file.path),
+            export,
+            pace,
+        ))
     }
 
     /// The `hooks.toml` beside the loaded TOML.
@@ -1585,20 +1660,36 @@ impl Backend {
                 .and_then(|l| l.monitor.history())
                 .and_then(|store| {
                     g.hooks_input(chrono::Utc::now())
-                        .map(|(_, export)| (store, export))
+                        .map(|(_, export, table)| (store, export, table))
                 });
             (g.view(), watched, journaled)
         };
-        if let Some((store, export)) = journaled {
-            let _ = self
-                .journal
-                .lock()
-                .await
-                .observe(&store, &export, export.generated_at);
+        if let Some((store, export, table)) = journaled {
+            // PRD 0024 RF5: the journal sees projected exhaustions too.
+            let pace = |index: usize, _: &Report| {
+                let position = export
+                    .accounts
+                    .iter()
+                    .position(|account| account.index == index)?;
+                table.get(position)?.clone()
+            };
+            let _ = self.journal.lock().await.observe_with(
+                &store,
+                &export,
+                export.generated_at,
+                pace,
+            );
         }
-        if let Some((path, export)) = watched {
+        if let Some((path, export, table)) = watched {
             let mut hooks = self.hooks.lock().await;
-            if hooks.observe(&path, &export, export.generated_at) {
+            let pace = |index: usize, _: &Report| {
+                let position = export
+                    .accounts
+                    .iter()
+                    .position(|account| account.index == index)?;
+                table.get(position)?.clone()
+            };
+            if hooks.observe_with(&path, &export, export.generated_at, &pace) {
                 let badge = hooks.view(Some(&path)).badge();
                 drop(hooks);
                 self.inner.lock().await.hooks = badge;
@@ -2206,7 +2297,14 @@ impl Backend {
                 loaded, notices, ..
             } = &mut *g;
             if let Some(l) = loaded.as_mut() {
-                finish_full(&mut l.cycle, notices, snapshot, token, chrono::Utc::now());
+                finish_full(
+                    &mut l.cycle,
+                    notices,
+                    (&l.monitor, &l.file.config),
+                    snapshot,
+                    token,
+                    chrono::Utc::now(),
+                );
                 for slot in l.tokens.iter_mut() {
                     if *slot == Some(token) {
                         *slot = None;
@@ -2248,6 +2346,7 @@ impl Backend {
                 finish_account(
                     &mut l.cycle,
                     notices,
+                    (&l.monitor, &l.file.config),
                     index,
                     report,
                     token,
@@ -5381,13 +5480,37 @@ mod tests {
             } = &mut *g;
             let l = loaded.as_mut().unwrap();
             let first = l.cycle.begin(0).unwrap();
-            finish_account(&mut l.cycle, notices, 0, reading(50.0, 10), first, now);
+            finish_account(
+                &mut l.cycle,
+                notices,
+                (&l.monitor, &l.file.config),
+                0,
+                reading(50.0, 10),
+                first,
+                now,
+            );
             // A late result of a superseded query is dropped by the cycle:
             // its crossing is neither delivered nor remembered.
-            finish_account(&mut l.cycle, notices, 0, reading(95.0, 5), first, now);
+            finish_account(
+                &mut l.cycle,
+                notices,
+                (&l.monitor, &l.file.config),
+                0,
+                reading(95.0, 5),
+                first,
+                now,
+            );
             assert_eq!(notices.tick(&l.file.config, &[], now, &titles).delivered, 0);
             let token = l.cycle.begin(0).unwrap();
-            finish_account(&mut l.cycle, notices, 0, reading(92.0, 1), token, now);
+            finish_account(
+                &mut l.cycle,
+                notices,
+                (&l.monitor, &l.file.config),
+                0,
+                reading(92.0, 1),
+                token,
+                now,
+            );
             assert_eq!(notices.tick(&l.file.config, &[], now, &titles).delivered, 1);
             assert!(titles.0.borrow()[0].contains("90%"), "{:?}", titles.0);
             // A full sweep is judged the same way.
@@ -5397,7 +5520,14 @@ mod tests {
                 finished_at: now,
                 reports: vec![reading(100.0, 0)],
             };
-            finish_full(&mut l.cycle, notices, snapshot, sweep, now);
+            finish_full(
+                &mut l.cycle,
+                notices,
+                (&l.monitor, &l.file.config),
+                snapshot,
+                sweep,
+                now,
+            );
             let later = now + cuotai_core::alerts::NOTICE_SPACING;
             assert_eq!(
                 notices.tick(&l.file.config, &[], later, &titles).delivered,

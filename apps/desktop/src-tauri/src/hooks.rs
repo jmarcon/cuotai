@@ -29,6 +29,14 @@ use cuotai_core::{
 };
 use serde::Serialize;
 
+/// What the watcher asks per account: its refresh interval and the recent
+/// points of each metric of the report (`Monitor::recent_points`).
+pub type PaceFn<'a> = dyn Fn(
+        usize,
+        &cuotai_core::Report,
+    ) -> Option<(std::time::Duration, Vec<Vec<cuotai_core::pace::Point>>)>
+    + 'a;
+
 /// Emitted (without a payload) after each run, so Settings reads the log
 /// again.
 pub const HOOKS_EVENT: &str = "hooks";
@@ -223,24 +231,39 @@ impl Integration {
     /// change, not only at the next event; otherwise they stop (or
     /// restart, when the new rules are confirmed too) and these events run
     /// nothing. Returns whether what runs changed.
+    #[cfg(test)]
     pub fn observe(&mut self, path: &Path, export: &Export, now: DateTime<Utc>) -> bool {
+        self.observe_with(path, export, now, &|_, _| None)
+    }
+
+    /// [`Self::observe`] with each account's pace input (PRD 0024 RF5), so
+    /// `quota_exhaustion_projected` rules can fire: `pace(index, report)` is
+    /// the account's refresh interval and the recent points of each metric
+    /// of `report`.
+    pub fn observe_with(
+        &mut self,
+        path: &Path,
+        export: &Export,
+        now: DateTime<Utc>,
+        pace: &PaceFn<'_>,
+    ) -> bool {
         let same_file = self.path.as_deref() == Some(path);
         if !self.reconcile(Some(path)) || !same_file {
-            self.baseline(export, now);
+            self.baseline(export, now, pace);
             return true;
         }
         let Some(active) = &mut self.active else {
             return false;
         };
-        for event in &active.watcher.observe(export, now) {
+        for event in &active.watcher.observe_with(export, now, pace) {
             self.dropped += active.runner.submit(event);
         }
         false
     }
 
-    fn baseline(&mut self, export: &Export, now: DateTime<Utc>) {
+    fn baseline(&mut self, export: &Export, now: DateTime<Utc>, pace: &PaceFn<'_>) {
         if let Some(active) = &mut self.active {
-            active.watcher.observe(export, now);
+            active.watcher.observe_with(export, now, pace);
         }
     }
 

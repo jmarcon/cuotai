@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use cuotai_core::{
     account_id,
     aggregators,
-    alerts::{self, AlertEvent, AlertPrefs, NOTICE_SPACING},
+    alerts::{self, AlertEvent, AlertKind, AlertPrefs, Lead, PaceInput, NOTICE_SPACING},
     resets::{self, Ledger, ResetEvent},
     Account, Config, Metric, Report,
 };
@@ -152,10 +152,39 @@ impl Notices {
         }
         self.alerts = alerts;
         self.rebuild_evaluator();
-        if !self.alerts.enabled {
-            self.pending.clear();
-        }
+        let evaluator = &self.evaluator;
+        let alerts_on = self.alerts.enabled;
+        self.pending
+            .retain(|event| Self::judged(evaluator, alerts_on, event));
         Ok(())
+    }
+
+    /// Whether `event` reaches the user: the core's rule, and, while the
+    /// usage alerts are off, only the projected warning, which has its own
+    /// switch (PRD 0024 RF4.1).
+    fn judged(evaluator: &AlertPrefs, alerts_on: bool, event: &AlertEvent) -> bool {
+        evaluator.wants(event) && (alerts_on || event.kind == AlertKind::ProjectedExhaustion)
+    }
+
+    /// PRD 0024 RF4.1: turn the projected-exhaustion warning on with the
+    /// system's answer to the permission request (only `granted` turns it
+    /// on, `lead` minutes ahead; an unknown lead keeps it off) or off with
+    /// `off`.
+    pub fn switch_projected(
+        &mut self,
+        permission: &str,
+        lead_minutes: u16,
+    ) -> Result<(), &'static str> {
+        let lead = Lead::from_minutes(u64::from(lead_minutes))
+            .filter(|_| permission == "granted")
+            .map(Lead::minutes);
+        if permission == "granted" && lead.is_none() {
+            return Err("invalid_lead");
+        }
+        self.set_alerts(AlertSettings {
+            projected_lead_minutes: lead,
+            ..self.alerts.clone()
+        })
     }
 
     /// Turn usage alerts on with the system's answer to the permission
@@ -291,19 +320,30 @@ impl Notices {
         prev: Option<&Report>,
         next: &Report,
         now: DateTime<Utc>,
+        pace: Option<&PaceInput>,
     ) -> Vec<AlertEvent> {
         // PRD 0036 RF6.4: an aggregator alerts per pool unless the user
         // chose each connection for it.
         let mode = self.alerts.pool_mode(&next.state_key());
-        alerts::evaluate_units(
+        let mut events = alerts::evaluate_units(
             prev,
             next,
             &self.evaluator,
             self.ledger.alerts(),
             now,
             mode,
-            None,
-        )
+            pace,
+        );
+        if !self.alerts.enabled {
+            events.retain(|event| event.kind == AlertKind::ProjectedExhaustion);
+        }
+        events
+    }
+
+    /// Whether the projected warning is on, so a caller only reads the
+    /// recent points (PRD 0024 RF3.2) when they can matter.
+    pub fn projected_on(&self) -> bool {
+        self.evaluator.projected.is_some()
     }
 
     /// Remember `next`, the reading the cycle applied, with the `events`
@@ -311,9 +351,26 @@ impl Notices {
     /// `notified.json` when it changed) and the events queued for the next
     /// pass of the timer. While alerts are off nothing is recorded: turning
     /// them on treats the next reading as a first reading.
-    pub fn record(&mut self, next: &Report, events: Vec<AlertEvent>, now: DateTime<Utc>) {
+    pub fn record(
+        &mut self,
+        next: &Report,
+        events: Vec<AlertEvent>,
+        now: DateTime<Utc>,
+        pace: Option<&PaceInput>,
+    ) {
         if !self.evaluator.enabled {
             return;
+        }
+        // PRD 0024 RF2.4: a projection queued for this account is dropped
+        // when this reading voids it (the delivered ones are never recalled).
+        if let Some(pace) = pace {
+            self.pending
+                .retain(|event| !alerts::cancels(event, next, pace, now));
+        } else {
+            let key = next.state_key();
+            self.pending.retain(|event| {
+                !(event.kind == AlertKind::ProjectedExhaustion && event.account_key == key)
+            });
         }
         if self
             .ledger
@@ -329,7 +386,7 @@ impl Notices {
     /// alerts are on and the account's bell and the metric are not muted.
     pub fn active<'r>(&'r self, report: &'r Report) -> impl Iterator<Item = &'r Metric> + 'r {
         let account_key = report.state_key();
-        let on = self.evaluator.enabled && self.account_on(&account_key);
+        let on = self.alerts.enabled && self.account_on(&account_key);
         self.ledger
             .alerts()
             .active(report)
@@ -473,8 +530,10 @@ impl Notices {
         let config = &expanded.config;
         let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
         let evaluator = &self.evaluator;
-        self.pending
-            .retain(|event| evaluator.wants(event) && keys.contains(&event.account_key));
+        let alerts_on = self.alerts.enabled;
+        self.pending.retain(|event| {
+            Self::judged(evaluator, alerts_on, event) && keys.contains(&event.account_key)
+        });
         if self.pending.is_empty() {
             return (0, None);
         }
@@ -974,8 +1033,8 @@ mod tests {
         );
         let c = router(t0() + mins(10), 100.0, 100.0);
         let readings = [Some(&c)];
-        let events = notices.assess(Some(&b), &c, c.checked_at);
-        notices.record(&c, events, c.checked_at);
+        let events = notices.assess(Some(&b), &c, c.checked_at, None);
+        notices.record(&c, events, c.checked_at, None);
         assert_eq!(
             notices
                 .tick(&cfg, &readings, c.checked_at + NOTICE_SPACING, &fake)
@@ -987,10 +1046,10 @@ mod tests {
         let fake = FakeNotifier::default();
         let mut notices = alerting(None);
         notices.set_pool_alerts(&id, true).unwrap();
-        let events = notices.assess(Some(&a), &b, b.checked_at);
+        let events = notices.assess(Some(&a), &b, b.checked_at, None);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].account_key, conn);
-        notices.record(&b, events, b.checked_at);
+        notices.record(&b, events, b.checked_at, None);
         let readings = [Some(&b)];
         assert_eq!(
             notices.tick(&cfg, &readings, b.checked_at, &fake).delivered,
@@ -1058,8 +1117,8 @@ mod tests {
         notifier: &dyn Notifier,
     ) -> Tick {
         let now = next.checked_at;
-        let events = notices.assess(prev, next, now);
-        notices.record(next, events, now);
+        let events = notices.assess(prev, next, now, None);
+        notices.record(next, events, now, None);
         notices.tick(cfg, &[], now, notifier)
     }
 
@@ -1233,9 +1292,9 @@ mod tests {
             usage("Work", t0() + mins(5), 92.0, w()),
         );
         let judged = |notices: &mut Notices| {
-            let events = notices.assess(Some(&a), &b, b.checked_at);
+            let events = notices.assess(Some(&a), &b, b.checked_at, None);
             assert_eq!(events.len(), 1);
-            notices.record(&b, events, b.checked_at);
+            notices.record(&b, events, b.checked_at, None);
         };
         // Turned off between the reading and the timer: nothing goes out,
         // and once back on the same level does not come back.
@@ -1317,8 +1376,8 @@ mod tests {
             usage("Old", t0(), 50.0, w()),
             usage("Old", t0() + mins(5), 92.0, w()),
         );
-        let events = notices.assess(Some(&a), &b, b.checked_at);
-        notices.record(&b, events, b.checked_at);
+        let events = notices.assess(Some(&a), &b, b.checked_at, None);
+        notices.record(&b, events, b.checked_at, None);
         notices
             .set_metric_alert("claude:Old", "Week", false)
             .unwrap();
@@ -1342,5 +1401,94 @@ mod tests {
             1
         );
         assert_eq!(fake.titles(), ["Claude: 90% of the 5-hour window used"]);
+    }
+
+    /// PRD 0024 RF3.2: a steep series, one reading every 5 minutes from
+    /// 40% (1 point a minute), judged with its recent points like the
+    /// backend does. Returns how many notices went out per reading.
+    fn steep_run(notices: &mut Notices, cfg: &Config, readings: usize) -> Vec<usize> {
+        let fake = FakeNotifier::default();
+        let mut points = Vec::new();
+        let mut prev: Option<Report> = None;
+        let mut out = Vec::new();
+        for i in 0..readings {
+            let at = t0() - mins(30) + mins(5 * i as i64);
+            let used = 40.0 + 5.0 * i as f64;
+            let next = usage("Work", at, used, w());
+            points.push(cuotai_core::pace::Point { taken_at: at, used });
+            let lists = vec![points.clone()];
+            let input = PaceInput {
+                interval: std::time::Duration::from_secs(300),
+                recent: &lists,
+            };
+            let events = notices.assess(prev.as_ref(), &next, at, Some(&input));
+            notices.record(&next, events, at, Some(&input));
+            out.push(notices.tick(cfg, &[], at, &fake).delivered);
+            prev = Some(next);
+        }
+        let titles = fake.titles();
+        assert!(titles.iter().all(|t| t.contains("Work")), "{titles:?}");
+        out
+    }
+
+    #[test]
+    fn the_projected_warning_has_its_own_switch_and_notifies_once_per_window() {
+        let cfg = config(&["Work"]);
+        // Off by default: nothing, even for a steep series.
+        let mut off = Notices::open(None);
+        assert!(!off.projected_on());
+        assert!(steep_run(&mut off, &cfg, 12).iter().all(|n| *n == 0));
+        // A refused permission keeps it off; an unknown lead is refused.
+        off.switch_projected("denied", 30).unwrap();
+        assert!(!off.projected_on());
+        assert_eq!(off.switch_projected("granted", 20), Err("invalid_lead"));
+        // On with the usage alerts still off: only the projection notifies.
+        let mut on = Notices::open(None);
+        on.switch_projected("granted", 60).unwrap();
+        assert!(on.projected_on() && !on.alerts().enabled);
+        let sent = steep_run(&mut on, &cfg, 12);
+        assert_eq!(sent.iter().sum::<usize>(), 1, "{sent:?}");
+        // Back off: nothing queued survives.
+        on.switch_projected("off", 60).unwrap();
+        assert!(!on.projected_on());
+    }
+
+    #[test]
+    fn a_reading_that_voids_a_queued_projection_drops_it_before_delivery() {
+        let cfg = config(&["Work"]);
+        let mut notices = Notices::open(None);
+        notices.switch_projected("granted", 60).unwrap();
+        let mut points = Vec::new();
+        let mut prev: Option<Report> = None;
+        let mut queued = false;
+        // Held back by the spacing: record the projection without ticking.
+        for i in 0..4 {
+            let at = t0() - mins(30) + mins(5 * i);
+            let used = 40.0 + 5.0 * i as f64;
+            let next = usage("Work", at, used, w());
+            points.push(cuotai_core::pace::Point { taken_at: at, used });
+            let lists = vec![points.clone()];
+            let input = PaceInput {
+                interval: std::time::Duration::from_secs(300),
+                recent: &lists,
+            };
+            let events = notices.assess(prev.as_ref(), &next, at, Some(&input));
+            queued |= !events.is_empty();
+            notices.record(&next, events, at, Some(&input));
+            prev = Some(next);
+        }
+        assert!(queued, "the steep series queued a projection");
+        // The next reading is a new window with little use: the projection
+        // is void, so the timer has nothing to deliver.
+        let at = t0() - mins(5);
+        let fresh = usage("Work", at, 2.0, w() + TimeDelta::hours(5));
+        let lists = vec![Vec::new()];
+        let input = PaceInput {
+            interval: std::time::Duration::from_secs(300),
+            recent: &lists,
+        };
+        notices.record(&fresh, Vec::new(), at, Some(&input));
+        let fake = FakeNotifier::default();
+        assert_eq!(notices.tick(&cfg, &[], at, &fake).delivered, 0);
     }
 }

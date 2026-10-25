@@ -945,6 +945,24 @@ async fn set_alerts_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<S
     Ok(permission.to_owned())
 }
 
+/// PRD 0024 RF4.1: turn the projected-exhaustion warning on, `minutes` (15,
+/// 30 or 60) before the stop, or off. On asks the operating system for
+/// permission first, like the other notices, and stays off unless it is
+/// `granted`; returns the permission or `off`. Errors: `invalid_lead`,
+/// `unwritable`.
+#[tauri::command]
+async fn set_projected_alert(
+    app: AppHandle,
+    b: Shared<'_>,
+    on: bool,
+    minutes: u16,
+) -> Result<String, String> {
+    let permission = permission_for(&app, on);
+    b.update_notices(&app, |n| n.switch_projected(permission, minutes))
+        .await?;
+    Ok(permission.to_owned())
+}
+
 /// Turning a notice switch on asks the operating system first.
 fn permission_for(app: &AppHandle, on: bool) -> &'static str {
     if on {
@@ -1820,6 +1838,7 @@ pub fn run() {
             reset_timeline,
             set_notify_enabled,
             set_alerts_enabled,
+            set_projected_alert,
             set_alert_options,
             set_metric_alert,
             set_pool_alerts,
