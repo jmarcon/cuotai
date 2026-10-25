@@ -1398,5 +1398,6 @@
   "alerts.item.overage_cap": "extra budget used up",
   "events.summary.overage_started": "Extra usage started: {amount}",
   "events.summary.overage_started_unknown": "Extra usage started",
-  "events.summary.overage_ended": "Extra usage ended"
+  "events.summary.overage_ended": "Extra usage ended",
+  "overage.units_caveat": "Amounts are in provider units, not money."
 }

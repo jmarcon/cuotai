@@ -874,6 +874,9 @@ fn report_text(
     if let Some(line) = status.and_then(|status| incident_line(status, locale, now, &at)) {
         out += &line;
     }
+    if let Some(line) = dashboard::extra_usage_text(report, locale) {
+        out += &format!("  Uso extra: {}\n", ui::safe(&line));
+    }
     for (index, metric) in report.metrics.iter().enumerate() {
         out += &format!(
             "  {}: {}\n",
@@ -1427,6 +1430,35 @@ mod tests {
                 "Ritmo: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"
             )
         );
+    }
+
+    /// PRD 0023 RF8.2: `--once` prints `Uso extra: <summary>` under the
+    /// account while extra usage bills, and nothing otherwise.
+    #[test]
+    fn once_prints_the_extra_usage_line() {
+        let mut extra = quota(MetricWindow::Monthly, 6.25, None).overage();
+        extra.kind = cuotai_core::MetricKind::Spend;
+        extra.unit = "USD".into();
+        extra.limit = Some(50.0);
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let active = report("Work", Status::Ready, vec![extra.clone()]);
+        let now = active.checked_at;
+        let text = report_text(&active, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(
+            text.contains(
+                "
+  Uso extra: On extra · $6.25
+"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.find("Uso extra").unwrap() < text.find("Monthly").unwrap(),
+            "under the account heading, before the metrics"
+        );
+        extra.used = Some(0.0);
+        let armed = report("Work", Status::Ready, vec![extra]);
+        assert!(!report_text(&armed, &[], None, FIVE_MIN, now, "en-US", at).contains("Uso extra"));
     }
 
     /// PRD 0024 FIX-11: `--once` evaluates the pace at the reading's

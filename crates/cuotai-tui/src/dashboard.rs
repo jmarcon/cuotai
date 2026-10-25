@@ -16,6 +16,7 @@ use cuotai_core::cost::{self, CostSummary, SourceCost};
 use cuotai_core::history::{self, HistoryRange, MetricHistory, Trend};
 use cuotai_core::incidents::{IncidentState, ProviderStatus};
 use cuotai_core::metrics::{binding, classify_metric, classify_report, AccountClass, MetricState};
+use cuotai_core::overage;
 use cuotai_core::pace::{self, Pace, PaceStage, PaceTone, Point};
 #[cfg(test)]
 use cuotai_core::Snapshot;
@@ -1064,6 +1065,16 @@ fn render_card(
     // optional wrapped note, then a trailing hint when more metrics exist.
     let mut constraints = vec![Constraint::Length(1)];
     let visible_metrics = rows.len().min(METRICS_VISIBLE_IN_CARD);
+    // PRD 0023 RF8.1: the "extra" line takes a free row under the status
+    // line, only while extra usage bills and the card has room for it.
+    let extra_text = report
+        .filter(|_| stale.is_none())
+        .and_then(|report| extra_usage_text(report, tui_locale()));
+    let needed = 1 + 2 * visible_metrics + note_rows + hint_rows;
+    let extra_rows = usize::from(extra_text.is_some() && usize::from(inner.height) > needed);
+    if extra_rows > 0 {
+        constraints.push(Constraint::Length(1));
+    }
     for _ in 0..visible_metrics {
         constraints.push(Constraint::Length(1)); // values line
         constraints.push(Constraint::Length(1)); // gauge
@@ -1157,6 +1168,18 @@ fn render_card(
         frame.render_widget(Paragraph::new(prefix), chunks[chunk_index]);
     }
     chunk_index += 1;
+    if extra_rows > 0 {
+        if let Some(text) = &extra_text {
+            frame.render_widget(
+                Paragraph::new(Line::styled(
+                    safe(text).into_owned(),
+                    Style::default().fg(PINK).add_modifier(Modifier::BOLD),
+                )),
+                chunks[chunk_index],
+            );
+            chunk_index += 1;
+        }
+    }
 
     for (index, metric) in rows.iter().take(METRICS_VISIBLE_IN_CARD) {
         // A preserved reading stays still: no bar transition.
@@ -1193,6 +1216,53 @@ fn render_card(
             .collect();
         frame.render_widget(Paragraph::new(lines), *free);
     }
+}
+
+/// PRD 0023 RF8: the core's one-line summary of paid extra usage while it
+/// bills (`Active` or `CapReached`), "Limite atingido · no extra $6.25" when
+/// the account is also at its limit; `None` otherwise.
+pub(crate) fn extra_usage_text(report: &Report, locale: &str) -> Option<String> {
+    let state = overage::assess(report).filter(|state| state.state.is_billing())?;
+    let text = if classification(Some(report)) == AccountClass::Exhausted {
+        state.summary_with_limit_hit()
+    } else {
+        state.text()
+    };
+    Some(text.resolve(locale))
+}
+
+/// The details lines of the "USO EXTRA" section (PRD 0023 RF8.1): the
+/// state, the cap and cycle end when known, and the provider-units caveat.
+fn extra_usage_lines(report: &Report, locale: &str) -> Vec<Line<'static>> {
+    let Some(state) = overage::assess(report) else {
+        return Vec::new();
+    };
+    let heading = Style::default().fg(PURPLE).add_modifier(Modifier::BOLD);
+    let mut parts = vec![state.text().resolve(locale)];
+    if let Some(cap) = state.cap_amount() {
+        let cap = match cap {
+            cuotai_core::text::ParamValue::Text(text) => text,
+            cuotai_core::text::ParamValue::L10n(text) => text.resolve(locale),
+        };
+        parts.push(format!("teto {cap}"));
+    }
+    if let Some(end) = state.cycle_ends_at {
+        parts.push(format!("ciclo termina {}", local_time(end)));
+    }
+    let mut lines = vec![Line::from(vec![
+        Span::styled("  USO EXTRA  ", heading),
+        Span::styled(
+            safe(&parts.join(" · ")).into_owned(),
+            Style::default().fg(PINK),
+        ),
+    ])];
+    if let Some(caveat) = state.units_caveat() {
+        lines.push(Line::styled(
+            format!("             {}", safe(&caveat.resolve(locale))),
+            Style::default().fg(MUTED),
+        ));
+    }
+    lines
 }
 
 /// `text` wrapped to `width` in at most `rows` lines, the last one ending in
@@ -1756,6 +1826,9 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 Style::default().fg(PINK).add_modifier(Modifier::BOLD),
             ),
         ]));
+    }
+    if stale.is_none() {
+        lines.extend(extra_usage_lines(report, tui_locale()));
     }
     // PRD 0005 RF4: how this account's usage is read and, when the
     // descriptor explains the failure, that explanation leading the quotas
@@ -3306,6 +3379,78 @@ mod tests {
             "third metric folds into the hint"
         );
         assert!(rows.contains("+1 métrica"));
+    }
+
+    /// An account with a free 5 h window and an extra-usage meter: active
+    /// in money, or in provider units when `units`.
+    fn on_extra(units: bool, spent: f64) -> Vec<Option<Report>> {
+        let mut extra = Metric {
+            window: Some(MetricWindow::Monthly),
+            limit: Some(50.0),
+            unit: if units { "unid. provedor" } else { "USD" }.into(),
+            kind: if units {
+                cuotai_core::MetricKind::Quota
+            } else {
+                cuotai_core::MetricKind::Spend
+            },
+            ..metric("Extra", Some(spent), Some(50.0), None)
+        }
+        .overage();
+        extra.resets_at = Some(Utc.with_ymd_and_hms(2026, 1, 20, 0, 0, 0).unwrap());
+        let mut reports = reports_of(&ready_snapshot());
+        reports[0] = Some(report(
+            Status::Ready,
+            vec![metric("Sessao", Some(10.0), Some(100.0), None), extra],
+        ));
+        reports
+    }
+
+    /// PRD 0023 RF8.1: the card shows the core summary under the status
+    /// line while extra usage bills, and the details a "USO EXTRA" section
+    /// with the cap, the cycle end and the provider-units caveat.
+    #[test]
+    fn extra_usage_has_a_card_line_and_a_details_section() {
+        let card = render_rows(&on_extra(false, 6.25), false).join(
+            "
+",
+        );
+        assert!(card.contains("No extra · $6.25"), "{card}");
+        let details = render_rows(&on_extra(true, 12.5), true).join(
+            "
+",
+        );
+        assert!(details.contains("USO EXTRA"), "{details}");
+        assert!(details.contains("No extra · 12.5 unid. provedor"));
+        assert!(details.contains("teto 50 unid. provedor"));
+        assert!(details.contains("não em dinheiro"));
+        // Nothing billed yet: no card line.
+        let armed = render_rows(&on_extra(false, 0.0), false).join(
+            "
+",
+        );
+        assert!(!armed.contains("No extra"));
+        // Without extra usage data the section is absent.
+        let plain = render_rows(&blocked_by_week(), true).join(
+            "
+",
+        );
+        assert!(!plain.contains("USO EXTRA"));
+    }
+
+    /// The summary combines with an exhausted account: "Limit hit · on extra".
+    #[test]
+    fn extra_usage_text_combines_with_the_limit_hit() {
+        let mut reports = on_extra(false, 6.25);
+        let report = reports[0].as_mut().unwrap();
+        assert_eq!(
+            extra_usage_text(report, "en-US").as_deref(),
+            Some("On extra · $6.25")
+        );
+        report.metrics[0].used = Some(100.0);
+        assert_eq!(
+            extra_usage_text(report, "en-US").as_deref(),
+            Some("Limit hit · on extra $6.25")
+        );
     }
 
     #[test]

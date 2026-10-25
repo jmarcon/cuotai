@@ -1398,5 +1398,6 @@
   "alerts.item.overage_cap": "presupuesto extra agotado",
   "events.summary.overage_started": "Empezó el uso extra: {amount}",
   "events.summary.overage_started_unknown": "Empezó el uso extra",
-  "events.summary.overage_ended": "Terminó el uso extra"
+  "events.summary.overage_ended": "Terminó el uso extra",
+  "overage.units_caveat": "Los importes están en unidades del proveedor, no en dinero."
 }

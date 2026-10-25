@@ -611,6 +611,49 @@ mod tests {
         assert_eq!(pass(&mut notices, &config, &cycle, at), vec![BEL]);
     }
 
+    /// PRD 0023 RF8.3: extra usage starting rings once per billing cycle and
+    /// the banner names the provider, the account and the amount only.
+    #[test]
+    fn extra_usage_starting_rings_once_and_names_the_amount() {
+        let config = config(vec![account("Pessoal")]);
+        let pessoal = &config.accounts[0];
+        let window = start() + TimeDelta::hours(3);
+        let cycle_end = start() + TimeDelta::days(20);
+        let reading = |used: f64, minute: i64| {
+            let at = start() + mins(minute);
+            let mut report = measured(pessoal, 10.0, at, window);
+            let mut extra = Metric::usage(
+                "Extra",
+                used,
+                "USD",
+                MetricKind::Spend,
+                Some(MetricWindow::Monthly),
+            )
+            .overage();
+            extra.limit = Some(50.0);
+            extra.resets_at = Some(cycle_end);
+            report.metrics.push(extra);
+            report
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut notices = Notices::new(start(), false);
+        answer(&mut cycle, &mut notices, 0, reading(0.0, 0));
+        assert!(pass(&mut notices, &config, &cycle, start()).is_empty());
+        answer(&mut cycle, &mut notices, 0, reading(0.4, 2));
+        let at = start() + mins(2);
+        assert_eq!(pass(&mut notices, &config, &cycle, at), vec![BEL]);
+        let banner = notices.banner(at).expect("banner after the alert");
+        assert!(
+            banner.contains("Claude: extra usage started · $0.40 so far"),
+            "{banner}"
+        );
+        assert!(!banner.contains("Extra"), "no metric label: {banner}");
+        // More spending in the same cycle stays silent.
+        let at = start() + mins(5);
+        answer(&mut cycle, &mut notices, 0, reading(1.5, 5));
+        assert!(pass(&mut notices, &config, &cycle, at).is_empty());
+    }
+
     #[test]
     fn alerts_of_a_sweep_share_one_bell_and_later_ones_wait_a_minute() {
         let config = config(vec![account("a"), account("b")]);

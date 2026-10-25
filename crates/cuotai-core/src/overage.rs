@@ -268,6 +268,23 @@ impl Overage {
         }
     }
 
+    /// The cap, formatted like the amount; `None` without one.
+    pub fn cap_amount(&self) -> Option<ParamValue> {
+        self.cap
+            .filter(|cap| *cap > 0.0)
+            .map(|cap| format_amount(cap, &self.unit, self.currency.as_deref()))
+    }
+
+    /// The honesty caveat of an amount in provider units: it is not money.
+    pub fn units_caveat(&self) -> Option<Localized> {
+        (self.currency.is_none() && self.unit == PROVIDER_UNIT && self.spent.is_some()).then(|| {
+            Localized::fixed(
+                "overage.units_caveat",
+                "Valores em unidades do provedor, não em dinheiro.",
+            )
+        })
+    }
+
     /// The state line: "On extra · $6.25", "Extra usage on · nothing spent",
     /// "Extra budget used up", "Extra usage amount unknown", "Extra usage off".
     pub fn text(&self) -> Localized {
