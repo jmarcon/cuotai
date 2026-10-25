@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0028 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (diagnostics, report drafts, local canary, update detector), repository and CI (`.github/`, `xtask`), desktop and TUI |
 | Consumers | users reporting problems, maintainers (the owner's local canary), `export::v1` consumers, extension authors |
 | Depends on | PRD 0005 (RF1: `access::describe` and `verified_on`) for RF1–RF3 and RF6; PRD 0017 (RF1–RF5: extensions) for RF7; PRD 0021 (RF8.1: install-source detector) for RF8 |
@@ -17,16 +17,16 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
+| RF1 | vNEXT | Delivered for the shared JSON decoder (`providers::json`): `diagnostic::Diagnostic`, `Report::diagnostic`, the details note and the additive `export::v1` `failure` object. Adapters that read a `Value` field by field still report no path. |
+| RF2 | vNEXT | Core `support::issue_draft` and `cuotai --report-problem ACCOUNT` delivered. Desktop preview (RF2.3) and the TUI details key (RF2.4) are pending. |
+| RF3 | vNEXT | Delivered: generated provider dropdown with a drift test and the new form fields. |
 | RF4 | — | Proposed (rewritten on 2026-10-23: local canary instead of a CI canary with secrets). |
 | RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
+| RF6 | vNEXT | Delivered: per-interface `verified_on`, `access-staleness` xtask with the CI warning and the non-required 180-day job, `access.risk.subscription_token`, and the core age text. The desktop "Verified N months ago" visual is pending. |
 | RF7 | — | Proposed. |
 | RF8 | — | Proposed. |
 | RF9 | — | Proposed. |
-| RF10 | — | Proposed (added 2026-10-23). |
+| RF10 | vNEXT | Delivered: evidence-gated listings with a generated matrix, static lists and the Copilot token exchange removed. |
 | RF11 | — | Proposed (added 2026-10-23). |
 
 ## 1. Context
