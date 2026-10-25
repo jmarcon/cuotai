@@ -1,6 +1,6 @@
 # Provider Catalog, Credentials and Limitations
 
-The Cuotai catalog contains **39 providers**, combining billing admin APIs, Cloud Monitoring, coding-assistant subscriptions and integrations compatible with `9router`.
+The Cuotai catalog contains **40 providers**, combining billing admin APIs, Cloud Monitoring, coding-assistant subscriptions and integrations compatible with `9router`.
 
 ## Overview by category
 
@@ -532,7 +532,7 @@ Moonshot's source is its published Open API/Kimi Code product status, not a clai
 
 `crates/cuotai-core/src/incidents/fixtures/` holds minimized, anonymized real captures from the URLs above on the verification date: the Statuspage summaries, complete OpenAI and relevant Groq/Perplexity component catalogs, an empty OpenAI widget response, Google incident/product JSON and AWS/xAI RSS. `widget-maintenance.json` preserves the public [HashiCorp Widget API](https://status.hashicorp.com/api/v1/summary)'s real maintenance shape with populated components (the mapped pages had none at capture); its names, IDs, URLs and prose were anonymized. Public component IDs and names in provider catalogs remain intact because they are matching evidence, not personal data. Incident prose is replaced and long histories are reduced; states, timestamps, structural nulls and selector fields are retained. The AWS example is an unrelated multi-service event and the xAI examples are resolved events, not simulated active outages.
 
-RF1 tests use only these local captures, covering all 39 provider decisions, positive component membership, exact-match boundaries, shared-source isolation, unrelated cloud services and the page-wide-outage/healthy-target case. RF2/RF3 tests serve the same captures and synthetic active incidents of each format from local `wiremock` servers; no live status assertion is a test expectation.
+RF1 tests use only these local captures, covering all 40 provider decisions, positive component membership, exact-match boundaries, shared-source isolation, unrelated cloud services and the page-wide-outage/healthy-target case. RF2/RF3 tests serve the same captures and synthetic active incidents of each format from local `wiremock` servers; no live status assertion is a test expectation.
 
 ## References
 

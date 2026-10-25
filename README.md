@@ -35,7 +35,7 @@ It is made for developers, teams and heavy users of coding assistants and AI API
 
 **What you get**
 
-- **Every limit in one window.** One card per account with the 5-hour, weekly and monthly windows, rate limits, balances and spend, each with its reset time. Supports **39 services**, including Claude, ChatGPT / Codex, GitHub Copilot, Cursor, Gemini, Kiro, Windsurf, OpenAI and Anthropic admin APIs, AWS Bedrock, Azure OpenAI and many more ([full list](#supported-services)).
+- **Every limit in one window.** One card per account with the 5-hour, weekly and monthly windows, rate limits, balances and spend, each with its reset time. Supports **40 services**, including Claude, ChatGPT / Codex, GitHub Copilot, Cursor, Gemini, Kiro, Windsurf, OpenAI and Anthropic admin APIs, AWS Bedrock, Azure OpenAI and many more ([full list](#supported-services)).
 - **Paid extra usage.** When an account keeps working past its plan and bills the excess (Claude extra usage, Cursor and Grok on-demand, Kiro overage), Cuotai shows what you have spent so far apart from the plan limits and notifies you once per billing cycle when it starts. It only reads; it never changes billing settings.
 - **Fresh after a reset, careful with costs.** About 30 seconds after a quota resets Cuotai asks once more, so a card stops saying "blocked" as soon as the new window opens, and a reading kept from before a reset says "Renewed at 14:30; waiting for a reading" instead of pretending to know. Services that bill per query (AWS Bedrock through Cost Explorer) are read once an hour by default, never more than every 15 minutes, and never after a reset.
 - **Pace and "runs out" warnings.** Cuotai compares what you used so far with a steady pace until the reset and tells you when you are on track ("8 points in reserve") or will run out early ("runs out at 16:40, 2h 10m before the reset").
@@ -136,7 +136,7 @@ See all of them, in both modes, and learn how to add your own in [`docs/themes.m
 
 ## Supported services
 
-Cuotai ships **39 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
+Cuotai ships **40 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
 
 | Category | Services |
 |---|---|
