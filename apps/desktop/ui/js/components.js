@@ -6,9 +6,10 @@
 import { t, te, tl } from "./i18n.js";
 import {
   ALERTS, billingOverage, bindingPct, brand, fmtExtra, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
-  shownAt, staleView, statusLabel, summaryOf,
+  shownAt, staleView, statusLabel, summaryOf, windowsOf,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
+import { oneStatus, rowLayout } from "./density.js";
 
 const clamp = (v) => Math.max(0, Math.min(100, v));
 
@@ -416,7 +417,7 @@ const INCIDENT_ROLE = { bad: "bad", warn: "warn", info: "info", muted: "muted" }
  *  already says "Stale · age" on its status line). A fresh age is never repeated per row. */
 export function extraLineHtml(r, st = accountState(r)) {
   const inc = incidentBadge(r);
-  if (inc) return `<span class="xline ${INCIDENT_ROLE[inc.tone] ?? "muted"}" title="${esc(inc.text)}">${icon(inc.glyph)}<span>${esc(inc.text)}</span></span>`;
+  if (inc) return `<span class="xline ${INCIDENT_ROLE[inc.tone] ?? "muted"}" data-incident title="${esc(inc.text)}">${icon(inc.glyph)}<span>${esc(inc.text)}</span></span>`;
   if (!st.stale && r.status === "ready" && r.freshness === "aging") {
     const text = `${t("freshness.aging")} · ${fmtAge(shownAt(r))}`;
     return `<span class="xline warn" data-age>${icon("clock")}<span>${esc(text)}</span></span>`;
@@ -425,7 +426,33 @@ export function extraLineHtml(r, st = accountState(r)) {
     const a = ALERTS.find((c) => c.id === "usage");
     return `<span class="xline warn">${icon("bell")}<span>${esc(a.label(r))}</span></span>`;
   }
+  // PRD 0025 RF9.2: "Freshness age" on shows how old a fresh reading is, too.
+  if (rowLayout().elements.age && !st.stale && r.status === "ready" && shownAt(r)) {
+    return `<span class="xline muted" data-age>${icon("clock")}<span>${esc(fmtAge(shownAt(r)))}</span></span>`;
+  }
   return "";
+}
+/** PRD 0025 RF9.2: the sub-limit preview line ("5h 66% · Week 22%"); empty when the account has neither window. */
+export function subLimitsText(r) {
+  if (r.status !== "ready") return "";
+  const w = windowsOf(r);
+  return [["window_5h", w.h5], ["weekly", w.week]].filter(([, x]) => x).map(([k, x]) => `${t(`card.binding.${k}`)} ${Math.round(x.pct)}%`).join(" · ");
+}
+export const subLimitsHtml = (r) => { const s = subLimitsText(r); return s ? `<span class="subl">${esc(s)}</span>` : ""; };
+/** PRD 0025 RF9.4 (DS-CMP-DENS-3): Minimal's single status item, by priority; the full status stays in the row's
+ *  accessible name and tooltip. */
+export function oneStatusHtml(r, st = accountState(r)) {
+  const inc = incidentBadge(r);
+  const p = statusParts(r, st);
+  const chip = p.binding?.forecast?.chip ?? null;
+  const kind = oneStatus({ incident: !!inc, stale: st.kind === "stale", exhausted: st.kind === "exhausted" || st.kind === "status", runsOut: !!chip, pace: !!p.pace });
+  let inner = "";
+  if (kind === "incident") inner = `<span class="lbl ${INCIDENT_ROLE[inc.tone] ?? "muted"}">${esc(inc.text)}</span>`;
+  else if (kind === "stale" || (kind === "exhausted" && !p.reset)) inner = `<span class="lbl ${p.role}">${esc(p.label)}</span>${p.detail && kind === "stale" ? `<span class="det">· ${esc(p.detail)}</span>` : ""}`;
+  else if (kind === "exhausted") inner = `<span class="lbl bad">${esc(p.label)}</span><span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>`;
+  else if (kind === "runs_out") inner = timeChipHtml(chip, { compact: true });
+  else if (kind === "pace") inner = `<span class="lbl ${p.role}">${esc(p.label)}</span>`;
+  return inner ? `<span class="stl one" title="${esc(p.full)}"><span class="stl-l">${inner}</span></span>` : "";
 }
 /** Accessible name of a row (DS-CMP-RING-5): "Claude Code, work, 22% left, Ahead of pace, resets 19:30". */
 export function rowName(r, st = accountState(r)) {
@@ -454,15 +481,21 @@ export function rowHtml(r, { title, sub = "", mono = "", open = null, key = repo
   const st = accountState(r);
   const f = figureOf(r, st);
   const meter = accountMeterHtml(r, st);
-  const name = rowName(r, st);
+  // PRD 0025 RF9 / PRD 0022 RF8.2: the row display; hidden elements are left out by the root's CSS hook, Minimal
+  // shows one status. The plan badge and the sub-limit line exist only when the account has them; the accessible
+  // name carries every element whatever the layout (DS-CMP-DENS-2).
+  const lay = rowLayout();
+  const plan = r.connection?.plan ?? r.plan ?? "";
+  const name = [rowName(r, st), plan, subLimitsText(r)].filter(Boolean).join(", ");
+  const status = lay.one ? oneStatusHtml(r, st) : `${statusLineHtml(r, st)}${extraLineHtml(r, st)}`;
   return `<article class="row${open != null ? " open" : ""}" data-row="${esc(key)}">
     <button class="rh" data-open="${esc(key)}" aria-expanded="${open != null}" aria-label="${esc(name)}" title="${esc(name)}">
       ${tileHtml(r.provider, 32, mono)}
       <span class="rc">
-        <span class="r1"><span class="nm">${esc(title)}</span>${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim, cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
+        <span class="r1"><span class="nm">${esc(title)}</span>${plan ? `<span class="plan-b">${esc(plan)}</span>` : ""}${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim, cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
         ${meter ? `<span class="rm">${meter}</span>` : ""}
-        ${statusLineHtml(r, st)}
-        ${extraLineHtml(r, st)}
+        ${status}
+        ${lay.elements.sublimits ? subLimitsHtml(r) : ""}
         ${chips ? `<span class="row-chips">${chips}</span>` : ""}
       </span>
     </button>

@@ -475,3 +475,119 @@ dialog:focus-visible {
 .tchip.bad { color: var(--bad); }
 .tchip.info { color: var(--info); }
 .fig b.warn { color: var(--warn); }
+
+/* ---- PRD 0025 RF9 / PRD 0022 RF8.2 (DS-CMP-DENS-1..5): the row display ----
+   `data-rows-hide` on the root lists the elements the layout leaves out; a hidden element takes no space. The figure
+   and the meter have no hook: they are never hidden. The account label hides only as a secondary label (`.ac`),
+   never as the row title. */
+.plan-b {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-family: var(--font-mono), var(--font-script);
+  font-size: var(--text-2xs);
+  line-height: 18px;
+}
+.subl {
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-rows-hide~="plan"] .plan-b,
+:root[data-rows-hide~="label"] .r1 .ac,
+:root[data-rows-hide~="monogram"] .mono-badge,
+:root[data-rows-hide~="unit"] .fig small,
+:root[data-rows-hide~="corridor"] .mtr .pm,
+:root[data-rows-hide~="status"] .stl .lbl,
+:root[data-rows-hide~="ring"] .stl .ring,
+:root[data-rows-hide~="ring"] .stl .sg,
+:root[data-rows-hide~="runs_out"] .stl .tchip,
+:root[data-rows-hide~="returns"] .stl .rst,
+:root[data-rows-hide~="incident"] .xline[data-incident],
+:root[data-rows-hide~="extra"] [data-overage-chip],
+:root[data-rows-hide~="extra"] [data-overage-row],
+:root[data-rows-hide~="sublimits"] .subl {
+  display: none;
+}
+
+/* Moved from tray.css (PRD 0025 RF9.6): the Settings preview row draws the same component. */
+/* ---- DS-CMP-ROW: hairline-separated rows; an expanded row gets a surface ---- */
+.row {
+  flex: none;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.rh {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.rh:hover {
+  background: var(--surface-2);
+}
+.rh:focus-visible {
+  outline-offset: -2px;
+}
+.rc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: calc(var(--space-1) + var(--space-0));
+  min-width: 0;
+}
+.r1 {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.r1 .nm {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.r1 .ac {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.r1 .fig {
+  margin-left: auto;
+}
+.r1 .chg {
+  margin-left: auto;
+}
+.r1 .chg + .fig {
+  margin-left: 0;
+}
+.r1 > svg.chev {
+  flex: none;
+  align-self: center;
+  width: 16px;
+  height: 16px;
+  margin-left: calc(-1 * var(--space-1));
+  color: var(--fg-muted);
+}
+.rm {
+  display: block;
+  margin: var(--space-0) 0;
+}

@@ -170,6 +170,8 @@ export const trayAccounts = () => call("tray_accounts");
 export const setTrayPrefs = ({ style, colored, accounts = null, popover_view = null, popoverView = popover_view }) =>
   call("set_tray_prefs", { style, colored, accounts, popoverView });
 export const setAdvancedOpen = (open) => call("set_advanced_open", { open });
+/** PRD 0025 RF9.5: the row display (`tray`, `window`, `separate`). */
+export const setRows = (rows) => call("set_rows", { rows });
 export const firstRunTurnOn = () => call("first_run_turn_on");
 export const firstRunRecord = (again = false) => call("first_run_record", { again });
 export const setUserDir = (path) => call("set_user_dir", { path });
@@ -365,6 +367,24 @@ export const emitSettingsChanged = (key = "") => {
   if (isDesktop) return T.event.emit(SETTINGS_CHANGED, { key }).catch(() => {});
   const ch = demoChannel(); ch?.postMessage({ key }); ch?.close();
   return Promise.resolve();
+};
+/** PRD 0025 RF5.2: Settings › Dashboard asks the main window, which owns the account dialogs, to add, edit or
+ *  remove an account (`action`: "add" | "edit" | "remove"; `index`: the account). */
+export const ACCOUNT_ACTION = "account-action";
+const actionChannel = () => { try { return new BroadcastChannel("cuotai-account-action"); } catch { return null; } };
+export const requestAccountAction = async (action, index = null) => {
+  if (isDesktop) {
+    await T.core.invoke("show_main_window").catch(() => {});
+    return T.event.emit(ACCOUNT_ACTION, { action, index }).catch(() => {});
+  }
+  const ch = actionChannel(); ch?.postMessage({ action, index }); ch?.close();
+};
+export const onAccountAction = (cb) => {
+  if (isDesktop) return T.event.listen(ACCOUNT_ACTION, (e) => cb(e.payload ?? {}));
+  const ch = actionChannel();
+  if (ch) ch.onmessage = (e) => cb(e.data ?? {});
+  ch?.unref?.();
+  return Promise.resolve(() => ch?.close());
 };
 export const onSettingsChanged = (cb) => {
   if (isDesktop) return T.event.listen(SETTINGS_CHANGED, (e) => cb(e.payload?.key ?? ""));
@@ -1833,7 +1853,7 @@ const demo = {
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), quiet: structuredClone(demoSettings.quiet), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
-    tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
+    tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -1852,6 +1872,7 @@ const demo = {
     demoSettings.tray = { style, colored, accounts: accounts ?? null, popover_view: popover_view ?? null };
   },
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
+  set_rows: async ({ rows }) => { demoSettings.rows = structuredClone(rows); },
   first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.alerts.projected_lead_minutes = 60; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_advice_enabled: async () => {},

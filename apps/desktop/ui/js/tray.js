@@ -24,6 +24,7 @@ import {
   isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, withConnections,
 } from "./aggregator.js";
 import { initUpdates, onUpdateState } from "./updater.js";
+import { initRowLayout } from "./density.js";
 
 await boot();
 
@@ -369,6 +370,8 @@ bindThemeSwitch(root, render);
 initTheme(render);
 render();
 initTrayView();
+// PRD 0025 RF9.5: the row display of the menu bar.
+initRowLayout("tray", render).then(render);
 loadLocalCost();
 // PRD 0020 RF1.3/RF7.1: Cmd/Ctrl+, opens Settings; its changes repaint the popover.
 bindSettingsShortcut();

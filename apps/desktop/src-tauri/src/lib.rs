@@ -745,6 +745,15 @@ fn set_advanced_open(open: bool) -> Result<(), String> {
     settings::write_advanced_open(&file, open).map_err(str::to_owned)
 }
 
+/// PRD 0025 RF9.5: store the row display (`tray`, `window`, `separate`);
+/// read leniently, so an unknown preset is Standard. Every window follows
+/// through `settings-changed`. Error: `unwritable`.
+#[tauri::command]
+fn set_rows(rows: serde_json::Value) -> Result<(), String> {
+    let file = settings::file().map_err(str::to_owned)?;
+    settings::write_rows(&file, &settings::RowsPrefs::from_value(&rows)).map_err(str::to_owned)
+}
+
 /// PRD 0025 RF6.1/RF6.2/RF6.6: **Turn on** of the first run. Asks the
 /// operating system for permission once and, when granted, turns usage
 /// alerts on with the core's recommended thresholds, exhaustion and recovery
@@ -1909,6 +1918,7 @@ pub fn run() {
             tray_accounts,
             set_tray_prefs,
             set_advanced_open,
+            set_rows,
             first_run_turn_on,
             first_run_record,
             refresh_all,

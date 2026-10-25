@@ -126,6 +126,10 @@ struct Stored {
     /// PRD 0025 RF6.4: the first-run record (`version`); absent = not shown yet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     onboarding: Option<serde_json::Value>,
+    /// PRD 0025 RF9.5: the row display (`tray`, `window`, `separate`);
+    /// absent = Standard everywhere. Read leniently ([`RowsPrefs::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rows: Option<serde_json::Value>,
 }
 
 /// PRD 0027 RF6.5/RF7.3: `detect.enabled` (`None` until answered) and the
@@ -258,6 +262,116 @@ impl TrayPrefs {
             ..self.clone()
         })
     }
+}
+
+/// PRD 0025 RF9.1 (DS-CMP-DENS-1): the row presets.
+pub const ROW_PRESETS: [&str; 4] = ["detailed", "standard", "minimal", "custom"];
+
+/// PRD 0025 RF9.2: the elements Custom switches, in the DS-CMP-DENS-1 order.
+/// The figure and the meter are not here: they are never hideable (RF9.3).
+pub const ROW_ELEMENTS: [&str; 13] = [
+    "plan",
+    "label",
+    "monogram",
+    "unit",
+    "corridor",
+    "status",
+    "ring",
+    "runs_out",
+    "returns",
+    "age",
+    "incident",
+    "extra",
+    "sublimits",
+];
+
+/// One row layout: a preset and, for Custom, the element map (only known
+/// elements; a missing one takes the Standard value in the interface).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RowLayout {
+    pub preset: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elements: Option<std::collections::BTreeMap<String, bool>>,
+}
+
+impl Default for RowLayout {
+    fn default() -> Self {
+        Self {
+            preset: "standard",
+            elements: None,
+        }
+    }
+}
+
+impl RowLayout {
+    /// Lenient: an unknown preset is Standard; unknown elements are dropped;
+    /// the element map is kept only for Custom.
+    pub fn from_value(value: &serde_json::Value) -> Self {
+        let preset = ROW_PRESETS
+            .into_iter()
+            .find(|p| value["preset"].as_str() == Some(p))
+            .unwrap_or("standard");
+        let elements = (preset == "custom").then(|| {
+            value["elements"]
+                .as_object()
+                .map(|map| {
+                    map.iter()
+                        .filter(|(k, _)| ROW_ELEMENTS.contains(&k.as_str()))
+                        .filter_map(|(k, v)| v.as_bool().map(|b| (k.clone(), b)))
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
+        Self { preset, elements }
+    }
+}
+
+/// PRD 0025 RF9.5 (DS-CMP-DENS-4): one layout for the tray and the main
+/// window, unless `separate` gives the window its own.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct RowsPrefs {
+    pub tray: RowLayout,
+    pub window: RowLayout,
+    pub separate: bool,
+}
+
+impl RowsPrefs {
+    pub fn from_value(value: &serde_json::Value) -> Self {
+        Self {
+            tray: RowLayout::from_value(&value["tray"]),
+            window: RowLayout::from_value(&value["window"]),
+            separate: value["separate"].as_bool().unwrap_or(false),
+        }
+    }
+
+    /// The layout the main window uses: its own only with `separate`.
+    #[cfg(test)]
+    pub fn for_window(&self) -> &RowLayout {
+        if self.separate {
+            &self.window
+        } else {
+            &self.tray
+        }
+    }
+}
+
+/// PRD 0025 RF9.5: the row display stored in `file`.
+#[cfg(test)]
+pub fn read_rows(file: &Path) -> RowsPrefs {
+    read(file)
+        .rows
+        .as_ref()
+        .map(RowsPrefs::from_value)
+        .unwrap_or_default()
+}
+
+/// Store the row display; the defaults remove the key.
+pub fn write_rows(file: &Path, prefs: &RowsPrefs) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.rows = (*prefs != RowsPrefs::default())
+            .then(|| serde_json::to_value(prefs).ok())
+            .flatten()
+    })
 }
 
 /// Valid account ids (PRD 0029), without repeats, in order.
@@ -1196,6 +1310,8 @@ pub struct SettingsView {
     tray: TrayPrefs,
     /// PRD 0025 RF5.3: the Advanced group is open.
     advanced_open: bool,
+    /// PRD 0025 RF9.5: the row display.
+    rows: RowsPrefs,
     /// PRD 0025 RF6.4: the first-run version seen (0 = never) and the current one.
     onboarding: u64,
     onboarding_version: u64,
@@ -1259,6 +1375,11 @@ pub fn view() -> SettingsView {
             .as_ref()
             .and_then(|v| v["advanced_open"].as_bool())
             .unwrap_or(false),
+        rows: stored
+            .rows
+            .as_ref()
+            .map(RowsPrefs::from_value)
+            .unwrap_or_default(),
         onboarding: stored
             .onboarding
             .as_ref()
@@ -1301,6 +1422,56 @@ mod tests {
         };
         let round = DetectPrefs::from_value(Some(&saved.to_value()));
         assert_eq!(round, saved);
+    }
+
+    #[test]
+    fn rows_prefs_round_trip_and_read_leniently() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(read_rows(&file), RowsPrefs::default());
+        assert_eq!(read_rows(&file).for_window().preset, "standard");
+        let mut elements = std::collections::BTreeMap::new();
+        elements.insert("unit".to_owned(), false);
+        let prefs = RowsPrefs {
+            tray: RowLayout {
+                preset: "custom",
+                elements: Some(elements),
+            },
+            window: RowLayout {
+                preset: "minimal",
+                elements: None,
+            },
+            separate: true,
+        };
+        write_rows(&file, &prefs).unwrap();
+        assert_eq!(read_rows(&file), prefs);
+        assert_eq!(read_rows(&file).for_window().preset, "minimal");
+        // `rows.window` is used only with the separate-layout switch.
+        let shared = RowsPrefs {
+            separate: false,
+            ..prefs.clone()
+        };
+        assert_eq!(shared.for_window().preset, "custom");
+        // Lenient: unknown presets, elements and types fall back; the map is
+        // kept only for Custom; figure and meter cannot be stored.
+        let odd = serde_json::json!({
+            "tray": {"preset": "huge", "elements": {"unit": false}},
+            "window": {"preset": "custom", "elements": {"figure": false, "meter": false, "age": true, "plan": "no"}},
+            "separate": "yes"
+        });
+        let read = RowsPrefs::from_value(&odd);
+        assert_eq!(read.tray, RowLayout::default());
+        assert_eq!(
+            read.window
+                .elements
+                .unwrap()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![("age".to_owned(), true)]
+        );
+        assert!(!read.separate);
+        write_rows(&file, &RowsPrefs::default()).unwrap();
+        assert!(!std::fs::read_to_string(&file).unwrap().contains("rows"));
     }
 
     #[test]

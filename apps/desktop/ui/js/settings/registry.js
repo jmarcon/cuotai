@@ -14,7 +14,7 @@ export const ADVANCED = "advanced";
  *  one, see LEGACY_SECTIONS) and also an anchor (`#set-<section>`) that links can land on. */
 export const PAGES = [
   { id: "general", icon: "settings", label: "settings.page.general", load: () => import("./general.js"), sections: ["appearance", "language"] },
-  { id: "dashboard", icon: "grid", label: "settings.page.dashboard", load: () => import("./dashboard.js"), sections: ["order", "display", "refresh"] },
+  { id: "dashboard", icon: "grid", label: "settings.page.dashboard", load: () => import("./dashboard.js"), sections: ["accounts", "order", "display", "refresh"] },
   { id: "menubar", icon: "window", label: "settings.page.menubar", load: () => import("./menubar.js"), sections: ["menubar-style", "menubar-accounts"] },
   { id: "alerts", icon: "bell", label: "settings.page.alerts", load: () => import("./alerts.js"), sections: ["notify"] },
   { id: "data", icon: "shield", label: "settings.page.data", load: () => import("./data.js"), sections: ["history", "privacy"] },

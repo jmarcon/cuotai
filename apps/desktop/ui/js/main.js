@@ -15,9 +15,10 @@ import {
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
-  openSettingsWindow, bindSettingsShortcut, onSettingsChanged, listExtensions, extensionSecrets,
+  openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
 } from "./lib.js";
 import { patch } from "./util.js";
+import { initRowLayout } from "./density.js";
 import { connectionChips, groupsOf, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
 import {
   accountState, announceChanges, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
@@ -659,6 +660,8 @@ initOrderSync(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 consumeOpenView();
+// PRD 0025 RF9.5: the row display of the main window (the menu bar's unless Settings separates them).
+initRowLayout("window", render).then(render);
 render();
 // PRD 0020 RF1.3/RF7.1: Cmd/Ctrl+, opens Settings; a change made there repaints the dashboard (and reads the local
 // cost again) as the old in-window dialog did.
@@ -670,6 +673,14 @@ onSettingsChanged((key) => {
   if (key === "config_file") for (const d of document.querySelectorAll("dialog[open]")) d.close();
   loadLocalCost();
   render();
+});
+// PRD 0025 RF5.2: Settings › Dashboard manages the accounts through this window, which owns their dialogs.
+onAccountAction(({ action, index }) => {
+  const r = store.view?.reports.find((x) => x.index === index);
+  if (action === "add") return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id) });
+  if (!r) return;
+  if (action === "edit") return editAccount(index);
+  if (action === "remove") return detailsContext.onRemove(index, accountLabel(r));
 });
 // PRD 0018 RF2.2/RF2.6: the backend state repaints update notices, while the main
 // window alone hosts the one-time consent dialog. Its native modal layer does not
