@@ -3588,6 +3588,45 @@ mod tests {
         assert!(!account.params.contains_key("project_ids"));
     }
 
+    /// PRD 0028 RF7.3: an edit saved from either editor keeps the account's
+    /// extension override (`params.extension_override`), which no form
+    /// field shows.
+    #[test]
+    fn build_account_keeps_the_extension_override() {
+        let existing = Account {
+            id: None,
+            name: "OpenAI".into(),
+            provider: Provider::OpenAiApi,
+            credential_env: Some("OPENAI_ADMIN_KEY".into()),
+            session: None,
+            oauth: None,
+            params: BTreeMap::from([(
+                crate::extensions::management::EXTENSION_OVERRIDE_PARAM.into(),
+                "proxy".into(),
+            )]),
+            refresh_seconds: None,
+            group: None,
+        };
+        let config = config_with(vec![existing.clone()]);
+        let draft = AccountDraft {
+            provider: Provider::OpenAiApi,
+            name: "Renamed",
+            credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: Some(&existing.params),
+            credential_params: None,
+            fields: &[],
+            interval_text: "",
+            group_text: None,
+        };
+        let account = build_account(&draft, &config, Some(0)).unwrap();
+        assert_eq!(account.extension_override(), Some("proxy"));
+    }
+
     #[test]
     fn build_account_aws_profile_goes_into_params_not_credential_env() {
         // AWS profile lives in params["profile"]; credential_env stays empty.

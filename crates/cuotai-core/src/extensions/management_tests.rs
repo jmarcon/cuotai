@@ -774,6 +774,7 @@ async fn an_override_never_sees_the_account_credential_and_revocation_restores_t
 
     let mut config = base();
     config.accounts.push(Account {
+        group: Default::default(),
         id: Some(crate::AccountId::random()),
         name: "Work".into(),
         provider: Provider::OpenAiApi,
@@ -854,4 +855,51 @@ async fn an_override_never_sees_the_account_credential_and_revocation_restores_t
         .set_override(&config, 0, "proxy", false)
         .unwrap();
     assert_eq!(off.accounts[0].extension_override(), None);
+}
+
+/// PRD 0028 RF7.4: after the manifest changes and is approved again, the
+/// value kept under the old manifest's scope is deleted once the new
+/// manifest's value is stored (never before).
+#[tokio::test]
+async fn a_new_manifest_value_retires_the_old_scope() {
+    let rig = Rig::new();
+    rig.extension_with_source(
+        "proxy",
+        &format!("fn main() {{ print!(\"{{}}\", {READY:?}); }}\n"),
+    );
+    let manifest_file = rig.root.join("proxy").join(MANIFEST_FILE);
+    let mut manifest = fs::read_to_string(&manifest_file).unwrap();
+    manifest.push_str(
+        "\n[[secrets]]\nname = \"token\"\nenv = \"PROXY_SECRET\"\ndescription = \"Proxy token\"\n",
+    );
+    fs::write(&manifest_file, &manifest).unwrap();
+    let vault = Vault::default();
+    let disclosure = rig.manager.disclosure("proxy").unwrap();
+    let enabled = rig
+        .manager
+        .enable(&disclosure.candidate, true, &base())
+        .unwrap();
+    rig.manager.confirm_commit("proxy");
+    rig.manager
+        .set_secret("proxy", "token", "old-value", &vault)
+        .unwrap();
+    let old_keys: Vec<String> = vault.0.lock().unwrap().keys().cloned().collect();
+    assert_eq!(old_keys.len(), 1);
+
+    // The manifest changes and is approved again: the old value stays
+    // until the new one is stored.
+    manifest.push_str("\n# changed\n");
+    fs::write(&manifest_file, &manifest).unwrap();
+    let disclosure = rig.manager.disclosure("proxy").unwrap();
+    rig.manager
+        .enable(&disclosure.candidate, true, &enabled.config)
+        .unwrap();
+    rig.manager.confirm_commit("proxy");
+    assert!(vault.0.lock().unwrap().contains_key(&old_keys[0]));
+    rig.manager
+        .set_secret("proxy", "token", "new-value", &vault)
+        .unwrap();
+    let keys: Vec<String> = vault.0.lock().unwrap().keys().cloned().collect();
+    assert_eq!(keys.len(), 1, "{keys:?}");
+    assert_ne!(keys[0], old_keys[0]);
 }

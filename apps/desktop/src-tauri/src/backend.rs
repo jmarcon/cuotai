@@ -2834,7 +2834,10 @@ impl Backend {
                 .with_config(updated.clone())
                 .map(Arc::new)
                 .map_err(|error| l10n_to_json(&config_error_note(&error)))?;
-            loaded.file.save(updated).map_err(|e| edit_error_to_json(&e))?;
+            loaded
+                .file
+                .save(updated)
+                .map_err(|e| edit_error_to_json(&e))?;
             loaded.cycle = cycle;
             loaded.monitor = monitor;
             loaded.generation += 1;
@@ -4813,7 +4816,13 @@ fn input_account(
         oauth_existing: oauth_existing.as_ref(),
         oauth_authorized: completed.map(|c| c.config.clone()),
         oauth_login_params,
-        existing_params: None,
+        // The saved account's params (PRD 0028 RF7.3: its extension
+        // override and other params no field shows survive the edit;
+        // `build_account` keeps them only for the same provider).
+        existing_params: input
+            .index
+            .and_then(|index| config.accounts.get(index))
+            .map(|account| &account.params),
         credential_params,
         fields: &fields,
         interval_text: &input.interval,
@@ -6861,6 +6870,40 @@ mod tests {
             .await
             .expect("a tested account saves");
         assert_eq!(backend.loaded_config().await.accounts[0].name, "home");
+    }
+
+    /// PRD 0028 RF7.3: saving the dialog keeps an account's extension
+    /// override, which no field of the form shows.
+    #[test]
+    fn a_dialog_save_keeps_the_extension_override() {
+        let mut account = plain_account("Work");
+        account.params.insert(
+            cuotai_core::extensions::management::EXTENSION_OVERRIDE_PARAM.into(),
+            "proxy".into(),
+        );
+        let config = Config {
+            accounts: vec![account.clone()],
+            ..Config::default()
+        };
+        let input = AccountInput {
+            index: Some(0),
+            provider: account.provider,
+            name: "Renamed".into(),
+            peer_name: None,
+            credential: account.credential_env.clone().unwrap_or_default(),
+            fields: Vec::new(),
+            interval: String::new(),
+            group: None,
+            commit_login: false,
+            login_attempt: 0,
+            auth_mode: "credential".into(),
+            auth_options: BTreeMap::new(),
+            auth_params: BTreeMap::new(),
+            sessions: Vec::new(),
+            save_anyway: false,
+        };
+        let saved = input_account(&config, &input, None).unwrap();
+        assert_eq!(saved.extension_override(), Some("proxy"));
     }
 
     /// The dialog's save of the MiMo account at 0 with `paste` in its

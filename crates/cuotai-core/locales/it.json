@@ -1487,7 +1487,6 @@
   "events.summary.overage_ended": "Uso extra terminato",
   "overage.units_caveat": "Gli importi sono in unità del provider, non in denaro.",
   "edit_notice.provider_switch_oauth": "Al salvataggio, la credenziale OAuth dell'account {provider} viene eliminata dal vault.",
-  "edit_error.config_extension": "L'account dell'estensione non ha un extension_id valido, ripete l'id di un'altra estensione o ha campi di credenziale incompatibili.",
   "detect.hint": "{tool} è installato su questo dispositivo",
   "detect.consent.cursor_import": "Cuotai leggerà una volta il token di accesso dal database locale di Cursor per consultare il tuo utilizzo. Viene salvato nel portachiavi delle credenziali del sistema.",
   "detect.consent.native_login": "Cuotai aprirà l'accesso a {provider}; non viene letto nulla dalla cartella di {tool}.",

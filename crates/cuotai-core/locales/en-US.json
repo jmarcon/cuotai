@@ -1487,7 +1487,6 @@
   "events.summary.overage_ended": "Extra usage ended",
   "overage.units_caveat": "Amounts are in provider units, not money.",
   "edit_notice.provider_switch_oauth": "When you save, the OAuth credential of the {provider} account is deleted from the vault.",
-  "edit_error.config_extension": "The extension account has no valid extension_id, repeats another extension's id, or has incompatible credential fields.",
   "detect.hint": "{tool} is installed on this device",
   "detect.consent.cursor_import": "Cuotai will read the sign-in token from Cursor's local database once, to query your usage. It is stored in your system's credential vault.",
   "detect.consent.native_login": "Cuotai will open the {provider} sign-in; nothing is read from {tool}'s folder.",

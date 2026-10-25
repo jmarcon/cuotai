@@ -126,6 +126,11 @@ fn sha256_file(path: &Path) -> Option<String> {
 struct Record {
     #[serde(default)]
     approved: BTreeMap<String, Approval>,
+    /// PRD 0028 RF7.4: the secret scopes of manifests replaced by a newer
+    /// approval, per extension id (scope → secret names), whose vault
+    /// entries are deleted once the new manifest's value is stored.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    retired: BTreeMap<String, BTreeMap<String, Vec<String>>>,
 }
 
 /// The approvals the user gave, in the local data directory; injectable so
@@ -421,6 +426,16 @@ impl Consent {
             _ => {}
         }
         let previous = record.approved.insert(id.clone(), reviewed.clone());
+        if let Some(old) = previous
+            .as_ref()
+            .filter(|old| !old.secrets.is_empty() && old.secret_scope() != reviewed.secret_scope())
+        {
+            record
+                .retired
+                .entry(id.clone())
+                .or_default()
+                .insert(old.secret_scope(), old.secrets.clone());
+        }
         // Compute the generation while holding the state lock, but publish it
         // only after the consent file has committed. A failed write must not
         // mutate in-memory admission state.
@@ -555,6 +570,38 @@ impl Consent {
     }
 
     /// An unreadable or damaged record holds no approval.
+    /// PRD 0028 RF7.4: the retired scopes of `id` that still hold a value
+    /// for the secret `name`; they are forgotten here, so the caller deletes
+    /// their vault entries once (after the new value is stored).
+    pub(crate) fn take_retired_secret(&self, id: &str, name: &str) -> Vec<String> {
+        let _state = self
+            .shared
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut record = self.read();
+        let Some(scopes) = record.retired.get_mut(id) else {
+            return Vec::new();
+        };
+        let mut found = Vec::new();
+        for (scope, names) in scopes.iter_mut() {
+            if let Some(at) = names.iter().position(|known| known == name) {
+                names.remove(at);
+                found.push(scope.clone());
+            }
+        }
+        scopes.retain(|_, names| !names.is_empty());
+        if scopes.is_empty() {
+            record.retired.remove(id);
+        }
+        if !found.is_empty() {
+            if let Ok(bytes) = serde_json::to_vec(&record) {
+                let _ = crate::private_fs::write_file(&self.file, &bytes);
+            }
+        }
+        found
+    }
+
     fn read(&self) -> Record {
         std::fs::read(&self.file)
             .ok()

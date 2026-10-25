@@ -855,6 +855,11 @@ impl Manager {
         store
             .save(&secret_key(id, &approved.secret_scope(), name), &token)
             .map_err(|_| secret_storage())?;
+        // The value an older approved manifest kept under its own scope is
+        // deleted now that the new one is stored (never before).
+        for scope in self.consent.take_retired_secret(id, name) {
+            let _ = store.delete(&secret_key(id, &scope, name));
+        }
         // A run that failed for the missing value may go again at once.
         self.runner.forget(id);
         Ok(ActionResult {
