@@ -1005,6 +1005,9 @@ const ago = (min) => new Date(Date.now() - min * 60e3).toISOString();
 const dr = (account, provider, metrics, notes = [], status = "ready") => ({
   account, provider, checked_at: ago(3), status, metrics, notes, source: "demo", freshness: "fresh", clock_adjusted: false, last_good: null,
   class: "available", refresh_seconds: 300, uses_oauth: false, identity: { email: null, badges: [], copy: null }, model_count: null });
+// Demo notes are catalog texts (`demo.note.*`), so every language renders its own.
+const demoNote = (id, fallback) => ({ id: `demo.note.${id}`, params: {}, fallback });
+const drn = (account, provider, metrics, note, status) => ({ ...dr(account, provider, metrics, [note.fallback], status), notes_l10n: [note] });
 const demoReports = [
   dr("alex@example.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 120, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
   // PRD 0023: the exhausted week is also paying for extra usage ("Limit hit · on extra $6.25").
@@ -1023,18 +1026,18 @@ const demoReports = [
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
   dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),
   dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
-  dr("Personal", "anthropic_api", [], ["Credencial ausente ou expirada."], "authentication_error"),
-  dr("Pessoal", "mistral", [], ["HTTP 429: limite de requisições atingido."], "rate_limited"),
-  { ...dr("Dev", "cursor", [], ["Serviço indisponível no momento."], "error"), checked_at: ago(1),
+  drn("Personal", "anthropic_api", [], demoNote("auth", "Credencial ausente ou expirada."), "authentication_error"),
+  drn("Personal", "mistral", [], demoNote("rate", "HTTP 429: limite de requisições atingido."), "rate_limited"),
+  { ...drn("Dev", "cursor", [], demoNote("down", "Serviço indisponível no momento."), "error"), checked_at: ago(1),
     last_good: { checked_at: ago(42), metrics: [dm("Fast requests", 380, 500, 120, "quota", "monthly")] } },
-  dr("Work", "windsurf", [], ["Informe a variável de ambiente da credencial."], "needs_configuration"),
+  drn("Work", "windsurf", [], demoNote("config", "Informe a variável de ambiente da credencial."), "needs_configuration"),
   { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "quota", "other", "créditos")]),
     identity: { email: null, copy: { label: "ARN do perfil", value: "arn:aws:codewhisperer:us-east-1:123456789012:profile/EXAMPLEPROFILE" },
       badges: [{ tone: "accent", text: "IAM Identity Center" }, { tone: "info", text: "us-east-1" }, { tone: "good", text: "ativa" }] } },
   { ...dr("alex@example.com", "grok", [dm("On-demand", 1, 1, 100, "quota", "monthly")]), identity: { email: "alex@example.com", badges: [], copy: null } },
   dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false }]),
   // PRD 0005 RF4.2 fixtures: an Unavailable provider (no query) and an Undocumented one whose response broke the schema.
-  dr("Work", "poolside", [], ["Poolside não publica endpoint de uso/saldo por chave."], "unsupported"),
+  drn("Work", "poolside", [], demoNote("poolside", "Poolside não publica endpoint de uso/saldo por chave."), "unsupported"),
   { ...dr("Personal", "zed", [], ["Resposta incompatível com a interface de consulta; nenhum valor foi estimado."], "error"),
     notes_l10n: [{ id: "query.schema", params: {}, fallback: "Resposta incompatível com a interface de consulta; nenhum valor foi estimado." }] },
   // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
@@ -1331,12 +1334,12 @@ function demoNextNotice(reports) {
 const DEMO_ROUTER = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
 function demoAccess(r) {
   const level = demoLevelOf(r.provider);
-  const reason = level === "unavailable" ? dl(`access.reason.${r.provider}`, "Não há consulta pública de uso para esta credencial (demo).") : null;
+  const reason = level === "unavailable" ? dlx(`access.reason.${r.provider}`, "demo.access.reason", "Não há consulta pública de uso para esta credencial (demo).") : null;
   const url = level === "undocumented" ? `${DEMO_ROUTER}${r.provider}.js` : "https://example.com/docs (demo)";
   const changed = level === "undocumented" && r.status === "error" && r.notes_l10n?.some((n) => n.id === "query.schema")
     ? { id: "access.interface_changed", params: { evidence: url }, fallback: `A resposta não segue a interface interna conhecida: ela pode ter mudado sem aviso. Contrato de referência: ${url}` }
     : null;
-  return { level, label: demoLevel(level), summary: dl(`access.summary.${r.provider}`, "Consulta de uso de demonstração."), reason,
+  return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Consulta de uso de demonstração."), reason,
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
     explanation: r.status === "ready" ? null : reason ?? changed, session: demoSessionNotice(demoSessionState(r)) };
 }
@@ -1713,22 +1716,22 @@ const demo = {
   // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
   draft_access: async ({ provider }) => {
     const level = demoLevelOf(provider);
-    const reason = level === "unavailable" ? dl(`access.reason.${provider}`, "Não há consulta pública de uso para esta credencial (demo).") : null;
+    const reason = level === "unavailable" ? dlx(`access.reason.${provider}`, "demo.access.reason", "Não há consulta pública de uso para esta credencial (demo).") : null;
     return {
       level: demoLevel(level),
-      summary: dl(`access.summary.${provider}`, "Consulta de uso de demonstração."),
-      notes: [dl(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "Credencial da consulta (demo)."), ...(reason ? [reason] : [])],
-      cost_advisory: provider === "aws_bedrock" ? dl("access.cost_advisory", "Provedor cobrado por consulta (demo).") : null,
+      summary: dlx(`access.summary.${provider}`, "demo.access.summary", "Consulta de uso de demonstração."),
+      notes: [dlx(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "demo.access.credential_hint", "Credencial da consulta (demo)."), ...(reason ? [reason] : [])],
+      cost_advisory: provider === "aws_bedrock" ? dlx("access.cost_advisory", "demo.access.cost_advisory", "Provedor cobrado por consulta (demo).") : null,
       save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} A conta será gravada, mas mostrará este motivo em vez de números.` },
     };
   },
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
-    credential_help: { id: "credential_help.demo", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },
-    login: { modes: [{ id: "oauth", label: { id: "login.demo.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "login.demo.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "login.demo.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "login.demo.oauth.unavailable_reason", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
+    credential_help: { id: "demo.credential_help", params: {}, fallback: "Nome da variável de ambiente com a credencial (demo)." },
+    login: { modes: [{ id: "oauth", label: { id: "demo.login.oauth.label", params: {}, fallback: "Login OAuth (demo)" }, help: { id: "demo.login.oauth.help", params: {}, fallback: "No navegador de demonstração o login não executa." }, completion_notice: { id: "demo.login.oauth.completion", params: {}, fallback: "Login autorizado (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "demo.login.oauth.unavailable", params: {}, fallback: "Login indisponível na demonstração." } }], unsupported_reason: null },
     sessions: provider === "xiaomi_mimo" ? [DEMO_SESSION_SLOT] : [],
     session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
-    fields: [{ id: "field.demo.project_id", key: "project_id", label: { id: "field.demo.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "field.demo.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
-             { id: "field.demo.mode", key: "mode", label: { id: "field.demo.mode.label", params: {}, fallback: "Modo" }, help: { id: "field.demo.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "field.demo.mode.option.personal", index: 0, value: "personal", label: { id: "field.demo.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "field.demo.mode.option.org", index: 1, value: "org", label: { id: "field.demo.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
+    fields: [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
+             { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Modo" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Pessoal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organização" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
     : ["project_id", "mode"],
@@ -2401,6 +2404,8 @@ export const alertOf = (r) => ALERTS.find((c) => c.match(r)) ?? null;
 
 // Kiro de demonstração: um modo de login (oauth) e os campos de credencial, como no core.
 const dl = (id, fallback) => ({ id, params: {}, fallback });
+// The core's own id when the catalogs know it, else a demo id (so no language shows the Portuguese fallback).
+const dlx = (id, demoId, fallback) => dl(t(id) !== id ? id : demoId, fallback);
 // Default-mode level per provider, as `access::describe` classifies them (demo only).
 const DEMO_LEVELS = {
   derived: ["gemini_api", "vertex_ai", "groq"],
@@ -2418,22 +2423,22 @@ function demoKiroSchema() {
   const opts = (key, items) => items.map(([value, label], index) => ({ id: `${key}.${value}`, index, value, label: dl(`${key}.${value}`, label) }));
   return {
     credential_kind: "env", default_env: "KIRO_ACCESS_TOKEN", credential_help: dl("credential_help.kiro", "Access token Kiro (demo)."),
-    login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("login.oauth.label", "Login no navegador"), help: dl("login.oauth.help", "Login nativo no navegador do sistema."),
-      completion_notice: dl("login.oauth.completion", "Login autorizado (demo)."),
+    login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("demo.kiro.login.oauth.label", "Login no navegador"), help: dl("demo.kiro.login.oauth.help", "Login nativo no navegador do sistema."),
+      completion_notice: dl("demo.kiro.login.oauth.completion", "Login autorizado (demo)."),
       credential_store: "cuotai_vault", account_binding: { type: "none" },
       registration: [], unavailable_reason: null,
       options: [
-        { key: "auth_method", label: dl("o.auth_method", "Método de autenticação"), help: dl("o.auth_method.h", "builder-id ou idc."), required: false, validation: "none", choices: opts("o.auth_method", [["builder-id", "AWS Builder ID"], ["idc", "IAM Identity Center"]]) },
-        { key: "region", label: dl("o.region", "Região (opcional)"), help: dl("o.region.h", ""), required: false, validation: "no_whitespace", choices: null },
-        { key: "start_url", label: dl("o.start_url", "URL de início IDC (opcional)"), help: dl("o.start_url.h", ""), required: false, validation: "no_whitespace", choices: null },
+        { key: "auth_method", label: dl("demo.kiro.o.auth_method", "Método de autenticação"), help: dl("demo.kiro.o.auth_method.h", "builder-id ou idc."), required: false, validation: "none", choices: opts("demo.kiro.o.auth_method", [["builder-id", "AWS Builder ID"], ["idc", "IAM Identity Center"]]) },
+        { key: "region", label: dl("demo.kiro.o.region", "Região (opcional)"), help: dl("demo.kiro.o.region.h", ""), required: false, validation: "no_whitespace", choices: null },
+        { key: "start_url", label: dl("demo.kiro.o.start_url", "URL de início IDC (opcional)"), help: dl("demo.kiro.o.start_url.h", ""), required: false, validation: "no_whitespace", choices: null },
       ] }] },
     fields: [
-      { key: "auth_method", label: dl("f.auth_method", "Método de autenticação"), help: dl("f.auth_method.h", "Origem do access token."), required: false,
+      { key: "auth_method", label: dl("demo.kiro.f.auth_method", "Método de autenticação"), help: dl("demo.kiro.f.auth_method.h", "Origem do access token."), required: false,
         options: [
-          ...opts("f.auth_method", [["builder-id", "AWS Builder ID (padrão)"], ["idc", "IAM Identity Center"]]).map((option) => ({ ...option, auth_modes: ["oauth"], unavailable_reason: dl(`${option.id}.unavailable`, "Disponível somente no login nativo.") })),
-          ...opts("f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Importado"], ["api_key", "API key"], ["external_idp", "IdP externo"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl(`${option.id}.unavailable`, "Disponível somente com credencial de ambiente.") })),
+          ...opts("demo.kiro.f.auth_method", [["builder-id", "AWS Builder ID (padrão)"], ["idc", "IAM Identity Center"]]).map((option) => ({ ...option, auth_modes: ["oauth"], unavailable_reason: dl("demo.kiro.f.auth_method.login_only", "Disponível somente no login nativo.") })),
+          ...opts("demo.kiro.f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Importado"], ["api_key", "API key"], ["external_idp", "IdP externo"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl("demo.kiro.f.auth_method.env_only", "Disponível somente com credencial de ambiente.") })),
         ] },
-      { key: "profile_arn", label: dl("f.profile_arn", "ARN do perfil CodeWhisperer (opcional)"), help: dl("f.profile_arn.h", ""), required: false, options: null },
+      { key: "profile_arn", label: dl("demo.kiro.f.profile_arn", "ARN do perfil CodeWhisperer (opcional)"), help: dl("demo.kiro.f.profile_arn.h", ""), required: false, options: null },
     ],
   };
 }

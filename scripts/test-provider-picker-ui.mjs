@@ -135,6 +135,37 @@ for (const [provider, kind, tool] of lib.DEMO_NATIVE_DETECT) {
   const mark = lib.logo(provider, 32);
   assert.ok(mark && !mark.includes(`>${provider}<`), `${kind}: brand logo`);
 }
+// Demo fixtures go through the catalogs: no pt-BR word leaks into the add-account dialog's texts (form schema,
+// access draft, login refusal) or the demo accounts' notes when the language is en-US, es or it.
+{
+  // Words only Portuguese has (checked in every language) and words es/it share with it (checked in en-US only).
+  const PT_ONLY = /(?<![\p{L}])(não|variável|demonstração|Organização|Serviço|indisponível|requisições|Região|Pessoal|momento atual)(?![\p{L}])/iu;
+  const PT_SHARED = /(?<![\p{L}])(Modo|Opcional|credencial|Consulta|ausente|expirada|Informe|autorizado|Método|perfil|momento|navegador)(?![\p{L}])/iu;
+  const PT = { test: (text) => PT_ONLY.test(text) || (i18n.currentLocale() === "en-US" && PT_SHARED.test(text)) };
+  const l10n = (node, out = []) => {
+    if (Array.isArray(node)) node.forEach((x) => l10n(x, out));
+    else if (node && typeof node === "object") {
+      if (typeof node.id === "string" && typeof node.fallback === "string") out.push(node);
+      Object.values(node).forEach((x) => l10n(x, out));
+    }
+    return out;
+  };
+  const refusal = await lib.loginSubmitCode("x").catch((e) => e);
+  const values = [...l10n(refusal)];
+  const plain = [];
+  for (const p of providers) {
+    values.push(...l10n(await lib.formSchema(p.id)), ...l10n(await lib.draftAccess(p.id, "credential", {})));
+  }
+  for (const r of (await lib.getView()).reports) { values.push(...l10n(r.notes_l10n ?? [])); if (!r.notes_l10n?.length) plain.push(...r.notes); }
+  assert.ok(values.length > 20, "the walk found the demo's localized texts");
+  for (const code of ["en-US", "es", "it"]) {
+    await i18n.setLocale(code);
+    const leaks = [...new Set(values.filter((v) => PT.test(i18n.tl(v))).map((v) => `${v.id} -> "${i18n.tl(v)}"`))];
+    leaks.push(...plain.filter((n) => PT.test(n)).map((n) => `plain note "${n}"`));
+    assert.deepEqual(leaks, [], `${code}: Portuguese in the demo fixtures`);
+  }
+  await i18n.setLocale("en-US");
+}
 const about = await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/src/about.rs", root)), "utf8");
 assert.ok(about.includes(`"${lib.NEW_PROVIDER_URL}"`), "the new-provider address is allow-listed by open_external");
 console.log("provider picker UI smoke: ok");
